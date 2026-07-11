@@ -92,3 +92,10 @@
         :title-card (:title-pause-ms pb-config)
         :summary (:result-pause-ms pb-config)
         (:default-pause-ms pb-config))))
+
+(defn scenario-command
+  "Extract the scenario execution command from the spec.
+  Looks for a section with :id :run (convention) that contains the scenario execution."
+  [spec]
+  (when-let [run-section (first (filter #(= :run (:id %)) (sections spec)))]
+    (:command run-section)))

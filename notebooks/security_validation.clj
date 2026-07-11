@@ -23,13 +23,10 @@
 (ns notebooks.security-validation
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]
-            [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [resolver-sim.notebook-support.common :as common]
             [resolver-sim.notebook-support.nav :as nav]
             [resolver-sim.notebook-support.security :as sec]
-            [resolver-sim.io.scenario-fixture-sync :as sync]
             [resolver-sim.protocols.sew.invariant-scenarios :as scenarios]))
 
 ;; Hardcoded scenario display entries validated against canonical list at load time.

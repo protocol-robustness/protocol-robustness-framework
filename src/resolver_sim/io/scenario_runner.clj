@@ -984,7 +984,7 @@
 
 (defn- build-minimal-error-root
   "Build a minimal bundle-root for error recovery when the normal path fails."
-  [dispatch protocol-id source-provenance error]
+  [_ protocol-id _ error]
   {:bundle/schema-version "bundle-root.v1"
    :bundle/id             "error-recovery"
    :run/request           {:runner/backend :local-current
