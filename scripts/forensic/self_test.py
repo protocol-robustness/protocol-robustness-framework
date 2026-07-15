@@ -129,7 +129,7 @@ def compare_clojure_bundles(a: dict, b: dict) -> tuple[list[dict], list[str]]:
     return checks, notes
 
 
-def self_test(run_request_path: str = "workspaces/forensic-runner/inputs/run-request.edn",
+def self_test(run_request_path: str = "examples/forensic-reference-run/run-request.example.edn",
               output_base: str | Path | None = None) -> int:
     if output_base is None:
         output_base = PRF_RUNS_ROOT
@@ -309,7 +309,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Forensic self-test: validate pipeline determinism")
     parser.add_argument("--run-request",
-                        default="workspaces/forensic-runner/inputs/run-request.edn",
+                        default="examples/forensic-reference-run/run-request.example.edn",
                         help="Path to run request file")
     parser.add_argument("--output-base", default=str(PRF_RUNS_ROOT),
                         help=f"Output base directory (default: {PRF_RUNS_ROOT})")

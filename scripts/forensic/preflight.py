@@ -7,7 +7,7 @@ or to the specified output path.
 
 Usage:
     python3 scripts/forensic/preflight.py --run-request <path> [--output <path>]
-    python3 scripts/forensic/preflight.py --run-request workspaces/forensic-runner/inputs/run-request.edn
+    python3 scripts/forensic/preflight.py --run-request examples/forensic-reference-run/run-request.example.edn
 """
 
 from __future__ import annotations
@@ -483,14 +483,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="Forensic preflight check")
     parser.add_argument("--run-request",
-                        default="workspaces/forensic-runner/inputs/run-request.edn",
-                        help="Path to run request file (default: workspaces/forensic-runner/inputs/run-request.edn)")
+                        default="examples/forensic-reference-run/run-request.example.edn",
+                        help="Path to run request file (default: examples/forensic-reference-run/run-request.example.edn)")
     parser.add_argument("--registry-snapshot",
-                        default="workspaces/forensic-runner/inputs/registry-snapshot.edn",
-                        help="Path to registry snapshot file (default: workspaces/forensic-runner/inputs/registry-snapshot.edn)")
+                        default="examples/forensic-reference-run/registry-snapshot.example.edn",
+                        help="Path to registry snapshot file (default: examples/forensic-reference-run/registry-snapshot.example.edn)")
     parser.add_argument("--evidence-policy",
-                        default="workspaces/forensic-runner/policies/evidence-policy.edn",
-                        help="Path to evidence policy file (default: workspaces/forensic-runner/policies/evidence-policy.edn)")
+                        default="config/forensic/evidence-policy.edn",
+                        help="Path to evidence policy file (default: config/forensic/evidence-policy.edn)")
     parser.add_argument("--output-dir",
                         help="Target output directory for the run")
     parser.add_argument("--output", "-o",

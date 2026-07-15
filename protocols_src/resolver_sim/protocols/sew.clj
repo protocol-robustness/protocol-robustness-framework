@@ -209,15 +209,11 @@
     (or (:workflow-id p) (compat/wf-id event))))
 
 (defn- event-slash-id
-  "Normalize a scenario slash reference before dispatch. Canonical integer IDs
-   and registered legacy aliases resolve here; transition functions receive the
-   resolved value and never probe alternate string formats. During migration an
-   unresolved legacy reference is returned unchanged so existing legacy storage
-   can be handled until Phase 3 converts all creation paths."
-  [world event]
-  (let [p   (:params event)
-        raw (or (:slash-id p) (:workflow-id p) (compat/wf-id event))]
-    (or (t/resolve-slash-id-alias world raw) raw)))
+  "Return the canonical slash ID supplied by a replay event. Scenario bindings
+   and semantic references have already been resolved before dispatch."
+  [_world event]
+  (let [p (:params event)]
+    (or (:slash-id p) (:workflow-id p) (compat/wf-id event))))
 
 (defn- event-slash-bps
   [event]
@@ -1194,21 +1190,15 @@
     (fn [addr _agent _provenance]
       (let [workflow-id (event-workflow-id event)
             slash-id (event-slash-id world event)
-            slash-id' (if (get-in world [:pending-fraud-slashes slash-id])
-                        slash-id
-                        (or (some #(when (get-in world [:pending-fraud-slashes %]) %)
-                                  [(str workflow-id "-reversal-0")
-                                   (str workflow-id "-force-reversal-0")])
-                            slash-id))
-            slash-entry (get-in world [:pending-fraud-slashes slash-id'])
+            slash-entry (get-in world [:pending-fraud-slashes slash-id])
             resolver-caller (or (:resolver slash-entry) addr)
             provenance (build-force-authorisation-provenance
                         context event addr
                         {:reason :appeal-bond-custody
                          :capacity-context {:workflow-id workflow-id
-                                            :slash-id slash-id'
-                                            :resolver resolver-caller}})
-            result (res/appeal-slash world workflow-id resolver-caller slash-id'
+                                            :slash-id slash-id
+                                                                                        :resolver resolver-caller}})
+                                                        result (res/appeal-slash world workflow-id resolver-caller slash-id
                                      :authorization-provenance provenance)]
         (if (:ok result)
           (update result :extra merge {:authorization/provenance provenance})

@@ -15,7 +15,7 @@
    :invariant-ids ["no-double-settlement"]
    :expectations-passed 2
    :invariants-passed 1
-   :simulator/scenario-path "scenarios/S56_same-block-dual-resolution-order-invariant.json"
+   :simulator/scenario-path "scenarios/edn/S56_same-block-dual-resolution-order-invariant.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "pending-settlement-expiry-v1"
@@ -29,7 +29,7 @@
    :invariant-ids ["no-stale-pending-settlements"]
    :expectations-passed 2
    :invariants-passed 1
-   :simulator/scenario-path "scenarios/S57_pending-settlement-expiry-boundary-1s.json"
+   :simulator/scenario-path "scenarios/edn/S57_pending-settlement-expiry-boundary-1s.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "escalation-after-terminal-v1"
@@ -43,7 +43,7 @@
    :invariant-ids ["terminal-states-unchanged"]
    :expectations-passed 2
    :invariants-passed 1
-   :simulator/scenario-path "scenarios/S58_escalation-after-terminal-hard-reject.json"
+   :simulator/scenario-path "scenarios/edn/S58_escalation-after-terminal-hard-reject.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "force-refund-illegal-release-v1"
@@ -57,7 +57,7 @@
    :invariant-ids ["terminal-states-unchanged" "single-resolution-payout-consistent"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/S64_force-refund-then-illegal-release-attempt.json"
+   :simulator/scenario-path "scenarios/edn/S64_force-refund-then-illegal-release-attempt.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "escalation-supersedes-pending-v1"
@@ -71,7 +71,7 @@
    :invariant-ids ["pending-settlement-consistent" "escalation-level-monotonic"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/S65_escalation-supersedes-old-pending-then-old-path-attempt.json"
+   :simulator/scenario-path "scenarios/edn/S65_escalation-supersedes-old-pending-then-old-path-attempt.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}]
 
  :invariants

@@ -114,6 +114,10 @@ def check_exists(run_dir: Path, rel_path: str,
     if full.exists():
         return VerifyCheck(key=key, status="pass",
                            message=f"{rel_path} exists", severity=severity)
+    if severity == "info":
+        return VerifyCheck(key=key, status="info",
+                           message=f"Optional {rel_path} not found at {full}",
+                           severity=severity)
     return VerifyCheck(key=key, status="fail",
                        message=f"{rel_path} not found at {full}",
                        severity=severity)

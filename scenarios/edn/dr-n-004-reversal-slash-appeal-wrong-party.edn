@@ -62,7 +62,7 @@
    :time 1201,
    :agent "watchdog",
    :action "appeal_slash",
-   :params {:workflow-id 0, :slash-id "0-reversal-0"}}),
+   :params {:workflow-id 0, :slash-id {:slash-ref {:workflow-id 0, :kind :reversal, :level 0}}}
  :schema-version "1.0",
  :accounting
  {:unit "USDC",

@@ -1014,7 +1014,14 @@
         (let [suite-key (:suite dispatch)
               run-id (str "run-" (java.time.Instant/now))
               structured? (boolean (:run-root dispatch))
+              ;; The Python forensic runner supplies PRF_ARTIFACT_DIR for an
+              ;; isolated per-run artifact tree. Treat that as a finalizing
+              ;; evidence run even when it does not use the structured-run
+              ;; directory layout.
+              forensic-artifact-dir (System/getenv "PRF_ARTIFACT_DIR")
+              finalize-evidence? (boolean (or structured? forensic-artifact-dir))
               artifact-dir (or (:artifact-dir dispatch) (:output-dir dispatch)
+                               forensic-artifact-dir
                                (str "./prf-runs/" run-id))
               execution-dir (:execution-dir dispatch)
               _ (when (and structured? (nil? execution-dir))
@@ -1044,7 +1051,7 @@
               (chain/with-fresh-registry
                 (chain/with-fresh-chain-cursor
                   (binding [ts/*tsa-url* (or tsa-url ts/*tsa-url*)
-                            *finalize-evidence?* structured?
+                            *finalize-evidence?* finalize-evidence?
                             evcfg/*artifact-dir* artifact-dir]
                     (let [exec-spec (-> (build-execution-node-spec
                                          dispatch opts runner-selection

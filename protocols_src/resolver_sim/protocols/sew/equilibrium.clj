@@ -7,8 +7,7 @@
      Mechanism properties:
        :individual-rationality       — uses terminal-payoff canonical model
        :budget-balance-detailed      — uses terminal-payoff decomposition"
-   (:require [clojure.string :as str]
-             [resolver-sim.scenario.subgame-counterfactual :as subgame-cf]
+   (:require [resolver-sim.scenario.subgame-counterfactual :as subgame-cf]
              [resolver-sim.economics.terminal-payoff :as tp]))
 
 ;; ---------------------------------------------------------------------------
@@ -631,9 +630,10 @@
    pending-fraud-slashes produced by force-reversal-slash."
   [{:keys [pending-fraud-slashes]}]
   (let [force-reversals (->> pending-fraud-slashes
-                             (filter (fn [[k _]] (str/includes? k "-force-reversal-"))))
+                             (filter (fn [[_ slash]]
+                                       (= :force-reversal (:slash/kind slash)))))
         bad (->> force-reversals
-                 (filter (fn [[_ v]] (not (pos? (:amount v 0)))))
+                 (filter (fn [[_ slash]] (not (pos? (:amount slash 0)))))
                  (mapv first))]
     (if (seq bad)
       (fail :force-reversal-path-integrity :single-trace-terminal-proxy

@@ -2,13 +2,13 @@
  :schema-version "1.0"
  :allow-open-disputes? true
  :purpose "adversarial-robustness"
- :title "Track 2 reversal slash: execute-fraud-slash without explicit slash-id fails (defaults to workflow-id integer)"
- :description "Same setup as DR-L-001 but execute-fraud-slash is called WITHOUT the explicit slash-id param. The dispatch defaults to workflow-id (integer 0), which does not match the reversal slash entry key (string '0-reversal-0'). The call fails with :no-pending-slash. Demonstrates the caller-responsibility bug: reversal slash IDs use level-scoped string format but the default behavior uses integer workflow-ids."
+ :title "Track 2 reversal slash: execute-fraud-slash with unknown slash-id fails"
+ :description "Same setup as DR-L-001 but execute-fraud-slash is called with an unknown canonical integer slash-id 999. Since no pending slash exists with slash-id 999, the call fails with :slash-not-found. Demonstrates that execute-fraud-slash requires a valid slash-id matching an existing pending slash entry."
  :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
  :claim {:id "track2-pending-slash-wrong-id-fails"
-         :statement "Calling execute-fraud-slash on a Track 2 reversal slash without passing the explicit level-scoped slash-id fails with :no-pending-slash, because the slash-id defaults to the integer workflow-id rather than the string '0-reversal-0' format used by reversal slashes."
-         :falsifies-if ["execute-fraud-slash WITHOUT slash-id succeeds on a reversal slash"
-                        "The slash executes despite slash-id mismatch"
+         :statement "Calling execute-fraud-slash on a Track 2 reversal slash with an unknown slash-id (999) fails with :slash-not-found, because no pending slash entry exists for that ID."
+         :falsifies-if ["execute-fraud-slash WITH unknown slash-id succeeds"
+                        "The slash executes despite invalid slash-id"
                         "The scenario passes without the expected failure"]}
  :expectations {:terminal-state "refunded"
                 :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
@@ -16,8 +16,7 @@
                           :execute_fraud_slash_failed? {:eq true}}}
  :threat {:family "resolution-slashing" :attack "track2-pending-slash-wrong-id" :severity "high"
           :actors ["keeper"] :victims ["protocol"]
-          :assumptions ["execute-fraud-slash without slash-id defaults to workflow-id integer"
-                       "Reversal slash keys are strings like '0-reversal-0' mismatching the default"]}
+          :assumptions ["execute-fraud-slash requires valid slash-id matching an existing pending slash"]}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "protocol" "slashPool"]}
  :initial-block-time 1000
  :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
@@ -43,8 +42,7 @@
            :params {:workflow-id 0}}
           {:seq 7 :time 1200 :agent "resolver-l1" :action "execute_resolution"
            :params {:workflow-id 0 :is-release false :resolution-hash "0xreversal"}}
-          ;; Call execute_fraud_slash WITHOUT slash-id — defaults to workflow-id integer 0
-          ;; Reversal slash stored under "0-reversal-0" (string), not 0 (integer)
-          ;; Expected: :no-pending-slash failure, slash_count remains 0
+          ;; Call execute_fraud_slash with slash-id 999 — no pending slash with that ID exists
+          ;; Expected: :slash-not-found failure, slash_count remains 0
           {:seq 8 :time 1400 :agent "keeper" :action "execute_fraud_slash"
-           :params {:workflow-id 0}}]}
+           :params {:workflow-id 0 :slash-id 999}}]}

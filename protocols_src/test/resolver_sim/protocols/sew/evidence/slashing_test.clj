@@ -30,7 +30,7 @@
    :ctx/event-index 5
    :ctx/event-type "execute_resolution"
    :subject/type :slash
-   :subject/id "test-slash"
+   :subject/id 0
    :action/type :slash/execute
    :evidence/reason :fraud-slash-executed})
 
@@ -44,7 +44,7 @@
     (:evidence
      (slashing/build-prorata-slash-evidence
       {:world world
-       :slash-id "test-slash"
+                      :slash-id 0
        :workflow-id 0
        :resolver :test-resolver
        :epoch 0
@@ -208,7 +208,7 @@
                       :evidence evidence
                       :artifact {:allocation-result-hash "test-artifact-hash"}
                       :allocation-result allocation-result
-                      :slash-id "test-slash"
+       :slash-id 0
                       :workflow-id 0})]
       (is (some? (:node-hash exec-node)) "execution node has :node-hash")
       (is (some? (node/lookup-node (:node-hash exec-node)))
@@ -237,7 +237,7 @@
                       :evidence (build-evidence)
                       :artifact {:allocation-result-hash "test"}
                       :allocation-result allocation-result
-                      :slash-id "test" :workflow-id 0})]
+                      :slash-id 0 :workflow-id 0})]
       (is (some? (node/lookup-node (:node-hash claim-eval-node)))
           "claim-eval node is in registry")
       (is (some? (node/lookup-node (:node-hash exec-node)))
@@ -259,7 +259,7 @@
                       :evidence (build-evidence)
                       :artifact {:allocation-result-hash "test-artifact"}
                       :allocation-result allocation-result
-                      :slash-id "test" :workflow-id 0})]
+                      :slash-id 0 :workflow-id 0})]
       (is (string? (get-in exec-node [:extensions :pro-rata/projection-hash]))
           "execution node extensions include projection-hash")
       (is (string? (get-in exec-node [:extensions :pro-rata/re-projection-hash]))

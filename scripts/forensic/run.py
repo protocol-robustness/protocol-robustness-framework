@@ -583,10 +583,10 @@ def _bundle_scenario_files(run_dir: Path, suite_key: str) -> None:
 
 # ── Main run orchestrator ──────────────────────────────────────────────────
 
-def run_forensic(run_request_path: str = "workspaces/forensic-runner/inputs/run-request.edn",
+def run_forensic(run_request_path: str = "examples/forensic-reference-run/run-request.example.edn",
                  label: str | None = None,
-                 registry_snapshot_path: str = "workspaces/forensic-runner/inputs/registry-snapshot.edn",
-                 evidence_policy_path: str = "workspaces/forensic-runner/policies/evidence-policy.edn",
+                 registry_snapshot_path: str = "examples/forensic-reference-run/registry-snapshot.example.edn",
+                 evidence_policy_path: str = "config/forensic/evidence-policy.edn",
                  output_base: str | Path | None = None,
                  repo_root: str | Path | None = None,
                  dry_run: bool = False,
@@ -902,21 +902,32 @@ def run_forensic(run_request_path: str = "workspaces/forensic-runner/inputs/run-
             anchor_cursor["anchor/note"] = "Local timestamp — no external TSA configured"
         write_sealed_json(run_dir / "anchors/anchor-cursor.json", anchor_cursor)
 
-        # Step 10: Post-run full verification
+        # Step 10: Post-run full verification. A bundle is not successful unless
+        # it verifies, even when the scenario pipeline itself exited successfully.
         print(f"\n--- Post-run Verification ---", file=sys.stderr)
+        verification_failed = False
         try:
             v_report = verify_run(str(run_dir))
             v_summary = v_report.summary
             if v_report.status == "fail":
+                verification_failed = True
                 print(f"  Verification FAILED: {v_summary['fail']} check(s) failed",
                       file=sys.stderr)
+                for check in v_report.checks:
+                    if check.get("check/status") == "fail":
+                        print(f"    - {check.get('check/key')}: {check.get('check/message')}",
+                              file=sys.stderr)
             else:
                 print(f"  Verification {v_report.status} "
                       f"({v_summary['pass']} pass, {v_summary['fail']} fail, "
                       f"{v_summary['warning']} warn)",
                       file=sys.stderr)
         except Exception as e:
+            verification_failed = True
             print(f"  Verification error: {e}", file=sys.stderr)
+
+        if verification_failed:
+            exit_code = 1
 
         # Step 11: Make output tree immutable (skip on failure — enables cleanup)
         if no_harden:
@@ -949,15 +960,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="Forensic run orchestrator")
     parser.add_argument("--run-request",
-                        default="workspaces/forensic-runner/inputs/run-request.edn",
-                        help="Path to run request file (default: workspaces/forensic-runner/inputs/run-request.edn)")
+                        default="examples/forensic-reference-run/run-request.example.edn",
+                        help="Path to run request file (default: examples/forensic-reference-run/run-request.example.edn)")
     parser.add_argument("--label", help="Human-readable label for the run")
     parser.add_argument("--registry-snapshot",
-                        default="workspaces/forensic-runner/inputs/registry-snapshot.edn",
-                        help="Path to registry snapshot file (default: workspaces/forensic-runner/inputs/registry-snapshot.edn)")
+                        default="examples/forensic-reference-run/registry-snapshot.example.edn",
+                        help="Path to registry snapshot file (default: examples/forensic-reference-run/registry-snapshot.example.edn)")
     parser.add_argument("--evidence-policy",
-                        default="workspaces/forensic-runner/policies/evidence-policy.edn",
-                        help="Path to evidence policy file (default: workspaces/forensic-runner/policies/evidence-policy.edn)")
+                        default="config/forensic/evidence-policy.edn",
+                        help="Path to evidence policy file (default: config/forensic/evidence-policy.edn)")
     parser.add_argument("--output-base",
                         default=str(PRF_RUNS_ROOT),
                         help="Base directory for run output (default: ~/prf-runs)")

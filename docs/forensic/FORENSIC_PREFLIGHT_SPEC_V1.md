@@ -144,7 +144,8 @@ Each new check MUST have:
 
 ## 8. References
 
-- FORENSIC_WORKSPACE_SPEC_V1 — workspace class definitions
+- CAPABILITIES.md — forensic bundle workflow layout and scope
+- TRUST_MODEL.md — workflow assurance boundaries
 - RUN_REQUEST_SPEC_V1 — canonical run request format
 - EVIDENCE_POLICY_SPEC_V1 — evidence policy specification
 - HASH_INTENT_REGISTRY_SPEC_V1 — hash intent registry specification

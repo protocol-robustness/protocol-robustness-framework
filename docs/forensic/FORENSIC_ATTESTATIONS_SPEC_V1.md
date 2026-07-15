@@ -229,6 +229,6 @@ As of 2026-06-27, the `attestations/` directory is created empty by
   `register-additional-artifact!`
 - `schemas/attestation.v1.json` — Attestation JSON Schema
 - `docs/forensic/FORENSIC_CLAIMS_SPEC_V1.md` — Claim evaluation result spec
-- `docs/forensic/FORENSIC_WORKSPACE_SPEC_V1.md` — Workspace layout
+- `docs/forensic/CAPABILITIES.md` — Forensic bundle workflow layout
 - `scripts/forensic/run.py` — Forensic run orchestrator
 - `scripts/forensic/verify.py` — Bundle verification

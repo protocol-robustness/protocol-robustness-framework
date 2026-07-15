@@ -1,6 +1,6 @@
-;; run-request.edn — Sample run request
+;; run-request.example.edn — illustrative input only
 ;;
-;; Edit for your specific forensic run. See RUN_REQUEST_SPEC_V1 for the
+;; Copy and replace all placeholders for a specific forensic run. See RUN_REQUEST_SPEC_V1 for the
 ;; complete field specification.
 
 {:run-request/schema-version "run-request.v1"
@@ -26,11 +26,11 @@
 
  ;; Evidence policy reference
  :evidence-policy  {:policy-id :forensic-default-v1
-                    :policy-path "workspaces/forensic-runner/policies/evidence-policy.edn"}
+                    :policy-path "config/forensic/evidence-policy.edn"}
 
  ;; Execution policy reference
  :execution-policy {:policy-id :forensic-execution-v1
-                    :policy-path "workspaces/forensic-runner/policies/execution-policy.edn"}
+                    :policy-path "config/forensic/execution-policy.edn"}
 
  ;; Network policy
  :network-policy   :deny

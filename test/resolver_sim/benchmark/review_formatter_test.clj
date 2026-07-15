@@ -71,8 +71,12 @@
   (let [world {:previous-decisions {0 {0 {:resolver "0xl0" :is-release true}
                                       1 {:resolver "0xl1" :is-release false}}}
                :dispute-levels {0 1}
-               :pending-fraud-slashes {"0-reversal-0"
-                                       {:reason :reversal
+               :pending-fraud-slashes {0
+                                       {:slash/id 0
+                                        :slash/workflow-id 0
+                                        :slash/kind :reversal
+                                        :slash/level 0
+                                        :reason :reversal
                                         :workflow-id 0
                                         :level 0
                                         :resolver "0xl0"
@@ -80,8 +84,12 @@
                                         :amount 2500
                                         :appeal-deadline 1200
                                         :appeal-bond-held 100}}
-               :reversal-slash-history {"1-reversal-0"
-                                        {:reason :reversal
+               :reversal-slash-history {1
+                                        {:slash/id 1
+                                         :slash/workflow-id 1
+                                         :slash/kind :reversal
+                                         :slash/level 0
+                                         :reason :reversal
                                          :workflow-id 1
                                          :level 0
                                          :resolver "0xl0"

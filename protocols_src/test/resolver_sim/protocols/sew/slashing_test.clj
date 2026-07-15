@@ -39,18 +39,14 @@
                :slash/kind :reversal
                :slash/level 0
                :slash/status :appealable}
-        world' (t/insert-slash world slash)
-        world'' (t/register-slash-alias world' "0-reversal-0" slash-id)]
+        world' (t/insert-slash world slash)]
     (is (= 0 slash-id))
     (is (= slash (get-in world' [:pending-fraud-slashes slash-id])))
     (is (= slash-id (get-in world' [:slash-by-context [0 :reversal 0]])))
     (is (= 1 (:next-slash-id world')))
     (is (= slash (t/slash-for-workflow world' 0 slash-id)))
     (is (nil? (t/slash-for-workflow world' 1 slash-id)))
-    (is (= slash-id (t/resolve-slash-id-alias world'' "0-reversal-0")))
-    (is (= slash-id (t/resolve-slash-id-alias world'' slash-id)))
-    (is (nil? (t/resolve-slash-id-alias world'' "unknown-slash")))
-    (is (= [slash] (t/slash-registry->canonical world'')))
+    (is (= [slash] (t/slash-registry->canonical world')))
     (is (thrown? Exception (t/insert-slash world' slash)))))
 
 (deftest canonical-slash-projection-rejects-legacy-or-inconsistent-registry-keys
@@ -64,6 +60,17 @@
                  (t/slash-registry->canonical
                   {:pending-fraud-slashes {0 {:slash/id 1
                                                :slash/workflow-id 0}}})))))
+
+(deftest string-slash-id-rejected-at-mutation-boundaries
+  (testing "string slash IDs are rejected with :invalid-slash-id at execute-fraud-slash, appeal-slash, resolve-appeal"
+    (let [world (t/empty-world 1000)
+          string-id "0-reversal-0"]
+      (is (= :invalid-slash-id (:error (res/execute-fraud-slash world 0 string-id))))
+      (is (= :invalid-slash-id (:error (res/appeal-slash world 0 "0xRes" string-id))))
+      (is (= :invalid-slash-id (:error (res/resolve-appeal world 0 "0xGov" true string-id
+                                                            :authorization-provenance
+                                                            {:authorization/type :governance
+                                                             :authorization/basis :test})))))))
 
 (deftest scenario-slash-references-resolve-at-the-adapter-boundary
   (let [slash {:slash/id 7 :slash/workflow-id 0
@@ -1259,7 +1266,7 @@
           {:keys [evidence]}
           (slashing-ev/build-prorata-slash-evidence
            {:world world0
-            :slash-id "0-fraud-slash-0"
+            :slash-id 0
             :workflow-id 0
             :epoch 0
             :trigger :fraud-slash

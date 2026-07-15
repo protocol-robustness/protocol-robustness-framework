@@ -13,7 +13,7 @@
                         "Resolve-appeal does not work with reversal slash-id"]}
  :expectations {:terminal-state "refunded"
                 :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
-                :metrics {:slash_status {:eq :executed :slash-id "0-reversal-0"}}}
+                :metrics {:slash_status {:eq :executed :slash-ref {:workflow-id 0 :kind :reversal :level 0}}}}
  :threat {:family "resolver-misconduct" :attack "manual-reversal-slash-lifecycle" :severity "high"
           :actors ["l0resolver"] :victims ["buyer"]
           :assumptions ["New evidence submitted creates Track 2 (pending) reversal slash"]}

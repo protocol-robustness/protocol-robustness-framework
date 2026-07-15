@@ -260,8 +260,7 @@
         (if-not (and (some? prev-decision)
                      (not= (:is-release prev-decision) current-is-release))
           world
-          (let [legacy-slash-id (str workflow-id "-reversal-" (dec level))
-                slash-level     (dec level)
+          (let [slash-level     (dec level)
                 prev-resolver   (:resolver prev-decision)]
             ;; Idempotency: if a reversal entry already exists for this level, skip.
             ;; Also skip if a pending/appealed slash targets the same resolver on this
@@ -269,9 +268,6 @@
             ;; same dispute).  Different levels target different resolvers (L0 vs L1),
             ;; so the scan checks resolver + workflow-id, not just workflow-id alone.
             (if (or (get-in world [:slash-by-context [workflow-id :reversal slash-level]])
-                    ;; Retain recognition of pre-migration entries while new
-                    ;; slashes use the canonical context index.
-                    (get-in world [:pending-fraud-slashes legacy-slash-id])
                     (some (fn [[_id entry]]
                             (and (= (:workflow-id entry) workflow-id)
                                  (= (:resolver entry) prev-resolver)
@@ -302,8 +298,7 @@
                     world'   (if new-evidence?
                                world
                                (:world (reg/slash-resolver-stake world prev-resolver slash-amt challenger bounty-bps workflow-id true)))]
-                (-> (t/insert-slash world' entry)
-                    (t/register-slash-alias legacy-slash-id slash-id))))))))))))
+                (t/insert-slash world' entry)))))))))))
 
 (defn force-reversal-slash
   "Force a reversal slash on a workflow without going through the full resolution
@@ -324,11 +319,8 @@
    schema, same `slash-resolver-stake` call, same invariants apply."
   [world workflow-id & {:keys [slash-bps track authorization-provenance]
                         :or   {track :pending}}]
-  (let [legacy-slash-id (str workflow-id "-force-reversal-0")
-        slash-level     0]
-    (if (or (get-in world [:slash-by-context [workflow-id :force-reversal slash-level]])
-            ;; Preserve idempotence for worlds containing pre-migration entries.
-            (get-in world [:pending-fraud-slashes legacy-slash-id]))
+  (let [slash-level 0]
+    (if (get-in world [:slash-by-context [workflow-id :force-reversal slash-level]])
       world
       (let [level       (t/dispute-level world workflow-id)
             prev-decision (when (pos? level)
@@ -356,8 +348,7 @@
                 world'   (if (= :immediate track)
                            (:world (reg/slash-resolver-stake world prev-resolver slash-amt nil 0 workflow-id))
                            world)]
-            (-> (t/insert-slash world' entry)
-                (t/register-slash-alias legacy-slash-id slash-id))))))))
+            (t/insert-slash world' entry)))))))
 
 (defn- reverse-reversal-slash-on-vindication
   "When a higher-level resolution agrees with a lower-level decision that was
@@ -468,7 +459,7 @@
 
    Checks both the exact key path AND scans all pending-fraud-slash entries for any
    that reference the same workflow-id.  This catches cross-type collisions where
-   a reversal slash (stored at string key like \"0-reversal-0\") would be missed by
+   a reversal slash stored under a different integer ID would be missed by
    an exact integer-key lookup."
   [world slash-id]
   (let [wf-id           (when (integer? slash-id) slash-id)
@@ -539,9 +530,8 @@
                  "propose-fraud-slash"
                  authorization-provenance)]
       ;; The workflow-ID alias preserves legacy scenario ingestion only; the
-      ;; canonical registry itself is keyed solely by the allocated slash ID.
-      (-> (t/insert-slash world entry)
-          (t/register-slash-alias workflow-id slash-id)))))
+      ;; Canonical registry is keyed solely by the allocated slash ID.
+      (t/insert-slash world entry))))
 
 (defn update-unavailability
   "Idempotent resolver unavailability accounting + circuit breaker trigger.

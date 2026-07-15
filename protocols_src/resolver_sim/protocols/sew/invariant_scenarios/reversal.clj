@@ -123,7 +123,8 @@
     {:seq 6 :time 1200 :agent "l1" :action "execute_resolution"
      :params {:workflow-id 0 :is-release false :resolution-hash "0xl1"}}
     {:seq 7 :time 1201 :agent "l0" :action "appeal_slash"
-     :params {:workflow-id 0 :slash-id "0-reversal-0"}}]})
+     :params {:workflow-id 0
+                   :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 0}}}}]})
 
 ;; S105 — escalate_dispute records challenger (same reversal settlement as challenge)
 (def s105

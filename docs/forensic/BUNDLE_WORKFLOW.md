@@ -1,12 +1,14 @@
-# Forensic Runner Usage Guide
+# Forensic Bundle Workflow
 
-The forensic runner produces independently verifiable evidence of scenario
-execution. Every output bundle is self-describing, content-addressed,
-optionally signed, and verifiable by a third party.
+The forensic bundle workflow produces scenario-execution bundles with recorded
+inputs, provenance, self-hashes, optional signatures, and verification tools.
+These properties support reproducibility and tamper detection; they do not by
+themselves establish a constrained or isolated execution environment. See
+`TRUST_MODEL.md` for the assurance boundaries.
 
-All commands run from the **project root**, not from this workspace directory.
-There is no `bb.edn` in this workspace — the `bb` tasks are defined at the
-project root level.
+All commands run from the **project root**. The default configuration is in
+`config/forensic/`; illustrative inputs are in
+`examples/forensic-reference-run/`.
 
 ---
 
@@ -52,7 +54,7 @@ bb forensic:self-test
 Full forensic execution pipeline.
 
 ```bash
-# Run with default sample inputs
+# Run with the illustrative reference inputs
 bb forensic:run
 
 # With a custom run request and label
@@ -100,10 +102,10 @@ bb forensic:run --dry-run
 ├── clojure-bundle-root.json    # Clojure-side bundle root
 ├── evidence-dag/               # copied evidence node files
 ├── evidence-dag-inventory.json # inventory of evidence DAG
-├── claims/                     # empty (populated by Clojure)
-├── attestations/               # empty (populated by Clojure)
+├── claims/                     # claim results when produced
+├── attestations/               # attestations when produced
 ├── anchors/
-│   └── anchor-cursor.json      # mock anchor
+│   └── anchor-cursor.json      # local proof or RFC 3161 reference when configured
 └── self-test-report.json       # only if bb forensic:self-test was run
 ```
 
@@ -322,7 +324,8 @@ semantically parsed (Phase A — inventory only).
 
 ## See Also
 
-- `docs/forensic/FORENSIC_WORKSPACE_SPEC_V1.md`
+- `docs/forensic/CAPABILITIES.md`
+- `docs/forensic/TRUST_MODEL.md`
 - `docs/forensic/FORENSIC_PREFLIGHT_SPEC_V1.md`
 - `docs/forensic/FORENSIC_HARDENING.md`
 - `docs/forensic/PRODUCTION_GAPS.md`

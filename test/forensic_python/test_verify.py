@@ -149,6 +149,13 @@ class TestCheckAttestationsContent:
 
 
 class TestVerifyRun:
+    def test_missing_optional_file_is_informational(self, tmp_path: Path):
+        """Optional artifacts must not be reported as failed verification checks."""
+        run_dir = make_minimal_bundle(tmp_path)
+        result = verify.check_exists(run_dir, "run-output.log", severity="info")
+        assert result.status == "info"
+        assert result.severity == "info"
+
     def test_minimal_bundle_passes(self, tmp_path: Path):
         """A minimally valid bundle must pass verify."""
         run_dir = make_minimal_bundle(tmp_path)

@@ -11,7 +11,7 @@
  :expectations {:terminal-state "released"
                 :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
                 :metrics {:resolver_net_profit {:lt 0 :scope "0xl0"}
-                          :slash_status {:eq :executed :slash-id "0-reversal-0"}}}
+                          :slash_status {:eq :executed :slash-ref {:workflow-id 0 :kind :reversal :level 0}}}}
  :threat {:family "resolver-misconduct" :attack "biased-ruling-auto-slashed" :severity "high"
           :actors ["l0resolver"] :victims ["buyer"]
           :assumptions ["reversal-slash-bps > 0" "No new evidence submitted at L1"]}

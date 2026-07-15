@@ -10,8 +10,8 @@ output organization, attestation rules, yield distribution, and risk adjustment.
 
 Policy definitions fall into two categories:
 
-1. **Forensic runner policy definitions** (EDN files in `workspaces/forensic-runner/policies/`)
-   — consumed by the forensic run pipeline to govern a specific run.
+1. **Forensic execution configuration** (EDN files in `config/forensic/`)
+   — versioned configuration inputs for a specific forensic bundle run.
 2. **Source-level policy implementations** (Clojure in `src/` and `protocols_src/`)
    — compiled policy logic for attestation, yield allocation, and risk adjustment.
 
@@ -41,7 +41,7 @@ to reference which policies were applied, supporting later verification.
 
 ## 3. Forensic Runner Policy Definitions
 
-Three EDN files live in `workspaces/forensic-runner/policies/`:
+Three EDN files live in `config/forensic/`:
 
 | File | Policy Type | Purpose |
 |---|---|---|
@@ -51,7 +51,7 @@ Three EDN files live in `workspaces/forensic-runner/policies/`:
 
 ### 3.1 Evidence Policy
 
-**File:** `workspaces/forensic-runner/policies/evidence-policy.edn`
+**File:** `config/forensic/evidence-policy.edn`
 **Schema:** `"evidence-policy.v1"`
 
 Controls the content and retention of the evidence DAG produced during a run.
@@ -88,7 +88,7 @@ Controls the content and retention of the evidence DAG produced during a run.
 
 ### 3.2 Execution Policy
 
-**File:** `workspaces/forensic-runner/policies/execution-policy.edn`
+**File:** `config/forensic/execution-policy.edn`
 **Schema:** `"execution-policy.v1"`
 
 Controls how the forensic runner selects a runner, handles determinism, selects
@@ -139,7 +139,7 @@ scenarios, and constrains network access.
 
 ### 3.3 Output Policy
 
-**File:** `workspaces/forensic-runner/policies/output-policy.edn`
+**File:** `config/forensic/output-policy.edn`
 **Schema:** `"output-policy.v1"`
 
 Controls how and where forensic output is written, organized, and serialized.
@@ -297,9 +297,9 @@ that produced the evidence.
 
 | Document | Location |
 |---|---|
-| Evidence policy sample | `workspaces/forensic-runner/policies/evidence-policy.edn` |
-| Execution policy sample | `workspaces/forensic-runner/policies/execution-policy.edn` |
-| Output policy sample | `workspaces/forensic-runner/policies/output-policy.edn` |
+| Evidence policy configuration | `config/forensic/evidence-policy.edn` |
+| Execution policy configuration | `config/forensic/execution-policy.edn` |
+| Output policy configuration | `config/forensic/output-policy.edn` |
 | Attestation policy source | `src/resolver_sim/evidence/attestation_policy.clj` |
 | Attestation policy tests | `test/resolver_sim/evidence/attestation_policy_test.clj` |
 | Yield policy source | `protocols_src/resolver_sim/protocols/sew/yield/policy.clj` |

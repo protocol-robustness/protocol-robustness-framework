@@ -3,7 +3,7 @@
  :allow-open-disputes? true
  :purpose "adversarial-robustness"
  :title "Multi-level vindication: 4-level ladder with no re-vindication drift"
- :description "4-level escalation ladder (L0→L1→L2→L3). L0 rules release. L1 reverses to refund (L0 auto-slashed, 0-reversal-0). L2 reverses to release (L1 auto-slashed, 0-reversal-1; L0 vindicated). L3 reverses to refund (L2 auto-slashed, 0-reversal-2; L1 vindicated). Verifies that: L0 vindicated exactly once (not duplicated), L1 subsequently vindicated by L3, L2 stays penalized as the lowest reversing resolver, L3 not penalized (final level), no duplicate credits or slashes across levels."
+  :description "4-level escalation ladder (L0→L1→L2→L3). L0 rules release. L1 reverses to refund (L0 auto-slashed at reversal level 0). L2 reverses to release (L1 auto-slashed at reversal level 1; L0 vindicated). L3 reverses to refund (L2 auto-slashed at reversal level 2; L1 vindicated). Verifies that: L0 vindicated exactly once (not duplicated), L1 subsequently vindicated by L3, L2 stays penalized as the lowest reversing resolver, L3 not penalized (final level), no duplicate credits or slashes across levels."
  :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
  :claim {:id "multi-level-vindication-stability"
          :statement "In a 4-level ladder with alternating reversals, each resolver is vindicated exactly once by a higher level that agrees with them. No duplicate credits or slashes occur. Only the lowest reversing resolver who was not themselves vindicated retains their slash."
@@ -52,10 +52,10 @@
           {:seq 5 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
           ;; L0 rules: release
           {:seq 6 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
-          ;; L1 reverses to refund — Track 1 on L0 (0-reversal-0, executed)
-          {:seq 7 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
-          ;; L2 reverses to release — Track 1 on L1 (0-reversal-1, executed); L0 vindicated
-          {:seq 8 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
-          ;; L3 reverses to refund — Track 1 on L2 (0-reversal-2, executed); L1 vindicated
+           ;; L1 reverses to refund — Track 1 on L0 (reversal level 0, executed)
+           {:seq 7 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+           ;; L2 reverses to release — Track 1 on L1 (reversal level 1, executed); L0 vindicated
+           {:seq 8 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
+           ;; L3 reverses to refund — Track 1 on L2 (reversal level 2, executed); L1 vindicated
           ;; L3 is final round — resolution executes immediately
           {:seq 9 :time 1250 :agent "l3resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl3refund"}}]}

@@ -46,12 +46,12 @@
             :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
            ;; Escalate to L1
            {:seq 6 :time 1120 :agent "seller" :action "escalate_dispute" :params {:workflow-id 0}}
-           ;; L1 reverses to refund — Track 1 auto-slash on L0 (slash-id "0-reversal-0", :executed)
+           ;; L1 reverses to refund — Track 1 auto-slash on L0 (reversal level 0, :executed)
            {:seq 7 :time 1150 :agent "l1resolver" :action "execute_resolution"
             :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
            ;; Escalate to L2
            {:seq 8 :time 1180 :agent "buyer" :action "escalate_dispute" :params {:workflow-id 0}}
-           ;; L2 rules release (agrees with L0) — Track 1 auto-slash on L1 (slash-id "0-reversal-1", :executed)
+           ;; L2 rules release (agrees with L0) — Track 1 auto-slash on L1 (reversal level 1, :executed)
            ;; L2 is final round — executes immediately (no pending settlement)
            ;; With vindication fix: L0's auto-slash is reversed, L1's auto-slash stays
            {:seq 9 :time 1200 :agent "l2resolver" :action "execute_resolution"

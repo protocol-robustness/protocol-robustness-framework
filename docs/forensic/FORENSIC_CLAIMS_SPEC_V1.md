@@ -185,6 +185,6 @@ The planned implementation phases are:
 - `src/resolver_sim/evidence/chain.clj` — `forensic-status`,
   `finalize-and-attest!`, `verify-registry-hash`
 - `schemas/claim.v1.json` — Claim definition JSON Schema
-- `docs/forensic/FORENSIC_WORKSPACE_SPEC_V1.md` — Workspace layout
+- `docs/forensic/CAPABILITIES.md` — Forensic bundle workflow layout
 - `scripts/forensic/run.py` — Forensic run orchestrator
 - `scripts/forensic/verify.py` — Bundle verification

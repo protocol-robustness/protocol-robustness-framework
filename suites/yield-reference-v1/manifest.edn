@@ -16,7 +16,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/Y01_vault-shared-liquidity.json"
+   :simulator/scenario-path "scenarios/edn/Y01_vault-shared-liquidity.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-auto-shortfall-v1"
@@ -30,7 +30,7 @@
    :invariant-ids ["yield-shortfall-splits" "yield-deferred-reclaim"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/Y05_auto-generated-shortfall.json"
+   :simulator/scenario-path "scenarios/edn/Y05_auto-generated-shortfall.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-mostly-liquid-partial-v1"
@@ -44,7 +44,7 @@
    :invariant-ids ["yield-shortfall-splits" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/S80_yield-mostly-liquid-partial-liquidity.json"
+   :simulator/scenario-path "scenarios/edn/S80_yield-mostly-liquid-partial-liquidity.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   ;; ── Short-duration accrual ────────────────────────────────────────────
@@ -59,7 +59,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation" "yield-exposure"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S88_yield-accrual-efficiency.json"
+   :simulator/scenario-path "scenarios/edn/S88_yield-accrual-efficiency.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   ;; ── Long-horizon accrual ──────────────────────────────────────────────
@@ -74,7 +74,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation" "yield-exposure"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S68_yield-aave-long-horizon-10y-monthly-accrual.json"
+   :simulator/scenario-path "scenarios/edn/S68_yield-aave-long-horizon-10y-monthly-accrual.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-fixed-long-accrual-v1"
@@ -88,7 +88,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/S69_yield-fixed-long-horizon-10y-quarterly-accrual.json"
+   :simulator/scenario-path "scenarios/edn/S69_yield-fixed-long-horizon-10y-quarterly-accrual.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-resolver-accrual-v1"
@@ -102,7 +102,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/S110_resolver-yield-accrual.json"
+   :simulator/scenario-path "scenarios/edn/S110_resolver-yield-accrual.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-resolver-frozen-accrual-v1"
@@ -116,7 +116,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation" "yield-exposure"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S87_resolver-frozen-while-yield-due.json"
+   :simulator/scenario-path "scenarios/edn/S87_resolver-frozen-while-yield-due.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   ;; ── Accrual stability / rounding ──────────────────────────────────────
@@ -131,7 +131,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation" "yield-exposure"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S73_yield-rounding-drift-repeated-small-accruals.json"
+   :simulator/scenario-path "scenarios/edn/S73_yield-rounding-drift-repeated-small-accruals.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   ;; ── Mid-accrual governance ────────────────────────────────────────────
@@ -146,7 +146,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 2
-   :simulator/scenario-path "scenarios/S84_yield-protocol-fee-mid-accrual.json"
+   :simulator/scenario-path "scenarios/edn/S84_yield-protocol-fee-mid-accrual.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-accrual-reorg-v1"
@@ -160,7 +160,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation" "yield-exposure"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S83_yield-accrual-reorg-race.json"
+   :simulator/scenario-path "scenarios/edn/S83_yield-accrual-reorg-race.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   ;; ── Partial liquidity ─────────────────────────────────────────────────
@@ -175,7 +175,7 @@
    :invariant-ids ["yield-shortfall-splits" "yield-deferred-reclaim" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S78_yield-aave-partial-liquidity-release.json"
+   :simulator/scenario-path "scenarios/edn/S78_yield-aave-partial-liquidity-release.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-aave-partial-dispute-v1"
@@ -189,7 +189,7 @@
    :invariant-ids ["yield-shortfall-splits" "yield-deferred-reclaim" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S79_yield-aave-partial-liquidity-dispute-resolution.json"
+   :simulator/scenario-path "scenarios/edn/S79_yield-aave-partial-liquidity-dispute-resolution.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   {:id "yield-aave-governance-disable-v1"
@@ -203,7 +203,7 @@
    :invariant-ids ["yield-shortfall-splits" "yield-deferred-reclaim" "yield-value-conservation"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S80_yield-aave-partial-liquidity-governance-disable-post-create.json"
+   :simulator/scenario-path "scenarios/edn/S80_yield-aave-partial-liquidity-governance-disable-post-create.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   ;; ── Token variability ─────────────────────────────────────────────────
@@ -218,7 +218,7 @@
    :invariant-ids ["yield-position-consistency" "yield-value-conservation" "yield-exposure"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S85_fot-token-yield-accrual.json"
+   :simulator/scenario-path "scenarios/edn/S85_fot-token-yield-accrual.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
   ;; ── Deferred recovery ─────────────────────────────────────────────────
@@ -233,7 +233,7 @@
    :invariant-ids ["yield-deferred-reclaim" "yield-value-conservation" "yield-position-consistency"]
    :expectations-passed 2
    :invariants-passed 3
-   :simulator/scenario-path "scenarios/S115_claim-deferred-yield-recovery.json"
+   :simulator/scenario-path "scenarios/edn/S115_claim-deferred-yield-recovery.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}]
 
  :invariants

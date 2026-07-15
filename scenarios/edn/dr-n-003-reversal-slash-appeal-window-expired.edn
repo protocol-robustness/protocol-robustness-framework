@@ -61,7 +61,7 @@
    :time 1261,
    :agent "gov",
    :action "execute_fraud_slash",
-   :params {:workflow-id 0, :slash-id "0-reversal-0"}}
+   :params {:workflow-id 0, :slash-id {:slash-ref {:workflow-id 0, :kind :reversal, :level 0}}}
   {:seq 9,
    :time 1300,
    :agent "keeper",

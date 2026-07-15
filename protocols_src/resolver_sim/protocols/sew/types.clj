@@ -259,9 +259,7 @@
      ;; is responsible for normalizing pre-v2 string slash identifiers.
      :pending-fraud-slashes {} ; {slash-id {:slash/id :slash/workflow-id ...}}
      :slash-by-context     {} ; {[workflow-id kind level] slash-id}
-     ;; Legacy scenario identifiers map to canonical slash IDs. This index is
-     ;; consulted only by replay/action ingestion, never by mutation helpers.
-     :slash-id-aliases     {}
+
      :next-slash-id        0
      :previous-decisions  {}   ; {wf-id {level {:resolver :is-release}}}
      :challengers         {}   ; {wf-id {level challenger-addr}} — for Phase L Bounties
@@ -367,32 +365,6 @@
              (valid-entity-id? slash-id))
     (let [slash (get-in world [:pending-fraud-slashes slash-id])]
       (when (= workflow-id (:slash/workflow-id slash)) slash))))
-
-(defn register-slash-alias
-  "Register a legacy input alias for a canonical slash ID.
-   Aliases are an ingestion compatibility mechanism and are deliberately not
-   part of the canonical slash registry or canonical hash projection."
-  [world alias slash-id]
-  (when-not (valid-entity-id? slash-id)
-    (throw (ex-info "Cannot register alias for invalid slash ID" {:slash-id slash-id})))
-  (when-not (contains? (:pending-fraud-slashes world) slash-id)
-    (throw (ex-info "Cannot register alias for unknown slash" {:slash-id slash-id})))
-  (let [existing (get-in world [:slash-id-aliases alias])]
-    (when (and (some? existing) (not= existing slash-id))
-      (throw (ex-info "Slash alias is already bound to another slash"
-                      {:alias alias :existing-slash-id existing :slash-id slash-id})))
-    (assoc-in world [:slash-id-aliases alias] slash-id)))
-
-(defn resolve-slash-id-alias
-  "Resolve a slash identifier at an ingestion boundary.
-   Canonical integer IDs pass through unchanged; registered legacy aliases
-   resolve to their canonical integer ID. Unknown values return nil so the
-   caller can issue a specific public validation error."
-  [world slash-ref]
-  (cond
-    (and (valid-entity-id? slash-ref)
-         (contains? (:pending-fraud-slashes world) slash-ref)) slash-ref
-    :else (get-in world [:slash-id-aliases slash-ref])))
 
 (defn slash-registry->canonical
   "Project the internal integer-keyed slash registry into portable, canonical

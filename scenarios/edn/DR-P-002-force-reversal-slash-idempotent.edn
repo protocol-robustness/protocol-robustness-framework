@@ -45,7 +45,7 @@
           {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
           ;; L0 rules: release
           {:seq 4 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
-          ;; L1 reverses to refund — Track 1 auto-slash on L0 (0-reversal-0, executed)
+          ;; L1 reverses to refund — Track 1 auto-slash on L0 (canonical reversal slash at level 0)
           {:seq 5 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
           ;; First force-reversal-slash — should execute (or be rejected if auto-track already exists)
           {:seq 6 :time 1200 :agent "governance" :action "force_reversal_slash" :params {:workflow-id 0 :resolver "0xl0"}}

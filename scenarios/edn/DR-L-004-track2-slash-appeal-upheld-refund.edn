@@ -3,11 +3,11 @@
  :allow-open-disputes? true
  :purpose "adversarial-robustness"
  :title "Track 2 reversal slash: appeal upheld, slash reversed, bond refunded"
- :description "Track 2 pending reversal slash created via submit-evidence + reversal. Resolver appeals within window. Governance upholds the appeal: slash is reversed, appeal bond is refunded via claimable. Verifies the upheld path for reversal slashes with string slash-ids."
+  :description "Track 2 pending reversal slash created via submit-evidence + reversal. Resolver appeals within window. Governance upholds the appeal: slash is reversed, appeal bond is refunded via claimable. Verifies the upheld path for reversal slashes via canonical slash-ref."
  :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
  :claim {:id "track2-slash-appeal-upheld-reversal-slash-id"
-         :statement "When governance upholds a slash appeal for a Track 2 reversal slash (with string slash-id '0-reversal-0'), the slash is reversed and the appeal bond is refunded."
-         :falsifies-if ["resolve-appeal fails with correct string slash-id"
+          :statement "When governance upholds a slash appeal for a Track 2 reversal slash, the slash is reversed and the appeal bond is refunded."
+          :falsifies-if ["resolve-appeal fails with correct slash-ref"
                         "Slash is not reversed after upheld appeal"
                         "Appeal bond is not refunded"]}
 :expected-failures {:dr-l-004-track2-slash-appeal-upheld-refund [:no-stale-automatable-escrows]}
@@ -16,7 +16,7 @@
                          :appeal_bond_refunded? {:eq true}}}
  :threat {:family "resolution-slashing" :attack "track2-appeal-upheld-reversal-slash-id" :severity "high"
           :actors ["resolver"] :victims ["protocol"]
-          :assumptions ["Governance can uphold a slash appeal with string slash-id"]}
+           :assumptions ["Governance can uphold a slash appeal with slash-ref"]}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "governance" "protocol" "claimableBalances"]}
  :initial-block-time 1000
  :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000

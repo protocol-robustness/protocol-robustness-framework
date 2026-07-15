@@ -6,8 +6,8 @@
  :description "New evidence submitted between L0 and L1 resolution triggers Track 2 (pending) reversal slashing. The pending slash has an appeal window. After window expires, execute-fraud-slash with correct level-scoped slash-id executes: stake deducted, resolver frozen."
  :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
  :claim {:id "track2-pending-slash-correct-id-executes"
-         :statement "Track 2 reversal slashing creates a pending slash with appeal deadline. After expiry, execute-fraud-slash with the correct string slash-id ('0-reversal-0') executes the slash: resolver stake deducted, resolver frozen."
-         :falsifies-if ["execute-fraud-slash returns :no-pending-slash with correct slash-id"
+          :statement "Track 2 reversal slashing creates a pending slash with appeal deadline. After expiry, execute-fraud-slash with the correct slash-ref executes the slash: resolver stake deducted, resolver frozen."
+          :falsifies-if ["execute-fraud-slash returns :slash-not-found with correct slash-ref"
                         "Resolver stake not reduced after execution"
                         "Resolver not frozen after execution"
                         "Slash status not :executed after execution"]}
@@ -19,7 +19,7 @@
  :threat {:family "resolution-slashing" :attack "track2-pending-slash-lifecycle" :severity "high"
           :actors ["resolver"] :victims ["buyer"]
           :assumptions ["submit-evidence sets evidence-updated? flag"
-                       "execute-fraud-slash with string slash-id works"]}
+                        "execute-fraud-slash with slash-ref works"]}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "protocol" "slashPool"]}
  :initial-block-time 1000
  :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000

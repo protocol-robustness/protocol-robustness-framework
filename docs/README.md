@@ -72,15 +72,17 @@ Primary project framing and status live in the root `../README.md`.
 | `specs/PRF_CLI_ARCHITECTURE_V1.md` | JAR-first CLI, command registry, dispatch, bb parity |
 | `specs/COMMANDS.md` | Registered backstop command tiers |
 
-### Forensic runner
+### Forensic bundle workflow
 
 | Document | Description |
 |---|---|
 | `forensic/POLICY_DEFINITIONS_SPEC_V1.md` | Evidence, execution, and output policy EDN definitions |
 | `forensic/FORENSIC_ATTESTATIONS_SPEC_V1.md` | Attestation records in forensic run bundles |
 | `forensic/FORENSIC_CLAIMS_SPEC_V1.md` | Claim result records in forensic run bundles |
+| `forensic/CAPABILITIES.md` | Workflow scope and repository layout |
+| `forensic/TRUST_MODEL.md` | Enforced versus recorded controls and assurance limits |
+| `forensic/BUNDLE_WORKFLOW.md` | Run, verify, export, and reproduce command reference |
 | `forensic/FORENSIC_PREFLIGHT_SPEC_V1.md` | Preflight validation for forensic runs |
-| `forensic/FORENSIC_WORKSPACE_SPEC_V1.md` | Workspace classes and boundaries |
 | `forensic/FORENSIC_HARDENING.md` | Production hardening and configuration |
 | `forensic/PRODUCTION_READINESS.md` | Production readiness checklist |
 | `forensic/PRODUCTION_GAPS.md` | Identified production gaps |
