@@ -1,5 +1,5 @@
 (ns resolver-sim.io.scenario-run-root-test
-  "End-to-end containment tests for the optional structured bb scenario runner.
+  "End-to-end containment tests for the structured bb scenario runner.
 
    These intentionally invoke bb rather than calling the runner directly: path
    ownership is an orchestration contract." 
@@ -7,12 +7,14 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
             [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]))
+            [clojure.test :refer [deftest is testing]]
+            [resolver-sim.commands.scenario-run :as scenario-command]))
 
 (def ^:private legacy-roots ["results/runs" "results/test-artifacts" "prf-runs" "prf-artifacts"])
 (def ^:private settlement-scenario "scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn")
 (def ^:private pro-rata-scenario "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn")
 (def ^:private settlement-slug "S-DR-084-evidence-after-settlement-rejected")
+(def ^:private settlement-directory-slug (scenario-command/scenario-slug settlement-scenario))
 
 (defn- delete-tree! [path]
   (let [file (io/file path)]
@@ -30,6 +32,16 @@
 
 (defn- run-structured! [scenario run-root]
   (shell/sh "bb" "run:scenario" scenario "-a" "--run-root" (.getCanonicalPath (io/file run-root))))
+
+(defn- generated-run-roots [slug]
+  (let [runs-dir (io/file "results/runs")
+        prefix (str slug "-")]
+    (if (.exists runs-dir)
+      (->> (.listFiles runs-dir)
+           (filter #(.isDirectory %))
+           (filter #(str/starts-with? (.getName %) prefix))
+           (set))
+      #{})))
 
 (defn- registry [run-root]
   (json/read-str (slurp (io/file run-root "manifest/artifacts.json")) :key-fn keyword))
@@ -67,12 +79,26 @@
                       "summaries.trace-plain"
                       "state.world-final"}))))
 
+(deftest default-run-creates-a-contained-generated-root
+  (let [before (generated-run-roots settlement-slug)
+        result (shell/sh "bb" "run:scenario" settlement-scenario "-a")
+        generated (vec (remove before (generated-run-roots settlement-slug)))]
+    (try
+      (is (zero? (:exit result)) (:err result))
+      (is (= 1 (count generated)) "default invocation must create one run root")
+      (when-let [root (first generated)]
+        (assert-contained-registry! root)
+        (is (.isFile (io/file root "scenarios" settlement-directory-slug "execution/replay-output.json"))))
+      (finally
+        (doseq [root generated]
+          (delete-tree! root))))))
+
 (deftest structured-run-is-contained-and-complete
   (with-temp-root
     (fn [root]
       (let [before (directory-snapshot)
             result (run-structured! settlement-scenario root)
-            slug-root (io/file root "scenarios" settlement-slug)
+            slug-root (io/file root "scenarios" settlement-directory-slug)
             execution (io/file slug-root "execution")
             enrichment (json/read-str (slurp (io/file root "manifest/run-enrichment.json")) :key-fn keyword)]
         (is (zero? (:exit result)) (:err result))
@@ -84,9 +110,9 @@
         (is (.isFile (io/file slug-root "forensic/evidence-registry.json")))
         (is (re-find #"^evidence-chain:sha256:[0-9a-f]{64}$"
                      (get-in enrichment [:execution :chain-root-ref])))
-        (is (= (str "scenarios/" settlement-slug "/execution/execution-dag.json")
+        (is (= (str "scenarios/" settlement-directory-slug "/execution/execution-dag.json")
                (get-in enrichment [:execution :dag-path])))
-        (is (= (str "scenarios/" settlement-slug "/execution/pre-run-commitment.json")
+        (is (= (str "scenarios/" settlement-directory-slug "/execution/pre-run-commitment.json")
                (get-in enrichment [:execution :pre-run-commitment-path])))
         (is (not (.exists (io/file slug-root "raw/replay-output.json"))))
         (is (not (.exists (io/file slug-root "test-run.json"))))

@@ -28,7 +28,7 @@ bb test:framework
 # Framework plus Sew unit tests
 bb test:unit
 
-# Run one registered scenario
+# Run one registered scenario (writes a self-contained bundle under results/runs/)
 bb run:scenario <scenario-id>
 
 # Run a parameterized simulation
@@ -43,7 +43,7 @@ For a self-contained structured execution bundle, use the canonical option:
 bb run:scenario <scenario-id> --run-root <dir>
 ```
 
-`--output-dir`, `--scenario-output-dir`, and `--save-output` are temporary compatibility aliases for `--run-root`. At the CLI, the **run root** is the complete bundle (`manifest/` plus `scenarios/<slug>/...`). Internally, an **artifact directory** is only the low-level `scenarios/<slug>/forensic/` destination supplied to evidence and forensic writers. With no output-root option, the legacy scattered output behavior remains unchanged.
+`--output-dir`, `--scenario-output-dir`, and `--save-output` are temporary compatibility aliases for `--run-root`. At the CLI, the **run root** is the complete bundle (`manifest/` plus `scenarios/<slug>/...`). Internally, an **artifact directory** is only the low-level `scenarios/<slug>/forensic/` destination supplied to evidence and forensic writers. When no output-root option is supplied, the runner generates a unique bundle under `results/runs/<scenario-slug>-<timestamp>-<nonce>/`; it does not use the legacy scattered-output path.
 
 ## Canonical test-runner targets
 

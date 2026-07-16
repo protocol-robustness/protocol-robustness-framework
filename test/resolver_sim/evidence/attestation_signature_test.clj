@@ -73,6 +73,14 @@
                (:reason (sig/verify-attestation-signature
                          (assoc a :attestation/claim-result :rejected) registry))))))
 
+(deftest invalid-ed25519-signature-is-rejected
+  (let [[a registry] (signed-fixture)
+        tampered (assoc-in a [:attestation/signature :signature-bytes]
+                            (apply str (repeat 128 "0")))
+        result (sig/verify-attestation-signature tampered registry)]
+    (is (false? (:valid? result)))
+    (is (= :invalid-signature (:reason result)))))
+
 (deftest legacy-envelope-is-not-v1
   (let [result (sig/validate-signature-envelope
                 {:algorithm :ed25519 :public-key-id "legacy" :signature-bytes "deadbeef"})]

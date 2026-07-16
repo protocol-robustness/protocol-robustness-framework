@@ -331,7 +331,7 @@ def check_bundle_signature(run_dir: Path,
     if not pk_path.exists():
         return VerifyCheck(key="bundle-signature", status="fail",
                            message=f"Public key not found at {pk_path}",
-                           severity="warning")
+                           severity="required")
 
     try:
         clj_code = (
@@ -349,11 +349,11 @@ def check_bundle_signature(run_dir: Path,
                                severity="warning")
         return VerifyCheck(key="bundle-signature", status="fail",
                            message=f"Ed25519 signature INVALID (key: {kid or public_key_path})",
-                           severity="warning")
+                           severity="required")
     except Exception as e:
-        return VerifyCheck(key="bundle-signature", status="error",
+        return VerifyCheck(key="bundle-signature", status="fail",
                            message=f"Signature verification error: {e}",
-                           severity="warning")
+                           severity="required")
 
 
 def check_results_summary(run_dir: Path) -> VerifyCheck:

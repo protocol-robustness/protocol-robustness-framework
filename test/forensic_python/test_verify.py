@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,12 +16,13 @@ import pytest
 import sys
 _project_root = Path(__file__).resolve().parent.parent.parent
 _scripts_root = _project_root / "scripts"
-if str(_scripts_root) not in sys.path:
-    sys.path.insert(0, str(_scripts_root))
+_test_root = Path(__file__).resolve().parent
+for import_root in (_scripts_root, _test_root):
+    if str(import_root) not in sys.path:
+        sys.path.insert(0, str(import_root))
 
 from forensic import verify
-from tests.forensic_python.conftest import (make_minimal_bundle, make_claim_file,
-                                             make_attestation_file)
+from conftest import make_minimal_bundle, make_claim_file, make_attestation_file
 
 
 # ── Claims Content Checks ────────────────────────────────────────────────
@@ -172,6 +174,32 @@ class TestVerifyRun:
         # Expect 0 failures, at least 20 passes (baseline + Phase C content checks)
         assert report.summary["fail"] == 0
         assert report.summary["pass"] >= 20
+
+    def test_invalid_bundle_signature_fails_verification(self, tmp_path: Path, monkeypatch):
+        """An invalid signature is a hard failure when verification is requested."""
+        run_dir = make_minimal_bundle(tmp_path)
+        make_claim_file(run_dir, "test-claim", "pass")
+        make_attestation_file(run_dir, "abc", "verified")
+        bundle_root_path = run_dir / "run-bundle-root.json"
+        bundle_root = json.loads(bundle_root_path.read_text())
+        bundle_root["bundle/hash"] = "a" * 64
+        bundle_root["bundle/signature"] = "invalid-signature"
+        bundle_root["bundle/signing-key-id"] = "test-key"
+        bundle_root_path.write_text(json.dumps(bundle_root, indent=2))
+        public_key = tmp_path / "test-key.pub"
+        public_key.write_text("placeholder")
+        monkeypatch.setattr(
+            verify.subprocess,
+            "run",
+            lambda *args, **kwargs: SimpleNamespace(stdout="false\n"),
+        )
+
+        report = verify.verify_run(str(run_dir), public_key_path=str(public_key))
+
+        signature_check = next(c for c in report.checks if c["check/key"] == "bundle-signature")
+        assert signature_check["check/status"] == "fail"
+        assert signature_check["check/severity"] == "required"
+        assert report.status == "fail"
 
     def test_missing_required_file_fails(self, tmp_path: Path):
         """A bundle missing a required file must fail."""

@@ -3,6 +3,7 @@
             [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.util.evidence :as ev]))
 
@@ -447,3 +448,28 @@
     (is (= "run-conf-001" (get-in enriched [:cursor/source :run-config-hash]))))
   (let [no-run-hash (chain/enrich-cursor-data mock-snapshot mock-source)]
     (is (not (contains? (get no-run-hash :cursor/source) :run-config-hash)))))
+
+;; ── Signature rejection ────────────────────────────────────────────────────
+
+(deftest registry-verification-rejects-an-invalid-signature
+  (let [registry {:registry-hash "a-valid-looking-hash"}
+        signature {:signature "tampered-signature" :signer "test-key"}
+        result (with-redefs [signing/verify-signature (fn [& _] false)]
+                 (chain/verify-registry-signature registry signature))]
+    (is (false? (:valid result)))
+    (is (= :invalid-signature (:reason result)))))
+
+(deftest cursor-verification-rejects-an-invalid-signature
+  (let [base {:cursor/scope :targeted-evidence
+              :cursor/final-seq 1
+              :cursor/final-self-hash "evidence-hash"
+              :cursor/total-captured 1}
+        signed-hash (hc/hash-with-intent {:hash/intent :evidence-chain} base)
+        cursor (assoc base
+                      :cursor/signed-hash signed-hash
+                      :cursor/forensic {:cursor/signature "tampered-signature"
+                                        :cursor/signer "test-key"})
+        result (with-redefs [signing/verify-signature (fn [& _] false)]
+                 (chain/verify-cursor-signature cursor))]
+    (is (false? (:valid result)))
+    (is (= :invalid-signature (:reason result)))))

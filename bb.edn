@@ -2,8 +2,9 @@
 {sim:run {:doc "Run a simulation with EDN params"
             :task (apply clojure {:dir "." :extra-deps {}} "-M:run:with-sew" *command-line-args*)}
 
-  run:scenario
-{:doc "Run a scenario through the registry-driven execution path.
+  run:scenario:legacy
+{:doc "Deprecated legacy scenario runner; do not use for new runs.
+Run a scenario through the registry-driven execution path.
 Usage: bb run:scenario <scenario-id> [--result-display-level <summary|failures|standard|verbose|audit> | -v | -f | -s | -a] [--run-root <dir>]
        --run-root is the canonical flag for structured output.
        --output-dir, --save-output, --scenario-output-dir are equivalent aliases."
@@ -13,17 +14,20 @@ Usage: bb run:scenario <scenario-id> [--result-display-level <summary|failures|s
                 output-dir-idx   (.indexOf args "--output-dir")
                 scenario-output-dir-idx (.indexOf args "--scenario-output-dir")
                 save-idx         (.indexOf args "--save-output")
-                run-root         (or (when (<= 0 run-root-idx)
-                                       (nth args (inc run-root-idx) nil))
-                                    (when (<= 0 output-dir-idx)
-                                       (nth args (inc output-dir-idx) nil))
-                                    (when (<= 0 scenario-output-dir-idx)
-                                       (nth args (inc scenario-output-dir-idx) nil))
-                                    (when (<= 0 save-idx)
-                                       (nth args (inc save-idx) nil)))
+                requested-run-root (or (when (<= 0 run-root-idx)
+                                          (nth args (inc run-root-idx) nil))
+                                       (when (<= 0 output-dir-idx)
+                                         (nth args (inc output-dir-idx) nil))
+                                       (when (<= 0 scenario-output-dir-idx)
+                                         (nth args (inc scenario-output-dir-idx) nil))
+                                       (when (<= 0 save-idx)
+                                         (nth args (inc save-idx) nil)))
                 slug          (some-> scenario-id
                                       (clojure.string/replace (re-pattern "^.*/") "")
-                                      (clojure.string/replace (re-pattern "\\.(json|edn)$") ""))]
+                                      (clojure.string/replace (re-pattern "\\.(json|edn)$") ""))
+                run-root     (or requested-run-root
+                                 (str "results/runs/" (or slug "scenario") "-"
+                                      (System/currentTimeMillis) "-" (System/nanoTime)))]
             (when-not scenario-id
               (throw (ex-info "Missing scenario-id. Usage: bb run:scenario <scenario-id>" {})))
             (if run-root
@@ -127,7 +131,9 @@ Usage: bb run:scenario <scenario-id> [--result-display-level <summary|failures|s
                   (show forensic-dir "forensic"))
                 (println "############################")
                 (when-not (zero? exit) (System/exit exit)))
-              ;; ── default scatter path (backward compatible) ────────────────────
+              ;; ── retained legacy scatter path (currently unreachable) ──────────
+              ;; All supported invocations now receive either an explicit run root
+              ;; or the generated results/runs/<slug>-<timestamp>-<nonce> root above.
               (let [t0        (System/currentTimeMillis)
                     output-tmp (str (java.io.File/createTempFile "replay-" ".json"))
                     exit (try
@@ -255,10 +261,18 @@ Usage: bb run:scenario <scenario-id> [--result-display-level <summary|failures|s
                     (println "############################"))
                   (catch Exception e
                     (println (str "[run-links] Error:" (.getMessage e)))))
-                (when-not (zero? exit) (System/exit exit)))))}
+                (when-not (zero? exit) (System/exit exit))))) }
 
-  run:scenario:search
-  {:doc "Ad-hoc: run scenarios by text search (not a registered grouping, not for CI).
+  run:scenario
+  {:doc "Run one scenario into a self-contained evidence bundle.
+Usage: bb run:scenario <scenario-id> [--run-root <dir>] [--report-format <summary|failures|standard|verbose|audit> | -v | -f | -s | -a]
+       --output-dir and --scenario-output-dir are deprecated aliases for --run-root.
+       --save-output is rejected; use a dedicated export command instead."
+   :task (apply clojure "-M:with-sew" "-m" "resolver-sim.commands.scenario" *command-line-args*)}
+
+  run:scenario:search:legacy
+  {:doc "Deprecated legacy ad-hoc scenario search; do not use for new runs.
+Ad-hoc: run scenarios by text search (not a registered grouping, not for CI).
          Usage: bb run:scenario:search <text>
          Performs case-insensitive substring match on scenario file path, id, title,
          purpose, and threat-tags.  Each match runs in a separate subprocess.
@@ -336,11 +350,52 @@ cli-args (cond-> ["-M:run:with-sew" "--invariants" "--scenario" scenario]
                  (catch Exception e
                    (println "[artifact-registry-validation] Skipped (operational):" (.getMessage e))))
                (when-not (empty? failed)
-                 (println (str (count failed) " scenario(s) failed: "
-                               (mapv :scenario failed)))
-                 (System/exit 1)))))}
+                (println (str (count failed) " scenario(s) failed: "
+                              (mapv :scenario failed)))
+                (System/exit 1))))) }
 
-  artifacts:refresh
+ run:scenario:search
+ {:doc "Ad-hoc scenario search using one isolated structured run per match.
+Usage: bb run:scenario:search <text> [--report-format <summary|failures|standard|verbose|audit> | -v | -f | -s | -a]
+      An explicit --run-root is not supported because each match owns a separate bundle."
+  :task (let [args (vec *command-line-args*)
+              selector (first args)
+              scenario-args (vec (rest args))]
+          (when-not (seq selector)
+            (throw (ex-info "Missing selector. Usage: bb run:scenario:search <text>" {})))
+          (when (some #{"--run-root" "--output-dir" "--scenario-output-dir" "--save-output"} scenario-args)
+            (throw (ex-info "Scenario search creates one generated run root per match; run individual scenarios to choose --run-root" {})))
+          (let [selector-lc (clojure.string/lower-case selector)
+                scenarios (->> (file-seq (clojure.java.io/file "scenarios"))
+                               (filter (fn [file] (.isFile file)))
+                               (map (fn [file] (.getPath file)))
+                               (filter (fn [path] (or (clojure.string/ends-with? path ".json")
+                                                      (clojure.string/ends-with? path ".edn"))))
+                               (filter (fn [path]
+                                         (clojure.string/includes?
+                                          (str (clojure.string/lower-case path) "\n"
+                                               (clojure.string/lower-case (slurp path)))
+                                          selector-lc)))
+                               sort
+                               vec)
+                results (mapv (fn [scenario]
+                                (println (str "Running " scenario))
+                                (try
+                                  (apply clojure {:dir "." :extra-deps {}}
+                                         (concat ["-M:with-sew" "-m" "resolver-sim.commands.scenario" scenario]
+                                                 scenario-args))
+                                  {:scenario scenario :exit 0}
+                                  (catch clojure.lang.ExceptionInfo e
+                                    {:scenario scenario :exit (or (:exit (ex-data e)) 1)})))
+                              scenarios)
+                failed (filterv (fn [result] (not (zero? (:exit result)))) results)]
+            (when (empty? scenarios)
+              (throw (ex-info (str "No scenarios matched selector: " selector) {})))
+            (when (seq failed)
+              (println (str (count failed) " scenario(s) failed: " (mapv :scenario failed)))
+              (System/exit 1))))}
+
+ artifacts:refresh
   {:doc "Refresh results/test-artifacts and golden reports by running all canonical fixture suites in :save mode.
          Outputs new .report.edn files to data/fixtures/golden/ and emits test artifacts.
          Also touches notebooks/report.clj to trigger Clerk re-evaluation if the server is running."
@@ -354,8 +409,9 @@ cli-args (cond-> ["-M:run:with-sew" "--invariants" "--scenario" scenario]
          See also: scripts/scenarios/regenerate_goldens.clj, deps.edn :regenerate-goldens alias."
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:regenerate-goldens:with-sew")}
 
-  evidence:build
-  {:doc "Run a single scenario with invariants and emit evidence artifacts.
+  evidence:build:legacy
+  {:doc "Deprecated legacy evidence builder; do not use for new runs.
+Run a single scenario with invariants and emit evidence artifacts.
           Output: results/evidence/<slug>.result.json, results/runs/<slug>/, results/test-artifacts/.
           Does NOT update golden reports (data/fixtures/golden/) or notify Clerk — use `bb regenerate-goldens` for that.
           Usage: bb evidence:build --scenario <alias|scenario-path> [--output-file <path>]"
@@ -418,6 +474,27 @@ cli-args (cond-> ["-M:run:with-sew" "--invariants" "--scenario" scenario]
                (catch Exception e
                  (println "[artifact-registry-validation] Skipped (operational):" (.getMessage e))))
              (when-not (zero? exit) (System/exit exit))))}
+
+  evidence:build
+  {:doc "Run a single scenario into the canonical self-contained evidence bundle.
+Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
+       --output-file is no longer supported; use the bundle replay output under scenarios/<slug>/execution/."
+   :task (let [args (vec *command-line-args*)
+               scenario-index (.indexOf args "--scenario")
+               raw-scenario (when (<= 0 scenario-index) (nth args (inc scenario-index) nil))
+               scenario (get {"kleros/preemptive-escalation-rejected-l0"
+                              "scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn"
+                              "kleros/escalation-race"
+                              "scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn"}
+                             raw-scenario raw-scenario)
+               remainder (vec (concat (subvec args 0 (max 0 scenario-index))
+                                      (subvec args (min (count args) (+ scenario-index 2)))))]
+           (when-not scenario
+             (throw (ex-info "Missing --scenario value. Usage: bb evidence:build --scenario <scenario-path>" {})))
+           (when (some #{"--output-file"} remainder)
+             (throw (ex-info "--output-file is not supported; use --run-root and the canonical replay output" {})))
+           (apply clojure {:dir "." :extra-deps {}}
+                  (concat ["-M:with-sew" "-m" "resolver-sim.commands.scenario" scenario] remainder)))}
 
   evidence:sign
   {:doc "Sign the focused or latest run manifest after ensuring artifact registry exists. Usage: bb evidence:sign <path-to-private-key>"

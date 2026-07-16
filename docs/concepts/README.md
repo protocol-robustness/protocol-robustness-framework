@@ -32,7 +32,7 @@ layer that makes simulation results explainable to stakeholders.
 | `data/concepts/registry.edn` | Concept registry index |
 | `data/concepts/*.edn` | Individual concept definitions |
 | `docs/concepts/README.md` | This file |
-| `docs/concepts/CONCEPT_GLOSSARY.md` | Glossary of concept terms |
+| `docs/concepts/GLOSSARY.md` | General project glossary |
 | `docs/concepts/RISK_TAXONOMY.md` | Risk taxonomy across concepts |
 | `docs/concepts/scenario-annotation-guide.md` | How to annotate scenarios |
 | `src/resolver_sim/concepts/registry.clj` | Registry loading + validation |

@@ -1,36 +1,60 @@
 (ns resolver-sim.commands.scenario
-  "Run scenario(s) through the replay engine.
-   Invoked by `prf.jar run-scenario`."
-  (:require [clojure.string :as str]))
+  "Scenario command adapters for `bb run:scenario` and `prf.jar run-scenario`."
+  (:require [resolver-sim.commands.scenario-orchestration :as orchestration]
+            [resolver-sim.commands.scenario-run :as scenario-run]))
 
-(defn- parse-suite
-  "Convert a suite string to a keyword, stripping leading : if present."
-  [s]
-  (when s
-    (keyword (str/replace s #"^:" ""))))
+(defn- opts->argv
+  [{:keys [scenario run-root output-dir scenario-output-dir save-output
+           report-format verbose failures summary audit cmd/args]}]
+  (let [scenario-args (concat args (when scenario [scenario]))]
+    (vec (concat scenario-args
+                 (when run-root ["--run-root" run-root])
+                 (when output-dir ["--output-dir" output-dir])
+                 (when scenario-output-dir ["--scenario-output-dir" scenario-output-dir])
+                 (when save-output ["--save-output" save-output])
+                 (when report-format ["--report-format" report-format])
+                 (when verbose ["--verbose"])
+                 (when failures ["--failures"])
+                 (when summary ["--summary"])
+                 (when audit ["--audit"])))))
+
+(defn run-argv
+  "Run a scenario command from command-specific argv. Returns the full result
+   map; parsing errors are returned without creating a run directory."
+  [args]
+  (let [parsed (scenario-run/parse-request args)]
+    (if-not (:ok? parsed)
+      {:command/status :rejected
+       :scenario/outcome :unknown
+       :exit-code 2
+       :errors (:errors parsed)
+       :usage (:summary parsed)}
+      (let [context (scenario-run/build-run-context (:request parsed) {:project-root "."})
+            result (orchestration/run-scenario! context)]
+        (assoc result :warnings (:warnings parsed))))))
+
+(defn- print-result! [result]
+  (doseq [warning (:warnings result)]
+    (binding [*out* *err*] (println "Warning:" warning)))
+  (doseq [error (:errors result)]
+    (binding [*out* *err*] (println "Error:" error)))
+  (when-let [error (:error result)]
+    (binding [*out* *err*] (println "Error:" error)))
+  (when-let [root (:run/root result)]
+    (println "Scenario run root:" root))
+  (println "Command status:" (name (:command/status result)))
+  (println "Scenario outcome:" (name (:scenario/outcome result))))
 
 (defn run
-  "Run one or more scenarios. Options:
-     :scenario      — scenario ID or file path
-     :suite         — suite keyword (string, converted to keyword)
-     :out           — output directory for results
-     :json?         — when true, output as JSON
-     :cmd/args      — extra positional args (e.g. scenario file path as bare arg)"
-  [{:keys [scenario suite scenario-file out json?] :as opts}]
-  (let [cmd-args (:cmd/args opts)
-        scenario-path (or scenario scenario-file (first cmd-args))
-        suite-kw (parse-suite suite)
-        dispatch (cond-> {}
-                   scenario-path (assoc :scenario scenario-path)
-                   suite-kw (assoc :suite suite-kw)
-                   out (assoc :output-file (str out "/scenario-run.json")))
-        runner-opts (cond-> {}
-                      json? (assoc :report-format :json))]
-    (println "Running scenario(s)...")
-    (println (str "  scenario: " (or scenario-path "<none>")))
-    (println (str "  suite: " (or suite-kw "<none>")))
-    (println (str "  output: " (or out "<none>")))
-    (flush)
-    (let [scenario-runner (requiring-resolve 'resolver-sim.io.scenario-runner/run-and-report)
-          result (scenario-runner dispatch runner-opts)]
-      (or (:exit-code result) 0))))
+  "JAR command handler. The dispatcher supplies parsed options and residual
+   positional scenario references; this adapter reconstructs command-specific
+   argv so both surfaces use the same parser."
+  [opts]
+  (let [result (run-argv (opts->argv opts))]
+    (print-result! result)
+    result))
+
+(defn -main [& args]
+  (let [result (run-argv args)]
+    (print-result! result)
+    (System/exit (:exit-code result))))

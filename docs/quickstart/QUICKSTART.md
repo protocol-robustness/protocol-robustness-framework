@@ -43,6 +43,7 @@ Run one registered scenario through the Sew replay path:
 
 ```bash
 bb run:scenario <scenario-id>
+# Output: results/runs/<scenario-slug>-<timestamp>-<nonce>/
 ```
 
 To discover scenario IDs, inspect `docs/scenarios.md` or search the `scenarios/` directory. Use a display level when investigating results:

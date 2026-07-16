@@ -776,10 +776,12 @@
     (let [h (if (string? registry) registry (:registry-hash registry))
           sig (:signature signature-map)
           pub-key-path (str (:signer signature-map) ".pub")]
-      (if (and h sig pub-key-path)
-        (let [valid (signing/verify-signature h sig pub-key-path)]
-          {:valid valid :hash h})
-        {:error "Missing hash, signature, or signer"}))
+      (if (and h sig (:signer signature-map))
+        (let [valid? (true? (signing/verify-signature h sig pub-key-path))]
+          (cond-> {:valid valid? :hash h}
+            (not valid?) (assoc :reason :invalid-signature)))
+        {:valid false :reason :missing-signature-data
+         :error "Missing hash, signature, or signer"}))
     (catch Exception e
       {:error (.getMessage e)})))
 
@@ -814,10 +816,12 @@
           (let [sig (or (:cursor/signature forensic) (:signature forensic))
                 signer (or (:cursor/signer forensic) (:signer forensic))
                 pub-key-path (str signer ".pub")]
-            (if (and sig pub-key-path)
-              (let [valid (signing/verify-signature h sig pub-key-path)]
-                {:valid valid :hash h :cursor-seq (:cursor/final-seq cursor)})
-              {:error "Missing signature or signer in cursor forensic data"}))
+            (if (and sig signer)
+              (let [valid? (true? (signing/verify-signature h sig pub-key-path))]
+                (cond-> {:valid valid? :hash h :cursor-seq (:cursor/final-seq cursor)}
+                  (not valid?) (assoc :reason :invalid-signature)))
+              {:valid false :reason :missing-signature-data
+               :error "Missing signature or signer in cursor forensic data"}))
           {:valid false :hash h :recorded-hash recorded-hash
            :error "Cursor data hash does not match signed hash"})
         {:error "Cursor has no forensic signature data"}))

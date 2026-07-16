@@ -14,8 +14,8 @@
 
  :concept/protocols #{:protocol/sew-v1}
 
- :concept/maturity :illustrative
- :concept/support-status :not-asserted
+ :concept/maturity :benchmark-backed
+  :concept/support-status :not-asserted
 
  :concept/related
  [:consensus/authority

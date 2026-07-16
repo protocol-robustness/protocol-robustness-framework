@@ -246,13 +246,13 @@ The concept data files in `data/concepts/` define evidence at the stakeholder/as
 - **`data/concepts/decision-quality/evidence.edn`** — Consensus evidence: what facts were available to the decision process. Roles (evidence-submitter, examiner, keeper), entities (submission, deadline, registry), failure modes (missing, contradictory, late, ignored).
 - **`data/concepts/assurance/evidence_chain.edn`** — Forensic evidence chain: how evidence binds into a self-verifiable chain. Five forensic-grade criteria, roles (producer, verifier, signer, TSA), failure modes (tampered hash, broken signature, broken cursor, unverifiable timestamp, unreconciled).
 
-The concept glossary (`docs/concepts/CONCEPT_GLOSSARY.md`) provides a quick-reference mapping of evidence terms to protocol entities and roles.
+The general glossary (`docs/concepts/GLOSSARY.md`) provides a quick-reference mapping of evidence, evaluation, and protocol terms.
 
 ## Guide to Evidence Documentation
 
 | Document | Type | Audience |
 |----------|------|----------|
-| `docs/concepts/CONCEPT_GLOSSARY.md` | Glossary | Everyone |
+| `docs/concepts/GLOSSARY.md` | General glossary | Everyone |
 | `docs/concepts/EVIDENCE_OVERVIEW.md` | **This document** — conceptual overview | Everyone new to evidence |
 | `docs/evidence/README.md` | Adversarial simulation evidence index | Researchers, reviewers |
 | `docs/evidence/EVIDENCE_DAG_OVERVIEW.md` | DAG architecture, navigation, boundaries | Researchers, implementers |

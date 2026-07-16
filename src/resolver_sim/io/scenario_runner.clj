@@ -984,6 +984,7 @@
       :artifact-dir   — low-level forensic/evidence artifact directory
                          (:output-dir is a deprecated internal alias)
       :run-root       — complete structured bundle root, when applicable
+      :run-id         — operational run ID supplied by the command orchestrator
       :scenario-root, :execution-dir, :summary-dir, :manifest-dir
                        — structured-run destinations owned by their respective writers
       :protocol       — protocol id (default sew-v1)
@@ -1012,7 +1013,7 @@
 
     ;; Pre-run commitment (best-effort, lazy-loaded forensic namespaces)
         (let [suite-key (:suite dispatch)
-              run-id (str "run-" (java.time.Instant/now))
+              run-id (or (:run-id dispatch) (str "run-" (java.time.Instant/now)))
               structured? (boolean (:run-root dispatch))
               ;; The Python forensic runner supplies PRF_ARTIFACT_DIR for an
               ;; isolated per-run artifact tree. Treat that as a finalizing

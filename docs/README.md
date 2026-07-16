@@ -196,7 +196,7 @@ Primary project framing and status live in the root `../README.md`.
 | Document | Description |
 |---|---|
 | `concepts/README.md` | Concept layer entry point |
-| `concepts/CONCEPT_GLOSSARY.md` | Concept glossary |
+| `concepts/GLOSSARY.md` | General glossary |
 | `concepts/RISK_TAXONOMY.md` | Risk taxonomy by concept |
 | `concepts/scenario-annotation-guide.md` | Guide for annotating scenarios with concepts |
 | `concepts/protocol-alignment.md` | Protocol status convention (`:protocol/current`, `:protocol/proposed`, `:solidity/*`) |

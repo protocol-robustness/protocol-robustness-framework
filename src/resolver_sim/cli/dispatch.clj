@@ -15,6 +15,16 @@
 
 (def ^:private handler-cache (atom nil))
 
+(declare get-command-handlers)
+
+(def ^:private handler-symbols
+  {:run-scenario 'resolver-sim.commands.scenario/run})
+
+(defn- handler-for [cmd-id]
+  (if-let [symbol (get handler-symbols cmd-id)]
+    (requiring-resolve symbol)
+    (get (get-command-handlers) cmd-id)))
+
 (defn get-command-handlers
   "Return the command handler map, building it on first call.
    Requires command namespaces lazily to break circular load deps."
@@ -59,6 +69,15 @@
     :default "target/run"]
    [nil "--scenario ID" "Scenario ID to run"]
    [nil "--scenario-file PATH" "Scenario file path"]
+   [nil "--run-root DIR" "Authoritative root directory for a complete scenario bundle"]
+   [nil "--output-dir DIR" "Deprecated scenario alias for --run-root"]
+   [nil "--scenario-output-dir DIR" "Deprecated scenario alias for --run-root"]
+   [nil "--save-output DIR" "Legacy scenario output-copy option"]
+   [nil "--report-format FORMAT" "Scenario report format"]
+   ["-v" "--verbose" "Scenario report format: verbose"]
+   ["-f" "--failures" "Scenario report format: failures"]
+   ["-s" "--summary" "Scenario report format: summary"]
+   ["-a" "--audit" "Scenario report format: audit"]
    [nil "--suite NAME" "Suite name"]
    [nil "--pack NAME" "Benchmark pack name"]
    [nil "--fast" "Run fast tier only"]
@@ -76,15 +95,18 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- command-path
-  "Extract the command path from raw args, removing options.
-   Returns [path-keyword, remaining-args]."
+  "Resolve the longest registered command-path prefix and preserve all
+   remaining positional tokens for the command handler."
   [args]
-  (let [[first-tok & rest-args] args
-        ;; Collect subcommand tokens until we hit a -- flag
-        [sub-toks, opts-args] (split-with #(not (.startsWith % "--")) rest-args)
-        full-path (into [first-tok] sub-toks)
-        path-str (str/join " " full-path)]
-    [path-str opts-args]))
+  (let [paths (keys (registry/path->command-id-map))
+        matches (filter (fn [path]
+                          (let [tokens (str/split path #" ")]
+                            (and (<= (count tokens) (count args))
+                                 (= tokens (vec (take (count tokens) args))))))
+                        paths)
+        path (last (sort-by #(count (str/split % #" ")) matches))]
+    (when path
+      [path (vec (drop (count (str/split path #" ")) args))])))
 
 (defn resolve-command
   "Turn a path like 'evidence verify-chain' into [command-id positional-args].
@@ -124,7 +146,7 @@
    Used by backstop and commands:validate to run commands without
    directly depending on the handler map at compile time."
   [cmd-id opts]
-  (if-let [handler-var (get (get-command-handlers) cmd-id)]
+  (if-let [handler-var (handler-for cmd-id)]
     (try
       (let [result ((deref handler-var) opts)]
         (or (when (map? result) result)
@@ -158,7 +180,7 @@
   "Parse args, resolve command, and execute handler.
    Returns an exit code for System/exit."
   [args]
-  (let [parsed (cli/parse-opts args cli-options :in-order true)
+  (let [parsed (cli/parse-opts args cli-options)
         {:keys [options arguments summary errors]} parsed]
     (cond
       errors
@@ -180,19 +202,16 @@
         (:exit-code h))
 
       :else
-      (let [[cmd-path raw-opts] (command-path arguments)
-            ;; Re-parse remaining arg tokens as options for the subcommand
-            sub-parsed (cli/parse-opts raw-opts cli-options)
-            merged-opts (merge options (:options sub-parsed))
-            resolved (resolve-command cmd-path)]
-        (if resolved
-          (let [[cmd-id cmd-args] resolved
-                handler-var (get (get-command-handlers) cmd-id)]
-            (if handler-var
-              (run-command handler-var merged-opts cmd-path cmd-args raw-opts)
-              (do (println "Unknown command:" cmd-path)
-                  (println "Run 'java -jar prf.jar help' for available commands.")
-                  2)))
+      (if-let [[cmd-path cmd-args] (command-path arguments)]
+        (if-let [[cmd-id _] (resolve-command cmd-path)]
+          (if-let [handler-var (handler-for cmd-id)]
+            (run-command handler-var options cmd-path cmd-args args)
+            (do (println "Unknown command:" cmd-path)
+                (println "Run 'java -jar prf.jar help' for available commands.")
+                2))
           (do (println "Unknown command:" cmd-path)
               (println "Run 'java -jar prf.jar help' for available commands.")
-              2))))))
+              2))
+        (do (println "Unknown command:" (str/join " " arguments))
+            (println "Run 'java -jar prf.jar help' for available commands.")
+            2)))))
