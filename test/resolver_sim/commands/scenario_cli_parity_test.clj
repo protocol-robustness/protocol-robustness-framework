@@ -20,15 +20,20 @@
 
 (defn- bundle-contract [root]
   (let [root-file (io/file root)
+        run (json/read-str (slurp (io/file root "manifest/run.json")))
         registry (json/read-str (slurp (io/file root "manifest/artifacts.json")) :key-fn keyword)
         completion (json/read-str (slurp (io/file root "completion.json")))
         paths (map :path (:artifacts registry))
+        ;; Forensic artifacts are recursively inventory-derived from the
+        ;; evidence pipeline. Their IDs are path-derived and may grow as new
+        ;; finalization artifacts are persisted; stable scenario contract IDs
+        ;; remain the non-forensic registry entries.
         stable-ids (->> (:artifacts registry)
                         (map :id)
-                        (remove #(or (clojure.string/starts-with? % "forensic.claims.")
-                                    (clojure.string/starts-with? % "forensic.attestations.")
-                                    (clojure.string/starts-with? % "forensic.evidence-nodes.")))
+                        (remove #(clojure.string/starts-with? % "forensic."))
                         set)
+        input (get run "input")
+        input-artifacts (filter #(= "input.scenario" (:kind %)) (:artifacts registry))
         scenario-dir (first (filter #(.isDirectory %) (.listFiles (io/file root "scenarios"))))]
     {:completion? (.isFile (io/file root-file "completion.json"))
      :running? (.exists (io/file root-file ".run-state"))
@@ -36,6 +41,8 @@
      :completion-outcome (get completion "outcome")
      :root-dir (:root_dir registry)
      :artifact-ids stable-ids
+     :input input
+     :input-artifacts (mapv #(select-keys % [:id :kind :path :sha256 :bytes]) input-artifacts)
      :all-relative? (every? (fn [path]
                                (let [p (java.nio.file.Paths/get path (make-array String 0))]
                                  (and (not (.isAbsolute p))
@@ -69,7 +76,13 @@
         (is (= "." (:root-dir bb-contract)))
         (is (true? (:all-relative? bb-contract)))
         (is (false? (:excluded? bb-contract)))
-        (is (true? (:scenario-dir? bb-contract))))
+        (is (true? (:scenario-dir? bb-contract)))
+        (is (re-matches #"[0-9a-f]{64}" (get-in bb-contract [:input "sha256"])))
+        (is (pos? (get-in bb-contract [:input "bytes"])))
+        (is (= (get-in bb-contract [:input "sha256"])
+               (some-> bb-contract :input-artifacts first :sha256)))
+        (is (= (get-in bb-contract [:input "snapshot"])
+               (some-> bb-contract :input-artifacts first :path))))
       (finally
         (delete-tree! bb-root)
         (delete-tree! jar-root)))))

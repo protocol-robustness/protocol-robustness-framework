@@ -22,6 +22,9 @@
                     "run" {"id" (:run/id context) "type" "scenario" "sensitivity_profile" (name (:sensitivity/profile context)) "status" (if (= status "pass") "complete" "failed")
                            "exit_code" (:exit-code execution) "duration_ms" (:duration-ms execution 0)}
                     "scenario" {"id" (:scenario/ref context) "path" (:scenario/ref context)}
+                    "input" (when-let [input (:input/provenance execution)]
+                              {"origin" (:input/origin input) "snapshot" (str "inputs/scenarios/" (.getName (io/file (:input/snapshot input))))
+                               "sha256" (:input/sha256 input) "bytes" (:input/bytes input)})
                     "outcome" {"status" status "total" 1 "passed" (if (= status "pass") 1 0) "failed" (if (= status "pass") 0 1)}} enrichment)
         summary {"manifest" {"schema_version" "summary.v1"}
                  "run" {"id" (:run/id context) "overall_status" status

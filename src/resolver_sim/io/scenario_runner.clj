@@ -1137,7 +1137,32 @@
                                               results))
                           enriched-root (if (seq raw-results)
                                           (assoc enriched-root :run/scenario-results raw-results)
-                                          enriched-root)]
+                                          enriched-root)
+                          ;; The canonical scenario-JAR slug is the artifact ID.
+                          ;; Persist only the v2 finalization's public metadata and
+                          ;; digest commitments beneath the supplied forensic root.
+                          _ (when structured?
+                              (let [write-finalization!
+                                    (requiring-resolve 'resolver-sim.evidence.finalization/write-scenario-finalization!)
+                                    scenario-result (first raw-results)
+                                    scenario-input-hash (chain/compute-file-sha256 (:scenario dispatch))
+                                    written (write-finalization!
+                                             {:forensic-dir artifact-dir
+                                              :scenario-artifact-id (:scenario-slug dispatch)
+                                              :scenario-id (or (:scenario-id scenario-result)
+                                                               (:scenario-slug dispatch))
+                                              :scenario-input-hash scenario-input-hash
+                                              :run-id run-id
+                                              :run-input-hash scenario-input-hash
+                                              :execution-status (if (contains? #{"fail" "failed" "error"}
+                                                                                                                       (or (some-> (:outcome scenario-result) name) "unknown"))
+                                                                                                                "failed"
+                                                                                                                "completed")
+                                                                                            :execution-outcome (or (some-> (:outcome scenario-result) name)
+                                                                                                                   "unknown")
+                                              :policy {:allow-empty-targeted-evidence? false}})]
+                                (log-event :info :scenario-finalization-written
+                                           :path (:path written))))]
                       ;; In structured mode replay finalized its own cursor while
                       ;; the supplied forensic artifact directory was bound.
                       (populate-forensic-claims!)
@@ -1259,6 +1284,29 @@
           ;; Top-level catch: produce minimal output on complete failure
             (catch Throwable t
               (log-event :error :run-failed :error (.getMessage t) :exception (str (class t)))
+              ;; A failed structured execution may have persisted a valid prefix.
+              ;; Seal only that observed prefix as partial; never describe it as a
+              ;; closed or terminal scenario chain, and never mask the root error.
+              (when structured?
+                (try
+                  (let [write-finalization!
+                        (requiring-resolve 'resolver-sim.evidence.finalization/write-scenario-finalization!)
+                        scenario-input-hash (chain/compute-file-sha256 (:scenario dispatch))
+                        written (write-finalization!
+                                 {:forensic-dir artifact-dir
+                                  :scenario-artifact-id (:scenario-slug dispatch)
+                                  :scenario-id (:scenario-slug dispatch)
+                                  :scenario-input-hash scenario-input-hash
+                                  :run-id run-id
+                                  :run-input-hash scenario-input-hash
+                                  :execution-status "aborted"
+                                  :execution-outcome "error"
+                                  :policy {:allow-empty-targeted-evidence? false}})]
+                    (log-event :warn :scenario-partial-finalization-written
+                               :path (:path written)))
+                  (catch Exception e
+                    (log-event :warn :scenario-partial-finalization-failed
+                               :error (.getMessage e)))))
               (let [minimal-root (build-minimal-error-root dispatch protocol-id source-provenance t)
                     err-path (or (:output-file dispatch)
                                  (when (:output-dir dispatch)

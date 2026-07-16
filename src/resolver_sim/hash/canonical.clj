@@ -46,6 +46,8 @@
    :evidence-chain  "EVIDENCE_CHAIN_V1"
    :evidence-chain-link-v1 "EVIDENCE_CHAIN_LINK_V1"
    :run-evidence-hash-set-v1 "RUN_EVIDENCE_HASH_SET_V1"
+   :evidence-hash-set "EVIDENCE_HASH_SET_V1"
+   :evidence-finalization-v2 "EVIDENCE_FINALIZATION_V2"
    :merkle-leaf     "EVIDENCE_MERKLE_LEAF_V1"
    :merkle-node     "EVIDENCE_MERKLE_NODE_V1"
    :registry        "REGISTRY_V1"
@@ -919,6 +921,24 @@
     :intent/excludes    #{:artifact-order :timestamps}
     :intent/projection-fn project-identity
     :intent/version     1}
+
+   :evidence-hash-set
+   {:intent/name        :evidence-hash-set
+    :intent/domain-tag  "EVIDENCE_HASH_SET_V1"
+    :intent/description "Schema-bearing canonical commitment to evidence hash identities"
+    :intent/includes    #{:schema-version :hash-algorithm :count :hashes}
+    :intent/excludes    #{:timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :evidence-finalization-v2
+   {:intent/name        :evidence-finalization-v2
+    :intent/domain-tag  "EVIDENCE_FINALIZATION_V2"
+    :intent/description "Canonical payload identity for evidence-finalization.v2"
+    :intent/includes    #{:finalization-envelope}
+    :intent/excludes    #{:artifact-id :self-hash :signatures :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     2}
 
    :manifest
    {:intent/name        :manifest

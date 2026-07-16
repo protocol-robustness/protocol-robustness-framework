@@ -1,30 +1,63 @@
 # Researcher Investigation Guide: Kleros Escalation (S19)
 
-This guide outlines how to investigate the Kleros-level escalation behavior in scenario `S19_dr3-kleros-escalation-rejected-l0-resolves.json`.
+This guide describes how to investigate Kleros-level escalation behavior for `S19_dr3-kleros-escalation-rejected-l0-resolves`.
 
-## 1. Where to Find Findings
-The authoritative trace is located at:
-`results/evidence/kleros-preemptive-escalation-rejected-l0.result.json`
+## 1. Produce an evidence bundle
 
-## 2. Interpreting Protocol Behavior
-The trace is a structured JSON, not a plain-English log. To interpret the Kleros perspective, look for these keys:
+Build the Sew distribution, then use a fresh exact run root:
 
-- **`trace` (in the full JSON):** This contains the sequential list of protocol events. Look at each `trace-entry`.
-- **`action`:** Shows the triggered protocol operation (e.g., `escalate_dispute`, `execute_resolution`).
-- **`error` / `reject-class`:** These are the most critical fields. If a Kleros-level action is rejected, the `error` field contains the protocol-level reason (e.g., `:no-resolution-to-appeal` or `:transfer-not-in-dispute`).
-- **`transition/id`:** Provides a high-level classification of what the protocol transition attempted to achieve.
+```bash
+bb build:sew
+java -jar target/prf-runner-sew-0.1.0-uber.jar run-scenario \
+  scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn \
+  --run-root /tmp/prf-s19 \
+  --report-format audit
+```
 
-## 3. Are there Plain-English Text explanations?
-**No.** The raw `.result.json` files are highly structured, technical protocol-modeling artifacts. They are designed for machine validation, not human reading.
+For repository development, the equivalent adapter is:
 
-### Bridging the Gap
-To translate these technical artifacts into plain English:
-1.  **Use the Notebooks:** The project includes Clojure notebooks (e.g., `notebooks/dispute_resolution.clj`) that import these `.result.json` artifacts and project them into human-readable narratives or dashboards.
-2.  **Inspect `trace-metadata`:** Within each `trace-entry`, the `trace-metadata` field often contains higher-level protocol semantic interpretations that are easier to map to English descriptions than the raw JSON fields.
-3.  **Check the Registry:** The `claimable-classification.json` generated alongside this trace provides a protocol-specific semantic interpretation of the final state, which is often easier to interpret than the raw trace.
+```bash
+bb run:scenario scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn \
+  --run-root /tmp/prf-s19 \
+  --report-format audit
+```
 
-## 4. Verification Check
-To verify what happened:
-1.  Open `results/runs/<run-id>/test-artifacts.json`.
-2.  Find the `scenario-result` entry to confirm the path to your trace.
-3.  Load the trace into the `notebooks/dispute_resolution.clj` workbench to see the visualized resolution flow.
+Do not reuse a completed or incomplete root.
+
+## 2. Confirm completion and integrity
+
+1. Confirm `/tmp/prf-s19/completion.json` exists. It is the only positive completion marker.
+2. Inspect `/tmp/prf-s19/manifest/sensitivity-report.json` before sharing the bundle.
+3. Validate the immutable artifact registry:
+
+   ```bash
+   bb validation:artifact-registry /tmp/prf-s19/manifest/artifacts.json
+   ```
+
+4. Use only the root-relative paths registered in `manifest/artifacts.json`; do not select artifacts using modification time or a `latest` directory.
+
+## 3. Locate relevant evidence
+
+The registry identifies the primary scenario artifacts:
+
+- `execution.replay-output` — full replay output under `scenarios/<slug>/execution/`.
+- `summaries.trace` — normalized event sequence.
+- `summaries.mechanisms` — escrow/dispute/appeal mechanism summary.
+- `state.world-final` — final world projection.
+- `summaries.claimable` — terminal claimable classification.
+- `forensic.*` — scenario-scoped evidence, claims, attestations, and chain records when present.
+
+## 4. Interpret the escalation behavior
+
+The trace is structured JSON. Focus on:
+
+- `action` — operation attempted, including `escalate_dispute` and `execute_resolution`.
+- `result` / `outcome` — whether the transition succeeded or was rejected.
+- `error` / `reject-class` — protocol-level reason for a rejected escalation.
+- `transition/id` and trace metadata — semantic interpretation of the attempted state transition.
+
+For a human-oriented sequence, read `summaries/trace-plain.md`. For the detailed evidence chain, follow the forensic entries from the artifact registry.
+
+## 5. Public and internal evidence
+
+The default `public` sensitivity profile scans retained artifacts before completion and redacts known secret-bearing fields from the public final-world projection. Use `--sensitivity-profile internal` only when full-fidelity retention is required and the bundle will be handled under the corresponding internal-retention policy.

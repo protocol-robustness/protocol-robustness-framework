@@ -39,20 +39,22 @@ clojure -M:test:with-sew
 
 ## First successful run
 
-Run one registered scenario through the Sew replay path:
+Build the Sew distribution, then execute one scenario into a fresh exact bundle root:
 
 ```bash
-bb run:scenario <scenario-id>
-# Output: results/runs/<scenario-slug>-<timestamp>-<nonce>/
+bb build:sew
+java -jar target/prf-runner-sew-0.1.0-uber.jar run-scenario scenarios/edn/<scenario>.edn --run-root /tmp/prf-run
 ```
 
-To discover scenario IDs, inspect `docs/scenarios.md` or search the `scenarios/` directory. Use a display level when investigating results:
+The completed bundle contains `completion.json`, `manifest/artifacts.json`, and scenario-scoped evidence under `scenarios/<slug>/`. Use `--report-format summary|failures|standard|verbose|audit` when investigating results.
+
+For repository development, the equivalent adapter is:
 
 ```bash
-bb run:scenario <scenario-id> --result-display-level standard
+bb run:scenario scenarios/edn/<scenario>.edn --run-root /tmp/prf-run
 ```
 
-Scenario artifacts are written below `results/`; this directory is generated local output and is not source material.
+When no root is specified, scenario runs default below `results/runs/`. `results/test-artifacts/` remains reserved for test/CI artifacts.
 
 ## Validate the repository
 

@@ -1433,43 +1433,35 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
 
   ;; ── Build ──────────────────────────────────────────────────────────────
 
-  build:core
-  {:doc "Build prf-runner-core uberjar (6 MB, no Sew, no DB).
-         java -jar target/prf-runner-core-0.1.0-uber.jar -m resolver-sim.replay-core --help"
-   :task (clojure "-T:build" "uberjar" ":variant" "core")}
+  build:prf
+  {:doc "Build prf.jar — framework-only unified CLI distribution."
+   :task (clojure "-T:build" "uberjar" ":variant" "prf")}
 
   build:sew
-  {:doc "Build prf-runner-sew uberjar (18 MB, full Sew replay).
-         java -jar target/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.minimal-runner --scenario <trace.json>"
+  {:doc "Build prf-runner-sew uberjar — Sew-enabled distribution."
    :task (clojure "-T:build" "uberjar" ":variant" "sew")}
 
-  build:benchmarks
-  {:doc "Build prf-runner-benchmarks uberjar"
-   :task (clojure "-T:build" "uberjar" ":variant" "benchmarks")}
-
   build:cli
-  {:doc "Build prf.jar — unified CLI uberjar (same deps as sew + CLI commands).
-         java -jar target/prf.jar help"
-   :task (clojure "-T:build" "uberjar" ":variant" "cli")}
+  {:doc "Deprecated alias for build:prf."
+   :task (do (println "WARNING: build:cli is deprecated; use build:prf")
+             (clojure "-T:build" "uberjar" ":variant" "prf"))}
 
   build
-  {:doc "Build core, sew, and CLI uberjars."
-   :depends [build:core build:sew build:cli]}
+  {:doc "Build the two supported distributions: prf and sew."
+   :depends [build:prf build:sew]}
 
-  sign:core
-  {:doc "GPG-sign the core uberjar for distribution.
-         Requires GPG key.  Produces target/*.jar.asc."
-   :task (shell "gpg" "--detach-sign" "--armor"
-          "target/prf-runner-core-0.1.0-uber.jar")}
+  sign:prf
+  {:doc "GPG-sign prf.jar for distribution."
+   :task (shell "gpg" "--detach-sign" "--armor" "target/prf.jar")}
 
   sign:sew
-  {:doc "GPG-sign the sew uberjar for distribution."
+  {:doc "GPG-sign the Sew distribution."
    :task (shell "gpg" "--detach-sign" "--armor"
           "target/prf-runner-sew-0.1.0-uber.jar")}
 
   sign
-  {:doc "Sign both uberjars."
-   :depends [sign:core sign:sew]}
+  {:doc "Sign both supported distributions."
+   :depends [sign:prf sign:sew]}
 
   monitor
   {:doc "Start JMX monitoring system"

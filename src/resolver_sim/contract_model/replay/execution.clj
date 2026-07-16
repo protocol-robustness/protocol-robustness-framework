@@ -1,5 +1,6 @@
 (ns resolver-sim.contract-model.replay.execution
-  (:require [clojure.stacktrace :as st]
+  (:require [clojure.set :as set]
+            [clojure.stacktrace :as st]
             [clojure.string :as str]
             [resolver-sim.contract-model.replay.metrics :as metrics]
             [resolver-sim.contract-model.replay.analysis :as analysis]
@@ -13,7 +14,8 @@
             [resolver-sim.util.evidence :as ev]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.time.context :as time-ctx]
-            [resolver-sim.logging :as log]))
+            [resolver-sim.logging :as log]
+            [resolver-sim.yield.risk-monitor :as risk]))
 
 (defn- yield-accounting-action?
   [action]
@@ -697,8 +699,32 @@
             (when (evidence-mode-allows? replay-flags :checkpoint)
               (replay-checkpoints/emit-checkpoint-evidence-at-strategic-point!
                checkpoint-log' event))
-            (if (:halted? step)
-              (do
+            (let [forbidden (set (:fail-on-short-circuits replay-flags))
+                  matched (->> (risk/events)
+                               (mapcat :short-circuits)
+                               set
+                               (set/intersection forbidden)
+                               sort
+                               vec)]
+              (cond
+                (seq matched)
+                (do
+                  (temporal/maybe-record-temporal! temporal-cfg temporal-enabled? scenario-id :fail new-world new-metrics new-trace)
+                  {:outcome :fail
+                   :scenario-id scenario-id
+                   :events-processed (count new-trace)
+                   :halted-at-seq (:seq event)
+                   :halt-reason :short-circuit-policy
+                   :short-circuit-violations matched
+                   :trace new-trace
+                   :metrics new-metrics
+                   :execution {:mode :sequential}
+                   :protocol protocol
+                   :last-valid-world new-world
+                   :world-checkpoints checkpoints'})
+
+                (:halted? step)
+                (do
                 (temporal/maybe-record-temporal! temporal-cfg temporal-enabled? scenario-id :fail (:world step) new-metrics new-trace)
                 (attr/with-attribution
                   {:ctx/scenario-id scenario-id
@@ -719,4 +745,5 @@
                  :protocol protocol
                  :last-valid-world world
                  :world-checkpoints checkpoints'})
-              (recur new-world (rest events) new-trace new-metrics new-states checkpoints' checkpoint-log' diagnostics' new-alias-map))))))))
+                :else
+                (recur new-world (rest events) new-trace new-metrics new-states checkpoints' checkpoint-log' diagnostics' new-alias-map)))))))))

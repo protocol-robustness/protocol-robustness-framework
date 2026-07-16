@@ -26,8 +26,8 @@
 
  :aliases
    {:test
-    {:extra-paths ["test" "scripts"]
-     :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}
+    {:extra-paths ["test" "scripts" "protocols_src" "protocols_src/test"]
+         :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}
 
    :with-sew
    {:extra-paths ["protocols_src" "protocols_src/test"]}

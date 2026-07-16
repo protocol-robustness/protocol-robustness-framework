@@ -3,7 +3,8 @@
    Maps :command/id from the registry to handler functions.
    Every registered :native command must have a handler here.
    Every handler must have a registry entry (validated by commands:validate)."
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.tools.cli :as cli]
             [resolver-sim.cli.registry :as registry]))
 
@@ -18,12 +19,29 @@
 (declare get-command-handlers)
 
 (def ^:private handler-symbols
-  {:run-scenario 'resolver-sim.commands.scenario/run})
+  ;; Commands that are part of either supported runtime distribution resolve
+  ;; individually. This prevents an optional command's dependencies (such as
+  ;; the gRPC simulation server) from breaking an unrelated CLI invocation.
+  {:run-scenario 'resolver-sim.commands.scenario/run
+   :run-invariants 'resolver-sim.commands.invariants/run
+   :run-benchmark 'resolver-sim.commands.run-benchmark/run})
+
+(def ^:private sew-command-ids
+  #{:benchmark-validate :run-scenario :run-invariants :run-benchmark :run-simulation})
+
+(defn sew-capable?
+  "True when this distribution contains the Sew protocol implementation."
+  []
+  (boolean (io/resource "resolver_sim/protocols/sew.clj")))
+
+(defn command-available? [cmd-id]
+  (or (not (sew-command-ids cmd-id)) (sew-capable?)))
 
 (defn- handler-for [cmd-id]
-  (if-let [symbol (get handler-symbols cmd-id)]
-    (requiring-resolve symbol)
-    (get (get-command-handlers) cmd-id)))
+  (when (command-available? cmd-id)
+    (if-let [symbol (get handler-symbols cmd-id)]
+      (requiring-resolve symbol)
+      (get (get-command-handlers) cmd-id))))
 
 (defn get-command-handlers
   "Return the command handler map, building it on first call.
@@ -129,8 +147,9 @@
   (println "Usage: java -jar prf.jar <command> [options]")
   (println)
   (println "Commands:")
-  (doseq [{:keys [path description surface]} (sort-by (comp #(str/join " " %) :path) (registry/list-commands))
-          :when (or (nil? surface) (= :prf surface))]
+  (doseq [{:keys [id path description surface]} (sort-by (comp #(str/join " " %) :path) (registry/list-commands))
+          :when (and (or (nil? surface) (= :prf surface))
+                     (command-available? id))]
     (printf "  %-30s %s\n" (str/join " " path) description))
   (println)
   (println "Use: java -jar prf.jar <command> --help for command-specific help.")

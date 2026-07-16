@@ -437,14 +437,18 @@ bb validation:artifact-registry
 Validate a specific registry:
 
 ```bash
-bb validation:artifact-registry results/runs/<run-id>/test-artifacts.json
+bb validation:artifact-registry <run-root>/manifest/artifacts.json
 ```
 
-Run a scenario with non-blocking artifact validation:
+Run a scenario into an exact, self-contained evidence bundle. The built JAR is the canonical execution surface; `bb run:scenario` is the development adapter:
 
 ```bash
-bb run:scenario S01_baseline-happy-path.json
+java -jar target/prf-runner-sew-0.1.0-uber.jar run-scenario scenarios/edn/<scenario>.edn --run-root /tmp/prf-run
+# Development adapter:
+bb run:scenario scenarios/edn/<scenario>.edn --run-root /tmp/prf-run
 ```
+
+A completed bundle is marked by `completion.json`; validate its immutable registry at `manifest/artifacts.json`.
 
 ### Validation design constraints
 

@@ -295,12 +295,18 @@
 
 (deftest minimal-replay-can-fail-closed-on-short-circuit
   (with-redefs [risk/events (constantly [{:short-circuits [:module-frozen-zero-accrual]}])]
-    (let [result (replay/replay-events dummy/protocol minimal-scenario
-                                       {:minimal true
-                                        :flags {:fail-on-short-circuits #{:module-frozen-zero-accrual}}})]
+    (let [scenario (assoc minimal-scenario :events
+                          [{:seq 0 :time 1000 :agent "a" :action "noop" :params {}}
+                           {:seq 1 :time 1001 :agent "a" :action "noop" :params {}}])
+          result (replay/replay-events dummy/protocol scenario
+                                      {:minimal true
+                                       :flags {:fail-on-short-circuits #{:module-frozen-zero-accrual}}})]
       (is (= :fail (:outcome result)))
       (is (= :short-circuit-policy (:halt-reason result)))
-      (is (= [:module-frozen-zero-accrual] (:short-circuit-violations result))))))
+      (is (= [:module-frozen-zero-accrual] (:short-circuit-violations result)))
+      (is (= 0 (:halted-at-seq result)))
+      (is (= 1 (:events-processed result)))
+      (is (= [0] (mapv :seq (:trace result)))))))
 
 (deftest unsupported-flags-rejected-on-generic-path
   (doseq [opt [:signing-key :signing-password :tsa-url :evidence-mode]]

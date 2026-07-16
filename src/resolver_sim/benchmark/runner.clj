@@ -8,6 +8,7 @@
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.io.resource-path :as rp]
+            [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.logging :as log]
             [resolver-sim.contract-model.replay :as replay]
@@ -39,20 +40,12 @@
           suites))
 
 (defn- resolve-suite-scenarios
-  "Resolve a :suite/ keyword from the suite registry to a list of
-   java.io.File objects for benchmark execution.
-   Resource paths are resolved to real filesystem paths for io/copy compatibility.
-   Returns empty vector if the suite is unknown or has no scenarios."
+  "Resolve a :suite/ keyword to stream-capable input sources."
   [suite-kw]
-  (let [paths (suites/suite-paths suite-kw)]
-    (mapv (fn [p]
-            (if-let [resolved (rp/resolve-path p)]
-              (io/file (java.net.URI. resolved))
-              (io/file p)))
-          paths)))
+  (mapv input-source/source (suites/suite-paths suite-kw)))
 
-(defn- load-scenario [path]
-  (io-sc/load-scenario-file path))
+(defn- load-scenario [source]
+  (io-sc/load-scenario-file (input-source/loadable-ref source)))
 
 (defn- reference-validation-id-by-path
   [scenario-path]
@@ -102,9 +95,9 @@
       (str/replace #"^-|-$" "")))
 
 (defn- execution-output-dir
-  [scenario-output-dir scenario-file run-index]
+  [scenario-output-dir scenario-source run-index]
   (when scenario-output-dir
-    (let [base-name (.getName scenario-file)
+    (let [base-name (:input/display-name scenario-source)
           scenario-name (str/replace base-name #"\.(edn|json)$" "")]
       (str (io/file scenario-output-dir
                     (safe-path-component scenario-name)
@@ -123,17 +116,18 @@
       (format "%064x" (BigInteger. 1 (.digest digest))))))
 
 (defn- write-execution-package!
-  [output-dir scenario-file scenario result]
+  [output-dir scenario-source scenario result]
   (when output-dir
     (let [dir (io/file output-dir)
-          input-file (io/file dir "input" (.getName scenario-file))
+          input-file (io/file dir "input" (:input/display-name scenario-source))
           replay-file (io/file dir "raw" "replay-output.edn")
           summary-file (io/file dir "execution-summary.edn")]
       (.mkdirs (.getParentFile input-file))
       (.mkdirs (.getParentFile replay-file))
-      (io/copy scenario-file input-file)
+      (with-open [in (input-source/open-stream scenario-source)]
+        (io/copy in input-file))
       (spit replay-file (pr-str result))
-      (spit summary-file (pr-str {:scenario/source-path (.getPath scenario-file)
+      (spit summary-file (pr-str {:scenario/source-path (:input/ref scenario-source)
                                   :scenario/protocol (:protocol scenario)
                                   :outcome (:outcome result)
                                   :halt-reason (:halt-reason result)
@@ -148,11 +142,11 @@
                                 (when (.exists (io/file path)) path))})))
 
 (defn- execute-scenario
-  [suite-kw scenario-file run-index run-count scenario-output-dir]
-  (let [path (.getPath scenario-file)
-        scenario (load-scenario path)
+  [suite-kw scenario-source run-index run-count scenario-output-dir]
+  (let [path (:input/ref scenario-source)
+        scenario (load-scenario scenario-source)
         protocol (:protocol scenario)
-        output-dir (execution-output-dir scenario-output-dir scenario-file run-index)
+        output-dir (execution-output-dir scenario-output-dir scenario-source run-index)
         run-replay (fn []
                       (if (= "yield-v1" protocol)
                         (replay/replay-events (yp/protocol) scenario
@@ -164,7 +158,7 @@
                  (binding [evidence-config/*artifact-dir* output-dir]
                    (run-replay))
                  (run-replay))
-        execution-package (write-execution-package! output-dir scenario-file scenario result)
+        execution-package (write-execution-package! output-dir scenario-source scenario result)
         public-id (benchmark-public-scenario-id suite-kw path)
         scenario-evidence (hc/hash-with-intent
                            {:hash/intent :evidence-content}
@@ -208,7 +202,8 @@
   (load-scenarios [_ benchmark]
     (if-let [suite-kw (:benchmark/scenario-suite benchmark)]
       (resolve-suite-scenarios suite-kw)
-      (find-scenarios-in-suites (:scenario-suites benchmark))))
+      (mapv #(input-source/source (.getPath %))
+            (find-scenarios-in-suites (:scenario-suites benchmark)))))
 
   (execute-benchmark [_ benchmark scenarios]
     (let [suite-kw (:benchmark/scenario-suite benchmark)

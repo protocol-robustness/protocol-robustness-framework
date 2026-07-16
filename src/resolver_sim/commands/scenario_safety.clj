@@ -1,8 +1,9 @@
 (ns resolver-sim.commands.scenario-safety
   "Run-root ownership and public-bundle sensitivity checks."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as str])
-  (:import [java.nio.file Files FileAlreadyExistsException]))
+  (:import [java.nio.file Files FileAlreadyExistsException StandardCopyOption]))
 
 (def ^:private lock-name ".run.lock")
 (def ^:private secret-patterns
@@ -42,3 +43,18 @@
     (when (seq findings)
       (throw (ex-info "Public bundle sensitivity scan failed" {:findings findings})))
     {:profile :public :findings []}))
+
+(defn write-sensitivity-report!
+  "Persist the pre-finalization export decision so it can be registered with the bundle."
+  [manifest-dir result]
+  (let [target (io/file (str manifest-dir) "sensitivity-report.json")
+        temp (io/file (str (.getPath target) ".tmp"))
+        report {"schema_version" "sensitivity-report.v1"
+                "profile" (name (:profile result))
+                "decision" "allowed"
+                "findings" (:findings result [])}]
+    (.mkdirs (.getParentFile target))
+    (spit temp (json/write-str report))
+    (Files/move (.toPath temp) (.toPath target)
+                (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
+    report))

@@ -1,5 +1,6 @@
 (ns resolver-sim.commands.scenario-orchestration-failure-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.commands.scenario-orchestration :as orchestration]))
 
@@ -34,7 +35,11 @@
    :extract-artifacts (fn [_ _] {})
    :scan-sensitivity (fn [_ _] {})
    :finalize-registry (fn [_ _] {})
-   :validate-registry (fn [_ _] {})})
+   :validate-registry (fn [_ _] {})
+   :finalize-run-evidence (fn [_ _] {})
+   :refresh-inventory (fn [_ _] {})
+   :refresh-registry (fn [_ _] {})
+   :revalidate-registry (fn [_ _] {})})
 
 (deftest required-phase-failure-never-completes-a-run
   (doseq [phase [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity
@@ -51,6 +56,80 @@
             (is (not (.exists (io/file root "completion.json"))))
             (is (.exists (io/file root ".run-state")))
             (is (not (.exists (io/file root ".run.lock"))))))
+        (finally (delete-tree! root))))))
+
+(deftest phase-failures-do-not-invoke-downstream-finalization-work
+  (doseq [[failed-phase expected-phases]
+          [[:write-manifest [:check-runtime :execute :write-manifest]]
+           [:extract-artifacts [:check-runtime :execute :write-manifest :extract-artifacts]]
+           [:scan-sensitivity [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity]]
+           [:finalize-registry [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry]]]]
+    (let [root (temp-dir)
+          c (context root)
+          calls (atom [])
+          record (fn [phase value]
+                   (fn [& _] (swap! calls conj phase) value))
+          overrides {:check-runtime (record :check-runtime {})
+                     :execute (record :execute {:exit-code 0})
+                     :write-manifest (record :write-manifest {})
+                     :extract-artifacts (record :extract-artifacts {})
+                     :scan-sensitivity (record :scan-sensitivity {})
+                     :finalize-registry (record :finalize-registry {})
+                     :validate-registry (record :validate-registry {})}]
+      (try
+        (orchestration/run-scenario!
+         c (assoc overrides failed-phase
+                  (fn [& _]
+                    (swap! calls conj failed-phase)
+                    (throw (ex-info "injected phase failure" {:phase failed-phase})))))
+        (is (= expected-phases @calls) (name failed-phase))
+        (is (not (.exists (io/file root "completion.json"))))
+        (finally (delete-tree! root))))))
+
+(deftest validation-failure-may-retain-report-but-never-completes
+  (let [root (temp-dir)
+        c (context root)
+        calls (atom [])
+        record (fn [phase value] (fn [& _] (swap! calls conj phase) value))
+        overrides {:check-runtime (record :check-runtime {})
+                   :execute (record :execute {:exit-code 0})
+                   :write-manifest (record :write-manifest {})
+                   :extract-artifacts (record :extract-artifacts {})
+                   :scan-sensitivity (record :scan-sensitivity {})
+                   :finalize-registry (record :finalize-registry {})
+                   :validate-registry (fn [& _]
+                                        (swap! calls conj :validate-registry)
+                                        (spit (io/file root "manifest/artifact-registry-validation.json") "{\"status\":\"failed\"}")
+                                        (throw (ex-info "validation failed" {})))}]
+    (try
+      (orchestration/run-scenario! c overrides)
+      (is (= [:check-runtime :execute :write-manifest :extract-artifacts
+              :scan-sensitivity :finalize-registry :validate-registry]
+             @calls))
+      (is (.exists (io/file root "manifest/artifact-registry-validation.json")))
+      (is (not (.exists (io/file root "completion.json"))))
+      (finally (delete-tree! root)))))
+
+(deftest public-secrets-fail-before-inventory-and-internal-runs-record-retention-policy
+  (doseq [[profile expected-status] [[:public :failed] [:internal :completed]]]
+    (let [root (temp-dir)
+          c (assoc (context root) :sensitivity/profile profile)
+          overrides (-> (successful-overrides)
+                        (dissoc :scan-sensitivity)
+                        (assoc :extract-artifacts (fn [_ _]
+                                                   (spit (io/file root "secret.txt") "api_key=must-not-export")
+                                                   {})))]
+      (try
+        (let [result (orchestration/run-scenario! c overrides)]
+          (is (= expected-status (:command/status result)))
+          (if (= profile :public)
+            (do
+              (is (not (.exists (io/file root "completion.json"))))
+              (is (not (.exists (io/file root "manifest/artifacts.json")))))
+            (let [report (json/read-str (slurp (io/file root "manifest/sensitivity-report.json")))]
+              (is (.exists (io/file root "completion.json")))
+              (is (= "internal" (get report "profile")))
+              (is (= "allowed" (get report "decision"))))))
         (finally (delete-tree! root))))))
 
 (deftest same-run-root-cannot-enter-while-another-command-is-active
@@ -85,6 +164,7 @@
         (is (not (.exists (io/file root ".run-state"))))
         (is (not (.exists (io/file root ".run.lock"))))
         (is (= [:check-runtime :execute :write-manifest :extract-artifacts
-                :scan-sensitivity :finalize-registry :validate-registry :complete]
+                :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence
+                                :refresh-inventory :refresh-registry :revalidate-registry :complete]
                (mapv :phase (:phases result)))))
       (finally (delete-tree! root)))))

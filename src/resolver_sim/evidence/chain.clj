@@ -326,7 +326,7 @@
    chain head."
   [evidence]
   (let [evidence-hash (:evidence/hash evidence)
-        {:keys [seq last-hash]}
+        {:keys [seq last-hash prev-hash]}
         (swap! chain-cursor
                (fn [cursor]
                  (let [new-seq (inc (:seq cursor))
@@ -338,7 +338,7 @@
     (assoc evidence
            :evidence/chain-hash-scheme chain-hash-scheme
            :evidence/chain-seq seq
-           :evidence/chain-prev-hash last-hash
+           :evidence/chain-prev-hash prev-hash
            :evidence/chain-self-hash last-hash)))
 
 (defn verify-scenario-chain

@@ -67,17 +67,22 @@
     (is (seq entries))
     (is (every? #(root-relative? root (:path %)) entries))
     (is (every? #(not (re-find #"(^|/)(results|prf-(runs|artifacts))(/|$)" (:path %))) entries))
-    (is (every? ids #{"execution.replay-output"
-                      "execution.dag"
-                      "execution.pre-run-commitment"
-                      "manifest.run-enrichment"
-                      "summaries.trace"
-                      "summaries.metrics"
-                      "summaries.claimable"
-                      "summaries.mechanisms"
-                      "summaries.schema-map"
-                      "summaries.trace-plain"
-                      "state.world-final"}))))
+    (is (every? #(or (str/starts-with? % "forensic.")
+                         (str/starts-with? % "evidence.")
+                         (str/starts-with? % "input.")
+                         (contains? #{"execution.replay-output"
+                                  "execution.dag"
+                                  "execution.pre-run-commitment"
+                                  "manifest.run-enrichment"
+                                  "summaries.trace"
+                                  "summaries.metrics"
+                                  "summaries.claimable"
+                                  "summaries.mechanisms"
+                                  "summaries.schema-map"
+                                  "summaries.trace-plain"
+                                  "state.world-final"}
+                                %))
+                ids))))
 
 (deftest default-run-creates-a-contained-generated-root
   (let [before (generated-run-roots settlement-slug)
@@ -108,6 +113,23 @@
         (is (.isFile (io/file execution "pre-run-commitment.json")))
         (is (.isFile (io/file slug-root "forensic/chain-cursor-final.json")))
         (is (.isFile (io/file slug-root "forensic/evidence-registry.json")))
+        (let [finalization-path (io/file slug-root "forensic/finalizations/scenarios"
+                                         settlement-directory-slug
+                                         "evidence-finalization.json")
+              finalization (json/read-str (slurp finalization-path) :key-fn keyword)]
+          (is (.isFile finalization-path))
+          (is (= "evidence-finalization.v2" (:schema-version finalization)))
+          (is (= "scenario-chain-finalization" (:finalization-kind finalization))))
+        (let [run-finalization-path (io/file root "evidence/finalizations/run/evidence-finalization.json")
+              run-finalization (json/read-str (slurp run-finalization-path) :key-fn keyword)]
+          (is (.isFile run-finalization-path))
+          (is (= "run-evidence-finalization" (:finalization-kind run-finalization)))
+          (is (= "exact" (get-in run-finalization [:verification :reconciliation :status])))
+          (is (= 1 (get-in run-finalization [:execution :scenario-count])))
+          (is (= 1 (get-in run-finalization [:execution :completed-scenario-count])))
+          (is (= "verified" (get-in run-finalization [:bindings :evidence-dag :status])))
+          (is (re-find #"^sha256:[0-9a-f]{64}$"
+                       (get-in run-finalization [:bindings :evidence-dag :root]))))
         (is (re-find #"^evidence-chain:sha256:[0-9a-f]{64}$"
                      (get-in enrichment [:execution :chain-root-ref])))
         (is (= (str "scenarios/" settlement-directory-slug "/execution/execution-dag.json")

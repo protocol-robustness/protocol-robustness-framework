@@ -12,6 +12,7 @@
    "manifest/summary.json" {:id "manifest.summary" :kind "summary" :schema "summary.v1" :importance "CORE"}
    "manifest/claimable-classification.json" {:id "manifest.claimable-classification" :kind "summary" :schema "claimable-classification.v2" :importance "CORE"}
    "manifest/run-enrichment.json" {:id "manifest.run-enrichment" :kind "run-enrichment" :schema "run-enrichment.v1" :importance "CORE"}
+   "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v1" :importance "CORE"}
    "execution/replay-output.json" {:id "execution.replay-output" :kind "raw.replay" :schema "bundle-root.v1" :importance "DIAGNOSTIC"}
    "execution/execution-dag.json" {:id "execution.dag" :kind "execution.dag" :schema "execution-dag.v1" :importance "CORE"}
    "execution/pre-run-commitment.json" {:id "execution.pre-run-commitment" :kind "pre-run-commitment" :schema "pre-run-commitment.v1" :importance "CORE"}
@@ -43,12 +44,25 @@
     {:id (str "forensic." (str/replace suffix #"[^A-Za-z0-9]+" "."))
      :kind "forensic.evidence" :schema "unknown" :importance "DIAGNOSTIC"}))
 
+(defn- run-evidence-spec [relative]
+  {:id (str "evidence." (str/replace relative #"[^A-Za-z0-9]+" "."))
+   :kind "evidence.finalization" :schema "evidence-finalization.v2" :importance "CORE"})
+
+(defn- input-spec [file]
+  ;; The exact source bytes are part of the replay evidence. Use their complete
+  ;; content hash as identity, rather than the human filename or short prefix.
+  {:id (str "input.scenario." (hash-file file))
+   :kind "input.scenario" :schema "scenario-input.v1" :importance "CORE"})
+
 (defn- entry [root scenario-prefix profile relative]
   (let [file (io/file root relative)
         local (if (.startsWith relative scenario-prefix)
                 (subs relative (count scenario-prefix))
                 relative)
-        spec (or (known local) (when (.startsWith local "forensic/") (forensic-spec local)))]
+        spec (or (known local)
+                 (when (.startsWith local "forensic/") (forensic-spec local))
+                 (when (.startsWith relative "evidence/") (run-evidence-spec relative))
+                 (when (.startsWith relative "inputs/scenarios/") (input-spec file)))]
     (when (and spec (.isFile file))
       {:id (:id spec) :kind (:kind spec) :path relative :importance (:importance spec)
        :schema_version (:schema spec) :contract_version "evidence-contract.v1"
@@ -73,7 +87,13 @@
         forensic-paths (for [file (file-seq (io/file scenario-root "forensic"))
                              :when (.isFile file)]
                          (relative-path root-path file))
-        entries (->> (concat standard-paths forensic-paths)
+        run-evidence-paths (for [file (file-seq (io/file root "evidence"))
+                                 :when (.isFile file)]
+                             (relative-path root-path file))
+        input-paths (for [file (file-seq (io/file root "inputs" "scenarios"))
+                          :when (.isFile file)]
+                      (relative-path root-path file))
+        entries (->> (concat standard-paths forensic-paths run-evidence-paths input-paths)
                      distinct
                      (keep #(entry root scenario-prefix (:sensitivity/profile context) %))
                      (sort-by :id)

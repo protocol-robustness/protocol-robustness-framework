@@ -156,8 +156,10 @@
    "S104_resolver-stake-shortfall"])
 
 (def ^:private force-authorisation-scenario-ids
-  ["dr-fa-001-force-authorisation-basic"
-   "dr-fa-002-force-authorisation-expired"])
+  ;; Scenario IDs are filenames and therefore case-sensitive in classpath
+  ;; resources as well as on Linux filesystems.
+  ["DR-FA-001-force-authorisation-basic"
+   "DR-FA-002-force-authorisation-expired"])
 
 (def ^:private reversal-slashing-scenario-ids
   ["DR-N-001-reversal-slash-appeal-lifecycle"

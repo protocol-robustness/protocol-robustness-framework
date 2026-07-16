@@ -1,6 +1,11 @@
 (ns resolver-sim.commands.scenario-run
   (:require [clojure.string :as str] [clojure.tools.cli :as cli])
-  (:import [java.nio.file Files LinkOption Path Paths] [java.time Instant ZoneOffset] [java.time.format DateTimeFormatter] [java.util UUID] [java.security MessageDigest] [java.math BigInteger]))
+  (:import [java.nio.file Files LinkOption Path Paths]
+           [java.time Instant ZoneOffset]
+           [java.time.format DateTimeFormatter]
+           [java.util UUID]
+           [java.security MessageDigest]
+           [java.math BigInteger]))
 
 (def ^:private formats #{:summary :failures :standard :verbose :audit})
 (def ^:private options [[nil "--run-root DIR"] [nil "--output-dir DIR"] [nil "--scenario-output-dir DIR"] [nil "--save-output DIR"] [nil "--report-format FORMAT" :parse-fn keyword] [nil "--sensitivity-profile PROFILE" :parse-fn keyword] ["-v" "--verbose"] ["-f" "--failures"] ["-s" "--summary"] ["-a" "--audit"]])
@@ -30,4 +35,4 @@
   (let [project (.toAbsolutePath (.normalize (Paths/get (str project-root) (make-array String 0)))) id (or run-id (generate-run-id)) slug (scenario-slug ref) input (or root (str "results/runs/" slug "-" id)) p (Paths/get (str input) (make-array String 0)) root (.normalize (if (.isAbsolute p) p (.resolve project p))) status (state root)]
     (when-not (and (string? ref) (not (str/blank? ref))) (throw (ex-info "Scenario reference is required" {:request request})))
     (when-not (#{:absent :empty} status) (throw (ex-info "Run root must be absent or empty" {:run/root (str root) :run/root-state status})))
-    {:project/root project :run/id id :run/type :scenario :run/root root :run/root-state status :scenario/ref ref :scenario/slug slug :report-format report-format :sensitivity/profile (or profile :public) :manifest/dir (child root "manifest") :scenario/root (child root "scenarios" slug) :execution/dir (child root "scenarios" slug "execution") :forensic/dir (child root "scenarios" slug "forensic") :summaries/dir (child root "scenarios" slug "summaries") :replay/file (child root "scenarios" slug "execution" "replay-output.json")}))
+    {:project/root project :run/id id :run/type :scenario :run/root root :run/root-state status :scenario/ref ref :scenario/slug slug :report-format report-format :sensitivity/profile (or profile :public) :manifest/dir (child root "manifest") :inputs/dir (child root "inputs" "scenarios") :scenario/root (child root "scenarios" slug) :execution/dir (child root "scenarios" slug "execution") :forensic/dir (child root "scenarios" slug "forensic") :summaries/dir (child root "scenarios" slug "summaries") :replay/file (child root "scenarios" slug "execution" "replay-output.json")}))

@@ -201,8 +201,9 @@
                         benchmark-from-index (:manifest benchmark-from-index)
                         (and benchmark-id-or-path
                              (str/ends-with? benchmark-id-or-path ".edn")) benchmark-id-or-path
-                        benchmark-from-index (:manifest benchmark-from-index)
-                        :else default-benchmark-manifest)
+                        :else (throw (ex-info "Unknown benchmark ID or manifest path"
+                                              {:benchmark benchmark-id-or-path
+                                               :available (mapv :id (:benchmarks index))})))
         _ (println "Running benchmark:" manifest-path)]
     (try
       (let [run-benchmark (requiring-resolve 'resolver-sim.benchmark.runner/run-benchmark)

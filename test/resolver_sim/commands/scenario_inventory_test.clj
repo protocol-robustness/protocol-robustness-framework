@@ -61,6 +61,25 @@
                  (:path (by-id "forensic.attestations.result.json"))))))
       (finally (delete-tree! root)))))
 
+(deftest build-registers-snapshotted-scenario-input-by-content-hash
+  (let [root (temp-dir)
+        c (context root)
+        content "{:scenario/id :snapshot-fixture}"
+        expected-hash "381ef2fc98be033a1c6ba3b67302b2889e8627732dc30f72209998430e0f023a"]
+    (try
+      (write! root "inputs/scenarios/381ef2fc98be-fixture.edn" content)
+      (let [registry (inventory/build! c)
+            entry (first (filter #(= (str "input.scenario." expected-hash)
+                                      (:id %))
+                                 (:artifacts registry)))]
+        (is (= (str "input.scenario." expected-hash) (:id entry)))
+        (is (= "input.scenario" (:kind entry)))
+        (is (= "CORE" (:importance entry)))
+        (is (= "inputs/scenarios/381ef2fc98be-fixture.edn" (:path entry)))
+        (is (= expected-hash (:sha256 entry)))
+        (is (= (count (.getBytes content "UTF-8")) (:bytes entry))))
+      (finally (delete-tree! root)))))
+
 (deftest build-rejects-forensic-id-collisions-without-writing-a-registry
   (let [root (temp-dir)
         c (context root)

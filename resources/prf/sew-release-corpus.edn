@@ -1,0 +1,30 @@
+{:schema-version "sew-release-corpus.v1"
+ :description "Publishable Sew runtime corpus. Entries are explicit allowlists; the build rejects missing or unsafe selected paths."
+ :entries
+ [{:kind "scenario"
+   :root "scenarios"
+   :extensions [".edn" ".json"]}
+  {:kind "benchmark"
+   :root "benchmarks"
+   :extensions [".edn"]}
+  {:kind "suite"
+   :root "suites"
+   :extensions [".edn" ".json" ".yaml" ".sha256"]
+   :filenames ["VERSION"]}
+  {:kind "data"
+   :root "data/fixtures"
+   :extensions [".edn" ".json"]}
+  {:kind "data"
+   :root "data/concepts"
+   :extensions [".edn" ".json"]}
+  {:kind "data"
+   :root "data/params"
+   :extensions [".edn" ".json"]}
+  {:kind "data"
+   :root "data/speds"
+   :extensions [".edn" ".json"]}
+  {:kind "data"
+   :root "data/yield"
+   :extensions [".edn" ".json"]}
+  {:kind "config"
+   :paths ["config/evidence.json" "config/monitoring.edn"]}]}

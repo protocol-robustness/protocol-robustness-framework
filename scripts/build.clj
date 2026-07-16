@@ -1,30 +1,102 @@
 (ns build
-  "Build source-bundled uberjar (no AOT) for PRF scenario runner.
-   Four variants: core, sew, benchmark, and cli.
+  "Build the two supported PRF distributions.
+
+   Variants:
+     :prf — framework and unified CLI, with no Sew implementation or corpus
+     :sew — Sew-enabled runner (corpus packaging migrates separately)
 
    Usage:
-     clojure -T:build uberjar :variant core
-     clojure -T:build uberjar :variant sew
-     clojure -T:build uberjar :variant benchmark
-     clojure -T:build uberjar :variant cli"
-  (:require [clojure.java.io :as io]
-            [clojure.tools.build.api :as b]))
+     clojure -T:build uberjar :variant prf
+     clojure -T:build uberjar :variant sew"
+  (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [clojure.tools.build.api :as b])
+  (:import [java.nio.file Files StandardCopyOption]))
 
 (def version "0.1.0")
+
+(def ^:private sew-corpus-spec "resources/prf/sew-release-corpus.edn")
+
+(defn- safe-relative-path! [path]
+  (when (or (str/blank? path)
+            (.isAbsolute (io/file path))
+            (some #{".."} (str/split path #"[\\\\/]+")))
+    (throw (ex-info "Unsafe Sew release corpus path" {:path path})))
+  path)
+
+(defn- sha256-file [file]
+  (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
+    (with-open [in (io/input-stream file)]
+      (let [buffer (byte-array 8192)]
+        (loop [read (.read in buffer)]
+          (when (pos? read)
+            (.update digest buffer 0 read)
+            (recur (.read in buffer))))))
+    (format "%064x" (java.math.BigInteger. 1 (.digest digest)))))
+
+(defn- corpus-entry-files [entry]
+  (let [paths (:paths entry)
+        root (:root entry)]
+    (if paths
+      (mapv (fn [path]
+              (safe-relative-path! path)
+              (let [file (io/file path)]
+                (when-not (.isFile file)
+                  (throw (ex-info "Declared Sew release corpus file is missing" {:path path})))
+                [(:kind entry) path file]))
+            paths)
+      (let [root (safe-relative-path! root)
+            directory (io/file root)
+            extensions (set (:extensions entry))
+            filenames (set (:filenames entry))]
+        (when-not (.isDirectory directory)
+          (throw (ex-info "Declared Sew release corpus directory is missing" {:root root})))
+        (for [file (file-seq directory)
+              :when (and (.isFile file)
+                         (let [name (.getName file)]
+                           (or (filenames name)
+                               (some #(.endsWith name ^String %) extensions))))]
+          [(:kind entry) (str file) file])))))
+
+(defn- package-sew-corpus! [class-dir]
+  (let [spec (edn/read-string (slurp sew-corpus-spec))
+        files (->> (:entries spec)
+                   (mapcat corpus-entry-files)
+                   (sort-by second)
+                   vec)
+        paths (map second files)]
+    (when-not (= (count paths) (count (set paths)))
+      (throw (ex-info "Sew release corpus selected duplicate paths" {:paths paths})))
+    (doseq [[_ path file] files]
+      (let [target (io/file class-dir path)]
+        (.mkdirs (.getParentFile target))
+        (Files/copy (.toPath file) (.toPath target)
+                    (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+    (let [manifest {:schema_version "sew-corpus-manifest.v1"
+                    :source_spec "prf/sew-release-corpus.edn"
+                    :artifacts (mapv (fn [[kind path file]]
+                                       {:path path :kind kind
+                                        :sha256 (sha256-file file) :bytes (.length file)})
+                                     files)}
+          output (io/file class-dir "META-INF/prf/sew-corpus-manifest.json")]
+      (.mkdirs (.getParentFile output))
+      (spit output (json/write-str manifest))
+      (println "  Packaged Sew release corpus:" (count files) "files")
+      manifest)))
 
 (defn uberjar
   [{:keys [variant main]
     :or   {variant "sew"
            main   nil}}]
-  (let [vname (name variant)
-        is-core (= vname "core")
-        is-benchmark (= vname "benchmark")
-        is-cli (= vname "cli")
-        main-cls (or main (cond
-                            is-benchmark "resolver-sim.benchmark.cli"
-                            is-cli "resolver-sim.cli.main"
-                            is-core "resolver-sim.replay-core"
-                            :else "resolver-sim.sew-bootstrap"))
+  (let [variant (keyword (name variant))
+        _ (when-not (#{:prf :sew} variant)
+            (throw (ex-info "Unknown JAR build variant" {:variant variant :supported [:prf :sew]})))
+        vname (name variant)
+        is-prf (= variant :prf)
+        is-sew (= variant :sew)
+        main-cls (or main "resolver-sim.cli.main")
         lib (symbol (str "resolver-sim/prf-runner-" vname))
 
         ;; Build deps file for clean classpath
@@ -48,19 +120,16 @@
                                org.postgresql/postgresql {:mvn/version "42.7.2"}
                                metosin/malli {:mvn/version "0.17.0"}}
                         :paths ["src" "protocols_src" "resources"]})
-        deps-str (cond
-                   is-core core-deps-str
-                   is-benchmark sew-deps-str  ;; benchmark needs same deps as sew (buddy, tools.cli, protocols_src)
-                   :else sew-deps-str)
+        deps-str (if is-prf core-deps-str sew-deps-str)
         deps-path (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-deps-" (System/nanoTime) ".edn")
         _ (spit deps-path deps-str)
         basis (b/create-basis {:project deps-path})
-         src-dirs (if (or is-benchmark (not is-core)) ["src" "protocols_src" "resources"] ["src" "resources"])
+        src-dirs (if is-prf ["src" "resources"] ["src" "protocols_src" "resources"])
         class-dir (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-" (System/nanoTime))
-         jar-file (if is-cli "target/prf.jar" (str "target/prf-runner-" vname "-" version ".jar"))
-         uber-file (if is-cli "target/prf-uber.jar" (str "target/prf-runner-" vname "-" version "-uber.jar"))]
+        jar-file (if is-prf "target/prf.jar" (str "target/prf-runner-" vname "-" version ".jar"))
+        uber-file (if is-prf "target/prf-uber.jar" (str "target/prf-runner-" vname "-" version "-uber.jar"))]
 
     (println "\n=== Build: prf-runner-" vname " ===")
     (printf "  Main class: %s\n" main-cls)
@@ -81,16 +150,20 @@
           (b/delete {:path (str td)}))))
     ;; Copy data dirs preserving directory name (b/copy-dir flattens contents,
     ;; so copy each dir into a subdirectory of class-dir)
-    (when (or is-benchmark is-cli)
-      (doseq [extra-dir (if is-cli
-                          ["resources/prf"]
-                          ["scenarios" "benchmarks" "data" "suites" "config"])]
+    (when is-prf
+      (doseq [extra-dir ["resources/prf"]]
         (let [d (java.io.File. extra-dir)]
           (when (.exists d)
             (printf "    %s/ -> class-dir/%s/\n" extra-dir extra-dir)
             (.mkdirs (java.io.File. class-dir extra-dir))
             (b/copy-dir {:src-dirs [extra-dir]
                          :target-dir (str class-dir "/" extra-dir)})))))
+
+    ;; The Sew archive packages an explicit, publishable runtime corpus. This
+    ;; intentionally excludes source-tree miscellany such as notebooks, docs,
+    ;; archived benchmarks, local configs, and unlisted data roots.
+    (when is-sew
+      (package-sew-corpus! class-dir))
 
     ;; Build manifest for the JAR
     ;; Add a marker file to indicate this is a source-only JAR
@@ -99,40 +172,25 @@
           (pr-str {:variant vname :main main-cls :version version :source-only true
                    :built-at (str (java.time.Instant/now))}))
 
-    ;; AOT compile the bootstrapper for benchmark variant (minimal deps).
-    ;; Must be done before copying other sources to avoid namespace collisions.
-    (when is-benchmark
-      (println "  Compiling AOT for benchmark bootstrapper...")
+    ;; Both supported distributions use the unified CLI bootstrapper.
+    (when is-sew
+      (println "  Compiling AOT for unified Sew CLI bootstrapper...")
       (let [bs-deps (pr-str '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}}
-                              :paths ["scripts/benchmark-bootstrap"]})
+                              :paths ["scripts/cli-bootstrap"]})
             bs-deps-path (str (System/getProperty "java.io.tmpdir")
                               "/prf-bs-deps-" (System/nanoTime) ".edn")]
         (spit bs-deps-path bs-deps)
         (let [bs-basis (b/create-basis {:project bs-deps-path})]
           (b/compile-clj {:basis bs-basis
-                          :src-dirs ["scripts/benchmark-bootstrap"]
+                          :src-dirs ["scripts/cli-bootstrap"]
                           :class-dir class-dir
-                          :ns-compile-command ['resolver-sim.benchmark.main]}))
-        (io/delete-file bs-deps-path)))
-
-    ;; AOT compile the bootstrapper for sew variant (minimal deps).
-    (when (and (not is-core) (not is-benchmark) (not is-cli))
-      (println "  Compiling AOT for sew bootstrapper...")
-      (let [bs-deps (pr-str '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}}
-                              :paths ["scripts/sew-bootstrap"]})
-            bs-deps-path (str (System/getProperty "java.io.tmpdir")
-                              "/prf-bs-deps-" (System/nanoTime) ".edn")]
-        (spit bs-deps-path bs-deps)
-        (let [bs-basis (b/create-basis {:project bs-deps-path})]
-          (b/compile-clj {:basis bs-basis
-                          :src-dirs ["scripts/sew-bootstrap"]
-                          :class-dir class-dir
-                          :ns-compile-command ['resolver-sim.sew-bootstrap]}))
+                          :ns-compile-command ['resolver-sim.cli-bootstrap]}))
         (io/delete-file bs-deps-path)))
 
     ;; Build JAR(s)
-    (if is-cli
-      ;; CLI variant: AOT compile a minimal bootstrapper (no protocol deps),
+    (let [prf-build? (= variant :prf)]
+    (if prf-build?
+      ;; PRF variant: AOT compile the unified CLI bootstrapper (no protocol deps),
       ;; then build standalone uberjar with Main-Class pointing at it.
       (let [main-sym 'resolver-sim.cli-bootstrap
             bs-deps (pr-str '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}}
@@ -152,10 +210,7 @@
                  :basis basis
                  :main main-sym}))
       ;; Other variants: build both source JAR and uberjar
-      (let [main-sym (cond
-                       is-benchmark 'resolver-sim.benchmark.main
-                       (not is-core) 'resolver-sim.sew-bootstrap
-                       :else 'clojure.main)]
+      (let [main-sym 'resolver-sim.cli-bootstrap]
         (println "  Building source JAR (Main-Class:" main-sym ")...")
         (b/jar {:class-dir class-dir
                 :jar-file jar-file
@@ -167,7 +222,7 @@
         (b/uber {:class-dir class-dir
                  :uber-file uber-file
                  :basis basis
-                 :main main-sym})))
+                 :main main-sym}))))
 
     ;; Cleanup
     (b/delete {:path class-dir})
@@ -175,13 +230,11 @@
 
     ;; Report
     (println "\n=== Results ===")
-    (doseq [f (if is-cli ["target/prf.jar"] [jar-file uber-file])]
+    (doseq [f (if is-prf ["target/prf.jar"] [jar-file uber-file])]
       (let [jf (java.io.File. f)]
         (when (.exists jf)
           (printf "  %-50s %d KB\n" (.getName jf) (quot (.length jf) 1024)))))
-    (if is-core
-      (printf "\n  Source-only build (no AOT).\n")
-      (printf "\n  AOT bootstrapper compiled for JAR Main-Class.\n"))
+    (printf "\n  AOT bootstrapper compiled for JAR Main-Class.\n")
     (println "  Done.\n")
     (flush)))
 
