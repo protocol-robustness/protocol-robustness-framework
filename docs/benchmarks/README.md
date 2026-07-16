@@ -1,17 +1,17 @@
-# Benchmark JAR
+# Sew benchmark execution
 
-Build a self-contained `prf-benchmark.jar` that includes all reference
-scenarios, concepts, scoring rules, and suite definitions as embedded
-classpath resources. The JAR runs from any directory — no git, no
-source checkout, no data files on the filesystem.
+Benchmarks are executed by the full Sew distribution:
+`target/prf-runner-sew-0.1.0-uber.jar`. It includes the supported Sew
+scenario corpus, benchmark registries, suites, concepts, and configuration as
+classpath resources. It runs from any directory without a source checkout.
 
 ## Build
 
 ```bash
-clojure -T:build uberjar :variant benchmark
+bb build:sew
 ```
 
-Output: `target/prf-runner-benchmark-0.1.0-uber.jar`
+Output: `target/prf-runner-sew-0.1.0-uber.jar`
 
 ### Prerequisites
 
@@ -37,29 +37,26 @@ classpath. No filesystem access required.
 ## Run
 
 ```bash
-# List available benchmarks
-java -jar target/prf-runner-benchmark-0.1.0-uber.jar --list
+# List supported benchmark IDs
+java -jar target/prf-runner-sew-0.1.0-uber.jar benchmark list
 
-# Run the default benchmark
-java -jar target/prf-runner-benchmark-0.1.0-uber.jar
+# Run a benchmark into one fresh, authoritative bundle root
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  --run-root ./runs/force-authorisation
 
-# Run a specific benchmark by ID
-java -jar target/prf-runner-benchmark-0.1.0-uber.jar run-benchmark escrow-dispute-v1
-
-# Run with explicit output path
-java -jar target/prf-runner-benchmark-0.1.0-uber.jar run-benchmark --output ./out/evidence.edn escrow-dispute-v1
-
-# Sign the evidence with a key
-java -jar target/prf-runner-benchmark-0.1.0-uber.jar run-benchmark -k ./signing-key.pem escrow-dispute-v1
+# Run an external benchmark input when it is supported by the installed corpus
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  run-benchmark /absolute/path/custom-benchmark.edn \
+  --run-root ./runs/custom-benchmark
 ```
 
 ### Exit codes
 
 | Code | Meaning |
 |------|---------|
-| 0 | All scenarios passed |
-| 1 | Benchmark failed or generic error |
-| 2 | Unknown benchmark ID |
+| 0 | Orchestration and evidence finalization completed; conclusion may be pass, fail, or inconclusive |
+| non-zero | Replay, finalization, or command failure; no completion marker is written |
 
 ## Add a custom benchmark pack
 

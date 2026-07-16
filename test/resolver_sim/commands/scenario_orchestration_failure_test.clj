@@ -129,7 +129,8 @@
             (let [report (json/read-str (slurp (io/file root "manifest/sensitivity-report.json")))]
               (is (.exists (io/file root "completion.json")))
               (is (= "internal" (get report "profile")))
-              (is (= "allowed" (get report "decision"))))))
+              (is (= "internal-retention" (get report "decision")))
+              (is (= 1 (count (get report "findings")))))))
         (finally (delete-tree! root))))))
 
 (deftest same-run-root-cannot-enter-while-another-command-is-active

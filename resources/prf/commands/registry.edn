@@ -124,33 +124,96 @@
    :command/outputs []
    :command/description "Validate concept data files and the concept registry."}
 
-  {:command/id :benchmark-validate
-   :command/path ["benchmark" "validate"]
-   :command/title "Validate benchmarks"
-   :command/category :benchmark
-   :command/surface :prf
-   :command/backstop-tier :default
-   :command/jar-availability :native
-   :command/runtime :jvm
-   :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
-   :command/outputs []
-   :command/description "Validate benchmark pack definitions and referenced resources."}
+   {:command/id :benchmark-list
+    :command/path ["benchmark" "list"]
+    :command/title "List benchmarks"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "List available benchmarks from the benchmark registry."}
 
-  {:command/id :run-scenario
+   {:command/id :suite-list
+    :command/path ["suite" "list"]
+    :command/title "List suites"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "List registered scenario suites with scenario counts and protocols."}
+
+   {:command/id :benchmark-validate
+    :command/path ["benchmark" "validate"]
+    :command/title "Validate benchmarks"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :default
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Validate benchmark pack definitions and referenced resources."}
+
+   {:command/id :scenario-list
+    :command/path ["scenario" "list"]
+    :command/title "List scenarios"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--search" :type :string :doc "Filter scenarios by ID substring"}
+                      {:name "--protocol" :type :string :doc "Filter by protocol (e.g. sew-v1)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "List available scenarios from the scenario catalog."}
+
+   {:command/id :scenario-pick
+    :command/path ["scenario" "pick"]
+    :command/title "Interactive scenario picker"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--search" :type :string :doc "Filter scenarios by ID substring"}
+                      {:name "--protocol" :type :string :doc "Filter by protocol (e.g. sew-v1)"}]
+    :command/outputs []
+    :command/description "Interactively select and run scenarios from a numbered menu."}
+
+   {:command/id :scenario-compare
+    :command/path ["scenario" "compare"]
+    :command/title "Compare two scenarios"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--out" :type :string :doc "Output directory for run roots"
+                       :default "results/trace-compare"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Run two scenarios and compare their replay traces. Reports the first structural divergence."}
+
+   {:command/id :run-scenario
    :command/path ["run-scenario"]
-   :command/title "Run scenario(s)"
+   :command/title "Run a scenario bundle"
    :command/category :scenario
    :command/surface :prf
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--scenario" :type :string :doc "Scenario ID or file path"}
-                     {:name "--suite" :type :string :doc "Scenario suite name (e.g. :dispute-resolution-scenarios)"}
-                     {:name "--out" :type :string :doc "Output directory"
-                      :default "target/report"}
-                     {:name "--json" :type :flag :doc "Output as JSON"}]
-   :command/outputs ["target/report/scenario-run.json"]
-   :command/description "Run one or more scenarios through the replay engine and produce results."}
+   :command/options [{:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
+                     {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
+                     {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
+   :command/outputs ["<run-root>/completion.json" "<run-root>/manifest/artifacts.json"]
+    :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. Registered suite execution is a separate future command."}
 
   {:command/id :run-invariants
    :command/path ["run-invariants"]
@@ -165,7 +228,45 @@
    :command/outputs []
    :command/description "Run the full protocol invariant suite (S01–S100 for sew-v1)."}
 
-  {:command/id :run-benchmark
+   {:command/id :benchmark-validate-jar
+    :command/path ["benchmark" "validate-jar"]
+    :command/title "Validate benchmark JAR corpus"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :full
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Validate that every benchmark resolves through InputSource without filesystem fallback."}
+
+   {:command/id :benchmark-smoke
+    :command/path ["benchmark" "smoke"]
+    :command/title "Benchmark smoke matrix"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :full
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--all" :type :flag :doc "Include experimental benchmarks"}
+                      {:name "--seed" :type :string :doc "Random seed for deterministic scenario selection"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Plan and execute a bounded benchmark smoke matrix (one scenario per benchmark)."}
+
+   {:command/id :verify-benchmark
+   :command/path ["verify-benchmark"]
+   :command/title "Verify benchmark bundle"
+   :command/category :benchmark
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :doc "Completed canonical benchmark root"}]
+   :command/outputs []
+   :command/description "Recalculate and verify benchmark assurance, finalization, input-set, and completion commitments."}
+
+   {:command/id :run-benchmark
    :command/path ["run-benchmark"]
    :command/title "Run a benchmark"
    :command/category :benchmark
@@ -347,14 +448,14 @@
     :command/outputs []
     :command/description "Clear all community mailbox messages."}
 
-  {:command/id :build-core
-   :command/path ["build" "core"]
-   :command/title "Build core uberjar"
+  {:command/id :build-prf
+   :command/path ["build" "prf"]
+   :command/title "Build framework-only CLI JAR"
    :command/category :build
    :command/surface :bb
    :command/runtime :bb
-   :command/bb-task "build:core"
-   :command/description "Build prf-runner-core uberjar (6 MB, no Sew, no DB)."}
+   :command/bb-task "build:prf"
+   :command/description "Build prf.jar: the framework-only unified CLI distribution."}
 
   {:command/id :build-sew
    :command/path ["build" "sew"]

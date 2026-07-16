@@ -23,3 +23,14 @@
       (spit (io/file root "world.json") "private_key=not-public")
       (is (thrown? clojure.lang.ExceptionInfo (safety/scan-public-bundle! root)))
       (finally (delete-tree! root)))))
+
+(deftest internal-sensitivity-scan-retains-sanitized-findings
+  (let [root (.toFile (java.nio.file.Files/createTempDirectory "scenario-internal-scan-" (make-array java.nio.file.attribute.FileAttribute 0)))]
+    (try
+      (spit (io/file root "world.json") "api_key=must-not-appear-in-report")
+      (let [result (safety/scan-internal-bundle! root)]
+        (is (= :internal (:profile result)))
+        (is (= :internal-retention (:decision result)))
+        (is (= 1 (count (:findings result))))
+        (is (not (re-find #"must-not-appear-in-report" (pr-str result)))))
+      (finally (delete-tree! root)))))

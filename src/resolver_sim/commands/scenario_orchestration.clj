@@ -1,6 +1,7 @@
 (ns resolver-sim.commands.scenario-orchestration
   (:require [clojure.data.json :as json] [clojure.java.io :as io] [clojure.java.shell :as shell]
             [resolver-sim.commands.scenario-registry :as registry]
+            [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.input-source :as input-source]
                         [resolver-sim.commands.scenario-manifest :as manifest]
                                     [resolver-sim.commands.scenario-safety :as safety]
@@ -19,7 +20,7 @@
   (let [source (input-source/source (:scenario/ref c))
         hash (input-source/sha256 source)
         destination (io/file (p (:inputs/dir c)) (str (subs hash 0 12) "-" (:input/display-name source)))
-        provenance (input-source/snapshot! source destination)
+        provenance (lifecycle/snapshot-input! (:run/root c) source destination)
         result ((requiring-resolve 'resolver-sim.io.scenario-runner/run-and-report)
                 {:scenario (:input/snapshot provenance) :run-id (:run/id c) :run-root (p (:run/root c)) :scenario-slug (:scenario/slug c) :scenario-root (p (:scenario/root c)) :execution-dir (p (:execution/dir c)) :artifact-dir (p (:forensic/dir c)) :summary-dir (p (:summaries/dir c)) :manifest-dir (p (:manifest/dir c)) :output-file (p (:replay/file c))} {:report-format (:report-format c)})]
     (assoc result :input/provenance provenance)))
@@ -32,7 +33,7 @@
 (defn default-scan-sensitivity! [c _]
   (let [result (if (= :public (:sensitivity/profile c))
                  (safety/scan-public-bundle! (:run/root c))
-                 {:profile :internal :findings []})]
+                 (safety/scan-internal-bundle! (:run/root c)))]
     (safety/write-sensitivity-report! (:manifest/dir c) result)
     (inventory/build! c)
     result))
@@ -122,11 +123,37 @@
                 _report (finalization-signing/write-verification-report!
                          (io/file (p (:run/root c)) "evidence" "reports"
                                   "run-finalization-signature-verification.json")
-                         (:payload-hash signed) (:hash trusted) (:verification signed))]
+                         (:payload-hash signed) (:hash trusted) (:verification signed))
+                timestamp-config (:timestamp signing-config)
+                timestamp-result
+                (when timestamp-config
+                  (let [tsa-registry (finalization-signing/load-tsa-registry! timestamp-config)
+                        receipt (finalization-signing/request-rfc3161-receipt!
+                                 {:signature-path (:path signed)
+                                  :timestamps-dir (io/file (p (:run/root c)) "evidence" "finalizations" "run" "timestamps")
+                                  :tsa-url (:tsa-url timestamp-config)})
+                        evaluation (if (:valid? receipt)
+                                     (finalization-signing/evaluate-timestamp-receipt
+                                      (assoc (:metadata receipt)
+                                             :receipt-path (:receipt-path receipt)
+                                             :signature-hash (:payload-hash signed))
+                                      (:registry tsa-registry))
+                                     {:status :requirement/present-invalid
+                                      :reason (:reason receipt)})]
+                    (finalization-signing/write-timestamp-verification-report!
+                     (io/file (p (:run/root c)) "evidence" "reports"
+                              "run-finalization-timestamp-verification.json")
+                     (:hash tsa-registry) evaluation)
+                    evaluation))]
             (when-not (get-in signed [:verification :valid?])
               (throw (ex-info "Run finalization signature policy is unsatisfied"
                               {:reason :signature/threshold-not-met
                                :verification (:verification signed)})))
+            (when (and (get-in signing-config [:timestamp :required?])
+                       (not= :requirement/satisfied (:status timestamp-result)))
+              (throw (ex-info "Run finalization timestamp policy is unsatisfied"
+                              {:reason :timestamp/policy-unsatisfied
+                               :verification timestamp-result})))
             signed))
 
         forensic?
@@ -138,7 +165,28 @@
 (defn default-refresh-inventory! [c _] (inventory/build! c))
 (defn default-refresh-registry! [c _] (registry/finalize! (:run/root c)))
 (defn default-revalidate-registry! [c e] (default-validate-registry! c e))
-(defn default-complete! [c e] (let [root (io/file (p (:run/root c))) out (io/file root "completion.json")] (spit out (json/write-str {:run/id (:run/id c) :command/status "completed" :scenario/outcome (if (zero? (:exit-code e)) "pass" "fail") :exit-code (:exit-code e) :sensitivity/profile (name (:sensitivity/profile c))})) (.delete (io/file root ".run-state")) {}))
+(defn default-complete! [c e]
+  (let [root (:run/root c)
+        registry (io/file (str root) "manifest/artifacts.json")
+        validation (io/file (str root) "manifest/artifact-registry-validation.json")
+        outcome (if (zero? (:exit-code e)) "pass" "fail")]
+    (lifecycle/complete!
+     root
+     {:schema_version "run-completion.v1"
+      :run_id (:run/id c)
+      :run_type "scenario"
+      :lifecycle_status "completed"
+      :semantic_status outcome
+      ;; Compatibility fields retained for existing scenario consumers.
+      :status "completed"
+      :outcome outcome
+      :exit_code (:exit-code e)
+      :manifest_ref "manifest/run.json"
+      :artifact_registry_ref "manifest/artifacts.json"
+      :artifact_registry_sha256 (when (.isFile registry) (str "sha256:" (lifecycle/sha256-file registry)))
+      :registry_validation_ref "manifest/artifact-registry-validation.json"
+      :registry_validation_sha256 (when (.isFile validation) (str "sha256:" (lifecycle/sha256-file validation)))})
+    {}))
 (def ^:private defaults {:check-runtime default-check-runtime! :execute default-execute! :write-manifest default-write-manifest! :extract-artifacts default-extract-artifacts! :scan-sensitivity default-scan-sensitivity! :finalize-registry default-finalize-registry! :validate-registry default-validate-registry! :finalize-run-evidence default-finalize-run-evidence! :refresh-inventory default-refresh-inventory! :refresh-registry default-refresh-registry! :revalidate-registry default-revalidate-registry! :complete default-complete!})
 (defn run-scenario!
   ([context] (run-scenario! context {}))

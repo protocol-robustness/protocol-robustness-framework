@@ -8,7 +8,8 @@
 
 (def ^:private excluded #{"manifest/artifacts.json"
                           "manifest/artifact-registry-validation.json"
-                          "completion.json" ".run-state"})
+                          "manifest/artifacts-validation.json"
+                          "completion.json" ".run-state" ".run.lock"})
 
 (defn- sha256 [file]
   (let [digest (MessageDigest/getInstance "SHA-256")]

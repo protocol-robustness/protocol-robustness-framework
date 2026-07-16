@@ -1596,7 +1596,8 @@
 (defn validate-all-registries!
   "Validate all registries. Throws on any validation failure.
    Called at namespace load. This is a hard-fail — the system will not
-   start with corrupt registries.
+   start with corrupt registries. Startup validation does not persist an
+   execution node because no authoritative run root exists at load time.
 
    Set *startup-registry-validation-enabled* to false to disable
    (for test fixtures that need to load without valid registries)."
@@ -1605,23 +1606,16 @@
      :or {entry-validation-mode :startup-safe}}]
    (when *startup-registry-validation-enabled*
      (binding [*entry-validation-mode* entry-validation-mode]
-       (let [with-node (requiring-resolve 'resolver-sim.evidence.node/with-execution-node)]
-         (with-node
-           {:execution-id :execution/validation
-            :inputs {:startup-validation? true}
-            :outputs-fn (fn [result]
-                          {:valid? (:valid? result)
-                           :registry-count (count (:results result))
-                           :error-count (count (:errors result))})}
-           (fn []
-             (let [result (validate-passive-registries)]
-               (when-not (:valid? result)
-                 (throw (ex-info "Registry validation failed — system cannot start with corrupt registries"
-                                 {:results (:results result)
-                                  :errors (:errors result)})))
-               (hc/validate-registry!)
-               (emit-startup-evidence! result)
-               result)))
+       ;; Namespace-load validation runs before a CLI command can establish an
+       ;; authoritative run root. It must therefore remain a process health
+       ;; check, not emit a persisted execution node into the caller's CWD.
+       (let [result (validate-passive-registries)]
+         (when-not (:valid? result)
+           (throw (ex-info "Registry validation failed — system cannot start with corrupt registries"
+                           {:results (:results result)
+                            :errors (:errors result)})))
+         (hc/validate-registry!)
+         (emit-startup-evidence! result)
          nil)))))
 
 (def validate-passive-registries!

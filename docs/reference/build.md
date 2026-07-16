@@ -2,54 +2,48 @@
 
 ## JAR Variants
 
-| JAR | Contents | Entry Point | Use Case |
+| JAR | Contents | Entry point | Use case |
 |-----|----------|-------------|---------|
-| `prf-runner-core` | Core framework | `resolver-sim.replay-core` | Standalone replay verification |
-| `prf-runner-sew` | Core + Sew protocol | `resolver-sim.minimal-runner` | Sew scenario replay |
-| `prf-benchmark` | Core + Sew + benchmarks + concepts + scenarios + suites + config | `resolver-sim.benchmark.cli` | Benchmark execution |
+| `prf.jar` | Framework and unified CLI; no Sew implementation or corpus | `resolver-sim.cli.main` | Framework-compatible external inputs |
+| `prf-runner-sew-<version>-uber.jar` | Framework, Sew implementation, supported corpus, benchmarks, suites, and unified CLI | `resolver-sim.cli.main` | Canonical Sew scenario and benchmark execution |
 
 ## Building
 
 ```bash
-clojure -T:build uberjar :variant core
-clojure -T:build uberjar :variant sew
-clojure -T:build uberjar :variant benchmark
+bb build:prf
+bb build:sew
+# or: bb build
 ```
 
-Output goes to `target/prf-runner-<variant>-<version>[-uber].jar`.
+Outputs are `target/prf.jar` and `target/prf-runner-sew-<version>-uber.jar`.
 
 ## Portable Usage
 
-The `prf-benchmark.jar` includes all reference data as classpath resources.
-It runs from any directory and does **not** require:
+The full `prf-runner-sew` JAR includes the supported Sew corpus as classpath
+resources. It runs from any directory and does **not** require:
 - A git repository
 - Source code checkout
 - Scenario/benchmark/concept files on the filesystem
 
 ```bash
-# List available benchmarks (works anywhere)
-java -jar prf-benchmark.jar --list
+# List available packaged benchmarks (works anywhere)
+java -jar prf-runner-sew-0.1.0-uber.jar benchmark list
 
-# Run a benchmark by ID
-java -jar prf-benchmark.jar run-benchmark escrow-dispute-v1
+# Run a packaged benchmark into an exact fresh bundle root
+java -jar prf-runner-sew-0.1.0-uber.jar \
+  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  --run-root ./runs/benchmark
 
-# Run a benchmark by ID with output path
-java -jar prf-benchmark.jar run-benchmark --output ./results/evidence.edn escrow-dispute-v1
-
-# Run with a specific manifest file
-java -jar prf-benchmark.jar benchmarks/packs/sew/escrow-dispute-v1.edn
-
-# Legacy invocation (no subcommand)
-java -jar prf-benchmark.jar escrow-dispute-v1
+# Run an external scenario input into an exact fresh bundle root
+java -jar prf-runner-sew-0.1.0-uber.jar \
+  run-scenario /absolute/path/scenario.edn \
+  --run-root ./runs/scenario
 ```
 
 ### External/experimental concepts and packs
 
-Use `--bundle` or pass explicit file paths for external concepts:
-
-```bash
-java -jar prf-benchmark.jar run-benchmark --bundle ./my-concepts.edn my-experimental-pack.edn
-```
+Use explicit external inputs where supported, always with a distinct
+`--run-root`. Do not use the legacy `--output` export path as a bundle root.
 
 ## Resource path scheme
 

@@ -3,6 +3,7 @@
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.claims :as benchmark-claims]
             [resolver-sim.benchmark.coverage :as benchmark-coverage]
+            [resolver-sim.benchmark.execution-identity :as execution-identity]
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
@@ -18,6 +19,7 @@
             [resolver-sim.scenario.suites :as suites]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str])
   (:import [java.math BigInteger]
            [java.security MessageDigest]))
@@ -94,14 +96,46 @@
       (str/replace #"[^A-Za-z0-9._-]+" "-")
       (str/replace #"^-|-$" "")))
 
+(defn build-execution-plan
+  "Plan benchmark executions before replay. The plan is the authoritative
+   descriptor set; duplicate identities and directory-prefix collisions fail
+   before any execution output is created."
+  [benchmark scenarios]
+  (let [run-count (benchmark-run-count benchmark)
+        planned (mapv (fn [ordinal [repetition-index scenario-source]]
+                        (let [scenario (load-scenario scenario-source)
+                              descriptor (execution-identity/descriptor scenario-source scenario repetition-index)
+                              execution-id (execution-identity/execution-id descriptor)]
+                          {:execution/ordinal (inc ordinal)
+                           :execution/id execution-id
+                           :execution/directory (execution-identity/directory-name (inc ordinal) descriptor)
+                           :execution/descriptor descriptor
+                           :scenario/source-ref (:input/ref scenario-source)}))
+                      (range)
+                      (for [repetition-index (range run-count)
+                            scenario-source scenarios]
+                        [repetition-index scenario-source]))
+        ids (map :execution/id planned)
+        prefixes (map #(subs (:execution/id %) (- (count (:execution/id %)) 16)) planned)]
+    (when-not (= (count ids) (count (set ids)))
+      (throw (ex-info "Benchmark execution plan contains duplicate execution IDs" {:ids ids})))
+    (when-not (= (count prefixes) (count (set prefixes)))
+      (throw (ex-info "Benchmark execution plan contains directory hash-prefix collisions" {:prefixes prefixes})))
+    planned))
+
+(defn- write-execution-plan! [path benchmark plan]
+  (when path
+    (let [file (io/file path)]
+      (.mkdirs (.getParentFile file))
+      (spit file (pr-str {:schema_version "benchmark-execution-plan.v1"
+                           :benchmark/id (:benchmark/id benchmark)
+                           :executions plan})))))
+
 (defn- execution-output-dir
-  [scenario-output-dir scenario-source run-index]
-  (when scenario-output-dir
-    (let [base-name (:input/display-name scenario-source)
-          scenario-name (str/replace base-name #"\.(edn|json)$" "")]
-      (str (io/file scenario-output-dir
-                    (safe-path-component scenario-name)
-                    (str "run-" run-index))))))
+  [executions-dir ordinal descriptor]
+  (when executions-dir
+    (let [directory (execution-identity/directory-name ordinal descriptor)]
+      (str (io/file executions-dir directory)))))
 
 (defn- sha256-file
   [path]
@@ -142,11 +176,13 @@
                                 (when (.exists (io/file path)) path))})))
 
 (defn- execute-scenario
-  [suite-kw scenario-source run-index run-count scenario-output-dir]
+  [suite-kw scenario-source ordinal repetition-index run-count executions-dir]
   (let [path (:input/ref scenario-source)
         scenario (load-scenario scenario-source)
+        descriptor (execution-identity/descriptor scenario-source scenario repetition-index)
+        execution-id (execution-identity/execution-id descriptor)
         protocol (:protocol scenario)
-        output-dir (execution-output-dir scenario-output-dir scenario-source run-index)
+        output-dir (execution-output-dir executions-dir ordinal descriptor)
         run-replay (fn []
                       (if (= "yield-v1" protocol)
                         (replay/replay-events (yp/protocol) scenario
@@ -170,7 +206,10 @@
         step-failures (get-in result [:metrics :invariant-results] {})
         all-inv-ids (sort sew-inv/canonical-ids)
         post-check (when final-world
-                     (:results (sew-inv/check-all final-world)))
+                     (if output-dir
+                       (binding [evidence-config/*artifact-dir* output-dir]
+                         (:results (sew-inv/check-all final-world)))
+                       (:results (sew-inv/check-all final-world))))
         inv-results (mapv (fn [id]
                             {:id id
                              :result (cond
@@ -178,11 +217,20 @@
                                        (get post-check id) :pass
                                        (false? (get-in post-check [id :holds?])) :fail
                                        :else :pass)})
-                          all-inv-ids)]
+                          all-inv-ids)
+        _ (when-let [summary-path (get-in execution-package [:scenario/summary])]
+            (spit summary-path (pr-str {:scenario/source-path (:input/ref scenario-source)
+                                        :scenario/protocol protocol
+                                        :outcome (:outcome result)
+                                        :halt-reason (:halt-reason result)
+                                        :events-processed (:events-processed result)
+                                        :invariant-results inv-results})))]
     {:file path
      :scenario/id public-id
      :simulator/scenario-path path
-     :benchmark/run-index run-index
+     :execution/id execution-id
+     :execution/descriptor descriptor
+     :benchmark/run-index repetition-index
      :benchmark/run-count run-count
      :outcome (:outcome result)
      :halt-reason (:halt-reason result)
@@ -207,13 +255,15 @@
 
   (execute-benchmark [_ benchmark scenarios]
     (let [suite-kw (:benchmark/scenario-suite benchmark)
-          run-count (benchmark-run-count benchmark)]
-      (vec
-       (mapcat (fn [run-index]
-                 (map (fn [scenario-file]
-                        (execute-scenario suite-kw scenario-file run-index run-count scenario-output-dir))
-                      scenarios))
-               (range 1 (inc run-count))))))
+          run-count (benchmark-run-count benchmark)
+          plan (vec (for [repetition-index (range run-count)
+                          scenario-file scenarios]
+                      [repetition-index scenario-file]))]
+      (mapv (fn [ordinal [repetition-index scenario-file]]
+              (execute-scenario suite-kw scenario-file (inc ordinal)
+                                repetition-index run-count scenario-output-dir))
+            (range)
+            plan)))
 
   (collect-metrics [_ results]
     {:total (count results)
@@ -227,16 +277,42 @@
 
 ;; ── Benchmark artifact index ──────────────────────────────────────────────────
 
+(defn- reconcile-execution-plan! [plan results]
+  (let [planned-by-id (into {} (map (juxt :execution/id identity) plan))
+        result-by-id (group-by :execution/id results)
+        planned-ids (set (keys planned-by-id))
+        result-ids (set (keys result-by-id))
+        missing (sort (clojure.set/difference planned-ids result-ids))
+        extra (sort (clojure.set/difference result-ids planned-ids))
+        duplicates (->> result-by-id (filter (fn [[_ rs]] (not= 1 (count rs)))) (map first) sort vec)
+        misplaced (->> results
+                       (keep (fn [result]
+                               (let [planned (get planned-by-id (:execution/id result))
+                                     actual (some-> result :scenario/artifacts :scenario/artifact-dir io/file .getName)]
+                                 (when (and planned (not= (:execution/directory planned) actual))
+                                   {:execution/id (:execution/id result)
+                                    :expected (:execution/directory planned)
+                                    :actual actual}))))
+                       vec)]
+    (when (or (seq missing) (seq extra) (seq duplicates) (seq misplaced))
+      (throw (ex-info "Benchmark execution plan reconciliation failed"
+                      {:missing missing :extra extra :duplicates duplicates :misplaced misplaced})))
+    true))
+
 (defn- write-artifact-index!
-  [scenario-output-dir benchmark-id results]
+  [scenario-output-dir benchmark-index-path benchmark-id results]
   (when scenario-output-dir
-    (let [index-path (str (io/file scenario-output-dir "benchmark-index.edn"))
+    (let [index-path (or benchmark-index-path
+                         (str (io/file scenario-output-dir "benchmark-index.edn")))
           executions (mapv (fn [result]
                              (let [artifacts (:scenario/artifacts result)]
-                               {:scenario/id (:scenario/id result)
+                               {:execution/id (:execution/id result)
+                                :execution/descriptor (:execution/descriptor result)
+                                :scenario/id (:scenario/id result)
                                 :scenario/source-path (:simulator/scenario-path result)
                                 :benchmark/run-index (:benchmark/run-index result)
                                 :benchmark/run-count (:benchmark/run-count result)
+                                :execution/status "completed"
                                 :outcome (:outcome result)
                                 :halt-reason (:halt-reason result)
                                 :scenario/evidence-root (:scenario/evidence-root result)
@@ -287,19 +363,22 @@
 (defn run-benchmark
   ([manifest-path] (run-benchmark manifest-path default-adapter {}))
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
-  ([manifest-path adapter {:keys [scenario-output-dir]}]
+  ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir)
                    adapter)
          manifest (load-manifest manifest-path)
          repo-meta (repo/metadata)
          scenarios (adapter/load-scenarios adapter manifest)
+         plan (build-execution-plan manifest scenarios)
+         _ (write-execution-plan! execution-plan-path manifest plan)
          _ (do
              (println "Executing" (count scenarios) "scenarios...")
              (log/info! "benchmark/execute" {:scenario-count (count scenarios)
                                              :manifest manifest-path}))
          results (adapter/execute-benchmark adapter manifest scenarios)
-         artifact-index (write-artifact-index! scenario-output-dir (:benchmark/id manifest) results)
+         _ (reconcile-execution-plan! plan results)
+         artifact-index (write-artifact-index! scenario-output-dir benchmark-index-path (:benchmark/id manifest) results)
 
          metrics (adapter/collect-metrics adapter results)
          passed? (= (:total metrics) (:passed metrics))

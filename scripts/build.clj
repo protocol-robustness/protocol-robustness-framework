@@ -11,6 +11,7 @@
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
             [clojure.string :as str]
             [clojure.tools.build.api :as b])
   (:import [java.nio.file Files StandardCopyOption]))
@@ -85,6 +86,24 @@
       (spit output (json/write-str manifest))
       (println "  Packaged Sew release corpus:" (count files) "files")
       manifest)))
+
+(defn- validate-source-sew-corpus! []
+  (let [expression "(require 'resolver-sim.benchmark.corpus-validation) (println (resolver-sim.benchmark.corpus-validation/validate-corpus!))"
+        result (shell/sh "clojure" "-M:with-sew" "-e" expression)]
+    (when-not (zero? (:exit result))
+      (throw (ex-info "Source Sew corpus validation failed"
+                      {:exit (:exit result) :out (:out result) :err (:err result)})))
+    (println "  Source Sew corpus validation:" (clojure.string/trim (:out result)))
+    result))
+
+(defn- validate-built-sew-jar! [uber-file]
+  (let [expression "(require 'resolver-sim.benchmark.corpus-validation) (println (resolver-sim.benchmark.corpus-validation/validate-corpus!))"
+        result (shell/sh "java" "-cp" uber-file "clojure.main" "-e" expression)]
+    (when-not (zero? (:exit result))
+      (throw (ex-info "Built Sew JAR corpus validation failed"
+                      {:jar uber-file :exit (:exit result) :out (:out result) :err (:err result)})))
+    (println "  Built Sew JAR corpus validation:" (clojure.string/trim (:out result)))
+    result))
 
 (defn uberjar
   [{:keys [variant main]
@@ -163,6 +182,8 @@
     ;; intentionally excludes source-tree miscellany such as notebooks, docs,
     ;; archived benchmarks, local configs, and unlisted data roots.
     (when is-sew
+      (println "  Validating source Sew benchmark corpus...")
+      (validate-source-sew-corpus!)
       (package-sew-corpus! class-dir))
 
     ;; Build manifest for the JAR
@@ -223,6 +244,9 @@
                  :uber-file uber-file
                  :basis basis
                  :main main-sym}))))
+
+    (when is-sew
+      (validate-built-sew-jar! uber-file))
 
     ;; Cleanup
     (b/delete {:path class-dir})

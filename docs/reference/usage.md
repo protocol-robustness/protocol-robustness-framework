@@ -56,6 +56,35 @@ The immutable artifact registry is `manifest/artifacts.json`. Registered artifac
 
 When no root is specified, scenario runs default under `results/runs/`. `results/test-artifacts/` remains reserved for test/CI artifacts and is not a scenario-bundle destination.
 
+## Benchmarks and suites
+
+Use a benchmark for a canonical multi-scenario evidence bundle:
+
+```bash
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  --run-root /tmp/prf-benchmark
+```
+
+A completed benchmark bundle contains its frozen definition, execution plan,
+child execution artifacts, aggregate summary, conclusion, conservation and
+assurance assertions, registry, finalization, and completion record. Its
+conclusion (`pass`, `fail`, or `inconclusive`) is separate from lifecycle
+completion.
+
+Verify a completed benchmark bundle without mutating it:
+
+```bash
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  verify-benchmark --run-root /tmp/prf-benchmark
+```
+
+Registered suites remain reusable internal execution-set definitions for CI,
+fixtures, and benchmark membership. `bb run:scenario:suite` and
+`run-invariants` are legacy/internal runners; they are not canonical bundle
+producers. A public `run-suite` command is deferred until a concrete consumer
+needs a finalized execution-set bundle without benchmark claims.
+
 ## Sensitivity profiles
 
 - `public` is the default. The public world projection removes known secret-bearing fields, and the complete retained bundle is scanned before finalization. A scan finding prevents completion.
@@ -65,8 +94,16 @@ Inspect `manifest/sensitivity-report.json` before sharing a bundle.
 
 ## Registry validation
 
+Validate a completed canonical bundle without mutating it:
+
 ```bash
-bb validation:artifact-registry /tmp/prf-run/manifest/artifacts.json
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  evidence validate --run-root /tmp/prf-run
+
+# Development adapter
+bb cli evidence validate --run-root /tmp/prf-run
 ```
+
+The legacy `--artifact-dir` option is only for pre-canonical evidence directories.
 
 Use the registry rather than filesystem discovery or `latest`/mtime heuristics when investigating evidence.

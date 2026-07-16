@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`manifest/benchmark-conclusion.json` is the compact, deterministic conclusion
+`benchmark/conclusion.json` is the compact, deterministic conclusion
 of one finalized benchmark run. It is a projection of the benchmark evidence;
 it does not introduce a new evaluator, infer protocol-wide truth, or replace
 per-claim results.
@@ -67,12 +67,13 @@ safety claim.
 The benchmark registry records this artifact as:
 
 ```text
-id: manifest.benchmark-conclusion
+id: benchmark.conclusion
 kind: benchmark.conclusion
 schema_version: benchmark-conclusion.v1
 importance: CORE
-depends_on: benchmark.evidence
 ```
 
 The benchmark evidence file is also a `CORE` artifact. Both paths are relative
-to the declared benchmark run root.
+to the declared benchmark run root. Registered suites supply benchmark
+membership and deterministic execution planning; they do not themselves create
+canonical top-level bundles.

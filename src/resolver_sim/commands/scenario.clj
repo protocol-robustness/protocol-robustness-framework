@@ -18,9 +18,18 @@
                  (when summary ["--summary"])
                  (when audit ["--audit"])))))
 
+(defn- run-single
+  "Run a single scenario from a parse request."
+  [request]
+  (let [context (scenario-run/build-run-context request {:project-root "."})]
+    (orchestration/run-scenario! context)))
+
 (defn run-argv
-  "Run a scenario command from command-specific argv. Returns the full result
-   map; parsing errors are returned without creating a run directory."
+  "Run one scenario command from command-specific argv. Returns the full result
+   map; parsing errors are returned without creating a run directory. A
+   canonical run root owns exactly one scenario; registered suite execution has
+   separate aggregate lifecycle semantics and is intentionally not multiplexed
+   through this command."
   [args]
   (let [parsed (scenario-run/parse-request args)]
     (if-not (:ok? parsed)
@@ -29,9 +38,15 @@
        :exit-code 2
        :errors (:errors parsed)
        :usage (:summary parsed)}
-      (let [context (scenario-run/build-run-context (:request parsed) {:project-root "."})
-            result (orchestration/run-scenario! context)]
-        (assoc result :warnings (:warnings parsed))))))
+      (let [request (:request parsed)
+            refs (:scenario/refs request)]
+        (if (= 1 (count refs))
+          (assoc (run-single request) :warnings (:warnings parsed))
+          {:command/status :rejected
+           :scenario/outcome :unknown
+           :exit-code 2
+           :errors ["run-scenario accepts exactly one scenario; use the future run-suite command for registered collections"]
+           :usage (:summary parsed)})))))
 
 (defn- print-result! [result]
   (doseq [warning (:warnings result)]

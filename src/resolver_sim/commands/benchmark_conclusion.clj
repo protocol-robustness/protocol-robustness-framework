@@ -67,10 +67,10 @@
                          "not_implemented" (:not-implemented claims)}
                "invariants" {"total" (:total-checks invariants) "passed" (:passed-checks invariants)
                              "failed" (- (or (:total-checks invariants) 0) (or (:passed-checks invariants) 0))}
-               "evidence" {"path" "benchmark/evidence.edn" "sha256" (sha256 file) "bytes" (.length file)}
+               "evidence" {"path" "benchmark/evidence/evidence.edn" "sha256" (sha256 file) "bytes" (.length file)}
                "scope" {"statement" "Declared benchmark claims passed only for the executed inputs."
                         "does_not_establish" ["unexercised claims" "protocol-wide safety"]}}
-        target (io/file (str (:manifest/dir context)) "benchmark-conclusion.json")
+        target (io/file (str (:benchmark/conclusion-file context)))
         temp (io/file (str (.getPath target) ".tmp"))]
     (.mkdirs (.getParentFile target))
     (spit temp (json/write-str value))

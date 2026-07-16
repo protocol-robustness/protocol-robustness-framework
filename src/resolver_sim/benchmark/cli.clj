@@ -209,7 +209,9 @@
       (let [run-benchmark (requiring-resolve 'resolver-sim.benchmark.runner/run-benchmark)
             default-adapter (requiring-resolve 'resolver-sim.benchmark.runner/default-adapter)
             evidence (run-benchmark manifest-path @default-adapter
-                                    {:scenario-output-dir (:scenario-output-dir options)})
+                                    {:scenario-output-dir (:scenario-output-dir options)
+                                     :benchmark-index-path (:benchmark-index-path options)
+                                     :execution-plan-path (:execution-plan-path options)})
             output-path (:output options)
             final-evidence (if-let [key-path (:key options)]
                              (let [sig (signing/sign-hash (:evidence/hash evidence) key-path (:password options))

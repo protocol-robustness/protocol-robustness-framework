@@ -152,7 +152,7 @@
   (reduce + 0
           (for [[wf domain-map] (get-in world [:claimable-v2] {})
                 :let [et (get-in world [:escrow-transfers wf])]
-                :when (and et (= (:token et) token))
+                :when (and et (= (name (:token et)) (name token)))
                 [domain addr-map] domain-map
                 :when (not (#{:settlement/principal :settlement/yield} domain))
                 [_ amt] addr-map]
@@ -164,7 +164,7 @@
   [world token]
   (+ (reduce + 0 (for [[wf cmap] (:claimable world {})
                        :let [et (get-in world [:escrow-transfers wf])]
-                       :when (= (:token et) token)
+                       :when (= (name (:token et)) (name token))
                        [_ amt] cmap]
                    (or amt 0)))
      (get-token-claimable-v2-non-principal-sum world token)))
@@ -174,7 +174,7 @@
         retained         (t/safe-parse-long (:retained-slash-reserves world 0))
         bond-fees        (t/safe-parse-long (get (:bond-fees world) token 0))
         appeal-bond-dist (t/safe-parse-long (get (:appeal-bond-distributions-by-token world {}) token 0))]
-    (if (= token :USDC)
+    (if (= (name token) "USDC")
       (+ (t/safe-parse-long (:insurance bd 0)) (t/safe-parse-long (:protocol bd 0)) retained bond-fees appeal-bond-dist)
       (+ bond-fees appeal-bond-dist))))
 

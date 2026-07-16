@@ -155,6 +155,16 @@
    "S103_negative-yield-shortfall-cascade"
    "S104_resolver-stake-shortfall"])
 
+(def ^:private redistribution-fairness-scenario-ids
+  ["S82_shortfall-recovery-cycle"
+   "S103_negative-yield-shortfall-cascade"
+   "S105_policy-response-cascade"
+   "S108_senior-coverage-consumed-by-slash"
+   "S114_multi-escrow-pool-shortage"
+   "S-DR-043-payout-shortfall-deferred"
+   "S110_multi-junior-coverage"
+   "Y04_vault-recovery-claim-deferred"])
+
 (def ^:private force-authorisation-scenario-ids
   ;; Scenario IDs are filenames and therefore case-sensitive in classpath
   ;; resources as well as on Linux filesystems.
@@ -285,6 +295,13 @@
        shortfall. Used by the shortfall-allocation-v0 benchmark pack."
     :kind         :file-path-suite
     :ci-tier      :coverage}
+   :suite/prf-redistribution-fairness-v0
+   {:scenario-ids redistribution-fairness-scenario-ids
+    :protocol-id "sew-v1"
+    :title "PRF redistribution fairness v0 benchmark suite"
+    :description "Eight registered scenarios for the experimental redistribution fairness benchmark."
+    :kind :file-path-suite
+    :ci-tier :coverage}
    :suite/yield-provider-scenarios
    {:scenario-ids yield-provider-scenario-ids
     :protocol-id  "yield-v1"

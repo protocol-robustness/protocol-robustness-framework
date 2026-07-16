@@ -1,6 +1,8 @@
 (ns resolver-sim.benchmark.runner-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.runner :as runner]
+            [resolver-sim.benchmark.execution-identity :as execution-identity]
+            [resolver-sim.io.input-source :as input-source]
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.repo :as repo]
@@ -18,13 +20,15 @@
                (.mkdirs))
         scenario-file (java.io.File. root "S03_dr3-dispute-refund.edn")
         _ (spit scenario-file "{:scenario-id \"S03\"}")
-        run-1 (#'runner/execution-output-dir (.getPath root) scenario-file 1)
-        run-2 (#'runner/execution-output-dir (.getPath root) scenario-file 2)]
+        source (input-source/source (.getPath scenario-file))
+        descriptor (execution-identity/descriptor source {:scenario-id "S03" :protocol "sew-v1"} 0)
+        run-1 (#'runner/execution-output-dir (.getPath root) 1 descriptor)
+        run-2 (#'runner/execution-output-dir (.getPath root) 2 descriptor)]
     (try
-      (testing "each replay index receives a distinct deterministic directory"
+      (testing "each execution receives a stable descriptor-derived directory"
         (is (not= run-1 run-2))
-        (is (.endsWith run-1 "S03_dr3-dispute-refund/run-1"))
-        (is (.endsWith run-2 "S03_dr3-dispute-refund/run-2")))
+        (is (re-find #"exec-0001-[0-9a-f]{16}$" run-1))
+        (is (re-find #"exec-0002-[0-9a-f]{16}$" run-2)))
       (testing "a package retains input, raw result, and execution summary"
         (let [package (#'runner/write-execution-package!
                        run-1 scenario-file {:protocol "sew-v1"}
@@ -35,6 +39,38 @@
       (finally
         (doseq [file (reverse (file-seq root))]
           (.delete file))))))
+
+(deftest execution-plan-reconciliation-rejects-divergent-results
+  (let [plan [{:execution/id "sha256:one" :execution/directory "exec-0001-one"}
+              {:execution/id "sha256:two" :execution/directory "exec-0002-two"}]
+        result (fn [id directory]
+                 {:execution/id id
+                  :scenario/artifacts {:scenario/artifact-dir directory}})
+        reconcile #(#'runner/reconcile-execution-plan! plan %)]
+    (testing "matching plan and results reconcile"
+      (is (true? (reconcile [(result "sha256:one" "exec-0001-one")
+                             (result "sha256:two" "exec-0002-two")]))) )
+    (testing "missing planned execution is rejected"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"reconciliation failed"
+                            (reconcile [(result "sha256:one" "exec-0001-one")]))))
+    (testing "extra execution is rejected"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"reconciliation failed"
+                            (reconcile [(result "sha256:one" "exec-0001-one")
+                                        (result "sha256:two" "exec-0002-two")
+                                        (result "sha256:extra" "exec-0003-extra")]))))
+    (testing "duplicate execution is rejected"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"reconciliation failed"
+                            (reconcile [(result "sha256:one" "exec-0001-one")
+                                        (result "sha256:one" "exec-0001-one")
+                                        (result "sha256:two" "exec-0002-two")]))))
+    (testing "misplaced execution is rejected"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"reconciliation failed"
+                            (reconcile [(result "sha256:one" "wrong-directory")
+                                        (result "sha256:two" "exec-0002-two")]))))))
 
 (deftest test-hashing-determinism
   (testing "Identical data produces identical hashes"

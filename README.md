@@ -550,37 +550,37 @@ bb run:scenario:search <text>
 
 ## Build
 
-Build standalone uberjars for portable scenario replay.  No Clojure CLI needed
-at runtime — just a JVM.
+Build the two supported standalone distributions. No Clojure CLI is needed at
+runtime—only a JVM.
 
 ```bash
-# Build both variants
-bb build:core             # → target/prf-runner-core-0.1.0-uber.jar  (5.6 MB)
-bb build:sew              # → target/prf-runner-sew-0.1.0-uber.jar  (18 MB)
+bb build:prf              # → target/prf.jar (framework-only unified CLI)
+bb build:sew              # → target/prf-runner-sew-0.1.0-uber.jar (full Sew distribution)
 bb build                  # both sequentially
 
-# Run from any directory (no source tree, no Clojure CLI)
-java -jar target/prf-runner-core-0.1.0-uber.jar \
-  -m resolver-sim.replay-core --help
+# Full Sew distribution: runs bundled or external scenarios and benchmarks.
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  run-scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
+  --run-root /tmp/prf-scenario
 
 java -jar target/prf-runner-sew-0.1.0-uber.jar \
-  -m resolver-sim.minimal-runner --fixtures ./data/fixtures/traces \
-  --scenario scenario.trace.json
+  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  --run-root /tmp/prf-benchmark
 ```
 
-### Variants
+### Supported distributions
 
-| JAR | Size | Entry point | Use case |
-|-----|------|-------------|---------|
-| `prf-runner-core` | 5.6 MB | `resolver-sim.replay-core` | Bundle verify, canonical hash, no Sew |
-| `prf-runner-sew` | 18 MB | `resolver-sim.minimal-runner` | Full scenario replay with Sew protocol |
+| JAR | Contents | Entry point | Use case |
+|-----|----------|-------------|---------|
+| `prf.jar` | Framework and unified CLI; no Sew implementation or corpus | `resolver-sim.cli.main` | Framework-compatible external inputs |
+| `prf-runner-sew` | Framework, Sew implementation, supported corpus, benchmarks and suites | `resolver-sim.cli.main` | Canonical Sew scenario and benchmark execution |
 
 ### GPG signing
 
 ```bash
 # Sign the uberjar for distribution
 bb sign:sew
-bb sign:core
+bb sign:prf
 ```
 
 ## Dispute-resolution validation phases

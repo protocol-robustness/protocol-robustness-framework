@@ -7,16 +7,25 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.registry :as reg]
             [resolver-sim.evidence.registry-validation :as rv]
+            [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.io.event-evidence :as io-evidence]
             [resolver-sim.sim.reference-validation :as rv-suite]))
 
 (defn- ensure-dir
-  "Resolve artifact-dir option, print error if missing."
-  [artifact-dir]
-  (let [d (io/file (or artifact-dir "target/run"))]
-    (when-not (.exists d)
-      (println (str "Artifact directory not found: " (.getPath d))))
-    d))
+  "Resolve an explicitly selected bundle or legacy artifact directory."
+  [artifact-dir run-root]
+  (when-let [path (or run-root artifact-dir)]
+    (let [d (io/file path)]
+      (when-not (.exists d)
+        (println (str "Artifact directory not found: " (.getPath d))))
+      d)))
+
+(defn- missing-root-result []
+  {:exit-code 2
+   :message "Specify --run-root for a canonical bundle or --artifact-dir for a legacy evidence directory"})
+
+(defn- canonical-registry-file [dir]
+  (io/file dir "manifest/artifacts.json"))
 
 (defn- load-registry
   "Load or build the evidence registry for an artifact directory."
@@ -42,9 +51,9 @@
       nil)))
 
 (defn verify-chain
-  "Verify evidence chain hashes and links for an artifact directory."
+  "Verify evidence chain hashes and links for an explicit legacy artifact directory."
   [{:keys [artifact-dir strict? json?] :as opts}]
-  (let [dir (ensure-dir artifact-dir)]
+  (let [dir (ensure-dir artifact-dir nil)]
     (if-not (.exists dir)
       {:exit-code 3 :message "Artifact directory not found"}
       (try
@@ -64,22 +73,29 @@
           {:exit-code 4 :message (.getMessage e)})))))
 
 (defn validate
-  "Validate evidence artifacts in a run directory."
-  [{:keys [artifact-dir strict? json?] :as opts}]
-  (let [dir (ensure-dir artifact-dir)]
-    (if-not (.exists dir)
-      {:exit-code 3 :message "Artifact directory not found"}
+  "Validate an explicit canonical bundle root or legacy evidence directory.
+   Canonical validation reads manifest/artifacts.json and never writes to an
+   already completed bundle."
+  [{:keys [artifact-dir run-root strict?] :as _opts}]
+  (let [dir (ensure-dir artifact-dir run-root)]
+    (cond
+      (nil? dir) (missing-root-result)
+      (not (.exists dir)) {:exit-code 3 :message "Artifact directory not found"}
+      :else
       (try
-        (println (str "Validating evidence registry in " artifact-dir "..."))
-        (let [registry (load-registry dir)
-              result (rv/validate-evidence-registry registry
-                                                    :strict (boolean strict?)
-                                                    :artifact-dir (.getPath dir))]
+        (let [canonical (canonical-registry-file dir)
+              result (if (.isFile canonical)
+                       (artifact-registry/validate-artifact-registry-from-file (.getPath canonical))
+                       (let [registry (load-registry dir)]
+                         (rv/validate-evidence-registry registry
+                                                        :strict (boolean strict?)
+                                                        :artifact-dir (.getPath dir))))
+              ok? (= :passed (:status result))]
+          (println (str "Validating evidence registry in " (.getPath dir) "..."))
           (println (str "  Status: " (:status result)))
-          (let [ok? (= :passed (:status result))]
-            (if ok?
-              {:exit-code 0 :message "Evidence validation passed" :result result}
-              {:exit-code 1 :message "Evidence validation failed" :result result})))
+          {:exit-code (if ok? 0 1)
+           :message (if ok? "Evidence validation passed" "Evidence validation failed")
+           :result result})
         (catch Exception e
           (println "  Error:" (.getMessage e))
           {:exit-code 4 :message (.getMessage e)})))))
@@ -92,7 +108,7 @@
    in evidence artifacts but is not in the mechanism map will NOT trigger
    a failure — only absent canonical types are reported as missing."
   [{:keys [artifact-dir json?] :as opts}]
-  (let [dir (ensure-dir artifact-dir)]
+  (let [dir (ensure-dir artifact-dir nil)]
     (if-not (.exists dir)
       {:exit-code 3 :message "Artifact directory not found"}
       (try

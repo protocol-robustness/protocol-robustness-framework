@@ -2,7 +2,8 @@
   "Run-root ownership and public-bundle sensitivity checks."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [resolver-sim.commands.run-lifecycle :as lifecycle])
   (:import [java.nio.file Files FileAlreadyExistsException StandardCopyOption]))
 
 (def ^:private lock-name ".run.lock")
@@ -11,38 +12,50 @@
    #"(?i)(?:api[_-]?key|password|secret|private[_-]?key|access[_-]?token)\s*[:=]"
    #"(?i)authorization:\s*bearer\s+" ])
 
-(defn acquire-lock! [run-root]
-  (let [root (io/file (str run-root)) lock (io/file root lock-name)]
-    (.mkdirs root)
-    (try
-      (Files/createFile (.toPath lock) (make-array java.nio.file.attribute.FileAttribute 0))
-      lock
-      (catch FileAlreadyExistsException _
-        (throw (ex-info "Run root is already in use" {:run/root (.getPath root) :lock (.getPath lock)}))))))
+(defn acquire-lock!
+  "Compatibility delegate; canonical callers use lifecycle/acquire-run-lock!."
+  [run-root]
+  (lifecycle/acquire-run-lock! run-root nil :scenario))
 
 (defn release-lock! [lock]
-  (when (and lock (.exists (io/file lock))) (.delete (io/file lock))))
+  "Compatibility delegate; canonical callers use lifecycle/release-run-lock!."
+  (lifecycle/release-run-lock! lock))
 
 (defn- text-file? [file]
   (boolean (re-find #"\.(json|edn|md|txt|csv)$" (.getName (io/file file)))))
 
-(defn scan-public-bundle! [run-root]
+(defn- sensitivity-findings [run-root]
   (let [root (io/file (str run-root))
-        forbidden #{".run.lock" ".run-state" "completion.json"}
-        findings (->> (file-seq root)
-                      (filter #(.isFile %))
-                      (remove #(contains? forbidden (.getName %)))
-                      (filter text-file?)
-                      (mapcat (fn [file]
-                                (let [body (slurp file)]
-                                  (keep (fn [pattern]
-                                          (when (re-find pattern body)
-                                            {:path (.getPath file) :pattern (str pattern)}))
-                                        secret-patterns))))
-                      vec)]
+        forbidden #{".run.lock" ".run-state" "completion.json"}]
+    (->> (file-seq root)
+         (filter #(.isFile %))
+         (remove #(contains? forbidden (.getName %)))
+         (filter text-file?)
+         (mapcat (fn [file]
+                   (let [body (slurp file)]
+                     (keep (fn [pattern]
+                             ;; Reports identify the location and detector only;
+                             ;; they never reproduce the matched secret value.
+                             (when (re-find pattern body)
+                               {:path (.getPath file) :pattern (str pattern)}))
+                           secret-patterns))))
+         vec)))
+
+(defn scan-public-bundle! [run-root]
+  (let [findings (sensitivity-findings run-root)]
     (when (seq findings)
       (throw (ex-info "Public bundle sensitivity scan failed" {:findings findings})))
-    {:profile :public :findings []}))
+    {:profile :public :decision :allowed :findings []}))
+
+(defn scan-internal-bundle!
+  "Scan an internal bundle without blocking approved retention. Findings are
+   sanitized metadata and the resulting report explicitly marks the bundle as
+   internal-only whenever restricted-looking content is present."
+  [run-root]
+  (let [findings (sensitivity-findings run-root)]
+    {:profile :internal
+     :decision (if (seq findings) :internal-retention :allowed)
+     :findings findings}))
 
 (defn write-sensitivity-report!
   "Persist the pre-finalization export decision so it can be registered with the bundle."
@@ -51,7 +64,7 @@
         temp (io/file (str (.getPath target) ".tmp"))
         report {"schema_version" "sensitivity-report.v1"
                 "profile" (name (:profile result))
-                "decision" "allowed"
+                "decision" (name (or (:decision result) :allowed))
                 "findings" (:findings result [])}]
     (.mkdirs (.getParentFile target))
     (spit temp (json/write-str report))

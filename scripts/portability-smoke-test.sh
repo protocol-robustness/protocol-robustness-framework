@@ -1,107 +1,113 @@
 #!/usr/bin/env bash
-# Portability Smoke Test for prf-benchmark.jar
-# Verifies that the JAR works from any directory without git or repo checkout.
+# Release acceptance test for both supported distributions.
+#
+# Builds (if necessary) and invokes each unified CLI JAR from a fresh external
+# working directory. The framework-only JAR must not advertise Sew commands;
+# the full Sew JAR must create scenario and benchmark artifacts only at their
+# declared --run-root locations.
 #
 # Usage:
 #   bash scripts/portability-smoke-test.sh
-#
-# Returns:
-#   0 - all tests pass
-#   1 - one or more tests fail
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PRF_JAR_PATH="$PROJECT_DIR/target/prf.jar"
+SEW_JAR_PATH="$PROJECT_DIR/target/prf-runner-sew-0.1.0-uber.jar"
 TEMP_DIR="$(mktemp -d)"
-JAR_PATH="${PROJECT_DIR}/target/prf-runner-benchmark-0.1.0-uber.jar"
-PASS_COUNT=0
-FAIL_COUNT=0
+CWD_DIR="$TEMP_DIR/external-cwd"
+SCENARIO_ROOT="$TEMP_DIR/scenario-run"
+BENCHMARK_ROOT="$TEMP_DIR/benchmark-run"
 
 cleanup() {
   rm -rf "$TEMP_DIR"
 }
 trap cleanup EXIT
 
-pass() { PASS_COUNT=$((PASS_COUNT + 1)); echo "  PASS: $1"; }
-fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); echo "  FAIL: $1"; }
-
-# Ensure JAR exists
-if [ ! -f "$JAR_PATH" ]; then
-  echo "Building benchmark uberjar..."
-  (cd "$PROJECT_DIR" && clojure -T:build uberjar :variant benchmark) || {
-    echo "ERROR: Failed to build JAR"
+require_absent() {
+  local path="$1"
+  if [ -e "$path" ]; then
+    echo "FAIL: undeclared output exists: $path" >&2
+    find "$path" -maxdepth 3 -print >&2 || true
     exit 1
-  }
+  fi
+}
+
+verify_completion_hashes() {
+  local root="$1"
+  local completion="$root/completion.json"
+  local registry_ref validation_ref registry_hash validation_hash
+  registry_ref="$(sed -n 's/.*"artifact_registry_ref":"\([^"]*\)".*/\1/p' "$completion" | sed 's#\\/#/#g')"
+  validation_ref="$(sed -n 's/.*"registry_validation_ref":"\([^"]*\)".*/\1/p' "$completion" | sed 's#\\/#/#g')"
+  registry_hash="$(sed -n 's/.*"artifact_registry_sha256":"sha256:\([0-9a-f]*\)".*/\1/p' "$completion")"
+  validation_hash="$(sed -n 's/.*"registry_validation_sha256":"sha256:\([0-9a-f]*\)".*/\1/p' "$completion")"
+
+  test -n "$registry_ref"
+  test -n "$validation_ref"
+  test -n "$registry_hash"
+  test -n "$validation_hash"
+  test "$registry_hash" = "$(sha256sum "$root/$registry_ref" | awk '{print $1}')"
+  test "$validation_hash" = "$(sha256sum "$root/$validation_ref" | awk '{print $1}')"
+}
+
+if [ ! -f "$PRF_JAR_PATH" ]; then
+  echo "Building framework-only JAR..."
+  (cd "$PROJECT_DIR" && clojure -T:build uberjar :variant prf)
+fi
+if [ ! -f "$SEW_JAR_PATH" ]; then
+  echo "Building Sew uberjar..."
+  (cd "$PROJECT_DIR" && clojure -T:build uberjar :variant sew)
 fi
 
-echo ""
-echo "=== Portability Smoke Test ==="
-echo "JAR:  ${JAR_PATH}"
-echo "Temp: ${TEMP_DIR}"
-echo ""
+mkdir -p "$CWD_DIR"
 
-# Copy JAR to temp dir (simulates running from outside repo)
-cp "$JAR_PATH" "$TEMP_DIR/prf-benchmark.jar"
-cd "$TEMP_DIR"
+echo "=== Supported JAR release acceptance ==="
+echo "PRF JAR: $PRF_JAR_PATH"
+echo "Sew JAR: $SEW_JAR_PATH"
+echo "External CWD: $CWD_DIR"
 
-# --- Test 1: --list works ---
-echo "--- Test 1: --list ---"
-java -jar prf-benchmark.jar --list > "$TEMP_DIR/list-out.txt" 2>&1 && {
-  grep -q "escrow-dispute" "$TEMP_DIR/list-out.txt" && pass "--list shows expected benchmarks" || fail "--list output missing benchmarks"
-} || { fail "--list command failed"; cat "$TEMP_DIR/list-out.txt"; }
+(
+  cd "$CWD_DIR"
+  java -jar "$PRF_JAR_PATH" help > "$TEMP_DIR/prf-help.txt"
+  grep -q "PRF CLI" "$TEMP_DIR/prf-help.txt"
+  if grep -q "run-scenario\|run-benchmark" "$TEMP_DIR/prf-help.txt"; then
+    echo "FAIL: framework-only JAR advertises Sew commands" >&2
+    exit 1
+  fi
 
-# --- Test 2: validate resources ---
-echo "--- Test 2: validate resources ---"
-java -jar prf-benchmark.jar validate resources > "$TEMP_DIR/validate-resources.txt" 2>&1 && {
-  grep -q "PASS" "$TEMP_DIR/validate-resources.txt" && pass "validate resources passes" || fail "validate resources did not pass"
-} || { fail "validate resources failed"; cat "$TEMP_DIR/validate-resources.txt"; }
+  java -jar "$SEW_JAR_PATH" help > "$TEMP_DIR/sew-help.txt"
+  grep -q "run-scenario" "$TEMP_DIR/sew-help.txt"
+  grep -q "run-benchmark" "$TEMP_DIR/sew-help.txt"
+  java -jar "$SEW_JAR_PATH" \
+    run-scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
+    --run-root "$SCENARIO_ROOT"
+  java -jar "$SEW_JAR_PATH" \
+    run-benchmark sew/sew-force-authorisation-custody-v1 \
+    --run-root "$BENCHMARK_ROOT"
+  java -jar "$SEW_JAR_PATH" \
+    verify-benchmark --run-root "$BENCHMARK_ROOT"
+)
 
-# --- Test 3: validate (all checks) ---
-echo "--- Test 3: validate ---"
-java -jar prf-benchmark.jar validate > "$TEMP_DIR/validate.txt" 2>&1 && {
-  grep -q "PASS" "$TEMP_DIR/validate.txt" && pass "validate passes" || fail "validate did not pass"
-} || { fail "validate failed"; cat "$TEMP_DIR/validate.txt"; }
+test -f "$SCENARIO_ROOT/completion.json"
+test -f "$BENCHMARK_ROOT/completion.json"
+verify_completion_hashes "$SCENARIO_ROOT"
+verify_completion_hashes "$BENCHMARK_ROOT"
 
-# --- Test 4: doctor ---
-echo "--- Test 4: doctor ---"
-java -jar prf-benchmark.jar doctor --out "$TEMP_DIR/doctor-out" > "$TEMP_DIR/doctor.txt" 2>&1 && {
-  HEALTHY_COUNT=$(grep -c "PASS" "$TEMP_DIR/doctor.txt" || true)
-  [ "$HEALTHY_COUNT" -ge 5 ] && pass "doctor healthy (${HEALTHY_COUNT}/6 pass)" || fail "doctor: only ${HEALTHY_COUNT}/6 pass"
-} || { fail "doctor failed"; cat "$TEMP_DIR/doctor.txt"; }
+require_absent "$CWD_DIR/results"
+require_absent "$CWD_DIR/prf-runs"
+require_absent "$CWD_DIR/prf-artifacts"
+require_absent "$CWD_DIR/target"
 
-# --- Test 5: verify-portability ---
-echo "--- Test 5: verify-portability ---"
-java -jar prf-benchmark.jar verify-portability --out "$TEMP_DIR/verify-out" > "$TEMP_DIR/verify.txt" 2>&1 && {
-  grep -q "PASSED" "$TEMP_DIR/verify.txt" && pass "verify-portability passes" || fail "verify-portability did not pass"
-} || { fail "verify-portability failed"; cat "$TEMP_DIR/verify.txt"; }
-
-# --- Test 6: list game-theory-checks ---
-echo "--- Test 6: list game-theory-checks ---"
-java -jar prf-benchmark.jar list game-theory-checks > "$TEMP_DIR/gt-list.txt" 2>&1 && {
-  grep -q "Mechanism properties" "$TEMP_DIR/gt-list.txt" && pass "list game-theory-checks works" || fail "list game-theory-checks output wrong"
-} || { fail "list game-theory-checks failed"; cat "$TEMP_DIR/gt-list.txt"; }
-
-# --- Test 7: explain game-theory ---
-echo "--- Test 7: explain game-theory ---"
-java -jar prf-benchmark.jar explain game-theory > "$TEMP_DIR/gt-explain.txt" 2>&1 && {
-  grep -q "equilibrium validation" "$TEMP_DIR/gt-explain.txt" && pass "explain game-theory works" || fail "explain game-theory output wrong"
-} || { fail "explain game-theory failed"; cat "$TEMP_DIR/gt-explain.txt"; }
-
-# --- Test 8: No source-tree paths in outputs ---
-echo "--- Test 8: source-tree path check ---"
-if grep -r "/home/user/Code/\|/workspaces/" "$TEMP_DIR" --include="*.txt" --include="*.edn" --include="*.json" 2>/dev/null; then
-  fail "Outputs contain source-tree paths"
-else
-  pass "No source-tree paths in outputs"
+# The external CWD is intentionally empty: all execution artifacts belong to
+# one of the explicit canonical roots above.
+if [ -n "$(find "$CWD_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+  echo "FAIL: external CWD contains undeclared files" >&2
+  find "$CWD_DIR" -maxdepth 3 -print >&2
+  exit 1
 fi
 
-# --- Test 9: doctor report file exists ---
-echo "--- Test 9: doctor report ---"
-DOCTOR_REPORT=$(find "$TEMP_DIR/doctor-out" -name "doctor-report.edn" 2>/dev/null | head -1)
-[ -n "$DOCTOR_REPORT" ] && [ -s "$DOCTOR_REPORT" ] && pass "Doctor report exists" || fail "Doctor report missing"
-
-# --- Summary ---
-echo ""
-echo "=== Results: ${PASS_COUNT} passed, ${FAIL_COUNT} failed ==="
-[ "$FAIL_COUNT" -gt 0 ] && exit 1 || exit 0
+echo "PASS: framework-only JAR has the unified CLI and does not advertise Sew commands"
+echo "PASS: full Sew JAR runs bundled scenario and benchmark without CWD scatter"
+echo "PASS: completion records commit to final registry and validation report hashes"
+echo "PASS: built Sew JAR verifies its completed benchmark assurance chain"

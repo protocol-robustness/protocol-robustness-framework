@@ -22,12 +22,22 @@
   ;; Commands that are part of either supported runtime distribution resolve
   ;; individually. This prevents an optional command's dependencies (such as
   ;; the gRPC simulation server) from breaking an unrelated CLI invocation.
-  {:run-scenario 'resolver-sim.commands.scenario/run
+  {   :run-scenario 'resolver-sim.commands.scenario/run
    :run-invariants 'resolver-sim.commands.invariants/run
-   :run-benchmark 'resolver-sim.commands.run-benchmark/run})
+   :run-benchmark 'resolver-sim.commands.run-benchmark/run
+   :verify-benchmark 'resolver-sim.commands.verify-benchmark/run
+   :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
+   :scenario-compare 'resolver-sim.commands.scenario-compare/compare-scenarios
+   :scenario-pick 'resolver-sim.commands.scenario-pick/pick-scenarios
+   :benchmark-list 'resolver-sim.commands.benchmark-list/list-benchmarks
+   :benchmark-validate-jar 'resolver-sim.commands.benchmark-validate-jar/validate-jar
+   :benchmark-smoke 'resolver-sim.commands.benchmark-smoke/smoke
+   :suite-list 'resolver-sim.commands.suite-list/list-suites})
 
 (def ^:private sew-command-ids
-  #{:benchmark-validate :run-scenario :run-invariants :run-benchmark :run-simulation})
+  #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
+    :run-scenario :run-invariants :run-benchmark :run-simulation
+    :scenario-list :scenario-compare :scenario-pick :benchmark-list :suite-list})
 
 (defn sew-capable?
   "True when this distribution contains the Sew protocol implementation."
@@ -59,9 +69,17 @@
              :validate              (requiring-resolve 'resolver-sim.commands.validate/run)
              :concepts-validate     (requiring-resolve 'resolver-sim.commands.concepts/validate)
              :benchmark-validate    (requiring-resolve 'resolver-sim.commands.benchmark/validate)
-             :run-scenario          (requiring-resolve 'resolver-sim.commands.scenario/run)
-             :run-invariants        (requiring-resolve 'resolver-sim.commands.invariants/run)
-             :run-benchmark         (requiring-resolve 'resolver-sim.commands.run-benchmark/run)
+              :run-scenario          (requiring-resolve 'resolver-sim.commands.scenario/run)
+              :run-invariants        (requiring-resolve 'resolver-sim.commands.invariants/run)
+              :run-benchmark         (requiring-resolve 'resolver-sim.commands.run-benchmark/run)
+              :verify-benchmark      (requiring-resolve 'resolver-sim.commands.verify-benchmark/run)
+              :scenario-list         (requiring-resolve 'resolver-sim.commands.scenario-list/list-scenarios)
+              :scenario-compare      (requiring-resolve 'resolver-sim.commands.scenario-compare/compare-scenarios)
+              :scenario-pick         (requiring-resolve 'resolver-sim.commands.scenario-pick/pick-scenarios)
+              :benchmark-list        (requiring-resolve 'resolver-sim.commands.benchmark-list/list-benchmarks)
+              :benchmark-validate-jar (requiring-resolve 'resolver-sim.commands.benchmark-validate-jar/validate-jar)
+              :benchmark-smoke       (requiring-resolve 'resolver-sim.commands.benchmark-smoke/smoke)
+              :suite-list            (requiring-resolve 'resolver-sim.commands.suite-list/list-suites)
              :fmt-check             (requiring-resolve 'resolver-sim.commands.validate/fmt-check)
              :lint                  (requiring-resolve 'resolver-sim.commands.validate/lint)
              :run-simulation        (requiring-resolve 'resolver-sim.commands.run-simulation/run)
@@ -83,14 +101,15 @@
 (def cli-options
   [["-h" "--help" "Show help"]
    ["-j" "--json" "Output results as JSON"]
-   [nil "--artifact-dir DIR" "Artifact directory path"
-    :default "target/run"]
+   [nil "--artifact-dir DIR" "Legacy evidence artifact directory (must be explicit)"]
    [nil "--scenario ID" "Scenario ID to run"]
    [nil "--scenario-file PATH" "Scenario file path"]
    [nil "--run-root DIR" "Authoritative root directory for a complete scenario bundle"]
    [nil "--output-dir DIR" "Deprecated scenario alias for --run-root"]
    [nil "--scenario-output-dir DIR" "Deprecated scenario alias for --run-root"]
    [nil "--save-output DIR" "Legacy scenario output-copy option"]
+   [nil "--sensitivity-profile PROFILE" "Bundle sensitivity profile: public or internal"
+    :parse-fn keyword]
    [nil "--report-format FORMAT" "Scenario report format"]
    ["-v" "--verbose" "Scenario report format: verbose"]
    ["-f" "--failures" "Scenario report format: failures"]
@@ -106,6 +125,7 @@
     :default "target/report"]
    [nil "--output PATH" "Output path for evidence bundle"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
+   [nil "--search TEXT" "Filter results by search term"]
    [nil "--key PATH" "Path to private key"]])
 
 ;; ---------------------------------------------------------------------------

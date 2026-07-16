@@ -86,8 +86,13 @@ bb test:unit
 ## Common next steps
 
 ```bash
-# Run the invariant suite through the registered CLI
+# Inspect the legacy/internal invariant suite (not a canonical run-root bundle)
 clojure -M:cli -- run-invariants --protocol sew-v1
+
+# Execute a canonical bundled benchmark
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  --run-root /tmp/prf-benchmark
 
 # Run a simulation from an EDN parameter file
 bb sim:run -p data/params/baseline.edn
@@ -99,7 +104,7 @@ bb docs:scenarios
 make docs-as-code-check
 
 # Run PRF CLI commands from a built jar
-java -jar target/prf-runner-core-<version>.jar help
+java -jar target/prf-runner-sew-0.1.0-uber.jar help
 ```
 
 ## Where to go next

@@ -8,7 +8,12 @@
             [resolver-sim.evidence.finalization-signature :as envelope]
                         [resolver-sim.evidence.timestamping :as timestamping])
   (:import [java.nio.file Files StandardCopyOption AtomicMoveNotSupportedException]
-           [java.security KeyFactory]
+             [java.io StringReader]
+             [java.security KeyFactory]
+             [org.bouncycastle.tsp TimeStampResponse]
+             [org.bouncycastle.cert X509CertificateHolder]
+             [org.bouncycastle.cms.jcajce JcaSimpleSignerInfoVerifierBuilder]
+             [org.bouncycastle.openssl PEMParser]
            [java.security.spec PKCS8EncodedKeySpec X509EncodedKeySpec]
            [java.util Base64]))
 
@@ -107,6 +112,70 @@
           evaluation (evaluate-envelopes [persisted] trusted-registry policy)]
       (assoc written :payload-hash payload-hash :verification evaluation))))
 
+(defn load-tsa-registry! [timestamp-config]
+  (let [path (:trusted-tsa-registry-path timestamp-config)
+        expected (:trusted-tsa-registry-sha256 timestamp-config)
+        actual (sha256-ref path)]
+    (when-not (= expected actual)
+      (throw (ex-info "Trusted TSA registry digest mismatch"
+                      {:reason :timestamp/trusted-registry-hash-mismatch})))
+    {:registry (edn/read-string (slurp path)) :hash actual :source path}))
+
+(declare verify-rfc3161-receipt!)
+
+(defn evaluate-timestamp-receipt
+  "Evaluate detached receipt metadata against a pinned TSA registry. An active
+   authority must provide its pinned signer certificate and the caller must
+   provide the receipt path for cryptographic token verification."
+  [receipt tsa-registry]
+  (let [authority (some #(when (= (:tsa-url receipt) (:url %)) %) (:authorities tsa-registry))]
+    (cond
+      (not (:imprint-valid? receipt)) {:status :requirement/present-invalid
+                                       :reason :timestamp/imprint-mismatch}
+      (nil? authority) {:status :requirement/present-untrusted
+                        :reason :timestamp/unknown-authority}
+      (not= :active (:status authority)) {:status :requirement/present-untrusted
+                                           :reason :timestamp/inactive-authority}
+      (not (string? (:certificate-pem authority))) {:status :requirement/present-untrusted
+                                                     :reason :timestamp/missing-pinned-certificate}
+      (or (nil? (:receipt-path receipt)) (nil? (:signature-hash receipt)))
+      {:status :requirement/present-invalid :reason :timestamp/missing-receipt-material}
+      :else
+      (let [verified (verify-rfc3161-receipt! {:receipt-path (:receipt-path receipt)
+                                               :signature-hash (:signature-hash receipt)
+                                               :authority authority})]
+        (assoc verified :status (if (:valid? verified)
+                                  :requirement/satisfied
+                                  :requirement/present-invalid))))))
+
+(defn verify-rfc3161-receipt!
+  "Verify a receipt's message imprint and RFC 3161 token signature against the
+   explicitly pinned TSA signer certificate in an active registry authority.
+   The pinned certificate is the initial trust anchor; chain/path building can
+   later extend this representation without weakening current verification."
+  [{:keys [receipt-path signature-hash authority]}]
+  (try
+    (let [response (TimeStampResponse. (Files/readAllBytes (.toPath (io/file receipt-path))) )
+          token (.getTimeStampToken response)
+          info (.getTimeStampInfo token)
+          expected (.digest (java.security.MessageDigest/getInstance "SHA-256")
+                            (.getBytes signature-hash "UTF-8"))
+          imprint-valid? (java.util.Arrays/equals expected (.getMessageImprintDigest info))
+          holder (with-open [parser (PEMParser. (StringReader. (:certificate-pem authority)))]
+                   (let [value (.readObject parser)]
+                     (if (instance? X509CertificateHolder value) value
+                         (throw (ex-info "Pinned TSA certificate is not X.509" {})))))
+          verifier (.build (JcaSimpleSignerInfoVerifierBuilder.) holder)]
+      (.validate token verifier)
+      {:valid? imprint-valid?
+       :status (if imprint-valid? :requirement/satisfied :requirement/present-invalid)
+       :timestamp/gen-time (str (.getGenTime info))
+       :timestamp/serial (str (.getSerialNumber info))
+       :reason (when-not imprint-valid? :timestamp/imprint-mismatch)})
+    (catch Exception e
+      {:valid? false :status :requirement/present-invalid
+       :reason :timestamp/token-signature-invalid :detail (.getMessage e)})))
+
 (defn request-rfc3161-receipt!
   "Obtain a detached RFC 3161 receipt over a signature artifact digest. The
    returned status proves message-imprint binding only; TSA trust is evaluated
@@ -136,6 +205,22 @@
          :receipt-path (.getPath receipt-path)
          :metadata-path (.getPath metadata-path)
          :metadata metadata}))))
+
+(defn write-timestamp-verification-report! [path trusted-registry-hash verification]
+  (let [target (io/file path)
+        temp (io/file (.getParentFile target) (str "." (.getName target) ".tmp-" (java.util.UUID/randomUUID)))
+        report {:schema-version "run-finalization-timestamp-verification.v1"
+                :trusted-tsa-registry-hash trusted-registry-hash
+                :verification verification}]
+    (.mkdirs (.getParentFile target))
+    (spit temp (json/write-str report {:indent true}))
+    (try
+      (Files/move (.toPath temp) (.toPath target)
+                  (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE StandardCopyOption/REPLACE_EXISTING]))
+      (catch AtomicMoveNotSupportedException _
+        (Files/move (.toPath temp) (.toPath target)
+                    (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+    {:path (.getPath target) :report report}))
 
 (defn write-verification-report!
   "Persist public detached-signature verification results. This report is not

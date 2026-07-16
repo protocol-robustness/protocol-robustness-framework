@@ -68,7 +68,7 @@
   "Copy exact input bytes into a declared bundle input directory and return
    immutable provenance. Callers must supply a path below their run root."
   [input destination]
-  (let [target (io/file destination)
+  (let [target (io/file (str destination))
         hash (sha256 input)
         bytes (read-bytes input)]
     (.mkdirs (.getParentFile target))

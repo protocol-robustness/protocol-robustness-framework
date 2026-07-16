@@ -13,6 +13,8 @@
   (let [protocol-id (or protocol "sew-v1")
         runner-opts (cond-> {:protocol protocol-id}
                       json? (assoc :report-format :json))]
+    (println "WARNING: run-invariants is a legacy/internal suite runner.")
+    (println "It does not yet produce a canonical --run-root bundle; use run-scenario --run-root for canonical scenario evidence.")
     (println "Running invariant suite...")
     (println (str "  protocol: " protocol-id))
     (flush)

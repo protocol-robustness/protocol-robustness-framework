@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added (2026-07-17)
+
+- **Canonical benchmark assurance and verification:** Canonical `run-benchmark --run-root` bundles now emit `benchmark-conservation.v1`, `benchmark-assurance.v1`, `benchmark-finalization.v1`, and terminal `benchmark-completion.v1` artifacts. Conservation is projected from the existing Sew `:conservation-of-funds` invariant, with execution-summary hash references and expected-set reconciliation. Assurance now records an immutable input set covering the benchmark-definition snapshot, execution plan, and every child scenario-input snapshot; its domain-separated `input_set_root` is propagated through finalization and completion. Finalization commits a domain-separated `final_ref`; completion commits finalization, registry, validation, and input-set references. Added read-only `verify-benchmark --run-root`, which recalculates terminal commitments, conservation evidence, and contained input hashes, with tamper-specific regression coverage and built-JAR portability acceptance. External benchmark-pack dependency snapshots remain deferred. (`src/resolver_sim/{benchmark/{conservation.clj,verify.clj,runner.clj},commands/{run_benchmark.clj,verify_benchmark.clj}}`, `test/resolver_sim/benchmark/verify_test.clj`, `resources/prf/commands/registry.edn`, `scripts/portability-smoke-test.sh`, `docs/benchmarks/BENCHMARK_ASSURANCE_SPEC_V1.md`)
+
 ### Security (2026-07-15)
 
 - **Evidence registry validation now verifies on-disk content:** Required registry validation canonicalizes each relative evidence path beneath the artifact root, rejects absolute/traversal escapes, reparses evidence JSON, and requires its recomputed evidence hash to equal the registered `:hash/content`. This prevents a modified evidence file from passing solely by retaining its prior claimed hash. (`src/resolver_sim/evidence/registry_validation.clj`, `test/resolver_sim/evidence/registry_test.clj`)

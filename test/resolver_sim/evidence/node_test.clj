@@ -294,9 +294,9 @@
     (is (true? (get-in result [:checks :duplicate-hashes])))))
 
 (deftest with-execution-node-emits-pass-fail-and-error-nodes
-  ;; Force passive_registries to load before the with-redefs below, so that
-  ;; the startup-validation node created by validate-all-registries! at load
-  ;; time goes to the default artifact-dir rather than the test's temp dir.
+  ;; Force passive_registries to load before the with-redefs below. Startup
+  ;; validation is intentionally validation-only and must not write a node
+  ;; before a run has selected its authoritative artifact directory.
   (require 'resolver-sim.definitions.passive-registries)
   (node/with-fresh-registry
     (chain/reset-registry!)
