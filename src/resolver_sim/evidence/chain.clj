@@ -20,6 +20,7 @@
    build → write → sign → timestamp → cursor."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.timestamping :as ts]
@@ -201,24 +202,272 @@
               chain-cursor fresh-cursor]
       (f))))
 
+(def ^:private chain-hash-scheme "link-v1")
+
+(defn chain-link-hash
+  "Return the versioned hash for one targeted-evidence chain link.
+
+   The link hash commits to the immutable evidence-content hash and to the
+   chain position and predecessor. A terminal link therefore commits to the
+   ordered prefix only when every prior link is verified."
+  [evidence-hash chain-seq previous-link-hash]
+  (hc/hash-with-intent
+   {:hash/intent :evidence-chain-link-v1}
+   {:chain/hash-scheme chain-hash-scheme
+    :evidence/hash evidence-hash
+    :evidence/chain-seq chain-seq
+    :evidence/chain-prev-hash previous-link-hash}))
+
+(defn evidence-hash-set-root
+  "Return a domain-separated commitment to an unordered evidence-hash set.
+   The canonical payload sorts and de-duplicates hashes before hashing."
+  [hashes]
+  (hc/hash-with-intent
+   {:hash/intent :run-evidence-hash-set-v1}
+   {:evidence-hashes (vec (sort (set hashes)))}))
+
+(defn reconcile-evidence-sets
+  "Compare the four evidence identity sets required for an exact run closure.
+
+   Inputs are collection-valued; duplicates are reported separately and do not
+   affect the canonical set comparison. `:exact` means every source declares
+   the same unique evidence hashes."
+  [{:keys [disk-evidence-hashes registry-evidence-hashes
+           chain-reachable-hashes aggregate-declared-hashes]}]
+  (let [sources {:disk-evidence-hashes (vec (or disk-evidence-hashes []))
+                 :registry-evidence-hashes (vec (or registry-evidence-hashes []))
+                 :chain-reachable-hashes (vec (or chain-reachable-hashes []))
+                 :aggregate-declared-hashes (vec (or aggregate-declared-hashes []))}
+        sets (into {} (map (fn [[k hashes]] [k (set hashes)]) sources))
+        disk (:disk-evidence-hashes sets)
+        registry (:registry-evidence-hashes sets)
+        reachable (:chain-reachable-hashes sets)
+        declared (:aggregate-declared-hashes sets)
+        duplicates (into {}
+                         (keep (fn [[k hashes]]
+                                 (let [duplicates (->> hashes frequencies
+                                                       (keep (fn [[hash n]] (when (> n 1) hash)))
+                                                       sort vec)]
+                                   (when (seq duplicates) [k duplicates])))
+                               sources))
+        exact? (and (= disk registry reachable declared) (empty? duplicates))]
+    {:reconciliation/status (if exact? :exact :mismatch)
+     :disk-evidence-hashes disk
+     :registry-evidence-hashes registry
+     :chain-reachable-hashes reachable
+     :aggregate-declared-hashes declared
+     :disk-only (set/difference disk registry)
+     :registry-only (set/difference registry disk)
+     :unreachable (set/difference disk reachable)
+     :undeclared (set/difference disk declared)
+     :chain-only (set/difference reachable disk)
+     :declared-only (set/difference declared disk)
+     :duplicate-hashes duplicates
+     :evidence/set-root (evidence-hash-set-root declared)}))
+
+(defn evaluate-policy-requirement
+  "Evaluate one independently configured forensic requirement.
+
+   `requirement` may declare :required?, :trusted-signer?,
+   :trusted-authority?, and :allowed-algorithms. `observation` supplies
+   :present?, :valid?, :trusted?, and :algorithm. Invalid supplied material
+   remains invalid even when the policy does not require that material."
+  [requirement observation]
+  (let [required? (true? (:required? requirement))
+        present? (true? (:present? observation))
+        valid? (true? (:valid? observation))
+        trusted-required? (or (true? (:trusted-signer? requirement))
+                              (true? (:trusted-authority? requirement)))
+        trusted? (true? (:trusted? observation))
+        allowed-algorithms (:allowed-algorithms requirement)
+        algorithm (:algorithm observation)]
+    {:requirement/status
+     (cond
+       (and present? (not valid?)) :requirement/present-invalid
+       (and present? trusted-required? (not trusted?)) :requirement/present-untrusted
+       (and present? (seq allowed-algorithms) (not (contains? allowed-algorithms algorithm)))
+       :requirement/present-invalid
+       (and required? (not present?)) :requirement/missing
+       present? :requirement/satisfied
+       :else :requirement/not-required)
+     :requirement/config requirement
+     :requirement/observation observation}))
+
+(defn evaluate-forensic-policy
+  "Evaluate independent signature, timestamp, registry, and finalization
+   requirements. Observations are supplied by the caller so this function stays
+   pure and does not choose artifact paths or trust registries."
+  [policy observations]
+  (let [registry-observation (merge {:present? false :valid? false}
+                                    (:registry observations)
+                                    {:valid? (and (true? (get-in observations [:registry :valid?]))
+                                                  (or (not (true? (get-in policy [:policy/registry :exact-reconciliation?])))
+                                                      (true? (get-in observations [:registry :exact?]))))})
+        requirements {:signature (evaluate-policy-requirement
+                                  (:policy/signature policy) (:signature observations))
+                      :timestamp (evaluate-policy-requirement
+                                  (:policy/timestamp policy) (:timestamp observations))
+                      :registry (evaluate-policy-requirement
+                                 (:policy/registry policy) registry-observation)
+                      :finalization (evaluate-policy-requirement
+                                     (:policy/finalization policy) (:finalization observations))}
+        blocking-statuses #{:requirement/missing :requirement/present-invalid
+                            :requirement/present-untrusted}]
+    {:policy/requirements requirements
+     :policy/satisfied? (not-any? blocking-statuses
+                                  (map :requirement/status (vals requirements)))}))
+
 (defn inject-chain-fields
-  "Add :evidence/chain-seq, :evidence/chain-prev-hash, and
-   :evidence/chain-self-hash to the evidence map using the cursor.
-   Uses a single atomic swap! to prevent race conditions on the
-   sequence counter and prev-hash chain linking."
+  "Add versioned chain-link fields to targeted evidence using the cursor.
+
+   `:evidence/chain-self-hash` is a chain-link hash, not merely the evidence
+   content hash: it commits to the content hash, sequence, and predecessor.
+   Uses one atomic swap to allocate a sequence and link against the current
+   chain head."
   [evidence]
-  (let [self-hash (:evidence/hash evidence)
+  (let [evidence-hash (:evidence/hash evidence)
         {:keys [seq last-hash]}
         (swap! chain-cursor
                (fn [cursor]
-                 (let [new-seq (inc (:seq cursor))]
+                 (let [new-seq (inc (:seq cursor))
+                       previous-link-hash (:last-hash cursor)
+                       link-hash (chain-link-hash evidence-hash new-seq previous-link-hash)]
                    {:seq new-seq
-                    :last-hash self-hash
-                    :prev-hash (:last-hash cursor)})))]
+                    :last-hash link-hash
+                    :prev-hash previous-link-hash})))]
     (assoc evidence
+           :evidence/chain-hash-scheme chain-hash-scheme
            :evidence/chain-seq seq
            :evidence/chain-prev-hash last-hash
-           :evidence/chain-self-hash self-hash)))
+           :evidence/chain-self-hash last-hash)))
+
+(defn verify-scenario-chain
+  "Verify one scenario-local targeted-evidence chain in memory.
+
+   Records must use the `link-v1` chain-hash scheme. The result distinguishes
+   an intentionally empty chain from an invalid or incomplete chain and proves
+   that a declared terminal hash is unique only when the records form one
+   contiguous, hash-linked sequence."
+  [records & {:keys [scenario-id]}]
+  (let [records (vec records)
+        observed-scenario-ids (set (keep :scenario/id records))
+        resolved-scenario-id (or scenario-id (when (= 1 (count observed-scenario-ids))
+                                                (first observed-scenario-ids)))]
+    (if (empty? records)
+      {:chain/scope :scenario
+       :chain/scenario-id resolved-scenario-id
+       :chain/status :empty
+       :chain/completeness :complete
+       :chain/first-seq 0
+       :chain/final-seq 0
+       :chain/record-count 0
+       :chain/reachable-hashes []
+       :chain/head-hash nil
+       :chain/links-valid? true
+       :chain/hashes-valid? true
+       :chain/terminal-unique? true
+       :chain/errors []}
+      (let [sorted-records (vec (sort-by :evidence/chain-seq records))
+            seqs (mapv :evidence/chain-seq sorted-records)
+            expected-seqs (vec (range 1 (inc (count sorted-records))))
+            duplicate-seqs (->> seqs frequencies (keep (fn [[seq n]] (when (> n 1) seq))) vec)
+            identity-valid? (and resolved-scenario-id
+                                 (= observed-scenario-ids #{resolved-scenario-id}))
+            scheme-errors (->> sorted-records
+                               (keep (fn [record]
+                                       (when (not= chain-hash-scheme (:evidence/chain-hash-scheme record))
+                                         {:chain-seq (:evidence/chain-seq record)
+                                          :reason :unsupported-chain-hash-scheme})))
+                               vec)
+            hash-errors (->> sorted-records
+                             (keep (fn [record]
+                                     (let [expected (chain-link-hash (:evidence/hash record)
+                                                                     (:evidence/chain-seq record)
+                                                                     (:evidence/chain-prev-hash record))]
+                                       (when (not= expected (:evidence/chain-self-hash record))
+                                         {:chain-seq (:evidence/chain-seq record)
+                                          :reason :chain-link-hash-mismatch}))))
+                             vec)
+            link-errors (->> (map vector sorted-records (cons nil sorted-records))
+                             (keep (fn [[record previous]]
+                                     (let [expected-previous (:evidence/chain-self-hash previous)]
+                                       (when (not= expected-previous (:evidence/chain-prev-hash record))
+                                         {:chain-seq (:evidence/chain-seq record)
+                                          :reason :predecessor-mismatch}))))
+                             vec)
+            sequence-errors (cond-> []
+                              (not= seqs expected-seqs)
+                              (conj {:reason :non-contiguous-sequence
+                                     :observed seqs
+                                     :expected expected-seqs})
+                              (seq duplicate-seqs)
+                              (conj {:reason :duplicate-sequences
+                                     :sequences duplicate-seqs}))
+            identity-errors (cond-> []
+                              (not identity-valid?)
+                              (conj {:reason :scenario-identity-mismatch
+                                     :expected scenario-id
+                                     :observed observed-scenario-ids}))
+            errors (vec (concat identity-errors sequence-errors scheme-errors hash-errors link-errors))
+            valid? (empty? errors)
+            terminal (last sorted-records)]
+        {:chain/scope :scenario
+         :chain/scenario-id resolved-scenario-id
+         :chain/status (if valid? :verified :invalid)
+         :chain/completeness (if valid? :complete :incomplete)
+         :chain/first-seq (first seqs)
+         :chain/final-seq (last seqs)
+         :chain/record-count (count sorted-records)
+         :chain/reachable-hashes (vec (sort (map :evidence/hash sorted-records)))
+         :chain/head-hash (:evidence/chain-self-hash terminal)
+         :chain/links-valid? (empty? link-errors)
+         :chain/hashes-valid? (and (empty? scheme-errors) (empty? hash-errors))
+         :chain/terminal-unique? (and (= seqs expected-seqs) (empty? duplicate-seqs))
+         :chain/errors errors}))))
+
+(defn build-scenario-chain-finalization
+  "Build the logical, non-persisted scenario evidence finalization payload.
+   Artifact placement, signatures, and package inventory are intentionally
+   left to the coordinated artifact-contract workstream."
+  [{:scenario/keys [id input-hash seq status]
+    :keys [records]}]
+  (merge {:finalization/type :scenario-evidence
+          :finalization/version 1
+          :scenario/id id
+          :scenario/input-hash input-hash
+          :scenario/seq seq
+          :scenario/status status}
+         (verify-scenario-chain records :scenario-id id)))
+
+(defn build-run-evidence-finalization
+  "Build the logical, non-persisted run evidence finalization payload.
+
+   The caller supplies the evidence identities observed on disk and in the
+   registry. Scenario finalizations provide chain-reachable identities. This
+   function deliberately does not choose filesystem placement, registry
+   inclusion, signatures, or DAG bindings."
+  [{:run/keys [id input-commitment status]
+    :registry/keys [root-hash]
+    :keys [scenario-finalizations disk-evidence-hashes registry-evidence-hashes
+           aggregate-declared-hashes]}]
+  (let [scenario-finalizations (vec (sort-by :scenario/seq scenario-finalizations))
+        reachable-hashes (mapcat :chain/reachable-hashes scenario-finalizations)
+        declared-hashes (or aggregate-declared-hashes reachable-hashes)
+        reconciliation (reconcile-evidence-sets
+                        {:disk-evidence-hashes disk-evidence-hashes
+                         :registry-evidence-hashes registry-evidence-hashes
+                         :chain-reachable-hashes reachable-hashes
+                         :aggregate-declared-hashes declared-hashes})]
+    {:finalization/type :run-evidence
+     :finalization/version 1
+     :run/id id
+     :run/input-commitment input-commitment
+     :run/status status
+     :scenario-finalizations scenario-finalizations
+     :registry/root-hash root-hash
+     :evidence/set-root (:evidence/set-root reconciliation)
+     :evidence/total-count (count (set declared-hashes))
+     :reconciliation reconciliation}))
 
 (defn registry-status
   "Return summary info from the current registry state: count, run-id."
@@ -629,22 +878,38 @@
         cursor (when (.exists cursor-file)
                  (json/read-str (slurp cursor-file) :key-fn keyword))
         cursor-seq (get cursor :cursor/final-seq 0)
-        disk-seqs (when (seq disk-files)
-                    (keep (fn [f]
-                            (try (let [data (json/read-str (slurp f) :key-fn keyword)]
-                                   (get data :evidence/chain-seq 0))
-                                 (catch Exception e
-                                   (log/warn! "Reconciliation: unreadable evidence file, skipping" {:file (.getName f) :error (.getMessage e)})
-                                   nil)))
-                          disk-files))
+        parsed-files (mapv (fn [f]
+                             (try
+                               {:file f
+                                :data (json/read-str (slurp f) :key-fn keyword)}
+                               (catch Exception e
+                                 {:file f :error (.getMessage e)})))
+                           disk-files)
+        parse-errors (vec (keep (fn [{:keys [file error]}]
+                                  (when error
+                                    (str "Unreadable evidence file " (.getName file) ": " error)))
+                                parsed-files))
+        disk-seqs (keep (comp :evidence/chain-seq :data) parsed-files)
         max-disk-seq (when (seq disk-seqs) (apply max disk-seqs))
-        errors (cond-> []
+        chain-integrity (when (and (seq disk-seqs) (empty? parse-errors))
+                          (try
+                            (let [verify-chain (requiring-resolve
+                                                'resolver-sim.io.event-evidence/verify-chain-integrity)]
+                              (verify-chain (.getPath ev-dir)))
+                            (catch Exception e
+                              {:valid false
+                               :error (.getMessage e)})))
+        errors (cond-> parse-errors
                  (pos? (- disk-count registry-count))
                  (conj (str "Unregistered evidence: " disk-count " files on disk, "
                             registry-count " in registry"))
-                 (and (pos? max-disk-seq) (< cursor-seq max-disk-seq))
+                 (and (some? max-disk-seq) (pos? max-disk-seq) (< cursor-seq max-disk-seq))
                  (conj (str "Cursor behind disk: cursor seq " cursor-seq
-                            " but disk evidence has seq up to " max-disk-seq)))]
+                            " but disk evidence has seq up to " max-disk-seq))
+                 (and chain-integrity (not (:valid chain-integrity)))
+                 (conj (str "Evidence chain integrity failed: "
+                            (or (:error chain-integrity)
+                                (pr-str (:violations chain-integrity))))))]
     (doseq [e errors]
       (println (str "EVIDENCE RECONCILIATION ERROR: " e)))
     (when (and throw-on-error (seq errors))
@@ -653,12 +918,16 @@
                        :disk-count disk-count
                        :registry-count registry-count
                        :cursor-seq cursor-seq
-                       :max-disk-seq max-disk-seq})))
+                       :max-disk-seq max-disk-seq
+                       :parse-errors parse-errors
+                       :chain-integrity chain-integrity})))
     {:reconciled? (empty? errors)
      :disk-count disk-count
      :registry-count registry-count
      :cursor-seq cursor-seq
      :max-disk-seq max-disk-seq
+     :parse-errors parse-errors
+     :chain-integrity chain-integrity
      :errors errors}))
 
 ;; ── Aggregate Cursor ───────────────────────────────────────────────────
@@ -783,7 +1052,8 @@
         {:valid false :reason :missing-signature-data
          :error "Missing hash, signature, or signer"}))
     (catch Exception e
-      {:error (.getMessage e)})))
+      {:valid false :reason :signature-verification-error
+       :error (.getMessage e)})))
 
 (defn verify-cursor-signature
   "Verify the Ed25519 signature on a chain-cursor-final artifact.
@@ -822,11 +1092,14 @@
                   (not valid?) (assoc :reason :invalid-signature)))
               {:valid false :reason :missing-signature-data
                :error "Missing signature or signer in cursor forensic data"}))
-          {:valid false :hash h :recorded-hash recorded-hash
+          {:valid false :reason :signed-payload-mismatch
+           :hash h :recorded-hash recorded-hash
            :error "Cursor data hash does not match signed hash"})
-        {:error "Cursor has no forensic signature data"}))
+        {:valid false :reason :missing-signature-data
+         :error "Cursor has no forensic signature data"}))
     (catch Exception e
-      {:error (.getMessage e)})))
+      {:valid false :reason :signature-verification-error
+       :error (.getMessage e)})))
 
 ;; ── Forensic-Grade Acceptance Criteria ───────────────────────────────────────
 ;;
@@ -858,11 +1131,15 @@
         cur-path (str dir "/chain-cursor-final.json")
         rh (or registry-hash (:registry-hash registry))
 
-        c1 (when registry
+        c1 (if registry
              (let [v (verify-registry-hash registry)]
                {:criterion :registry-hash-verifies
                 :pass (:valid v)
-                :detail v}))
+                :detail v})
+             {:criterion :registry-hash-verifies
+              :pass false
+              :detail {:reason :missing-evidence-registry
+                       :path registry-path}})
 
         c2 (when (and rh (.exists (io/file sig-path)))
              (try
@@ -876,7 +1153,7 @@
                   :pass false
                   :detail {:error (.getMessage e)}})))
 
-        c3 (when (.exists (io/file cur-path))
+        c3 (if (.exists (io/file cur-path))
              (try
                (let [cursor (json/read-str (slurp cur-path) :key-fn keyword)
                      v (verify-cursor-signature cursor)]
@@ -886,7 +1163,12 @@
                (catch Exception e
                  {:criterion :cursor-verifies
                   :pass false
-                  :detail {:error (.getMessage e)}})))
+                  :detail {:reason :cursor-read-error
+                           :error (.getMessage e)}}))
+             {:criterion :cursor-verifies
+              :pass false
+              :detail {:reason :missing-chain-cursor
+                       :path cur-path}})
 
         c4 (when (and rh (.exists (io/file tsr-path)))
              (try
@@ -899,8 +1181,8 @@
                   :pass false
                   :detail {:error (.getMessage e)}})))
 
-        criteria (remove nil? [c1 c2 c3 c4])
-        all-pass? (every? :pass criteria)]
+        criteria (vec (remove nil? [c1 c2 c3 c4]))
+        all-pass? (and (seq criteria) (every? :pass criteria))]
     {:all-pass? all-pass?
      :criteria-met (count (filter :pass criteria))
      :criteria-total (count criteria)

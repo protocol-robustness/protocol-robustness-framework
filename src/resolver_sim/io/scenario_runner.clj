@@ -318,6 +318,29 @@
                     scenario))}
      (merge {:normalize? false :suite-id (:suite/key request)} opts))))
 
+(defn- hashable-scenario-value
+  "Convert scenario-only non-integer numbers to explicit, lossless values for
+   provenance hashing. The canonical hash codec intentionally accepts only
+   integers; scenario EDN may validly contain decimal configuration such as a
+   yield availability ratio. Type tags prevent distinct source values from
+   silently aliasing during hashing."
+  [value]
+  (cond
+    (instance? java.math.BigDecimal value)
+    {:canonical/type "big-decimal" :canonical/value (.toPlainString ^java.math.BigDecimal value)}
+
+    (instance? clojure.lang.Ratio value)
+    {:canonical/type "ratio" :canonical/numerator (numerator value) :canonical/denominator (denominator value)}
+
+    (or (instance? Double value) (instance? Float value))
+    {:canonical/type "floating-point" :canonical/value (str value)}
+
+    (map? value) (into {} (map (fn [[key item]] [key (hashable-scenario-value item)]) value))
+    (vector? value) (mapv hashable-scenario-value value)
+    (set? value) (->> value (map hashable-scenario-value) (sort-by pr-str) vec)
+    (seq? value) (mapv hashable-scenario-value value)
+    :else value))
+
 (defn- enrich-summary-results
   [summary request]
   (let [entry-by-id (into {}
@@ -328,7 +351,8 @@
               (mapv (fn [result]
                       (if-let [entry (get entry-by-id (:scenario-id result))]
                         (assoc result
-                               :scenario-hash (hc/hash-with-intent {:hash/intent :scenario} (:scenario entry))
+                               :scenario-hash (hc/hash-with-intent {:hash/intent :scenario}
+                                                                                                     (hashable-scenario-value (:scenario entry)))
                                :scenario-path (:scenario-path entry)
                                :dispatcher-id (:dispatcher-id entry)
                                :scenario-metadata (:scenario-metadata entry)

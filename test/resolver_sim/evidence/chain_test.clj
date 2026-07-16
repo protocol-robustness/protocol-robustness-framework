@@ -1,6 +1,7 @@
 (ns resolver-sim.evidence.chain-test
   (:require [clojure.data.json :as json]
-            [clojure.test :refer [deftest is]]
+              [clojure.java.io :as io]
+              [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.benchmark.signing :as signing]
@@ -384,8 +385,9 @@
     (chain/register-evidence! ev)
     (let [snap (chain/cursor-snapshot)]
       (is (some? snap))
-      (is (= (:cursor/final-self-hash snap) evidence-hash)
-          "final-self-hash is the hash of the chained evidence"))
+      (is (= (:cursor/final-self-hash snap)
+             (chain/chain-link-hash evidence-hash 1 nil))
+          "final-self-hash commits to evidence content, sequence, and predecessor"))
     (is (= 64 (count evidence-hash)) "SHA-256 hex is 64 chars")
     (let [recomputed (hc/hash-with-intent {:hash/intent :evidence-content} evidence-content)]
       (is (= evidence-hash recomputed) "Evidence hash deterministic from content, independent of cursor"))))
@@ -451,6 +453,108 @@
 
 ;; ── Signature rejection ────────────────────────────────────────────────────
 
+(deftest scenario-chain-finalization-verifies-a-linked-chain
+  (let [r1 {:scenario/id "S1" :evidence/hash "content-1"
+            :evidence/chain-hash-scheme "link-v1"
+            :evidence/chain-seq 1 :evidence/chain-prev-hash nil}
+        r1 (assoc r1 :evidence/chain-self-hash
+                  (chain/chain-link-hash (:evidence/hash r1) 1 nil))
+        r2 {:scenario/id "S1" :evidence/hash "content-2"
+            :evidence/chain-hash-scheme "link-v1"
+            :evidence/chain-seq 2
+            :evidence/chain-prev-hash (:evidence/chain-self-hash r1)}
+        r2 (assoc r2 :evidence/chain-self-hash
+                  (chain/chain-link-hash (:evidence/hash r2) 2 (:evidence/chain-prev-hash r2)))
+        result (chain/build-scenario-chain-finalization
+                {:scenario/id "S1" :scenario/input-hash "input-1"
+                 :scenario/seq 1 :scenario/status :completed
+                 :records [r2 r1]})]
+    (is (= :verified (:chain/status result)))
+    (is (= :complete (:chain/completeness result)))
+    (is (= 2 (:chain/record-count result)))
+    (is (= (:evidence/chain-self-hash r2) (:chain/head-hash result)))
+    (is (true? (:chain/terminal-unique? result)))))
+
+(deftest scenario-chain-finalization-distinguishes-empty-chain
+  (let [result (chain/build-scenario-chain-finalization
+                {:scenario/id "S-empty" :scenario/input-hash "input-empty"
+                 :scenario/seq 2 :scenario/status :completed :records []})]
+    (is (= :empty (:chain/status result)))
+    (is (= :complete (:chain/completeness result)))
+    (is (zero? (:chain/record-count result)))
+    (is (nil? (:chain/head-hash result)))))
+
+(deftest scenario-chain-finalization-rejects-duplicate-sequences
+  (let [record {:scenario/id "S1" :evidence/hash "content"
+                :evidence/chain-hash-scheme "link-v1"
+                :evidence/chain-seq 1 :evidence/chain-prev-hash nil}
+        record (assoc record :evidence/chain-self-hash
+                      (chain/chain-link-hash (:evidence/hash record) 1 nil))
+        result (chain/verify-scenario-chain [record record] :scenario-id "S1")]
+    (is (= :invalid (:chain/status result)))
+    (is (some #(= :duplicate-sequences (:reason %)) (:chain/errors result)))))
+
+(deftest evidence-set-reconciliation-requires-exact-identity-sets
+  (let [exact (chain/reconcile-evidence-sets
+               {:disk-evidence-hashes ["h2" "h1"]
+                :registry-evidence-hashes ["h1" "h2"]
+                :chain-reachable-hashes ["h2" "h1"]
+                :aggregate-declared-hashes ["h1" "h2"]})
+        mismatch (chain/reconcile-evidence-sets
+                  {:disk-evidence-hashes ["h1" "h2"]
+                   :registry-evidence-hashes ["h1"]
+                   :chain-reachable-hashes ["h1"]
+                   :aggregate-declared-hashes ["h1" "h3"]})]
+    (is (= :exact (:reconciliation/status exact)))
+    (is (= (chain/evidence-hash-set-root ["h1" "h2"])
+           (:evidence/set-root exact)))
+    (is (= :mismatch (:reconciliation/status mismatch)))
+    (is (= #{"h2"} (:disk-only mismatch)))
+    (is (= #{"h2"} (:unreachable mismatch)))
+    (is (= #{"h2"} (:undeclared mismatch)))
+    (is (= #{"h3"} (:declared-only mismatch)))))
+
+(deftest run-finalization-binds-scenarios-and-exact-reconciliation
+  (let [scenario-a {:scenario/id "S-a" :scenario/seq 2
+                    :chain/reachable-hashes ["h2"]}
+        scenario-b {:scenario/id "S-b" :scenario/seq 1
+                    :chain/reachable-hashes ["h1"]}
+        result (chain/build-run-evidence-finalization
+                {:run/id "run-1"
+                 :run/input-commitment "input-root"
+                 :run/status :completed
+                 :registry/root-hash "registry-root"
+                 :scenario-finalizations [scenario-a scenario-b]
+                 :disk-evidence-hashes ["h1" "h2"]
+                 :registry-evidence-hashes ["h2" "h1"]})]
+    (is (= :run-evidence (:finalization/type result)))
+    (is (= ["S-b" "S-a"] (mapv :scenario/id (:scenario-finalizations result))))
+    (is (= :exact (get-in result [:reconciliation :reconciliation/status])))
+    (is (= 2 (:evidence/total-count result)))))
+
+(deftest forensic-policy-distinguishes-required-and-optional-outcomes
+  (let [policy {:policy/signature {:required? true
+                                   :trusted-signer? true
+                                   :allowed-algorithms #{:ed25519}}
+                :policy/timestamp {:required? false}
+                :policy/registry {:required? true :exact-reconciliation? true}
+                :policy/finalization {:required? true :run-complete? true}}
+        result (chain/evaluate-forensic-policy
+                policy
+                {:signature {:present? true :valid? true :trusted? false :algorithm :ed25519}
+                 :timestamp {:present? false}
+                 :registry {:present? true :valid? true :exact? false}
+                 :finalization {:present? false}})]
+    (is (false? (:policy/satisfied? result)))
+    (is (= :requirement/present-untrusted
+           (get-in result [:policy/requirements :signature :requirement/status])))
+    (is (= :requirement/not-required
+           (get-in result [:policy/requirements :timestamp :requirement/status])))
+    (is (= :requirement/present-invalid
+           (get-in result [:policy/requirements :registry :requirement/status])))
+    (is (= :requirement/missing
+           (get-in result [:policy/requirements :finalization :requirement/status])))))
+
 (deftest registry-verification-rejects-an-invalid-signature
   (let [registry {:registry-hash "a-valid-looking-hash"}
         signature {:signature "tampered-signature" :signer "test-key"}
@@ -473,3 +577,57 @@
                  (chain/verify-cursor-signature cursor))]
     (is (false? (:valid result)))
     (is (= :invalid-signature (:reason result)))))
+
+(deftest registry-verification-reports-missing-signature-data
+  (let [result (chain/verify-registry-signature {:registry-hash "registry-hash"} {})]
+    (is (false? (:valid result)))
+    (is (= :missing-signature-data (:reason result)))))
+
+(deftest cursor-verification-reports-missing-signature-data
+  (let [cursor {:cursor/scope :targeted-evidence
+                :cursor/final-seq 1
+                :cursor/final-self-hash "evidence-hash"
+                :cursor/total-captured 1}
+        result (chain/verify-cursor-signature cursor)]
+    (is (false? (:valid result)))
+    (is (= :missing-signature-data (:reason result)))))
+
+(deftest cursor-verification-reports-signed-payload-mismatch
+  (let [cursor {:cursor/scope :targeted-evidence
+                :cursor/final-seq 1
+                :cursor/final-self-hash "evidence-hash"
+                :cursor/total-captured 1
+                :cursor/signed-hash "not-the-reconstructed-hash"
+                :cursor/forensic {:cursor/signature "signature"
+                                  :cursor/signer "test-key"}}
+        result (chain/verify-cursor-signature cursor)]
+    (is (false? (:valid result)))
+    (is (= :signed-payload-mismatch (:reason result)))))
+
+(deftest forensic-status-fails-when-required-artifacts-are-missing
+  (let [dir (str (.toFile (java.nio.file.Files/createTempDirectory
+                           "forensic-status-missing"
+                           (make-array java.nio.file.attribute.FileAttribute 0))))
+        result (chain/forensic-status :dir dir)
+        criteria (into {} (map (juxt :criterion identity) (:criteria result)))]
+    (is (false? (:all-pass? result)))
+    (is (= 2 (:criteria-total result)))
+    (is (= :missing-evidence-registry
+           (get-in criteria [:registry-hash-verifies :detail :reason])))
+    (is (= :missing-chain-cursor
+           (get-in criteria [:cursor-verifies :detail :reason])))))
+
+(deftest reconciliation-reports-unreadable-evidence-files
+  (let [dir (str (.toFile (java.nio.file.Files/createTempDirectory
+                           "reconcile-corrupt"
+                           (make-array java.nio.file.attribute.FileAttribute 0))))
+        evidence-dir (io/file dir "event-evidence")]
+    (.mkdirs evidence-dir)
+    (spit (io/file evidence-dir "corrupt.json") "not-json")
+    (spit (io/file dir "evidence-registry.json") "{\"evidence-count\": 1}")
+    (spit (io/file dir "chain-cursor-final.json") "{\"cursor/final-seq\": 1}")
+    (let [result (chain/reconcile-evidence! :artifact-dir dir :throw-on-error false)]
+      (is (false? (:reconciled? result)))
+      (is (= 1 (count (:parse-errors result))))
+      (is (re-find #"Unreadable evidence file corrupt\.json"
+                   (first (:errors result)))))))

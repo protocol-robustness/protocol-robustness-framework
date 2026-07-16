@@ -118,6 +118,44 @@
     (println "  wrote" (.getPath out-file))
     {:path (.getPath out-file) :hash att-hash :record record}))
 
+(defn- criterion-evidence-refs
+  "Return assertion-level evidence references for one forensic criterion.
+   Paths are relative to the generated claims/ directory."
+  [criterion detail]
+  (case criterion
+    :registry-hash-verifies
+    [{:ref/kind "artifact-assertion"
+      :artifact/id "evidence-registry.json"
+      :assertion/path ["registry-hash"]
+      :ref/hash (or (:recorded detail) (:computed detail))
+      :ref/path "../evidence-registry.json"}]
+
+    :registry-hash-signed
+    [{:ref/kind "artifact-assertion"
+      :artifact/id "signature.json"
+      :assertion/path ["signature"]
+      :ref/hash (:hash detail)
+      :ref/path "../signature.json"}]
+
+    :cursor-verifies
+    [{:ref/kind "artifact-assertion"
+      :artifact/id "chain-cursor-final.json"
+      :assertion/path ["cursor/signed-hash"]
+      :ref/hash (:hash detail)
+      :ref/path "../chain-cursor-final.json"}]
+
+    :tsa-token-verifies
+    [{:ref/kind "artifact-assertion"
+      :artifact/id "tsa-response.tsr"
+      :assertion/path ["timestamp/verified?"]
+      :ref/hash (:hash detail)
+      :ref/path "../time-stamping-authority/tsa-response.tsr"}]
+
+    [{:ref/kind "criterion-result"
+      :artifact/id (name criterion)
+      :assertion/path ["criterion"]
+      :ref/hash (:hash detail)}]))
+
 (defn populate-claims-and-attestations!
   "Evaluate all registered forensic claims, write claim results to claims/
    and self-attestations to attestations/.  Called after scenario execution
@@ -142,6 +180,7 @@
                  (.println *err* (str "  warning: forensic-status evaluation failed: " (.getMessage e)))
                  {:all-pass? false :criteria []}))
           criteria (vec (:criteria fs))
+          all-pass? (and (seq criteria) (:all-pass? fs))
           claim-results (atom [])]
       ;; Write a claim result for each individual criterion
       (doseq [c criteria]
@@ -153,9 +192,7 @@
                    :category "audit"
                    :confidence (if pass? "high" "low")
                    :status (if pass? "pass" "fail")
-                   :evidence-refs [{:ref/kind "cursor"
-                                    :ref/hash (str (:hash detail))
-                                    :ref/path "../workspace/chain-cursor-final.json"}]
+                   :evidence-refs (criterion-evidence-refs criterion detail)
                    :description (str "Forensic claim: " (name criterion))
                    :failure-detail (when-not pass?
                                      (pr-str (select-keys detail [:error :valid :recorded])))})]
@@ -164,8 +201,8 @@
       (let [composite-cr (write-claim-result!
                           {:claim-id "forensic-grade"
                            :category "composite"
-                           :confidence (if (:all-pass? fs) "high" "low")
-                           :status (if (:all-pass? fs) "pass" "fail")
+                           :confidence (if all-pass? "high" "low")
+                                                      :status (if all-pass? "pass" "fail")
                            :evidence-refs (vec (mapv (fn [cr]
                                                        {:ref/kind "claim-result"
                                                         :ref/hash (:hash cr)
@@ -174,11 +211,13 @@
                                                                        ".json")})
                                                      @claim-results))
                            :description "All forensic-grade acceptance criteria pass"
-                           :failure-detail (when-not (:all-pass? fs)
-                                             (str "Failed criteria: "
-                                                  (str/join ", "
-                                                            (map (comp name :criterion)
-                                                                 (remove :pass criteria)))))})]
+                           :failure-detail (when-not all-pass?
+                                                                        (if (seq criteria)
+                                                                          (str "Failed criteria: "
+                                                                               (str/join ", "
+                                                                                         (map (comp name :criterion)
+                                                                                              (remove :pass criteria))))
+                                                                          "No forensic acceptance criteria were evaluated"))})]
         (swap! claim-results conj composite-cr))
       ;; Write self-attestations for each claim result
       (let [all-results @claim-results
@@ -199,4 +238,4 @@
           (swap! att-count inc))
         {:claim-count (count all-results)
          :attestation-count @att-count
-         :all-pass? (:all-pass? fs)}))))
+         :all-pass? all-pass?}))))

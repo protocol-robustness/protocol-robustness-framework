@@ -31,3 +31,7 @@
     (atomic-json! (io/file dir "summary.json") summary)
     (atomic-json! (io/file dir "claimable-classification.json") claimable)
     {:run run :summary summary :claimable claimable}))
+
+(defn write-classification! [manifest-dir classification]
+  (atomic-json! (io/file (str manifest-dir) "claimable-classification.json") classification)
+  classification)

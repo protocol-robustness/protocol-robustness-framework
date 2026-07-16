@@ -44,6 +44,8 @@
   {:world-state     "WORLD_STATE_V1"
    :evidence-record "EVIDENCE_RECORD_V1"
    :evidence-chain  "EVIDENCE_CHAIN_V1"
+   :evidence-chain-link-v1 "EVIDENCE_CHAIN_LINK_V1"
+   :run-evidence-hash-set-v1 "RUN_EVIDENCE_HASH_SET_V1"
    :merkle-leaf     "EVIDENCE_MERKLE_LEAF_V1"
    :merkle-node     "EVIDENCE_MERKLE_NODE_V1"
    :registry        "REGISTRY_V1"
@@ -897,6 +899,24 @@
     :intent/includes    #{:chain-links :registry-structure :prev-hash
                           :chain-seq :self-hash}
     :intent/excludes    #{:artifact-content :evidence-payload :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :evidence-chain-link-v1
+   {:intent/name        :evidence-chain-link-v1
+    :intent/domain-tag  "EVIDENCE_CHAIN_LINK_V1"
+    :intent/description "Versioned evidence-chain link committing content, sequence, and predecessor"
+    :intent/includes    #{:evidence-hash :chain-seq :prev-hash :chain-hash-scheme}
+    :intent/excludes    #{:evidence-payload :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :run-evidence-hash-set-v1
+   {:intent/name        :run-evidence-hash-set-v1
+    :intent/domain-tag  "RUN_EVIDENCE_HASH_SET_V1"
+    :intent/description "Canonical sorted-set commitment for a run's evidence content hashes"
+    :intent/includes    #{:evidence-hashes}
+    :intent/excludes    #{:artifact-order :timestamps}
     :intent/projection-fn project-identity
     :intent/version     1}
 
