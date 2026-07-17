@@ -2,6 +2,7 @@
   "Run a benchmark by registered ID or manifest path."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [resolver-sim.benchmark.conservation :as conservation]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
@@ -276,6 +277,12 @@
         {:exit-code (or (:exit-code execution) 1) :run/id (:run/id context) :run/root (str (:run/root context))})
       (finally (lifecycle/release-run-lock! lock)))))
 
+(defn- external-manifest-ref? [benchmark-id]
+  (and (string? benchmark-id)
+       (str/ends-with? benchmark-id ".edn")
+       (not (str/starts-with? benchmark-id "classpath:"))
+       (not (str/starts-with? benchmark-id "resource:"))))
+
 (defn run
   "Run a benchmark. `--run-root` creates a canonical benchmark-owned bundle;
    `--output` remains the legacy standalone evidence export destination."
@@ -292,6 +299,10 @@
 
       (and run-root output)
       {:exit-code 2 :message "Use --run-root for the canonical benchmark bundle; --output is a separate legacy export command"}
+
+      (and run-root (external-manifest-ref? benchmark-id))
+      {:exit-code 2
+       :message "Filesystem benchmark manifests are not supported for canonical bundles yet; use a registered benchmark ID or bundled classpath: manifest"}
 
       run-root
       (run-with-root! benchmark-id run-root key (or sensitivity-profile :public) {})

@@ -1165,8 +1165,7 @@
                                     written (write-finalization!
                                              {:forensic-dir artifact-dir
                                               :scenario-artifact-id (:scenario-slug dispatch)
-                                              :scenario-id (or (:scenario-id scenario-result)
-                                                               (:scenario-slug dispatch))
+                                              :scenario-id (:scenario-id scenario-result)
                                               :scenario-input-hash scenario-input-hash
                                               :run-id run-id
                                               :run-input-hash scenario-input-hash

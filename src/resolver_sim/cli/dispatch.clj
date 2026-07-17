@@ -25,6 +25,7 @@
   {   :run-scenario 'resolver-sim.commands.scenario/run
    :run-invariants 'resolver-sim.commands.invariants/run
    :run-benchmark 'resolver-sim.commands.run-benchmark/run
+   :verify-scenario 'resolver-sim.commands.verify-scenario/run
    :verify-benchmark 'resolver-sim.commands.verify-benchmark/run
    :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
    :scenario-compare 'resolver-sim.commands.scenario-compare/compare-scenarios
@@ -72,6 +73,7 @@
               :run-scenario          (requiring-resolve 'resolver-sim.commands.scenario/run)
               :run-invariants        (requiring-resolve 'resolver-sim.commands.invariants/run)
               :run-benchmark         (requiring-resolve 'resolver-sim.commands.run-benchmark/run)
+              :verify-scenario       (requiring-resolve 'resolver-sim.commands.verify-scenario/run)
               :verify-benchmark      (requiring-resolve 'resolver-sim.commands.verify-benchmark/run)
               :scenario-list         (requiring-resolve 'resolver-sim.commands.scenario-list/list-scenarios)
               :scenario-compare      (requiring-resolve 'resolver-sim.commands.scenario-compare/compare-scenarios)

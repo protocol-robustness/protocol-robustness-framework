@@ -37,6 +37,7 @@
    :finalize-registry (fn [_ _] {})
    :validate-registry (fn [_ _] {})
    :finalize-run-evidence (fn [_ _] {})
+   :write-diagnostic (fn [_ _] {})
    :refresh-inventory (fn [_ _] {})
    :refresh-registry (fn [_ _] {})
    :revalidate-registry (fn [_ _] {})})
@@ -166,6 +167,6 @@
         (is (not (.exists (io/file root ".run.lock"))))
         (is (= [:check-runtime :execute :write-manifest :extract-artifacts
                 :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence
-                                :refresh-inventory :refresh-registry :revalidate-registry :complete]
+                                                :write-diagnostic :refresh-inventory :refresh-registry :revalidate-registry :complete]
                (mapv :phase (:phases result)))))
       (finally (delete-tree! root)))))

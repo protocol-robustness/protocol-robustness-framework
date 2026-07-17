@@ -251,6 +251,10 @@
   (safe-artifact-id! scenario-artifact-id)
   (let [artifacts (read-evidence-artifacts forensic-dir)
         records (mapv :record artifacts)
+        scenario-id (or scenario-id (:scenario/id (first records)))
+        _ (when-not scenario-id
+            (throw (ex-info "Scenario finalization requires an explicit or persisted scenario identity"
+                            {:scenario-artifact-id scenario-artifact-id})))
         verification (chain/verify-scenario-chain records :scenario-id scenario-id)
         empty? (zero? (:chain/record-count verification))
         aborted? (= execution-status "aborted")

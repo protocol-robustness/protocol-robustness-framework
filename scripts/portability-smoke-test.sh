@@ -83,6 +83,8 @@ echo "External CWD: $CWD_DIR"
     run-scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
     --run-root "$SCENARIO_ROOT"
   java -jar "$SEW_JAR_PATH" \
+    verify-scenario --run-root "$SCENARIO_ROOT"
+  java -jar "$SEW_JAR_PATH" \
     run-benchmark sew/sew-force-authorisation-custody-v1 \
     --run-root "$BENCHMARK_ROOT"
   java -jar "$SEW_JAR_PATH" \
@@ -110,4 +112,4 @@ fi
 echo "PASS: framework-only JAR has the unified CLI and does not advertise Sew commands"
 echo "PASS: full Sew JAR runs bundled scenario and benchmark without CWD scatter"
 echo "PASS: completion records commit to final registry and validation report hashes"
-echo "PASS: built Sew JAR verifies its completed benchmark assurance chain"
+echo "PASS: built Sew JAR verifies completed scenario evidence-chain and benchmark assurance bundles"

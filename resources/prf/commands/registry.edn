@@ -41,44 +41,41 @@
    :command/description "Validate the command registry, dispatch table, and bb wrapper parity."}
 
   {:command/id :evidence-verify-chain
-   :command/path ["evidence" "verify-chain"]
-   :command/title "Verify evidence chain"
-   :command/category :evidence
-   :command/surface :prf
-   :command/backstop-tier :manual
-   :command/jar-availability :native
-   :command/runtime :jvm
-   :command/options [{:name "--artifact-dir" :type :string :doc "Evidence artifact directory"
-                      :default "target/run"}
+     :command/path ["evidence" "verify-chain"]
+     :command/title "Verify evidence chain"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
                      {:name "--json" :type :flag :doc "Output as JSON"}
                      {:name "--strict" :type :flag :doc "Strict validation mode"}]
    :command/outputs []
    :command/description "Verify evidence chain hashes and links for an artifact directory."}
 
   {:command/id :evidence-validate
-   :command/path ["evidence" "validate"]
-   :command/title "Validate evidence"
-   :command/category :evidence
-   :command/surface :prf
-   :command/backstop-tier :manual
-   :command/jar-availability :native
-   :command/runtime :jvm
-   :command/options [{:name "--artifact-dir" :type :string :doc "Evidence artifact directory"
-                      :default "target/run"}
+     :command/path ["evidence" "validate"]
+     :command/title "Validate evidence"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
    :command/description "Validate evidence artifacts in a run directory."}
 
   {:command/id :evidence-coverage
-   :command/path ["evidence" "coverage"]
-   :command/title "Evidence coverage"
-   :command/category :evidence
-   :command/surface :prf
-   :command/backstop-tier :manual
-   :command/jar-availability :native
-   :command/runtime :jvm
-   :command/options [{:name "--artifact-dir" :type :string :doc "Evidence artifact directory"
-                      :default "target/run"}
+     :command/path ["evidence" "coverage"]
+     :command/title "Evidence coverage"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
    :command/description "Check evidence coverage completeness."}
@@ -93,8 +90,7 @@
    :command/runtime :jvm
    :command/options [{:name "--fast" :type :flag :doc "Run fast evidence checks only"}
                      {:name "--full" :type :flag :doc "Run full evidence review gate"}
-                     {:name "--artifact-dir" :type :string :doc "Evidence artifact directory"
-                      :default "target/run"}
+                     {:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
    :command/description "Run the evidence forensic review gate."}
@@ -215,8 +211,20 @@
    :command/outputs ["<run-root>/completion.json" "<run-root>/manifest/artifacts.json"]
     :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. Registered suite execution is a separate future command."}
 
-  {:command/id :run-invariants
-   :command/path ["run-invariants"]
+  {:command/id :verify-scenario
+   :command/path ["verify-scenario"]
+   :command/title "Verify a scenario bundle"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :doc "Completed scenario bundle root"}]
+   :command/outputs []
+   :command/description "Read-only verification of a completed scenario bundle, including its registry, evidence-chain finalizations, and evidence-set reconciliation."}
+
+ {:command/id :run-invariants
+  :command/path ["run-invariants"]
    :command/title "Run invariant suite"
    :command/category :scenario
    :command/surface :prf

@@ -6,12 +6,13 @@
                         [resolver-sim.commands.scenario-manifest :as manifest]
                                     [resolver-sim.commands.scenario-safety :as safety]
                                                 [resolver-sim.commands.scenario-extraction :as extraction]
-                                                            [resolver-sim.commands.scenario-inventory :as inventory]
+                                                                                                            [resolver-sim.commands.scenario-diagnostics :as diagnostics]
+                                                                                                            [resolver-sim.commands.scenario-inventory :as inventory]
                                                                                                                                     [resolver-sim.evidence.chain :as chain]
                                                                                                                                     [resolver-sim.evidence.finalization :as finalization]
                                                                                                                                                                                                                                                                         [resolver-sim.evidence.finalization-signing :as finalization-signing]
                                                                                                                                                                                                                                                                         [resolver-sim.validation.integration.artifact-registry :as artifact-registry]))
-                                                            (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :refresh-inventory :refresh-registry :revalidate-registry])
+                                                            (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :write-diagnostic :refresh-inventory :refresh-registry :revalidate-registry])
 (defn- p [x] (str x))
 (defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
 (defn- layout! [c] (doseq [x [(:run/root c) (:manifest/dir c) (:scenario/root c) (:execution/dir c) (:forensic/dir c) (:summaries/dir c)]] (.mkdirs (io/file (p x)))) (spit (io/file (p (:run/root c)) ".run-state") (pr-str {:run/id (:run/id c) :state :running})) c)
@@ -162,6 +163,7 @@
 
         :else
         written))))
+(defn default-write-diagnostic! [c execution] (diagnostics/write! c execution))
 (defn default-refresh-inventory! [c _] (inventory/build! c))
 (defn default-refresh-registry! [c _] (registry/finalize! (:run/root c)))
 (defn default-revalidate-registry! [c e] (default-validate-registry! c e))
@@ -187,7 +189,7 @@
       :registry_validation_ref "manifest/artifact-registry-validation.json"
       :registry_validation_sha256 (when (.isFile validation) (str "sha256:" (lifecycle/sha256-file validation)))})
     {}))
-(def ^:private defaults {:check-runtime default-check-runtime! :execute default-execute! :write-manifest default-write-manifest! :extract-artifacts default-extract-artifacts! :scan-sensitivity default-scan-sensitivity! :finalize-registry default-finalize-registry! :validate-registry default-validate-registry! :finalize-run-evidence default-finalize-run-evidence! :refresh-inventory default-refresh-inventory! :refresh-registry default-refresh-registry! :revalidate-registry default-revalidate-registry! :complete default-complete!})
+(def ^:private defaults {:check-runtime default-check-runtime! :execute default-execute! :write-manifest default-write-manifest! :extract-artifacts default-extract-artifacts! :scan-sensitivity default-scan-sensitivity! :finalize-registry default-finalize-registry! :validate-registry default-validate-registry! :finalize-run-evidence default-finalize-run-evidence! :write-diagnostic default-write-diagnostic! :refresh-inventory default-refresh-inventory! :refresh-registry default-refresh-registry! :revalidate-registry default-revalidate-registry! :complete default-complete!})
 (defn run-scenario!
   ([context] (run-scenario! context {}))
   ([context overrides]

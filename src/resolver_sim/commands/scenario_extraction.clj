@@ -16,9 +16,12 @@
               (throw (ex-info "Structured scenario extraction requires exactly one raw scenario result" {:count (count raw-results)})))
           overview (first results)
           raw (first raw-results)]
-      (assoc bundle :scenario-id (:scenario-id overview) :outcome (:outcome overview)
-             :events-processed (count (:trace raw)) :source {:scenario-id (:scenario-id overview)}
-             :trace (:trace raw) :metrics (:metrics raw) :world (:world raw)))
+      (let [scenario-id (or (:scenario-id overview)
+                            (:scenario-id raw)
+                            (get-in raw [:world :params :scenario-id]))]
+        (assoc bundle :scenario-id scenario-id :outcome (:outcome overview)
+               :events-processed (count (:trace raw)) :source {:scenario-id scenario-id}
+               :trace (:trace raw) :metrics (:metrics raw) :world (:world raw))))
     bundle))
 
 (defn- action [event] (or (:action event) (:event-type event) "?"))

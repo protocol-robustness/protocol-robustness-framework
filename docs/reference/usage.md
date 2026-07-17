@@ -52,6 +52,13 @@ bb sim:run -p data/params/baseline.edn
 
 The immutable artifact registry is `manifest/artifacts.json`. Registered artifact paths are relative to the complete run root.
 
+Verify a completed scenario bundle read-only, including its artifact registry, persisted scenario-chain finalization, run-level finalization, and reconciled event-evidence set:
+
+```bash
+java -jar target/prf-runner-sew-0.1.0-uber.jar \
+  verify-scenario --run-root /tmp/prf-run
+```
+
 `--output-dir` and `--scenario-output-dir` are deprecated aliases for `--run-root`. `--save-output` is rejected; a future explicit export command will own copying/export semantics.
 
 When no root is specified, scenario runs default under `results/runs/`. `results/test-artifacts/` remains reserved for test/CI artifacts and is not a scenario-bundle destination.

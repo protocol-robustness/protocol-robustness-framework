@@ -50,7 +50,9 @@ This v1 contract is intentionally limited to inputs persisted in the bundle.
 It is **not** a transitive external-pack commitment yet: caller-supplied packs,
 concept/scoring definitions, configuration, and referenced data must first be
 recursively resolved and snapshotted before external benchmark packs can be
-represented as reproducible canonical bundles.
+represented as reproducible canonical bundles. Accordingly, canonical
+`run-benchmark --run-root` rejects filesystem manifest paths for now; use a
+registered benchmark ID or a bundled `classpath:` manifest.
 
 ## Finalization and completion
 

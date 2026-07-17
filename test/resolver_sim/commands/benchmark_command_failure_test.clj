@@ -14,6 +14,18 @@
     (doseq [file (reverse (file-seq (io/file path)))]
       (io/delete-file file true))))
 
+(deftest canonical-benchmark-rejects-external-manifest-before-root-mutation
+  (let [root (temp-dir)
+        manifest (io/file root "external-benchmark.edn")]
+    (try
+      (spit manifest "{:benchmark/id :external}")
+      (let [result (command/run {:cmd/args [(.getPath manifest)]
+                                 :run-root (str (io/file root "bundle"))})]
+        (is (= 2 (:exit-code result)))
+        (is (re-find #"Filesystem benchmark manifests" (:message result)))
+        (is (not (.exists (io/file root "bundle")))))
+      (finally (delete-tree! root)))))
+
 (deftest every-phase-failure-retains-state-and-never-completes
   (doseq [failed-phase [:execute :write-manifest :snapshot-definition :write-conclusion
                         :write-summary :scan-sensitivity :build-inventory

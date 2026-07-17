@@ -12,7 +12,8 @@
    "manifest/summary.json" {:id "manifest.summary" :kind "summary" :schema "summary.v1" :importance "CORE"}
    "manifest/claimable-classification.json" {:id "manifest.claimable-classification" :kind "summary" :schema "claimable-classification.v2" :importance "CORE"}
    "manifest/run-enrichment.json" {:id "manifest.run-enrichment" :kind "run-enrichment" :schema "run-enrichment.v1" :importance "CORE"}
-   "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v1" :importance "CORE"}
+      "manifest/diagnostic-summary.json" {:id "manifest.diagnostic-summary" :kind "scenario.diagnostic-summary" :schema "scenario-diagnostic-summary.v1" :importance "CORE"}
+      "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v1" :importance "CORE"}
    "execution/replay-output.json" {:id "execution.replay-output" :kind "raw.replay" :schema "bundle-root.v1" :importance "DIAGNOSTIC"}
    "execution/execution-dag.json" {:id "execution.dag" :kind "execution.dag" :schema "execution-dag.v1" :importance "CORE"}
    "execution/pre-run-commitment.json" {:id "execution.pre-run-commitment" :kind "pre-run-commitment" :schema "pre-run-commitment.v1" :importance "CORE"}
@@ -39,6 +40,11 @@
       (throw (ex-info "Inventory path escapes run root" {:path relative})))
     relative))
 
+(defn- scenario-finalization-spec [relative]
+  (let [suffix (subs relative (count "forensic/finalizations/scenarios/"))]
+    {:id (str "evidence.scenario-finalization." (str/replace suffix #"[^A-Za-z0-9]+" "."))
+     :kind "evidence.scenario-finalization" :schema "evidence-finalization.v2" :importance "CORE"}))
+
 (defn- forensic-spec [relative]
   (let [suffix (subs relative (count "forensic/"))]
     {:id (str "forensic." (str/replace suffix #"[^A-Za-z0-9]+" "."))
@@ -60,6 +66,8 @@
                 (subs relative (count scenario-prefix))
                 relative)
         spec (or (known local)
+                 (when (.startsWith local "forensic/finalizations/scenarios/")
+                   (scenario-finalization-spec local))
                  (when (.startsWith local "forensic/") (forensic-spec local))
                  (when (.startsWith relative "evidence/") (run-evidence-spec relative))
                  (when (.startsWith relative "inputs/scenarios/") (input-spec file)))]
@@ -83,7 +91,8 @@
         root-path (.toAbsolutePath (.normalize (.toPath root)))
         scenario-root (io/file (str (:scenario/root context)))
         scenario-prefix (str "scenarios/" (:scenario/slug context) "/")
-        standard-paths (map #(str scenario-prefix %) (keys known))
+        standard-paths (map #(str scenario-prefix %) (remove #(str/starts-with? % "manifest/") (keys known)))
+        manifest-paths (filter #(str/starts-with? % "manifest/") (keys known))
         forensic-paths (for [file (file-seq (io/file scenario-root "forensic"))
                              :when (.isFile file)]
                          (relative-path root-path file))
@@ -93,7 +102,7 @@
         input-paths (for [file (file-seq (io/file root "inputs" "scenarios"))
                           :when (.isFile file)]
                       (relative-path root-path file))
-        entries (->> (concat standard-paths forensic-paths run-evidence-paths input-paths)
+        entries (->> (concat standard-paths manifest-paths forensic-paths run-evidence-paths input-paths)
                      distinct
                      (keep #(entry root scenario-prefix (:sensitivity/profile context) %))
                      (sort-by :id)
