@@ -185,9 +185,14 @@
             context  (-> (proto/build-execution-context protocol agents p-params)
                          (assoc :replay-flags flags))
             agent-index (:agent-index context)
-            world0  (proto/init-world protocol scenario)
-            events  (sort-by :seq (:events scenario))
             scenario-id (:scenario-id scenario)
+            ;; The execution loop derives per-event evidence attribution from
+            ;; world parameters. Preserve the explicit input identity there
+            ;; for every protocol before processing its first transition.
+            world0  (assoc-in (proto/init-world protocol scenario)
+                              [:params :scenario-id]
+                              scenario-id)
+            events  (sort-by :seq (:events scenario))
             expected-errors-set (set (map expected-error-key (:expected-errors scenario [])))
             strict-expected-errors? (boolean (:strict-expected-errors? scenario false))
             run-id  (or (:run-id opts) (:run-id scenario) (str scenario-id "-run"))
@@ -217,10 +222,17 @@
                             (assoc trimmed-result :outcome :fail
                                    :halt-reason :short-circuit-policy
                                    :short-circuit-violations (vec (sort matched)))
-                            trimmed-result)]
-        (if (:evaluate-expectations? flags true)
-          (finalize-scenario-result scenario policy-result flags)
-          policy-result))))))
+                            trimmed-result)
+            finalized-result (if (:evaluate-expectations? flags true)
+                               (finalize-scenario-result scenario policy-result flags)
+                               policy-result)]
+        ;; The simulation kernel may not retain this source-level identity in
+        ;; its accumulator. Every replay result nevertheless has the explicit
+        ;; scenario input available at this boundary, so preserve it before
+        ;; protocol-neutral consumers construct entries or finalizations.
+        (cond-> finalized-result
+          (nil? (:scenario-id finalized-result))
+          (assoc :scenario-id (:scenario-id scenario))))))))
 
 (defn replay-with-protocol
   "Full replay plus evidence-chain, persistence, signing, timestamping and
@@ -234,7 +246,15 @@
    (chain/with-fresh-registry
      (chain/with-fresh-chain-cursor
        (risk/with-fresh-risk-context
-         (let [result (replay-events protocol scenario replay-opts)]
+         (let [scenario-id (:scenario-id scenario)
+               run-id (or (:run-id replay-opts) (:run-id scenario) (str scenario-id "-run"))
+               ;; Event evidence is emitted inside replay-events. Bind the
+               ;; explicit input identity before entering that kernel so every
+               ;; persisted record is attributable to its scenario and run.
+               result (attr/with-attribution
+                        {:ctx/scenario-id scenario-id
+                         :ctx/run-id run-id}
+                        (replay-events protocol scenario (assoc replay-opts :run-id run-id)))]
            (if (= :invalid (:outcome result))
              result
              (let [run-id (get-in result [:context/source :run-id])

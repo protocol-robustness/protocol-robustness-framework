@@ -1,0 +1,27 @@
+{:scenario-id "Y11_cap-constrained-pro-rata-redistribution"
+ :id "Y11"
+ :schema-version "1.1"
+ :title "Cap-Constrained Shared-Pool Pro-Rata Redistribution"
+ :purpose "functional-test"
+ :threat-tags ["shortfall" "pro-rata" "partial-fill" "caps" "redistribution"]
+ :scenario-author "agent-c"
+ :protocol "yield-v1"
+ :initial-block-time 1000000
+ :protocol-params {:yield-profile "aave-v3" :token "USDC" :focus-owner-id "0xAlice"}
+ :agents [{:id "0xAlice" :address "0xAlice" :role "provider"}
+          {:id "0xBob" :address "0xBob" :role "provider"}
+          {:id "0xCarol" :address "0xCarol" :role "provider"}
+          {:id "governance" :address "governance" :role "governance"}]
+ :events [{:seq 0 :time 1000000 :agent "0xAlice" :action "yield_deposit" :params {:amount 60 :token "USDC" :owner-id "0xAlice"}}
+          {:seq 1 :time 1000000 :agent "0xBob" :action "yield_deposit" :params {:amount 30 :token "USDC" :owner-id "0xBob"}}
+          {:seq 2 :time 1000000 :agent "0xCarol" :action "yield_deposit" :params {:amount 10 :token "USDC" :owner-id "0xCarol"}}
+          {:seq 3 :time 1100000 :agent "governance" :action "set-yield-risk"
+           :params {:token "USDC" :shortfall {:available-ratio 0.6 :reason "cap-constrained-liquidity"}}}
+          {:seq 4 :time 1200000 :agent "governance" :action "yield_withdraw_shared"
+           :params {:token "USDC" :module-id "aave-v3" :owner-ids ["0xCarol" "0xAlice" "0xBob"]
+                    :allocation-mode "pro-rata"
+                    :effective-caps {"0xAlice" 20 "0xBob" 30 "0xCarol" 10}}}]}
+ :expectations {:metrics [{:name "yield/positions-count" :value 3}
+                          {:name "yield/total-principal" :value 100}
+                          {:name "yield/focus-principal" :value 60}
+                          {:name "yield/available-ratio" :value 0.6}]}}

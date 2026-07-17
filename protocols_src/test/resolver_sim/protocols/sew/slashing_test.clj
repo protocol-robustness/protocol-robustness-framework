@@ -10,7 +10,8 @@
             [resolver-sim.protocols.sew.evidence.slashing :as slashing-ev]
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.protocols.sew.reversal-fixtures :as rev-fx]
-            [resolver-sim.time.context :as time-ctx]))
+            [resolver-sim.time.context :as time-ctx]
+            [resolver-sim.hash.canonical :as hc]))
 
 (defn- slash-id-for
   [world workflow-id kind level]
@@ -1316,6 +1317,140 @@
       (is (= 2000 total-basis) "Invariant: Total basis must be snapshotted at transition start")
       (is (= 950 (reg/get-stake w2 r1)))
       (is (= 950 (reg/get-stake w2 r2))))))
+
+(deftest fraud-group-slash-snapshots-canonical-members-and-executes-prorata
+  (let [r-a "0xA" r-b "0xB" gov "0xGov"
+        snap (snap-fix/escrow-snapshot {:appeal-window-duration 10})
+        world0 (-> (t/empty-world 1000)
+                   (assoc-in [:params :slash-epoch-cap-bps] 10000)
+                   (reg/register-stake r-a 100)
+                   (reg/register-stake r-b 300))
+        {:keys [world workflow-id]}
+        (world-ready-for-fraud-slash-propose world0 "0xBuyer" "USDC" "0xSeller" r-b 1000 snap)
+        proposed (res/propose-fraud-group-slash
+                  world workflow-id gov [r-b r-a] 200
+                  {:incident "test-group-fraud"}
+                  {:authorization/type :governance}
+                  {:provenance/source :test})
+        slash-id (:slash-id proposed)
+        pending (get-in (:world proposed) [:pending-fraud-slashes slash-id])
+        executed (res/execute-fraud-group-slash
+                  (time-ctx/advance-time (:world proposed)
+                                         {:to (inc (:appeal-deadline pending))})
+                  workflow-id slash-id)
+        final-world (:world executed)
+        entry (get-in final-world [:pending-fraud-slashes slash-id])]
+    (is (:ok proposed))
+    (is (= :fraud-group (:slash/kind pending)))
+    (is (= slash-id (:liable-group/id pending))
+        "the slash ID is the canonical incident-scoped liable-group identity")
+    (is (= :canonical-resolver-id-ascending (:liable-group/ordering pending)))
+    (is (= (hc/hash-with-intent
+            {:hash/intent :provenance}
+            {:liable-group/member-snapshot (:members pending)})
+           (:liable-group/member-snapshot-hash pending))
+        "the immutable member snapshot is content-addressed")
+    (is (= :canonical-resolver-id-ascending (:policy-ordering pending)))
+    (is (= [r-a r-b] (mapv :id (:members pending))))
+    (is (= [100 300] (mapv :slashable-stake (:members pending))))
+    (is (= {} (:appeals pending)))
+    (is (:ok executed))
+    (is (= :executed (:status entry)))
+    (is (= 50 (reg/get-stake final-world r-a)))
+    (is (= 150 (reg/get-stake final-world r-b)))
+    (is (= [50 150] (mapv :paid (get-in entry [:allocation :allocations]))))
+    (is (every? #(pos? (get-in final-world [:resolver-frozen-until %] 0)) [r-a r-b]))
+    (is (= 50 (get-in final-world [:resolver-epoch-slashed r-a :amount])))
+    (is (= 150 (get-in final-world [:resolver-epoch-slashed r-b :amount])))))
+
+(deftest fraud-group-slash-preflights-member-epoch-caps-atomically
+  (let [r-a "0xA" r-b "0xB"
+        world0 (-> (t/empty-world 1000)
+                   ;; 20% cap: A's immutable 50 allocation would exceed it.
+                   (assoc-in [:params :slash-epoch-cap-bps] 2000)
+                   (reg/register-stake r-a 100) (reg/register-stake r-b 300))
+        {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
+                                     world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
+                                     (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
+        proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 {} {} {})
+        slash-id (:slash-id proposed)
+        pending (get-in (:world proposed) [:pending-fraud-slashes slash-id])
+        before (time-ctx/advance-time (:world proposed) {:to (inc (:appeal-deadline pending))})
+        result (res/execute-fraud-group-slash before workflow-id slash-id)]
+    (is (false? (:ok result)))
+    (is (= :slash-epoch-cap-exceeded (:error result)))
+    (is (= [r-a r-b] (mapv :member (get-in result [:detail :violations]))))
+    (is (= 100 (reg/get-stake before r-a)))
+    (is (= 300 (reg/get-stake before r-b)))
+    (is (= :pending (get-in before [:pending-fraud-slashes slash-id :status])))))
+
+(deftest fraud-group-member-cannot-appeal-for-another-member
+  (let [r-a "0xA" r-b "0xB"
+        world0 (-> (t/empty-world 1000) (reg/register-stake r-a 100) (reg/register-stake r-b 300))
+        {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
+                                     world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
+                                     (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
+        proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 {} {} {})
+        slash-id (:slash-id proposed)
+        result (res/appeal-fraud-group-slash (:world proposed) workflow-id "0xOther" slash-id)]
+    (is (false? (:ok result)))
+    (is (= :not-liable-member (:error result)))))
+
+(deftest fraud-group-upheld-member-appeal-stays-only-that-allocation
+  (let [r-a "0xA" r-b "0xB"
+        world0 (-> (t/empty-world 1000) (assoc-in [:params :slash-epoch-cap-bps] 10000)
+                   (reg/register-stake r-a 100) (reg/register-stake r-b 300))
+        {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
+                                     world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
+                                     (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
+        proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 {} {} {})
+        slash-id (:slash-id proposed)
+        appealed (:world (res/appeal-fraud-group-slash (:world proposed) workflow-id r-a slash-id))
+        resolved (:world (res/resolve-fraud-group-appeal appealed workflow-id "0xGov" r-a true slash-id
+                                                        :authorization-provenance {:authorization/type :governance}))
+        deadline (get-in resolved [:pending-fraud-slashes slash-id :appeal-deadline])
+        executed (res/execute-fraud-group-slash (time-ctx/advance-time resolved {:to (inc deadline)}) workflow-id slash-id)
+        final-world (:world executed)
+        rows (get-in final-world [:pending-fraud-slashes slash-id :allocation :allocations])]
+    (is (:ok executed))
+    (is (= :upheld (get-in final-world [:pending-fraud-slashes slash-id :appeals r-a :status])))
+    (is (= 100 (reg/get-stake final-world r-a)))
+    (is (= 150 (reg/get-stake final-world r-b)) "remaining member keeps original 150 debit")
+    (is (= :stayed (:execution-status (first rows))))
+    (is (= 0 (:actual-paid (first rows))))
+    (is (= 150 (:paid (second rows))))))
+
+(deftest fraud-group-rejected-member-appeal-is-debited-on-execution
+  (let [r-a "0xA" r-b "0xB"
+        world0 (-> (t/empty-world 1000) (assoc-in [:params :slash-epoch-cap-bps] 10000)
+                   (reg/register-stake r-a 100) (reg/register-stake r-b 300))
+        {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
+                                     world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
+                                     (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
+        proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 {} {} {})
+        slash-id (:slash-id proposed)
+        appealed (:world (res/appeal-fraud-group-slash (:world proposed) workflow-id r-a slash-id))
+        resolved (:world (res/resolve-fraud-group-appeal appealed workflow-id "0xGov" r-a false slash-id
+                                                        :authorization-provenance {:authorization/type :governance}))
+        deadline (get-in resolved [:pending-fraud-slashes slash-id :appeal-deadline])
+        final-world (:world (res/execute-fraud-group-slash
+                             (time-ctx/advance-time resolved {:to (inc deadline)}) workflow-id slash-id))]
+    (is (= :rejected (get-in final-world [:pending-fraud-slashes slash-id :appeals r-a :status])))
+    (is (= 50 (reg/get-stake final-world r-a)))
+    (is (= 150 (reg/get-stake final-world r-b)))))
+
+(deftest fraud-group-slash-rejects-invalid-liability-groups
+  (let [resolver "0xRes"
+        snap (snap-fix/escrow-snapshot {:appeal-window-duration 10})
+        world0 (reg/register-stake (t/empty-world 1000) resolver 100)
+        {:keys [world workflow-id]}
+        (world-ready-for-fraud-slash-propose world0 "0xBuyer" "USDC" "0xSeller" resolver 1000 snap)]
+    (is (= :empty-liable-resolvers
+           (:error (res/propose-fraud-group-slash world workflow-id "0xGov" [] 10 {} {} {}))))
+    (is (= :duplicate-liable-resolver
+           (:error (res/propose-fraud-group-slash world workflow-id "0xGov" [resolver resolver] 10 {} {} {}))))
+    (is (= :unregistered-liable-resolver
+           (:error (res/propose-fraud-group-slash world workflow-id "0xGov" [resolver "0xOther"] 10 {} {} {}))))))
 
 ;; ============ Appeal resolution coverage ============
 

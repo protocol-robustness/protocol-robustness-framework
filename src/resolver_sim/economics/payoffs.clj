@@ -454,7 +454,9 @@
              acc-capped-ids capped-ids
              pass-num 1
              pass-records [{:pass 0
-                            :capped-ids (vec capped-ids)
+                            ;; Every pass uses these two canonical trace fields.
+                            ;; The richer fields below remain additive metadata.
+                            :capped-ids (vec (sort-by str capped-ids))
                             :excess excess}]]
         (if (>= pass-num max-passes)
           (let [all-allocs (allocations-in-input-order items id-fn (vals acc-base-map))
@@ -488,9 +490,14 @@
                                                      (>= (:allocated a) (:cap a))))
                                         (:allocations pass-result))
                   newly-capped-ids (set (map :id newly-capped))
+                  all-capped-ids (into acc-capped-ids newly-capped-ids)
                   pass-record {:pass pass-num
+                               ;; Stable fields shared with pass zero: caps known
+                               ;; after this pass and liquidity entering this pass.
+                               :capped-ids (vec (sort-by str all-capped-ids))
+                               :excess remaining-excess
                                :eligible-ids (mapv id-fn uncapped-items)
-                               :newly-capped-ids (vec newly-capped-ids)
+                               :newly-capped-ids (vec (sort-by str newly-capped-ids))
                                :requested-amount remaining-excess
                                :allocated-amount (:total-allocated pass-result)
                                :remaining-amount (+ (:total-unmet pass-result) (:remainder pass-result))}
@@ -506,7 +513,7 @@
                  :redistribution {:passes (vec pass-records)
                                   :total-passes (inc pass-num)}})
               (let [next-excess (+ (:total-unmet pass-result) (:remainder pass-result))
-                    all-capped (into acc-capped-ids newly-capped-ids)
+                    all-capped all-capped-ids
                     next-uncapped (remove (fn [item] (contains? all-capped (id-fn item))) items)]
                 (if (or (zero? next-excess) (empty? next-uncapped))
                   (let [total-allocated (reduce +' 0 (map :allocated merged))]

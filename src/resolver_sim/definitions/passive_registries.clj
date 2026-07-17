@@ -447,18 +447,18 @@
           {:id :pro-rata-fairness
            :version 1
            :category :invariant
-           :description "No pair of claimants has a different fill ratio (cross-product equality). Pro-rata fairness: received[i] / owed[i] = received[j] / owed[j] for all i, j. Verified via cross-multiplication."
-           :inputs [:projection-artifact :allocation-result]
-           :evaluation {:type :policy-check
-                        :policy :cross-multiplication-fairness}
+           :description "Exact pro-rata allocations require cross-product equality. Quantized largest-remainder allocations instead require bounded quota error and the declared deterministic remainder/tie-break ordering."
+                      :inputs [:projection-artifact :allocation-result]
+                      :evaluation {:type :policy-check
+                                   :policy :exact-or-quantized-pro-rata-fairness}
            :outputs [:holds? :violations]}
           {:id :partial-fill-fairness
            :version 1
            :category :invariant
-           :description "Pro-rata fairness over partial-fill decision artifacts. Verifies cross-product equality across all claimed buckets for partial-fill decisions."
-           :inputs [:evidence-nodes]
-           :evaluation {:type :policy-check
-                        :policy :cross-multiplication-fairness}
+           :description "Pro-rata fairness over partial-fill decisions: exact allocations use cross-product equality; largest-remainder allocations use bounded exact quota error and deterministic remainder ordering."
+                      :inputs [:evidence-nodes]
+                      :evaluation {:type :policy-check
+                                   :policy :exact-or-quantized-pro-rata-fairness}
            :outputs [:holds? :violations]}
            ;; Protocol-specific claim definitions are registered dynamically
            ;; by protocol implementation namespaces via register-claim-definitions!.

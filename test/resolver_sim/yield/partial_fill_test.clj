@@ -197,6 +197,20 @@
       (is (= #{:pass :not-applicable}
              (set (map :status checks)))))))
 
+(deftest largest-remainder-dust-is-not-a-strict-pro-rata-violation
+  (let [decision {:settlement-mode :partial-fill
+                  :requested {:a 100 :b 100 :c 100}
+                  :filled {:a 4 :b 3 :c 3}
+                  :deferred {:a 96 :b 97 :c 97}
+                  :haircut {}
+                  :policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                  :evidence {:available-liquidity 10}}
+        checks (pf/partial-fill-closed-form-checks decision)
+        by-id (into {} (map (juxt :check/id identity) checks))]
+    (is (= :not-applicable (:status (get by-id :partial-fill/pro-rata-cross-product))))
+    (is (= :pass (:status (get by-id :partial-fill/rounding-fairness-ideal))))
+    (is (= :pass (:status (get by-id :partial-fill/rounding-fairness-remainder-ranking))))))
+
 (deftest test-partial-fill-closed-form-checks-detect-fairness-failure
   (testing "cross-product check catches non-pro-rata allocation"
     (let [decision {:settlement-mode :partial-fill

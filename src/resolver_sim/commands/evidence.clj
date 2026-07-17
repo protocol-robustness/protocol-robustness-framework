@@ -4,6 +4,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.set :as set]
+            [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.registry :as reg]
             [resolver-sim.evidence.registry-validation :as rv]
@@ -123,7 +124,7 @@
               missing (set/difference expected types)]
           (println (str "  Present types: " (count present) "/" (count expected)))
           (when (seq missing)
-            (println "  Missing types:" (pr-str (sort missing))))
+            (print "  Missing types: ") (clojure.pprint/pprint (sort missing)))
           (if (empty? missing)
             {:exit-code 0 :message "Evidence coverage complete"
              :result {:present (count present) :expected (count expected) :missing []}}
@@ -143,13 +144,7 @@
   (println "Running evidence backstop...")
   (flush)
   (let [suite-complete? (boolean (run-suite-for-evidence))
-        ;; Reference validation writes reports to suites/.../actual but captures
-        ;; event evidence through the configured artifact directory.
-        ;; CLI supplies "target/run" as its generic default; it is not the
-        ;; directory populated by the reference-validation replay.
-        evidence-dir (if (and artifact-dir (not= artifact-dir "target/run"))
-                       artifact-dir
-                       "prf-artifacts")
+        evidence-dir (or artifact-dir (evcfg/artifact-dir))
         verify-opts (assoc opts :artifact-dir evidence-dir)
         results (if suite-complete?
                   [(verify-chain verify-opts)

@@ -50,6 +50,29 @@
     (is (= 1 (count decisions)))
     (is (= decisions snapshot-decisions))))
 
+(deftest replay-shared-withdraw-is-atomic-pro-rata
+  (let [scenario (assoc base-scenario
+                        :agents [{:id "alice" :address "alice"} {:id "bob" :address "bob"} {:id "governance" :address "governance"}]
+                        :events [{:seq 0 :time 1000 :agent "alice" :action "yield_deposit"
+                                  :params {:token "USDC" :owner-id "alice" :amount 1000}}
+                                 {:seq 1 :time 1000 :agent "bob" :action "yield_deposit"
+                                  :params {:token "USDC" :owner-id "bob" :amount 2000}}
+                                 {:seq 2 :time 1100 :agent "governance" :action "set-yield-risk"
+                                  :params {:token "USDC" :shortfall {:available-ratio 0.6 :reason "test"}}}
+                                 {:seq 3 :time 1200 :agent "governance" :action "yield_withdraw_shared"
+                                  :params {:token "USDC" :module-id "aave-v3"
+                                           :owner-ids ["bob" "alice"] :allocation-mode "pro-rata"}}])
+        result (replay/replay-yield-scenario scenario)
+        decisions (vals (get-in result [:world :yield/partial-fill-decisions]))
+        decision (first decisions)]
+    (is (= :pass (:outcome result)))
+    (is (= 1 (count decisions)))
+    (is (= :yield-withdraw-shared (:decision/source decision)))
+    (is (= {"alice" 600 "bob" 1200} (:filled decision)))
+    (is (= {"alice" 400 "bob" 800} (:deferred decision)))
+    (is (= :pro-rata (get-in decision [:policy :mode])))
+    (is (= ["alice" "bob"] (:participants decision)))))
+
 (deftest y01-long-accrue-expectations
   (let [scenario (assoc base-scenario
                         :events [{:seq 0 :time 1000 :agent "vault" :action "yield_deposit"

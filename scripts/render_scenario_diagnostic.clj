@@ -87,7 +87,8 @@
     :else (str v)))
 
 (defn failed? [v]
-  (contains? #{"fail" "failed" "error" "failure" "invalid" "rejected" false} v))
+  (contains? #{"fail" "failed" "error" "failure" "invalid" "rejected"
+               "violated" "invariant-violated" false} v))
 (defn passed? [v]
   (contains? #{"pass" "passed" "ok" "success" "succeeded" true} v))
 

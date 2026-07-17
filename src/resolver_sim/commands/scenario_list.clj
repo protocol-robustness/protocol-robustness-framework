@@ -36,7 +36,7 @@
                           filtered)]
         (if json?
           (do (require 'clojure.data.json)
-              (println ((resolve 'clojure.data.json/write-str) {:scenarios display})))
+              (println ((resolve 'clojure.data.json/write-str) {:scenarios display} :indent true)))
           (do (printf "Available scenarios: %d\n\n" (count filtered))
               (pp/print-table [:scenario/id :protocol :purpose :claim]
                               (take 100 display))

@@ -18,26 +18,26 @@
   ([evidence] (share-summary evidence "evidence/latest.edn"))
   ([evidence evidence-path]
    (let [bm-id (get-in evidence [:benchmark :benchmark/id])
-        protocol-commit (get-in evidence [:repo :repo :commit])
-        scenarios-pass? (= (get-in evidence [:metrics :passed])
-                           (get-in evidence [:metrics :total]))
-        active? (= :active (get-in evidence [:benchmark :benchmark/status]))
-        claims-pass? (coverage/required-claims-passed?
-                      (:benchmark evidence)
-                      (:claim-results evidence))
-        outcome (cond
-                  (not scenarios-pass?) "SCENARIOS FAILED"
-                  (and active? claims-pass?) "ACTIVE BENCHMARK PASS"
-                  active? "SCENARIOS PASS; REQUIRED CLAIMS INCOMPLETE"
-                  :else "EXPERIMENTAL: SCENARIOS PASS")
-        evidence-hash (:evidence/hash evidence)
-        signed? (contains? evidence :evidence/signature)]
-    (str "Benchmark:\n" bm-id "\n\n"
-         "Protocol Commit:\n" protocol-commit "\n\n"
-         "Result:\n" outcome "\n\n"
-         "Evidence Hash:\n" evidence-hash "\n\n"
-         "Signed:\n" (if signed? "yes" "no") "\n\n"
-         "Reproduce:\n" (generate-reproduce-command evidence-path)))))
+         protocol-commit (get-in evidence [:repo :repo :commit])
+         scenarios-pass? (= (get-in evidence [:metrics :passed])
+                            (get-in evidence [:metrics :total]))
+         active? (= :active (get-in evidence [:benchmark :benchmark/status]))
+         claims-pass? (coverage/required-claims-passed?
+                       (:benchmark evidence)
+                       (:claim-results evidence))
+         outcome (cond
+                   (not scenarios-pass?) "SCENARIOS FAILED"
+                   (and active? claims-pass?) "ACTIVE BENCHMARK PASS"
+                   active? "SCENARIOS PASS; REQUIRED CLAIMS INCOMPLETE"
+                   :else "EXPERIMENTAL: SCENARIOS PASS")
+         evidence-hash (:evidence/hash evidence)
+         signed? (contains? evidence :evidence/signature)]
+     (str "Benchmark:\n" bm-id "\n\n"
+          "Protocol Commit:\n" protocol-commit "\n\n"
+          "Result:\n" outcome "\n\n"
+          "Evidence Hash:\n" evidence-hash "\n\n"
+          "Signed:\n" (if signed? "yes" "no") "\n\n"
+          "Reproduce:\n" (generate-reproduce-command evidence-path)))))
 
 (defn reproduce [evidence-path]
   (let [evidence (edn/read-string (slurp evidence-path))
@@ -96,7 +96,7 @@
 (defn export [evidence-path export-tar-path]
   (let [evidence (edn/read-string (slurp evidence-path))
         tmp-dir (.toFile (java.nio.file.Files/createTempDirectory "benchmark-export-"
-                                                                 (make-array java.nio.file.attribute.FileAttribute 0)))
+                                                                  (make-array java.nio.file.attribute.FileAttribute 0)))
         export-file (.getAbsoluteFile (io/file export-tar-path))]
     (try
       (when-let [parent (.getParentFile export-file)]

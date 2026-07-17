@@ -1,0 +1,16 @@
+{:scenario-id "Y13_all-caps-residual-liquidity"
+ :id "Y13" :schema-version "1.1" :title "Shared Pro-Rata Residual After All Effective Caps"
+ :purpose "functional-test" :threat-tags ["pro-rata" "caps" "residual-liquidity"]
+ :scenario-author "agent-c" :protocol "yield-v1" :initial-block-time 1000000
+ :protocol-params {:yield-profile "aave-v3" :token "USDC" :focus-owner-id "0xAlice"}
+ :agents [{:id "0xAlice" :address "0xAlice" :role "provider"}
+          {:id "0xBob" :address "0xBob" :role "provider"}
+          {:id "0xCarol" :address "0xCarol" :role "provider"}
+          {:id "governance" :address "governance" :role "governance"}]
+ :events [{:seq 0 :time 1000000 :agent "0xAlice" :action "yield_deposit" :params {:amount 100 :token "USDC" :owner-id "0xAlice"}}
+          {:seq 1 :time 1000000 :agent "0xBob" :action "yield_deposit" :params {:amount 100 :token "USDC" :owner-id "0xBob"}}
+          {:seq 2 :time 1000000 :agent "0xCarol" :action "yield_deposit" :params {:amount 100 :token "USDC" :owner-id "0xCarol"}}
+          {:seq 3 :time 1200000 :agent "governance" :action "yield_withdraw_shared"
+           :params {:token "USDC" :module-id "aave-v3" :owner-ids ["0xBob" "0xCarol" "0xAlice"] :allocation-mode "pro-rata"
+                    :effective-caps {"0xAlice" 10 "0xBob" 20 "0xCarol" 30}}}]
+ :expectations {:metrics [{:name "yield/positions-count" :value 3} {:name "yield/total-principal" :value 300}]}}

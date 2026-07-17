@@ -312,6 +312,156 @@
               final-world)))))))
 
 ;; ---------------------------------------------------------------------------
+;; shared pro-rata withdrawal
+;; ---------------------------------------------------------------------------
+(defn withdraw-shared
+  "Atomically settle declared active positions against one shared liquidity pool.
+
+   This is intentionally distinct from `withdraw-many`: all owners are allocated
+   from one module/token/time liquidity amount using a single pro-rata decision,
+   then applied together. It never falls back to sequential withdrawals."
+  [world module {:keys [owner-ids token allocation-mode effective-caps effective-cap-source] :as op}]
+  (let [mid (:module/id module)
+        token (normalize-token token)
+        owners (vec (sort (or owner-ids [])))]
+    (when-not (seq owners)
+      (throw (ex-info "Shared withdrawal requires at least one owner" {:op op})))
+    (when-not (= (count owners) (count (distinct owners)))
+      (throw (ex-info "Shared withdrawal owner IDs must be unique" {:owner-ids owner-ids})))
+    (when-not (= :pro-rata (keyword (or allocation-mode :pro-rata)))
+      (throw (ex-info "Shared withdrawal only supports pro-rata allocation" {:allocation-mode allocation-mode})))
+    (when (and effective-caps (not (map? effective-caps)))
+      (throw (ex-info "Shared withdrawal effective caps must be a map" {:effective-caps effective-caps})))
+    (when (some (fn [[owner cap]]
+                  (or (not (some #{owner} owners))
+                      (not (integer? cap))
+                      (neg? cap)))
+                effective-caps)
+      (throw (ex-info "Shared withdrawal effective caps must be non-negative integers for declared owners"
+                      {:owner-ids owners :effective-caps effective-caps})))
+    (let [positions (mapv #(get-in world [:yield/positions %]) owners)
+          invalid (->> (map vector owners positions)
+                       (remove (fn [[_ p]] (and p
+                                                (= :active (:status p))
+                                                (= mid (:module/id p))
+                                                (token= token (:token p)))))
+                       (map first)
+                       vec)]
+      (when (seq invalid)
+        (throw (ex-info "Shared withdrawal requires active positions in one module and token"
+                        {:module-id mid :token token :invalid-owner-ids invalid})))
+      (attr/with-attribution {:withdraw/module-id mid
+                              :withdraw/token token
+                              :withdraw/position-ids owners
+                              :withdraw/mode :shared-pro-rata}
+        (let [now (resolve-now world)
+              ;; Crystallize all selected positions before calculating the one pool.
+              accrual-decisions (mapv (fn [oid]
+                                        [oid (accrual/accrual-decision
+                                              world {:module-id mid :token token :position-id oid
+                                                     :now now :dt 0})])
+                                      owners)
+              ;; The shared operation owns one event-evidence record. Apply the
+              ;; per-position crystallization decisions directly so each child
+              ;; accrual cannot create a same-sequence forensic record.
+              accrued-world (reduce (fn [w [_ decision]]
+                                      (accrual/apply-accrual-decision w decision))
+                                    world accrual-decisions)
+              accrued-positions (mapv #(get-in accrued-world [:yield/positions %]) owners)
+              requested-by-owner (into {}
+                                       (map (fn [oid p]
+                                              [oid (reduce + 0 (vals (:requested
+                                                                      (partial-fill/calculate-fulfillment
+                                                                       Long/MAX_VALUE p))))])
+                                            owners accrued-positions))
+              rows (mapv (fn [oid]
+                           (let [owed (long (get requested-by-owner oid 0))
+                                 supplied-cap (get effective-caps oid owed)]
+                             {:key oid :owed owed :weight owed
+                              ;; The allocator applies min(owed, cap); recording the
+                              ;; supplied effective cap makes policy constraints
+                              ;; explicit without changing uncapped legacy behavior.
+                              :cap (long supplied-cap)})) owners)
+              base-held (or (get-in accrued-world [:total-held token])
+                            (get-in accrued-world [:yield/held-balances (name token)]) 0)
+              market (market-state/get-market-state accrued-world mid token now)
+              available (max 0 (long (* (long base-held) (:available-ratio market 1.0))))
+              policy (merge partial-fill/default-partial-fill-policy
+                            {:mode :pro-rata
+                             :rounding-policy :largest-remainder
+                             :allocation-ordering :canonical-owner-id-ascending
+                             :rounding-tie-break :canonical-owner-id-ascending})
+              settlement (-> (partial-fill/calculate-fulfillment-pro-rata available {} policy {:rows rows})
+                             ;; Row allocation always follows the capped path. Normalize
+                             ;; its semantic settlement mode when every claim is met.
+                             ((fn [result]
+                                (if (and (every? zero? (vals (:deferred result)))
+                                         (every? zero? (vals (:haircut result))))
+                                  (assoc result :settlement-mode :full-fill)
+                                  result)))
+                             ;; Generic allocator evidence retains doubles for interactive callers.
+                             ;; Persisted decision artifacts use a canonical exact representation.
+                             (update-in [:evidence :allocation-rows]
+                                        (fn [allocation-rows]
+                                          (mapv (fn [row]
+                                                  (let [owed (long (:owed row 0))
+                                                        filled (long (:filled row 0))]
+                                                    (assoc row :fill-ratio
+                                                           {:numerator filled
+                                                            :denominator owed})))
+                                                allocation-rows))))
+              row-by-owner (into {} (map (juxt :key identity) (get-in settlement [:evidence :allocation-rows])))
+              decision (partial-fill/decision-artifact
+                        {:owner/id "shared-pool" :module/id mid :token token}
+                        settlement
+                        {:decision-source :yield-withdraw-shared
+                         :position-id "shared-pool"
+                         :extra {:participants owners
+                                 :allocation/effective-caps (into {} (map (juxt :key :cap) rows))
+                                                                  :allocation/effective-cap-source (or effective-cap-source :scenario-fixture)
+                                                                  :allocation/scope :shared-liquidity-pool
+                                 :allocation/domain {:module/id mid :token token :block-time now}
+                                                                  :allocation/ordering :canonical-owner-id-ascending
+                                                                  :allocation/rounding-tie-break :canonical-owner-id-ascending}})
+              updated-world
+              (reduce (fn [w oid]
+                        (let [position (get-in w [:yield/positions oid])
+                              row (get row-by-owner oid)
+                              requested (long (:owed row 0))
+                              filled (long (:filled row 0))
+                              deferred (max 0 (- requested filled))
+                              shortfall (when (pos? deferred)
+                                          {:reason (or (get-in market [:shortfall-model :type]) :liquidity-shortfall)
+                                           :basis-amount requested
+                                           :available-ratio (if (pos? requested) (/ (rationalize filled) requested) 1)
+                                           :fulfilled-amount filled
+                                           :deferred-amount deferred
+                                           :haircut-amount 0
+                                           :as-of-index (:current-index position)
+                                           :started-at now})
+                              updated (-> position
+                                          (assoc :partial-fill-affected? (boolean shortfall))
+                                          (assoc :status (if shortfall :unwinding :withdrawn))
+                                          (assoc :realized-yield 0)
+                                          (assoc :unrealized-yield 0)
+                                          (assoc :shortfall shortfall))]
+                          (assoc-in w [:yield/positions oid] updated)))
+                      accrued-world owners)
+              final-world (partial-fill/attach-decision-artifact updated-world decision)]
+          (evidence/capture-event-evidence!
+           :yield-withdraw-shared
+           {:withdraw/before-positions (:yield/positions world)}
+           {:withdraw/after-positions (:yield/positions final-world)}
+           {:withdraw/params {:owner-ids owners :module/id mid :token token
+                              :available-liquidity available :allocation-mode :pro-rata
+                              :effective-caps (into {} (map (juxt :key :cap) rows))
+                                                            :effective-cap-source (or effective-cap-source :scenario-fixture)}
+            :withdraw/partial-fill-decision decision}
+           nil
+           {:world-before world :world-after final-world})
+          final-world)))))
+
+;; ---------------------------------------------------------------------------
 ;; withdraw-many (batch parallel)
 ;; ---------------------------------------------------------------------------
 (defn- compute-withdrawal-result
@@ -536,10 +686,11 @@
   ([module-id module-type]
    {:module/id module-id
     :module/type module-type
-    :module/capabilities #{:deposit :withdraw :accrue :emergency-unwind :claim-deferred}
+    :module/capabilities #{:deposit :withdraw :withdraw-shared :accrue :emergency-unwind :claim-deferred}
     :accounting/type :shares
     :ops {:yield/deposit deposit
           :yield/withdraw withdraw
+          :yield/withdraw-shared withdraw-shared
           :yield/accrue accrue
           :yield/emergency-unwind emergency-unwind
           :yield/claim-deferred claim-deferred}}))

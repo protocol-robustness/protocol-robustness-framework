@@ -50,7 +50,7 @@
    [nil "--fixture-suite SUITE" "Run a composed EDN fixture suite (e.g. suites/all-invariants; use with --invariants)"]
    [nil "--scenario PATH" "Path to a single executable scenario file to run (requires --invariants; EDN preferred, JSON deprecated)"]
    [nil "--output-file PATH" "Path to write the replay result JSON (requires --scenario)"]
-   [nil "--scenario-filter PRED" "Predicate for filtering scenarios in a suite (e.g. 'pass?' for passing scenarios only; use with --suite; marks run non-canonical)"]
+   [nil "--scenario-filter EDN" "Declarative EDN selector for suite scenarios, e.g. '{:scenario/id-prefix \"Y\" :scenario/tags #{:shortfall}}'; marks run non-canonical"]
    [nil "--diff-traces" "Structural world diff between two replay JSON files"]
    [nil "--baseline PATH" "Baseline replay JSON (use with --diff-traces)"]
    [nil "--candidate PATH" "Candidate replay JSON (use with --diff-traces)"]

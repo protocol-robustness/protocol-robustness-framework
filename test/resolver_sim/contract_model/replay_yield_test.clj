@@ -21,16 +21,24 @@
     (is (= :pass (:outcome result)))
     (is (= :yield-sequential (get-in result [:execution :mode])))))
 
+(deftest canonical-yield-replay-preserves-input-scenario-identity
+  (let [result (replay/replay-events yp/protocol base-scenario
+                                     {:flags {:yield-dt-validation? true
+                                              :metrics-profile :yield-provider}})]
+    (is (= :pass (:outcome result)))
+    (is (= "yield-replay-test" (:scenario-id result)))
+    (is (= "yield-replay-test" (get-in result [:world :params :scenario-id])))))
+
 (deftest replay-yield-scenario-rejects-dt-time-mismatch
   (let [scenario (assoc-in base-scenario [:events 1 :params :dt] 999)
         result   (yield-replay/replay-yield-scenario scenario)]
     (is (= :invalid (:outcome result)))
     (is (= :dt-time-mismatch (:halt-reason result))))
 
-  (deftest simple-replay-delegates-to-thin-runner
+  (deftest simple-replay-uses-canonical-yield-contract
     (let [result (replay/simple-replay yp/protocol base-scenario)]
       (is (= :pass (:outcome result)))
-      (is (= :yield-sequential (get-in result [:execution :mode])))))
+      (is (= "yield-replay-test" (:scenario-id result)))))
 
   (deftest unknown-time-advance-actions-rejected
     (doseq [action ["advance_time" "time_advance"]]

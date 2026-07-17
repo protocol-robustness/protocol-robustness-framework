@@ -1359,6 +1359,329 @@
                                                       :authorization-provenance authorization-provenance)]
                   (assoc (t/ok world') :slash-id slash-id))))))))))
 
+(defn- canonical-resolver-order [resolver-id]
+  ;; Resolver IDs are protocol identifiers, so their stable textual form is the
+  ;; canonical ordering used by the pro-rata allocator's input-order policy.
+  (str resolver-id))
+
+(defn propose-fraud-group-slash
+  "Propose an appealable, pro-rata fraud slash against a liable resolver group.
+
+   The member stakes are snapshotted at proposal time.  Execution uses that
+   immutable, canonically ordered snapshot, preventing intermediate mutations
+   from changing liability shares.  `authorization` and `provenance` are
+   retained verbatim for the governance/audit layer."
+  [world workflow-id caller liable-resolvers amount liability-justification authorization provenance]
+  (let [wf-id (t/normalize-workflow-id workflow-id)
+        members (vec liable-resolvers)
+        member-ids (mapv #(if (map? %) (:id %) %) members)
+        reject (fn [error] (t/fail error))]
+    (cond
+      (or (nil? caller) (= "" caller))
+      (reject :missing-caller-context)
+
+      (not (t/valid-workflow-id? world wf-id))
+      (reject :invalid-workflow-id)
+
+      (not (fraud-slash-workflow-eligible? world wf-id))
+      (reject :workflow-not-slashable)
+
+      (or (nil? liable-resolvers) (empty? members))
+      (reject :empty-liable-resolvers)
+
+      (not= (count member-ids) (count (distinct member-ids)))
+      (reject :duplicate-liable-resolver)
+
+      (or (nil? amount) (not (number? amount)) (<= amount 0))
+      (reject :invalid-slash-amount)
+
+      :else
+      (let [dispute-resolver (get-in world [:escrow-transfers wf-id :dispute-resolver])
+            resolved-by (get-in world [:escrow-transfers wf-id :resolution :resolved-by])]
+        (cond
+          (some #(or (nil? %) (= "" %)) member-ids)
+          (reject :invalid-resolver-addr)
+
+          ;; A group fraud slash must remain tied to the dispute decision.
+          (not (some #(or (= dispute-resolver %) (= resolved-by %)) member-ids))
+          (reject :slash-resolver-mismatch)
+
+          (some #(not (contains? (:resolver-stakes world {}) %)) member-ids)
+          (reject :unregistered-liable-resolver)
+
+          (some #(not (pos? (reg/get-stake world %))) member-ids)
+          (reject :insufficient-resolver-stake)
+
+          (active-manual-fraud-slash? world wf-id)
+          (reject :slash-already-pending)
+
+          :else
+          (let [now (time-ctx/block-ts world)
+                snap (t/get-snapshot world wf-id)
+                appeal-window (or (:appeal-window-duration snap)
+                                  (* (get-in world [:params :appeal-window-days] 7)
+                                     (time-ctx/tick-seconds world)))
+                slash-id (t/allocate-slash-id world)
+                snapshot-members
+                (->> member-ids
+                     (map (fn [id]
+                            (let [stake (reg/get-stake world id)]
+                              {:id id
+                               :slashable-stake stake
+                               :available-slashable stake})))
+                     (sort-by (comp canonical-resolver-order :id))
+                     vec)
+                ;; The group is incident-scoped, not a separately mutable
+                ;; committee entity.  The slash ID is its canonical identity;
+                ;; this hash commits to the immutable membership and liability
+                ;; basis used by every later appeal and execution step.
+                member-snapshot-hash
+                (hc/hash-with-intent {:hash/intent :provenance}
+                                                     {:liable-group/member-snapshot snapshot-members})
+                entry (append-authorization-provenance
+                       {:slash/id slash-id
+                        :slash/workflow-id wf-id
+                        :slash/kind :fraud-group
+                        :slash/level 0
+                        :workflow-id wf-id
+                        :amount amount
+                        :reason :fraud-group
+                        :status :pending
+                        :proposed-at now
+                        :appeal-deadline (+ now appeal-window)
+                        :liable-group/id slash-id
+                        :liable-group/member-snapshot-hash member-snapshot-hash
+                        :liable-group/ordering :canonical-resolver-id-ascending
+                        :members snapshot-members
+                        :appeals {}
+                        :liability-justification liability-justification
+                        :authorization authorization
+                        :provenance provenance
+                        :policy-ordering :canonical-resolver-id-ascending}
+                       "propose-fraud-group-slash"
+                       provenance)
+                world' (t/insert-slash world entry)]
+            (assoc (t/ok world') :slash-id slash-id)))))))
+
+(defn appeal-fraud-group-slash
+  "Appeal one member's immutable allocation in a pending fraud-group slash."
+  [world workflow-id caller slash-id & {:keys [authorization-provenance]}]
+  (let [pending (get-in world [:pending-fraud-slashes slash-id])]
+    (cond
+      (not (t/valid-entity-id? slash-id)) (t/fail :invalid-slash-id)
+      (nil? pending) (t/fail :slash-not-found)
+      (not= (:slash/workflow-id pending) workflow-id) (t/fail :slash-workflow-mismatch)
+      (not= :fraud-group (:slash/kind pending)) (t/fail :not-fraud-group-slash)
+      (not= :pending (:status pending)) (t/fail :slash-not-pending)
+      (> (time-ctx/block-ts world) (:appeal-deadline pending)) (t/fail :appeal-window-expired)
+      (not (some #(= caller (:id %)) (:members pending))) (t/fail :not-liable-member)
+      (contains? (:appeals pending) caller) (t/fail :member-appeal-already-pending)
+      :else
+      (let [allocation (sew-econ/calculate-sew-slash-allocation
+                        {:slash-obligation (:amount pending)
+                         :liable-parties (:members pending)
+                         :basis :slashable-stake
+                         :cap-field :available-slashable
+                         :slash-policy {:type :fraud-group
+                                        :ordering :canonical-resolver-id-ascending}})
+            allocated-debit (or (some #(when (= caller (:id %)) (:paid %))
+                                      (:allocations allocation))
+                                0)
+            token (:token (t/get-transfer world workflow-id))
+            snap (t/get-snapshot world workflow-id)
+            bond-amount (sew-econ/calculate-appeal-bond-amount
+                         (:amount-after-fee (t/get-transfer world workflow-id)) snap)
+            custody {:resolver caller :workflow-id workflow-id :amount bond-amount :token token}
+            world' (cond-> (-> world
+                                (assoc-in [:pending-fraud-slashes slash-id :appeals caller]
+                                          {:status :appealed :allocated-debit allocated-debit
+                                                                                     :appeal-bond-held bond-amount
+                                                                                     :appealed-at (time-ctx/block-ts world)})
+                                (assoc-in [:appeal-bond-custody slash-id caller] custody))
+                     (pos? bond-amount)
+                     (-> (acct/add-held token bond-amount
+                                         {:action "appeal-fraud-group-slash"
+                                          :reason :appeal-bond-posted
+                                          :authorization-provenance authorization-provenance
+                                          :extra {:held/action "appeal-fraud-group-slash"
+                                                  :held/workflow-id workflow-id
+                                                  :held/slash-id slash-id
+                                                  :held/actor caller}})
+                         (update-in [:total-bonds-posted token] (fnil + 0) bond-amount)
+                         (update-in [:bond-posted-by-workflow workflow-id] (fnil + 0) bond-amount)))]
+        (t/ok world')))))
+
+(defn resolve-fraud-group-appeal
+  "Governance resolves one member's fraud-group appeal.  An upheld appeal
+   permanently stays only that member's original allocation."
+  [world workflow-id caller member appeal-upheld? slash-id & {:keys [authorization-provenance]}]
+  (let [pending (get-in world [:pending-fraud-slashes slash-id])
+        appeal (get-in pending [:appeals member])]
+    (cond
+      (not (t/valid-entity-id? slash-id)) (t/fail :invalid-slash-id)
+      (nil? pending) (t/fail :slash-not-found)
+      (not= (:slash/workflow-id pending) workflow-id) (t/fail :slash-workflow-mismatch)
+      (not= :fraud-group (:slash/kind pending)) (t/fail :not-fraud-group-slash)
+      (nil? authorization-provenance) (t/fail :missing-authorization-provenance)
+      (or (nil? caller) (= "" caller)) (t/fail :missing-caller-context)
+      (not= :appealed (:status appeal)) (t/fail :no-active-member-appeal)
+      :else
+      (let [{:keys [amount token]} (get-in world [:appeal-bond-custody slash-id member])
+            amount (or amount 0)
+            world-base (update-in world [:appeal-bond-custody slash-id] dissoc member)
+            world' (if appeal-upheld?
+                     (cond-> world-base
+                       (pos? amount) (-> (acct/sub-held token amount
+                                                           {:action "resolve-fraud-group-appeal"
+                                                            :reason :appeal-bond-returned
+                                                            :authorization-provenance authorization-provenance
+                                                            :extra {:held/action "resolve-fraud-group-appeal"
+                                                                    :held/workflow-id workflow-id
+                                                                    :held/slash-id slash-id
+                                                                    :held/actor member}})
+                                         (acct/record-claimable-v2 workflow-id :bond/refund member amount))
+                       :always (assoc-in [:pending-fraud-slashes slash-id :appeals member :status] :upheld)
+                                              :always (assoc-in [:pending-fraud-slashes slash-id :appeals member :appeal-bond-held] 0))
+                     (cond-> (-> world-base
+                                                       (assoc-in [:pending-fraud-slashes slash-id :appeals member :status] :rejected)
+                                                       (assoc-in [:pending-fraud-slashes slash-id :appeals member :appeal-bond-held] 0))
+                                            (pos? amount) (-> (acct/sub-held token amount
+                                                           {:action "resolve-fraud-group-appeal"
+                                                            :reason :appeal-bond-forfeited
+                                                            :authorization-provenance authorization-provenance
+                                                            :extra {:held/action "resolve-fraud-group-appeal"
+                                                                    :held/workflow-id workflow-id
+                                                                    :held/slash-id slash-id
+                                                                    :held/actor member}})
+                                         (update-in [:appeal-bond-distributions-by-token token] (fnil + 0) amount)
+                                         (update :appeal-bonds-forfeited-insurance (fnil + 0) amount))))]
+        (t/ok world')))))
+
+(defn execute-fraud-group-slash
+  "Execute a mature `:fraud-group` slash from its proposal-time member snapshot.
+   All allocations are calculated before any stake mutation; reductions are then
+   applied in canonical member order and recorded with the executed slash."
+  ([world workflow-id slash-id]
+   (execute-fraud-group-slash world workflow-id slash-id nil))
+  ([world workflow-id slash-id execution-provenance]
+   (let [pending (get-in world [:pending-fraud-slashes slash-id])]
+     (cond
+       (not (t/valid-entity-id? slash-id)) (t/fail :invalid-slash-id)
+       (nil? pending) (t/fail :slash-not-found)
+       (not= (:slash/workflow-id pending) workflow-id) (t/fail :slash-workflow-mismatch)
+       (not= :fraud-group (:slash/kind pending)) (t/fail :not-fraud-group-slash)
+       (not= :pending (:status pending))
+       (t/fail (if (= :executed (:status pending)) :already-executed :slash-not-pending))
+       (<= (time-ctx/block-ts world) (:appeal-deadline pending)) (t/fail :timelock-not-expired)
+       :else
+       (let [members (:members pending)
+             allocation-input {:slash-obligation (:amount pending)
+                               :liable-parties members
+                               :basis :slashable-stake
+                               :cap-field :available-slashable
+                               :slash-policy {:type :fraud-group
+                                              :ordering :canonical-resolver-id-ascending}}
+             allocation (sew-econ/calculate-sew-slash-allocation allocation-input)
+             ;; Preflight every executable row before mutating any stake.  The
+             ;; epoch basis is reconstructed as live stake plus debits already
+             ;; recorded in this epoch, matching slash-epoch-cap-respected?.
+             ;; An upheld appeal stays its immutable row and consumes neither
+             ;; stake nor epoch capacity.
+             epoch-cap-bps (get-in world [:params :slash-epoch-cap-bps] 2000)
+             preflight-violations
+             (vec
+              (for [{:keys [id paid]} (:allocations allocation)
+                    :let [appeal (get-in pending [:appeals id])
+                          stayed? (= :upheld (:status appeal))
+                          current-stake (reg/get-stake world id)
+                          epoch-slashed (get-in world [:resolver-epoch-slashed id :amount] 0)
+                          projected (+ epoch-slashed (if stayed? 0 paid))
+                          epoch-basis (+ current-stake epoch-slashed)]
+                    :when (and (not stayed?)
+                               (or (< current-stake paid)
+                                   (> (* projected 10000)
+                                      (* epoch-basis epoch-cap-bps))))]
+                {:member id
+                 :planned-debit paid
+                 :current-stake current-stake
+                 :epoch-slashed epoch-slashed
+                 :projected-epoch-slashed projected
+                 :epoch-basis epoch-basis
+                 :epoch-cap-bps epoch-cap-bps
+                 :reason (if (< current-stake paid)
+                           :insufficient-current-stake
+                           :slash-epoch-cap-exceeded)}))
+             freeze-duration (* (get-in world [:params :freeze-duration-days] 3)
+                                (time-ctx/tick-seconds world))
+             freeze-until (+ (time-ctx/block-ts world) freeze-duration)
+             ;; The allocation is fully determined from the immutable snapshot.
+             ;; The reducer merely applies those payments in the same order.
+             {:keys [world stake-evidence-hashes payments]}
+             (reduce
+                (fn [{:keys [world stake-evidence-hashes payments] :as acc}
+                     {:keys [id paid] :as allocation-row}]
+                  (let [appeal (get-in pending [:appeals id])]
+                    (cond
+                      (= :upheld (:status appeal))
+                      ;; Do not reallocate a stayed debit: the proposal-time allocation is final.
+                      (update acc :payments conj (assoc allocation-row :actual-paid 0
+                                                        :execution-status :stayed
+                                                        :appeal-status :upheld))
+
+                      (pos? paid)
+                      (let [r (reg/slash-resolver-stake world id paid nil 0 workflow-id)
+                            w (-> (:world r)
+                                  (assoc-in [:resolver-frozen-until id] freeze-until)
+                                  (update-in [:resolver-epoch-slashed id :amount] (fnil + 0) paid)
+                                  (update-unavailability id true))]
+                        (assoc acc :world w
+                               :stake-evidence-hashes (conj stake-evidence-hashes (:stake-evidence-hash r))
+                               :payments (conj payments (assoc allocation-row :actual-paid paid
+                                                               :execution-status :paid
+                                                               :appeal-status (:status appeal)))))
+
+                      :else
+                      (update acc :payments conj (assoc allocation-row :actual-paid 0
+                                                   :execution-status :unpaid
+                                                   :appeal-status (:status appeal))))))
+                {:world world :stake-evidence-hashes [] :payments []}
+                (if (seq preflight-violations) [] (:allocations allocation)))
+             world' (-> world
+                        (update-in [:pending-fraud-slashes slash-id]
+                                   append-execution-provenance
+                                   "execute-fraud-group-slash"
+                                   execution-provenance)
+                        (assoc-in [:pending-fraud-slashes slash-id :proposal-allocation]
+                                  allocation)
+                        (assoc-in [:pending-fraud-slashes slash-id :allocation]
+                                  (assoc allocation :allocations payments))
+                        (assoc-in [:pending-fraud-slashes slash-id :status] :executed)
+                        (lc/cleanup-orphaned-slashes workflow-id))
+             world-before-hash (hc/hash-with-intent {:hash/intent :world-structure} world)
+             projection (sew-econ/build-sew-slash-projection-artifact
+                         (assoc allocation-input :world-before-hash world-before-hash))]
+         (if (seq preflight-violations)
+           (assoc (t/fail :slash-epoch-cap-exceeded)
+                  :detail {:slash-id slash-id
+                           :workflow-id workflow-id
+                           :violations preflight-violations})
+           (attr/with-attribution {:subject/type :slash :subject/id slash-id
+                                 :action/type :slash/execute
+                                 :evidence/reason :fraud-group-slash-executed}
+           (let [{:keys [evidence artifact]}
+                 (slashing-ev/build-prorata-slash-evidence
+                  {:world world'
+                   :slash-id slash-id :workflow-id workflow-id :trigger :fraud-group-slash
+                   :allocation-input allocation-input :projection-artifact projection
+                   :allocation-result allocation
+                   :execution-result (assoc allocation :allocations payments)
+                   :transition-dependencies (vec (filter some? stake-evidence-hashes))
+                   :world-before-hash world-before-hash
+                   :attribution (attr/current-attribution)})]
+             (cap/capture-event-evidence! evidence)
+             (slashing-ev/write-allocation-result-artifact! artifact))
+           (t/ok world'))))))))
+
 (defn resolve-appeal
   "Governance (TIMELOCK) resolves a slashing appeal.
    Naming note: `appeal-upheld?` means the APPEAL is upheld (accepted),

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/benchmark-finalization-v1.json",
+  "title": "Benchmark Finalization v1",
+  "description": "Cryptographic finalization artifact for a benchmark bundle. Commits to finalized hashes without becoming part of the registry it commits to.",
+  "type": "object",
+  "required": ["schema_version", "domain", "benchmark_id", "run_id",
+               "assurance_artifact", "conclusion_sha256",
+               "artifact_registry_sha256", "registry_validation_sha256",
+               "input_set_root", "final_ref"],
+  "properties": {
+    "schema_version": {
+      "const": "benchmark-finalization.v1",
+      "description": "Must be exactly 'benchmark-finalization.v1'"
+    },
+    "domain": {
+      "const": "prf/benchmark-finalization/v1",
+      "description": "Domain separator for the finalization chain"
+    },
+    "benchmark_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "assurance_artifact": {
+      "type": "object",
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref":    { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "conclusion_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "artifact_registry_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "registry_validation_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "input_set_root": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "final_ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Domain-separated hash over benchmark ID, run ID, assurance hash, conclusion hash, registry hash, validation hash, and input_set_root. Excludes itself."
+    }
+  },
+  "additionalProperties": false
+}

@@ -10,7 +10,10 @@
 (def ^:private secret-patterns
   [#"-----BEGIN (?:RSA |EC |OPENSSH |)?PRIVATE KEY-----"
    #"(?i)(?:api[_-]?key|password|secret|private[_-]?key|access[_-]?token)\s*[:=]"
-   #"(?i)authorization:\s*bearer\s+" ])
+   #"(?i)authorization:\s*bearer\s+"
+   #"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
+   #"(?i)ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}"
+   #"(?i)npm_[A-Za-z0-9]{36}"])
 
 (defn acquire-lock!
   "Compatibility delegate; canonical callers use lifecycle/acquire-run-lock!."

@@ -109,10 +109,24 @@
      :owed owed
      :weight (or (:weight row) owed)
      :cap (when cap (long cap))
+     :effective-cap (long effective-cap)
      :filled f
+     :final-allocation f
      :deferred d
      :fill-ratio (if (pos? owed) (double (/ f owed)) 0.0)
      :cap-hit? (if (some? cap) (>= f effective-cap) false)}))
+
+(defn- residual-reason
+  [unallocated allocation]
+  (let [passes (get-in allocation [:redistribution :passes] [])]
+    (when (pos? unallocated)
+      (cond
+        (get-in allocation [:redistribution :iteration-limit-reached?]) :iteration-limit-reached
+        (every? (fn [{:keys [allocated cap]}]
+                  (and (some? cap) (>= allocated cap)))
+                (:allocations allocation)) :all-participants-cap-constrained
+        (some #(seq (:capped-ids %)) passes) :all-participants-cap-constrained
+        :else :rounding-residual-unallocated))))
 
 (defn calculate-fulfillment-pro-rata
   "Pro-rata fill: each claim bucket receives a proportional share of the available
@@ -158,7 +172,8 @@
                       :progress-atom progress-atom})
               filled (into {} (map (fn [a] [(:id a) (:allocated a)]) (:allocations alloc)))
               row-evidence (mapv #(row-evidence % filled) rows)
-              deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))]
+              deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))
+              unallocated (max 0 (- available-liquidity (:total-allocated alloc 0)))]
           {:settlement-mode :partial-fill
            :requested (into {} (map (fn [r] [(:key r) (long (:owed r))]) rows))
            :filled filled
@@ -169,6 +184,9 @@
            :evidence (assoc (make-evidence policy available-liquidity total shortage :pro-rata)
                             :allocation-detail (select-keys alloc [:total-allocated :total-unmet :remainder])
                             :allocation-rows row-evidence
+                            :allocation-passes (get-in alloc [:redistribution :passes] [])
+                            :unallocated-residual unallocated
+                                                        :residual-reason (residual-reason unallocated alloc)
                             :redistribution (:redistribution alloc))})
         ;; Backward compatible path: derive weight/cap from requested
         (let [claims (mapv (fn [[k v]] {:key k :amount (long v)})
@@ -508,30 +526,35 @@
    decision across world state, snapshots, and evidence."
   ([position decision]
    (decision-artifact position decision {}))
-  ([position decision {:keys [decision-source]
+  ([position decision {:keys [decision-source position-id extra]
                        :or {decision-source :yield-withdraw}}]
-   (let [owner-id (or (:owner/id position) (-> (pos/position-identity position) second))
+   (let [owner-id (or position-id (:owner/id position) (-> (pos/position-identity position) second))
          token (normalize-token (or (:token position) (get-in position [:position/id 3])))
-         base {:schema-version schema-version
-               :artifact/kind :yield/partial-fill-decision
-               :decision/source decision-source
-               :position/id owner-id
-               :module/id (:module/id position)
-               :token token
-               :settlement-mode (:settlement-mode decision)
-               :requested (:requested decision)
-               :filled (:filled decision)
-               :deferred (:deferred decision)
-               :haircut (:haircut decision)
-               :unrealized (:unrealized decision)
-               :policy (:policy decision)
-               :evidence (:evidence decision)}
+         base (merge {:schema-version schema-version
+                      :artifact/kind :yield/partial-fill-decision
+                      :decision/source decision-source
+                      :position/id owner-id
+                      :module/id (:module/id position)
+                      :token token
+                      :settlement-mode (:settlement-mode decision)
+                      :requested (:requested decision)
+                      :filled (:filled decision)
+                      :deferred (:deferred decision)
+                      :haircut (:haircut decision)
+                      :unrealized (:unrealized decision)
+                      :policy (:policy decision)
+                      :evidence (:evidence decision)}
+                     extra)
          decision-hash (str "sha256:"
                             (hc/hash-with-intent {:hash/intent :evidence-record}
                                                  base))]
      (assoc base
             :decision/id (str "partial-fill-" (subs decision-hash 7 (min (count decision-hash) 23)))
-            :decision/hash decision-hash))))
+            :decision/hash decision-hash
+            ;; JSON replay output cannot distinguish string claim keys from
+            ;; keyword claim buckets. Preserve the exact typed hash preimage
+            ;; for independent post-persistence verification.
+            :decision/preimage (pr-str base)))))
 
 (defn attach-decision-artifact
   "Attach a partial-fill decision artifact to world state under a stable map."
@@ -549,29 +572,27 @@
        (into {})))
 
 (defn- compute-ideal-fills
-  "Compute the exact rational ideal fill for each claim.
-   Returns a map of claim-key -> {:requested N :ideal-exact N :ideal-floor N :fraction-remainder double}.
-   `ideal-exact` is the precise rational allocation: (claim / total-requested) * available.
-   `ideal-floor` is the floor of ideal-exact.
-   `fraction-remainder` is the fractional part of ideal-exact (0.0 to 1.0).
-   For sum-zero total-requested, all ideals are zero."
+  "Compute exact integer allocation quotients and remainders.
+
+   Each ideal share is `(requested * available) / total-requested`; its
+   numerator, denominator, floor, and remainder are retained as integers. This
+   deliberately avoids binary floating point because base-unit values and
+   largest-remainder rankings must remain correct above 2^53."
   [positive-claims total-requested available]
-  (let [total (long (or total-requested 0))
-        avail (long (or available 0))]
-    (if (zero? total)
-      (into {} (map (fn [[k _]] [k {:requested 0 :ideal-exact 0 :ideal-floor 0 :fraction-remainder 0.0}]) positive-claims))
-      (let [total-dec (double total)
-            avail-dec (double avail)]
-        (into {} (map (fn [[k claim]]
-                        (let [claim-d (double claim)
-                              ideal-exact-d (/ (* claim-d avail-dec) total-dec)
-                              ideal-floor (long ideal-exact-d)
-                              frac-rem (- ideal-exact-d (double ideal-floor))]
-                          [k {:requested claim
-                              :ideal-exact ideal-exact-d
-                              :ideal-floor ideal-floor
-                              :fraction-remainder frac-rem}]))
-                      positive-claims))))))
+  (let [total (bigint (or total-requested 0))
+        avail (bigint (or available 0))]
+    (into {}
+          (map (fn [[key claim]]
+                 (let [requested (bigint claim)
+                       numerator (*' requested avail)
+                       floor (if (zero? total) 0 (quot numerator total))
+                       remainder (if (zero? total) 0 (mod numerator total))]
+                   [key {:requested requested
+                         :ideal-numerator numerator
+                         :ideal-denominator total
+                         :ideal-floor floor
+                         :fraction-remainder remainder}]))
+               positive-claims))))
 
 (defn- rounding-fairness-violations
   "Check rounding fairness for integer allocation.
@@ -603,7 +624,7 @@
           ;; Largest-remainder: verify remainder ranking
           ranking-violations (when (= :largest-remainder rounding-policy)
                                (let [remainders (->> ideals
-                                                     (sort-by (fn [[_ v]] (- (:fraction-remainder v))))
+                                                     (sort-by (fn [[k v]] [(- (:fraction-remainder v)) (str k)]))
                                                      (mapv (fn [[k v]]
                                                              [k (:fraction-remainder v)])))
                                      extra-count (- available (reduce + 0 (map :ideal-floor (vals ideals))))
@@ -694,6 +715,14 @@
         total-deferred (sum-long-values deferred)
         total-haircut (sum-long-values haircut)
         positive-claims (positive-requested-claims decision)
+        allocation-rows (get-in decision [:evidence :allocation-rows] [])
+        effective-caps (into {}
+                             (keep (fn [{:keys [key effective-cap]}]
+                                     (when (some? effective-cap) [key (long effective-cap)]))
+                                   allocation-rows))
+        cap-constrained? (some (fn [[claim cap]]
+                                 (< cap (long (get positive-claims claim cap))))
+                               effective-caps)
         eligible-claim-count (count positive-claims)
         residual (- available total-filled)
         conservation-ok? (= total-requested (+ total-filled total-deferred total-haircut))
@@ -705,10 +734,12 @@
                            f (long (get filled k 0))
                            d (long (get deferred k 0))
                            h (long (get haircut k 0))
+                           cap (get effective-caps k r)
                            fv (when (> f r) {:claim k :kind :filled-exceeds-requested :requested r :filled f})
+                           cv (when (> f cap) {:claim k :kind :filled-exceeds-effective-cap :effective-cap cap :filled f})
                            dv (when (> d r) {:claim k :kind :deferred-exceeds-requested :requested r :deferred d})
                            hv (when (> h r) {:claim k :kind :haircut-exceeds-requested :requested r :haircut h})]
-                       (seq (remove nil? [fv dv hv])))))
+                       (seq (remove nil? [fv cv dv hv])))))
              (apply concat)
              vec)
         per-claim-conservation-violations
@@ -727,14 +758,25 @@
                           :haircut h
                           :recovered-sum total}))))
              vec)
+        rounding-policy (:rounding-policy policy :floor-and-carry)
+        ;; Strict equal fill ratios are only meaningful when every ideal share
+        ;; is representable in whole units. Largest-remainder allocations may
+        ;; legitimately award one deterministic dust unit to one claimant.
+        strict-pro-rata? (and (= :pro-rata mode)
+                              (not cap-constrained?)
+                              (or (not= :largest-remainder rounding-policy)
+                                  (every? (fn [[_ claim]]
+                                            (zero? (mod (* (long claim) available)
+                                                        (max 1 total-requested))))
+                                          positive-claims)))
         pro-rata-pairs
-        (when (= :pro-rata mode)
+        (when strict-pro-rata?
           (->> positive-claims
                keys
                sort
                vec))
         pro-rata-violations
-        (if (= :pro-rata mode)
+        (if strict-pro-rata?
           (->> (for [i (range (count pro-rata-pairs))
                      j (range (inc i) (count pro-rata-pairs))]
                  (let [ki (nth pro-rata-pairs i)
@@ -754,15 +796,20 @@
                (remove nil?)
                vec)
           [])
-        rounding-policy (:rounding-policy policy :floor-and-carry)
-        rounding-applicable? (#{:floor-and-carry :floor :largest-remainder :principal-protective-floor} rounding-policy)
-        residual-ok? (case rounding-policy
-                       (:floor-and-carry :floor :principal-protective-floor)
-                       (and (<= 0 residual)
-                            (< residual (max 1 eligible-claim-count)))
-                       :largest-remainder
-                       (zero? residual)
-                       false)
+        rounding-applicable? (and (not cap-constrained?)
+                                  (#{:floor-and-carry :floor :largest-remainder :principal-protective-floor} rounding-policy))
+        residual-ok? (if cap-constrained?
+                       (and (= residual (long (get-in decision [:evidence :unallocated-residual] 0)))
+                            (or (zero? residual)
+                                (= :all-participants-cap-constrained
+                                   (get-in decision [:evidence :residual-reason]))))
+                       (case rounding-policy
+                         (:floor-and-carry :floor :principal-protective-floor)
+                         (and (<= 0 residual)
+                              (< residual (max 1 eligible-claim-count)))
+                         :largest-remainder
+                         (zero? residual)
+                         false))
         claim-key-consistency-violations
         (->> (set (concat (keys filled) (keys deferred) (keys haircut)))
              (keep (fn [k]
@@ -900,15 +947,19 @@
                                        (if (empty? per-claim-violations) :pass :fail)
                                        {:violations per-claim-violations}))
           cross-product-ch (future
-                             (if (= :pro-rata mode)
+                             (if strict-pro-rata?
                                (check-result :partial-fill/pro-rata-cross-product
                                              (if (empty? pro-rata-violations) :pass :fail)
                                              {:violations pro-rata-violations})
                                (check-result :partial-fill/pro-rata-cross-product
                                              :not-applicable
-                                             {:mode mode})))
+                                             {:mode mode
+                                              :rounding-policy rounding-policy
+                                              :reason (if cap-constrained?
+                                                        "effective caps require constrained redistribution rather than one global ratio"
+                                                        "indivisible pro-rata allocation is checked by rounding fairness")})))
           rounding-fairness-ideal-ch (future
-                                       (if (= :pro-rata mode)
+                                       (if (and (= :pro-rata mode) (not cap-constrained?))
                                          (let [violations (rounding-fairness-violations
                                                            positive-claims filled available
                                                            total-requested rounding-policy)]
@@ -921,9 +972,11 @@
                                                           :ideal-fills (compute-ideal-fills
                                                                         positive-claims total-requested available)}))
                                          (check-result :partial-fill/rounding-fairness-ideal
-                                                       :not-applicable {:mode mode})))
+                                                       :not-applicable {:mode mode
+                                                                        :reason (when cap-constrained?
+                                                                                  "effective caps require constrained redistribution")})))
           rounding-remainder-ch (future
-                                  (if (= :largest-remainder rounding-policy)
+                                  (if (and (= :largest-remainder rounding-policy) (not cap-constrained?))
                                     (let [violations (rounding-fairness-violations
                                                       positive-claims filled available
                                                       total-requested rounding-policy)
@@ -934,10 +987,12 @@
                                                     {:violations ranking-violations
                                                      :remainder-order (->> (compute-ideal-fills
                                                                             positive-claims total-requested available)
-                                                                           (sort-by (fn [[_ v]] (- (:fraction-remainder v))))
+                                                                           (sort-by (fn [[k v]] [(- (:fraction-remainder v)) (str k)]))
                                                                            (mapv (fn [[k v]] [k (:fraction-remainder v)])))}))
                                     (check-result :partial-fill/rounding-fairness-remainder-ranking
-                                                  :not-applicable {:rounding-policy rounding-policy})))
+                                                  :not-applicable {:rounding-policy rounding-policy
+                                                                   :reason (when cap-constrained?
+                                                                             "effective caps require constrained redistribution")})))
           residual-ch (future
                         (if rounding-applicable?
                           (check-result :partial-fill/rounding-residual-bounded
@@ -946,7 +1001,8 @@
                                          :total-filled total-filled
                                          :residual residual
                                          :eligible-claim-count eligible-claim-count
-                                         :rounding-policy rounding-policy})
+                                         :rounding-policy rounding-policy
+                                         :cap-constrained? cap-constrained?})
                           (check-result :partial-fill/rounding-residual-bounded
                                         :not-applicable
                                         {:mode mode
@@ -1185,7 +1241,7 @@
                              :input-indexes missing-domain-inputs})))
         declared-domains (keep :liquidity-domain inputs)
         duplicate-domains (->> declared-domains frequencies (keep (fn [[domain n]]
-                                                                     (when (> n 1) domain))) vec)
+                                                                    (when (> n 1) domain))) vec)
         _ (when (seq duplicate-domains)
             (throw (ex-info "batch partial-fill has shared liquidity domain"
                             {:type :batch-partial-fill-shared-liquidity

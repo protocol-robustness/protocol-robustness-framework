@@ -10,7 +10,7 @@
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.commands.scenario-run :as scenario-command]))
 
-(def ^:private legacy-roots ["results/runs" "results/test-artifacts" "prf-runs" "prf-artifacts"])
+(def ^:private legacy-roots ["results/runs" "results/test-artifacts" "results/evidence" "prf-runs" "prf-artifacts" "target/run"])
 (def ^:private settlement-scenario "scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn")
 (def ^:private pro-rata-scenario "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn")
 (def ^:private settlement-slug "S-DR-084-evidence-after-settlement-rejected")
@@ -66,15 +66,20 @@
     (is (= "." (:root_dir r)))
     (is (seq entries))
     (is (every? #(root-relative? root (:path %)) entries))
-    (is (every? #(not (re-find #"(^|/)(results|prf-(runs|artifacts))(/|$)" (:path %))) entries))
+    (is (every? #(not (re-find #"(^|/)(results|prf-runs|prf-artifacts|target/run)(/|$)" (:path %))) entries))
     (is (every? #(or (str/starts-with? % "forensic.")
                          (str/starts-with? % "evidence.")
                          (str/starts-with? % "input.")
                          (contains? #{"execution.replay-output"
-                                  "execution.dag"
-                                  "execution.pre-run-commitment"
-                                  "manifest.run-enrichment"
-                                  "summaries.trace"
+                                   "execution.dag"
+                                   "execution.pre-run-commitment"
+                                   "manifest.run-enrichment"
+                                   "manifest.run"
+                                   "manifest.summary"
+                                   "manifest.claimable-classification"
+                                   "manifest.sensitivity-report"
+                                   "manifest.diagnostic-summary"
+                                   "summaries.trace"
                                   "summaries.metrics"
                                   "summaries.claimable"
                                   "summaries.mechanisms"

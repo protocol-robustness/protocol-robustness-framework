@@ -231,7 +231,7 @@ Run a single scenario with invariants and emit evidence artifacts.
              (when-not (zero? exit) (System/exit exit))))}
 
   evidence:build
-  {:doc "Run a single scenario into the canonical self-contained evidence bundle.
+   {:doc "[LEGACY] Run a single scenario into the canonical self-contained evidence bundle.
 Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
        --output-file is no longer supported; use the bundle replay output under scenarios/<slug>/execution/."
    :task (let [args (vec *command-line-args*)

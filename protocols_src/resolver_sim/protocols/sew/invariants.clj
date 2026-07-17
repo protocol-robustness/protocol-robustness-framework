@@ -763,27 +763,44 @@
   (let [slashes  (:pending-fraud-slashes world {})
         custody  (:appeal-bond-custody world {})
         violations
-        (for [[slash-id ev] slashes
-              :let [held         (or (:appeal-bond-held ev) 0)
-                    status       (:status ev)
-                    custody-entry (get custody slash-id)
-                    has-custody? (some? custody-entry)
-                    workflow-token (get-in world [:escrow-transfers (:workflow-id custody-entry) :token])
-                    token-valid? (and (:token custody-entry)
-                                      (or (nil? workflow-token)
-                                          (= workflow-token (:token custody-entry))))
-                    valid?
-                    (and (>= held 0)
-                         (if (pos? held)
-                           (and (= :appealed status) has-custody? token-valid?)
-                           (not has-custody?)))]
-              :when (not valid?)]
-          {:slash-id slash-id
-           :status status
-           :appeal-bond-held held
-           :has-custody has-custody?
-           :bond-token (:token custody-entry)
-           :workflow-token workflow-token})]
+        (mapcat
+         (fn [[slash-id ev]]
+           (if (= :fraud-group (:slash/kind ev))
+             ;; Group appeals are member-scoped. A zero-value bond still has a
+             ;; custody record while its appeal is active, so lifecycle state—
+             ;; not only amount—determines whether the record must exist.
+             (for [[member appeal] (:appeals ev {})
+                   :let [custody-entry (get-in custody [slash-id member])
+                         has-custody? (some? custody-entry)
+                         workflow-token (get-in world [:escrow-transfers (:workflow-id ev) :token])
+                         token-valid? (or (zero? (or (:appeal-bond-held appeal) 0))
+                                          (= workflow-token (:token custody-entry)))
+                         active? (= :appealed (:status appeal))
+                         valid? (and (not (neg? (or (:appeal-bond-held appeal) 0)))
+                                     (= active? has-custody?)
+                                     (or (not active?) token-valid?))]
+                   :when (not valid?)]
+               {:slash-id slash-id :member member :status (:status appeal)
+                :appeal-bond-held (:appeal-bond-held appeal 0)
+                :has-custody has-custody? :bond-token (:token custody-entry)
+                :workflow-token workflow-token})
+             (let [held         (or (:appeal-bond-held ev) 0)
+                   status       (:status ev)
+                   custody-entry (get custody slash-id)
+                   has-custody? (some? custody-entry)
+                   workflow-token (get-in world [:escrow-transfers (:workflow-id custody-entry) :token])
+                   token-valid? (and (:token custody-entry)
+                                     (or (nil? workflow-token)
+                                         (= workflow-token (:token custody-entry))))
+                   valid? (and (>= held 0)
+                               (if (pos? held)
+                                 (and (= :appealed status) has-custody? token-valid?)
+                                 (not has-custody?)))]
+               (if valid? [] [{:slash-id slash-id :status status
+                                :appeal-bond-held held :has-custody has-custody?
+                                :bond-token (:token custody-entry)
+                                :workflow-token workflow-token}]))))
+         slashes)]
     {:holds?     (empty? violations)
      :violations (vec violations)}))
 

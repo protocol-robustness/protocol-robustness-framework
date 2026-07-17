@@ -39,7 +39,7 @@
                       {:runner/binary-path runner-jar-path
                        :runner/binary-size (.length (java.io.File. runner-jar-path))
                        :runner/binary-sha256 (sha256-file runner-jar-path)})
-         config-hash (sha256-file "config/evidence.json")
+         config-hash (sha256-file "resources/config/evidence.json")
          commitment {:pre-run/schema-version "pre-run-commitment.v1"
                      :pre-run/generated-at (str (Instant/now))
                      :pre-run/run-id run-id

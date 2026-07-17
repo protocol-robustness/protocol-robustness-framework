@@ -51,6 +51,11 @@
   [a b]
   (>= (level-index a) (level-index b)))
 
+(defn level>
+  "True if a is strictly more sensitive than b."
+  [a b]
+  (> (level-index a) (level-index b)))
+
 ;; ── Sink Classes ────────────────────────────────────────────────────────────
 
 (def safe-sinks
@@ -117,26 +122,34 @@
       ;; Unknown sink: blocked
       :else false)))
 
+;; ── Risk Severities ──────────────────────────────────────────────────────────
+
+(def risk-severities
+  "Ordered vector of risk severities (lowest to highest)."
+  [:risk-severity/low
+   :risk-severity/medium
+   :risk-severity/high
+   :risk-severity/critical])
+
+(def risk-severity-set (set risk-severities))
+
+(def risk-severity-order
+  (into {} (map-indexed (fn [i s] [s i]) risk-severities)))
+
+(defn risk-severity>=
+  "True if a is at least as severe as b (or higher)."
+  [a b]
+  (>= (get risk-severity-order a 0) (get risk-severity-order b 0)))
+
 ;; ── Classification ───────────────────────────────────────────────────────────
 
-(defn classify
-  "Classify an artifact and return its sensitivity level.
+(defn classify-structural
+  "Classify an artifact using structural heuristics only.
 
-   Examines artifact content and structure using structural heuristics:
+   Returns a sensitivity level based on artifact shape, ignoring any
+   declared :sensitivity/level metadata.
 
-   - Evidence nodes with :result :status :fail → at least :internal
-   - Evidence nodes with failure details → at least :private
-   - Attestations → at least :internal
-   - Attestations with claim results → at least :private
-   - Claim results with :holds? false → at least :internal
-   - Artifacts with provenance + scenario-id → at least :internal
-   - Unredacted scenario content → at least :private
-   - Unknown structure → :critical-private (conservative default)
-
-   Arguments:
-     artifact — any artifact map (attestation, evidence node, claim result, bundle)
-
-   Returns a sensitivity level keyword."
+   See `classify` for the full list of rules."
   [artifact]
   (let [;; Evidence node: fail status
         result-status (get-in artifact [:result :status])
@@ -153,6 +166,9 @@
         provenance (:attestation/provenance artifact)
         scenario-id (or (:scenario-id provenance)
                         (:scenario-id artifact))
+        ;; Scenario content (unredacted)
+        scenario-events (seq (:events artifact))
+        scenario-agents (seq (:agents artifact))
         ;; Subject
         subject-kind (:attestation/subject-kind artifact)
         ;; Bundle
@@ -182,6 +198,13 @@
       ;; Medium: claim result with failed claim
       (false? holds?) :sensitivity/internal
 
+      ;; Medium: passing claim result (no failure)
+      (true? holds?) :sensitivity/internal
+
+      ;; Medium: unredacted scenario content with events and agents
+      (and scenario-id scenario-events scenario-agents)
+      :sensitivity/private
+
       ;; Medium: artifact with scenario provenance
       scenario-id :sensitivity/internal
 
@@ -190,6 +213,40 @@
 
       ;; Default: conservative
       :else :sensitivity/critical-private)))
+
+(defn classify
+  "Classify an artifact and return its sensitivity level.
+
+   Examines artifact content and structure using structural heuristics,
+   then applies any declared :sensitivity/level as a floor.
+
+   Structural heuristics (lowest to highest):
+   - Evidence nodes with :result :status :fail → at least :internal
+   - Evidence nodes with failure details → at least :private
+   - Attestations → at least :internal
+   - Attestations with claim results → at least :private
+   - Claim results with :holds? false → at least :internal
+   - Claim results with :holds? true (passing) → at least :internal
+   - Artifacts with :scenario-id + :events + :agents (unredacted scenario) → at least :private
+   - Artifacts with provenance + scenario-id → at least :internal
+   - Unredacted scenario content → at least :private
+   - Unknown structure → :critical-private (conservative default)
+
+   Declared metadata (respected as floor):
+   - If artifact carries :sensitivity/level, the result is at least that level
+   - If artifact carries :sensitivity/risk-meta with :risk-severity :critical,
+     override mode escalates to :multi-party-approval
+
+   Arguments:
+     artifact — any artifact map (attestation, evidence node, claim result, bundle)
+
+   Returns a sensitivity level keyword."
+  [artifact]
+  (let [structural (classify-structural artifact)
+        declared (:sensitivity/level artifact)]
+    (if (and declared (contains? level-set declared))
+      (if (level>= structural declared) structural declared)
+      structural)))
 
 ;; ── Sentinel Report ─────────────────────────────────────────────────────────
 
@@ -201,7 +258,7 @@
                         :sinks (vec (sort all-sinks))
                         :disclosure-rules "level>=:public required for public-sinks"}))
 
-(defn- default-reasons
+(defn default-reasons
   [level]
   (case level
     :sensitivity/public []
@@ -213,6 +270,33 @@
                                    :contains-reproducible-exploit-path]
     [:contains-unpublished-evidence]))
 
+(defn effective-override-mode
+  "Determine the override mode for a given level and risk metadata.
+
+   Escalates to :multi-party-approval when:
+   - Level is :sensitivity/critical-private or higher, OR
+   - Risk meta contains :risk-severity :critical"
+  [level risk-meta]
+  (cond
+    (level>= level :sensitivity/critical-private) :multi-party-approval
+    (and risk-meta
+         (:risk-severity risk-meta)
+         (risk-severity>= (:risk-severity risk-meta) :risk-severity/critical))
+    :multi-party-approval
+    :else :single))
+
+(defn- declared-reasons
+  "Returns extra reason codes declared in the artifact's :sensitivity/risk-meta."
+  [artifact]
+  (vec (get-in artifact [:sensitivity/risk-meta :reason-codes] [])))
+
+(defn- extract-risk-meta
+  "Extract the risk metadata map from an artifact, if present."
+  [artifact]
+  (when-let [rm (:sensitivity/risk-meta artifact)]
+    (let [allowed-keys #{:value-at-risk :risk-severity :risk-vector}]
+      (select-keys rm allowed-keys))))
+
 (defn sentinel-report
   "Produce a full sentinel report for an artifact and requested sink.
 
@@ -220,12 +304,20 @@
      artifact — artifact map to classify
      sink     — requested sink keyword
 
-   Returns the sentinel report map."
+   Returns the sentinel report map including:
+   - :sentinel/report-hash over structural fields (deterministic)
+   - :sentinel/declared-level if the artifact carried explicit metadata
+   - :sentinel/risk-meta if the artifact carried risk annotation
+   - Override mode may escalate to :multi-party-approval for :critical risk"
   [artifact sink]
   (let [level (classify artifact)
         allowed? (disclosure-allowed? level sink)
         decision (if allowed? :allowed :blocked)
-        reasons (default-reasons level)
+        structural-level (classify-structural artifact)
+        declared-level (:sensitivity/level artifact)
+        risk-meta (extract-risk-meta artifact)
+        reasons (vec (distinct (concat (default-reasons level)
+                                       (declared-reasons artifact))))
         allowed-sinks (vec (sort (filter #(disclosure-allowed? level %) all-sinks)))
         input-kind (cond (:attestation/id artifact) :attestation-record
                          (:node-hash artifact) :evidence-node
@@ -235,24 +327,31 @@
         input-hash (or (:attestation/id artifact)
                        (:node-hash artifact)
                        (:bundle/root-hash artifact)
-                       (hc/hash-with-intent {:hash/intent :evidence-record} artifact))]
-    {:sentinel/version sentinel-version
-     :sentinel/policy-hash (compute-policy-hash)
-     :sentinel/evaluated-at (str (Instant/now))
-     :sentinel/input-kind input-kind
-     :sentinel/input-hash input-hash
-     :sentinel/requested-sink sink
-     :sentinel/decision decision
-     :sentinel/level level
-     :sentinel/reasons reasons
-     :sentinel/allowed-sinks allowed-sinks
-     :sentinel/redaction-required? (level>= level :sensitivity/private)
-     :sentinel/override-required?
-     {:required? (and (not allowed?)
-                      (level>= level :sensitivity/private))
-      :mode (if (level>= level :sensitivity/critical-private)
-              :multi-party-approval
-              :single)}}))
+                       (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
+        base-report {:sentinel/version sentinel-version
+                     :sentinel/policy-hash (compute-policy-hash)
+                     :sentinel/evaluated-at (str (Instant/now))
+                     :sentinel/input-kind input-kind
+                     :sentinel/input-hash input-hash
+                     :sentinel/requested-sink sink
+                     :sentinel/decision decision
+                     :sentinel/level level
+                     :sentinel/structural-level structural-level
+                     :sentinel/reasons reasons
+                     :sentinel/allowed-sinks allowed-sinks
+                     :sentinel/redaction-required? (level>= level :sensitivity/private)
+                     :sentinel/override-required?
+                     {:required? (and (not allowed?)
+                                      (level>= level :sensitivity/private))
+                      :mode (effective-override-mode level risk-meta)}}
+        base-report (cond-> base-report
+                      declared-level (assoc :sentinel/declared-level declared-level)
+                      risk-meta (assoc :sentinel/risk-meta risk-meta))
+        report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                        (dissoc base-report
+                                                :sentinel/report-hash
+                                                :sentinel/evaluated-at))]
+    (assoc base-report :sentinel/report-hash report-hash)))
 
 ;; ── Assertion Functions ──────────────────────────────────────────────────────
 
@@ -298,3 +397,56 @@
   "Assert that an attestation may be sent to a sink."
   [attestation {:keys [sink]}]
   (assert-disclosure-allowed! attestation {:sink sink}))
+
+;; ── Override Enforcement ─────────────────────────────────────────────────────
+
+(defn check-override-requirements!
+  "Check that override requirements are satisfied for a given effective
+   sensitivity and risk metadata.
+
+   When the override mode is :multi-party-approval, the approvals map
+   MUST contain at least two distinct approved-by entries. When mode
+   is :single, at least one entry is required.
+
+   Arguments:
+     level     — effective sensitivity level
+     risk-meta — risk metadata map (or nil)
+     approvals — vector of {:approved-by <id> :approved-at <str> :reason <str>}
+
+   Returns {:override-required? <bool>
+            :mode <:single | :multi-party-approval>
+            :satisfied? <bool>
+            :required-count <int>
+            :actual-count <int>
+            :reasons [<str> ...]}
+
+   Throws ex-info with :sensitivity/override-failed when not satisfied,
+   to fail closed."
+  [level risk-meta approvals]
+  (let [mode (effective-override-mode level risk-meta)
+        required? (and (not (disclosure-allowed? level :public-bundle))
+                       (level>= level :sensitivity/private))
+        approvals (vec approvals)
+        actual-count (count (distinct (map :approved-by approvals)))
+        required-count (if (= :multi-party-approval mode) 2 1)
+        satisfied? (or (not required?) (>= actual-count required-count))]
+    (if satisfied?
+      {:override-required? required?
+       :mode mode
+       :satisfied? true
+       :required-count required-count
+       :actual-count actual-count
+       :reasons []}
+      (let [reasons [(str "Override required: mode=" mode
+                          " required=" required-count
+                          " actual=" actual-count)]]
+        (throw (ex-info (str "Sensitivity override requirements not satisfied: "
+                             "mode=" mode " requires " required-count
+                             " approvals, got " actual-count)
+                        {:sensitivity/override-failed true
+                         :sensitivity/level level
+                         :sensitivity/mode mode
+                         :sensitivity/required-count required-count
+                         :sensitivity/actual-count actual-count
+                         :sensitivity/reasons reasons
+                         :sensitivity/approvals approvals}))))))

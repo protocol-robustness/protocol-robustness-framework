@@ -56,7 +56,7 @@
   [suite-key]
   (let [suite-definition (or (suites/suite-definition suite-key)
                              (throw (ex-info "Unknown suite" {:suite/id suite-key
-                                                                :known (suites/known-suite-keys)})))
+                                                              :known (suites/known-suite-keys)})))
         paths (suites/suite-paths suite-key)]
     (when-not (seq paths)
       (throw (ex-info "Suite has no executable members" {:suite/id suite-key})))

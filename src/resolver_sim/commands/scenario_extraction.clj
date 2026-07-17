@@ -109,6 +109,161 @@
 (defn extraction-schema-map [provenance]
   {"schema_version" "schema-map.v1" "map" schema-map "derived_from" provenance})
 
+(defn partial-fill-decisions
+  "Project replay-produced partial-fill decisions without recalculating them.
+   This is conditional: scenarios with no decision artifacts do not receive it."
+  [replay provenance]
+  (let [decisions (->> (get-in replay [:world :yield/partial-fill-decisions] {})
+                       vals
+                       (sort-by :decision/id)
+                       vec)
+        project (fn [decision]
+                  (let [requested (reduce + 0 (vals (:requested decision {})))
+                        filled (reduce + 0 (vals (:filled decision {})))
+                        deferred (reduce + 0 (vals (:deferred decision {})))
+                        available (get-in decision [:evidence :available-liquidity] 0)]
+                    {"decision_id" (:decision/id decision)
+                     "decision_sha256" (:decision/hash decision)
+                     "decision_source" (some-> (:decision/source decision) name)
+                     "participants" (:participants decision)
+                     "allocation_scope" (some-> (:allocation/scope decision) name)
+                     "allocation_ordering" (some-> (:allocation/ordering decision) name)
+                     "rounding_tie_break" (some-> (:allocation/rounding-tie-break decision) name)
+                     "allocation_domain" (:allocation/domain decision)
+                     "module_id" (some-> (:module/id decision) name)
+                     "token" (some-> (:token decision) name)
+                     "settlement_mode" (some-> (:settlement-mode decision) name)
+                     "policy" {"mode" (some-> (get-in decision [:policy :mode]) name)
+                               "rounding_policy" (some-> (get-in decision [:policy :rounding-policy]) name)
+                               "allocation_ordering" (some-> (get-in decision [:policy :allocation-ordering]) name)
+                               "rounding_tie_break" (some-> (get-in decision [:policy :rounding-tie-break]) name)}
+                     "available_liquidity" available
+                     "total_requested" requested
+                     "total_filled" filled
+                     "total_deferred" deferred
+                     "shortage" (max 0 (- requested available))
+                     "allocation_rows" (get-in decision [:evidence :allocation-rows] [])
+                     "allocation_detail" (get-in decision [:evidence :allocation-detail])
+                     "redistribution" (get-in decision [:evidence :redistribution])
+                     "allocation_passes" (get-in decision [:evidence :allocation-passes] [])
+                     "unallocated_residual" (get-in decision [:evidence :unallocated-residual] 0)
+                     "residual_reason" (some-> (get-in decision [:evidence :residual-reason]) name)
+                     "conservation" {"holds" (and (= requested (+ filled deferred))
+                                                     (<= filled available))
+                                     "requested_equals_filled_plus_deferred" (= requested (+ filled deferred))
+                                     "filled_not_above_available" (<= filled available)
+                                     "residual" (- available filled)}}))]
+    {"schema_version" "partial-fill-decisions.v1"
+     "scenario_id" (get-in replay [:source :scenario-id])
+     "decision_count" (count decisions)
+     "decisions" (mapv project decisions)
+     "derived_from" provenance}))
+
+(defn partial-fill-decisions-markdown
+  "Human-readable companion to `partial-fill-decisions.v1`. It renders the
+   persisted projection and does not perform a second allocation calculation."
+  [projection]
+  (let [render-row (fn [row]
+                     (let [ratio (get row :fill-ratio)]
+                       (format "| %s | %s | %s | %s | %s/%s |\n"
+                               (get row :key) (get row :owed) (get row :filled)
+                               (get row :deferred) (get ratio :numerator)
+                               (get ratio :denominator))))
+        render-decision (fn [decision]
+                          (str "\n## Decision `" (get decision "decision_id") "`\n\n"
+                               "- **Source:** `" (get decision "decision_source") "`\n"
+                               "- **Scope:** `" (get decision "allocation_scope") "`\n"
+                               "- **Pool:** `" (get decision "module_id") "/" (get decision "token") "`\n"
+                               "- **Policy:** `" (get-in decision ["policy" "mode"]) "`, rounding `"
+                               (get-in decision ["policy" "rounding_policy"]) "`\n"
+                               "- **Tie-break:** `" (or (get decision "rounding_tie_break")
+                                                            (get-in decision ["policy" "rounding_tie_break"])) "`\n"
+                               "- **Liquidity:** " (get decision "available_liquidity") "; requested "
+                               (get decision "total_requested") "; filled " (get decision "total_filled")
+                               "; deferred " (get decision "total_deferred") "; shortage " (get decision "shortage") ".\n"
+                               "- **Conservation:** " (if (get-in decision ["conservation" "holds"]) "holds" "FAILED")
+                               "; residual " (get-in decision ["conservation" "residual"]) ".\n\n"
+                               "| Participant | Requested | Filled | Deferred | Exact fill ratio |\n"
+                               "|---|---:|---:|---:|---:|\n"
+                               (apply str (map render-row (get decision "allocation_rows" [])))))]
+    (str "# Partial-Fill Allocation Summary\n\n"
+         "This summary is derived from `partial-fill-decisions.json`; the JSON projection and its replay decision hash are authoritative.\n"
+         (apply str (map render-decision (get projection "decisions" []))))))
+
+(defn fraud-group-slash-allocation
+  "Project executed incident-scoped group fraud slashes from the persisted final
+   world. This is a presentation projection only: it never recalculates the
+   proposal allocation or execution rows."
+  [replay provenance]
+  (let [slashes (->> (get-in replay [:world :pending-fraud-slashes] {})
+                     vals
+                     (filter #(= "fraud-group" (some-> (:slash/kind %) name)))
+                     (sort-by :slash/id)
+                     vec)
+        project (fn [slash]
+                  (let [proposal (or (:proposal-allocation slash) (:allocation slash) {})
+                        rows (get-in slash [:allocation :allocations] [])
+                        sum (fn [f] (reduce + 0 (map #(or (f %) 0) rows)))
+                        allocated (reduce + 0 (map #(or (:paid %) 0) rows))
+                        paid (sum :actual-paid)
+                        stayed (reduce + 0 (map #(if (= "stayed" (some-> (:execution-status %) name))
+                                                   (or (:paid %) 0) 0) rows))
+                        unpaid (reduce + 0 (map #(if (= "unpaid" (some-> (:execution-status %) name))
+                                                    (or (:paid %) 0) 0) rows))
+                        allocation-unmet (max 0 (- (or (:amount slash) 0) allocated))
+                        uncollected (- allocated paid)]
+                    {"slash_id" (:slash/id slash)
+                     "liable_group_id" (:liable-group/id slash)
+                     "member_snapshot_hash" (:liable-group/member-snapshot-hash slash)
+                     "member_ordering" (some-> (:liable-group/ordering slash) name)
+                     "workflow_id" (:workflow-id slash)
+                     "status" (some-> (:status slash) name)
+                     "obligation" (:amount slash)
+                     "member_snapshot" (:members slash)
+                     "proposal_allocation" (:allocations proposal)
+                     "execution_rows" rows
+                     "appeals" (:appeals slash)
+                     "totals" {"allocated" allocated "paid" paid "stayed" stayed
+                               "unpaid" unpaid
+                               "allocation_unmet" allocation-unmet
+                               "uncollected" uncollected}
+                     "reconciles" {"allocation_not_above_obligation" (<= allocated (:amount slash))
+                                   "allocated_plus_allocation_unmet_equals_obligation"
+                                   (= (:amount slash) (+ allocated allocation-unmet))
+                                   "paid_plus_stayed_plus_unpaid_equals_allocated"
+                                   (= allocated (+ paid stayed unpaid))
+                                   "stayed_plus_unpaid_equals_uncollected"
+                                   (= uncollected (+ stayed unpaid))}}))]
+    {"schema_version" "fraud-group-slash-allocation.v1"
+     "scenario_id" (get-in replay [:source :scenario-id])
+     "slash_count" (count slashes)
+     "slashes" (mapv project slashes)
+     "derived_from" provenance}))
+
+(defn fraud-group-slash-allocation-markdown [projection]
+  (let [render-row (fn [row]
+                     (format "| %s | %s | %s | %s | %s |\n"
+                             (:id row) (:paid row) (:actual-paid row)
+                             (some-> (:execution-status row) name)
+                             (some-> (:appeal-status row) name)))
+        render (fn [slash]
+                 (str "\n## Fraud group slash `" (get slash "slash_id") "`\n\n"
+                      "- **Incident-scoped liable group:** `" (get slash "liable_group_id") "`\n"
+                      "- **Immutable member snapshot:** `" (get slash "member_snapshot_hash") "`\n"
+                      "- **Ordering:** `" (get slash "member_ordering") "`\n"
+                      "- **Workflow:** `" (get slash "workflow_id") "`; status `" (get slash "status") "`\n"
+                      "- **Obligation:** " (get slash "obligation") "; allocated " (get-in slash ["totals" "allocated"])
+                      "; collected " (get-in slash ["totals" "paid"])
+                      "; stayed " (get-in slash ["totals" "stayed"])
+                      "; uncollected " (get-in slash ["totals" "uncollected"])
+                      "; allocation-unmet " (get-in slash ["totals" "allocation_unmet"]) ".\n\n"
+                      "The proposal allocation is immutable. Stayed rows were upheld on appeal and were not redistributed.\n\n"
+                      "| Member | Proposal debit | Collected debit | Execution | Appeal |\n|---|---:|---:|---|---|\n"
+                      (apply str (map render-row (get slash "execution_rows" [])))))]
+    (str "# Fraud-Group Pro-Rata Slash Summary\n\n"
+         "This review projection is derived from the persisted executed slash record; its JSON companion is authoritative.\n"
+         (apply str (map render (get projection "slashes" []))))))
+
 (defn claimable-classification [replay run-id]
   (let [world (:world replay {})
         scenario-id (get-in replay [:source :scenario-id])]
@@ -144,12 +299,27 @@
     (write-json "summaries/claimable-classification.json" classification)
     (write-json "summaries/mechanism-summary.json" (mechanism-summary replay provenance))
     (write-json "summaries/schema-map.json" (extraction-schema-map provenance))
-    (write-json "state/world-final.json" (world-final replay provenance profile raw-world))
-    (atomic-write! (io/file root "summaries/trace-plain.md") (plain-trace replay))
-    {:classification classification
-     :written ["summaries/trace-summary.json" "summaries/metrics.json"
-               "summaries/claimable-classification.json" "summaries/mechanism-summary.json"
-               "summaries/schema-map.json" "state/world-final.json" "summaries/trace-plain.md"]})))
+    (let [partial-fill (partial-fill-decisions replay provenance)
+          partial-fill-path "summaries/partial-fill-decisions.json"]
+      (when (pos? (get partial-fill "decision_count" 0))
+        (write-json partial-fill-path partial-fill)
+        (atomic-write! (io/file root "summaries/partial-fill-decisions.md")
+                       (partial-fill-decisions-markdown partial-fill)))
+      (let [fraud-group (fraud-group-slash-allocation replay provenance)
+            fraud-group-path "summaries/fraud-group-slash-allocation.json"]
+        (when (pos? (get fraud-group "slash_count" 0))
+          (write-json fraud-group-path fraud-group)
+          (atomic-write! (io/file root "summaries/fraud-group-slash-allocation.md")
+                         (fraud-group-slash-allocation-markdown fraud-group)))
+        )
+      (write-json "state/world-final.json" (world-final replay provenance profile raw-world))
+      (atomic-write! (io/file root "summaries/trace-plain.md") (plain-trace replay))
+      {:classification classification
+       :written (cond-> ["summaries/trace-summary.json" "summaries/metrics.json"
+                          "summaries/claimable-classification.json" "summaries/mechanism-summary.json"
+                          "summaries/schema-map.json" "state/world-final.json" "summaries/trace-plain.md"]
+                  (pos? (get partial-fill "decision_count" 0)) (conj partial-fill-path)
+                  (pos? (get partial-fill "decision_count" 0)) (conj "summaries/partial-fill-decisions.md"))}))))
 
 (defn extract! [context]
   (let [replay-file (io/file (str (:replay/file context)))

@@ -58,8 +58,9 @@
 
 (defn evidence-filename
   "Derive a collision-resistant filename from evidence record metadata.
-   Sanitize evidence-type to avoid directory traversal issues.
-   Format: ev-<transition-index>-<type>-<short-hash>.json"
+   Sanitize evidence-type to avoid directory traversal issues. The injected
+   chain sequence is the unique ordering key; a replay event sequence may be
+   shared by several targeted protocol records."
   [evidence]
   (let [etype-str (fn [v] (if (keyword? v) (name v) (str v)))
         etype (:evidence/type evidence)
@@ -69,7 +70,9 @@
         sid    (-> (etype-str (:scenario/id evidence))
                    (str/replace #":|-|/" "-")
                    (str/replace #"\\.\\." ""))
-        idx    (or (:event/seq evidence) "unknown")]
+        idx    (or (:evidence/chain-seq evidence)
+                   (:event/seq evidence)
+                   "unknown")]
     (str reason "-" sid "-" idx ".json")))
 
 (def ^:dynamic *write-verification* :exists)

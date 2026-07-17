@@ -23,6 +23,76 @@
 
 (def test-mod (ll/make-liquid-lending-module :test-mod))
 
+(deftest shared-withdrawal-effective-cap-input-validation
+  (testing "effective caps reject undeclared owners before position resolution"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"declared owners"
+                          (ll/withdraw-shared {} test-mod
+                                              {:token "USDC" :owner-ids ["alice"]
+                                               :allocation-mode :pro-rata
+                                               :effective-caps {"mallory" 1}}))))
+  (testing "effective caps reject negative and non-integer amounts"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"non-negative integers"
+                          (ll/withdraw-shared {} test-mod
+                                              {:token "USDC" :owner-ids ["alice"]
+                                               :allocation-mode :pro-rata
+                                               :effective-caps {"alice" -1}})))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"non-negative integers"
+                          (ll/withdraw-shared {} test-mod
+                                              {:token "USDC" :owner-ids ["alice"]
+                                               :allocation-mode :pro-rata
+                                               :effective-caps {"alice" 1.5}})))))
+
+(defn- shared-withdrawal-world
+  [owners available]
+  (-> (reduce (fn [world owner]
+                (ll/deposit world test-mod {:owner/id owner :amount 100 :token "USDC"}))
+              test-world
+              owners)
+      (assoc-in [:total-held :USDC] available)))
+
+(defn- shared-decision
+  [owners available opts]
+  (let [world (shared-withdrawal-world owners available)
+        result (ll/withdraw-shared world test-mod
+                                   (merge {:owner-ids owners
+                                           :token "USDC"
+                                           :allocation-mode :pro-rata}
+                                          opts))]
+    (first (vals (:yield/partial-fill-decisions result)))))
+
+(deftest shared-withdrawal-effective-caps-are-bounded-and-deterministic
+  (testing "a zero effective cap permits no allocation for that owner"
+    (let [decision (shared-decision ["alice" "bob"] 100
+                                    {:effective-caps {"alice" 0}})
+          rows (into {} (map (juxt :key identity) (get-in decision [:evidence :allocation-rows])))]
+      (is (zero? (get-in rows ["alice" :filled])))
+      (is (= 100 (get-in rows ["bob" :filled])))))
+  (testing "an oversized cap cannot allocate more than the owner request"
+    (let [decision (shared-decision ["alice"] 100
+                                    {:effective-caps {"alice" 1000}})
+          row (first (get-in decision [:evidence :allocation-rows]))]
+      (is (= 100 (:owed row)))
+      (is (= 100 (:filled row)))
+      (is (= 100 (:final-allocation row)))))
+  (testing "omitted caps preserve the uncapped allocation result"
+    (let [uncapped (shared-decision ["alice" "bob"] 100 {})
+          explicit (shared-decision ["alice" "bob"] 100
+                                    {:effective-caps {"alice" 100 "bob" 100}})]
+      (is (= (get-in uncapped [:evidence :allocation-rows])
+             (get-in explicit [:evidence :allocation-rows])))
+      (is (= (:decision/hash uncapped) (:decision/hash explicit)))))
+  (testing "input and cap-map order do not affect the canonical allocation decision"
+    (let [forward (shared-decision ["alice" "bob" "carol"] 10
+                                   {:effective-caps (array-map "alice" 100 "bob" 100 "carol" 100)})
+          reversed (shared-decision ["carol" "bob" "alice"] 10
+                                    {:effective-caps (array-map "carol" 100 "bob" 100 "alice" 100)})]
+      (is (= (get-in forward [:evidence :allocation-rows])
+             (get-in reversed [:evidence :allocation-rows])))
+      (is (= (:decision/hash forward) (:decision/hash reversed))))))
+
 (deftest deposit-creates-ratio-position
   (testing "Deposit creates position with ratio-based entry-index"
     (let [world' (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})

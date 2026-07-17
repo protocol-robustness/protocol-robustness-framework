@@ -8,11 +8,14 @@
                                                 [resolver-sim.commands.scenario-extraction :as extraction]
                                                                                                             [resolver-sim.commands.scenario-diagnostics :as diagnostics]
                                                                                                             [resolver-sim.commands.scenario-inventory :as inventory]
-                                                                                                                                    [resolver-sim.evidence.chain :as chain]
-                                                                                                                                    [resolver-sim.evidence.finalization :as finalization]
-                                                                                                                                                                                                                                                                        [resolver-sim.evidence.finalization-signing :as finalization-signing]
-                                                                                                                                                                                                                                                                        [resolver-sim.validation.integration.artifact-registry :as artifact-registry]))
-                                                            (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :write-diagnostic :refresh-inventory :refresh-registry :revalidate-registry])
+                                                                                                                                     [resolver-sim.evidence.chain :as chain]
+                                                                                                                                     [resolver-sim.evidence.finalization :as finalization]
+                                                                                                                                                                                                                                                                         [resolver-sim.evidence.finalization-signing :as finalization-signing]
+                                                                                                                                                                                                                                                                         [resolver-sim.sensitivity.sentinel :as sentinel]
+                                                                                                                                                                                                                                                                         [resolver-sim.run.runner-finalization :as runner-finalization]
+                                                                                                                                                                                                                                                                         [resolver-sim.run.package-index :as package-index]
+                                                                                                                                                                                                                                                                         [resolver-sim.validation.integration.artifact-registry :as artifact-registry]))
+                                                            (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :write-canonical-assurance :write-package-index :write-diagnostic :refresh-inventory :refresh-registry :revalidate-registry])
 (defn- p [x] (str x))
 (defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
 (defn- layout! [c] (doseq [x [(:run/root c) (:manifest/dir c) (:scenario/root c) (:execution/dir c) (:forensic/dir c) (:summaries/dir c)]] (.mkdirs (io/file (p x)))) (spit (io/file (p (:run/root c)) ".run-state") (pr-str {:run/id (:run/id c) :state :running})) c)
@@ -84,7 +87,20 @@
                              "evidence-finalization.json")
         reconciliation-report-path (io/file (p (:run/root c)) "evidence" "reports"
                                             "run-evidence-reconciliation.json")
-        _content-registry (finalization/write-content-registry! content-registry-path evidence-files)]
+        _content-registry (finalization/write-content-registry! content-registry-path evidence-files)
+        bundle-root (:bundle-root execution)
+        runner-selection (get-in bundle-root [:run/request :runner-selection])
+        runner-artifact (runner-finalization/build
+                         {:run-id (:run/id c)
+                          :runner-selection runner-selection
+                          :source-provenance (select-keys (get-in bundle-root [:run/environment]) [:source/hash])
+                          :execution-result {:execution/termination (if (= "aborted" run-status) :aborted :completed)
+                                             :semantic/outcome (if (zero? (:exit-code execution)) :pass :fail)
+                                             :cli/exit-code (:exit-code execution)
+                                             :bundle/root-hash (:bundle/hash bundle-root)}})
+        runner-written (runner-finalization/write!
+                        (io/file (p (:execution/dir c)) "runner-finalization.json")
+                        runner-artifact)]
     (let [written (finalization/write-run-finalization!
      {:finalization-path output-path
            :reconciliation-report-path reconciliation-report-path
@@ -100,6 +116,11 @@
                         :completed-scenario-count completed-count
                         :failed-scenario-count failed-count
                         :aborted-scenario-count aborted-count}
+      :bindings {:runner-finalization
+                 {:artifact-id "execution/runner-finalization.json"
+                  :hash (str "sha256:" (:runner-finalization/hash runner-artifact))
+                  :runner-id (:runner-id runner-selection)
+                  :runtime-kind :runner-local}}
       :policy {:profile-id (or (:profile/id (:signing/config c)) "inspection.v1")}})
           signing-config (:signing/config c)
           forensic? (= :forensic-release.v1 (:profile/id signing-config))]
@@ -163,6 +184,69 @@
 
         :else
         written))))
+(defn default-write-canonical-assurance!
+  "Write unsigned canonical-integrity assurance after evidence finalization.
+
+   The final outer artifact registry inventories this artifact in a later phase;
+   it is deliberately not hashed here to avoid a self-referential registry cycle."
+  [c _]
+  (let [root (io/file (p (:run/root c)))
+        finalization-file (io/file root "evidence" "finalizations" "run" "evidence-finalization.json")
+        content-registry-file (io/file root "evidence" "content-registry.json")
+        runner-finalization-file (io/file root "scenarios" (:scenario/slug c) "execution" "runner-finalization.json")
+        validation-file (io/file root "manifest" "artifact-registry-validation.json")
+        finalization (json/read-str (slurp finalization-file) :key-fn keyword)
+        validation (json/read-str (slurp validation-file) :key-fn keyword)
+        integrity {:schema_version "canonical-integrity.v1"
+                   :assurance_kind "unsigned-canonical-integrity"
+                   :run_id (:run/id c)
+                   :status (if (and (= "verified" (get-in finalization [:verification :status]))
+                                    (= "passed" (:status validation)))
+                             "passed"
+                             "failed")
+                   :scope {:content_integrity true
+                           :evidence_reconciliation true
+                           :operator_identity false
+                           :runtime_isolation false}
+                   :run_finalization {:ref "evidence/finalizations/run/evidence-finalization.json"
+                                      :sha256 (str "sha256:" (lifecycle/sha256-file finalization-file))}
+                   :evidence_content_registry {:ref "evidence/content-registry.json"
+                                               :sha256 (str "sha256:" (lifecycle/sha256-file content-registry-file))}
+                   :runner_finalization {:ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json")
+                                         :sha256 (when (.isFile runner-finalization-file)
+                                                   (str "sha256:" (lifecycle/sha256-file runner-finalization-file)))}
+                   :outer_registry {:ref "manifest/artifacts.json"
+                                    :verification "verified-by-verify-scenario-after-inventory"}
+                   :checks {:run_finalization_verified (= "verified" (get-in finalization [:verification :status]))
+                            :runner_finalization_present (.isFile runner-finalization-file)
+                            :pre_assurance_registry_valid (= "passed" (:status validation))}
+                   :limitations ["Unsigned assurance does not establish operator identity or signature trust."
+                                 "Runtime isolation is outside this assurance scope."]}
+        deferred {:schema_version "forensic-claims-status.v1"
+                  :run_id (:run/id c)
+                  :status "deferred"
+                  :reason_code "unsigned-forensic-signing-not-configured"
+                  :claims ["registry-hash-verifies" "cursor-verifies" "forensic-grade"]
+                  :next_requirement "forensic-assurance.v1 requires signing-key injection and trusted-key policy."
+                  :canonical_integrity_ref "manifest/canonical-integrity.json"}]
+    (lifecycle/atomic-json! (io/file root "manifest" "canonical-integrity.json") integrity)
+    (lifecycle/atomic-json! (io/file root "manifest" "forensic-claims-status.json") deferred)
+    {:canonical-integrity integrity :forensic-claims-status deferred}))
+(defn default-write-package-index!
+  [c execution]
+  (let [root (io/file (p (:run/root c)))
+        ref (fn [relative]
+              (let [file (io/file root relative)]
+                {:ref relative :sha256 (when (.isFile file)
+                                          (str "sha256:" (lifecycle/sha256-file file)))}))]
+    (package-index/write!
+     (io/file root "manifest" "run-package-index.json")
+     {:run-id (:run/id c)
+      :bundle-root-hash (get-in execution [:bundle-root :bundle/hash])
+      :runner-finalization (ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json"))
+      :run-finalization (ref "evidence/finalizations/run/evidence-finalization.json")
+      :canonical-assurance (ref "manifest/canonical-integrity.json")
+      :execution-dag (ref (str "scenarios/" (:scenario/slug c) "/execution/execution-dag.json"))})))
 (defn default-write-diagnostic! [c execution] (diagnostics/write! c execution))
 (defn default-refresh-inventory! [c _] (inventory/build! c))
 (defn default-refresh-registry! [c _] (registry/finalize! (:run/root c)))
@@ -171,6 +255,7 @@
   (let [root (:run/root c)
         registry (io/file (str root) "manifest/artifacts.json")
         validation (io/file (str root) "manifest/artifact-registry-validation.json")
+        runner-finalization (io/file (str (:execution/dir c)) "runner-finalization.json")
         outcome (if (zero? (:exit-code e)) "pass" "fail")]
     (lifecycle/complete!
      root
@@ -184,12 +269,19 @@
       :outcome outcome
       :exit_code (:exit-code e)
       :manifest_ref "manifest/run.json"
+      :runner_finalization_ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json")
+      :runner_finalization_sha256 (when (.isFile runner-finalization)
+                                    (str "sha256:" (lifecycle/sha256-file runner-finalization)))
+      :run_package_index_ref "manifest/run-package-index.json"
+      :run_package_index_sha256 (let [package-index (io/file (str root) "manifest/run-package-index.json")]
+                                  (when (.isFile package-index)
+                                    (str "sha256:" (lifecycle/sha256-file package-index))))
       :artifact_registry_ref "manifest/artifacts.json"
       :artifact_registry_sha256 (when (.isFile registry) (str "sha256:" (lifecycle/sha256-file registry)))
       :registry_validation_ref "manifest/artifact-registry-validation.json"
       :registry_validation_sha256 (when (.isFile validation) (str "sha256:" (lifecycle/sha256-file validation)))})
     {}))
-(def ^:private defaults {:check-runtime default-check-runtime! :execute default-execute! :write-manifest default-write-manifest! :extract-artifacts default-extract-artifacts! :scan-sensitivity default-scan-sensitivity! :finalize-registry default-finalize-registry! :validate-registry default-validate-registry! :finalize-run-evidence default-finalize-run-evidence! :write-diagnostic default-write-diagnostic! :refresh-inventory default-refresh-inventory! :refresh-registry default-refresh-registry! :revalidate-registry default-revalidate-registry! :complete default-complete!})
+(def ^:private defaults {:check-runtime default-check-runtime! :execute default-execute! :write-manifest default-write-manifest! :extract-artifacts default-extract-artifacts! :scan-sensitivity default-scan-sensitivity! :finalize-registry default-finalize-registry! :validate-registry default-validate-registry! :finalize-run-evidence default-finalize-run-evidence! :write-canonical-assurance default-write-canonical-assurance! :write-package-index default-write-package-index! :write-diagnostic default-write-diagnostic! :refresh-inventory default-refresh-inventory! :refresh-registry default-refresh-registry! :revalidate-registry default-revalidate-registry! :complete default-complete!})
 (defn run-scenario!
   ([context] (run-scenario! context {}))
   ([context overrides]

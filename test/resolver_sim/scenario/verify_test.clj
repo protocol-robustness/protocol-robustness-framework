@@ -26,7 +26,14 @@
                         ["scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn"
                          "--run-root" (.getPath root)])]
         (is (= :completed (:command/status run-result)))
-        (is (= "passed" (get (verify/verify! root) "status")))
+        (let [verified (verify/verify! root)
+              integrity (io/file root "manifest/canonical-integrity.json")
+              deferred (io/file root "manifest/forensic-claims-status.json")]
+          (is (= "passed" (get verified "status")))
+          (is (.isFile integrity))
+          (is (.isFile deferred))
+          (is (true? (get-in verified ["checks" "canonical-integrity"])))
+          (is (true? (get-in verified ["checks" "assurance-artifacts-registered"]))))
         (spit (first-event-evidence root) "{}")
         (let [result (verify/verify! root)]
           (is (= "failed" (get result "status")))

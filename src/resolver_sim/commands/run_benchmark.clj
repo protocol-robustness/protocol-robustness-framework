@@ -15,7 +15,9 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.io.input-source :as input-source]
-            [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
+                        [resolver-sim.run.runner-finalization :as runner-finalization]
+                                                [resolver-sim.run.package-index :as package-index]
+                                                [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (declare sha-ref)
@@ -64,7 +66,7 @@
 
 (defn- complete! [context conclusion]
   (let [root (:run/root context)
-        finalization (write-finalization! context conclusion)
+        finalization (json/read-str (slurp (io/file (str root) "benchmark/finalization.json")))
         registry (io/file (str root) "manifest/artifacts.json")
         validation (io/file (str root) "manifest/artifacts-validation.json")
         finalization-file (io/file (str root) "benchmark/finalization.json")]
@@ -79,11 +81,26 @@
       :finalization_ref "benchmark/finalization.json"
       :finalization_sha256 (sha-ref finalization-file)
       :final_ref (get finalization "final_ref")
+      :run_package_index_ref "manifest/run-package-index.json"
+      :run_package_index_sha256 (sha-ref (io/file root "manifest/run-package-index.json"))
       :input_set_root (get finalization "input_set_root")
       :artifact_registry_ref "manifest/artifacts.json"
       :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))
       :registry_validation_ref "manifest/artifacts-validation.json"
       :registry_validation_sha256 (str "sha256:" (lifecycle/sha256-file validation))})))
+
+(defn- write-package-index! [context]
+  (let [root (io/file (str (:run/root context)))
+        ref (fn [path]
+              (let [file (io/file root path)]
+                {:ref path :sha256 (when (.isFile file) (sha-ref file))}))]
+    (package-index/write!
+     (io/file root "manifest/run-package-index.json")
+     {:run-id (:run/id context)
+      :bundle-root-hash (sha-ref (io/file root "benchmark/evidence/evidence.edn"))
+      :artifacts {:runner-finalization (ref "benchmark/execution/runner-finalization.json")
+                  :benchmark-finalization (ref "benchmark/finalization.json")
+                  :benchmark-assurance (ref "benchmark/assertions/benchmark-assurance.json")}})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
@@ -99,6 +116,19 @@
     (when-let [evidence (:evidence result)]
       (write-evidence evidence output))
     result))
+
+(defn- finalize-runner! [context execution]
+  (let [evidence-file (:benchmark/evidence-file context)
+        artifact (runner-finalization/build
+                  {:run-id (:run/id context)
+                   :runner-selection {:mode :pinned :runner-id :runner/local-clojure}
+                   :execution-result {:execution/termination :completed
+                                      :semantic/outcome (if (zero? (:exit-code execution)) :pass :fail)
+                                      :cli/exit-code (:exit-code execution)
+                                      :bundle/root-hash (lifecycle/sha256-file evidence-file)}})]
+    (runner-finalization/write!
+     (io/file (str (:run/root context)) "benchmark/execution/runner-finalization.json")
+     artifact)))
 
 (defn- write-run-manifest! [context evidence]
   (let [target (io/file (str (:manifest/dir context)) "run.json")
@@ -260,6 +290,7 @@
                                                  (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
                                                                  {:benchmark benchmark-id :exit-code (:exit-code result)})))
                                                result))
+                                  :finalize-runner (fn [_ result] (finalize-runner! context result))
                                   :write-manifest (fn [_ result] (write-run-manifest! context (:evidence result)))
                                   :snapshot-definition (fn [_ result] (snapshot-definition! context (:evidence result)))
                                   :write-conclusion (fn [_ result]
@@ -272,6 +303,8 @@
                                   :build-inventory (fn [_ _] (inventory/build! context))
                                   :finalize-registry (fn [_ _] (registry/finalize! (:run/root context)))
                                   :validate-registry (fn [_ _] (validate-registry! context))
+                                  :write-finalization (fn [_ _] (write-finalization! context @benchmark-conclusion))
+                                  :write-package-index (fn [_ _] (write-package-index! context))
                                   :complete (fn [_ _] (complete! context @benchmark-conclusion))}
                                   overrides))]
         {:exit-code (or (:exit-code execution) 1) :run/id (:run/id context) :run/root (str (:run/root context))})

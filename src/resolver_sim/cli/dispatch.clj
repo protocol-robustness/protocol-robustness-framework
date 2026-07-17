@@ -22,7 +22,7 @@
   ;; Commands that are part of either supported runtime distribution resolve
   ;; individually. This prevents an optional command's dependencies (such as
   ;; the gRPC simulation server) from breaking an unrelated CLI invocation.
-  {   :run-scenario 'resolver-sim.commands.scenario/run
+  {:run-scenario 'resolver-sim.commands.scenario/run
    :run-invariants 'resolver-sim.commands.invariants/run
    :run-benchmark 'resolver-sim.commands.run-benchmark/run
    :verify-scenario 'resolver-sim.commands.verify-scenario/run
@@ -70,18 +70,18 @@
              :validate              (requiring-resolve 'resolver-sim.commands.validate/run)
              :concepts-validate     (requiring-resolve 'resolver-sim.commands.concepts/validate)
              :benchmark-validate    (requiring-resolve 'resolver-sim.commands.benchmark/validate)
-              :run-scenario          (requiring-resolve 'resolver-sim.commands.scenario/run)
-              :run-invariants        (requiring-resolve 'resolver-sim.commands.invariants/run)
-              :run-benchmark         (requiring-resolve 'resolver-sim.commands.run-benchmark/run)
-              :verify-scenario       (requiring-resolve 'resolver-sim.commands.verify-scenario/run)
-              :verify-benchmark      (requiring-resolve 'resolver-sim.commands.verify-benchmark/run)
-              :scenario-list         (requiring-resolve 'resolver-sim.commands.scenario-list/list-scenarios)
-              :scenario-compare      (requiring-resolve 'resolver-sim.commands.scenario-compare/compare-scenarios)
-              :scenario-pick         (requiring-resolve 'resolver-sim.commands.scenario-pick/pick-scenarios)
-              :benchmark-list        (requiring-resolve 'resolver-sim.commands.benchmark-list/list-benchmarks)
-              :benchmark-validate-jar (requiring-resolve 'resolver-sim.commands.benchmark-validate-jar/validate-jar)
-              :benchmark-smoke       (requiring-resolve 'resolver-sim.commands.benchmark-smoke/smoke)
-              :suite-list            (requiring-resolve 'resolver-sim.commands.suite-list/list-suites)
+             :run-scenario          (requiring-resolve 'resolver-sim.commands.scenario/run)
+             :run-invariants        (requiring-resolve 'resolver-sim.commands.invariants/run)
+             :run-benchmark         (requiring-resolve 'resolver-sim.commands.run-benchmark/run)
+             :verify-scenario       (requiring-resolve 'resolver-sim.commands.verify-scenario/run)
+             :verify-benchmark      (requiring-resolve 'resolver-sim.commands.verify-benchmark/run)
+             :scenario-list         (requiring-resolve 'resolver-sim.commands.scenario-list/list-scenarios)
+             :scenario-compare      (requiring-resolve 'resolver-sim.commands.scenario-compare/compare-scenarios)
+             :scenario-pick         (requiring-resolve 'resolver-sim.commands.scenario-pick/pick-scenarios)
+             :benchmark-list        (requiring-resolve 'resolver-sim.commands.benchmark-list/list-benchmarks)
+             :benchmark-validate-jar (requiring-resolve 'resolver-sim.commands.benchmark-validate-jar/validate-jar)
+             :benchmark-smoke       (requiring-resolve 'resolver-sim.commands.benchmark-smoke/smoke)
+             :suite-list            (requiring-resolve 'resolver-sim.commands.suite-list/list-suites)
              :fmt-check             (requiring-resolve 'resolver-sim.commands.validate/fmt-check)
              :lint                  (requiring-resolve 'resolver-sim.commands.validate/lint)
              :run-simulation        (requiring-resolve 'resolver-sim.commands.run-simulation/run)
@@ -168,12 +168,23 @@
   (println)
   (println "Usage: java -jar prf.jar <command> [options]")
   (println)
-  (println "Commands:")
-  (doseq [{:keys [id path description surface]} (sort-by (comp #(str/join " " %) :path) (registry/list-commands))
-          :when (and (or (nil? surface) (= :prf surface))
-                     (command-available? id))]
-    (printf "  %-30s %s\n" (str/join " " path) description))
-  (println)
+
+  (let [visible (filter (fn [c] (and (command-available? (:id c))
+                                     (or (nil? (:surface c)) (= :prf (:surface c)))))
+                        (registry/list-commands))
+        cmds    (sort-by (comp #(str/join " " %) :path) visible)
+        primary #{:benchmark :scenario}]
+
+    (println "Benchmark & Scenario Commands:")
+    (doseq [{:keys [path description]} (filter #(primary (:category %)) cmds)]
+      (printf "  %-30s %s\n" (str/join " " path) description))
+    (println)
+
+    (println "Development & Validation Commands:")
+    (doseq [{:keys [path description]} (filter #(not (primary (:category %))) cmds)]
+      (printf "  %-30s %s\n" (str/join " " path) description))
+    (println))
+
   (println "Use: java -jar prf.jar <command> --help for command-specific help.")
   {:exit-code 0, :message "help"})
 
@@ -222,7 +233,9 @@
    Returns an exit code for System/exit."
   [args]
   (let [parsed (cli/parse-opts args cli-options)
-        {:keys [options arguments summary errors]} parsed]
+        {:keys [options arguments summary errors]} parsed
+        options (cond-> options
+                  (:json options) (assoc :json? true))]
     (cond
       errors
       (do (doseq [e errors] (println e))

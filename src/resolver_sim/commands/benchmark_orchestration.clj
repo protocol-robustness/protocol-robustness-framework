@@ -2,9 +2,10 @@
   "Injectable ordered finalization for canonical benchmark bundles."
   (:refer-clojure :exclude [run!]))
 
-(def phases [:execute :write-manifest :snapshot-definition :write-conclusion
+(def phases [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion
              :write-summary :scan-sensitivity :build-inventory
-             :finalize-registry :validate-registry :complete])
+             :finalize-registry :validate-registry :write-finalization :write-package-index
+             :complete])
 
 (defn run!
   "Run benchmark phases in order. `:execute` receives context; subsequent

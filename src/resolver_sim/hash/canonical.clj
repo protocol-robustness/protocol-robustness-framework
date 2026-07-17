@@ -48,6 +48,8 @@
    :run-evidence-hash-set-v1 "RUN_EVIDENCE_HASH_SET_V1"
    :evidence-hash-set "EVIDENCE_HASH_SET_V1"
    :evidence-finalization-v2 "EVIDENCE_FINALIZATION_V2"
+   :runner-finalization "RUNNER_FINALIZATION_V1"
+   :run-package-index "RUN_PACKAGE_INDEX_V1"
    :merkle-leaf     "EVIDENCE_MERKLE_LEAF_V1"
    :merkle-node     "EVIDENCE_MERKLE_NODE_V1"
    :registry        "REGISTRY_V1"
@@ -939,6 +941,24 @@
     :intent/excludes    #{:artifact-id :self-hash :signatures :timestamps}
     :intent/projection-fn project-identity
     :intent/version     2}
+
+   :runner-finalization
+   {:intent/name        :runner-finalization
+    :intent/domain-tag  "RUNNER_FINALIZATION_V1"
+    :intent/description "Immutable local runner identity and execution-result commitment"
+    :intent/includes    #{:runner-selection :runner-local :execution-result}
+    :intent/excludes    #{:artifact-path :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :run-package-index
+   {:intent/name        :run-package-index
+    :intent/domain-tag  "RUN_PACKAGE_INDEX_V1"
+    :intent/description "Immutable references that define a runnable structured run package"
+    :intent/includes    #{:run-id :bundle-root-hash :artifacts}
+    :intent/excludes    #{:artifact-path :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
 
    :manifest
    {:intent/name        :manifest

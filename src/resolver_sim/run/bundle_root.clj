@@ -20,7 +20,9 @@
   (:require [clojure.walk :as walk]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.run.overview :as overview]
-            [resolver-sim.run.criteria :as criteria])
+            [resolver-sim.run.criteria :as criteria]
+            [resolver-sim.sensitivity.propagation :as prop]
+            [resolver-sim.sensitivity.sentinel :as sentinel])
   (:import [java.security MessageDigest]
            [java.util Arrays]))
 
@@ -35,7 +37,7 @@
     (instance? Boolean v) (if v "true" "false")
     (number? v) (pr-str v)
     (instance? String v) (str "\"" (-> v (.replace "\\" "\\\\") (.replace "\"" "\\\"")) "\"")
-    (keyword? v) (json-encode (name v))
+    (keyword? v) (json-encode (str v))
     (instance? java.util.Map v)
     (let [kvs (sort (map (fn [[k v]] (str (json-encode k) ":" (json-encode v))) v))]
       (str "{" (clojure.string/join "," kvs) "}"))
@@ -47,7 +49,7 @@
 (defn- json-encode-safe
   "Like json-encode but handles keywords and non-String keys by converting them."
   [v]
-  (letfn [(kfn [k] (if (keyword? k) (name k) (str k)))]
+  (letfn [(kfn [k] (if (keyword? k) (str k) (str k)))]
     (cond
       (instance? java.util.Map v)
       (let [kvs (sort (map (fn [[k v]] (str (json-encode (kfn k)) ":" (json-encode v))) v))]
@@ -233,6 +235,13 @@
         proto-witness (protocol-state-wire-value proto-state)
         proto-witness-hash (when (seq proto-witness)
                              (protocol-state-witness-hash proto-witness))
+        ;; Compute run-level sensitivity from all scenario results
+        results (:results result [])
+        run-sensitivity (prop/merge-sensitivity
+                         (keep (fn [r]
+                                 (when-let [sens (get-in r [:scenario-metadata :scenario/sensitivity])]
+                                   (prop/scenario-sensitivity (assoc {} :scenario/sensitivity sens))))
+                               results))
         base {:bundle/schema-version schema-version
               :run/request (assoc req
                                   :registry-key (or (:registry-key request) :default)
@@ -248,10 +257,21 @@
                (seq proto-hashes) (assoc :protocol/state-hashes proto-hashes)
                (seq proto-witness) (assoc :protocol/state proto-witness
                                           :protocol/state-witness-hash proto-witness-hash))
+        ;; Every emitted bundle field is included in the content-addressed preimage.
+        ;; Downstream lifecycle objects must reference this bundle; they must not enrich it.
+        base (cond-> base
+               run-sensitivity
+               (assoc :bundle/sensitivity
+                      {:sentinel/run-level (:level run-sensitivity)
+                       :sentinel/risk-meta (:risk-meta run-sensitivity)
+                       :sentinel/scenario-count (count results)
+                       :sentinel/sensitive-scenario-count
+                       (count (filter (fn [r]
+                                        (let [s (get-in r [:scenario-metadata :scenario/sensitivity])]
+                                          (and s (not= :sensitivity/public (:level s)))))
+                                      results))}))
         bundle-hash (hc/hash-with-intent {:hash/intent :bundle-root} base)]
-    (assoc base
-           :bundle/id bundle-hash
-           :bundle/hash bundle-hash)))
+    (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash)))
 
 ;; ── Bundle root validation ────────────────────────────────────────────────────
 

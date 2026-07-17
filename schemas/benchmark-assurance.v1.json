@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/benchmark-assurance-v1.json",
+  "title": "Benchmark Assurance v1",
+  "description": "Semantic assurance and input-set commitment for a finalized benchmark bundle. Aggregates required artifact presence, conservation binding, and input-set root.",
+  "type": "object",
+  "required": ["schema_version", "benchmark_id", "run_id", "lifecycle_status",
+               "benchmark_definition", "execution_plan", "conclusion",
+               "conservation", "input_set", "input_set_root", "required_artifact_assertions"],
+  "properties": {
+    "schema_version": {
+      "const": "benchmark-assurance.v1",
+      "description": "Must be exactly 'benchmark-assurance.v1'"
+    },
+    "benchmark_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "lifecycle_status": {
+      "type": "string",
+      "enum": ["completed", "failed"]
+    },
+    "benchmark_definition": { "$ref": "#/$defs/artifact-assertion" },
+    "execution_plan": { "$ref": "#/$defs/artifact-assertion" },
+    "conclusion": {
+      "type": "object",
+      "required": ["role", "path", "sha256", "outcome"],
+      "properties": {
+        "role":    { "type": "string" },
+        "path":    { "type": "string" },
+        "sha256":  { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "status":  { "type": "string" },
+        "outcome": { "type": "string", "enum": ["pass", "fail", "inconclusive"] }
+      },
+      "additionalProperties": false
+    },
+    "conservation": {
+      "type": "object",
+      "required": ["status", "artifact_ref", "artifact_sha256", "required_by_claims"],
+      "properties": {
+        "status":            { "type": "string" },
+        "artifact_ref":      { "type": "string" },
+        "artifact_sha256":   { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "required_by_claims": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "input_set": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/input-entry" },
+      "minItems": 1
+    },
+    "input_set_root": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Domain-separated hash over the canonically sorted input-set projection"
+    },
+    "required_artifact_assertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact-assertion" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "artifact-assertion": {
+      "type": "object",
+      "required": ["role", "path", "sha256", "status"],
+      "properties": {
+        "role":   { "type": "string" },
+        "path":   { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "status": { "type": "string", "enum": ["present-and-valid"] }
+      },
+      "additionalProperties": false
+    },
+    "input-entry": {
+      "type": "object",
+      "required": ["logical_id", "source_kind", "path", "sha256"],
+      "properties": {
+        "logical_id":  { "type": "string" },
+        "source_kind": { "type": "string" },
+        "path":        { "type": "string" },
+        "sha256":      { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

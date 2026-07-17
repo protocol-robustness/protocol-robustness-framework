@@ -1,6 +1,7 @@
 (ns resolver-sim.sensitivity.sentinel-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.sensitivity.sentinel :as sentinel]
+            [resolver-sim.sensitivity.propagation :as prop]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-bundle :as ab]
             [resolver-sim.definitions.passive-registries :as registries]
@@ -22,6 +23,13 @@
   (is (true? (sentinel/level>= :sensitivity/private :sensitivity/public)))
   (is (false? (sentinel/level>= :sensitivity/public :sensitivity/private)))
   (is (true? (sentinel/level>= :sensitivity/critical-private :sensitivity/private))))
+
+;; ── Risk severity ordering ───────────────────────────────────────────────────
+
+(deftest risk-severities-ordered-low-to-high
+  (is (false? (sentinel/risk-severity>= :risk-severity/low :risk-severity/critical)))
+  (is (true? (sentinel/risk-severity>= :risk-severity/critical :risk-severity/low)))
+  (is (true? (sentinel/risk-severity>= :risk-severity/high :risk-severity/medium))))
 
 ;; ── Disclosure matrix ───────────────────────────────────────────────────────
 
@@ -61,6 +69,14 @@
 
 (deftest unknown-sink-defaults-to-blocked
   (is (false? (sentinel/disclosure-allowed? :sensitivity/public :unknown-sink))))
+
+(deftest git-commit-sink-blocks-internal
+  (is (false? (sentinel/disclosure-allowed? :sensitivity/internal :git-commit)))
+  (is (true? (sentinel/disclosure-allowed? :sensitivity/public :git-commit))))
+
+(deftest public-ci-artifact-sink-blocks-internal
+  (is (false? (sentinel/disclosure-allowed? :sensitivity/internal :public-ci-artifact)))
+  (is (true? (sentinel/disclosure-allowed? :sensitivity/public :public-ci-artifact))))
 
 ;; ── Classification: attestations ────────────────────────────────────────────
 
@@ -108,9 +124,9 @@
   (let [cr {:claim-id :conservation :holds? false :status :fail}]
     (is (= :sensitivity/internal (sentinel/classify cr)))))
 
-(deftest classify-claim-result-pass-is-critical-private
+(deftest classify-claim-result-pass-is-internal
   (let [cr {:claim-id :conservation :holds? true :status :pass}]
-    (is (= :sensitivity/critical-private (sentinel/classify cr)))))
+    (is (= :sensitivity/internal (sentinel/classify cr)))))
 
 ;; ── Classification: bundles ─────────────────────────────────────────────────
 
@@ -128,6 +144,40 @@
   (is (= :sensitivity/critical-private (sentinel/classify {})))
   (is (= :sensitivity/critical-private (sentinel/classify "string")))
   (is (= :sensitivity/critical-private (sentinel/classify nil))))
+
+;; ── Classification: unredacted scenario content ─────────────────────────────
+
+(deftest classify-unredacted-scenario-is-private
+  (let [scenario {:scenario-id "s42-attack"
+                  :title "Attack scenario"
+                  :events [{:seq 0 :time 1000 :agent "attacker" :action "exploit" :params {}}]
+                  :agents [{:id "attacker" :address "0xbad" :strategy "dishonest"}]}]
+    (is (= :sensitivity/private (sentinel/classify scenario)))))
+
+(deftest classify-scenario-id-only-is-internal
+  (let [artifact {:scenario-id "s42"}]
+    (is (= :sensitivity/internal (sentinel/classify artifact)))))
+
+;; ── Classification: declared level ───────────────────────────────────────────
+
+(deftest classify-declared-level-raises-floor
+  (let [artifact {:scenario-id "bench-result"
+                  :sensitivity/level :sensitivity/private}]
+    (is (= :sensitivity/private (sentinel/classify artifact))
+        "declared :private floor must raise structural :internal to :private")))
+
+(deftest classify-declared-level-cannot-downgrade
+  (let [artifact {:node-hash "sha256:n1"
+                  :result {:status :fail
+                           :failure-details [{:message "exploit"}]}
+                  :sensitivity/level :sensitivity/public}]
+    (is (= :sensitivity/private (sentinel/classify artifact))
+        "structural :private must override declared :public")))
+
+(deftest classify-declared-level-on-public-artifact
+  (let [artifact {:scenario-id "bench-results"
+                  :sensitivity/level :sensitivity/internal}]
+    (is (= :sensitivity/internal (sentinel/classify artifact)))))
 
 ;; ── Sentinel report ────────────────────────────────────────────────────────
 
@@ -149,6 +199,16 @@
     (is (= (:sentinel/level r1) (:sentinel/level r2)))
     (is (= (:sentinel/reasons r1) (:sentinel/reasons r2)))
     (is (= (:sentinel/policy-hash r1) (:sentinel/policy-hash r2)))))
+
+(deftest sentinel-report-hash-included-and-deterministic
+  (let [a {:attestation/id "test-hash"}
+        r1 (sentinel/sentinel-report a :public-bundle)
+        r2 (sentinel/sentinel-report a :public-bundle)]
+    (is (string? (:sentinel/report-hash r1)))
+    (is (pos? (count (:sentinel/report-hash r1))))
+    (is (= (:sentinel/report-hash r1) (:sentinel/report-hash r2)))
+    (is (not= (:sentinel/report-hash r1) (:sentinel/input-hash r2))
+        "report-hash must differ from input-hash")))
 
 (deftest sentinel-report-blocked-on-public-sink-for-attestation
   (let [a (att/build-attestation (attestor) (subject) :verified
@@ -174,6 +234,360 @@
 (deftest sentinel-report-override-multi-party-for-critical-private
   (let [r (sentinel/sentinel-report {} :public-bundle)]
     (is (= :multi-party-approval (get-in r [:sentinel/override-required? :mode])))))
+
+(deftest sentinel-report-override-multi-party-for-critical-risk
+  (let [artifact {:scenario-id "s99"
+                  :sensitivity/level :sensitivity/private
+                  :sensitivity/risk-meta {:risk-severity :risk-severity/critical
+                                         :value-at-risk "15,000,000"}}
+        r (sentinel/sentinel-report artifact :public-bundle)]
+    (is (= :multi-party-approval (get-in r [:sentinel/override-required? :mode]))
+        "critical risk escalates override to multi-party even at private level")
+    (is (= :sensitivity/private (:sentinel/level r)))))
+
+(deftest sentinel-report-includes-declared-level
+  (let [artifact {:scenario-id "bench-result"
+                  :sensitivity/level :sensitivity/private}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (= :sensitivity/private (:sentinel/declared-level r)))
+    (is (= :sensitivity/private (:sentinel/level r)))))
+
+(deftest sentinel-report-includes-structural-level
+  (let [artifact {:scenario-id "bench-result"
+                  :sensitivity/level :sensitivity/private}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (= :sensitivity/internal (:sentinel/structural-level r))
+        "scenario-id without other markers classifies as internal structurally")
+    (is (= :sensitivity/private (:sentinel/level r))
+        "final level is raised by declared floor from internal to private")))
+
+(deftest sentinel-report-includes-risk-meta
+  (let [artifact {:node-hash "sha256:n"
+                  :sensitivity/level :sensitivity/private
+                  :sensitivity/risk-meta {:risk-severity :risk-severity/high
+                                         :value-at-risk "10,000,000"
+                                         :risk-vector "Withdrawal race"}}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (= :risk-severity/high (get-in r [:sentinel/risk-meta :risk-severity])))
+    (is (= "10,000,000" (get-in r [:sentinel/risk-meta :value-at-risk])))
+    (is (= "Withdrawal race" (get-in r [:sentinel/risk-meta :risk-vector])))))
+
+(deftest sentinel-report-includes-declared-reason-codes
+  (let [artifact {:node-hash "sha256:n"
+                  :sensitivity/level :sensitivity/private
+                  :sensitivity/risk-meta {:reason-codes [:contains-live-vulnerability
+                                                         :contains-protocol-identifier]}}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (some #{:contains-live-vulnerability} (:sentinel/reasons r))
+        "declared reason codes must appear in reasons list")
+    (is (some #{:contains-protocol-identifier} (:sentinel/reasons r))
+        "declared reason codes must appear in reasons list")
+    (is (some #{:contains-unpublished-evidence} (:sentinel/reasons r))
+        "structural reasons must still be present")))
+
+;; ── Propagation helpers ────────────────────────────────────────────────────
+
+(deftest scenario-sensitivity-extracts-block
+  (let [scenario {:scenario-id "s99"
+                  :scenario/sensitivity {:level :sensitivity/private
+                                        :risk-meta {:value-at-risk "15,000,000"
+                                                    :risk-severity :risk-severity/critical}}}
+        result (prop/scenario-sensitivity scenario)]
+    (is (= :sensitivity/private (:level result)))
+    (is (= "15,000,000" (get-in result [:risk-meta :value-at-risk])))))
+
+(deftest scenario-sensitivity-returns-nil-for-no-block
+  (let [scenario {:scenario-id "s01"}]
+    (is (nil? (prop/scenario-sensitivity scenario)))))
+
+(deftest attach-sensitivity-adds-keys
+  (let [artifact {:node-hash "sha256:n"}
+        sens {:sentinel/effective-level :sensitivity/private
+              :sentinel/risk-meta {:value-at-risk "5M"}}
+        result (prop/attach-sensitivity artifact sens)]
+    (is (= :sensitivity/private (:sensitivity/level result)))
+    (is (= "5M" (get-in result [:sensitivity/risk-meta :value-at-risk])))))
+
+(deftest attach-sensitivity-uses-policy-output-for-evidence-nodes
+  (let [artifact {:node-hash "sha256:n" :policy-output {:visible {} :excluded-classes #{}}}
+        sens {:sentinel/effective-level :sensitivity/private
+              :sentinel/risk-meta {:value-at-risk "5M"}}
+        result (prop/attach-sensitivity artifact sens)]
+    (is (= :sensitivity/private (get-in result [:policy-output :sensitivity :level])))
+    (is (= "5M" (get-in result [:policy-output :sensitivity :risk-meta :value-at-risk])))))
+
+(deftest merge-sensitivity-picks-highest
+  (let [sensitivities [{:level :sensitivity/internal}
+                       {:level :sensitivity/private}
+                       {:level :sensitivity/public}]
+        result (prop/merge-sensitivity sensitivities)]
+    (is (= :sensitivity/private (:level result)))))
+
+(deftest merge-sensitivity-handles-nils
+  (let [sensitivities [nil {:level :sensitivity/internal} nil]
+        result (prop/merge-sensitivity sensitivities)]
+    (is (= :sensitivity/internal (:level result)))))
+
+(deftest merge-sensitivity-returns-nil-for-empty
+  (is (nil? (prop/merge-sensitivity [])))
+  (is (nil? (prop/merge-sensitivity [nil nil]))))
+
+(deftest artifact-sensitivity-extracts-from-artifact
+  (let [artifact {:node-hash "sha256:n"
+                  :sensitivity/level :sensitivity/private
+                  :sensitivity/risk-meta {:value-at-risk "1M"}}
+        result (prop/artifact-sensitivity artifact)]
+    (is (= :sensitivity/private (:level result)))
+    (is (= "1M" (get-in result [:risk-meta :value-at-risk])))))
+
+;; ── Validation tests ────────────────────────────────────────────────────────
+
+(deftest validate-sensitivity-valid-minimal
+  (is (nil? (prop/validate-sensitivity {:level :sensitivity/private}))))
+
+(deftest validate-sensitivity-valid-full
+  (let [sens {:level :sensitivity/private
+              :risk-meta {:value-at-risk "15,000,000"
+                          :risk-severity :risk-severity/critical
+                          :risk-vector "Withdrawal race"
+                          :reason-codes [:contains-live-vulnerability]}}]
+    (is (nil? (prop/validate-sensitivity sens)))))
+
+(deftest validate-sensitivity-invalid-level
+  (let [errors (prop/validate-sensitivity {:level :sensitivity/nonexistent})]
+    (is (vector? errors))
+    (is (some #(= :level (first (:path %))) errors))))
+
+(deftest validate-sensitivity-invalid-risk-severity
+  (let [errors (prop/validate-sensitivity {:level :sensitivity/private
+                                           :risk-meta {:risk-severity :extreme}})]
+    (is (vector? errors))
+    (is (some #(= :risk-severity (last (:path %))) errors))))
+
+(deftest validate-sensitivity-malformed-risk-meta
+  (let [errors (prop/validate-sensitivity {:level :sensitivity/private
+                                           :risk-meta "not-a-map"})]
+    (is (vector? errors))
+    (is (some #(= :risk-meta (first (:path %))) errors))))
+
+(deftest validate-sensitivity-malformed-reason-codes
+  (let [errors (prop/validate-sensitivity {:level :sensitivity/private
+                                           :risk-meta {:reason-codes "not-a-vector"}})]
+    (is (vector? errors))
+    (is (some #(= :reason-codes (last (:path %))) errors))))
+
+(deftest validate-sensitivity-non-keyword-reason-codes
+  (let [errors (prop/validate-sensitivity {:level :sensitivity/private
+                                           :risk-meta {:reason-codes ["string-not-keyword"]}})]
+    (is (vector? errors))
+    (is (some #(= :reason-codes (last (:path %))) errors))))
+
+;; ── Effective sensitivity tests ─────────────────────────────────────────────
+
+(deftest effective-sensitivity-no-declaration
+  (let [artifact {:scenario-id "s42"}
+        result (prop/effective-sensitivity artifact nil)]
+    (is (= :sensitivity/internal (:sentinel/effective-level result)))
+    (is (nil? (:sentinel/declared-level result)))
+    (is (= :sensitivity/internal (:sentinel/structural-level result)))))
+
+(deftest effective-sensitivity-declared-floor
+  (let [artifact {:scenario-id "s42"}
+        scenario-sens {:level :sensitivity/private}
+        result (prop/effective-sensitivity artifact scenario-sens)]
+    (is (= :sensitivity/private (:sentinel/effective-level result))
+        "declared private must raise effective level from internal to private")
+    (is (= :sensitivity/internal (:sentinel/structural-level result)))
+    (is (= :sensitivity/private (:sentinel/declared-level result)))))
+
+(deftest effective-sensitivity-cannot-downgrade
+  (let [artifact {:node-hash "sha256:n1"
+                  :result {:status :fail
+                           :failure-details [{:message "exploit"}]}}
+        scenario-sens {:level :sensitivity/public}
+        result (prop/effective-sensitivity artifact scenario-sens)]
+    (is (= :sensitivity/private (:sentinel/effective-level result))
+        "structural private must override declared public")))
+
+(deftest effective-sensitivity-includes-declared-reasons
+  (let [artifact {:scenario-id "s42"}
+        scenario-sens {:level :sensitivity/private
+                       :risk-meta {:reason-codes [:contains-live-vulnerability]}}
+        result (prop/effective-sensitivity artifact scenario-sens)]
+    (is (some #{:contains-live-vulnerability} (:sentinel/reasons result)))
+    (is (some #{:contains-unpublished-evidence} (:sentinel/reasons result)))))
+
+(deftest effective-sensitivity-sources
+  (let [artifact {:scenario-id "s42"}
+        scenario-sens {:level :sensitivity/private}
+        result (prop/effective-sensitivity artifact scenario-sens)]
+    (is (some #(re-find #"scenario:" %) (:sentinel/sources result)))
+    (is (some #(re-find #"declared-floor" %) (:sentinel/sources result)))))
+
+;; ── Override enforcement tests ──────────────────────────────────────────────
+
+(deftest override-check-multi-party-required-with-critical-risk
+  (let [level :sensitivity/private
+        risk-meta {:risk-severity :risk-severity/critical}
+        approvals [{:approved-by "attestor-1" :approved-at "2025-01-01" :reason "fix deployed"}
+                   {:approved-by "attestor-2" :approved-at "2025-01-02" :reason "window opened"}]]
+    (is (true? (:satisfied? (sentinel/check-override-requirements! level risk-meta approvals))))))
+
+(deftest override-check-multi-party-fails-with-insufficient-approvals
+  (let [level :sensitivity/private
+        risk-meta {:risk-severity :risk-severity/critical}
+        approvals [{:approved-by "attestor-1" :approved-at "2025-01-01" :reason "fix deployed"}]]
+    (is (thrown? Exception (sentinel/check-override-requirements! level risk-meta approvals)))))
+
+(deftest override-check-no-approvals-required-for-public
+  (let [level :sensitivity/public
+        risk-meta nil
+        approvals []]
+    (is (true? (:satisfied? (sentinel/check-override-requirements! level risk-meta approvals))))))
+
+(deftest override-check-single-approval-for-private
+  (let [level :sensitivity/private
+        risk-meta nil
+        approvals [{:approved-by "attestor-1" :approved-at "2025-01-01" :reason "embargo lifted"}]]
+    (is (true? (:satisfied? (sentinel/check-override-requirements! level risk-meta approvals))))))
+
+(deftest override-check-single-fails-without-approval-for-private
+  (let [level :sensitivity/private
+        risk-meta nil
+        approvals []]
+    (is (thrown? Exception (sentinel/check-override-requirements! level risk-meta approvals)))))
+
+;; ── Downgrade prevention tests ──────────────────────────────────────────────
+
+(deftest no-downgrade-passes-for-same-level
+  (let [artifact {:sensitivity/level :sensitivity/private}]
+    (is (nil? (prop/assert-no-downgrade! artifact :sensitivity/private "test")))))
+
+(deftest no-downgrade-throws-for-lower-level
+  (let [artifact {:sensitivity/level :sensitivity/private}]
+    (is (thrown? Exception (prop/assert-no-downgrade! artifact :sensitivity/public "test")))))
+
+(deftest no-downgrade-passes-for-higher-level
+  (let [artifact {:sensitivity/level :sensitivity/internal}]
+    (is (nil? (prop/assert-no-downgrade! artifact :sensitivity/private "test")))))
+
+(deftest no-downgrade-checks-extensions
+  (let [artifact {:extensions {:sensitivity/level :sensitivity/private}}]
+    (is (thrown? Exception (prop/assert-no-downgrade! artifact :sensitivity/public "test")))))
+
+(deftest merge-no-downgrade-passes
+  (let [merged {:level :sensitivity/private}
+        inputs [{:level :sensitivity/internal} {:level :sensitivity/public}]]
+    (is (nil? (prop/assert-merge-no-downgrade! merged inputs)))))
+
+(deftest merge-no-downgrade-throws
+  (let [merged {:level :sensitivity/internal}
+        inputs [{:level :sensitivity/private}]]
+    (is (thrown? Exception (prop/assert-merge-no-downgrade! merged inputs)))))
+
+(deftest serialization-preserves-essential-fields
+  (let [original {:sentinel/structural-level :sensitivity/internal
+                  :sentinel/declared-level :sensitivity/private
+                  :sentinel/effective-level :sensitivity/private
+                  :sentinel/reasons [:contains-unpublished-evidence]}]
+    (is (nil? (prop/assert-no-serialization-loss! original original "json-roundtrip")))))
+
+(deftest serialization-detects-changes
+  (let [original {:sentinel/structural-level :sensitivity/internal
+                  :sentinel/effective-level :sensitivity/private}
+        readback {:sentinel/structural-level :sensitivity/public
+                  :sentinel/effective-level :sensitivity/public}]
+    (is (thrown? Exception (prop/assert-no-serialization-loss! original readback "test")))))
+
+;; ── Attach sensitivity to evidence nodes ────────────────────────────────────
+
+(deftest attach-sensitivity-to-evidence-node-uses-policy-output
+  (let [artifact {:node-hash "sha256:n" :policy-output {:visible {} :excluded-classes #{}}}
+        sensitivity {:sentinel/effective-level :sensitivity/private
+                     :sentinel/risk-meta {:value-at-risk "10M"}}
+        result (prop/attach-sensitivity artifact sensitivity)]
+    (is (= :sensitivity/private (get-in result [:policy-output :sensitivity :level])))
+    (is (= "10M" (get-in result [:policy-output :sensitivity :risk-meta :value-at-risk])))))
+
+(deftest attach-sensitivity-to-attestation-uses-metadata
+  (let [artifact {:attestation/id "sha256:att1"}
+        sensitivity {:sentinel/effective-level :sensitivity/private
+                     :sentinel/structural-level :sensitivity/internal}
+        result (prop/attach-sensitivity artifact sensitivity)]
+    (is (= :sensitivity/private (get-in result [:attestation/metadata :sensitivity :sentinel/effective-level]))
+        "attestation sensitivity must use :attestation/metadata")))
+
+;; ── Build provenance tests ─────────────────────────────────────────────────
+
+(deftest build-provenance-from-effective
+  (let [effective {:sentinel/structural-level :sensitivity/internal
+                   :sentinel/declared-level :sensitivity/private
+                   :sentinel/effective-level :sensitivity/private
+                   :sentinel/reasons [:contains-unpublished-evidence]
+                   :sentinel/sources ["scenario:s99"]}
+        provenance (prop/build-provenance effective)]
+    (is (= :sensitivity/private (:sentinel/effective-level provenance)))
+    (is (= :sensitivity/internal (:sentinel/structural-level provenance)))
+    (is (= :sensitivity/private (:sentinel/declared-level provenance)))))
+
+(deftest build-provenance-appends-extra-sources
+  (let [effective {:sentinel/effective-level :sensitivity/private
+                   :sentinel/reasons []}
+        provenance (prop/build-provenance effective "extra-context" "s99")]
+    (is (some #(re-find #"extra-context" %) (:sentinel/sources provenance)))
+    (is (some #(re-find #"s99" %) (:sentinel/sources provenance)))))
+
+;; ── Aggregation tests ──────────────────────────────────────────────────────
+
+(deftest merge-sensitivity-orders-correctly
+  (let [sensitivities [{:level :sensitivity/public}
+                       {:level :sensitivity/internal}
+                       {:level :sensitivity/private}
+                       {:level :sensitivity/embargoed}
+                       {:level :sensitivity/critical-private}]
+        result (prop/merge-sensitivity sensitivities)]
+    (is (= :sensitivity/critical-private (:level result)))))
+
+(deftest merge-sensitivity-picks-highest-risk-severity
+  (let [sensitivities [{:level :sensitivity/private
+                        :risk-meta {:risk-severity :risk-severity/high}}
+                       {:level :sensitivity/internal
+                        :risk-meta {:risk-severity :risk-severity/critical}}]
+        result (prop/merge-sensitivity sensitivities)]
+    (is (= :sensitivity/private (:level result)))
+    (is (= :risk-severity/critical (get-in result [:risk-meta :risk-severity]))
+        "must pick critical risk-severity over high")))
+
+(deftest merge-sensitivity-picks-first-risk-meta
+  (let [sensitivities [{:level :sensitivity/private
+                        :risk-meta {:value-at-risk "5M"}}
+                       {:level :sensitivity/internal
+                        :risk-meta {:value-at-risk "10M"}}]
+        result (prop/merge-sensitivity sensitivities)]
+    (is (= :sensitivity/private (:level result)))))
+
+;; ── Override mode tests ─────────────────────────────────────────────────────
+
+(deftest override-mode-single-for-default
+  (is (= :single (sentinel/effective-override-mode :sensitivity/private nil))))
+
+(deftest override-mode-single-for-internal
+  (is (= :single (sentinel/effective-override-mode :sensitivity/internal nil))))
+
+(deftest override-mode-multi-for-critical-private
+  (is (= :multi-party-approval (sentinel/effective-override-mode :sensitivity/critical-private nil))))
+
+(deftest override-mode-single-for-embargoed
+  (is (= :single (sentinel/effective-override-mode :sensitivity/embargoed nil))))
+
+(deftest override-mode-multi-for-critical-risk-severity
+  (is (= :multi-party-approval (sentinel/effective-override-mode :sensitivity/private {:risk-severity :risk-severity/critical})))
+  (is (= :multi-party-approval (sentinel/effective-override-mode :sensitivity/public {:risk-severity :risk-severity/critical}))))
+
+(deftest override-mode-single-for-high-or-lower-risk
+  (is (= :single (sentinel/effective-override-mode :sensitivity/private {:risk-severity :risk-severity/high})))
+  (is (= :single (sentinel/effective-override-mode :sensitivity/private {:risk-severity :risk-severity/medium})))
+  (is (= :single (sentinel/effective-override-mode :sensitivity/private {:risk-severity :risk-severity/low}))))
 
 ;; ── Assertion functions ─────────────────────────────────────────────────────
 
@@ -201,6 +615,12 @@
   (let [node {:node-hash "sha256:n" :result {:status :pass}}]
     (is (thrown? Exception
                  (sentinel/assert-publish-allowed! node {:sink :nostr-public-relay})))))
+
+(deftest assert-relay-allowed
+  (let [sealed-event {:node-hash "sha256:sealed" :result {:status :pass}}]
+    (is (thrown? Exception
+                 (sentinel/assert-relay-allowed! sealed-event {:sink :ipfs})))
+    (is (map? (sentinel/assert-relay-allowed! sealed-event {:sink :local})))))
 
 (deftest assert-attestation-allowed
   (let [a (att/build-attestation (attestor) (subject) :verified

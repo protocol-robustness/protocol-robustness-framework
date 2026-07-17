@@ -46,7 +46,7 @@
                            benchmarks)]
         (if json?
           (do (require 'clojure.data.json)
-              (println ((resolve 'clojure.data.json/write-str) {:benchmarks display})))
+              (println ((resolve 'clojure.data.json/write-str) {:benchmarks display} :indent true)))
           (do (printf "Available benchmarks: %d\n\n" (count display))
               (pp/print-table [:id :status :claims :description] display)))
         {:exit-code 0 :message (str (count benchmarks) " benchmarks")}))))

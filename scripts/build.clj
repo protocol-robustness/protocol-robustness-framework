@@ -39,15 +39,17 @@
 
 (defn- corpus-entry-files [entry]
   (let [paths (:paths entry)
+        files (:files entry)
         root (:root entry)]
-    (if paths
-      (mapv (fn [path]
+    (if (or paths files)
+      (mapv (fn [{:keys [source path]}]
+              (safe-relative-path! source)
               (safe-relative-path! path)
-              (let [file (io/file path)]
+              (let [file (io/file source)]
                 (when-not (.isFile file)
-                  (throw (ex-info "Declared Sew release corpus file is missing" {:path path})))
+                  (throw (ex-info "Declared Sew release corpus file is missing" {:path source})))
                 [(:kind entry) path file]))
-            paths)
+            (or files (mapv (fn [path] {:source path :path path}) paths)))
       (let [root (safe-relative-path! root)
             directory (io/file root)
             extensions (set (:extensions entry))

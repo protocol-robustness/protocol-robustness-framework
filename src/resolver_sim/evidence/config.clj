@@ -54,7 +54,7 @@
   (or *artifact-dir*
       (System/getenv "PRF_ARTIFACT_DIR")
       (get (get-config) :artifact_dir)
-      "./prf-artifacts"))
+      "results/test-artifacts"))
 
 (defn artifact-file
   "Resolve an artifact id to its filename, e.g. (artifact-file :test-summary) → \"test-summary.json\"."
@@ -80,12 +80,12 @@
 (defn runs-root []
   (or (System/getenv "PRF_RUNS_ROOT")
       (get (get-config) :runs_root)
-      "./prf-runs"))
+      "results/runs"))
 
 (defn evidence-bundle-dir []
   (or (System/getenv "PRF_BUNDLE_DIR")
       (get (get-config) :evidence_bundle_dir)
-      "./prf-bundles"))
+      "results/evidence-bundle"))
 
 (defn strict-mode?
   "Return true when strict validation mode is enabled in config.

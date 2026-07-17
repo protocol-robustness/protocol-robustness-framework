@@ -239,6 +239,8 @@
     "set-paused"
     "delegate-to-senior"
     "propose-fraud-slash"
+    "propose-fraud-group-slash"
+    "resolve-fraud-group-appeal"
     "appeal-slash"
     "resolve-appeal"
     "set-yield-risk"
@@ -254,8 +256,12 @@
     "execute-pending-settlement"
     "rotate-dispute-resolver"
     "propose-fraud-slash"
+    "propose-fraud-group-slash"
+    "appeal-fraud-group-slash"
+    "resolve-fraud-group-appeal"
     "resolve-appeal"
     "execute-fraud-slash"
+    "execute-fraud-group-slash"
     "grant-force-authorisation"
     "revoke-force-authorisation"
     "execute-force-authorised-action"
@@ -347,16 +353,32 @@
 
       (contains? #{"set-resolver-capacity" "register-stake" "withdraw-stake"
                     "register-resolver-bond" "register-senior-bond"
-                    "propose-fraud-slash" "appeal-slash" "resolve-appeal" "execute-fraud-slash"
-                    "force-reversal-slash" "delegate-to-senior" "unfreeze-resolver"
+                    "propose-fraud-slash" "propose-fraud-group-slash" "appeal-fraud-group-slash"
+                    "resolve-fraud-group-appeal" "appeal-slash" "resolve-appeal"
+                    "execute-fraud-slash" "execute-fraud-group-slash" "force-reversal-slash" "delegate-to-senior" "unfreeze-resolver"
                     "compute-prorata-slash-allocation"}
                  action)
       ;; Group 2: resolver-scoped actions.  Derive the resolver address from
       ;; the performing actor when the event params don't specify it directly
       ;; (e.g. register-stake, withdraw-stake use the acting agent's address).
-      (let [g2-resolver (or resolver agent-addr)]
-        (cond-> #{}
-          g2-resolver (conj [:resolver g2-resolver])
+      (let [group-action? (contains? #{"propose-fraud-group-slash"
+                                        "appeal-fraud-group-slash"
+                                        "resolve-fraud-group-appeal"
+                                        "execute-fraud-group-slash"}
+                                      action)
+            group-members (mapv #(if (map? %) (:id %) %)
+                                (get-in event [:params :liable-resolvers] []))
+            ;; Proposal carries every member.  Later lifecycle events derive
+            ;; the immutable member set from the stored slash record.
+            slash-members (when group-action?
+                            (some-> (get-in world [:pending-fraud-slashes
+                                                   (event-slash-id world event)
+                                                   :members])
+                                    (->> (map :id))))
+            g2-resolvers (if (seq group-members)
+                           group-members
+                           (or slash-members [(or resolver agent-addr)]))]
+        (cond-> (into #{} (keep #(when % [:resolver %]) g2-resolvers))
           wf-id (conj [:workflow wf-id])))
 
       (contains? #{"set-token-liquidity-crunch" "set-yield-risk"} action)
@@ -1168,6 +1190,38 @@
         (res/propose-fraud-slash world workflow-id addr resolver-addr amount
                                  :authorization-provenance provenance)))))
 
+(defmethod apply-action "propose-fraud-group-slash"
+  [{:keys [agent-index] :as context} world event]
+  (run-governance-action context world event
+    (fn [addr _agent provenance]
+      (let [params (:params event)]
+        (res/propose-fraud-group-slash
+         world (event-workflow-id event) addr (:liable-resolvers params) (:amount params)
+         (:liability-justification params) provenance
+         {:provenance/source :scenario-declared
+          :provenance/action "propose-fraud-group-slash"})))))
+
+(defmethod apply-action "appeal-fraud-group-slash"
+  [{:keys [agent-index]} world event]
+  (actx/with-resolved-actor
+    agent-index event
+    (fn [addr]
+      (res/appeal-fraud-group-slash world (event-workflow-id event) addr
+                                    (event-slash-id world event)
+                                    :authorization-provenance
+                                    {:authorization/type :member-appeal
+                                     :authorization/source :scenario-declared}))))
+
+(defmethod apply-action "resolve-fraud-group-appeal"
+  [{:keys [agent-index] :as context} world event]
+  (run-governance-action context world event
+    (fn [addr _agent provenance]
+      (let [params (:params event)]
+        (res/resolve-fraud-group-appeal world (event-workflow-id event) addr
+                                        (:member params) (boolean (:upheld? params))
+                                        (event-slash-id world event)
+                                        :authorization-provenance provenance)))))
+
 (defmethod apply-action "challenge-resolution"
   [{:keys [agent-index escalation-fn]} world event]
   (actx/with-resolved-actor
@@ -1234,6 +1288,23 @@
             result (res/execute-fraud-slash world (event-workflow-id event)
                                             (event-slash-id world event)
                                             :execution-provenance provenance)]
+        (if (:ok result)
+          (update result :extra merge {:execution/provenance provenance})
+          result)))))
+
+(defmethod apply-action "execute-fraud-group-slash"
+  [{:keys [agent-index]} world event]
+  (actx/with-resolved-actor
+    agent-index event
+    (fn [addr]
+      (let [provenance {:execution/schema-version "execution-provenance.v1"
+                        :execution/type :public-execution
+                        :execution/basis :scenario-declared
+                        :execution/address addr
+                        :execution/action "execute-fraud-group-slash"}
+            result (res/execute-fraud-group-slash world (event-workflow-id event)
+                                                  (event-slash-id world event)
+                                                  provenance)]
         (if (:ok result)
           (update result :extra merge {:execution/provenance provenance})
           result)))))

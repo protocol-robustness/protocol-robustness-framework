@@ -32,14 +32,12 @@
                                 :reason "liquidity-crunch"}}}
           {:seq 3,
            :time 1200000,
-           :agent "0xAlice",
-           :action "yield_withdraw",
-           :params {:token "USDC", :owner-id "0xAlice"}}
-          {:seq 4,
-           :time 1300000,
-           :agent "0xBob",
-           :action "yield_withdraw",
-           :params {:token "USDC", :owner-id "0xBob"}}],
+           :agent "governance",
+           :action "yield_withdraw_shared",
+           :params {:token "USDC"
+                    :module-id "aave-v3"
+                    :owner-ids ["0xAlice" "0xBob"]
+                    :allocation-mode "pro-rata"}}],
  :expectations {:metrics [{:name "yield/positions-count", :value 2}
                           {:name "yield/total-principal", :value 3000}
                           {:name "yield/focus-principal", :value 1000}

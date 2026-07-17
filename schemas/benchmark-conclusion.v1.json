@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/benchmark-conclusion-v1.json",
+  "title": "Benchmark Conclusion v1",
+  "description": "Compact, deterministic conclusion of one finalized benchmark run. Projection of benchmark evidence; does not infer protocol-wide truth.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "benchmark", "command_status", "outcome", "reason",
+               "scenarios", "claims", "invariants", "evidence", "scope"],
+  "properties": {
+    "schema_version": {
+      "const": "benchmark-conclusion.v1",
+      "description": "Must be exactly 'benchmark-conclusion.v1'"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique benchmark run identifier"
+    },
+    "benchmark": {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["active", "experimental", "deprecated", "retired"] },
+        "manifest_source": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "command_status": {
+      "type": "string",
+      "enum": ["completed", "failed"],
+      "description": "Whether orchestration, required writes, registry finalization, and validation completed"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["pass", "fail", "inconclusive"],
+      "description": "What the executed benchmark evidence supports"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Machine-readable reason for the outcome classification"
+    },
+    "scenarios": {
+      "type": "object",
+      "required": ["total", "passed", "failed"],
+      "properties": {
+        "total":  { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "claims": {
+      "type": "object",
+      "required": ["required", "passed", "failed", "inconclusive", "not_exercised"],
+      "properties": {
+        "required":       { "type": "integer", "minimum": 0 },
+        "passed":         { "type": "integer", "minimum": 0 },
+        "failed":         { "type": "integer", "minimum": 0 },
+        "inconclusive":   { "type": "integer", "minimum": 0 },
+        "not_exercised":  { "type": "integer", "minimum": 0 },
+        "not_implemented":{ "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "invariants": {
+      "type": "object",
+      "required": ["total", "passed", "failed"],
+      "properties": {
+        "total":  { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["path", "sha256", "bytes"],
+      "properties": {
+        "path":   { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "bytes":  { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "required": ["statement", "does_not_establish"],
+      "properties": {
+        "statement": { "type": "string" },
+        "does_not_establish": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

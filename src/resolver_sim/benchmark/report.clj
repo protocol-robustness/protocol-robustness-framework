@@ -429,7 +429,7 @@
      :invariant-summary inv-summary
      :concept/section (:concept/section evidence)
      :stakeholder/use-case-results (cond-> {}
-                                      ecommerce-section (assoc :ecommerce/purchase ecommerce-section))}))
+                                     ecommerce-section (assoc :ecommerce/purchase ecommerce-section))}))
 
 ;; ── Auto-resolution ───────────────────────────────────────────────────────────
 

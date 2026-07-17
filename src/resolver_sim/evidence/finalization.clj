@@ -363,6 +363,10 @@
                       (requirement forensic? (= "exact" (get-in finalization [:verification :reconciliation :status])))
                       :evidence-dag
                       (requirement forensic? (= "verified" (get-in finalization [:bindings :evidence-dag :status])))
+                      :runner-finalization
+                      (requirement forensic?
+                                   (and (= :runner-local (get-in finalization [:bindings :runner-finalization :runtime-kind]))
+                                        (sha256-ref? (get-in finalization [:bindings :runner-finalization :hash]))))
                       :signature
                       (requirement forensic? false)
                       :timestamp

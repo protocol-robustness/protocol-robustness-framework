@@ -21,9 +21,9 @@ demonstrated only when an active benchmark executes its registered evaluator.
 ### First Run
 
 ```bash
-bb benchmark:run --non-interactive :benchmark/sew-yield-shortfall-v1 -o results/sew-yield-shortfall-showcase.edn
-bb benchmark:verify results/sew-yield-shortfall-showcase.edn
-bb benchmark:share-summary results/sew-yield-shortfall-showcase.edn
+bb benchmark:run :benchmark/sew-yield-shortfall-v1 --run-root results/sew-yield-shortfall-showcase
+bb benchmark:verify results/sew-yield-shortfall-showcase/completion.json
+bb benchmark:share-summary results/sew-yield-shortfall-showcase/completion.json
 ```
 
 ### Game-Theory Research Run

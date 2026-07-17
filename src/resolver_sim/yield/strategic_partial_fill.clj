@@ -364,11 +364,11 @@
                     :rounding-policy (:rounding-policy policy)
                     :counterexamples (take 3 violations)
                     :regression-counterexample (assoc regression-state
-                                                   :merged-indices [1 2]
-                                                   :merged-claims [1 2]
-                                                   :individual-sum 0
-                                                   :merged-allocation 1
-                                                   :error 1)
+                                                      :merged-indices [1 2]
+                                                      :merged-claims [1 2]
+                                                      :individual-sum 0
+                                                      :merged-allocation 1
+                                                      :error 1)
                     :state {:claims request-vec :liquidity liquidity
                             :policy (select-keys policy [:mode :rounding-policy])}})))
         (when (some #{:permute} deviations)
@@ -419,13 +419,13 @@
                                    :status verdict
                                    :verdict verdict
                                    :violation-count (count (filter #(= :violated (:verdict %)) results))
-                                 :state-count (count results)
-                                 :counterexample (some :regression-counterexample results)
-                                 :sample-counterexamples (->> results
-                                                              (filter #(= :violated (:verdict %)))
-                                                              (take 2)
-                                                              (mapcat :counterexamples)
-                                                              (take 3))}))))
+                                   :state-count (count results)
+                                   :counterexample (some :regression-counterexample results)
+                                   :sample-counterexamples (->> results
+                                                                (filter #(= :violated (:verdict %)))
+                                                                (take 2)
+                                                                (mapcat :counterexamples)
+                                                                (take 3))}))))
        :summary {:states-examined @state-count
                  :properties-examined (count (distinct (mapcat (fn [r] (map :property (:checks r))) @results)))
                  :total-checks total-checks

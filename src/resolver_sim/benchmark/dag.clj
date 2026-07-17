@@ -32,7 +32,7 @@
                               (node id (str "claim " (:claim/id c))
                                     (or (:claim/outcome c) :unknown) c))) claims)
         nodes (vec (concat [(node root-id "evidence bundle" :pass
-                                   {:evidence/hash (:evidence/hash bundle)})
+                                  {:evidence/hash (:evidence/hash bundle)})
                             (node benchmark-id "benchmark" :pass (:benchmark bundle))
                             (node repo-id "repository revision" :pass (:repo bundle))]
                            scenario-nodes claim-nodes))
@@ -67,10 +67,10 @@
   (let [projection (claim-coverage-graph bundle)]
     (when (seq (:edges projection))
       (graph/write-graph-artifacts! projection
-                                     {:title "Explicit claim evidence coverage"
-                                      :task/ref (str "claim-coverage/" (:evidence/hash bundle))
-                                      :generated-at (str "evidence-root:" (:evidence/hash bundle))}
-                                     (str out-dir "/claim-coverage")))))
+                                    {:title "Explicit claim evidence coverage"
+                                     :task/ref (str "claim-coverage/" (:evidence/hash bundle))
+                                     :generated-at (str "evidence-root:" (:evidence/hash bundle))}
+                                    (str out-dir "/claim-coverage")))))
 
 (defn- optional-source-artifacts [evidence-path out-dir]
   (let [parent (.getParentFile (io/file evidence-path))
@@ -79,10 +79,10 @@
     (cond-> {}
       (.isFile execution-dag)
       (assoc :execution-dag (graph/render-execution-dag! (.getPath execution-dag)
-                                                          (str out-dir "/execution-dag")))
+                                                         (str out-dir "/execution-dag")))
       (.isDirectory evidence-nodes)
       (assoc :evidence-nodes (graph/render-evidence-node-dag! (.getPath evidence-nodes)
-                                                               (str out-dir "/evidence-nodes"))))))
+                                                              (str out-dir "/evidence-nodes"))))))
 
 (defn- sha256-file [file]
   (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
@@ -109,7 +109,7 @@
                                          "evidence-graph.html" "evidence-graph-rf.html"]
                                  :links-to (vec (concat (when (:execution-dag optional) ["execution-dag"])
                                                         (when (:evidence-nodes optional) ["evidence-nodes"])
-                                                                                                                (when (:claim-coverage optional) ["claim-coverage"])))}]
+                                                        (when (:claim-coverage optional) ["claim-coverage"])))}]
                          graphml-path (update-in [0 :files] conj "evidence-graph.graphml"))
                :files (mapv (fn [file]
                               {:path (str (.relativize base (.toPath file)))

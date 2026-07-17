@@ -17,7 +17,7 @@
                            summaries)]
         (if json?
           (do (require 'clojure.data.json)
-              (println ((resolve 'clojure.data.json/write-str) {:suites display})))
+              (println ((resolve 'clojure.data.json/write-str) {:suites display} :indent true)))
           (do (printf "Available suites: %d\n\n" (count display))
               (pp/print-table [:suite/key :suite/type :suite/protocols
                                :suite/scenario-count :suite/title]

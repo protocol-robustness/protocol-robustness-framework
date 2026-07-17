@@ -223,11 +223,11 @@
    :command/outputs []
    :command/description "Read-only verification of a completed scenario bundle, including its registry, evidence-chain finalizations, and evidence-set reconciliation."}
 
- {:command/id :run-invariants
-  :command/path ["run-invariants"]
-   :command/title "Run invariant suite"
-   :command/category :scenario
-   :command/surface :prf
+   {:command/id :run-invariants
+   :command/path ["run-invariants"]
+    :command/title "Run invariant suite"
+    :command/category :scenario
+    :command/surface :dev
    :command/backstop-tier :default
    :command/jar-availability :native
    :command/runtime :jvm
@@ -332,7 +332,7 @@
    :command/path ["community" "task" "list"]
    :command/title "List community tasks"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -345,7 +345,7 @@
    :command/path ["community" "task" "show"]
    :command/title "Show community task"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -357,7 +357,7 @@
    :command/path ["community" "task" "register"]
    :command/title "Register community task"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -372,7 +372,7 @@
    :command/path ["community" "task" "run"]
    :command/title "Run community task"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -388,7 +388,7 @@
    :command/path ["community" "task" "reproduce"]
    :command/title "Reproduce community task"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -405,7 +405,7 @@
    :command/path ["community" "task" "verify"]
    :command/title "Verify community task"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -419,7 +419,7 @@
    :command/path ["community" "task" "report"]
    :command/title "Report on community task"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -433,7 +433,7 @@
    :command/path ["community" "graph" "export"]
    :command/title "Export community graph"
    :command/category :community
-   :command/surface :prf
+   :command/surface :community
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
@@ -448,7 +448,7 @@
     :command/path ["community" "mailbox" "clear"]
     :command/title "Clear community mailbox"
     :command/category :community
-    :command/surface :prf
+    :command/surface :community
     :command/backstop-tier :manual
     :command/jar-availability :native
     :command/runtime :jvm

@@ -12,16 +12,24 @@
    "manifest/summary.json" {:id "manifest.summary" :kind "summary" :schema "summary.v1" :importance "CORE"}
    "manifest/claimable-classification.json" {:id "manifest.claimable-classification" :kind "summary" :schema "claimable-classification.v2" :importance "CORE"}
    "manifest/run-enrichment.json" {:id "manifest.run-enrichment" :kind "run-enrichment" :schema "run-enrichment.v1" :importance "CORE"}
+   "manifest/canonical-integrity.json" {:id "manifest.canonical-integrity" :kind "canonical-integrity" :schema "canonical-integrity.v1" :importance "CORE"}
+   "manifest/forensic-claims-status.json" {:id "manifest.forensic-claims-status" :kind "forensic-claims-status" :schema "forensic-claims-status.v1" :importance "CORE"}
+   "manifest/run-package-index.json" {:id "manifest.run-package-index" :kind "run-package-index" :schema "run-package-index.v1" :importance "CORE"}
       "manifest/diagnostic-summary.json" {:id "manifest.diagnostic-summary" :kind "scenario.diagnostic-summary" :schema "scenario-diagnostic-summary.v1" :importance "CORE"}
       "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v1" :importance "CORE"}
    "execution/replay-output.json" {:id "execution.replay-output" :kind "raw.replay" :schema "bundle-root.v1" :importance "DIAGNOSTIC"}
    "execution/execution-dag.json" {:id "execution.dag" :kind "execution.dag" :schema "execution-dag.v1" :importance "CORE"}
    "execution/pre-run-commitment.json" {:id "execution.pre-run-commitment" :kind "pre-run-commitment" :schema "pre-run-commitment.v1" :importance "CORE"}
+   "execution/runner-finalization.json" {:id "execution.runner-finalization" :kind "runner-finalization" :schema "runner-finalization.v1" :importance "CORE" :dependencies ["execution.replay-output"]}
    "summaries/trace-summary.json" {:id "summaries.trace" :kind "summary.trace" :schema "trace-summary.v1" :importance "CORE" :dependencies ["execution.replay-output"]}
    "summaries/metrics.json" {:id "summaries.metrics" :kind "summary.metrics" :schema "scenario-metrics.v1" :importance "CORE" :dependencies ["execution.replay-output"]}
    "summaries/claimable-classification.json" {:id "summaries.claimable" :kind "summary.claimable" :schema "claimable-classification.v2" :importance "CORE" :dependencies ["execution.replay-output"]}
    "summaries/mechanism-summary.json" {:id "summaries.mechanisms" :kind "summary.mechanisms" :schema "mechanism-summary.v1" :importance "CORE" :dependencies ["execution.replay-output"]}
    "summaries/schema-map.json" {:id "summaries.schema-map" :kind "summary.schema-map" :schema "schema-map.v1" :importance "DIAGNOSTIC" :dependencies ["execution.replay-output"]}
+   "summaries/partial-fill-decisions.json" {:id "summaries.partial-fill-decisions" :kind "summary.partial-fill-decisions" :schema "partial-fill-decisions.v1" :importance "CORE" :dependencies ["execution.replay-output"]}
+   "summaries/partial-fill-decisions.md" {:id "summaries.partial-fill-decisions-review" :kind "summary.partial-fill-decisions-review" :schema "partial-fill-decisions-review.v1" :importance "DIAGNOSTIC" :dependencies ["summaries.partial-fill-decisions"]}
+   "summaries/fraud-group-slash-allocation.json" {:id "summaries.fraud-group-slash-allocation" :kind "summary.fraud-group-slash-allocation" :schema "fraud-group-slash-allocation.v1" :importance "CORE" :dependencies ["execution.replay-output"]}
+   "summaries/fraud-group-slash-allocation.md" {:id "summaries.fraud-group-slash-allocation-review" :kind "summary.fraud-group-slash-allocation-review" :schema "fraud-group-slash-allocation-review.v1" :importance "DIAGNOSTIC" :dependencies ["summaries.fraud-group-slash-allocation"]}
    "summaries/trace-plain.md" {:id "summaries.trace-plain" :kind "summary.trace-plain" :schema "trace-plain.v1" :importance "DIAGNOSTIC" :dependencies ["summaries.trace"]}
    "state/world-final.json" {:id "state.world-final" :kind "state.final" :schema "world-final.v1" :importance "CORE" :dependencies ["execution.replay-output"]}})
 

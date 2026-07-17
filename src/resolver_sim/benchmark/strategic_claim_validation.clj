@@ -267,19 +267,19 @@
      :check-results []
      :evidence-references []}
     (let [scenario-ids (mapv :scenario/id matched-scenarios)
-              result-for (fn [source-path]
-                           (or (get results source-path)
-                               (get results (path-basename source-path))))
-              level-checks (mapcat (fn [match]
-                                     (let [result (result-for (:scenario/source-path match))
-                                           {:keys [checks]} (scenario-check-results claim-spec level result)]
+          result-for (fn [source-path]
+                       (or (get results source-path)
+                           (get results (path-basename source-path))))
+          level-checks (mapcat (fn [match]
+                                 (let [result (result-for (:scenario/source-path match))
+                                       {:keys [checks]} (scenario-check-results claim-spec level result)]
                                    (map (fn [check]
                                           (assoc check :scenario/id (:scenario/id match)))
                                         checks)))
                                matched-scenarios)
           witnesses (mapcat (fn [match]
                               (let [result (result-for (:scenario/source-path match))
-                                                                  {:keys [witnesses]} (scenario-check-results claim-spec level result)
+                                    {:keys [witnesses]} (scenario-check-results claim-spec level result)
                                     ws witnesses]
                                 (map #(assoc % :scenario/id (:scenario/id match)) (or ws []))))
                             matched-scenarios)
@@ -323,9 +323,9 @@
                               vals
                               (keep (fn [scenario-meta]
                                       (let [declaration (declaration-for-scenario declaration-by-id scenario-meta)
-                                                                                  source-path (:scenario/path scenario-meta)
-                                                                                  result (or (get results-by-path source-path)
-                                                                                             (get results-by-path (path-basename source-path)))]
+                                            source-path (:scenario/path scenario-meta)
+                                            result (or (get results-by-path source-path)
+                                                       (get results-by-path (path-basename source-path)))]
                                         (when (and declaration result)
                                           {:declaration declaration
                                            :scenario-meta scenario-meta

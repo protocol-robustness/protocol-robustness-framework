@@ -64,6 +64,18 @@
                      positions)]
     (reduce + 0 losses)))
 
+(defn- fill-ratio-as-double
+  "Accept legacy floating ratios and persisted exact ratio maps.
+   Stored allocation evidence must not depend on binary floating point, while
+   callers of this presentation helper retain its historical numeric output."
+  [ratio]
+  (cond
+    (map? ratio) (let [numerator (long (get ratio :numerator 0))
+                       denominator (long (get ratio :denominator 0))]
+                   (if (pos? denominator) (double (/ numerator denominator)) 0.0))
+    (number? ratio) (double ratio)
+    :else 0.0))
+
 (defn extract-per-claim-allocation
   "Extract per-claim allocation data from a partial-fill decision artifact.
    Returns a vector of normalized per-claim records:
@@ -87,7 +99,7 @@
                :filled (long (:filled row))
                :deferred (long (:deferred row))
                :haircut 0
-               :fill-ratio (double (:fill-ratio row 0.0))
+               :fill-ratio (fill-ratio-as-double (:fill-ratio row))
                :cap-hit? (boolean (:cap-hit? row false))})
             allocation-rows)
       ;; Fall back to computing from the flat requested/filled/deferred maps

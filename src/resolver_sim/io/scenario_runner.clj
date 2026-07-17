@@ -4,8 +4,9 @@
    Does not judge pass/fail — delegates to `scenario.runner` and `sim.fixtures`.
    Table output via `scenario.report/print-report`; legacy fixture detail via
    `sim.reporter` when `:report-format :fixture`."
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+              [clojure.data.json :as json]
+              [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.evidence.forensic-populate :as fp]
@@ -27,6 +28,7 @@
             [resolver-sim.scenario.report :as report]
             [resolver-sim.scenario.runner :as runner]
             [resolver-sim.scenario.suites :as suites]
+            [resolver-sim.sensitivity.propagation :as prop]
             [resolver-sim.validation.scenario-id :as sid]
             [resolver-sim.yield.invariant-catalog :as yield-inv-cat]))
 
@@ -75,7 +77,8 @@
     :scenario/claim-intents
     :scenario/evidence-profile
     :scenario/output-profile
-    :scenario/output-overrides})
+    :scenario/output-overrides
+    :scenario/sensitivity})
 
 (defn- normalize-profile
   [profile]
@@ -164,30 +167,37 @@
                     {:scenario-id scenario-id
                      :field :scenario/output-overrides
                      :actual output-overrides})))
+  (when-let [sensitivity (:scenario/sensitivity metadata)]
+    (when-let [errors (prop/validate-sensitivity sensitivity)]
+      (throw (ex-info "Invalid scenario sensitivity declaration"
+                      {:scenario-id scenario-id
+                       :scenario/sensitivity sensitivity
+                       :validation-errors errors}))))
   metadata)
 
 (defn- scenario-metadata
   [scenario]
   (let [metadata-extra (scenario-metadata-extra scenario)
         metadata {:scenario/assumptions      (or (:scenario/assumptions scenario)
-                                                 (:assumptions scenario)
-                                                 (get-in scenario [:theory :assumptions]))
-                  :scenario/model-scope      (or (:scenario/model-scope scenario)
-                                                 (:model-scope scenario))
-                  :scenario/expected-outcome (or (:scenario/expected-outcome scenario)
-                                                 (:expected-outcome scenario))
-                  :scenario/claim-intents    (normalize-claim-intents
-                                              (or (:scenario/claim-intents scenario)
-                                                  (:claim-intents scenario)
-                                                  (some-> scenario :theory :claim-id vector)))
-                  :scenario/evidence-profile (normalize-profile
-                                              (or (:scenario/evidence-profile scenario)
-                                                  (:evidence-profile scenario)))
-                  :scenario/output-profile   (normalize-profile
-                                              (or (:scenario/output-profile scenario)
-                                                  (:output-profile scenario)))
-                  :scenario/output-overrides (or (:scenario/output-overrides scenario)
-                                                 (:output-overrides scenario))}
+                                                  (:assumptions scenario)
+                                                  (get-in scenario [:theory :assumptions]))
+                   :scenario/model-scope      (or (:scenario/model-scope scenario)
+                                                  (:model-scope scenario))
+                   :scenario/expected-outcome (or (:scenario/expected-outcome scenario)
+                                                  (:expected-outcome scenario))
+                   :scenario/claim-intents    (normalize-claim-intents
+                                               (or (:scenario/claim-intents scenario)
+                                                   (:claim-intents scenario)
+                                                   (some-> scenario :theory :claim-id vector)))
+                   :scenario/evidence-profile (normalize-profile
+                                               (or (:scenario/evidence-profile scenario)
+                                                   (:evidence-profile scenario)))
+                   :scenario/output-profile   (normalize-profile
+                                               (or (:scenario/output-profile scenario)
+                                                   (:output-profile scenario)))
+                   :scenario/output-overrides (or (:scenario/output-overrides scenario)
+                                                  (:output-overrides scenario))
+                   :scenario/sensitivity      (:scenario/sensitivity scenario)}
         metadata* (cond-> metadata
                     (seq metadata-extra)
                     (assoc :scenario/metadata-extra metadata-extra))]
@@ -204,12 +214,15 @@
       (throw (ex-info "Unknown scenario protocol"
                       {:protocol protocol-id
                        :known-protocols (vec (preg/known-protocol-ids))})))
-    (if (= "yield-v1" protocol-id)
-      #(replay/replay-yield-scenario protocol %)
-      (fn [scenario]
+    (fn [scenario]
+      (let [replay-opts (cond-> {:allow-dirty? true
+                                 :skip-finalize (not *finalize-evidence?*)}
+                          (= "yield-v1" protocol-id)
+                          (assoc :flags {:yield-dt-validation? true
+                                         :metrics-profile :yield-provider}))]
         (if (= "sew-v1" protocol-id)
-          (sew/replay-with-sew-protocol scenario {:allow-dirty? true :skip-finalize (not *finalize-evidence?*)})
-                    (replay/replay-with-protocol protocol scenario {:allow-dirty? true :skip-finalize (not *finalize-evidence?*)}))))))
+          (sew/replay-with-sew-protocol scenario replay-opts)
+          (replay/replay-with-protocol protocol scenario replay-opts))))))
 
 (defn- scenario-file-details
   [scenario-path default-protocol-id]
@@ -230,7 +243,8 @@
         scenario-with-path (assoc scenario* :scenario-path path)
         explicit-scenario-id (:scenario-id scenario-with-path)
         scenario-id (or explicit-scenario-id path)
-        dispatcher-id (keyword "protocol" protocol)]
+        dispatcher-id (keyword "protocol" protocol)
+        source-hash (chain/compute-file-sha256 path)]
     (when-not explicit-scenario-id
       (log/warn! :scenario-id-compatibility-fallback
                  {:path path
@@ -243,6 +257,7 @@
      :scenario-id       scenario-id
      :dispatcher-id     dispatcher-id
      :scenario-path     path
+     :scenario/source-hash source-hash
      :scenario-metadata (scenario-metadata scenario-with-path)}))
 
 (def ^:private default-runner-selection
@@ -304,7 +319,11 @@
   [paths opts]
   (let [default-protocol-id (or (:protocol opts) preg/default-protocol-id)
         runner-selection (or (:runner-selection opts) default-runner-selection)
-        entries (mapv #(scenario-entry-for-path % default-protocol-id) paths)]
+        entries (mapv #(scenario-entry-for-path % default-protocol-id) paths)
+        ids (map :scenario-id entries)]
+    (when-not (= (count ids) (count (distinct ids)))
+      (throw (ex-info "Duplicate scenario IDs in run request"
+                      {:duplicate-ids (->> ids frequencies (keep (fn [[id n]] (when (> n 1) id))) vec)})))
     {:scenario-run/request
      {:runner/backend :local-current
       :runner-selection runner-selection
@@ -380,25 +399,37 @@
                         result))
                     results)))))
 
+(defn- run-effective-sensitivity
+  "Compute the maximum sensitivity across all scenario results in a run.
+   Uses merge-sensitivity over each result's scenario metadata."
+  [results]
+  (let [sensitivities (keep (fn [result]
+                              (when-let [sens (get-in result [:scenario-metadata :scenario/sensitivity])]
+                                (prop/scenario-sensitivity (assoc {} :scenario/sensitivity sens))))
+                            results)]
+    (prop/merge-sensitivity sensitivities)))
+
 (defn normalize-run-result
   [request summary]
   (let [summary* (enrich-summary-results summary request)
         results (:results summary*)
         totals {:passed (count (filter :pass? results))
                 :failed (count (remove :pass? results))
-                :total (count results)}]
+                :total (count results)}
+        run-sensitivity (run-effective-sensitivity results)]
     {:scenario-run/request request
      :scenario-run/result
-     {:status (if (:ok? summary*) :pass :fail)
-      :suite/key (:suite-id summary*)
-      :evidence/profile (:evidence/profile request)
-      :output/profile (:output/profile request)
-      :runner-selection (:runner-selection request)
-      :totals totals
-      :results results
-      :summary summary*
-      :diagnostics {:elapsed-ms (:elapsed-ms summary* 0)
-                    :suite-id (:suite-id summary*)}}}))
+     (cond-> {:status (if (:ok? summary*) :pass :fail)
+              :suite/key (:suite-id summary*)
+              :evidence/profile (:evidence/profile request)
+              :output/profile (:output/profile request)
+              :runner-selection (:runner-selection request)
+              :totals totals
+              :results results
+              :summary summary*
+              :diagnostics {:elapsed-ms (:elapsed-ms summary* 0)
+                            :suite-id (:suite-id summary*)}}
+      run-sensitivity (assoc :sensitivity/run-level run-sensitivity))}))
 
 (defn- sew-replay-fn []
   (replay-fn-for-protocol "sew-v1"))
@@ -415,19 +446,51 @@
 
 (declare run-paths)
 
+(defn- parse-scenario-selector
+  "Parse and validate the non-executable scenario selector accepted by the CLI.
+   Selectors are EDN maps with optional :scenario/id-prefix, :scenario/tags,
+   and :scenario/protocol fields. Invalid selectors always fail the run."
+  [selector]
+  (let [selector (if (string? selector) (edn/read-string selector) selector)
+        allowed #{:scenario/id-prefix :scenario/tags :scenario/protocol}]
+    (when-not (map? selector)
+      (throw (ex-info "Scenario selector must be an EDN map" {:selector selector})))
+    (when-not (every? allowed (keys selector))
+      (throw (ex-info "Scenario selector contains unsupported keys"
+                      {:selector selector :allowed allowed})))
+    (when-let [prefix (:scenario/id-prefix selector)]
+      (when-not (string? prefix)
+        (throw (ex-info ":scenario/id-prefix must be a string" {:selector selector}))))
+    (when-let [tags (:scenario/tags selector)]
+      (when-not (and (set? tags) (every? keyword? tags))
+        (throw (ex-info ":scenario/tags must be a set of keywords" {:selector selector}))))
+    (when-let [protocol (:scenario/protocol selector)]
+      (when-not (or (string? protocol) (keyword? protocol))
+        (throw (ex-info ":scenario/protocol must be a string or keyword" {:selector selector}))))
+    selector))
+
+(defn- scenario-selected? [selector scenario]
+  (let [scenario-id (str (or (:scenario/id scenario) (:id scenario) ""))
+        scenario-tags (set (or (:scenario/tags scenario) (:tags scenario) []))
+        protocol (or (:scenario/protocol scenario) (:protocol scenario))]
+    (and (or (nil? (:scenario/id-prefix selector))
+             (str/starts-with? scenario-id (:scenario/id-prefix selector)))
+         (or (nil? (:scenario/tags selector))
+             (every? scenario-tags (:scenario/tags selector)))
+         (or (nil? (:scenario/protocol selector))
+             (= (str (:scenario/protocol selector)) (str protocol))))))
+
 (def ^:private registry-suite-runners
   "Protocol ID → (fn [opts] → summary-map).
    sew-v1:   in-process invariant registry (protocols_src/.../invariant_scenarios.clj)
    yield-v1: file-backed suite (scenarios/edn/Y*.edn via :yield-provider-scenarios)"
   {"sew-v1" (fn [{:keys [suite-id scenario-filter] :as opts}]
-              (let [entries (if (string? scenario-filter)
-                              (try
-                                (let [pred (read-string scenario-filter)]
-                                  (filterv (fn [entry]
-                                             (let [s (if (vector? entry) (second entry) entry)]
-                                               (if (map? s) (pred s) true)))
-                                           inv-sc/all-scenarios))
-                                (catch Exception _ inv-sc/all-scenarios))
+              (let [entries (if scenario-filter
+                              (let [selector (parse-scenario-selector scenario-filter)]
+                                (filterv (fn [entry]
+                                           (let [s (if (vector? entry) (second entry) entry)]
+                                             (and (map? s) (scenario-selected? selector s))))
+                                         inv-sc/all-scenarios))
                               inv-sc/all-scenarios)]
                 (runner/run-collection
                  {:entries entries
@@ -504,9 +567,9 @@
   [_k v]
   (cond
     (instance? clojure.lang.IRecord v) (into {} v)
-    (instance? clojure.lang.Keyword v) (name v)
-    (instance? clojure.lang.IDeref v) @v
-    (fn? v) (str v)
+    (instance? clojure.lang.Keyword v) (str v)
+    (instance? clojure.lang.IDeref v) (throw (ex-info "Ref values are not permitted in JSON artifacts" {:type (class v)}))
+    (fn? v) (throw (ex-info "Function values are not permitted in JSON artifacts" {:type (class v)}))
     (instance? java.util.Date v) (str v)
     :else v))
 
@@ -577,19 +640,15 @@
   (if-let [paths (suites/suite-paths suite-key)]
     (run-paths-and-report
      (if-let [scenario-filter (:scenario-filter opts)]
-       (try
-         (let [pred (read-string scenario-filter)
-               enriched (mapv (fn [path]
-                                (let [entry (scenario-entry-for-path path (or (:protocol opts) (suites/suite-protocol-id suite-key)))]
-                                  (assoc entry :raw-path path)))
-                              paths)
-               filtered (filterv (fn [{:keys [scenario]}]
-                                   (if (map? scenario)
-                                     (pred scenario)
-                                     true))
-                                 enriched)]
-           (mapv :raw-path filtered))
-         (catch Exception _ paths))
+       (let [selector (parse-scenario-selector scenario-filter)
+             enriched (mapv (fn [path]
+                              (let [entry (scenario-entry-for-path path (or (:protocol opts) (suites/suite-protocol-id suite-key)))]
+                                (assoc entry :raw-path path)))
+                            paths)
+             filtered (filterv (fn [{:keys [scenario]}]
+                                 (and (map? scenario) (scenario-selected? selector scenario)))
+                               enriched)]
+         (mapv :raw-path filtered))
        paths)
      (assoc opts
             :suite-id suite-key
@@ -690,12 +749,16 @@
 
 (defn- determine-canonicality
   "Determine whether a run is canonical and the non-canonical reason code."
-  [dispatch runner-selection]
-  (let [selection-mode (:mode runner-selection)
-        canonical? (and (nil? (:scenario dispatch))
-                        (nil? (:fixture-suite dispatch))
-                        (not= :dev (:mode dispatch))
-                        (= :pinned selection-mode))
+  [dispatch opts runner-selection source-provenance]
+    (let [selection-mode (:mode runner-selection)
+          canonical? (and (nil? (:scenario dispatch))
+                          (nil? (:fixture-suite dispatch))
+                          (nil? (or (:scenario-filter dispatch) (:scenario-filter opts)))
+                          (not (:parallel? opts))
+                          (not (:source/dirty? source-provenance))
+                          (not= :dev (:mode dispatch))
+                          (= :pinned selection-mode)
+                          (keyword? (:runner-id runner-selection)))
         non-canonical-reason (cond
                                (:scenario dispatch) {:code :single-scenario-selected
                                                      :details "Single scenario selected; not a full suite run"}
@@ -705,8 +768,14 @@
                                                           :details "Development mode; bundle not suitable for comparison"}
                                (= :capability-match selection-mode) {:code :capability-match-runner
                                                                      :details "Capability-matched runner; non-deterministic selection"}
-                               (:scenario-filter dispatch) {:code :scenario-filtering
-                                                            :details (str "Scenario filtering applied: " (:scenario-filter dispatch))}
+                               (or (:scenario-filter dispatch) (:scenario-filter opts)) {:code :scenario-filtering
+                                                            :details "Scenario filtering applied"}
+                               (:parallel? opts) {:code :parallel-execution
+                                                  :details "Parallel execution does not have a canonical evidence ordering"}
+                               (:source/dirty? source-provenance) {:code :dirty-source
+                                                             :details "Source tree is dirty"}
+                               (not (keyword? (:runner-id runner-selection))) {:code :unidentified-runner
+                                                                                :details "Pinned runner identity is required"}
                                (= :quorum selection-mode) {:code :quorum-not-yet-canonical
                                                            :details "Quorum mode selected; not yet canonical"}
                                :else nil)]
@@ -1042,7 +1111,7 @@
       (run-dry dispatch opts protocol-id)
       (let [runner-selection (or (:runner-selection dispatch) default-runner-selection)
             {:keys [canonical? non-canonical-reason]}
-            (determine-canonicality dispatch runner-selection)
+            (determine-canonicality dispatch opts runner-selection source-provenance)
             tsa-url (System/getenv "PRF_TSA_URL")]
         (when (and (not canonical?) non-canonical-reason)
           (log/warn! :non-canonical-run
@@ -1063,7 +1132,7 @@
               finalize-evidence? (boolean (or structured? forensic-artifact-dir))
               artifact-dir (or (:artifact-dir dispatch) (:output-dir dispatch)
                                forensic-artifact-dir
-                               (str "./prf-runs/" run-id))
+                               (str "results/runs/" run-id))
               execution-dir (:execution-dir dispatch)
               _ (when (and structured? (nil? execution-dir))
                   (throw (ex-info "Structured runs require :execution-dir"
@@ -1135,33 +1204,27 @@
                           _ (when (nil? bundle-root)
                               (throw (ex-info "run-and-report: nil bundle-root from execute-dispatch!"
                                               {:dispatch dispatch})))
-                          enriched-root (build-enriched-bundle-root
-                                         bundle-root execution-node source-provenance)
-                          ;; Inject raw scenario results (world, trace, metrics)
-                          ;; into enriched root for artifact extraction.
-                          raw-results (when-let [results (get-in thunk-result [:run-result :results])]
-                                        (mapv (fn [r]
-                                                (let [rr (:replay-result r)]
-                                                  (merge
-                                                   {:scenario-id (:scenario-id r)
-                                                    :outcome (:outcome r)
-                                                    :pass? (:pass? r)}
-                                                   (when rr
-                                                     {:trace (vec (:trace rr))
-                                                      :metrics (:metrics rr)
-                                                      :world (:world rr)}))))
-                                              results))
-                          enriched-root (if (seq raw-results)
-                                          (assoc enriched-root :run/scenario-results raw-results)
-                                          enriched-root)
+                          ;; A bundle root is immutable once :bundle/hash is assigned.
+                          ;; Keep execution-node references and replay internals in their
+                          ;; own artifacts; never publish raw worlds, traces, or metrics here.
+                          enriched-root bundle-root
+                          raw-results (or (get-in thunk-result [:run-result :results])
+                                          (get-in thunk-result [:summary :results]))
                           ;; The canonical scenario-JAR slug is the artifact ID.
                           ;; Persist only the v2 finalization's public metadata and
                           ;; digest commitments beneath the supplied forensic root.
+                          _ (when (and structured? (not= :scenario (:dispatch-key thunk-result)))
+                              (throw (ex-info "Structured suite finalization is not implemented; refusing unsafe publication"
+                                              {:dispatch-key (:dispatch-key thunk-result)})))
                           _ (when structured?
                               (let [write-finalization!
                                     (requiring-resolve 'resolver-sim.evidence.finalization/write-scenario-finalization!)
                                     scenario-result (first raw-results)
-                                    scenario-input-hash (chain/compute-file-sha256 (:scenario dispatch))
+                                    ;; Source bytes were snapshotted while resolving the request;
+                                    ;; do not reopen a logical scenario reference during finalization.
+                                    scenario-input-hash (get-in thunk-result [:run-request :entries 0 :scenario/source-hash])
+                                    _ (when-not scenario-input-hash
+                                        (throw (ex-info "Structured finalization requires a snapshotted scenario source hash" {})))
                                     written (write-finalization!
                                              {:forensic-dir artifact-dir
                                               :scenario-artifact-id (:scenario-slug dispatch)
@@ -1169,18 +1232,22 @@
                                               :scenario-input-hash scenario-input-hash
                                               :run-id run-id
                                               :run-input-hash scenario-input-hash
-                                              :execution-status (if (contains? #{"fail" "failed" "error"}
-                                                                                                                       (or (some-> (:outcome scenario-result) name) "unknown"))
-                                                                                                                "failed"
-                                                                                                                "completed")
+                                              ;; Semantic failure is a completed execution with a fail verdict.
+                                              :execution-status "completed"
                                                                                             :execution-outcome (or (some-> (:outcome scenario-result) name)
                                                                                                                    "unknown")
                                               :policy {:allow-empty-targeted-evidence? false}})]
                                 (log-event :info :scenario-finalization-written
                                            :path (:path written))))]
-                      ;; In structured mode replay finalized its own cursor while
-                      ;; the supplied forensic artifact directory was bound.
-                      (populate-forensic-claims!)
+                      ;; Structured scenario bundles publish their authoritative
+                      ;; registry and completion record in the outer lifecycle.
+                      ;; Do not emit registry/cursor forensic claims here: at this
+                      ;; point they are pre-finalization observations and would be
+                      ;; misleadingly recorded as semantic failures.
+                      (if structured?
+                        (log-event :info :forensic-claims-deferred
+                                   :reason :awaiting-run-finalization)
+                        (populate-forensic-claims!))
                       (write-run-links! run-id dispatch protocol-id tsa-url canonical?)
 
                       ;; Emit a post-hoc evidence commitment root node that anchors
@@ -1297,31 +1364,10 @@
                        :bundle-root enriched-root
                        :execution-node execution-node})))))
           ;; Top-level catch: produce minimal output on complete failure
-            (catch Throwable t
+            (catch Exception t
               (log-event :error :run-failed :error (.getMessage t) :exception (str (class t)))
-              ;; A failed structured execution may have persisted a valid prefix.
-              ;; Seal only that observed prefix as partial; never describe it as a
-              ;; closed or terminal scenario chain, and never mask the root error.
-              (when structured?
-                (try
-                  (let [write-finalization!
-                        (requiring-resolve 'resolver-sim.evidence.finalization/write-scenario-finalization!)
-                        scenario-input-hash (chain/compute-file-sha256 (:scenario dispatch))
-                        written (write-finalization!
-                                 {:forensic-dir artifact-dir
-                                  :scenario-artifact-id (:scenario-slug dispatch)
-                                  :scenario-id (:scenario-slug dispatch)
-                                  :scenario-input-hash scenario-input-hash
-                                  :run-id run-id
-                                  :run-input-hash scenario-input-hash
-                                  :execution-status "aborted"
-                                  :execution-outcome "error"
-                                  :policy {:allow-empty-targeted-evidence? false}})]
-                    (log-event :warn :scenario-partial-finalization-written
-                               :path (:path written)))
-                  (catch Exception e
-                    (log-event :warn :scenario-partial-finalization-failed
-                               :error (.getMessage e)))))
+              ;; Never rewrite a scenario finalization from this recovery path:
+              ;; publication errors occur after a completed chain may already exist.
               (let [minimal-root (build-minimal-error-root dispatch protocol-id source-provenance t)
                     err-path (or (:output-file dispatch)
                                  (when (:output-dir dispatch)

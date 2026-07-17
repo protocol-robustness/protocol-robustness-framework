@@ -27,4 +27,5 @@
    :root "data/yield"
    :extensions [".edn" ".json"]}
   {:kind "config"
-   :paths ["config/evidence.json" "config/monitoring.edn"]}]}
+   :files [{:source "resources/config/evidence.json" :path "config/evidence.json"}
+           {:source "config/monitoring.edn" :path "config/monitoring.edn"}]}]}

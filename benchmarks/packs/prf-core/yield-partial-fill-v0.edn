@@ -5,27 +5,26 @@
   :benchmark/protocol        :protocol/prf
   :benchmark/scenario-suite  :suite/yield-provider-scenarios
   :benchmark/scenario-suite-description
-  "Two yield-v1 scenarios exercising partial-fill with pro-rata shortfall
-   distribution: Y06 (3-party pro-rata shortfall at 60% available) and
-   Y07 (adversarial shortfall exploit attempt at 50% available)."
+  "Two yield-v1 scenarios exercising atomic shared-pool pro-rata shortfall
+   distribution: Y06 (two-party shortfall at 60% available) and Y07
+   (three-party adversarial ordering attempt at 50% available)."
   :benchmark/runner-policy   :runner-policy/deterministic-local-v1
   :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
   :benchmark/scoring-rule    :scoring/shortfall-allocation-v0
   :benchmark/property-types  #{:fairness :safety}
   :benchmark/description
-  "Yield-v1 partial-fill scenarios exercising pro-rata allocation fairness
-   under shortfall. Two scenarios: multi-party shortfall with 2 competing
-   claimants, and adversarial shortfall with 3 claimants including an
-   adversarial agent. Each scenario exercises shortfall detection, pro-rata
-   allocation, and deferred claim recording.
+  "Yield-v1 partial-fill scenarios exercising atomic shared-pool pro-rata
+   allocation fairness under shortfall. Y06 has two competing claimants; Y07
+   has three claimants including an adversary deliberately listed first in the
+   request. Each scenario snapshots one common liquidity pool, records one
+   pro-rata decision, and records deferred claims.
    Uses :suite/yield-provider-scenarios (2 partial-fill scenarios)."
   :benchmark/deferred-scenario-claims #{:conservation
                                         :allocation-complete
                                         :no-invariant-errors}
   :benchmark/purpose
-  "Evaluate yield-v1 partial-fill behavior: pro-rata allocation fairness
-   under multi-party shortfall, and robustness against adversarial
-   withdrawal timing during shortfall."
+  "Evaluate atomic shared-pool pro-rata allocation fairness under multi-party
+   shortfall, including robustness against adversarial caller ordering."
    :benchmark/concepts        [:allocation/partial-fill
                                :allocation/shortfall
                                :allocation/pro-rata-fairness

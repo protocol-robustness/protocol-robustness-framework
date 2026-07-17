@@ -91,10 +91,14 @@
      :registries       — map with keys :attestors, :claim-definitions,
                          :hash-intents (required)
      :sensitivity-report — map with :sentinel/decision and :sentinel/report-hash
+     :sensitivity-provenance — optional map with :originating-scenario,
+                               :declared-level, :risk-meta (propagated from
+                               scenario metadata through evidence/attestations)
      :options          — map with :bundle-dir (output directory)
 
    Returns the bundle manifest map."
-  [{:keys [attestations claim-results evidence-nodes registries sensitivity-report options]
+  [{:keys [attestations claim-results evidence-nodes registries sensitivity-report
+            sensitivity-provenance options]
     :or {attestations [] claim-results [] evidence-nodes []}}]
   (let [bundle-dir (or (:bundle-dir options) default-bundle-dir)
         _ (.mkdirs (io/file bundle-dir "attestations"))
@@ -176,11 +180,13 @@
                        :bundle/entrypoints entrypoints
                        :bundle/objects (vec (concat att-entries claim-entries node-entries))
                        :bundle/registries registry-snapshot
-                       :bundle/sensitivity {:sentinel/decision (:sentinel/decision sensitivity-report :blocked)
-                                            :sentinel/report-hash (:sentinel/report-hash sensitivity-report)
-                                            :sentinel/path (:sentinel/path sensitivity-report
-                                                                           (str bundle-dir
-                                                                                "/reports/sensitivity-sentinel-report.edn"))}
+         :bundle/sensitivity (cond-> {:sentinel/decision (:sentinel/decision sensitivity-report :blocked)
+                                       :sentinel/report-hash (:sentinel/report-hash sensitivity-report)
+                                       :sentinel/path (:sentinel/path sensitivity-report
+                                                                      (str bundle-dir
+                                                                           "/reports/sensitivity-sentinel-report.edn"))}
+                               sensitivity-provenance
+                               (assoc :sentinel/provenance sensitivity-provenance))
                        :bundle/verification-profile {:integrity? true
                                                                             ;; Only an explicitly sign-capable producer may require signatures.
                                                                             :signature? (boolean (:signature? options))

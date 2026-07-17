@@ -95,6 +95,19 @@ tunneling."
   (some #(when (= claim-id (:id %)) %)
         (:claim-definitions registries/claim-definition-registry)))
 
+(defn- hash-safe-value
+  "Canonical hashing deliberately rejects Clojure Ratio values. Claim evaluators
+   use exact ratios for capped pro-rata witnesses, so persist their explicit
+   numerator/denominator representation rather than lossy decimal coercion."
+  [value]
+  (cond
+    (ratio? value) {:ratio/numerator (numerator value)
+                    :ratio/denominator (denominator value)}
+    (map? value) (into {} (map (fn [[k v]] [k (hash-safe-value v)])) value)
+    (vector? value) (mapv hash-safe-value value)
+    (seq? value) (mapv hash-safe-value value)
+    :else value))
+
 (defn- claim-result-entry
   [claim-id claim-result]
   (let [definition (claim-definition-by-id claim-id)
@@ -102,7 +115,7 @@ tunneling."
               :claim-definition-hash (:canonical-hash definition)
               :claim-definition-concept-hash (:concept-hash definition)
               :holds? (boolean (:holds? claim-result))
-              :violations (vec (:violations claim-result))
+              :violations (hash-safe-value (vec (:violations claim-result)))
               :status (if (:holds? claim-result) :pass :fail)}]
     (assoc base
            :claim-result-hash (hc/hash-with-intent {:hash/intent :evidence-record} base))))
@@ -218,6 +231,7 @@ tunneling."
            allocation-input
            projection-artifact
            allocation-result
+           execution-result
            transition-dependencies
            attribution
            world-before-hash
@@ -267,6 +281,15 @@ tunneling."
                             artifact-base-opts)
         allocation-result-hash (:allocation-result-hash result-artifact-v1)
         allocation-hash (hc/hash-with-intent {:hash/intent :evidence-content} allocation-result)
+        execution-summary (when execution-result
+                            (let [rows (:allocations execution-result)
+                                  total (fn [field] (reduce + 0 (map #(or (get % field) 0) rows)))]
+                              {:rows rows
+                               :paid-total (total :actual-paid)
+                               :stayed-total (reduce + 0 (map #(if (= :stayed (:execution-status %))
+                                                                 (or (:paid %) 0) 0) rows))
+                               :unpaid-total (reduce + 0 (map #(if (= :unpaid (:execution-status %))
+                                                                  (or (:paid %) 0) 0) rows))}))
         evidence-result {:projection (projection-summary projection-artifact)
                          :pro-rata {:intent {:id :pro-rata/slash-obligation-allocation
                                              :version 1}
@@ -276,8 +299,17 @@ tunneling."
                                     :claims shaped-claims
                                     :summary (merge (claim-summary shaped-claims)
                                                     (pro-rata-summary allocation-result))}
-                         :allocation allocation-result}
-        evidence-record (agg/build-evidence-aggregate
+                         :allocation allocation-result
+                         ;; Proposal allocation is immutable.  This separate
+                         ;; projection reports execution effects after member
+                         ;; appeals; it must never be mistaken for a reallocation.
+                         :execution execution-summary}
+        ;; Targeted evidence is finalized independently of the generic replay
+        ;; event. Bind its scenario identity before hashing so it remains in the
+        ;; same persisted scenario chain rather than being written as `unknown`.
+        scenario-id (or (:ctx/scenario-id attribution)
+                        (get-in world [:params :scenario-id]))
+        evidence-record (assoc (agg/build-evidence-aggregate
                          {:evidence-type :slash/prorata-allocation
                           :schema-version "slash-prorata-allocation.v2"
                           :world world
@@ -294,6 +326,7 @@ tunneling."
                           :result evidence-result
                           :dependencies transition-dependencies
                           :attribution attribution})
+                               :scenario/id scenario-id)
         evidence-hash (hc/hash-with-intent {:hash/intent :evidence-content}
                                            (dissoc evidence-record :evidence/hash :evidence-hash))
         evidence (assoc evidence-record :evidence/hash evidence-hash)
