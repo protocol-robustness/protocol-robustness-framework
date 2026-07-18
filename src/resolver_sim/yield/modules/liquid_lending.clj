@@ -347,11 +347,16 @@
   (let [validation (partial-fill/validate-pro-rata-propagation propagation)
         pid (:propagation/id propagation)
         application-key (get-in propagation [:propagation :idempotency-key])
-                application-order {:run-id (:run/id world)
-                                   :execution-id (:execution/id world)
-                                   :scenario-id (get-in world [:params :scenario-id])
-                                   :event-id (:event/id world)
-                                   :step (:block-time world)}]
+        ;; The temporal context is advanced by replay before dispatch. Its
+        ;; `[step event-seq]` pair is the authoritative execution order even
+        ;; when multiple events share a block timestamp.
+        temporal-order (time-ctx/temporal-context world)
+        application-order {:schema-version "pro-rata-application-order.v1"
+                           :run-id (:run/id world)
+                           :execution-id (:execution/id world)
+                           :scenario-id (get-in world [:params :scenario-id])
+                           :step (:step temporal-order)
+                           :event-id (:event-seq temporal-order)}]
     (when-not (:valid? validation)
       (throw (ex-info "Invalid pro-rata propagation" {:stage :policy-validation
                                                         :validation validation})))
@@ -369,7 +374,14 @@
             ;; directly; shared withdrawal supplies it below for the first apply.
             token (or token (:token propagation) (get-in propagation [:allocation/domain :token]))
             participants (:participants propagation)
-            source-before (get-in world [:total-held token])
+            ;; `:total-held` is the canonical custody ledger when the yield
+            ;; module is embedded in a larger protocol. Standalone yield replay
+            ;; initializes custody through its held-balance projection, so the
+            ;; first shared application explicitly adopts that balance and then
+            ;; persists the canonical source-account snapshot in `:total-held`.
+            source-before (or (get-in world [:total-held token])
+                              (get-in world [:yield/held-balances (name token)])
+                              (get-in world [:yield/held-balances token]))
             _ (when (and (pos? allocated) (nil? source-before))
                 (throw (ex-info "Missing shared liquidity balance" {:reason :missing-shared-liquidity-balance})))
             _ (when (and (some? source-before) (or (not (number? source-before)) (neg? source-before)))
@@ -398,9 +410,12 @@
                                      :position/origin-propagation-id pid
                                      :position/round round
                                      :position/original-priority (or (:position/original-priority prior-lineage) 0)
-                                     :position/current-amount deferred
-                                                                          :position/cumulative-fulfilled (+ (long (:cumulative-fulfilled position 0)) fulfilled)
-                                                                          :position/eligibility :later-liquidity}
+                                                                          :position/original-obligation (or (:position/original-obligation prior-lineage)
+                                                                                                            (:eligible-obligation p))
+                                                                          :position/current-amount deferred
+                                                                                                               :position/cumulative-fulfilled (+ (long (:cumulative-fulfilled position 0)) fulfilled)
+                                                                                                               :position/eligibility :later-liquidity
+                                                                                                               :position/status :active}
                             shortfall (when (pos? deferred)
                                         {:reason :liquidity-shortfall
                                          :basis-amount (+ fulfilled deferred)
@@ -414,20 +429,29 @@
                                                    :shortfall shortfall
                                                    :partial-fill-affected? (pos? deferred)
                                                    :cumulative-fulfilled (+ (long (:cumulative-fulfilled position 0)) fulfilled))
+                                    ;; Any prior deferred position is consumed by this
+                                    ;; application, whether it is fully closed or replaced
+                                    ;; by a positive successor. Preserve it immutably first.
+                                    prior-lineage (update :deferred-position-history
+                                                          record-closed-deferred-position
+                                                          (assoc prior-lineage
+                                                                 :position/status :closed
+                                                                 :position/current-amount 0
+                                                                 :position/closed-by-propagation-id pid))
                                     (pos? deferred) (assoc :deferred-position lineage)
-                                    (zero? deferred) (update :deferred-position-history
-                                                                                                record-closed-deferred-position
-                                                                                                (assoc lineage :position/status :closed
-                                                                                                       :position/current-amount 0
-                                                                                                       :position/closed-by-propagation-id pid))
                                     (zero? deferred) (dissoc :deferred-position))))))
                                                         world participants)
-            next-world (if (contains? (:total-held next-world {}) token)
-                         (update-in next-world [:total-held token] (fnil - 0) allocated)
-                         next-world)
+            ;; Always materialize the source-account ledger after a committed
+            ;; application. This makes later application balance chains
+            ;; independent of the standalone display projection.
+            next-world (assoc-in next-world [:total-held token]
+                                 (- source-before allocated))
             application {:schema-version "pro-rata-propagation-application.v2"
-                         :propagation-id pid :calculation-id (:calculation-ref propagation)
-                         :outcome-hash (:outcome-ref propagation)
+                         :propagation-id pid
+                                                  :propagation/reference {:propagation/id pid
+                                                                          :propagation/hash (:propagation/hash propagation)}
+                                                  :calculation-id (:calculation-ref propagation)
+                                                  :outcome-hash (:outcome-ref propagation)
                          :policy-hash (get-in propagation [:propagation-policy :policy/hash])
                          :application-key application-key
                                                   :application-order application-order
@@ -450,8 +474,9 @@
                                                                                                                              :cumulative-fulfilled {:before (long (get-in world [:yield/positions id :cumulative-fulfilled] 0))
                                                                                                                                                     :delta delta
                                                                                                                                                     :after (+ (long (get-in world [:yield/positions id :cumulative-fulfilled] 0)) delta)}})) participants)
-                         :residual {:available (get-in propagation [:summary :available])
-                                    :allocated allocated :amount (get-in propagation [:summary :unallocated-residual])
+                         :residual {:token token
+                                                             :available (get-in propagation [:summary :available])
+                                                             :allocated allocated :amount (get-in propagation [:summary :unallocated-residual])
                                     :destination (get-in propagation [:residual :destination])}
                          :status :committed}]
         {:status :applied
@@ -489,15 +514,22 @@
       (throw (ex-info "Shared withdrawal effective caps must be non-negative integers for declared owners"
                       {:owner-ids owners :effective-caps effective-caps})))
     (let [positions (mapv #(get-in world [:yield/positions %]) owners)
+          deferred-eligible? (fn [p]
+                               (let [d (:deferred-position p)]
+                                 (and (= :unwinding (:status p))
+                                      (= :deferred-withdrawal (:position/type d))
+                                      (= :active (:position/status d))
+                                      (= :later-liquidity (:position/eligibility d))
+                                      (pos? (long (:position/current-amount d 0))))))
+          eligible? (fn [p]
+                      (and p (= mid (:module/id p)) (token= token (:token p))
+                           (or (= :active (:status p)) (deferred-eligible? p))))
           invalid (->> (map vector owners positions)
-                       (remove (fn [[_ p]] (and p
-                                                (= :active (:status p))
-                                                (= mid (:module/id p))
-                                                (token= token (:token p)))))
+                       (remove (fn [[_ p]] (eligible? p)))
                        (map first)
                        vec)]
       (when (seq invalid)
-        (throw (ex-info "Shared withdrawal requires active positions in one module and token"
+        (throw (ex-info "Shared withdrawal requires active base positions or eligible deferred positions in one module and token"
                         {:module-id mid :token token :invalid-owner-ids invalid})))
       (attr/with-attribution {:withdraw/module-id mid
                               :withdraw/token token
@@ -506,31 +538,37 @@
         (let [now (resolve-now world)
               ;; Crystallize all selected positions before calculating the one pool.
               accrual-decisions (mapv (fn [oid]
-                                        [oid (accrual/accrual-decision
-                                              world {:module-id mid :token token :position-id oid
-                                                     :now now :dt 0})])
+                                        (let [position (get-in world [:yield/positions oid])]
+                                          [oid (when (= :active (:status position))
+                                                 (accrual/accrual-decision
+                                                  world {:module-id mid :token token :position-id oid
+                                                         :now now :dt 0}))]))
                                       owners)
               ;; The shared operation owns one event-evidence record. Apply the
               ;; per-position crystallization decisions directly so each child
               ;; accrual cannot create a same-sequence forensic record.
               accrued-world (reduce (fn [w [_ decision]]
-                                      (accrual/apply-accrual-decision w decision))
+                                      (if decision (accrual/apply-accrual-decision w decision) w))
                                     world accrual-decisions)
               accrued-positions (mapv #(get-in accrued-world [:yield/positions %]) owners)
               requested-by-owner (into {}
                                        (map (fn [oid p]
-                                              [oid (reduce + 0 (vals (:requested
-                                                                      (partial-fill/calculate-fulfillment
-                                                                       Long/MAX_VALUE p))))])
+                                              [oid (if-let [deferred (:deferred-position p)]
+                                                     (long (:position/current-amount deferred 0))
+                                                     (reduce + 0 (vals (:requested
+                                                                         (partial-fill/calculate-fulfillment
+                                                                          Long/MAX_VALUE p)))))] )
                                             owners accrued-positions))
               rows (mapv (fn [oid]
-                           (let [owed (long (get requested-by-owner oid 0))
+                           (let [position (get-in accrued-world [:yield/positions oid])
+                                 deferred (:deferred-position position)
+                                 owed (long (get requested-by-owner oid 0))
                                  supplied-cap (get effective-caps oid owed)]
-                             {:key oid :obligation-id (:position/id (get-in accrued-world [:yield/positions oid]))
-                                                           :owed owed :weight owed
-                                                           ;; The allocator applies min(owed, cap); recording the
-                              ;; supplied effective cap makes policy constraints
-                              ;; explicit without changing uncapped legacy behavior.
+                             {:key oid
+                              :obligation-id (or (:position/root-obligation-id deferred) (:position/id position))
+                              :source-position-id (:position/id deferred)
+                              :requested owed :owed owed :weight owed
+                              ;; Residual entitlement is both request and weight.
                               :cap (long supplied-cap)})) owners)
               base-held (or (get-in accrued-world [:total-held token])
                             (get-in accrued-world [:yield/held-balances (name token)]) 0)
@@ -574,6 +612,11 @@
                                                                   :allocation/ordering :canonical-owner-id-ascending
                                                                   :allocation/rounding-tie-break :canonical-owner-id-ascending}})
               propagation (partial-fill/pro-rata-propagation-artifact decision propagation-policy* policy-selection)
+              binding-violations (partial-fill/propagation-allocation-binding-violations decision propagation)
+              _ (when (seq binding-violations)
+                  (throw (ex-info "Propagation allocation binding failed"
+                                  {:reason :propagation-allocation-binding-failed
+                                   :violations binding-violations})))
               application (apply-pro-rata-propagation accrued-world propagation)
               final-world (-> (:world application)
                               (partial-fill/attach-decision-artifact decision)

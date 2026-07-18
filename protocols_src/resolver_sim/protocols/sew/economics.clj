@@ -10,7 +10,9 @@
    already-derived allocation input. Do not add world-reading allocation
    wrappers unless/until the projection artifact API is explicitly promoted
    to the primary execution path."
-  (:require [resolver-sim.economics.payoffs :as payoffs]))
+  (:require [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.allocation :as pro-rata]
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
 (def ECONOMIC-POLICIES
   "Recommended SEW parameter bands for governance.
@@ -134,19 +136,32 @@
        :recovered-total 0
        :unmet-total amount
        :allocations []}
-      (let [generic (payoffs/allocate-pro-rata
-                     {:amount amount
-                      :items liable-parties
-                      :id-fn :id
-                      :weight-fn basis
-                      :cap-fn cap-field
-                      :rounding :floor-with-largest-remainder
-                      :remainder-policy :unallocated
-                      :ordering-policy :input-order})
-            allocations (mapv (fn [party allocation]
+      (let [rows (mapv (fn [party]
+                         (let [basis-amount (max 0 (long (or (basis party) 0)))
+                               cap-raw (cap-field party)
+                               cap (when (some? cap-raw) (max 0 (long cap-raw)))]
+                           {:row/id [:sew-slash-row (:id party)]
+                            :obligation/id (:id party)
+                            :requested amount
+                            :weight basis-amount
+                            :cap cap}))
+                       liable-parties)
+            generic (pro-rata/allocate
+                     {:schema-version "pro-rata-allocation-request.v1"
+                      :mechanism/version 1
+                      :allocation/id [:sew-slash-allocation amount]
+                      :available amount
+                      :rows rows
+                      :rounding-policy :largest-remainder
+                      :tie-break-policy :canonical-row-id
+                      :redistribution-policy :unallocated})
+            mechanism-evidence (pro-rata-evidence/mechanism-evidence-artifact generic)
+            by-row-id (into {} (map (juxt :row/id identity) (:rows generic)))
+            allocations (mapv (fn [party]
                                 (let [basis-amount (max 0 (long (or (basis party) 0)))
                                       cap-raw (cap-field party)
-                                      cap (when (some? cap-raw) (max 0 (long cap-raw)))]
+                                      cap (when (some? cap-raw) (max 0 (long cap-raw)))
+                                      allocation (get by-row-id [:sew-slash-row (:id party)])]
                                   {:id (:id party)
                                    :basis-amount basis-amount
                                    :share (if (pos? total-basis)
@@ -157,15 +172,19 @@
                                    :unmet (:unmet allocation)
                                    :cap cap
                                    :ended-at (:ended-at party)}))
-                              liable-parties (:allocations generic))]
+                              liable-parties)]
         {:basis basis
          :cap-field cap-field
          :unmet-policy unmet-policy
          :slash-policy slash-policy
          :slash-obligation amount
          :total-basis total-basis
-         :recovered-total (:total-allocated generic)
-         :unmet-total (:total-unmet generic)
+         :recovered-total (:allocated-total generic)
+         :unmet-total (reduce + 0 (map :unmet allocations))
+         ;; Presentation order remains SEW's supplied liable-party order. The
+         ;; complete canonical mechanism witness is retained separately.
+         :mechanism/evidence mechanism-evidence
+         :mechanism/evidence-reference (pro-rata-evidence/evidence-reference mechanism-evidence)
          :allocations allocations}))))
 
 (defn build-sew-slash-projection-artifact
@@ -190,8 +209,8 @@
       :cap-fn cap-field
       :rounding :floor-with-largest-remainder
       :remainder-policy :unallocated
-      :ordering-policy :input-order}
-     {:source (merge {:type :allocation-input
+      :ordering-policy :canonical-id}
+           {:source (merge {:type :allocation-input
                       :basis basis
                       :cap-field cap-field
                       :unmet-policy unmet-policy

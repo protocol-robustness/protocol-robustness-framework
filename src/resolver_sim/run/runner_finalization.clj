@@ -42,6 +42,7 @@
 (defn runner-finalization->wire [artifact]
   (-> artifact
       (update-in [:runner/selection :mode] name)
+      (update-in [:runner/selection :runner-id] name)
       (update-in [:runner/local :runtime/kind] name)
       (update-in [:execution/result :execution/termination] name)
       (update-in [:execution/result :semantic/outcome] name)))

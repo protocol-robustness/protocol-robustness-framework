@@ -15,7 +15,7 @@ tunneling."
             [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.economics :as sew-economics]
-            [resolver-sim.yield.pro-rata-claims :as pro-rata-claims]))
+            [resolver-sim.pro-rata.claims :as pro-rata-claims]))
 
 ;; ── Extractors ──────────────────────────────────────────────────────────
 
@@ -56,13 +56,37 @@ tunneling."
 
 ;; ── Claim evaluation evidence node ─────────────────────────────────────
 
+(defn- claim-allocation-view
+  "Remove derived ratio values before canonical evidence hashing. Exact integer
+   allocation facts remain intact; a ratio can be deterministically recomputed
+   from basis and total basis by an evaluator when needed."
+  [result]
+  (-> result
+      ;; Legacy projection claims compare SEW presentation facts only. The
+      ;; complete generic witness is referenced by the domain result but is
+      ;; deliberately validated through mechanism evidence, not reconstructed
+      ;; by projection artifacts.
+      (dissoc :mechanism/evidence :mechanism/evidence-reference)
+      (update :allocations
+              (fn [rows]
+                (mapv #(dissoc % :share) (or rows []))))))
+
 (defn build-claim-evaluation-node
   "Build a lightweight evidence node carrying the allocation facts needed by
    claim evaluators. Hash is computed on the node content for deterministic
    addressing."
   [allocation-input projection-artifact allocation-result
    projection-artifact-again projection-result]
-  (let [content {:claims/input-context
+  (let [permuted-input (update allocation-input :liable-parties
+                               #(vec (reverse (or % []))))
+        direct-result-permuted
+        (sew-economics/calculate-sew-slash-allocation permuted-input)
+        projection-artifact-permuted
+        (sew-economics/build-sew-slash-projection-artifact permuted-input)
+        projection-result-permuted
+        (sew-economics/calculate-sew-slash-allocation-from-projection
+         projection-artifact-permuted)
+        content {:claims/input-context
                  {:liable-parties (:liable-parties allocation-input [])
                   :total-basis (long (:total-basis allocation-result 0))
                   :slash-obligation (or (:slash-obligation allocation-input)
@@ -71,22 +95,33 @@ tunneling."
                   :basis-field (:basis allocation-input :slashable-stake)
                   :cap-field (:cap-field allocation-input :available-slashable)
                   :unmet-policy (:unmet-policy allocation-input :record-only)}
-                 :claims/direct-result allocation-result
+                 :claims/direct-result (claim-allocation-view allocation-result)
+                 :claims/direct-result-permuted (claim-allocation-view direct-result-permuted)
                  :claims/projection-artifact projection-artifact
                  :claims/projection-artifact-again projection-artifact-again
-                 :claims/projection-result projection-result}
+                 :claims/projection-result (claim-allocation-view projection-result)
+                 :claims/projection-result-permuted (claim-allocation-view projection-result-permuted)}
         node-hash (hc/hash-with-intent {:hash/intent :evidence-content} content)]
     {:node-hash node-hash
      :result content
      :claims/evaluation-context true}))
 
+(defn legacy-projection-claim-ids
+  "Claim IDs that can be evaluated from the legacy SEW projection evidence.
+   Witness-backed claims run only against mechanism-result evidence."
+  []
+  (vec (remove #{:pro-rata/cap-respecting
+                 :pro-rata/canonical-remainder-assignment}
+               (pro-rata-claims/registered-claim-ids))))
+
 (defn build-claim-requests
   "Build claim requests referencing the claim-evaluation node hash."
   [evaluation-node-hash]
-  (mapv (fn [claim-id]
-          {:claim-id claim-id
-           :evidence-references [evaluation-node-hash]})
-        (pro-rata-claims/registered-claim-ids)))
+  (let [legacy-projection-claim-ids (legacy-projection-claim-ids)]
+    (mapv (fn [claim-id]
+            {:claim-id claim-id
+             :evidence-references [evaluation-node-hash]})
+          legacy-projection-claim-ids)))
 
 ;; ── Result shaping ─────────────────────────────────────────────────────
 

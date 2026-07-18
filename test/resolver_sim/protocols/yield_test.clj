@@ -3,7 +3,8 @@
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.yield :as yp]
-            [resolver-sim.protocols.registry :as preg]))
+            [resolver-sim.protocols.registry :as preg]
+                        [resolver-sim.yield.invariants :as yield-invariants]))
 
 (def base-scenario
   {:scenario-id "yield-test-inline"
@@ -76,7 +77,18 @@
       (is (= "pro-rata-propagation.v1" (:schema-version propagation)))
       (is (= 1800 (get-in propagation [:summary :allocated])))
       (is (= 1200 (get-in propagation [:summary :deferred])))
-      (is (= :committed (:status propagation))))))
+      (is (= :committed (:status propagation)))
+      (let [accounting (get (yield-invariants/check-all (:world result))
+                            :yield/pro-rata-accounting-reconciles)]
+        (is (true? (:holds? accounting)))
+        (doseq [check [:policy-reference-valid
+                       :source-account-policy-compliant
+                       :participant-account-policy-compliant
+                       :deferred-position-policy-compliant
+                       :shortfall-policy-compliant
+                       :residual-policy-compliant
+                       :idempotency-policy-compliant]]
+          (is (= :pass (get-in accounting [:checks check]))))))))
 
 (deftest y01-long-accrue-expectations
   (let [scenario (assoc base-scenario

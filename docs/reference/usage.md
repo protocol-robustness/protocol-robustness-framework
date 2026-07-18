@@ -40,6 +40,8 @@ bb sim:run -p data/params/baseline.edn
     run.json
     summary.json
     artifacts.json
+    artifact-registry-validation.json
+    run-package-index.json
     sensitivity-report.json
   scenarios/<slug>/
     execution/
@@ -48,7 +50,15 @@ bb sim:run -p data/params/baseline.edn
     forensic/
 ```
 
-`completion.json` is the sole positive indication that execution, finalization, registry validation, and sensitivity assessment succeeded. Completed, incomplete, and unrelated non-empty roots are rejected; use a new root for each run.
+`completion.json` is the terminal lifecycle seal for a canonical single-scenario run. It commits to the contained path, exact SHA-256, and exact byte length of `manifest/run-package-index.json`. Completed, incomplete, and unrelated non-empty roots are rejected; use a new root for each run.
+
+The immutable package boundary is `manifest/run-package-index.json`. It commits to the required authoritative pre-completion closure: the snapshotted input, scenario/runner/run finalizations, canonical-integrity assurance, registry and registry-validation result, and execution DAG. The index does not include `completion.json`; the pre-package registry intentionally excludes both `manifest/run-package-index.json` and `completion.json` to avoid circular commitments.
+
+Package validation begins at `completion.json`, verifies the exact persisted package-index bytes, then validates its supported profile, indexed closure, semantic artifacts, and authoritative reconciliation. A semantic payload hash and an exact persisted-byte SHA-256 are distinct commitments and both must validate.
+
+For `:single-scenario`, the canonical lifecycle requires a persisted valid execution DAG before completion. Inner `run-and-report` execution may retain partial or diagnostic output when DAG materialization fails, but it does not produce a complete canonical package.
+
+A sealed package can be complete, integrity-valid, and runnable while its semantic result is `fail`. Unsigned canonical integrity is not release authorization; release eligibility additionally requires signer/operator assurance.
 
 The immutable artifact registry is `manifest/artifacts.json`. Registered artifact paths are relative to the complete run root.
 

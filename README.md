@@ -54,7 +54,15 @@ bb benchmark:run :benchmark/prf-protocol-robustness-v0 --run-root /tmp/prf-bench
 
 ### Verify output
 
-A completed run produces a `completion.json` at the run root. Validate it:
+A canonical single-scenario run writes `completion.json` only after its required
+execution DAG, finalizations, registry validation, canonical-integrity assurance,
+and immutable `manifest/run-package-index.json` pass the pre-completion package
+gate. Completion binds the exact persisted package-index bytes; it does not mean
+the scenario semantically passed, and unsigned content integrity is not release
+or signer assurance. Benchmark and suite package profiles remain unsupported by
+the single-scenario package validator.
+
+Validate a completed run:
 
 ```bash
 java -jar target/prf.jar verify-scenario --run-root /tmp/prf-scenario

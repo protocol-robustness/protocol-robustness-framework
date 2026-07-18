@@ -58,7 +58,10 @@
                   (:reasons (registry-closure-report r {:artifacts [(assoc valid :path "../outside.json")]}))))
         (is (some #(= :registry-validation/terminal-package-artifact-indexed (:code %))
                   (:reasons (registry-closure-report r
-                                                     {:artifacts [(assoc valid :path "completion.json")]})))))
+                                                     {:artifacts [(assoc valid :path "completion.json")]}))))
+        (is (some #(= :registry-validation/terminal-package-artifact-indexed (:code %))
+                  (:reasons (registry-closure-report r
+                                                     {:artifacts [(assoc valid :path "manifest/run-package-index.json")]})))))
       (finally (delete-tree! r)))))
 
 (deftest canonical-assurance-reports-semantic-failures-with-specific-causes
@@ -122,6 +125,21 @@
           (is (some #{:unsupported-schema-version} (:causes scenario-reason)))))
       (finally (delete-tree! r)))))
 
+(deftest package-index-wire-round-trip-preserves-semantic-hash
+  (let [logical (package-index/build {:run-id "run-1"
+                                      :scenario-id "scenario-1"
+                                      :execution-id "execution:run-1"
+                                      :run-type :single-scenario})
+        wire (package-index/package-index->wire logical)
+        restored (package-index/wire->package-index wire)]
+    (is (= "single-scenario" (:run/type wire)))
+    (is (= :single-scenario (:run/type restored)))
+    (is (= (:run-package/hash logical) (:run-package/hash restored)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Unsupported package index run type"
+                          (package-index/wire->package-index
+                           (assoc wire :run/type "benchmark"))))))
+
 (deftest package-index-build-retains-the-pre-package-registry-commitments
   (let [index (package-index/build {:run-id "run-1"
                                     :scenario-id "scenario-1"
@@ -142,6 +160,30 @@
                 (:reasons (package-index/resolve-completion-context r))))
       (finally (delete-tree! r)))))
 
+(deftest completion-context-rejects-invalid-terminal-fields-before-trusting-index
+  (let [r (root)]
+    (try
+      (write-dag! r (valid-dag))
+      (write-index! r {:execution-dag (artifact-ref r "execution/execution-dag.json")})
+      (let [completion-file (io/file r "completion.json")
+            completion (clojure.data.json/read-str (slurp completion-file))]
+        (doseq [[field invalid]
+                [["schema_version" "run-completion.v0"]
+                 ["run_id" ""]
+                 ["lifecycle_status" "failed"]
+                 ["run_type" "benchmark"]
+                 ["run_package_index_sha256" "not-a-sha256-reference"]
+                 ["run_package_index_bytes" -1]
+                 ["run_package_index_bytes" "123"]]]
+          (spit completion-file (clojure.data.json/write-str (assoc completion field invalid)))
+          (let [ctx (package-index/resolve-completion-context r)]
+            (is (some #(= :package/completion-invalid (:code %)) (:reasons ctx))
+                (str field " must fail completion validation"))
+            (is (nil? (get-in ctx [:package-index :index])))))
+        ;; Restore a valid completion before cleanup so each case is isolated.
+        (spit completion-file (clojure.data.json/write-str completion)))
+      (finally (delete-tree! r)))))
+
 (deftest completion-context-validates-index-binding
   (let [r (root)]
     (try
@@ -158,6 +200,35 @@
         (spit completion-file (clojure.data.json/write-str (assoc completion "run_package_index_ref" "../outside.json")))
         (is (some #(= :package/package-index-path-invalid (:code %))
                   (:reasons (package-index/resolve-completion-context r)))))
+      (finally (delete-tree! r)))))
+
+(deftest completion-rejects-optional-authoritative-commitment-splicing
+  (let [r (root)]
+    (try
+      (write-dag! r (valid-dag))
+      (write-index! r {:execution-dag (artifact-ref r "execution/execution-dag.json")
+                       :runner-finalization {:ref "execution/runner-finalization.json"
+                                             :sha256 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                                             :bytes 1}
+                       :artifact-registry {:ref "manifest/artifacts.json"
+                                           :sha256 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                                           :bytes 1}
+                       :registry-validation {:ref "manifest/artifact-registry-validation.json"
+                                             :sha256 "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                                             :bytes 1}})
+      (let [completion-file (io/file r "completion.json")
+            completion (clojure.data.json/read-str (slurp completion-file))]
+        (doseq [[field] [["runner_finalization_sha256"]
+                         ["artifact_registry_sha256"]
+                         ["registry_validation_sha256"]]]
+          (spit completion-file
+                (clojure.data.json/write-str
+                 (assoc completion field
+                        "sha256:0000000000000000000000000000000000000000000000000000000000000000")))
+          (is (some #(and (= :package/completion-artifact-commitment-mismatch (:code %))
+                          (= field (:field %)))
+                    (:reasons (package-index/validate-integrity r)))
+              (str field " must bind the exact indexed artifact commitment"))))
       (finally (delete-tree! r)))))
 
 (deftest package-predicates-return-booleans-and-do-not-trust-an-unsealed-index
@@ -288,6 +359,38 @@
         (write-index! r {:execution-dag (artifact-ref r "execution/execution-dag.json")})
         (is (some #(= :package/unreadable-artifact (:code %))
                   (:reasons (package-index/validate-integrity r)))))
+      (finally (delete-tree! r)))))
+
+(deftest package-integrity-rejects-malformed-indexed-entry-commitments
+  (let [r (root)]
+    (try
+      (write-dag! r (valid-dag))
+      (let [entry (artifact-ref r "execution/execution-dag.json")]
+        (doseq [[field invalid code]
+                [[:sha256 "bad-digest" :package/invalid-artifact-sha256]
+                 [:sha256 nil :package/invalid-artifact-sha256]
+                 [:bytes -1 :package/invalid-artifact-byte-length]
+                 [:bytes "123" :package/invalid-artifact-byte-length]]]
+          (write-index! r {:execution-dag (assoc entry field invalid)})
+          (is (some #(= code (:code %)) (:reasons (package-index/validate-integrity r)))
+              (str field " must be a strict indexed commitment"))))
+      (finally (delete-tree! r)))))
+
+(deftest package-integrity-detects-required-artifact-removal-after-index-sealing
+  (let [r (root)]
+    (try
+      (let [snapshot (io/file r "inputs/scenarios/scenario-1.edn")]
+        (.mkdirs (.getParentFile snapshot))
+        (spit snapshot "{:scenario-id \"scenario-1\"}")
+        (write-dag! r (valid-dag))
+        (write-index! r {:input-snapshot (artifact-ref r "inputs/scenarios/scenario-1.edn")
+                         :execution-dag (artifact-ref r "execution/execution-dag.json")})
+        (io/delete-file snapshot)
+        (let [report (package-index/validate-integrity r)]
+          (is (some #(and (= :package/missing-artifact (:code %))
+                          (= :input-snapshot (:artifact-id %)))
+                    (:reasons report)))
+          (is (false? (package-index/runnable? r)))))
       (finally (delete-tree! r)))))
 
 (deftest package-integrity-requires-byte-length-for-required-artifacts

@@ -74,21 +74,23 @@ input snapshots and execution plan
 | Input | Review purpose |
 |---|---|
 | `S-DR-001-basic-release-ruling.edn` | Straightforward successful lifecycle. |
-| `S-DR-084-evidence-after-settlement-rejected.edn` | Expected rejected interaction with retained forensic diagnostics. |
+| `S-DR-084-evidence-after-settlement-rejected.edn` | Safe control: late evidence after settlement is rejected and the finalized workflow remains unchanged. |
+| `S-NC-001-freeze-active-dispute-negative-control.edn` | Intentional semantic-failure control: a successful slash transition leaves a frozen resolver assigned to an active dispute, violating a protocol invariant. |
 | `Y06_multi-party-pro-rata-shortfall.edn` | Atomic shared-pool constrained allocation with deterministic pro-rata handling. |
-| `DR-N-002-reversal-slash-appeal-rejected.edn` | Appeal/slashing adversarial path. |
+| `DR-N-002-reversal-slash-appeal-rejected.edn` | Appeal/slashing adversarial path for focused manual review. |
 | `sew/sew-force-authorisation-custody-v1` | Multi-execution benchmark with conservation and assurance finalization. |
 
-The packet generator executes and verifies the rejected-interaction scenario,
-the pro-rata scenario, the completed semantic-failure scenario, and the
-benchmark as evidence examples. `DR-N-002` intentionally concludes `fail`; its
-successful verification demonstrates that lifecycle completion and semantic
-outcome are distinct. Its reviewer-facing diagnostic diagram is available at
-`diagnostics/scenario-semantic-failure/diagnostic.md` (with Mermaid source in
-`diagnostic.mmd`); it is derived and non-authoritative. The other selected
-definitions are included for focused
-manual review; run them into fresh roots before treating them as release
-examples.
+The packet generator executes and verifies the safe rejected-interaction control,
+the pro-rata scenario, `DR-N-002` as the completed semantic-failure control, and
+the benchmark as evidence examples. `DR-N-002` reaches an unsuppressed invariant
+violation without aborting the outer lifecycle; its successful package
+verification demonstrates that lifecycle completion, content integrity, and
+runnability are distinct from semantic success. Its reviewer-facing diagnostic
+diagram is available at `diagnostics/scenario-semantic-failure/diagnostic.md`
+(with Mermaid source in `diagnostic.mmd`); it is derived and non-authoritative.
+`S-NC-001` remains included as an explicitly labelled manual negative-control
+input; its fraud-slash evidence path currently depends on a claim-registry repair
+before it can replace `DR-N-002` as the generated package example.
 
 ### Pro-rata allocation evidence
 
@@ -128,19 +130,23 @@ claim that Y06 is evidence for slashing allocation.
 6. For the semantic-failure example, read
    `diagnostics/scenario-semantic-failure/diagnostic.md` after verifying the
    authoritative bundle. It is a concise derived timeline, not evidence.
-7. Run the matching verifier. A verifier is read-only and fails closed on missing,
-   malformed, tampered, or unreconciled required material.
+7. Run the matching verifier. Verifiers are read-only. The canonical
+   single-scenario completion-first package validator is implemented as the
+   package-assurance API; `verify-scenario` integration remains a separate
+   final wiring step, so use the package-assurance result rather than inferring
+   that every current verifier path exposes all package reason codes.
 
 `completion.json` means the evidence lifecycle completed. It does **not** mean
 a scenario or benchmark semantically passed. Scenario and benchmark outcomes
 remain separate from lifecycle completion.
 
-`verify-scenario` verifies content integrity, declared evidence reconciliation,
-and terminal finalization. It is intentionally distinct from optional
-forensic-grade claims such as a signed cursor: an unsigned bundle can verify
-successfully while a signature-dependent forensic claim reports `fail`. That
-reports the absent trust mechanism; it does not invalidate the content-addressed
-bundle or assert operator identity.
+The completion-first package-assurance API verifies content integrity, declared
+evidence reconciliation, and terminal finalization for the supported
+single-scenario profile. It is intentionally distinct from optional
+forensic-grade claims such as a signed cursor: an unsigned package can be
+integrity-valid and runnable while release eligibility reports `false` because
+signer/operator assurance is absent. That reports the absent trust mechanism; it
+does not invalidate the content-addressed package or assert operator identity.
 
 ## Limits and maturity
 

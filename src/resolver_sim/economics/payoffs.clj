@@ -270,7 +270,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- pro-rata-requests
-  [amount prepared total-weight rounding]
+  [amount prepared total-weight rounding ordering-policy]
   (let [floors (mapv (fn [{:keys [weight]}]
                        (quot (* amount weight) total-weight))
                      prepared)]
@@ -281,12 +281,16 @@
       :floor-with-largest-remainder
       (let [allocated (reduce +' 0 floors)
             shortage (- amount allocated)
-            remainders (mapv (fn [{:keys [idx weight]}]
+            remainders (mapv (fn [{:keys [idx id weight]}]
                                {:idx idx
+                                :id id
                                 :remainder (mod (* amount weight) total-weight)})
                              prepared)
+            tie-key (case ordering-policy
+                      :input-order :idx
+                      :canonical-id :id)
             remainder-order (->> remainders
-                                 (sort-by (juxt (comp - :remainder) :idx))
+                                 (sort-by (juxt (comp - :remainder) tie-key))
                                  (map :idx)
                                  (take shortage)
                                  set)]
@@ -306,7 +310,9 @@
    - :rounding :floor (default) leaves integer dust in :remainder
    - :rounding :floor-with-largest-remainder distributes dust by Hare quota
    - :remainder-policy :unallocated reports capped/unallocated amounts; it does not redistribute
-   - :ordering-policy :input-order breaks equal-remainder ties by input order"
+   - :ordering-policy :input-order breaks equal-remainder ties by input order
+   - :ordering-policy :canonical-id breaks equal-remainder ties by stable item ID,
+     making allocation ownership independent of input order"
   [{:keys [amount items id-fn weight-fn cap-fn rounding remainder-policy ordering-policy
            progress-atom on-progress]
     :or {id-fn :id
@@ -319,7 +325,7 @@
     (throw (ex-info "Unsupported pro-rata rounding policy" {:rounding rounding})))
   (when-not (= :unallocated remainder-policy)
     (throw (ex-info "Unsupported pro-rata remainder policy" {:remainder-policy remainder-policy})))
-  (when-not (= :input-order ordering-policy)
+  (when-not (#{:input-order :canonical-id} ordering-policy)
     (throw (ex-info "Unsupported pro-rata ordering policy" {:ordering-policy ordering-policy})))
   (let [progress-observer (or on-progress progress-atom)
         amount (non-negative-integer amount)
@@ -345,7 +351,7 @@
         _ (report-pro-rata-progress! progress-observer {:phase :requesting})
         requests (if (zero? total-weight)
                    (repeat (count prepared) 0)
-                   (pro-rata-requests amount prepared total-weight rounding))
+                   (pro-rata-requests amount prepared total-weight rounding ordering-policy))
         _ (report-pro-rata-progress! progress-observer {:phase :allocating})
         allocations (mapv (fn [{:keys [idx id weight cap]} requested]
                             (let [allocated (min requested (or cap requested))
@@ -414,8 +420,11 @@
      :excess excess
      :base-map (into {} (map (fn [a] [(:id a) a]) base-allocations))}))
 
-(defn allocate-pro-rata-with-redistribution
-  "Like allocate-pro-rata, but when an item hits its cap the excess
+(defn- allocate-pro-rata-with-redistribution-legacy
+  "Legacy pre-active-set implementation retained temporarily for parity diagnostics.
+   New callers resolve `allocate-pro-rata-with-redistribution` below.
+
+   Like allocate-pro-rata, but when an item hits its cap the excess
    is redistributed to remaining uncapped items iteratively until no
    new caps are hit or the iteration limit is reached.
 
@@ -431,17 +440,19 @@
    Optional :progress-atom is the caller-owned atom created by
    make-pro-rata-progress-atom. It is forwarded to each allocation pass and
    reports :redistributing plus :redistribution-pass between passes."
-  [{:keys [amount items id-fn weight-fn cap-fn rounding progress-atom on-progress]
+  [{:keys [amount items id-fn weight-fn cap-fn rounding ordering-policy progress-atom on-progress]
     :or {id-fn :id
          weight-fn :weight
          cap-fn :cap
-         rounding :floor-with-largest-remainder}}]
+         rounding :floor-with-largest-remainder
+         ordering-policy :input-order}}]
   (let [progress-observer (or on-progress progress-atom)
         base-result (allocate-pro-rata {:amount amount
                                         :items items
                                         :id-fn id-fn :weight-fn weight-fn :cap-fn cap-fn
                                         :rounding rounding
                                         :remainder-policy :unallocated
+                                        :ordering-policy ordering-policy
                                         :on-progress progress-observer})
         {:keys [capped-ids excess base-map]}
         (initial-cap-analysis base-result items id-fn)
@@ -482,6 +493,7 @@
                                                    :cap-fn (residual-cap-fn id-fn cap-fn allocated-by-id)
                                                    :rounding rounding
                                                    :remainder-policy :unallocated
+                                                   :ordering-policy ordering-policy
                                                    :on-progress progress-observer})
                   merged (merge-into-base acc-base-map (:allocations pass-result))
                   ;; Only allocations from this pass can become newly capped.
@@ -531,6 +543,110 @@
                          all-capped
                          (inc pass-num)
                          pass-records)))))))))))
+
+(defn allocate-pro-rata-with-redistribution
+  "Allocate with cap redistribution using an active-set algorithm.
+
+   Rows that cannot receive their current exact quota because of a cap are
+   committed at that cap, removed, and the remaining availability is recomputed
+   over the remaining weighted rows. Integer largest-remainder rounding occurs
+   only in the final unconstrained group."
+  [{:keys [amount items id-fn weight-fn cap-fn rounding ordering-policy progress-atom on-progress]
+    :or {id-fn :id weight-fn :weight cap-fn :cap
+         rounding :floor-with-largest-remainder ordering-policy :input-order}}]
+  (let [amount (non-negative-integer amount)
+        items (vec (or items []))
+        observer (or on-progress progress-atom)
+        item-id (fn [item] (id-fn item))
+        cap-of (fn [item]
+                 (when-let [cap (cap-fn item)]
+                   (non-negative-integer cap)))]
+    (loop [round-index 0
+           remaining amount
+           active items
+           committed {}
+           passes []]
+      (let [weight-total (reduce +' 0 (map #(non-negative-integer (weight-fn %)) active))]
+        (cond
+          (empty? active)
+          (let [allocations (allocations-in-input-order items id-fn (vals committed))
+                total-allocated (reduce +' 0 (map :allocated allocations))]
+            {:allocations allocations :total-requested amount
+             :total-allocated total-allocated :total-unmet 0 :remainder remaining
+             :policy {:rounding rounding :remainder-policy :unallocated
+                      :ordering-policy ordering-policy :total-weight weight-total}
+             :redistribution {:passes passes :total-passes round-index
+                              :residual-reason :no-remaining-capacity}})
+
+          (zero? weight-total)
+          (let [all-rows (merge committed
+                                (into {} (map (fn [item]
+                                                [(item-id item)
+                                                 {:id (item-id item) :allocated 0 :unmet 0
+                                                  :weight 0 :cap (cap-of item)}]) active)))
+                allocations (allocations-in-input-order items id-fn (vals all-rows))
+                total-allocated (reduce +' 0 (map :allocated allocations))]
+            {:allocations allocations :total-requested amount
+             :total-allocated total-allocated :total-unmet 0 :remainder remaining
+             :policy {:rounding rounding :remainder-policy :unallocated
+                      :ordering-policy ordering-policy :total-weight 0}
+             :redistribution {:passes passes :total-passes round-index
+                              :residual-reason :no-active-weight}})
+
+          :else
+          (let [capped (filterv (fn [item]
+                                  (when-let [cap (cap-of item)]
+                                    (>= (* remaining (non-negative-integer (weight-fn item)))
+                                        (* cap weight-total))))
+                                active)
+                pass {:pass round-index
+                      :available-at-start remaining
+                      :active-ids (mapv item-id active)
+                      :active-weight-total weight-total
+                      ;; Compatibility aliases retained for historical evidence readers.
+                      :capped-ids (mapv item-id capped)
+                      :excess remaining
+                      :newly-capped-ids (mapv item-id capped)}]
+            (if (seq capped)
+              (let [committed-amount (reduce +' 0 (map cap-of capped))
+                    capped-ids (set (map item-id capped))]
+                (report-pro-rata-progress! observer
+                                           {:status :running :phase :redistributing
+                                            :redistribution-pass round-index})
+                (recur (inc round-index)
+                       (- remaining committed-amount)
+                       (vec (remove #(contains? capped-ids (item-id %)) active))
+                       (merge committed
+                              (into {} (map (fn [item]
+                                              [(item-id item)
+                                               {:id (item-id item)
+                                                :allocated (cap-of item)
+                                                :unmet 0
+                                                :weight (non-negative-integer (weight-fn item))
+                                                :cap (cap-of item)}]) capped)))
+                       (conj passes (assoc pass :committed-by-cap committed-amount
+                                                :available-after-caps (- remaining committed-amount)))))
+              (let [final-result (allocate-pro-rata
+                                  {:amount remaining :items active :id-fn id-fn
+                                   :weight-fn weight-fn :cap-fn cap-fn :rounding rounding
+                                   :remainder-policy :unallocated
+                                   :ordering-policy ordering-policy
+                                   :on-progress observer})
+                    final-map (into {} (map (juxt :id identity) (:allocations final-result)))
+                    merged (merge committed final-map)
+                    allocations (allocations-in-input-order items id-fn (vals merged))
+                    total-allocated (reduce +' 0 (map :allocated allocations))]
+                {:allocations allocations :total-requested amount
+                 :total-allocated total-allocated :total-unmet (:total-unmet final-result)
+                 :remainder (:remainder final-result)
+                 :policy (:policy final-result)
+                 :redistribution {:passes (conj passes (assoc pass
+                                                                 :committed-by-cap 0
+                                                                 :available-after-caps remaining))
+                                  :total-passes (inc round-index)
+                                  :residual-reason (if (pos? (:remainder final-result))
+                                                     (if (= rounding :floor) :floor-rounding :unallocated)
+                                                     :none)}}))))))))
 
 (defn- allocation-validation-checks
   [items allocation]

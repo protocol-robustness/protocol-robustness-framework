@@ -2,6 +2,55 @@
 
 ## [Unreleased]
 
+Changed
+Introduced a domain-neutral pro-rata allocation mechanism under resolver-sim.pro-rata.*. Shared-withdrawal and Sew slash allocation now consume the same public mechanism boundary while retaining their own domain-specific evidence translation, accounting, lifecycle, and presentation semantics.
+Added versioned, self-describing allocation contracts:
+pro-rata-allocation-request.v1
+pro-rata-allocation-result.v1
+mechanism identity :mechanism/pro-rata-allocation version 1
+Added canonical integer witnesses for pro-rata execution, including:
+declared and effective caps;
+initial and effective quotas;
+floor allocations;
+fractional remainders;
+canonical remainder ranks and awards;
+active-set redistribution-round traces.
+Added independent witness validation and mechanism claims for:
+allocation completeness;
+non-negative values;
+conservation;
+cap compliance;
+quota bounds;
+canonical remainder assignment;
+permutation invariance.
+
+Corrected capped redistribution to use the normative active-set algorithm:
+
+calculate quotas over active rows
+→ commit cap-constrained rows
+→ remove committed rows
+→ recompute remaining availability
+→ round only the final active group
+
+This intentionally differs from the retained private legacy implementation, which remains available only for historical diagnostics.
+
+Migrated shared-withdrawal pro-rata allocation to resolver-sim.pro-rata.allocation/allocate without changing its domain-owned propagation, accounting, deferred-position, or authoritative application semantics.
+Added allocation-bound shared-withdrawal propagation v2. Propagation now carries a hash-bound reference to the exact pro-rata allocation and source partial-fill decision, while application v2 preserves the binding transitively through the committed propagation artifact.
+Added hash-bound mechanism evidence envelopes to the shared-withdrawal evidence path, including complete allocation identity, mechanism version, result hash, and source-decision binding. These envelopes are currently carried through domain evidence; persistence as standalone mechanism evidence nodes remains future work.
+Migrated Sew slash allocation arithmetic to the public pro-rata mechanism API while preserving the historical Sew result shape, liable-party presentation order, and projection-shadow compatibility checks.
+Moved mechanism-level pro-rata claim evaluators to resolver-sim.pro-rata.claims. The former resolver-sim.yield.pro-rata-claims namespace remains as a compatibility forwarding layer.
+Added the :mechanism/pro-rata-allocation concept, documenting the mechanism’s reusable guarantees and explicitly excluding account selection, accounting-entry generation, shortfall classification, deferred-position lifecycle, slash lifecycle, and authoritative state mutation.
+Compatibility notes
+Existing shared-withdrawal propagation v1 artifacts retain their original assurance contract and do not contain an allocation binding.
+Legacy Sew projection claims remain scoped to the historical projection artifact. They do not claim validation of the new cap, quota, remainder, or redistribution-round witnesses.
+:principal-first and :waterfall remain separate allocation paths and continue to use their existing arithmetic implementations. They have not been placed behind the pro-rata mechanism API.
+Not included in this change
+standalone mechanism evidence nodes or claim-result evidence nodes;
+package-level or evidence-DAG integration;
+operational multi-round deferred-withdrawal recovery;
+Sew authoritative slash propagation or state mutation;
+runtime mechanism selection or a mechanism registry.
+
 ### Added (2026-07-18)
 
 - **Immutable runner finalization and runnable package indexes:** Structured scenario and benchmark lifecycles now emit content-addressed `runner-finalization.v1` artifacts that bind a pinned local runner identity, local runtime details, execution termination, semantic outcome, CLI exit code, and a result commitment. Scenario runs bind the runner finalization from run evidence finalization, canonical-integrity assurance, completion, and the final artifact inventory. Scenario bundles now publish `run-package-index.v1` as the immutable runnable package boundary, committing independently hashed runner, evidence-finalization, assurance, and execution-DAG artifacts without mutating the bundle root. Benchmark runs now emit an explicit `:runner/local-clojure` finalization, finalization and package-index phases before terminal completion, and completion references to the package index. Runner and package finalizations use dedicated canonical hash intents; forensic-release policy requires the runner-finalization binding. (`src/resolver_sim/{run/{runner_finalization.clj,package_index.clj,criteria.clj},hash/canonical.clj,evidence/finalization.clj,commands/{scenario_orchestration.clj,scenario_inventory.clj,benchmark_orchestration.clj,benchmark_inventory.clj,run_benchmark.clj}}`, `test/resolver_sim/run/runner_finalization_test.clj`)

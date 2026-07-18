@@ -222,8 +222,8 @@
                   :domains #{:economic-allocation}
                   :modules #{:slashing}}
           :inputs #{:obligations :weights :caps :balances :eligible-participants}
-          :constraints #{:conservation :non-negative :allocation-completeness
-                         :rounding-bounded}
+          :constraints #{:pro-rata/conservation :pro-rata/non-negative
+                                   :pro-rata/allocation-complete :pro-rata/quota-bounded}
           :output {:type :allocation-vector
                    :unit :wei
                    :rounding :floor-with-largest-remainder}
@@ -356,15 +356,15 @@
                     :required? true}
                    {:claim-id :projection-canonical-safe
                     :required? true}
-                   {:claim-id :allocation-complete
+                   {:claim-id :pro-rata/allocation-complete
                     :required? true}
-                   {:claim-id :non-negative
+                   {:claim-id :pro-rata/non-negative
                     :required? true}
-                   {:claim-id :conservation
+                   {:claim-id :pro-rata/conservation
                     :required? true}
-                   {:claim-id :rounding-bounded
+                   {:claim-id :pro-rata/quota-bounded
                     :required? true}
-                   {:claim-id :ordering-independent
+                   {:claim-id :pro-rata/permutation-invariant
                     :required? true}]}]))
 
 (def projection-definition-registry
@@ -403,7 +403,7 @@
            :evaluation {:type :hash-recompute
                         :expected :entry-self-hash}
            :outputs [:passed? :expected-hash :actual-hash]}
-          {:id :allocation-complete
+          {:id :pro-rata/allocation-complete
            :version 1
            :category :invariant
            :description "Every eligible participant has a corresponding allocation row."
@@ -411,7 +411,7 @@
            :evaluation {:type :set-coverage
                         :expected :eligible-participants-covered}
            :outputs [:passed? :missing-participants :extra-participants]}
-          {:id :non-negative
+          {:id :pro-rata/non-negative
            :version 1
            :category :invariant
            :description "Allocation, unmet, weight, and cap values are never negative."
@@ -419,7 +419,7 @@
            :evaluation {:type :numeric-predicate
                         :predicate :all-values-non-negative}
            :outputs [:passed? :violations]}
-          {:id :conservation
+          {:id :pro-rata/conservation
            :version 1
            :category :invariant
            :description "Requested amount equals allocated plus unmet plus remainder."
@@ -428,7 +428,7 @@
                         :left :total-requested
                         :right [:total-allocated :total-unmet :remainder]}
            :outputs [:passed? :difference]}
-          {:id :rounding-bounded
+          {:id :pro-rata/quota-bounded
            :version 1
            :category :invariant
            :description "Rounding behavior is bounded by the registered allocation policy."
@@ -436,7 +436,7 @@
            :evaluation {:type :policy-check
                         :policy :floor-with-largest-remainder}
            :outputs [:passed? :violations]}
-          {:id :ordering-independent
+          {:id :pro-rata/permutation-invariant
            :version 1
            :category :invariant
            :description "Allocation result is invariant under permutation of input items (multi-set equality)."
@@ -452,15 +452,29 @@
                       :evaluation {:type :policy-check
                                    :policy :exact-or-quantized-pro-rata-fairness}
            :outputs [:holds? :violations]}
-          {:id :partial-fill-fairness
-           :version 1
-           :category :invariant
-           :description "Pro-rata fairness over partial-fill decisions: exact allocations use cross-product equality; largest-remainder allocations use bounded exact quota error and deterministic remainder ordering."
-                      :inputs [:evidence-nodes]
-                      :evaluation {:type :policy-check
-                                   :policy :exact-or-quantized-pro-rata-fairness}
-           :outputs [:holds? :violations]}
-           ;; Protocol-specific claim definitions are registered dynamically
+          {:id :pro-rata/partial-fill-fairness
+            :version 1
+            :category :invariant
+            :description "Pro-rata fairness over partial-fill decisions: exact allocations use cross-product equality; largest-remainder allocations use bounded exact quota error and deterministic remainder ordering."
+                       :inputs [:evidence-nodes]
+                       :evaluation {:type :policy-check
+                                    :policy :exact-or-quantized-pro-rata-fairness}
+            :outputs [:holds? :violations]}
+           {:id :pro-rata/cap-respecting
+            :version 1
+            :category :invariant
+            :description "Every persisted allocation row is bounded by its effective cap and requested amount."
+            :inputs [:pro-rata-allocation-result]
+            :evaluation {:type :policy-check :policy :pro-rata/cap-respecting}
+            :outputs [:holds? :violations]}
+           {:id :pro-rata/canonical-remainder-assignment
+            :version 1
+            :category :invariant
+            :description "Largest-remainder awards follow the persisted canonical rank witness."
+            :inputs [:pro-rata-allocation-result]
+            :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
+            :outputs [:holds? :result :reason :violations]}
+            ;; Protocol-specific claim definitions are registered dynamically
            ;; by protocol implementation namespaces via register-claim-definitions!.
            ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
             ;; the Sew forensic-grade claims (registry-hash-verifies,
@@ -583,8 +597,8 @@
     :execution/type :pro-rata
     :execution/mode :inline
     :description "Pro-rata allocation execution evidence node — records the full pro-rata computation chain (projection, allocation, claims, artifact) as a DAG-verifiable evidence node."
-    :claims #{:allocation-complete :non-negative :conservation :rounding-bounded :ordering-independent}}
-   {:id :execution/yield-accounting
+    :claims #{:pro-rata/allocation-complete :pro-rata/non-negative :pro-rata/conservation :pro-rata/quota-bounded :pro-rata/permutation-invariant}}
+       {:id :execution/yield-accounting
     :version 1
     :kind :accounting
     :runner :protocol-layer

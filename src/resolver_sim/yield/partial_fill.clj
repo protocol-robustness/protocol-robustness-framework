@@ -15,6 +15,8 @@
       :rounding-policy :floor-and-carry}"
   (:require [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.allocation :as pro-rata]
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.position :as pos]
@@ -85,6 +87,52 @@
                   (if (some? c) (min (long (:owed r)) c) (long (:owed r))))})
         rows))
 
+(defn- allocate-shared-withdrawal-rows
+  "Adapt shared-withdrawal rows to the mechanism API while retaining the
+   historical allocator result shape consumed by propagation evidence."
+  [available-liquidity rows rounding-policy & [progress-atom]]
+  (let [row-id (fn [row]
+                 [:shared-withdrawal-row
+                  (:obligation-id row)
+                  (:source-position-id row)
+                  (:key row)])
+        mechanism-result
+        (pro-rata/allocate
+         {:schema-version "pro-rata-allocation-request.v1"
+          :mechanism/version 1
+          :allocation/id [:shared-withdrawal-allocation
+                          (mapv row-id rows)]
+          :available available-liquidity
+          :rows (mapv (fn [row]
+                        {:row/id (row-id row)
+                         :obligation/id (:obligation-id row)
+                         :requested (long (:owed row))
+                         :weight (long (or (:weight row) (:owed row)))
+                         :cap (let [cap (:cap row)]
+                                (if (some? cap)
+                                  (min (long (:owed row)) (long cap))
+                                  (long (:owed row))))})
+                      rows)
+          :rounding-policy (if (= :floor rounding-policy) :floor :largest-remainder)
+          :tie-break-policy :canonical-row-id
+          :redistribution-policy :redistribute-cap-excess
+          :progress-atom progress-atom})
+        by-id (into {} (map (juxt :row/id identity) (:rows mechanism-result)))
+        allocations (mapv (fn [row]
+                            (let [allocated-row (get by-id (row-id row))]
+                              {:id (:key row)
+                               :allocated (:allocated allocated-row)
+                               :unmet (:unmet allocated-row)
+                               :weight (:weight allocated-row)
+                               :cap (:cap allocated-row)}))
+                          rows)]
+    {:allocations allocations
+     :total-allocated (:allocated-total mechanism-result)
+     :total-unmet (reduce + 0 (map :unmet allocations))
+     :remainder (:unallocated-residual mechanism-result)
+     :redistribution (:redistribution mechanism-result)
+     :mechanism-result mechanism-result}))
+
 (defn- make-evidence
   [policy available-liquidity total-requested shortage fill-mode & [extra]]
   (merge {:schema-version schema-version
@@ -108,7 +156,8 @@
         effective-cap (if (some? cap) (min owed cap) owed)]
     {:key k
      :obligation-id (:obligation-id row)
-    :owed owed
+          :source-position-id (:source-position-id row)
+         :owed owed
      :weight (or (:weight row) owed)
      :cap (when cap (long cap))
      :effective-cap (long effective-cap)
@@ -158,24 +207,16 @@
        :policy policy
        :evidence (make-evidence policy available-liquidity total 0 :pro-rata)}
       (if rows
-        ;; Decoupled weight/cap path via payoffs allocator with redistribution.
-        ;; Effective cap = min(owed, cap) so the allocator enforces both limits.
-        (let [items (items-from-rows rows)
-              rounding-policy (:rounding-policy policy :floor-and-carry)
-              alloc (payoffs/allocate-pro-rata-with-redistribution
-                     {:amount available-liquidity
-                      :items items
-                      :id-fn :id
-                      :weight-fn :weight
-                      :cap-fn :cap
-                      :rounding (if (#{:floor :floor-with-largest-remainder} rounding-policy)
-                                  rounding-policy
-                                  :floor-with-largest-remainder)
-                      :progress-atom progress-atom})
+        ;; Canonical shared-withdrawal rows use the public mechanism boundary.
+        ;; The compatibility view below preserves existing propagation evidence.
+        (let [rounding-policy (:rounding-policy policy :floor-and-carry)
+              alloc (allocate-shared-withdrawal-rows available-liquidity rows rounding-policy progress-atom)
               filled (into {} (map (fn [a] [(:id a) (:allocated a)]) (:allocations alloc)))
               row-evidence (mapv #(row-evidence % filled) rows)
               deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))
-              unallocated (max 0 (- available-liquidity (:total-allocated alloc 0)))]
+              unallocated (max 0 (- available-liquidity (:total-allocated alloc 0)))
+              mechanism-evidence (pro-rata-evidence/mechanism-evidence-artifact
+                                  (:mechanism-result alloc))]
           {:settlement-mode :partial-fill
            :requested (into {} (map (fn [r] [(:key r) (long (:owed r))]) rows))
            :filled filled
@@ -185,6 +226,10 @@
            :policy policy
            :evidence (assoc (make-evidence policy available-liquidity total shortage :pro-rata)
                             :allocation-detail (select-keys alloc [:total-allocated :total-unmet :remainder])
+                            :allocation-mechanism (select-keys (:mechanism-result alloc)
+                                                             [:schema-version :mechanism
+                                                              :allocation/id :allocation/hash])
+                            :allocation-mechanism-evidence mechanism-evidence
                             :allocation-rows row-evidence
                             :allocation-passes (get-in alloc [:redistribution :passes] [])
                             :unallocated-residual unallocated
@@ -582,7 +627,7 @@
         policy-ref (propagation-policy/policy-reference policy)
         rows (get-in decision [:evidence :allocation-rows] [])
         participants
-        (mapv (fn [{:keys [key obligation-id owed effective-cap filled deferred]}]
+        (mapv (fn [{:keys [key obligation-id source-position-id owed effective-cap filled deferred]}]
                 (let [fulfilled (long (or filled 0))
                       deferred (long (or deferred 0))
                       owed (long (or owed 0))]
@@ -600,7 +645,8 @@
                    :obligation-after deferred
                    :position-status (if (pos? deferred) :partially-deferred :fulfilled)
                    :origin {:obligation-id obligation-id
-                            :calculation-id (:decision/id decision)
+                                               :source-position-id source-position-id
+                                               :calculation-id (:decision/id decision)
                             :participant-id key
                             :sequence 1}
                    :next-position (when (pos? deferred)
@@ -616,10 +662,20 @@
         available (long (get-in decision [:evidence :available-liquidity] 0))
         allocated (sum-field :fulfilled)
         residual (max 0 (- available allocated))
-        base {:schema-version "pro-rata-propagation.v1"
+        base {:schema-version "pro-rata-propagation.v2"
               :calculation-ref (:decision/id decision)
               :outcome-ref (:decision/hash decision)
               :allocation-kind :shared-withdrawal-shortfall
+              :allocation/reference
+              (let [mechanism (get-in decision [:evidence :allocation-mechanism])
+                    mechanism-evidence (get-in decision [:evidence :allocation-mechanism-evidence])]
+                {:schema-version "pro-rata-allocation-reference.v1"
+                 :allocation/id (:allocation/id mechanism)
+                 :allocation/hash (:allocation/hash mechanism)
+                 :mechanism (:mechanism mechanism)
+                 :mechanism-evidence (pro-rata-evidence/evidence-reference mechanism-evidence)
+                 :source-evidence {:artifact/id (:decision/id decision)
+                                   :artifact/hash (:decision/hash decision)}})
                             :token (:token decision)
                             :propagation-policy policy-ref
                                           :policy-selection policy-selection
@@ -658,8 +714,7 @@
               :accounting-entry-set-hash nil
               :residual {:amount residual
                          :reason (get-in decision [:evidence :residual-reason])
-                         :destination (when (pos? residual)
-                                        (get-in policy [:residual-liquidity :destination]))}
+                         :destination (get-in policy [:residual-liquidity :destination])}
               :reconciliation {:allocation-applied? true :shortfalls-preserved? true
                                :capacity-reconciled? true :accounting-reconciled? true
                                :residual-reconciled? true}
@@ -679,6 +734,17 @@
     (let [ref (:propagation-policy artifact)
           snapshot (:policy/snapshot ref)
           policy (propagation-policy/normalize-and-validate snapshot)
+          allocation-ref (:allocation/reference artifact)
+          reference-errors (cond-> []
+                             (not= "pro-rata-allocation-reference.v1" (:schema-version allocation-ref)) (conj :allocation-reference-schema-mismatch)
+                             (nil? (:allocation/id allocation-ref)) (conj :allocation-reference-id-missing)
+                             (nil? (:allocation/hash allocation-ref)) (conj :allocation-reference-hash-missing)
+                             (not= {:id :mechanism/pro-rata-allocation :version 1}
+                                   (:mechanism allocation-ref)) (conj :allocation-reference-mechanism-mismatch)
+                             (not= (:calculation-ref artifact)
+                                   (get-in allocation-ref [:source-evidence :artifact/id])) (conj :allocation-reference-source-id-mismatch)
+                             (not= (:outcome-ref artifact)
+                                   (get-in allocation-ref [:source-evidence :artifact/hash])) (conj :allocation-reference-source-hash-mismatch))
           policy-errors (cond-> []
                           (not= (:policy/hash ref) (:policy/hash policy)) (conj :policy-hash-mismatch)
                           (not= (:policy/id ref) (:policy/id policy)) (conj :policy-id-mismatch)
@@ -692,11 +758,91 @@
                                             (get-in policy [:shortfall :next-round-weight-policy]))) (conj :next-round-weight-policy-mismatch)
                         (and (zero? d) (not= :fulfilled (:position-status p))) (conj :fulfilled-position-not-closed))))
                   (:participants artifact []))]
-      {:valid? (empty? (concat policy-errors participant-errors))
-       :calculation-errors []
-       :policy-errors (vec (concat policy-errors participant-errors))})
+      {:valid? (empty? (concat reference-errors policy-errors participant-errors))
+             :calculation-errors []
+             :policy-errors (vec (concat reference-errors policy-errors participant-errors))})
     (catch clojure.lang.ExceptionInfo e
       {:valid? false :calculation-errors [] :policy-errors [(:reason (ex-data e))]})))
+
+(defn propagation-allocation-binding-violations
+  "Verify that a v2 propagation is an exact domain translation of the committed
+   partial-fill decision and its mechanism allocation reference."
+  [decision propagation]
+  (let [expected-ref {:schema-version "pro-rata-allocation-reference.v1"
+                      :allocation/id (get-in decision [:evidence :allocation-mechanism :allocation/id])
+                      :allocation/hash (get-in decision [:evidence :allocation-mechanism :allocation/hash])
+                      :mechanism (get-in decision [:evidence :allocation-mechanism :mechanism])
+                      :mechanism-evidence (pro-rata-evidence/evidence-reference
+                                           (get-in decision [:evidence :allocation-mechanism-evidence]))
+                      :source-evidence {:artifact/id (:decision/id decision)
+                                        :artifact/hash (:decision/hash decision)}}
+        actual-ref (:allocation/reference propagation)
+        mechanism-evidence-errors
+        (mapv #(assoc % :reason :decision-mechanism-evidence-invalid)
+              (pro-rata-evidence/evidence-violations
+               (get-in decision [:evidence :allocation-mechanism-evidence])))
+        row-key (fn [row]
+                  [(:obligation-id row) (:key row) (:source-position-id row)])
+        participant-key (fn [participant]
+                          [(get-in participant [:origin :obligation-id])
+                           (:participant-id participant)
+                           (get-in participant [:origin :source-position-id])])
+        decision-rows (vec (get-in decision [:evidence :allocation-rows]))
+        propagation-participants (vec (:participants propagation))
+        decision-by-key (group-by row-key decision-rows)
+        propagation-by-key (group-by participant-key propagation-participants)
+        decision-keys (set (keys decision-by-key))
+        propagation-keys (set (keys propagation-by-key))
+        reference-errors (cond-> []
+                           (not= (:allocation/id expected-ref) (:allocation/id actual-ref)) (conj {:reason :propagation-allocation-id-mismatch})
+                           (not= (:allocation/hash expected-ref) (:allocation/hash actual-ref)) (conj {:reason :propagation-allocation-hash-mismatch})
+                           (not= (:mechanism expected-ref) (:mechanism actual-ref)) (conj {:reason :propagation-mechanism-reference-mismatch})
+                           (not= (:mechanism-evidence expected-ref) (:mechanism-evidence actual-ref))
+                           (conj {:reason :propagation-mechanism-evidence-reference-mismatch})
+                           (not= (:source-evidence expected-ref) (:source-evidence actual-ref)) (conj {:reason :propagation-decision-reference-mismatch}))
+        missing (clojure.set/difference decision-keys propagation-keys)
+        extra (clojure.set/difference propagation-keys decision-keys)
+        duplicate-propagation-keys (filter #(> (count (get propagation-by-key %)) 1) propagation-keys)
+        duplicate-decision-keys (filter #(> (count (get decision-by-key %)) 1) decision-keys)
+        matched-keys (clojure.set/intersection decision-keys propagation-keys)
+        row-errors (mapcat (fn [key]
+                             (let [decision-row (first (get decision-by-key key))
+                                   participant (first (get propagation-by-key key))]
+                               (cond-> []
+                                 (and (= 1 (count (get decision-by-key key)))
+                                      (= 1 (count (get propagation-by-key key)))
+                                      (not= (:filled decision-row) (:fulfilled participant)))
+                                 (conj {:reason :propagated-fulfilled-mismatch
+                                        :key key
+                                        :expected (:filled decision-row)
+                                        :observed (:fulfilled participant)})
+                                 (and (= 1 (count (get decision-by-key key)))
+                                      (= 1 (count (get propagation-by-key key)))
+                                      (not= (:deferred decision-row) (:deferred participant)))
+                                 (conj {:reason :propagated-unmet-mismatch
+                                        :key key
+                                        :expected (:deferred decision-row)
+                                        :observed (:deferred participant)}))))
+                           matched-keys)
+        expected-fulfilled (reduce + 0 (map #(long (:filled % 0)) decision-rows))
+        observed-fulfilled (reduce + 0 (map #(long (:fulfilled % 0)) propagation-participants))
+        expected-unmet (reduce + 0 (map #(long (:deferred % 0)) decision-rows))
+        observed-unmet (reduce + 0 (map #(long (:deferred % 0)) propagation-participants))]
+    (vec (concat mechanism-evidence-errors
+                 reference-errors
+                 (map #(hash-map :reason :missing-propagation-participant :key %) missing)
+                 (map #(hash-map :reason :extra-propagation-participant :key %) extra)
+                 (map #(hash-map :reason :duplicate-propagation-participant :key %
+                                 :count (count (get propagation-by-key %))) duplicate-propagation-keys)
+                 (map #(hash-map :reason :duplicate-decision-allocation-row :key %
+                                 :count (count (get decision-by-key %))) duplicate-decision-keys)
+                 row-errors
+                 (when (not= expected-fulfilled observed-fulfilled)
+                   [{:reason :propagation-fulfilled-total-mismatch
+                     :expected expected-fulfilled :observed observed-fulfilled}])
+                 (when (not= expected-unmet observed-unmet)
+                   [{:reason :propagation-unmet-total-mismatch
+                     :expected expected-unmet :observed observed-unmet}])))))
 
 (defn attach-pro-rata-propagation
   "Persist a committed pro-rata propagation artifact by its stable identity."

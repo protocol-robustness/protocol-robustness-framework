@@ -2,7 +2,9 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.invariants :as inv]
                         [resolver-sim.yield.partial-fill :as pf]
-                                    [resolver-sim.yield.modules.liquid-lending :as ll]))
+                                    [resolver-sim.yield.modules.liquid-lending :as ll]
+            [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
+                                                [resolver-sim.yield.invariant-catalog :as catalog]))
 
 (defn- propagation [entries]
   {:propagation/id "p1" :token :USDC
@@ -18,20 +20,24 @@
 (defn- accounting-world []
   (let [entries valid-entries
         entry-hash (pf/accounting-entry-set-hash entries)
-        policy-hash "policy-hash"
+        policy (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy)
+        policy-hash (:policy/hash policy)
         p {:propagation/id "p1" :calculation-ref "c1" :outcome-ref "o1" :token :USDC
-           :propagation-policy {:policy/hash policy-hash}
-           :summary {:allocated 60}
-                      :participants [{:participant-id "alice" :eligible-obligation 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "oa"}}
+           :propagation-policy (propagation-policy/policy-reference policy)
+           :summary {:available 100 :allocated 60 :unallocated-residual 40}
+                                 :residual {:destination :remain-in-shared-liquidity}
+                                 :participants [{:participant-id "alice" :eligible-obligation 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "oa"}}
                                                 {:participant-id "bob" :eligible-obligation 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "ob"}}]
                                                 :accounting-entries entries :accounting-entry-set-hash entry-hash}
         app {:schema-version "pro-rata-propagation-application.v2" :propagation-id "p1"
              :calculation-id "c1" :outcome-hash "o1" :policy-hash policy-hash
              :application-key [:pro-rata-propagation "c1" "o1" policy-hash]
-             :application-order {:step 1}
+             :application-order {:schema-version "pro-rata-application-order.v1" :step 1 :event-id 0}
              :accounting-entry-set-hash entry-hash
-             :source-account {:token :USDC :before 100 :delta -60 :after 40}
-             :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
+             :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
+                          :residual {:token :USDC :available 100 :allocated 60 :amount 40
+                                     :destination :remain-in-shared-liquidity}
+                          :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
                                          :obligation {:before 40} :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
                                         {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
                                          :obligation {:before 20} :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}]
@@ -42,11 +48,18 @@
      :yield/positions {"alice" {:status :withdrawn :token :USDC}
                        "bob" {:status :withdrawn :token :USDC}}}))
 
+(deftest accounting-invariant-is-runtime-registered
+  (let [world (accounting-world)
+        results (inv/check-all world)]
+    (is (some #{:yield/pro-rata-accounting-reconciles} catalog/default-runtime-invariant-ids))
+    (is (contains? results :yield/pro-rata-accounting-reconciles))
+    (is (true? (get-in results [:yield/pro-rata-accounting-reconciles :holds?])))))
+
 (deftest accounting-chain-mutations
-  (let [a {:propagation-id "p1" :application-order {:step 1}
+  (let [a {:propagation-id "p1" :application-order {:schema-version "pro-rata-application-order.v1" :step 1 :event-id 0}
            :source-account {:token :USDC :before 100 :after 60}
            :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 40 :before 0 :after 40}}]}
-        b {:propagation-id "p2" :application-order {:step 2}
+        b {:propagation-id "p2" :application-order {:schema-version "pro-rata-application-order.v1" :step 2 :event-id 0}
            :source-account {:token :USDC :before 60 :after 30}
            :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 30 :before 40 :after 70}}]}
         world {:total-held {:USDC 30} :yield/withdrawn {:USDC {"alice" 70}}}]
@@ -56,7 +69,9 @@
     (is (some #(= :participant-balance-chain-broken (:reason %))
               (inv/chain-violations world [a (assoc-in b [:participants 0 :withdrawn :before] 39)])))
     (is (some #(= :application-order-duplicate (:reason %))
-              (inv/chain-violations world [a (assoc b :application-order {:step 1})])))))
+              (inv/chain-violations world [a (assoc b :application-order {:schema-version "pro-rata-application-order.v1" :step 1 :event-id 0})])))
+    (is (some #(= :application-order-missing (:reason %))
+              (inv/chain-violations world [a (assoc b :application-order {:step 2})])))))
 
 (deftest closure-history-mutations
   (let [prior {:position/id "alice/deferred/1" :position/root-obligation-id "oa" :position/current-amount 20}
@@ -129,6 +144,20 @@
     (is (some #(= :application-obligation-id-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/applied-pro-rata-propagations "p1" :participants 0 :obligation-id] "wrong")))))
+    (is (some #(= :application-obligation-token-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :token] :DAI)))))
+    (is (some #(= :application-obligation-participant-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/applied-pro-rata-propagations "p1" :participants 0 :participant-id] "mallory")))))
+    (is (some #(= :application-withdrawn-delta-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (-> world
+                                (assoc-in [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :delta] 39)
+                                (assoc-in [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :after] 39))))))
+    (is (= :fail (get-in (inv/check-pro-rata-accounting-reconciles
+                           (assoc-in world [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :after] 39))
+                          [:checks :participant-withdrawn-arithmetic])))
     (is (some #(= :application-key-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/applied-pro-rata-propagations "p1" :application-key]
@@ -141,7 +170,28 @@
                             (assoc-in world [:total-held :USDC] 39)))))
     (is (some #(= :latest-authoritative-withdrawn-balance-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
-                            (assoc-in world [:yield/withdrawn :USDC "alice"] 39)))))))
+                            (assoc-in world [:yield/withdrawn :USDC "alice"] 39)))))
+    (is (some #(= :residual-destination-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/applied-pro-rata-propagations "p1" :residual :destination] :refund)))))
+    (is (some #(= :residual-token-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/applied-pro-rata-propagations "p1" :residual :token] :DAI)))))
+    (is (some #(= :source-account-policy-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/applied-pro-rata-propagations "p1" :source-account :account] :other-source)))))
+    (is (some #(= :application-source-account-policy-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/applied-pro-rata-propagations "p1" :source-account :account] :other-source)))))
+    (is (some #(= :propagation-policy-hash-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/pro-rata-propagations "p1" :propagation-policy :policy/hash] "bad")))))
+    (is (some #(= :shortfall-classification-policy-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/pro-rata-propagations "p1" :participants 0 :unmet] 1)))))
+    (is (some #(= :participant-account-policy-mismatch (:reason %))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:yield/pro-rata-propagations "p1" :accounting-entries 1 :account] :other-credit)))))))
 
 (deftest exact-credit-reconciliation
   (testing "valid credits form a bijection with fulfilments"

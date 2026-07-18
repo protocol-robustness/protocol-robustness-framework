@@ -33,6 +33,7 @@ cp "$PROJECT_DIR/docs/benchmarks/BENCHMARK_ASSURANCE_SPEC_V1.md" "$OUTPUT_DIR/do
 for scenario in \
   S-DR-001-basic-release-ruling.edn \
   S-DR-084-evidence-after-settlement-rejected.edn \
+  S-NC-001-freeze-active-dispute-negative-control.edn \
   Y06_multi-party-pro-rata-shortfall.edn \
   DR-N-002-reversal-slash-appeal-rejected.edn; do
   cp "$PROJECT_DIR/scenarios/edn/$scenario" "$OUTPUT_DIR/inputs/scenarios/$scenario"
@@ -73,8 +74,8 @@ cp "$PROJECT_DIR/resources/test-vectors/pro-rata/liquidity-fulfillment-liquidity
     --run-root scenario-pro-rata
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
     verify-scenario --run-root scenario-pro-rata
-  # This scenario is intentionally a semantic failure. Its non-zero execution
-  # exit is expected; the completed bundle must still verify successfully.
+  # This scenario reaches an unsuppressed invariant violation. Its non-zero
+  # semantic outcome is expected; the completed package must still verify.
   if java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
        run-scenario classpath:scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn \
        --run-root scenario-semantic-failure; then
@@ -174,6 +175,7 @@ EOF
     bin/verify-review-packet.sh \
     inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn \
     inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn \
+    inputs/scenarios/S-NC-001-freeze-active-dispute-negative-control.edn \
     inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn \
     inputs/scenarios/S-DR-001-basic-release-ruling.edn \
     inputs/benchmarks/force-authorisation-custody-v1.edn \

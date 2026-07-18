@@ -52,6 +52,11 @@
                    :progress-atom progress})]
     (is (= :partial-fill (:settlement-mode decision)))
     (is (= {:a 20 :b 30} (:filled decision)))
+    (is (= "pro-rata-allocation-result.v1"
+           (get-in decision [:evidence :allocation-mechanism :schema-version])))
+    (is (= {:id :mechanism/pro-rata-allocation :version 1}
+           (get-in decision [:evidence :allocation-mechanism :mechanism])))
+    (is (string? (get-in decision [:evidence :allocation-mechanism :allocation/hash])))
     (is (= {:status :completed
             :phase :completed
             :current 2

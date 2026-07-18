@@ -10,6 +10,7 @@
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.position :as pos]
             [resolver-sim.yield.registry :as reg]
+            [resolver-sim.yield.invariants :as inv]
             [resolver-sim.util.attribution :as attr]))
 
 (def test-world
@@ -92,6 +93,126 @@
       (is (= (get-in forward [:evidence :allocation-rows])
              (get-in reversed [:evidence :allocation-rows])))
       (is (= (:decision/hash forward) (:decision/hash reversed))))))
+
+(deftest shared-withdrawal-accounting-acceptance-cases
+  (testing "total shortfall produces no financial movement"
+    (let [world (-> (shared-withdrawal-world ["alice" "bob"] 0)
+                    (assoc-in [:yield/held-balances "USDC"] 0))
+          result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+                                                      :token "USDC"
+                                                      :allocation-mode :pro-rata})
+          propagation (first (vals (:yield/pro-rata-propagations result)))
+          application (first (vals (:yield/applied-pro-rata-propagations result)))]
+      (is (= 0 (get-in propagation [:summary :allocated])))
+      (is (= 200 (get-in propagation [:summary :deferred])))
+      (is (= 0 (get-in application [:source-account :delta])))
+      (is (empty? (filter #(= :credit (:entry/type %)) (:accounting-entries propagation))))
+      (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
+  (testing "effective caps retain residual in the shared source account"
+    (let [world (shared-withdrawal-world ["alice" "bob"] 150)
+          result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+                                                      :token "USDC"
+                                                      :allocation-mode :pro-rata
+                                                      :effective-caps {"alice" 20 "bob" 100}})
+          propagation (first (vals (:yield/pro-rata-propagations result)))
+          application (first (vals (:yield/applied-pro-rata-propagations result)))]
+      (is (= 120 (get-in propagation [:summary :allocated])))
+      (is (= 30 (get-in propagation [:summary :unallocated-residual])))
+      (is (= -120 (get-in application [:source-account :delta])))
+      (is (= 30 (get-in application [:source-account :after])))
+      (is (= :remain-in-shared-liquidity (get-in application [:residual :destination])))
+
+      (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
+  (testing "largest remainder persists exact 4/3/3 participant evidence"
+    (let [world (-> (reduce (fn [w owner]
+                              (ll/deposit w test-mod {:owner/id owner :amount 10 :token "USDC"}))
+                            (assoc test-world :yield/held-balances {"USDC" 10})
+                            ["alice" "bob" "carol"])
+                    (assoc :total-held {:USDC 10}))
+          result (ll/withdraw-shared world test-mod {:owner-ids ["carol" "bob" "alice"]
+                                                      :token "USDC"
+                                                      :allocation-mode :pro-rata})
+          propagation (first (vals (:yield/pro-rata-propagations result)))
+          credits (filter #(= :credit (:entry/type %)) (:accounting-entries propagation))]
+      (is (= {"alice" 4 "bob" 3 "carol" 3}
+             (into {} (map (juxt :participant-id :fulfilled) (:participants propagation)))))
+      (is (= {"alice" 4 "bob" 3 "carol" 3}
+             (into {} (map (juxt :participant-id :delta) credits))))
+      (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
+  (testing "reapplying a committed propagation is a no-op"
+    (let [world (shared-withdrawal-world ["alice" "bob"] 100)
+          applied-world (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+                                                             :token "USDC"
+                                                             :allocation-mode :pro-rata})
+          propagation (first (vals (:yield/pro-rata-propagations applied-world)))
+          replay (ll/apply-pro-rata-propagation applied-world propagation)]
+      (is (= :already-applied (:status replay)))
+      (is (= applied-world (:world replay))))))
+
+(deftest shared-withdrawal-v2-propagation-binds-decision-and-allocation
+  (let [world (shared-withdrawal-world ["alice" "bob"] 100)
+        result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+                                                    :token "USDC"
+                                                    :allocation-mode :pro-rata})
+        propagation (first (vals (:yield/pro-rata-propagations result)))
+        decision (get-in result [:yield/partial-fill-decisions (:calculation-ref propagation)])
+        reference (:allocation/reference propagation)
+        mechanism-evidence (get-in decision [:evidence :allocation-mechanism-evidence])]
+    (is (= "pro-rata-propagation.v2" (:schema-version propagation)))
+    (is (= "pro-rata-mechanism-evidence.v1" (:schema-version mechanism-evidence)))
+    (is (= (get-in mechanism-evidence [:mechanism/result :allocation/hash])
+           (get-in reference [:mechanism-evidence :allocation/hash])))
+    (is (= (:evidence/hash mechanism-evidence)
+           (get-in reference [:mechanism-evidence :evidence/hash])))
+    (is (= (:decision/id decision) (get-in reference [:source-evidence :artifact/id])))
+    (is (= (:decision/hash decision) (get-in reference [:source-evidence :artifact/hash])))
+    (is (= (get-in decision [:evidence :allocation-mechanism :allocation/hash])
+           (:allocation/hash reference)))
+    (is (empty? (partial-fill/propagation-allocation-binding-violations decision propagation)))
+    (is (some #(= :propagation-allocation-hash-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:allocation/reference :allocation/hash] "bad"))))
+    (is (some #(= :propagation-allocation-id-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:allocation/reference :allocation/id] "other-allocation"))))
+    (is (some #(= :propagation-mechanism-reference-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:allocation/reference :mechanism :version] 999))))
+    (is (some #(= :propagation-decision-reference-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:allocation/reference :source-evidence :artifact/hash] "other-decision"))))
+    (is (some #(= :propagated-fulfilled-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:participants 0 :fulfilled] 1))))
+    (is (some #(= :propagated-unmet-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:participants 0 :deferred] 1))))
+    (is (some #(= :duplicate-propagation-participant (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (update propagation :participants conj (first (:participants propagation))))))
+    (is (some #(= :missing-propagation-participant (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (update propagation :participants pop))))
+    (is (some #(= :extra-propagation-participant (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:participants 0 :origin :obligation-id] "other-obligation"))))
+    (is (some #(= :propagation-fulfilled-total-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:participants 0 :fulfilled] 1))))
+    (is (some #(= :propagation-unmet-total-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:participants 0 :deferred] 1))))
+    (is (= :pass (get-in (inv/check-pro-rata-propagation-complete result)
+                         [:checks :allocation-decision-binding-valid])))
+    (is (= :pass (get-in (inv/check-pro-rata-accounting-reconciles result)
+                         [:checks :allocation-row-translation-valid])))
+    (is (some #(= :application-propagation-reference-mismatch (:reason %))
+              (:violations
+               (inv/check-pro-rata-accounting-reconciles
+                (assoc-in result
+                          [:yield/applied-pro-rata-propagations (:propagation/id propagation)
+                           :propagation/reference :propagation/hash]
+                          "bad")))))))
 
 (deftest deposit-creates-ratio-position
   (testing "Deposit creates position with ratio-based entry-index"

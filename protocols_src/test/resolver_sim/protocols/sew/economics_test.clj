@@ -2,7 +2,9 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.protocols.sew.economics :as sew-econ]))
+                        [resolver-sim.protocols.sew.economics :as sew-econ]
+                        [resolver-sim.pro-rata.allocation :as pro-rata]
+                        [resolver-sim.pro-rata.evidence :as mechanism-evidence]))
 
 (deftest sew-economic-policy-helpers
   (testing "SEW-specific fees, bonds, slashes, and escrow caps live in the Sew adapter"
@@ -46,7 +48,11 @@
       (is (= [75 25] (mapv :paid (:allocations result))))
       (is (= [300 100] (mapv :basis-amount (:allocations result))))
       (is (= [3/4 1/4] (mapv :share (:allocations result))))
-      (is (= [300 100] (mapv :cap (:allocations result)))))))
+      (is (= [300 100] (mapv :cap (:allocations result))))
+      (is (empty? (mechanism-evidence/evidence-violations
+                   (:mechanism/evidence result))))
+      (is (= (:evidence/hash (:mechanism/evidence result))
+             (get-in result [:mechanism/evidence-reference :evidence/hash]))))))
 
 (deftest sew-slash-allocation-preserves-caps-and-legacy-shape
   (testing "SEW adapter applies available-slashable caps and returns historical keys"
@@ -131,7 +137,45 @@
       (let [current (sew-econ/calculate-sew-slash-allocation input)
             artifact (sew-econ/build-sew-slash-projection-artifact input)
             from-projection (sew-econ/calculate-sew-slash-allocation-from-projection artifact)]
-        (is (= current from-projection))))))
+        ;; Projection remains a legacy presentation artifact and intentionally
+        ;; does not reconstruct the complete mechanism evidence envelope.
+        (is (= (dissoc current :mechanism/evidence :mechanism/evidence-reference)
+               from-projection))))))
+
+(deftest sew-adapter-preserves-presentation-while-binding-canonical-mechanism-rows
+  (let [parties [{:id :resolver-c :slashable-stake 1 :available-slashable 10}
+                 {:id :resolver-a :slashable-stake 1 :available-slashable 10}
+                 {:id :resolver-b :slashable-stake 1 :available-slashable 10}]
+        mechanism (pro-rata/allocate
+                   {:allocation/id :sew-conformance
+                    :available 4
+                    :rows (mapv (fn [party]
+                                  {:row/id [:sew-slash-row (:id party)]
+                                   :obligation/id (:id party)
+                                   :requested 4
+                                   :weight (:slashable-stake party)
+                                   :cap (:available-slashable party)})
+                                parties)})
+        presentation (sew-econ/calculate-sew-slash-allocation
+                      {:slash-obligation 4 :liable-parties parties})
+        by-mechanism (into {} (map (fn [row]
+                                     [(second (:row/id row)) (:allocated row)])
+                                   (:rows mechanism)))
+        by-presentation (into {} (map (juxt :id :paid) (:allocations presentation)))]
+    ;; Mechanism order is canonical, while the public SEW presentation retains
+    ;; the supplied liable-party order.
+    (is (= [[:sew-slash-row :resolver-a]
+            [:sew-slash-row :resolver-b]
+            [:sew-slash-row :resolver-c]]
+           (mapv :row/id (:rows mechanism))))
+    (is (= [:resolver-c :resolver-a :resolver-b]
+           (mapv :id (:allocations presentation))))
+    (is (= by-mechanism by-presentation))
+    (is (= (:allocated-total mechanism) (:recovered-total presentation)))
+    (is (= (reduce + 0 (map :unmet (:rows mechanism)))
+           (:unmet-total presentation)))
+    (is (= (get-in presentation [:mechanism/evidence :mechanism/result :allocation/hash])
+           (get-in presentation [:mechanism/evidence-reference :allocation/hash])))))
 
 (deftest sew-resolution-call-site-uses-sew-economics-adapter
   (testing "resolution query path does not call the deprecated payoffs slash wrapper directly"

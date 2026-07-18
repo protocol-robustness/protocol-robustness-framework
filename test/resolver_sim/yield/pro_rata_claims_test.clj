@@ -7,15 +7,15 @@
 
 (def phase-6-claims
   #{:projection-deterministic
-    :projection-canonical-safe
-    :allocation-complete
-    :non-negative
-    :conservation
-    :rounding-bounded
-    :ordering-independent})
+      :projection-canonical-safe
+      :pro-rata/allocation-complete
+      :pro-rata/non-negative
+      :pro-rata/conservation
+      :pro-rata/quota-bounded
+      :pro-rata/permutation-invariant})
 
 (def extended-claims
-  (conj phase-6-claims :pro-rata-fairness :partial-fill-fairness))
+  (conj phase-6-claims :pro-rata/partial-fill-quota-bounded))
 
 (defn- make-content
   "Build evidence content with matching direct and projection results."
@@ -51,6 +51,10 @@
                      {:id :resolver-c
                       :custom-weight 1}]}])
 
+(defn- claim-allocation-view
+  [result]
+  (update result :allocations #(mapv (fn [row] (dissoc row :share)) (or % []))))
+
 (defn- build-claim-evaluation-node
   "Build a claim-evaluation evidence node from a SEW slash allocation input,
    matching the shape produced by evidence/slashing.clj."
@@ -59,6 +63,10 @@
         projection-artifact (sew-economics/build-sew-slash-projection-artifact allocation-input)
         projection-artifact-again (sew-economics/build-sew-slash-projection-artifact allocation-input)
         projection-result (sew-economics/calculate-sew-slash-allocation-from-projection projection-artifact)
+        permuted-input (update allocation-input :liable-parties #(vec (reverse (or % []))))
+        direct-result-permuted (sew-economics/calculate-sew-slash-allocation permuted-input)
+        projection-artifact-permuted (sew-economics/build-sew-slash-projection-artifact permuted-input)
+        projection-result-permuted (sew-economics/calculate-sew-slash-allocation-from-projection projection-artifact-permuted)
         content {:claims/input-context
                  {:liable-parties (:liable-parties allocation-input [])
                   :total-basis (long (:total-basis direct-result 0))
@@ -68,10 +76,12 @@
                   :basis-field (:basis allocation-input :slashable-stake)
                   :cap-field (:cap-field allocation-input :available-slashable)
                   :unmet-policy (:unmet-policy allocation-input :record-only)}
-                 :claims/direct-result direct-result
+                 :claims/direct-result (claim-allocation-view direct-result)
+                 :claims/direct-result-permuted (claim-allocation-view direct-result-permuted)
                  :claims/projection-artifact projection-artifact
                  :claims/projection-artifact-again projection-artifact-again
-                 :claims/projection-result projection-result}
+                 :claims/projection-result (claim-allocation-view projection-result)
+                 :claims/projection-result-permuted (claim-allocation-view projection-result-permuted)}
         node-hash (hc/hash-with-intent {:hash/intent :evidence-record} content)]
     {:node-hash node-hash
      :result content
@@ -106,7 +116,7 @@
 
 (deftest missing-evidence-node-produces-failure
   (testing "evaluator returns :missing-evidence-content when no evidence node provided"
-    (let [result (claims/evaluate-claim :conservation {:evidence-nodes []})]
+    (let [result (claims/evaluate-claim :pro-rata/conservation {:evidence-nodes []})]
       (is (false? (:holds? result)))
       (is (= [{:type :missing-evidence-content}] (:violations result))))))
 
@@ -119,14 +129,14 @@
   (testing "claims.engine/evaluate-claims resolves pro-rata evaluators correctly"
     (let [input (first representative-fixtures)
           node (build-claim-evaluation-node input)
-          requests [{:claim-id :conservation
+          requests [{:claim-id :pro-rata/conservation
                      :evidence-references [(:node-hash node)]}]
           {:keys [claim-results validation]}
           (claims-engine/evaluate-claims
            requests [node]
            {:evaluator-resolver claims/evaluator-resolver})]
       (is (= 1 (count claim-results)))
-      (is (= :conservation (:claim-id (first claim-results))))
+      (is (= :pro-rata/conservation (:claim-id (first claim-results))))
       (is (true? (:holds? (first claim-results))))
       (is (:valid? validation)))))
 
@@ -274,6 +284,41 @@
                   {:evidence-nodes [{:result (make-content direct)}]})]
       (is (false? (:holds? result)))
       (is (seq (:violations result))))))
+
+(deftest conservation-reports-each-invalid-row
+  (testing "one corrupted allocation row fails conservation even when another is valid"
+    (let [direct {:allocations [{:id :resolver-a :owed 10 :paid 8 :unmet 2}
+                               {:id :resolver-b :owed 10 :paid 7 :unmet 1}]
+                  :total-requested 20 :total-allocated 15 :total-unmet 4 :remainder 1}
+          result (claims/evaluate-claim
+                  :conservation
+                  {:evidence-nodes [{:result (make-content direct)}]})]
+      (is (false? (:holds? result)))
+      (is (some #(= {:type :per-allocation-owed-mismatch
+                     :idx 1
+                     :id :resolver-b
+                     :expected 10
+                     :observed 8}
+                    %)
+                (:violations result))))))
+
+(deftest ordering-independent-uses-a-real-input-permutation
+  (testing "canonical tie-breaking preserves ownership under a reversed input order"
+    (let [node (build-claim-evaluation-node
+                {:slash-obligation 1
+                 :liable-parties [{:id :resolver-a :slashable-stake 1}
+                                  {:id :resolver-b :slashable-stake 1}]})
+          valid (claims/evaluate-claim :ordering-independent
+                                       {:evidence-nodes [node]})
+          corrupted (update-in node [:result :claims/direct-result-permuted :allocations]
+                               #(assoc % 0 (assoc (first %) :paid 0 :unmet 1)))
+          invalid (claims/evaluate-claim :ordering-independent
+                                         {:evidence-nodes [corrupted]})]
+      (is (true? (:holds? valid)))
+      (is (false? (:holds? invalid)))
+      (is (some #(and (= :ordering-dependent (:type %))
+                      (= :direct (:path %)))
+                (:violations invalid))))))
 
 (deftest pro-rata-fairness-passes-on-three-claimants
   (testing "pro-rata-fairness passes with three proportional claimants"

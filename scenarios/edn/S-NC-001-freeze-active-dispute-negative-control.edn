@@ -1,0 +1,36 @@
+{:scenario-id "s-nc-001-freeze-active-dispute-negative-control"
+ :schema-version "1.0"
+ :purpose "negative-control"
+ :title "Negative control: freezing an assigned resolver leaves an active dispute inconsistent"
+ :description "A deliberately unsuppressed negative control. Executing a fraud slash freezes the resolver while an active disputed escrow remains assigned to that resolver. The transition itself succeeds, then the persisted protocol invariant :resolver-not-frozen-on-assign fails. This is a completed execution with a semantic failure, not an execution abort."
+ :scenario/profile :negative-control
+ :fault/id :freeze-resolver-with-active-dispute
+ :provenance {:author "PRF package-assurance tests"
+              :license "CC-BY-4.0"}
+ :claim {:id "negative-control-freeze-active-dispute"
+         :statement "A resolver must not remain assigned to an active disputed escrow after being frozen."
+         :falsifies-if ["A completed fraud-slash transition leaves a frozen resolver assigned to an active dispute."]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150
+                   :appeal-window-duration 120
+                   :max-dispute-duration 2592000
+                   :fraud-slash-bps 5000
+                   :appeal-bond-bps 500}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver" :address "0xresolver" :role "resolver"}
+          {:id "governance" :address "0xgov" :role "governance"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
+           :params {:amount 20000}}
+          {:seq 1 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 10000
+                    :custom-resolver "0xresolver"}}
+          {:seq 2 :time 1060 :agent "buyer" :action "raise_dispute"
+           :params {:workflow-id 0}}
+          {:seq 3 :time 1100 :agent "resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release false :resolution-hash "0xhash"}}
+          {:seq 4 :time 1200 :agent "governance" :action "propose_fraud_slash"
+           :params {:workflow-id 0 :resolver-addr "0xresolver" :amount 3000}}
+          {:seq 5 :time 1350 :agent "keeper" :action "execute_fraud_slash"
+           :params {:workflow-id 0}}]}
