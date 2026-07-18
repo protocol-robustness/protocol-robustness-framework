@@ -1366,7 +1366,11 @@
                         (when output-path
                           (io/make-parents output-path)
                           (write-result-json output-path enriched-root)))
+                      ;; The outer orchestrator consumes this transient result to
+                      ;; build derived projections. It is not persisted as part of
+                      ;; the immutable bundle root or package boundary.
                       {:exit-code (:exit-code thunk-result)
+                       :run-result (:run-result thunk-result)
                        :bundle-root enriched-root
                        :execution-node execution-node})))))
           ;; Top-level catch: produce minimal output on complete failure

@@ -562,6 +562,18 @@
   [world artifact]
   (assoc-in world [:yield/partial-fill-decisions (:decision/id artifact)] artifact))
 
+(defn canonical-accounting-entries
+  "Return a deterministically ordered vector of entries. This is a list
+   canonicalization: duplicate entries are retained deliberately."
+  [entries]
+  (->> entries (sort-by pr-str) vec))
+
+(defn accounting-entry-set-hash
+  "Hash the duplicate-preserving canonical accounting-entry list."
+  [entries]
+  (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
+                                       (canonical-accounting-entries entries))))
+
 (defn pro-rata-propagation-artifact
   "Build the authoritative application record for a shared pro-rata decision."
   [decision policy policy-selection]
@@ -632,9 +644,17 @@
                                      :accounting-entry {:account [:participant (:participant-id p) :withdrawn]
                                                         :delta (:fulfilled p)}})
                                   participants)
-              :accounting-entries (vec (concat [{:account :shared-liquidity :delta (- allocated)}]
-                                              (map (fn [p] {:account [:participant (:participant-id p) :withdrawn]
-                                                           :delta (:fulfilled p)}) participants)))
+              :accounting-entries (vec (concat (when (pos? allocated)
+                                                   [{:entry/type :debit :account :shared-liquidity
+                                                     :token (:token decision) :delta (- allocated)}])
+                                                 (keep (fn [p]
+                                                         (when (pos? (:fulfilled p))
+                                                           {:entry/type :credit :account :withdrawn
+                                                            :token (:token decision)
+                                                            :participant-id (:participant-id p)
+                                                            :obligation-id (get-in p [:origin :obligation-id])
+                                                            :delta (:fulfilled p)})) participants)))
+              :accounting-entry-set-hash nil
               :residual {:amount residual
                          :reason (get-in decision [:evidence :residual-reason])
                          :destination (when (pos? residual)
@@ -643,8 +663,9 @@
                                :capacity-reconciled? true :accounting-reconciled? true
                                :residual-reconciled? true}
               :status :committed}
-        artifact-hash (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record} base))
-        ]
+        entry-hash (accounting-entry-set-hash (:accounting-entries base))
+        base (assoc base :accounting-entry-set-hash entry-hash)
+        artifact-hash (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record} base))]
     (assoc base
            :propagation/id (str "pro-rata-propagation-" (subs artifact-hash 7 (min (count artifact-hash) 23)))
            :propagation/hash artifact-hash)))

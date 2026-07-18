@@ -321,15 +321,27 @@
                   (pos? (get partial-fill "decision_count" 0)) (conj partial-fill-path)
                   (pos? (get partial-fill "decision_count" 0)) (conj "summaries/partial-fill-decisions.md"))}))))
 
-(defn extract! [context]
-  (let [replay-file (io/file (str (:replay/file context)))
-        source (slurp replay-file)
-        raw (json/read-str source)
-        replay (normalize-replay (json/read-str source :key-fn keyword))
-        raw-world (if (= "bundle-root.v1" (get raw "bundle/schema-version"))
-                    (get-in raw ["run/scenario-results" 0 "world"] {})
-                    (get raw "world" {}))
-        provenance {"path" (str (:replay/file context))}
-        result (write-basic-projections! (:scenario/root context) replay provenance
-                                         (:sensitivity/profile context) (:run/id context) raw-world)]
-    result))
+(defn extract!
+  "Write scenario projections. The two-argument canonical form consumes the
+   transient execution result returned by run-and-report, so raw worlds/traces
+   need not be embedded in the immutable replay bundle root. The one-argument
+   form remains for legacy persisted replay inputs."
+  ([context] (extract! context nil))
+  ([context execution]
+   (let [replay-file (io/file (str (:replay/file context)))
+         source (when-not execution (slurp replay-file))
+         raw (when source (json/read-str source))
+         bundle (if execution
+                  (assoc (:bundle-root execution)
+                         :run/scenario-results (get-in execution [:run-result :results]))
+                  (json/read-str source :key-fn keyword))
+         replay (normalize-replay bundle)
+         raw-world (if execution
+                     (get-in execution [:run-result :results 0 :world] {})
+                     (if (= "bundle-root.v1" (get raw "bundle/schema-version"))
+                       (get-in raw ["run/scenario-results" 0 "world"] {})
+                       (get raw "world" {})))
+         provenance {"path" (str (:replay/file context))}
+         result (write-basic-projections! (:scenario/root context) replay provenance
+                                          (:sensitivity/profile context) (:run/id context) raw-world)]
+    result)))

@@ -128,32 +128,6 @@
   "Compatibility delegate; canonical callers use lifecycle/release-run-lock!."
   (lifecycle/release-run-lock! lock))
 
-(defn- text-file? [file]
-  (boolean (re-find #"\.(json|edn|md|txt|csv)$" (.getName (io/file file)))))
-
-(defn- sensitivity-findings [run-root]
-  (let [root (io/file (str run-root))
-        forbidden #{".run.lock" ".run-state" "completion.json"}]
-    (->> (file-seq root)
-         (filter #(.isFile %))
-         (remove #(contains? forbidden (.getName %)))
-         (filter text-file?)
-         (mapcat (fn [file]
-                   (let [body (slurp file)]
-                     (keep (fn [pattern]
-                             ;; Reports identify the location and detector only;
-                             ;; they never reproduce the matched secret value.
-                             (when (re-find pattern body)
-                               {:path (.getPath file) :pattern (str pattern)}))
-                           (map :pattern secret-rules)))))
-         vec)))
-
-(defn scan-public-bundle! [run-root]
-  (let [findings (sensitivity-findings run-root)]
-    (when (seq findings)
-      (throw (ex-info "Public bundle sensitivity scan failed" {:findings findings})))
-    {:profile :public :decision :allowed :findings []}))
-
 (defn scan-internal-bundle!
   "Scan an internal bundle without blocking approved retention. Findings are
    sanitized metadata (path tokens, value commitments, rule IDs) and the

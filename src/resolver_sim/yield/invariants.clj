@@ -2,7 +2,8 @@
   "Generic accounting invariants for yield mechanism (provider + Sew)."
   (:require [resolver-sim.yield.risk :as risk]
             [resolver-sim.yield.invariant-catalog :as cat]
-            [resolver-sim.logging :as log]))
+                        [resolver-sim.yield.partial-fill :as partial-fill]
+                        [resolver-sim.logging :as log]))
 
 (defn- inv-result [holds?]
   {:holds? (boolean holds?)})
@@ -260,6 +261,44 @@
                                          (not (resolver-owned-position? pos))))
                         #(held-for-token world %)))
 
+(defn check-pro-rata-accounting-reconciles
+  "Reconcile each persisted propagation with its committed application snapshot."
+  [world]
+  (let [props (vals (:yield/pro-rata-propagations world {}))
+        failures (mapcat (fn [p]
+                           (let [id (:propagation/id p)
+                                 a (get-in world [:yield/applied-pro-rata-propagations id])
+                                 allocated (long (get-in p [:summary :allocated] 0))
+                                 source (:source-account a)
+                                 participants (:participants p)
+                                 apps (:participants a)
+                                 entries (:accounting-entries p)
+                                                                  entry-hash (partial-fill/accounting-entry-set-hash entries)
+                                                                  expected-key [:pro-rata-propagation (:calculation-ref p) (:outcome-ref p)
+                                                                                (get-in p [:propagation-policy :policy/hash])]
+                                                                  debit (filter #(and (= :debit (:entry/type %)) (= :shared-liquidity (:account %))) entries)
+                                                                  credits (filter #(and (= :credit (:entry/type %)) (= :withdrawn (:account %))) entries)]
+                             (cond-> []
+                               (nil? a) (conj {:propagation-id id :reason :missing-propagation-application})
+                                                              (and a (not= "pro-rata-propagation-application.v2" (:schema-version a))) (conj {:propagation-id id :reason :unsupported-application-schema})
+                                                              (and a (not= expected-key (:application-key a))) (conj {:propagation-id id :reason :application-key-mismatch :expected expected-key :observed (:application-key a)})
+                                                              (and a (not= (:calculation-ref p) (:calculation-id a))) (conj {:propagation-id id :reason :application-calculation-id-mismatch})
+                                                              (and a (not= (:outcome-ref p) (:outcome-hash a))) (conj {:propagation-id id :reason :application-outcome-hash-mismatch})
+                                                              (and a (not= (get-in p [:propagation-policy :policy/hash]) (:policy-hash a))) (conj {:propagation-id id :reason :application-policy-hash-mismatch})
+                                                              (not= entry-hash (:accounting-entry-set-hash p)) (conj {:propagation-id id :reason :propagation-accounting-entry-hash-mismatch})
+                                                              (and a (not= entry-hash (:accounting-entry-set-hash a))) (conj {:propagation-id id :reason :application-accounting-entry-hash-mismatch})
+                               (and a (not= allocated (- (long (:before source 0)) (long (:after source 0))))) (conj {:propagation-id id :reason :source-account-arithmetic-failed})
+                               (and a (not= (- allocated) (long (:delta source 0)))) (conj {:propagation-id id :reason :source-debit-mismatch})
+                               (not= 1 (count debit)) (conj {:propagation-id id :reason :source-account-entry-missing})
+                               (not= 0 (reduce + 0 (map #(long (:delta % 0)) entries))) (conj {:propagation-id id :reason :accounting-entry-set-unbalanced})
+                               (and a (not= (set (map :participant-id participants)) (set (map :participant-id apps)))) (conj {:propagation-id id :reason :application-participant-set-mismatch})
+                               (and a (not= allocated (reduce + 0 (map #(long (get-in % [:withdrawn :delta] 0)) apps)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
+                               (and a (not= allocated (reduce + 0 (map #(long (:delta % 0)) credits)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch}))))
+                         props)]
+    {:holds? (empty? failures) :checks {:application-record-present (if (empty? failures) :pass :fail)
+                                        :entry-set-balanced (if (empty? failures) :pass :fail)}
+     :violations (vec failures)}))
+
 (defn check-pro-rata-propagation-complete
   "Every persisted shared pro-rata outcome must have been applied exactly once.
    Verifies allocation and entitlement conservation, state-position residuals,
@@ -322,7 +361,8 @@
    :yield/value-conservation   check-value-conservation
    :yield/deferred-reclaim     check-deferred-reclaim
    :yield/aggregate-shortfall-cap check-aggregate-shortfall-cap
-   :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete})
+   :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete
+      :yield/pro-rata-accounting-reconciles check-pro-rata-accounting-reconciles})
 
 (defn registered-ids []
   (vec (keys check-fns)))

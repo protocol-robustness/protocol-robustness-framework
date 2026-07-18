@@ -44,7 +44,11 @@
 
    :yield/pro-rata-propagation-complete
    {:description "Every shared pro-rata allocation is applied once, preserves each deferred residual as a position, and reconciles accounting and pool residuals."
-    :prf-tags [:pro-rata :propagation :accounting :conservation]}})
+    :prf-tags [:pro-rata :propagation :accounting :conservation]}
+
+   :yield/pro-rata-accounting-reconciles
+   {:description "Shared-withdrawal propagation accounting entries, application snapshots, and authoritative balances reconcile."
+    :prf-tags [:pro-rata :accounting :conservation]}})
 
 (def default-runtime-invariant-ids
   "Checked on every successful replay step (yield-v1 adapter)."
@@ -56,7 +60,8 @@
    :yield/value-conservation
    :yield/partial-liquidity-principal
    :yield/deferred-reclaim
-   :yield/pro-rata-propagation-complete])
+   :yield/pro-rata-propagation-complete
+   :yield/pro-rata-accounting-reconciles])
 
 (def default-transition-invariant-ids
   "Checked on each successful transition (yield-v1 adapter)."

@@ -409,8 +409,8 @@
            :profile/id profile-name
            :profile/hash profile-hash
            :evaluation/input-level (when has-prov? (name (:level run-sensitivity)))
-           :evaluation/risk-severity (when has-prov?
-                                       (name (get-in run-sensitivity [:risk-meta :risk-severity])))
+           :evaluation/risk-severity (when-let [sev (get-in run-sensitivity [:risk-meta :risk-severity])]
+                                        (name sev))
            :evaluation/decision decision-str
             :evaluation/reasons decision-reasons})
          ;; Scenario-set reconciliation — proves the report considered the

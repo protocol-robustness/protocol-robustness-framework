@@ -43,8 +43,8 @@
     (assoc result :input/provenance provenance :scenario/id scenario-id :execution/id execution-id)))
 (defn- process! [phase command] (checked phase command (apply shell/sh command)))
 (defn default-write-manifest! [c e] (manifest/write! c e))
-(defn default-extract-artifacts! [c _]
-  (let [result (extraction/extract! c)]
+(defn default-extract-artifacts! [c execution]
+  (let [result (extraction/extract! c execution)]
     (manifest/write-classification! (:manifest/dir c) (:classification result))
     result))
 (defn default-scan-sensitivity! [c e]
@@ -52,8 +52,12 @@
                  (safety/scan-public-bundle! (:run/root c))
                  (safety/scan-internal-bundle! (:run/root c)))
         scenarios (get-in e [:run-result :results] [])
-        run-sensitivity (prop/merge-sensitivity
-                          (mapv prop/effective-scenario-sensitivity scenarios))]
+        ;; Raw execution results may not yet carry enriched sensitivity metadata.
+        ;; Use the least restrictive explicit structural default rather than
+        ;; passing a nil level to the persisted report encoder.
+        run-sensitivity (or (prop/merge-sensitivity
+                             (mapv prop/effective-scenario-sensitivity scenarios))
+                            {:level :sensitivity/public})]
     (safety/write-sensitivity-report! (:manifest/dir c) result run-sensitivity scenarios
                                       {:run-id (:run/id c)
                                        :profile (:sensitivity/profile c)
@@ -411,6 +415,10 @@
              {:command/status :completed :scenario/outcome (if (zero? (:exit-code execution)) :pass :fail)
               :exit-code (:exit-code execution) :run/id (:run/id context) :run/root (p (:run/root context)) :phases @records})
            (catch Throwable error
+             ;; Preserve structured lifecycle reasons (not exception text) for
+             ;; callers that need to distinguish a missing required DAG from an
+             ;; execution or finalization failure.
              {:command/status :failed :scenario/outcome :unknown :exit-code 1
-              :run/id (:run/id context) :run/root (p (:run/root context)) :phases @records :error (.getMessage error)})))
+              :run/id (:run/id context) :run/root (p (:run/root context))
+              :phases @records :error (.getMessage error) :error/data (ex-data error)})))
        (finally (safety/release-lock! lock))))))

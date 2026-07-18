@@ -326,14 +326,27 @@
     (when-not (:valid? validation)
       (throw (ex-info "Invalid pro-rata propagation" {:stage :policy-validation
                                                         :validation validation})))
-    (if (get-in world [:yield/applied-pro-rata-propagations pid])
-      {:status :already-applied :world world :propagation-id pid}
+    (if-let [existing (get-in world [:yield/applied-pro-rata-propagations pid])]
+      (if (= (select-keys existing [:propagation-id :calculation-id :outcome-hash :policy-hash :application-key])
+             {:propagation-id pid :calculation-id (:calculation-ref propagation)
+              :outcome-hash (:outcome-ref propagation)
+              :policy-hash (get-in propagation [:propagation-policy :policy/hash])
+              :application-key application-key})
+        {:status :already-applied :world world :propagation-id pid}
+        {:status :failed :reason :applied-propagation-record-mismatch :world world :propagation-id pid})
       (let [allocated (long (get-in propagation [:summary :allocated] 0))
             token (:token (first (vals (:yield/partial-fill-decisions world {}))))
             ;; The caller retains the token in propagation context when applying
             ;; directly; shared withdrawal supplies it below for the first apply.
             token (or token (:token propagation) (get-in propagation [:allocation/domain :token]))
             participants (:participants propagation)
+            source-before (get-in world [:total-held token])
+            _ (when (and (pos? allocated) (nil? source-before))
+                (throw (ex-info "Missing shared liquidity balance" {:reason :missing-shared-liquidity-balance})))
+            _ (when (and (some? source-before) (or (not (number? source-before)) (neg? source-before)))
+                (throw (ex-info "Invalid shared liquidity balance" {:reason :invalid-shared-liquidity-balance})))
+            _ (when (and (number? source-before) (< source-before allocated))
+                (throw (ex-info "Insufficient shared liquidity" {:reason :insufficient-shared-liquidity})))
             next-world
             (reduce (fn [w p]
                       (let [id (:participant-id p)
@@ -358,22 +371,46 @@
                                          :fulfilled-amount fulfilled
                                          :deferred-amount deferred
                                          :haircut-amount 0})]
-                        (assoc-in w [:yield/positions id]
+                        (-> w
+                            (update-in [:yield/withdrawn token id] (fnil + 0) fulfilled)
+                            (assoc-in [:yield/positions id]
                                   (cond-> (assoc position :status (if (pos? deferred) :unwinding :withdrawn)
                                                    :shortfall shortfall
                                                    :partial-fill-affected? (pos? deferred)
                                                    :cumulative-fulfilled (+ (long (:cumulative-fulfilled position 0)) fulfilled))
                                     (pos? deferred) (assoc :deferred-position lineage)
-                                    (zero? deferred) (dissoc :deferred-position)))))
-                    world participants)
+                                    (zero? deferred) (assoc :deferred-position-history
+                                                            (assoc lineage :position/status :closed
+                                                                   :position/current-amount 0
+                                                                   :position/closed-by-propagation-id pid))
+                                    (zero? deferred) (dissoc :deferred-position))))))
+                                                        world participants)
             next-world (if (contains? (:total-held next-world {}) token)
                          (update-in next-world [:total-held token] (fnil - 0) allocated)
                          next-world)
-            application {:propagation-id pid
-                         :calculation-id (:calculation-ref propagation)
+            application {:schema-version "pro-rata-propagation-application.v2"
+                         :propagation-id pid :calculation-id (:calculation-ref propagation)
                          :outcome-hash (:outcome-ref propagation)
                          :policy-hash (get-in propagation [:propagation-policy :policy/hash])
-                         :application-key application-key}]
+                         :application-key application-key
+                                                  :accounting-entry-set-hash (:accounting-entry-set-hash propagation)
+                                                  :source-account {:account :shared-liquidity :token token
+                                          :before source-before :delta (- allocated)
+                                          :after (when (some? source-before) (- source-before allocated))}
+                         :participants (mapv (fn [p]
+                                                                        (let [id (:participant-id p)
+                                                                              before (long (get-in world [:yield/withdrawn token id] 0))
+                                                                              delta (long (:fulfilled p 0))]
+                                                                          {:participant-id id :position-id id
+                                                                           :withdrawn {:account :withdrawn :token token :participant-id id
+                                                                                                                                                                  :before before :delta delta :after (+ before delta)}
+                                                                           :obligation {:before (:eligible-obligation p) :fulfilled delta
+                                                                                        :deferred (:deferred p) :unmet (:unmet p 0) :waived (:waived p 0)
+                                                                                        :after (:obligation-after p)}})) participants)
+                         :residual {:available (get-in propagation [:summary :available])
+                                    :allocated allocated :amount (get-in propagation [:summary :unallocated-residual])
+                                    :destination (get-in propagation [:residual :destination])}
+                         :status :committed}]
         {:status :applied
          :propagation-id pid
          :world (assoc-in next-world [:yield/applied-pro-rata-propagations pid] application)}))))

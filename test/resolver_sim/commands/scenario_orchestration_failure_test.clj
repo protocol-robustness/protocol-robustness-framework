@@ -167,6 +167,61 @@
         (is (not (.exists (io/file root ".run.lock")))))
       (finally (delete-tree! root)))))
 
+(deftest missing-required-dag-prevents-package-index-and-completion
+  (let [root (temp-dir)
+        c (context root)]
+    (try
+      ;; Use the real package-index phase while all preceding execution phases
+      ;; are isolated. No DAG is persisted, so canonical finalization must fail
+      ;; before a package index or terminal seal can be emitted.
+      (let [result (orchestration/run-scenario!
+                    c (dissoc (successful-overrides) :write-package-index))]
+        (is (= :failed (:command/status result)))
+        (is (= :package/required-artifact-unavailable
+               (get-in result [:error/data :code])))
+        (is (= :execution-dag (get-in result [:error/data :artifact-id])))
+        (is (not (.exists (io/file root "manifest/run-package-index.json"))))
+        (is (not (.exists (io/file root "completion.json"))))
+        (is (.exists (io/file root ".run-state"))))
+      (finally (delete-tree! root)))))
+
+(deftest package-index-is-followed-only-by-terminal-completion-and-cleanup
+  (let [root (temp-dir)
+        c (context root)
+        events (atom [])
+        authoritative (io/file root "manifest/artifacts.json")
+        package-index (io/file root "manifest/run-package-index.json")
+        overrides (assoc (successful-overrides)
+                         :refresh-registry (fn [_ _]
+                                             (.mkdirs (.getParentFile authoritative))
+                                             (spit authoritative "frozen-registry")
+                                             (swap! events conj :registry-frozen)
+                                             {})
+                         :write-package-index (fn [_ _]
+                                                (spit package-index "sealed-index")
+                                                (swap! events conj [:package-index (slurp authoritative)])
+                                                {})
+                         :complete (fn [ctx _]
+                                     ;; Completion must not rewrite a package input.
+                                     (swap! events conj [:completion (slurp authoritative)])
+                                     (spit (io/file (:run/root ctx) "completion.json") "{}")
+                                     (io/delete-file (io/file (:run/root ctx) ".run-state") true)
+                                     (swap! events conj :run-state-removed)
+                                     {}))]
+    (try
+      (let [result (orchestration/run-scenario! c overrides)]
+        (is (= :completed (:command/status result)))
+        (is (= [:registry-frozen
+                [:package-index "frozen-registry"]
+                [:completion "frozen-registry"]
+                :run-state-removed]
+               @events))
+        (is (= "frozen-registry" (slurp authoritative)))
+        (is (.exists package-index))
+        (is (.exists (io/file root "completion.json")))
+        (is (not (.exists (io/file root ".run-state")))))
+      (finally (delete-tree! root)))))
+
 (deftest successful-required-phases-complete-and-clear-running-state
   (let [root (temp-dir)
         c (context root)]

@@ -124,7 +124,8 @@
   [result]
   (if-let [sens (get-in result [:scenario-metadata :scenario/sensitivity])]
     (scenario-sensitivity (assoc {} :scenario/sensitivity sens))
-    (let [structural (sentinel/classify-structural result)]
+    (let [structural (or (sentinel/classify-structural result)
+                         :sensitivity/critical-private)]
       {:level structural :structural-only true})))
 
 (defn artifact-sensitivity
@@ -258,14 +259,14 @@
       (let [levels (keep :level normalized)
             highest-level (when (seq levels)
                             (apply max-key sentinel/level-index levels))
-          ;; Pick the risk-meta with highest severity, or the first one
-          risk-meta (first (sort-by (fn [rm]
-                                     (get sentinel/risk-severity-order
-                                          (:risk-severity rm) 0))
-                                    >
-                                    (keep :risk-meta normalized)))]
-        (cond-> {:level highest-level}
-          risk-meta (assoc :risk-meta risk-meta))))))
+            risk-meta (first (sort-by (fn [rm]
+                                        (get sentinel/risk-severity-order
+                                             (:risk-severity rm) 0))
+                                      >
+                                      (keep :risk-meta normalized)))]
+        (when highest-level
+          (cond-> {:level highest-level}
+            risk-meta (assoc :risk-meta risk-meta)))))))
 
 ;; ── Derivation provenance ───────────────────────────────────────────────────
 
