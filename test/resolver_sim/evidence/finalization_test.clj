@@ -35,6 +35,27 @@
     (is (= "valid-empty" (get-in result [:evidence :chain :status])))
     (is (:valid? (finalization/validate-finalization result)))))
 
+(deftest scenario-finalization-execution-identity-is-profile-gated
+  (let [legacy (finalization/build-scenario-finalization
+                {:run {:run-id "run-1" :run-input-hash h1}
+                 :subject {:subject-kind "scenario" :scenario-id "S-empty"}
+                 :execution {:status "completed" :terminality "closed"}
+                 :chain {:status "valid-empty" :record-count 0 :genesis nil :head nil :reachable-hashes []}
+                 :bindings {} :verification {:status "verified"} :policy {}})
+        canonical (finalization/build-scenario-finalization
+                   {:run {:run-id "run-1" :run-input-hash h1}
+                    :execution-id "execution:run-1"
+                    :subject {:subject-kind "scenario" :scenario-id "S-empty"}
+                    :execution {:status "completed" :terminality "closed"}
+                    :chain {:status "valid-empty" :record-count 0 :genesis nil :head nil :reachable-hashes []}
+                    :bindings {} :verification {:status "verified"} :policy {}})]
+    (is (:valid? (finalization/validate-finalization legacy)))
+    (is (some #{:missing-execution-id}
+              (:errors (finalization/validate-finalization legacy {:require-execution-id? true}))))
+    (is (= "execution:run-1" (:execution/id canonical)))
+    (is (:valid? (finalization/validate-finalization canonical {:require-execution-id? true})))
+    (is (not= canonical (assoc canonical :execution/id "execution:other")))))
+
 (deftest scenario-finalization-writes-only-forensic-relative-public-metadata
   (let [dir (str (.toFile (java.nio.file.Files/createTempDirectory
                            "scenario-finalization"
@@ -171,6 +192,7 @@
         reconciliation-report-file (io/file dir "evidence" "reports" "run-evidence-reconciliation.json")
         scenario-finalization (finalization/build-scenario-finalization
                                {:run {:run-id "run-1" :run-input-hash h1}
+                                :execution-id "execution:run-1:a"
                                 :subject {:subject-kind "scenario"
                                           :scenario-id "S-empty"
                                           :scenario-artifact-id "S-empty-abc123"}
@@ -181,15 +203,19 @@
                                 :verification {:status "verified"}
                                 :policy {}})
         scenario-finalization-2 (-> scenario-finalization
+                                               (assoc :execution/id "execution:run-1:b")
                                                (assoc-in [:subject :scenario-id] "S-empty-2")
                                                (assoc-in [:subject :scenario-artifact-id] "S-empty-2-abc123"))
-        _ (spit scenario-file (json/write-str scenario-finalization))
-        _ (spit scenario-file-2 (json/write-str scenario-finalization-2))
+        ;; Simulate the persisted namespace-preserving finalization boundary.
+        json-safe (fn [value] (-> value (dissoc :execution/id) (assoc "execution/id" (:execution/id value))))
+        _ (spit scenario-file (json/write-str (json-safe scenario-finalization)))
+        _ (spit scenario-file-2 (json/write-str (json-safe scenario-finalization-2)))
         _ (spit registry-file (json/write-str {:evidence-hashes [] :registry-hash h1}))
         result (finalization/write-run-finalization!
                 {:finalization-path finalization-file
                                  :reconciliation-report-path reconciliation-report-file
                                  :scenario-finalization-files [scenario-file scenario-file-2]
+                 :require-execution-identities? true
                  :evidence-files []
                  :registry-path registry-file
                  :run {:run-id "run-1" :run-input-hash h1}
@@ -200,6 +226,8 @@
     (is (= "verified" (get-in result [:finalization :verification :status])))
     (is (= "exact" (get-in result [:finalization :verification :reconciliation :status])))
     (is (= 2 (count (get-in result [:finalization :evidence :scenario-finalizations]))))
+    (is (= #{"execution:run-1:a" "execution:run-1:b"}
+           (set (map :execution/id (get-in result [:finalization :evidence :scenario-finalizations])))))
     (is (= 2 (get-in result [:finalization :evidence :scenario-finalization-set :count])))
     (is (= 2 (get-in result [:finalization :evidence :scenario-chain-head-set :count])))
     (is (some #{:scenario-finalization-set-root-mismatch}

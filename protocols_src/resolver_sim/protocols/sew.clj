@@ -1068,11 +1068,12 @@
 
 (defmethod apply-action "execute-reentrant-withdraw"
   [ctx world event]
-  (let [p        (:params event)
-        callback (:callback p)
-        cb-res   (apply-action ctx world callback)]
+  (let [p            (:params event)
+        callback     (:callback p)
+        guard-world  (assoc world :reentrancy-guard true)
+        cb-res       (apply-action ctx guard-world callback)]
     (if-not (:ok cb-res)
-      cb-res
+      (assoc cb-res :world world)
       (let [final-res (apply-action ctx (:world cb-res) (assoc event :action "withdraw-escrow"))]
         final-res))))
 
@@ -1476,7 +1477,8 @@
     :workflow-not-slashable
     :missing-caller-context
     :invalid-new-resolver
-    :evidence-deadline-exceeded})
+    :evidence-deadline-exceeded
+    :reentrancy-guard-violated})
 
 (def ^:private adversarial-capable-actions
   "Actions that can constitute an attack when performed by a

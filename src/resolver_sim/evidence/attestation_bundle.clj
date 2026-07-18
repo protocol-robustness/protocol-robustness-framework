@@ -25,13 +25,15 @@
      ;; Persist
      (ab/write-attestation-bundle! bundle)
      (ab/read-attestation-bundle path)"
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.edn :as edn]
             [clojure.walk :as walk]
             [resolver-sim.evidence.attestation-integrity :as integrity]
             [resolver-sim.evidence.attestation-signature :as signature]
             [resolver-sim.definitions.passive-registries :as registries]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc])
+  (:import [java.security MessageDigest]))
 
 ;; ── Constants ────────────────────────────────────────────────────────────────
 
@@ -41,7 +43,9 @@
 (def ^:const bundle-kind :attestation-verification-package)
 
 (def ^:const verification-statuses
-  #{:fully-verified :hash-linked :partially-verified :invalid :blocked-by-sensitivity-policy})
+  #{:fully-verified :hash-linked :partially-verified :invalid
+    :blocked-by-sensitivity-policy :internal-retention
+    :unverified-sensitivity})
 
 (def ^:private runtime-root-key :bundle/runtime-root)
 
@@ -180,13 +184,16 @@
                        :bundle/entrypoints entrypoints
                        :bundle/objects (vec (concat att-entries claim-entries node-entries))
                        :bundle/registries registry-snapshot
-         :bundle/sensitivity (cond-> {:sentinel/decision (:sentinel/decision sensitivity-report :blocked)
-                                       :sentinel/report-hash (:sentinel/report-hash sensitivity-report)
-                                       :sentinel/path (:sentinel/path sensitivity-report
-                                                                      (str bundle-dir
-                                                                           "/reports/sensitivity-sentinel-report.edn"))}
-                               sensitivity-provenance
-                               (assoc :sentinel/provenance sensitivity-provenance))
+         :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
+                                        :sentinel/report-hash (:report-hash sensitivity-report)
+                                        :sensitivity-report/ref
+                                        {:schema "sensitivity-report.v2"
+                                         :semantic-hash (:report/semantic-hash sensitivity-report)
+                                         :sha256 (:report-byte-hash sensitivity-report)
+                                         :byte-length (:report-byte-length sensitivity-report)
+                                         :path (str bundle-dir "/reports/sensitivity-report.json")}}
+                                sensitivity-provenance
+                                (assoc :sentinel/provenance sensitivity-provenance))
                        :bundle/verification-profile {:integrity? true
                                                                             ;; Only an explicitly sign-capable producer may require signatures.
                                                                             :signature? (boolean (:signature? options))
@@ -436,18 +443,113 @@
               :note (when (seq hash-only)
                       "Some subjects are hash-only: content not available for verification")}}))
 
+(defn- sha256-bytes
+  "Hex SHA-256 of a byte array."
+  [bytes]
+  (let [digest (doto (MessageDigest/getInstance "SHA-256")
+                 (.update bytes))]
+    (format "%064x" (java.math.BigInteger. 1 (.digest digest)))))
+
+(defn- verify-sensitivity-report-file
+  "Verify a sensitivity report file against its reference metadata.
+   Returns nil on success or a detail map on failure."
+  [file ref]
+  (try
+    (let [bytes (java.nio.file.Files/readAllBytes (.toPath file))
+          actual-sha256 (sha256-bytes bytes)
+          expected-sha256 (:sha256 ref)
+          actual-length (alength bytes)
+          expected-length (:byte-length ref)]
+      (cond
+        (and expected-sha256 (not= actual-sha256 expected-sha256))
+        {:check/status :fail :reason "SHA-256 mismatch" :expected expected-sha256 :actual actual-sha256}
+        (and expected-length (not= actual-length expected-length))
+        {:check/status :fail :reason "byte-length mismatch" :expected expected-length :actual actual-length}
+        :else nil))
+    (catch java.io.FileNotFoundException _
+      {:check/status :warning :reason "Report file not found at referenced path"})
+    (catch Exception e
+      {:check/status :error :reason (str "File read error: " (.getMessage e))})))
+
+(defn- verify-sensitivity-report-content
+  "Parse and verify the sensitivity report JSON content.
+   Returns a detail map or nil on success."
+  [report-str ref]
+  (try
+    (let [data (json/read-str report-str :key-fn keyword)
+          schema (:schema-version data)
+          ;; Recompute semantic hash from parsed data
+          hash-input (dissoc data :evaluated-at :report-hash :report-byte-hash)
+          computed-semantic-hash (hc/hash-with-intent {:hash/intent :evidence-record} hash-input)
+          expected-semantic-hash (:semantic-hash ref)]
+      (cond
+        (not= schema "sensitivity-report.v2")
+        {:check/status :fail :reason "Unexpected schema" :schema schema}
+        (and expected-semantic-hash (not= computed-semantic-hash expected-semantic-hash))
+        {:check/status :fail :reason "Semantic hash mismatch"
+         :computed computed-semantic-hash :expected expected-semantic-hash}
+        :else nil))
+    (catch Exception e
+      {:check/status :error :reason (str "JSON parse error: " (.getMessage e))})))
+
+(defn- ref-present?
+  [ref]
+  (and ref (or (:sha256 ref) (:semantic-hash ref))))
+
 (defn- check-sensitivity-sentinel
   [bundle]
   (let [sensitivity (:bundle/sensitivity bundle)
+        ref (:sensitivity-report/ref sensitivity)
         decision (:sentinel/decision sensitivity)]
-    (if (= :allowed decision)
-      {:check/id :sensitivity-sentinel-approved
-       :check/status :pass
-       :detail {:decision decision}}
-      {:check/id :sensitivity-sentinel-approved
-       :check/status :blocked
-       :detail {:decision decision
-                :reason "Sensitivity sentinel did not approve export"}})))
+    (if (and decision (not (ref-present? ref)))
+      ;; Backward-compatible path: no report ref, trust embedded decision
+      (merge {:check/id :sensitivity-sentinel-approved}
+             (cond
+               (= :blocked decision)
+               {:check/status :blocked :decision decision
+                :reason "Sensitivity sentinel blocked export (no report ref)"}
+               (= :internal-retention decision)
+               {:check/status :policy-constrained :decision decision
+                :reason "Sensitivity sentinel restricted to internal retention"}
+               :else
+               {:check/status :pass :decision decision
+                :reason "Sensitivity sentinel approved (embedded decision)"}))
+      ;; Full verification chain: verify report file against ref
+      (let [report-path (:path ref)
+            report-file (when report-path (contained-path bundle report-path))
+            file-check (when report-file
+                         (verify-sensitivity-report-file report-file ref))
+            content-check (when (and report-file (nil? file-check))
+                            (verify-sensitivity-report-content (slurp report-file) ref))
+            result (cond
+                     (not (ref-present? ref))
+                     {:check/status :warning
+                      :reason "No sensitivity-report/ref in bundle — cannot verify report binding"}
+                     (not report-file)
+                     {:check/status :warning
+                      :reason (str "Report file not found: " report-path)
+                      :path report-path}
+                     file-check
+                     (assoc file-check :step :file-verification :path report-path)
+                     content-check
+                     (assoc content-check :step :content-verification)
+                     (nil? decision)
+                     {:check/status :warning
+                      :reason "No decision in sensitivity report"}
+                     (= :blocked decision)
+                     {:check/status :blocked
+                      :decision decision
+                      :reason "Sensitivity sentinel blocked export"}
+                     (= :internal-retention decision)
+                     {:check/status :policy-constrained
+                      :decision decision
+                      :reason "Sensitivity sentinel restricted to internal retention"}
+                     :else
+                     {:check/status :pass
+                      :decision decision
+                      :reason "Sensitivity sentinel approved"})]
+        (merge {:check/id :sensitivity-sentinel-approved}
+               result)))))
 
 (defn verify-attestation-bundle
   "Verify an attestation bundle against the verification pipeline.
@@ -477,24 +579,33 @@
                 (check-sensitivity-sentinel bundle)]
         failures (filter #(= :fail (:check/status %)) checks)
         blocked (filter #(= :blocked (:check/status %)) checks)
-        warnings (filter #(= :warning (:check/status %)) checks)
-        all-pass? (and (empty? failures) (empty? blocked))
+        policy-constrained (filter #(= :policy-constrained (:check/status %)) checks)
+        sens-warnings (filter #(and (= :warning (:check/status %))
+                                    (= :sensitivity-sentinel-approved (:check/id %)))
+                              checks)
+        other-warnings (filter #(and (= :warning (:check/status %))
+                                     (not= :sensitivity-sentinel-approved (:check/id %)))
+                               checks)
+        all-pass? (and (empty? failures) (empty? blocked) (empty? policy-constrained))
         status (cond
                  (seq failures) :invalid
-                                  (seq blocked) :blocked-by-sensitivity-policy
-                 (and (empty? warnings) all-pass?) :fully-verified
+                 (seq blocked) :blocked-by-sensitivity-policy
+                 (seq policy-constrained) :internal-retention
+                 (seq sens-warnings) :unverified-sensitivity
+                 (and (empty? other-warnings) all-pass?) :fully-verified
                  (some #(= :warning (:check/status %))
                        (filter #(= :subject-content-available (:check/id %)) checks))
                  :partially-verified
                  :else :hash-linked)]
-    {:valid? (and all-pass? (empty? blocked))
+    {:valid? (and (empty? failures) (empty? blocked) (empty? policy-constrained))
      :bundle/status status
      :checks checks
-     :summary {:total-checks (count checks)
-               :pass (count (filter #(= :pass (:check/status %)) checks))
-               :warning (count warnings)
-               :fail (count failures)
-               :blocked (count blocked)}})))
+      :summary {:total-checks (count checks)
+                :pass (count (filter #(= :pass (:check/status %)) checks))
+                :warning (count (filter #(= :warning (:check/status %)) checks))
+                :fail (count failures)
+                :blocked (count blocked)
+                :policy-constrained (count policy-constrained)}})))
 
 ;; ── Bundle I/O ───────────────────────────────────────────────────────────────
 

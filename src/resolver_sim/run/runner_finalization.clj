@@ -21,20 +21,23 @@
 (defn build
   "Construct an immutable runner-finalization. `execution-result` must be a
    replay-result projection only; it must not contain worlds or traces."
-  [{:keys [run-id runner-selection source-provenance execution-result]}]
+  [{:keys [run-id scenario-id execution-id runner-selection source-provenance execution-result]}]
   (when-not (criteria/valid-runner-selection? runner-selection)
     (throw (ex-info "Runner finalization requires a valid runner selection"
                     {:runner-selection runner-selection})))
   (when-not (and (string? run-id) (seq run-id))
     (throw (ex-info "Runner finalization requires a run id" {:run-id run-id})))
-  (let [base {:runner-finalization/schema-version schema-version
+  (let [base (cond-> {:runner-finalization/schema-version schema-version
               :run/id run-id
               :runner/selection (select-keys runner-selection [:mode :runner-id])
               :runner/local (local-runtime-identity)
               :runner/implementation-hash (:source/hash source-provenance)
               :execution/result execution-result}
+               scenario-id (assoc :scenario/id scenario-id)
+               execution-id (assoc :execution/id execution-id))
         hash (hc/hash-with-intent {:hash/intent :runner-finalization} base)]
     (assoc base :runner-finalization/hash hash)))
+
 
 (defn valid? [artifact]
   (let [base (dissoc artifact :runner-finalization/hash)
@@ -48,7 +51,10 @@
                  (conj :not-local-runner)
                  (not= expected (:runner-finalization/hash artifact))
                  (conj :hash-mismatch))]
-    {:valid? (empty? errors) :errors errors :expected-hash expected}))
+    {:valid? (empty? errors) :errors errors :expected-hash expected
+     :run-id (:run/id artifact)
+     :scenario-id (:scenario/id artifact)
+     :execution-id (:execution/id artifact)}))
 
 (defn runnable?
   "A runner finalization is runnable when its immutable identity validates and

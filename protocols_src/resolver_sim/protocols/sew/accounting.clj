@@ -891,18 +891,22 @@
   (update-in world [:total-fees token] (fnil + 0) amount))
 
 (defn withdraw-fees
-  "Withdraw all accumulated fees for token.
-   Sets total-fees[token] = 0 and returns {:ok true :world world' :amount amount}.
-   Mirrors EscrowVault.withdrawFees.
+   "Withdraw all accumulated fees for token.
+    Sets total-fees[token] = 0 and returns {:ok true :world world' :amount amount}.
+    Mirrors EscrowVault.withdrawFees.
 
-   recipient — resolved fee recipient address (from policy, not caller-chosen).
-   authorized-by — governance actor address that authorized the withdrawal.
+    recipient — resolved fee recipient address (from policy, not caller-chosen).
+    authorized-by — governance actor address that authorized the withdrawal.
 
-   Guard: amount must be > 0.
-   Guard: token must not be in a liquidity-crunch."
+    Guard: reentrancy guard must not be set.
+    Guard: amount must be > 0.
+    Guard: token must not be in a liquidity-crunch."
   [world token recipient authorized-by]
   (let [amount (get-in world [:total-fees token] 0)]
     (cond
+      (:reentrancy-guard world)
+      (t/fail :reentrancy-guard-violated)
+
       (zero? amount)
       (t/fail :no-fees-to-withdraw)
 
@@ -998,13 +1002,20 @@
    "Claim claimable balance for addr on workflow-id.
     Mirrors: BaseEscrow.withdrawEscrow.
 
+    Guard: reentrancy guard must not be set.
     Guard: escrow must be in terminal state (:released/:refunded/:resolved)
            or :pending (for partial release claimables).
     Guard: claimable balance must be > 0.
     Guard: token must not be in a liquidity-crunch."
   [world workflow-id addr]
-  (if (nil? workflow-id)
+  (cond
+    (:reentrancy-guard world)
+    (t/fail :reentrancy-guard-violated)
+
+    (nil? workflow-id)
     (t/fail :invalid-workflow-id)
+
+    :else
     (let [wf-id (t/normalize-workflow-id workflow-id)]
       (cond
         (not (t/valid-workflow-id? world wf-id))

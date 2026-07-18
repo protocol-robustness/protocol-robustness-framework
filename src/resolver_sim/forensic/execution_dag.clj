@@ -62,16 +62,95 @@
     (assoc updated :node/hash (node-hash updated))))
 
 (defn build-dag
-  "Assemble a full DAG from plan nodes and edges."
-  [nodes edges]
-  (let [root-str (pr-str (sort-by :node/id nodes) (sort-by :edge/from edges))]
-    {:dag/schema-version "execution-dag.v1"
-     :dag/generated-at (str (Instant/now))
-     :dag/nodes nodes
-     :dag/edges edges
-     :dag/node-count (count nodes)
-     :dag/edge-count (count edges)
-     :dag/root-hash (sha256 root-str)}))
+  "Assemble a full DAG from plan nodes and edges. The optional identity map is
+   additive within execution-dag.v1 for legacy read compatibility; finalized
+   single-scenario package validation requires all three identity fields."
+  ([nodes edges] (build-dag nodes edges nil))
+  ([nodes edges {:keys [run-id scenario-id execution-id]}]
+   (let [root-str (pr-str (sort-by :node/id nodes) (sort-by :edge/from edges))]
+     (cond-> {:dag/schema-version "execution-dag.v1"
+              :dag/generated-at (str (Instant/now))
+              :dag/nodes nodes
+              :dag/edges edges
+              :dag/node-count (count nodes)
+              :dag/edge-count (count edges)
+              :dag/root-hash (sha256 root-str)}
+       run-id (assoc :run/id run-id)
+       scenario-id (assoc :scenario/id scenario-id)
+       execution-id (assoc :execution/id execution-id)))))
+
+(defn- normalize-node [n]
+  (cond-> n (:id n) (assoc :node/id (:id n)) (:type n) (assoc :node/type (:type n))
+            (string? (:node/type n)) (update :node/type keyword)
+            (:hash n) (assoc :node/hash (:hash n)) (:input-hashes n) (assoc :node/input-hashes (:input-hashes n))))
+(defn- normalize-edge [e]
+  (cond-> e (:from e) (assoc :edge/from (:from e)) (:to e) (assoc :edge/to (:to e))
+            (:type e) (assoc :edge/type (:type e)) (:hash e) (assoc :edge/hash (:hash e))))
+
+(defn validate-persisted-dag
+  "Validate an execution-dag.v1 persisted object. With :require-identities?
+   true, require explicit :run/id, :scenario/id, and :execution/id; generic
+   legacy DAG validation accepts their absence for read compatibility."
+  ([dag] (validate-persisted-dag dag {}))
+  ([dag {:keys [require-identities?]}]
+  (let [nodes (mapv normalize-node (:dag/nodes dag (:nodes dag [])))
+        edges (mapv normalize-edge (:dag/edges dag (:edges dag [])))
+        ids (map :node/id nodes) id-set (set ids)
+        expected-root (sha256 (pr-str (sort-by :node/id nodes) (sort-by :edge/from edges)))
+        edge-identities (map (fn [e] [(:edge/from e) (:edge/to e) (:edge/type e)]) edges)
+        adjacency (reduce (fn [m {:edge/keys [from to]}] (update m from (fnil conj #{}) to)) {} edges)
+        indegree (reduce (fn [m {:edge/keys [to]}] (update m to (fnil inc 0))) (zipmap ids (repeat 0)) edges)
+        topological-count (loop [queue (vec (sort (for [[id degree] indegree :when (zero? degree)] id)))
+                                          processed #{}]
+                                    (if-let [n (first queue)]
+                                      (let [degrees (reduce (fn [d child] (update d child dec)) indegree (get adjacency n #{}))
+                                            nexts (sort (for [[id degree] degrees
+                                                             :when (and (zero? degree) (not (contains? processed id)) (not= id n))]
+                                                         id))]
+                                        (recur (into (vec (rest queue)) nexts) (conj processed n)))
+                                      (count processed)))
+        reachable (if-let [start (first ids)]
+                    (loop [seen #{start} todo [start]]
+                      (if-let [n (first todo)]
+                        (let [nexts (set (concat (get adjacency n #{})
+                                                 (for [{:edge/keys [from to]} edges :when (= to n)] from)))
+                              unseen (remove seen nexts)]
+                          (recur (into seen unseen) (into (vec (rest todo)) unseen)))
+                        seen))
+                    #{})
+        reasons (vec (concat
+                              (when (empty? nodes) [{:code :execution-dag/empty-graph}])
+                              (when require-identities?
+                                (mapcat (fn [[field value]]
+                                          (cond
+                                            (nil? value) [{:code :execution-dag/missing-identity :field field}]
+                                            (not (and (string? value) (seq value))) [{:code :execution-dag/malformed-identity :field field :value value}]
+                                            :else []))
+                                        [[:run/id (:run/id dag)]
+                                         [:scenario/id (:scenario/id dag)]
+                                         [:execution/id (:execution/id dag)]]))
+                              (when-not (= "execution-dag.v1" (or (:dag/schema-version dag) (:schema-version dag))) [{:code :execution-dag/unsupported-schema}])
+                      (when-not (vector? nodes) [{:code :execution-dag/nodes-not-vector}])
+                      (when-not (= (count ids) (count id-set)) [{:code :execution-dag/duplicate-node-id}])
+                      (when (some nil? ids) [{:code :execution-dag/missing-node-id}])
+                                            (when-not (= (count edge-identities) (count (set edge-identities))) [{:code :execution-dag/duplicate-edge}])
+                                            (when (and (seq ids) (not= (count ids) topological-count)) [{:code :execution-dag/cycle-detected}])
+                                            (for [n nodes :when (not= (:node/hash n) (node-hash (dissoc n :node/hash)))] {:code :execution-dag/node-hash-mismatch :node-id (:node/id n)})
+                      (for [e edges :when (or (not (contains? id-set (:edge/from e))) (not (contains? id-set (:edge/to e))))] {:code :execution-dag/missing-edge-node :edge e})
+                      (when-not (= (or (:dag/root-hash dag) (:root-hash dag)) expected-root) [{:code :execution-dag/root-hash-mismatch}])
+                      (when (and (seq ids) (not= id-set reachable)) [{:code :execution-dag/disconnected-node}])))]
+    {:valid? (empty? reasons) :status (if (empty? reasons) :valid :invalid)
+     :root-node-hash (:dag/root-hash dag) :node-hashes (set (map :node/hash nodes))
+     :node-ids id-set :nodes nodes
+     :run-id (:run/id dag) :scenario-id (:scenario/id dag) :execution-id (:execution/id dag)
+     :reasons reasons})))
+
+(defn valid-persisted-dag? [dag] (:valid? (validate-persisted-dag dag)))
+
+(defn- json-key [k]
+  (if (keyword? k)
+    (if-let [ns (namespace k)] (str ns "/" (name k)) (name k))
+    (str k)))
 
 (defn write-dag!
   "Write DAG to disk. Returns the path written.
@@ -85,5 +164,5 @@
                  (str (io/file "results" "runs" (or run-id "unknown"))) )
          f (io/file dir "execution-dag.json")]
      (.mkdirs (io/file dir))
-     (spit f (json/write-str dag {:indent true}))
+     (spit f (json/write-str dag {:key-fn json-key :indent true}))
      (.getPath f))))

@@ -105,8 +105,27 @@
       (when level
         (cond-> {:level level}
           risk-meta (assoc :risk-meta (select-keys risk-meta
-                                                   [:value-at-risk :risk-severity
-                                                    :risk-vector :reason-codes])))))))
+                                                    [:value-at-risk :risk-severity
+                                                     :risk-vector :reason-codes])))))))
+
+(defn effective-scenario-sensitivity
+  "Compute the effective sensitivity for a scenario result, using the
+   declared sensitivity when available or falling back to structural
+   classification alone.
+
+   A scenario without a declaration still has a valid structural
+   classification and must not be silently dropped from aggregation.
+
+   Arguments:
+     result — a scenario result map (from enrich-summary-results)
+
+   Returns a map {:level <kw> :risk-meta <map|nil>}
+   with :structural-only true when no declaration was present."
+  [result]
+  (if-let [sens (get-in result [:scenario-metadata :scenario/sensitivity])]
+    (scenario-sensitivity (assoc {} :scenario/sensitivity sens))
+    (let [structural (sentinel/classify-structural result)]
+      {:level structural :structural-only true})))
 
 (defn artifact-sensitivity
   "Extract sensitivity metadata already attached to an artifact.
@@ -248,17 +267,31 @@
         (cond-> {:level highest-level}
           risk-meta (assoc :risk-meta risk-meta))))))
 
-;; ── Provenance ──────────────────────────────────────────────────────────────
+;; ── Derivation provenance ───────────────────────────────────────────────────
 
-(defn build-provenance
-  "Build a canonical sensitivity provenance record for an artifact
-   from the effective sensitivity and the originating sources.
+(defn build-sensitivity-derivation
+  "Build a canonical sensitivity derivation record for an artifact
+   from the effective sensitivity and originating source contexts.
+
+   This is a pure derivation helper — it computes a provenance record
+   from facts (effective sensitivity map) and source context (strings
+   or structured maps). It does NOT bind those facts to a specific
+   report identity or policy context.
+
+   The report.clj build-canonical-report-provenance function is the
+   single canonical authority for assembling and persisting the
+   run-level sensitivity provenance object. Other callers must not
+   persist the output of build-sensitivity-derivation as an equivalent
+   authority.
 
    Arguments:
      effective — provenance map from effective-sensitivity
-     sources   — additional context maps or scenario ids
+     sources   — additional source context: strings (appended to
+                 :sentinel/sources display list) or structured maps
+                 (added to :sentinel/structured-sources, with a
+                 human-readable summary appended to :sentinel/sources)
 
-   Returns a provenance map suitable for inclusion in bundle manifests,
+   Returns a derivation map suitable for inclusion in bundle manifests,
    finalization records, and verification reports."
   [effective & sources]
   (let [provenance-map (select-keys effective
@@ -267,17 +300,35 @@
                                      :sentinel/effective-level
                                      :sentinel/reasons
                                      :sentinel/risk-meta
-                                     :sentinel/sources])
-        extra-sources (filterv some? (map (fn [s]
-                                            (cond
-                                              (string? s) s
-                                              (keyword? s) (name s)
-                                              (map? s) (str (:scenario-id s))
-                                              :else (str s)))
-                                          sources))]
+                                     :sentinel/sources
+                                     :sentinel/structured-sources])
+        ;; Separate structured maps from plain strings
+        [structured extra-strings]
+        ((fn [xs]
+           (reduce (fn [[struct strs] s]
+                     (if (map? s)
+                       [(conj struct s) strs]
+                       [struct (conj strs (cond
+                                            (string? s) s
+                                            (keyword? s) (name s)
+                                            :else (str s)))]))
+                   [[] []]
+                   xs))
+         (filterv some? sources))
+        existing-structured (vec (concat (:sentinel/structured-sources provenance-map [])
+                                         structured))
+        existing-strings (vec (concat (:sentinel/sources provenance-map [])
+                                      extra-strings))]
     (cond-> provenance-map
-      (seq extra-sources)
-      (update :sentinel/sources into extra-sources))))
+      (seq extra-strings)
+      (assoc :sentinel/sources existing-strings)
+      (seq structured)
+      (assoc :sentinel/structured-sources existing-structured))))
+
+(defn- build-provenance
+  "Deprecated — use build-sensitivity-derivation instead."
+  [effective & sources]
+  (apply build-sensitivity-derivation effective sources))
 
 ;; ── Downgrade Prevention ────────────────────────────────────────────────────
 

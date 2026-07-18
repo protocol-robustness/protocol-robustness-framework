@@ -283,7 +283,14 @@
                        tsa-url (or (:tsa-url replay-opts)
                                    ts/*tsa-url*
                                    (System/getenv "PRF_TSA_URL"))
-                       allow-dirty? (:allow-dirty? replay-opts)]
+                       ;; Inner replay is permitted to preserve diagnostic evidence from
+                       ;; a dirty checkout. Canonicality is decided separately from the
+                       ;; resolved source provenance at the package boundary.
+                       allow-dirty? (if (contains? replay-opts :allow-dirty?)
+                                      (:allow-dirty? replay-opts)
+                                      (if (nil? chain/*allow-dirty*)
+                                        true
+                                        chain/*allow-dirty*))]
                    (chain/finalize-and-attest!
                     :run-id run-id
                     :private-key-path signing-key

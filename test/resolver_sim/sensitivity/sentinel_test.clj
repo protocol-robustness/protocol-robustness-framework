@@ -525,7 +525,7 @@
                    :sentinel/effective-level :sensitivity/private
                    :sentinel/reasons [:contains-unpublished-evidence]
                    :sentinel/sources ["scenario:s99"]}
-        provenance (prop/build-provenance effective)]
+        provenance (prop/build-sensitivity-derivation effective)]
     (is (= :sensitivity/private (:sentinel/effective-level provenance)))
     (is (= :sensitivity/internal (:sentinel/structural-level provenance)))
     (is (= :sensitivity/private (:sentinel/declared-level provenance)))))
@@ -533,7 +533,7 @@
 (deftest build-provenance-appends-extra-sources
   (let [effective {:sentinel/effective-level :sensitivity/private
                    :sentinel/reasons []}
-        provenance (prop/build-provenance effective "extra-context" "s99")]
+        provenance (prop/build-sensitivity-derivation effective "extra-context" "s99")]
     (is (some #(re-find #"extra-context" %) (:sentinel/sources provenance)))
     (is (some #(re-find #"s99" %) (:sentinel/sources provenance)))))
 

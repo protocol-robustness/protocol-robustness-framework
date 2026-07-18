@@ -1329,13 +1329,11 @@
     ;; ---------------------------------------------------------------------------
     ;; S67 — Reentrancy Callback
     ;;
-    ;; Validates that the protocol is resistant to reentrancy during fund withdrawal.
-    ;; The execute_reentrant_withdraw action triggers a callback to withdraw_escrow
-    ;; BEFORE finalizing its own state change.
-    ;;
-    ;; Expected: The main action should be REJECTED with :no-claimable-balance
-    ;; because the callback (simulating the attacker receiving funds) correctly
-    ;; drains the balance first in the chained state.
+    ;; Validates that the reentrancy guard on withdraw-escrow correctly blocks
+    ;; reentrant calls. The execute_reentrant_withdraw action sets the
+    ;; reentrancy guard BEFORE dispatching the callback. If the callback
+    ;; attempts to withdraw_escrow, it is rejected with :reentrancy-guard-violated
+    ;; and the world state is unchanged (no funds lost).
     ;; ---------------------------------------------------------------------------
 
 (def s67
@@ -1348,8 +1346,7 @@
                      {:id "seller"   :address "0xseller"   :strategy "honest"}
                      {:id "resolver" :address "0xresolver" :role "resolver"}]
    :protocol-params dr3
-    ;; The main action is expected to fail because the callback succeeds first.
-   :expected-revert? true
+   :expected-errors [{:seq 2 :action "execute_reentrant_withdraw" :error :reentrancy-guard-violated}]
    :events
    [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
      :params {:token "USDC" :to "0xattacker" :amount 10000 :custom-resolver "0xresolver"}}

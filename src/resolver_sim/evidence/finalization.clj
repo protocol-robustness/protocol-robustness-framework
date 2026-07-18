@@ -88,7 +88,7 @@
 (defn build-scenario-finalization
   "Build a non-persisted v2 scenario-chain finalization. The caller supplies
    already verified chain facts from persisted records in later phases."
-  [{:keys [run subject execution chain supplemental-channels bindings verification policy]}]
+  [{:keys [run subject execution execution-id chain supplemental-channels bindings verification policy]}]
   (let [hash-set (build-hash-set (or (:reachable-hashes chain) []))
         empty? (zero? (:record-count chain))
         status (:status chain)
@@ -99,14 +99,15 @@
                  (conj :invalid-valid-empty-chain)
                  (and (not empty?) (not (contains? #{"verified" "partial"} status)))
                  (conj :non-empty-chain-has-unsupported-status))]
-    (envelope "scenario-chain-finalization" run subject execution
-              {:chain (assoc chain :reachable-hash-set hash-set)
-               :supplemental-channels (vec (or supplemental-channels []))}
-              bindings
-              (merge {:result-version "scenario-chain-verification.v2"
-                      :status (if (seq errors) "invalid" (:status verification))
-                      :reasons (vec errors)} verification)
-              policy)))
+    (cond-> (envelope "scenario-chain-finalization" run subject execution
+                       {:chain (assoc chain :reachable-hash-set hash-set)
+                        :supplemental-channels (vec (or supplemental-channels []))}
+                       bindings
+                       (merge {:result-version "scenario-chain-verification.v2"
+                               :status (if (seq errors) "invalid" (:status verification))
+                               :reasons (vec errors)} verification)
+                       policy)
+      execution-id (assoc :execution/id execution-id))))
 
 (defn build-run-finalization
   "Build a non-persisted v2 run-evidence finalization. The caller provides all
@@ -153,6 +154,11 @@
               policy)))
 
 (declare validate-finalization persisted-evidence-hash!)
+
+(defn- json-key [k]
+  (if (keyword? k)
+    (if-let [ns (namespace k)] (str ns "/" (name k)) (name k))
+    (str k)))
 
 (defn- atomic-write! [file content]
   (let [target (io/file file)
@@ -246,7 +252,7 @@
    forensic artifact directory. The payload contains only identifiers, public
    execution metadata, and digests; it does not copy evidence bodies or inputs."
   [{:keys [forensic-dir scenario-artifact-id scenario-id scenario-input-hash
-           run-id run-input-hash execution-status execution-outcome policy]
+           run-id run-input-hash execution-id execution-status execution-outcome policy]
     :or {execution-status "completed" execution-outcome "unknown" policy {}}}]
   (safe-artifact-id! scenario-artifact-id)
   (let [artifacts (read-evidence-artifacts forensic-dir)
@@ -283,6 +289,7 @@
                 :artifact-bytes-sha256 (:artifact-bytes-sha256 head-artifact)})
         finalization (build-scenario-finalization
                       {:run {:run-id run-id :run-input-hash (sha256-ref run-input-hash)}
+                       :execution-id execution-id
                        :subject {:subject-kind "scenario"
                                  :scenario-id scenario-id
                                  :scenario-artifact-id scenario-artifact-id
@@ -318,13 +325,13 @@
                                                             (when (and empty? (not (true? (:allow-empty-targeted-evidence? policy))))
                                                               [{:reason-code "empty-targeted-evidence-not-authorized"}]))) }
                        :policy policy})
-        validation (validate-finalization finalization)
+        validation (validate-finalization finalization {:require-execution-id? (boolean execution-id)})
         path (io/file forensic-dir "finalizations" "scenarios" scenario-artifact-id "evidence-finalization.json")]
     (when-not (:valid? validation)
       (throw (ex-info "Scenario finalization failed validation" validation)))
-    (let [written-path (atomic-write! path (json/write-str finalization {:indent true}))
+    (let [written-path (atomic-write! path (json/write-str finalization {:key-fn json-key :indent true}))
           persisted (json/read-str (slurp written-path) :key-fn keyword)
-          persisted-validation (validate-finalization persisted)]
+          persisted-validation (validate-finalization persisted {:require-execution-id? (boolean execution-id)})]
       (when-not (:valid? persisted-validation)
         (throw (ex-info "Persisted scenario finalization failed validation"
                         (assoc persisted-validation :path written-path))))
@@ -332,13 +339,15 @@
        :finalization persisted
        :validation persisted-validation})))
 
-(defn- read-finalization! [file]
+(defn- read-finalization!
+  ([file] (read-finalization! file {}))
+  ([file opts]
   (let [payload (json/read-str (slurp file) :key-fn keyword)
-        validation (validate-finalization payload)]
+        validation (validate-finalization payload opts)]
     (when-not (:valid? validation)
       (throw (ex-info "Scenario finalization failed validation"
                       {:path (str file) :validation validation})))
-    payload))
+    payload)))
 
 (defn- persisted-evidence-hash! [file]
   (let [record (normalize-persisted-evidence-record
@@ -417,21 +426,22 @@
    content files, and the already-finalized content registry. This function does
    not add the finalization to that registry, preventing an inventory cycle."
   [{:keys [finalization-path reconciliation-report-path scenario-finalization-files evidence-files evidence-node-files registry-path
-            run execution policy bindings]
-    :or {policy {} bindings {}}}]
+            run execution policy bindings require-execution-identities?]
+    :or {policy {} bindings {} require-execution-identities? false}}]
   (when-not (and finalization-path (seq scenario-finalization-files) registry-path)
     (throw (ex-info "Run finalization requires destination, scenario finalizations, and registry"
                     {:finalization-path finalization-path
                      :scenario-finalization-count (count scenario-finalization-files)
                      :registry-path registry-path})))
   (let [scenario-files (sort-by str scenario-finalization-files)
-        scenarios (mapv read-finalization! scenario-files)
+        scenarios (mapv #(read-finalization! % {:require-execution-id? require-execution-identities?}) scenario-files)
         registry (json/read-str (slurp registry-path) :key-fn keyword)
         registry-hashes (registry-evidence-hashes registry)
         disk-hashes (mapv persisted-evidence-hash! evidence-files)
         chain-hashes (mapcat #(get-in % [:evidence :chain :reachable-hashes] []) scenarios)
         scenario-refs (mapv (fn [file finalization]
                               {:scenario-id (get-in finalization [:subject :scenario-id])
+                               :execution/id (:execution/id finalization)
                                :finalization {:artifact-id (str "scenario-finalization/"
                                                                (get-in finalization [:subject :scenario-artifact-id]))
                                               :sha256 (file-sha256-ref file)}
@@ -492,7 +502,7 @@
                                :unreadable-files []}]
     (when-not (:valid? validation)
       (throw (ex-info "Run finalization failed validation" validation)))
-    (let [path (atomic-write! finalization-path (json/write-str result {:indent true}))
+    (let [path (atomic-write! finalization-path (json/write-str result {:key-fn json-key :indent true}))
           report-path (when reconciliation-report-path
                         (atomic-write! reconciliation-report-path
                                        (json/write-str reconciliation-report {:indent true})))
@@ -502,7 +512,12 @@
        :finalization persisted
        :validation (validate-finalization persisted)})))
 
-(defn validate-finalization [finalization]
+(defn validate-finalization
+  "Validate a persisted finalization. Legacy callers use the one-argument
+   structural mode; canonical package validation passes
+   {:require-execution-id? true} for scenario finalizations."
+  ([finalization] (validate-finalization finalization {}))
+  ([finalization {:keys [require-execution-id? require-execution-identities?]}]
   (let [kind (:finalization-kind finalization)
         scenario? (= kind "scenario-chain-finalization")
         run? (= kind "run-evidence-finalization")
@@ -528,6 +543,12 @@
                                   expected-heads)))
         errors (cond-> []
                  (not= schema-version (:schema-version finalization)) (conj :unsupported-schema-version)
+                 (and require-execution-id? scenario? (nil? (:execution/id finalization)))
+                 (conj :missing-execution-id)
+                 (and require-execution-id? scenario?
+                      (some? (:execution/id finalization))
+                      (not (and (string? (:execution/id finalization)) (seq (:execution/id finalization)))))
+                 (conj :malformed-execution-id)
                  (not (contains? #{"scenario-chain-finalization" "run-evidence-finalization"} kind)) (conj :unsupported-finalization-kind)
                  (not= "prf-canonical-hash-v1" (get-in finalization [:canonicalization :scheme])) (conj :unsupported-canonicalization)
                  (not= "evidence-finalization-v2" (get-in finalization [:canonicalization :intent])) (conj :unsupported-intent)
@@ -596,6 +617,9 @@
                                                                                  (not (sha256-ref? (get-in entry [:finalization :sha256]))) )
                                                                                run-scenarios))
                                                                     (conj :malformed-scenario-finalization-digest)
+                                  (and run? require-execution-identities?
+                                       (some #(not (and (string? (:execution/id %)) (seq (:execution/id %)))) run-scenarios))
+                                                                    (conj :missing-run-member-execution-id)
                                                                     (and run? (not= run-scenarios (vec (sort-by :scenario-id run-scenarios))))
                                                                     (conj :run-scenario-finalizations-not-canonically-ordered)
                                                                     (and run? (not= declared-heads expected-heads))
@@ -606,4 +630,7 @@
                                                                     (and run? (not= (get-in finalization [:evidence :scenario-chain-head-set :root])
                                                                                     (:root expected-head-set)))
                                                                     (conj :scenario-chain-head-set-root-mismatch))]
-    {:valid? (empty? errors) :errors errors}))
+    {:valid? (empty? errors) :errors errors
+     :run-id (get-in finalization [:run :run-id])
+     :scenario-id (get-in finalization [:subject :scenario-id])
+     :execution-id (:execution/id finalization)})))

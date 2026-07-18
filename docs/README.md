@@ -18,6 +18,7 @@ Primary project framing and status live in the root `../README.md`.
 | Machine-readable schema catalog | `../schemas/README.md` |
 | Capability and coverage status | `overview/CAPABILITY_STATUS.md` |
 | Local services and persistence | `operations/LOCAL_SERVICES.md` |
+| Entry-point execution and assurance capabilities | `operations/ENTRY_POINT_CAPABILITY_MATRIX.md` |
 | Generated-document workflow | `reference/GENERATED_DOCUMENTS.md` |
 | Registry ownership, validation, and change rules | `reference/REGISTRIES.md` |
 | Runnable and visual examples | `../examples/README.md` |

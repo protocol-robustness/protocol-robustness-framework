@@ -250,13 +250,20 @@
 
 ;; ── Sentinel Report ─────────────────────────────────────────────────────────
 
-(defn- compute-policy-hash
+(defn policy-hash
+  "Compute a deterministic hash of the sentinel policy configuration.
+   Covers version, level definitions, sink set, and disclosure rules.
+   This is a public pure function — no side effects."
   []
   (hc/hash-with-intent {:hash/intent :evidence-record}
                        {:version sentinel-version
                         :levels levels
                         :sinks (vec (sort all-sinks))
                         :disclosure-rules "level>=:public required for public-sinks"}))
+
+(def ^{:deprecated "0.1.0" :private true} compute-policy-hash
+  "Deprecated alias; use policy-hash instead."
+  policy-hash)
 
 (defn default-reasons
   [level]

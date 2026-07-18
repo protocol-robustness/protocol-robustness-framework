@@ -289,7 +289,10 @@
                        (keep (fn [result]
                                (let [planned (get planned-by-id (:execution/id result))
                                      actual (some-> result :scenario/artifacts :scenario/artifact-dir io/file .getName)]
-                                 (when (and planned (not= (:execution/directory planned) actual))
+                                 ;; An output directory is optional for legacy/direct
+                                 ;; benchmark execution. Reconcile placement only when
+                                 ;; the coordinator requested isolated artifacts.
+                                 (when (and planned actual (not= (:execution/directory planned) actual))
                                    {:execution/id (:execution/id result)
                                     :expected (:execution/directory planned)
                                     :actual actual}))))

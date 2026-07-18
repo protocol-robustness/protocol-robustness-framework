@@ -21,8 +21,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.run.overview :as overview]
             [resolver-sim.run.criteria :as criteria]
-            [resolver-sim.sensitivity.propagation :as prop]
-            [resolver-sim.sensitivity.sentinel :as sentinel])
+            [resolver-sim.sensitivity.propagation :as prop])
   (:import [java.security MessageDigest]
            [java.util Arrays]))
 
@@ -238,10 +237,7 @@
         ;; Compute run-level sensitivity from all scenario results
         results (:results result [])
         run-sensitivity (prop/merge-sensitivity
-                         (keep (fn [r]
-                                 (when-let [sens (get-in r [:scenario-metadata :scenario/sensitivity])]
-                                   (prop/scenario-sensitivity (assoc {} :scenario/sensitivity sens))))
-                               results))
+                         (mapv prop/effective-scenario-sensitivity results))
         base {:bundle/schema-version schema-version
               :run/request (assoc req
                                   :registry-key (or (:registry-key request) :default)
@@ -259,17 +255,24 @@
                                           :protocol/state-witness-hash proto-witness-hash))
         ;; Every emitted bundle field is included in the content-addressed preimage.
         ;; Downstream lifecycle objects must reference this bundle; they must not enrich it.
+        ;; Lightweight sensitivity summary (no independently constructed
+        ;; provenance — full provenance lives in the persisted sensitivity
+        ;; report which downstream consumers reference by hash).
         base (cond-> base
-               run-sensitivity
-               (assoc :bundle/sensitivity
-                      {:sentinel/run-level (:level run-sensitivity)
-                       :sentinel/risk-meta (:risk-meta run-sensitivity)
-                       :sentinel/scenario-count (count results)
-                       :sentinel/sensitive-scenario-count
-                       (count (filter (fn [r]
-                                        (let [s (get-in r [:scenario-metadata :scenario/sensitivity])]
-                                          (and s (not= :sensitivity/public (:level s)))))
-                                      results))}))
+                run-sensitivity
+                (assoc :bundle/sensitivity
+                       {:sentinel/run-level (:level run-sensitivity)
+                        :sentinel/risk-meta (:risk-meta run-sensitivity)
+                        :sentinel/scenario-count (count results)
+                        :sentinel/sensitive-scenario-count
+                        (count (filter (fn [r]
+                                         (let [s (get-in r [:scenario-metadata :scenario/sensitivity])]
+                                           (and s (not= :sensitivity/public (:level s)))))
+                                       results))
+                        :sentinel/report-reference
+                        {:schema "sensitivity-report-reference"
+                         :format "sensitivity-report.v2"
+                         :path "manifest/sensitivity-report.json"}}))
         bundle-hash (hc/hash-with-intent {:hash/intent :bundle-root} base)]
     (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash)))
 
@@ -294,9 +297,14 @@
         hash-bytes (.digest digest combined)]
     (apply str (map #(format "%02x" (bit-and % 0xff)) hash-bytes))))
 
-(defn runnable?
-  "Check whether a bundle root is reproducible.
-   Delegates to criteria/runnable-bundle-root?.
-   Returns {:runnable? true} or {:runnable? false :errors [...]}."
+(defn structurally-valid?
+  "Validate only the immutable inner bundle-root structure. This does not
+   inspect package artifacts or establish package-level runnability."
   [bundle-root]
   (criteria/runnable-bundle-root? bundle-root))
+
+(defn runnable?
+  "Deprecated compatibility alias for `structurally-valid?`.
+   Canonical package runnability is `resolver-sim.run.package-index/runnable?`."
+  [bundle-root]
+  (structurally-valid? bundle-root))

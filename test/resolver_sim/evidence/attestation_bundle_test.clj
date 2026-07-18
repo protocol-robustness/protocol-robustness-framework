@@ -98,8 +98,8 @@
                  :registries {:attestors registries/attestor-registry
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
-                 :sensitivity-report {:sentinel/decision :allowed
-                                      :sentinel/report-hash "sha256:report"}})]
+                 :sensitivity-report {:decision :allowed
+                                       :report-hash "sha256:report"}})]
     (is (= :allowed (get-in bundle [:bundle/sensitivity :sentinel/decision])))))
 
 (deftest bundle-with-claim-results
@@ -125,8 +125,8 @@
                  :registries {:attestors registries/attestor-registry
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
-                 :sensitivity-report {:sentinel/decision :allowed
-                                      :sentinel/report-hash "sha256:r"}})
+                 :sensitivity-report {:decision :allowed
+                                       :report-hash "sha256:r"}})
         tampered (assoc bundle :bundle/version "wrong-version")
         result (ab/verify-attestation-bundle tampered)]
     (is (false? (:valid? result)))
@@ -140,8 +140,8 @@
                  :registries {:attestors registries/attestor-registry
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
-                 :sensitivity-report {:sentinel/decision :allowed
-                                      :sentinel/report-hash "sha256:r"}})
+                 :sensitivity-report {:decision :allowed
+                                       :report-hash "sha256:r"}})
         tampered (assoc bundle :bundle/root-hash "tampered")
         result (ab/verify-attestation-bundle tampered)]
     (is (false? (:valid? result)))
@@ -154,8 +154,8 @@
                  :registries {:attestors registries/attestor-registry
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
-                 :sensitivity-report {:sentinel/decision :blocked
-                                      :sentinel/report-hash "sha256:blocked"}})
+                 :sensitivity-report {:decision :blocked
+                                       :report-hash "sha256:blocked"}})
         result (ab/verify-attestation-bundle bundle)]
     (is (= :blocked-by-sensitivity-policy (:bundle/status result)))
     (is (false? (:valid? result)))))
@@ -167,8 +167,8 @@
                  :registries {:attestors registries/attestor-registry
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
-                 :sensitivity-report {:sentinel/decision :allowed
-                                      :sentinel/report-hash "sha256:ok"}})
+                 :sensitivity-report {:decision :allowed
+                                       :report-hash "sha256:ok"}})
         result (ab/verify-attestation-bundle bundle)]
     (is (map? (:summary result)))
     (is (number? (get-in result [:summary :total-checks])))))
@@ -183,8 +183,8 @@
                    :registries {:attestors registries/attestor-registry
                                 :claim-definitions registries/claim-definition-registry
                                 :hash-intents hc/hash-intents}
-                   :sensitivity-report {:sentinel/decision :allowed
-                                        :sentinel/report-hash "sha256:ok"}})
+                   :sensitivity-report {:decision :allowed
+                                        :report-hash "sha256:ok"}})
           result (ab/verify-attestation-bundle bundle)]
       (is (= :hash-linked (:bundle/status result))
           "in-memory bundles have file-not-found warnings -> :hash-linked")
@@ -197,9 +197,9 @@
                         :registries {:attestors registries/attestor-registry
                                      :claim-definitions registries/claim-definition-registry
                                      :hash-intents hc/hash-intents}
-                        :sensitivity-report {:sentinel/decision :allowed
-                                             :sentinel/report-hash "sha256:r"}})
-                      :bundle/version "bad")
+                         :sensitivity-report {:decision :allowed
+                                              :report-hash "sha256:r"}})
+                       :bundle/version "bad")
         result (ab/verify-attestation-bundle bundle)]
     (is (= :invalid (:bundle/status result)))))
 
@@ -224,8 +224,8 @@
                  :registries {:attestors registries/attestor-registry
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
-                 :sensitivity-report {:sentinel/decision :allowed
-                                      :sentinel/report-hash "sha256:r"}
+                 :sensitivity-report {:decision :allowed
+                                       :report-hash "sha256:r"}
                  :options {:bundle-dir tmp-dir}})]
     (ab/write-attestation-bundle! bundle {:attestations [a]} tmp-dir)
     (let [read-back (ab/read-attestation-bundle tmp-dir)]

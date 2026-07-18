@@ -7,6 +7,11 @@
            [java.math BigInteger]
            [java.nio.file Files StandardCopyOption Path Paths]))
 
+(def ^:private terminal-outer-artifacts
+  "Excluded to keep the registry/package/completion commitment chain non-circular.
+   The package index commits to the registry; completion commits to the index."
+  #{"manifest/run-package-index.json" "completion.json"})
+
 (def ^:private known
   {"manifest/run.json" {:id "manifest.run" :kind "run-manifest" :schema "run-manifest.v1" :importance "CORE"}
    "manifest/summary.json" {:id "manifest.summary" :kind "summary" :schema "summary.v1" :importance "CORE"}
@@ -14,9 +19,9 @@
    "manifest/run-enrichment.json" {:id "manifest.run-enrichment" :kind "run-enrichment" :schema "run-enrichment.v1" :importance "CORE"}
    "manifest/canonical-integrity.json" {:id "manifest.canonical-integrity" :kind "canonical-integrity" :schema "canonical-integrity.v1" :importance "CORE"}
    "manifest/forensic-claims-status.json" {:id "manifest.forensic-claims-status" :kind "forensic-claims-status" :schema "forensic-claims-status.v1" :importance "CORE"}
-   "manifest/run-package-index.json" {:id "manifest.run-package-index" :kind "run-package-index" :schema "run-package-index.v1" :importance "CORE"}
+
       "manifest/diagnostic-summary.json" {:id "manifest.diagnostic-summary" :kind "scenario.diagnostic-summary" :schema "scenario-diagnostic-summary.v1" :importance "CORE"}
-      "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v1" :importance "CORE"}
+       "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v2" :importance "CORE"}
    "execution/replay-output.json" {:id "execution.replay-output" :kind "raw.replay" :schema "bundle-root.v1" :importance "DIAGNOSTIC"}
    "execution/execution-dag.json" {:id "execution.dag" :kind "execution.dag" :schema "execution-dag.v1" :importance "CORE"}
    "execution/pre-run-commitment.json" {:id "execution.pre-run-commitment" :kind "pre-run-commitment" :schema "pre-run-commitment.v1" :importance "CORE"}
@@ -111,6 +116,7 @@
                           :when (.isFile file)]
                       (relative-path root-path file))
         entries (->> (concat standard-paths manifest-paths forensic-paths run-evidence-paths input-paths)
+                     (remove terminal-outer-artifacts)
                      distinct
                      (keep #(entry root scenario-prefix (:sensitivity/profile context) %))
                      (sort-by :id)

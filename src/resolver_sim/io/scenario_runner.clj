@@ -17,6 +17,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.forensic.provenance :as prov]
             [resolver-sim.io.fixtures :as io-fix]
+            [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.logging :as log]
             [resolver-sim.protocols.registry :as preg]
@@ -244,7 +245,9 @@
         explicit-scenario-id (:scenario-id scenario-with-path)
         scenario-id (or explicit-scenario-id path)
         dispatcher-id (keyword "protocol" protocol)
-        source-hash (chain/compute-file-sha256 path)]
+        ;; Hash the source bytes, preserving classpath/resource semantics rather
+        ;; than treating logical references as filesystem paths.
+        source-hash (input-source/sha256 (input-source/source path))]
     (when-not explicit-scenario-id
       (log/warn! :scenario-id-compatibility-fallback
                  {:path path
@@ -385,17 +388,18 @@
             (fn [results]
               (mapv (fn [result]
                       (if-let [entry (get entry-by-id (:scenario-id result))]
-                        (assoc result
-                               :scenario-hash (hc/hash-with-intent {:hash/intent :scenario}
-                                                                                                     (hashable-scenario-value (:scenario entry)))
-                               :scenario-path (:scenario-path entry)
-                               :dispatcher-id (:dispatcher-id entry)
-                               :scenario-metadata (:scenario-metadata entry)
-                               :runner {:backend (:runner/backend request)
-                                        :protocol-id (:protocol entry)
-                                        :dispatcher-id (:dispatcher-id entry)
-                                        :runner-selection (:runner-selection request)}
-                               :execution/raw (:replay-result result))
+                          (assoc result
+                                 :scenario-hash (hc/hash-with-intent {:hash/intent :scenario}
+                                                                                                      (hashable-scenario-value (:scenario entry)))
+                                 :scenario-path (:scenario-path entry)
+                                 :dispatcher-id (:dispatcher-id entry)
+                                 :scenario-metadata (:scenario-metadata entry)
+                                 :scenario-input-hash (:scenario/source-hash entry)
+                                 :runner {:backend (:runner/backend request)
+                                          :protocol-id (:protocol entry)
+                                          :dispatcher-id (:dispatcher-id entry)
+                                          :runner-selection (:runner-selection request)}
+                                 :execution/raw (:replay-result result))
                         result))
                     results)))))
 
@@ -403,12 +407,7 @@
   "Compute the maximum sensitivity across all scenario results in a run.
    Uses merge-sensitivity over each result's scenario metadata."
   [results]
-  (let [sensitivities (keep (fn [result]
-                              (when-let [sens (get-in result [:scenario-metadata :scenario/sensitivity])]
-                                (prop/scenario-sensitivity (assoc {} :scenario/sensitivity sens))))
-                            results)]
-    (prop/merge-sensitivity sensitivities)))
-
+  (prop/merge-sensitivity (mapv prop/effective-scenario-sensitivity results)))
 (defn normalize-run-result
   [request summary]
   (let [summary* (enrich-summary-results summary request)
@@ -429,7 +428,7 @@
               :summary summary*
               :diagnostics {:elapsed-ms (:elapsed-ms summary* 0)
                             :suite-id (:suite-id summary*)}}
-      run-sensitivity (assoc :sensitivity/run-level run-sensitivity))}))
+        run-sensitivity (assoc :sensitivity/run-level run-sensitivity))}))
 
 (defn- sew-replay-fn []
   (replay-fn-for-protocol "sew-v1"))
@@ -1231,6 +1230,7 @@
                                               :scenario-id (:scenario-id scenario-result)
                                               :scenario-input-hash scenario-input-hash
                                               :run-id run-id
+                                              :execution-id (:execution-id dispatch)
                                               :run-input-hash scenario-input-hash
                                               ;; Semantic failure is a completed execution with a fail verdict.
                                               :execution-status "completed"
@@ -1283,13 +1283,19 @@
                         (let [dag-build (requiring-resolve 'resolver-sim.forensic.execution-dag/build-dag)
                               dag-write (requiring-resolve 'resolver-sim.forensic.execution-dag/write-dag!)
                               dag-make-node (requiring-resolve 'resolver-sim.forensic.execution-dag/make-plan-node)
-                              paths (when suite-key (suites/suite-paths suite-key))
-                              nodes (mapv (fn [p] (dag-make-node
-                                                   {:id (str "node:" (.getName (java.io.File. p)))
-                                                    :type :scenario-run
-                                                    :input-hashes {:scenario/path p}}))
-                                          (or paths []))
-                              dag (dag-build nodes [])]
+                              scenario-id (:scenario-id dispatch)
+                              execution-id (:execution-id dispatch)
+                              ;; Direct inner runs may omit identities and retain
+                              ;; best-effort DAG behavior. Canonical orchestration
+                              ;; supplies the explicit identity contract.
+                              nodes (if scenario-id
+                                      [(dag-make-node {:id (str "node:" scenario-id)
+                                                      :type :scenario-run
+                                                      :input-hashes {:scenario/source-hash (:scenario/source-hash dispatch)}})]
+                                      [])
+                              dag (dag-build nodes [] {:run-id run-id
+                                                       :scenario-id scenario-id
+                                                       :execution-id execution-id})]
                           (if structured?
                             (dag-write dag run-id execution-dir)
                             (dag-write dag run-id))

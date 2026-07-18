@@ -170,8 +170,7 @@
                                       :evidence-policy-hash)))
                  (conj {:code :missing-evidence-policy-hash})
 
-                 (not (contains? bundle-root :dag/root-node-hash))
-                 (conj {:code :missing-dag-root-node-hash})
+
 
                  (not= (:bundle/id bundle-root) (:bundle/hash bundle-root))
                  (conj {:code :bundle-id-hash-mismatch

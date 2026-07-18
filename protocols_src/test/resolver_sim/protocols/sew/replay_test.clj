@@ -954,12 +954,12 @@
                     :params {:workflow-id 0}}
                    {:seq 3 :time 1120 :agent "resolver" :action "execute_resolution"
                     :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
-{:seq 4 :time 1130 :agent "gov" :action "propose_fraud_slash"
-                     :params {:workflow-id 0 :resolver-addr "0xResolver" :amount 500}}
-                    {:seq 5 :time 1230 :agent "alice" :action "execute_pending_settlement"
-                     :params {:workflow-id 0}}
-                 ;; current=5000, pending-slash=500, amount=4000 => current-amount=1000 (allowed)
-                    {:seq 6 :time 1231 :agent "resolver" :action "withdraw_stake"
+                   {:seq 4 :time 1130 :agent "gov" :action "propose_fraud_slash"
+                    :params {:workflow-id 0 :resolver-addr "0xResolver" :amount 500}}
+                   {:seq 5 :time 1230 :agent "alice" :action "execute_pending_settlement"
+                    :params {:workflow-id 0}}
+                ;; current=5000, pending-slash=500, amount=4000 => current-amount=1000 (allowed)
+                   {:seq 6 :time 1231 :agent "resolver" :action "withdraw_stake"
                      :params {:amount 4000}}]))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 6 :result])))))
@@ -1294,17 +1294,17 @@
                          :params {:token "USDC" :to "0xBob" :amount 8000 :custom-resolver "0xResolver"}}
                         {:seq 2 :time 1060 :agent "alice" :action "raise_dispute"
                          :params {:workflow-id 0}}
-                        {:seq 3 :time 1120 :agent "resolver" :action "execute_resolution"
-                         :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
-                        {:seq 4 :time 1130 :agent "gov" :action "propose_fraud_slash"
-                         :params {:workflow-id 0 :resolver-addr "0xResolver" :amount 500}}
-{:seq 5 :time 1140 :agent "gov" :action "appeal_slash"
+                         {:seq 3 :time 1120 :agent "resolver" :action "execute_resolution"
+                          :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+                         {:seq 4 :time 1130 :agent "gov" :action "propose_fraud_slash"
+                          :params {:workflow-id 0 :resolver-addr "0xResolver" :amount 500}}
+                         {:seq 5 :time 1140 :agent "gov" :action "appeal_slash"
                           :params {:workflow-id 0}}
                          {:seq 6 :time 1160 :agent "gov" :action "resolve_appeal"
                           :params {:workflow-id 0 :upheld? true}}
                          {:seq 7 :time 1255 :agent "gov" :action "execute_fraud_slash"
-                          :params {:workflow-id 0}}])
-                 :allow-open-disputes? true))
+                          :params {:workflow-id 0}}]
+                        :allow-open-disputes? true)))
         r-rejected
          (sew/replay-with-sew-protocol
           (sb/sc :agents [alice bob resolver gov keeper]
@@ -1324,20 +1324,16 @@
                    :params {:workflow-id 0 :resolver-addr "0xResolver" :amount 500}}
                   {:seq 5 :time 1140 :agent "gov" :action "appeal_slash"
                    :params {:workflow-id 0}}
-                 {:seq 6 :time 1160 :agent "gov" :action "resolve_appeal"
-                  :params {:workflow-id 0 :upheld? false}}
-                 {:seq 7 :time 1241 :agent "keeper" :action "execute_pending_settlement"
-                  :params {:workflow-id 0}}
-                 {:seq 8 :time 1255 :agent "gov" :action "execute_fraud_slash"
-                  :params {:workflow-id 0}}]))
+                  {:seq 6 :time 1160 :agent "gov" :action "resolve_appeal"
+                   :params {:workflow-id 0 :upheld? false}}
+                  {:seq 7 :time 1241 :agent "keeper" :action "execute_pending_settlement"
+                   :params {:workflow-id 0}}
+                  {:seq 8 :time 1255 :agent "gov" :action "execute_fraud_slash"
+                   :params {:workflow-id 0}}]))
         w-upheld   (get-in r-upheld [:trace 6 :world])
         w-rejected (get-in r-rejected [:trace 6 :world])
         assert-appeal-resolution-semantics
         (fn [world upheld?]
-          ;; Helper to remove ambiguity around `upheld?` semantics using
-          ;; snapshot-visible effects (world snapshot omits pending-fraud-slashes).
-          ;; true  => APPEAL upheld  => bond refunded to resolver via :bond/refund
-          ;; false => APPEAL rejected => bond forfeited; tracked per-token in :appeal-bond-distributions-by-token
           (if upheld?
             (is (pos? (get-in world [:claimable-v2 0 :bond/refund "0xResolver"] 0))
                 "upheld?=true should refund appeal bond to resolver :bond/refund claimable")
@@ -1371,15 +1367,15 @@
                      {:seq 3 :time 1120 :agent "resolver" :action "execute_resolution"
                       :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
                      {:seq 4 :time 1130 :agent "gov" :action "propose_fraud_slash"
-                      :params {:workflow-id 0 :resolver-addr "0xResolver" :amount 500}}
-{:seq 5 :time 1140 :agent "gov" :action "appeal_slash"
+                       :params {:workflow-id 0 :resolver-addr "0xResolver" :amount 500}}
+                      {:seq 5 :time 1140 :agent "gov" :action "appeal_slash"
                        :params {:workflow-id 0}}
                       {:seq 6 :time 1160 :agent "gov" :action "resolve_appeal"
                        :params {:workflow-id 0 :upheld? false}}
-                     {:seq 7 :time 1241 :agent "keeper" :action "execute_pending_settlement"
-                      :params {:workflow-id 0}}
-                     {:seq 8 :time 1255 :agent "gov" :action "execute_fraud_slash"
-                      :params {:workflow-id 0}}]))
+                      {:seq 7 :time 1241 :agent "keeper" :action "execute_pending_settlement"
+                       :params {:workflow-id 0}}
+                      {:seq 8 :time 1255 :agent "gov" :action "execute_fraud_slash"
+                       :params {:workflow-id 0}}]))
         w-appealed (get-in r [:trace 5 :world])
         w-resolved (get-in r [:trace 6 :world])
         w-slashed  (get-in r [:trace 8 :world])
@@ -1431,3 +1427,124 @@
       (is (= :pass (:outcome r)))
       (is (= :ok (get-in r [:trace 0 :result])))
       (is (= :no-liable-basis (get-in r [:trace 0 :extra :allocation :status]))))))
+
+;; ---------------------------------------------------------------------------
+;; Section 22: Withdrawal race condition and reentrancy tests
+;; ---------------------------------------------------------------------------
+
+(deftest test-s53-reentrant-withdrawal-guard
+  "S53: Only the intended recipient can withdraw after resolution.
+   With is-release=true only the seller (recipient) has a claimable balance.
+   Seller withdraw succeeds; buyer attempt fails with :no-claimable-balance."
+  (let [p (assoc sb/default-params :appeal-window-duration 120)
+        r (sew/replay-with-sew-protocol
+           (sb/sc :agents [{:id "buyer"    :address "0xbuyer"    :strategy "honest"}
+                           {:id "seller"   :address "0xseller"   :strategy "honest"}
+                           {:id "resolver" :address "0xresolver" :role "resolver"}
+                           {:id "keeper"   :address "0xkeeper"   :role "keeper"}]
+                  :params p
+                  :init-time 1000
+                  :events
+                  [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+                    :params {:token "USDC" :to "0xseller" :amount 5000
+                             :custom-resolver "0xresolver"}}
+                   {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute"
+                    :params {:workflow-id 0}}
+                   {:seq 2 :time 1120 :agent "resolver" :action "execute_resolution"
+                    :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+                   {:seq 3 :time 1300 :agent "keeper" :action "execute_pending_settlement"
+                    :params {:workflow-id 0}}
+                   {:seq 4 :time 1310 :agent "seller" :action "withdraw_escrow"
+                    :params {:workflow-id 0}}
+                   {:seq 5 :time 1310 :agent "buyer" :action "withdraw_escrow"
+                    :params {:workflow-id 0}}])
+           {:allow-dirty? true :skip-finalize true})]
+    (is (= :pass (:outcome r)))
+    (is (= :ok (get-in r [:trace 3 :result])))
+    (is (= :ok (get-in r [:trace 4 :result])))
+    (is (= :rejected (get-in r [:trace 5 :result])))
+    (is (= :no-claimable-balance (get-in r [:trace 5 :error])))))
+
+(deftest test-s67-reentrancy-callback
+  "S67: execute-reentrant-withdraw sets reentrancy guard before callback.
+   Callback attempt to withdraw-escrow is rejected with :reentrancy-guard-violated.
+   World state is preserved (no funds lost)."
+  (let [r (sew/replay-with-sew-protocol
+           (sb/sc :agents [{:id "attacker" :address "0xattacker" :strategy "malicious"}
+                           {:id "buyer"    :address "0xbuyer"    :strategy "honest"}
+                           {:id "resolver" :address "0xresolver" :role "resolver"}
+                           {:id "seller"   :address "0xseller"   :strategy "honest"}]
+                  :init-time 1000
+                  :params (assoc sb/default-params :appeal-window-duration 259200)
+                  :events
+                  [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+                    :params {:token "USDC" :to "0xattacker" :amount 10000
+                             :custom-resolver "0xresolver"}}
+                    {:seq 1 :time 1060 :agent "buyer" :action "release"
+                     :params {:workflow-id 0}}
+                    {:seq 2 :time 1120 :agent "attacker" :action "execute_reentrant_withdraw"
+                      :params {:workflow-id 0
+                               :callback {:agent "attacker" :action "withdraw_escrow" :params {:workflow-id 0}}}}])
+            {:allow-dirty? true :skip-finalize true})]
+    (is (= :pass (:outcome r)))
+    (is (= :rejected (get-in r [:trace 2 :result])))
+    (is (= :reentrancy-guard-violated (get-in r [:trace 2 :error])))
+    (let [world-after (get-in r [:trace 2 :world])]
+      (is (nil? (:reentrancy-guard world-after)) "guard must be cleared after event")
+      (is (zero? (get-in world-after [:total-withdrawn "USDC"] 0)) "no funds withdrawn"))))
+
+(deftest test-s86-double-settlement-guard
+  "S86: After resolution with appeal window, execute_pending_settlement works once.
+   Second call at the same timestamp is rejected (escrow no longer :disputed)."
+  (let [p (assoc sb/default-params :appeal-window-duration 120)
+        r (sew/replay-with-sew-protocol
+           (sb/sc :agents [{:id "buyer"    :address "0xbuyer"    :strategy "honest"}
+                           {:id "seller"   :address "0xseller"   :strategy "honest"}
+                           {:id "resolver" :address "0xresolver" :role "resolver"}
+                           {:id "keeper"   :address "0xkeeper"   :role "keeper"}]
+                  :params p
+                  :init-time 1000
+                  :events
+                  [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+                    :params {:token "USDC" :to "0xseller" :amount 5000
+                             :custom-resolver "0xresolver"}}
+                   {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute"
+                    :params {:workflow-id 0}}
+                   {:seq 2 :time 1120 :agent "resolver" :action "execute_resolution"
+                    :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+                   {:seq 3 :time 1300 :agent "keeper" :action "execute_pending_settlement"
+                     :params {:workflow-id 0}}
+                   {:seq 4 :time 1300 :agent "seller" :action "execute_pending_settlement"
+                     :params {:workflow-id 0}}])
+           {:allow-dirty? true :skip-finalize true})]
+    (is (= :pass (:outcome r)))
+    (is (= :ok (get-in r [:trace 3 :result])))
+    (is (= :rejected (get-in r [:trace 4 :result])))))
+
+(deftest test-settlement-withdrawal-same-timestamp-race
+  "Settlement and withdrawal at same timestamp: settlement first creates
+   claimable, then withdrawal consumes it. Both should succeed."
+  (let [p (assoc sb/default-params :appeal-window-duration 120)
+        r (sew/replay-with-sew-protocol
+           (sb/sc :agents [{:id "buyer"    :address "0xbuyer"    :strategy "honest"}
+                           {:id "seller"   :address "0xseller"   :strategy "honest"}
+                           {:id "resolver" :address "0xresolver" :role "resolver"}
+                           {:id "keeper"   :address "0xkeeper"   :role "keeper"}]
+                  :params p
+                  :init-time 1000
+                  :events
+                  [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+                    :params {:token "USDC" :to "0xseller" :amount 5000
+                             :custom-resolver "0xresolver"}}
+                   {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute"
+                    :params {:workflow-id 0}}
+                   {:seq 2 :time 1120 :agent "resolver" :action "execute_resolution"
+                    :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+                   {:seq 3 :time 1300 :agent "keeper" :action "execute_pending_settlement"
+                    :params {:workflow-id 0}}
+                   {:seq 4 :time 1300 :agent "seller" :action "withdraw_escrow"
+                    :params {:workflow-id 0}}])
+           {:allow-dirty? true :skip-finalize true})]
+    (is (= :pass (:outcome r)))
+    (is (= :ok (get-in r [:trace 3 :result])))
+    (is (= :ok (get-in r [:trace 4 :result])))))

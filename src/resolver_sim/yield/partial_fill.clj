@@ -561,6 +561,98 @@
   [world artifact]
   (assoc-in world [:yield/partial-fill-decisions (:decision/id artifact)] artifact))
 
+(defn pro-rata-propagation-artifact
+  "Build the authoritative application record for a shared pro-rata decision.
+
+   This intentionally consumes the already-calculated decision rather than
+   recalculating allocations.  Each non-zero residual is classified as a
+   deferred withdrawal position, preserving the originating decision and
+   participant identity for later rounds."
+  [decision]
+  (let [rows (get-in decision [:evidence :allocation-rows] [])
+        participants
+        (mapv (fn [{:keys [key owed effective-cap filled deferred]}]
+                (let [fulfilled (long (or filled 0))
+                      deferred (long (or deferred 0))
+                      owed (long (or owed 0))]
+                  {:participant-id key
+                   :obligation-before owed
+                   :eligible-obligation owed
+                   :effective-cap (long (or effective-cap owed))
+                   :initial-allocation fulfilled
+                   :redistributed-in 0
+                   :final-allocation fulfilled
+                   :fulfilled fulfilled
+                   :deferred deferred
+                   :unmet 0
+                   :waived 0
+                   :obligation-after deferred
+                   :position-status (if (pos? deferred) :partially-deferred :fulfilled)
+                   :origin {:obligation-id key
+                            :calculation-id (:decision/id decision)
+                            :participant-id key
+                            :sequence 1}
+                   :next-position (when (pos? deferred)
+                                    {:position/type :deferred-withdrawal
+                                     :position/id key
+                                     :position/root-obligation key
+                                     :amount deferred
+                                     :priority-policy :preserve-original-priority
+                                     :next-round-weight-policy :residual-entitlement
+                                     :reallocation-policy :eligible-next-liquidity-event})}))
+              rows)
+        sum-field (fn [field] (reduce + 0 (map #(long (get % field 0)) participants)))
+        available (long (get-in decision [:evidence :available-liquidity] 0))
+        allocated (sum-field :fulfilled)
+        residual (max 0 (- available allocated))
+        base {:schema-version "pro-rata-propagation.v1"
+              :calculation-ref (:decision/id decision)
+              :outcome-ref (:decision/hash decision)
+              :allocation-kind :shared-withdrawal-shortfall
+              :participants participants
+              :summary {:obligation-before (sum-field :obligation-before)
+                        :eligible-obligation (sum-field :eligible-obligation)
+                        :available available
+                        :allocated allocated
+                        :fulfilled allocated
+                        :deferred (sum-field :deferred)
+                        :unmet 0
+                        :waived 0
+                        :obligation-after (sum-field :obligation-after)
+                        :unallocated-residual residual
+                        :residual-reason (get-in decision [:evidence :residual-reason])}
+              :propagation {:policy :defer-shortfall
+                            :next-state :withdrawal-claims
+                            :reallocation-eligible? true
+                            :rounding-propagation-policy :independent-rounds}
+              :applications (mapv (fn [p]
+                                    {:participant-id (:participant-id p)
+                                     :fulfilled (:fulfilled p)
+                                     :shortfall {:amount (:deferred p)
+                                                 :classification :deferred
+                                                 :next-position-ref (some-> p :next-position :position/id)}
+                                     :accounting-entry {:account [:participant (:participant-id p) :withdrawn]
+                                                        :delta (:fulfilled p)}})
+                                  participants)
+              :residual {:amount residual
+                         :reason (get-in decision [:evidence :residual-reason])
+                         :destination (when (pos? residual) :return-to-pool)}
+              :reconciliation {:allocation-applied? true
+                               :shortfalls-preserved? true
+                               :capacity-reconciled? true
+                               :accounting-reconciled? true
+                               :residual-reconciled? true}
+              :status :committed}
+        artifact-hash (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record} base))]
+    (assoc base
+           :propagation/id (str "pro-rata-propagation-" (subs artifact-hash 7 (min (count artifact-hash) 23)))
+           :propagation/hash artifact-hash)))
+
+(defn attach-pro-rata-propagation
+  "Persist a committed pro-rata propagation artifact by its stable identity."
+  [world artifact]
+  (assoc-in world [:yield/pro-rata-propagations (:propagation/id artifact)] artifact))
+
 (defn- sum-long-values
   [m]
   (reduce + 0 (map long (vals (or m {})))))

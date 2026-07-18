@@ -119,8 +119,10 @@
     :related-claims-no-duplicate-members
     :related-claims-hash-matches-members
     :related-claims-do-not-block-finality
-    :related-claims-authorisation-scope-closed})
-
+    :related-claims-authorisation-scope-closed
+    ;; Reentrancy guard invariants
+    :no-reentrant-guard-leak})
+ 
 (def transition-invariant-ids
   "Cross-world invariants run by `check-transition` after each successful step."
   #{:terminal-states-unchanged
@@ -956,6 +958,15 @@
           {:resolver addr :active-disputes (mapv first active-disputes)})]
     {:holds?     (empty? violations)
      :violations (vec violations)}))
+
+(defn no-reentrant-guard-leak?
+  "True when the reentrancy guard is not set in a stable world state.
+   A set guard indicates a bug where the guard was never cleared."
+  [world]
+  (let [guard (:reentrancy-guard world)]
+    (if guard
+      {:holds? false :violations [{:reentrancy-guard guard}]}
+      {:holds? true :violations []})))
 
 ;; ---------------------------------------------------------------------------
 ;; Invariant 19: Fee Cap Integrity
@@ -2166,7 +2177,8 @@
                   :yield-position-consistency          (generic-yield-inv/check-position-consistency world)
                   :yield-exposure                      (let [r (sew-yield-inv/check-sew-yield-exposure world)]
                                                          (if (map? r) r {:holds? r :violations nil}))
-                  :fee-payouts-sum-equals-total-fees-withdrawn (fee-payouts-sum-equals-total-fees-withdrawn? world)}
+                  :fee-payouts-sum-equals-total-fees-withdrawn (fee-payouts-sum-equals-total-fees-withdrawn? world)
+                  :no-reentrant-guard-leak (no-reentrant-guard-leak? world)}
            ;; Process results
           results (into {}
                         (for [[id result-map] checks]

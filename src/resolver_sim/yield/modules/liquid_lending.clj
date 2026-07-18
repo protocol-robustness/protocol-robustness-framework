@@ -447,7 +447,10 @@
                                           (assoc :shortfall shortfall))]
                           (assoc-in w [:yield/positions oid] updated)))
                       accrued-world owners)
-              final-world (partial-fill/attach-decision-artifact updated-world decision)]
+              propagation (partial-fill/pro-rata-propagation-artifact decision)
+              final-world (-> updated-world
+                              (partial-fill/attach-decision-artifact decision)
+                              (partial-fill/attach-pro-rata-propagation propagation))]
           (evidence/capture-event-evidence!
            :yield-withdraw-shared
            {:withdraw/before-positions (:yield/positions world)}
@@ -456,7 +459,8 @@
                               :available-liquidity available :allocation-mode :pro-rata
                               :effective-caps (into {} (map (juxt :key :cap) rows))
                                                             :effective-cap-source (or effective-cap-source :scenario-fixture)}
-            :withdraw/partial-fill-decision decision}
+            :withdraw/partial-fill-decision decision
+            :withdraw/pro-rata-propagation propagation}
            nil
            {:world-before world :world-after final-world})
           final-world)))))
