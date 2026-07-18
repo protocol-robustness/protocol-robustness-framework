@@ -5,8 +5,20 @@
             [clojure.string :as str]
             [resolver-sim.commands.run-lifecycle :as lifecycle]))
 
+(defn- run-relative-path
+  [context suffix]
+  (let [run-root (io/file (str (or (:run/root context) (:scenario/root context))))
+        scenario-root (io/file (str (:scenario/root context)))
+        prefix (str (.relativize (.toPath run-root) (.toPath scenario-root)))]
+    (str/replace (if (str/blank? prefix)
+                   suffix
+                   (str prefix "/" suffix))
+                 "\\" "/")))
+
 (defn write! [context execution]
   (let [root (:scenario/root context)
+        trace-ref (run-relative-path context "summaries/trace-summary.json")
+        metrics-ref (run-relative-path context "summaries/metrics.json")
         trace-file (io/file (str root) "summaries/trace-summary.json")
         trace (json/read-str (slurp trace-file))
         steps (get trace "steps")
@@ -27,9 +39,9 @@
                "primary_diagnostic" (when failing-step
                                       {"classification" (get failing-step "result")
                                        "event" (select-keys failing-step ["seq" "time" "actor" "action"])
-                                       "trace_ref" "summaries/trace-summary.json"})
-               "evidence" {"trace_ref" "summaries/trace-summary.json"
-                           "metrics_ref" "summaries/metrics.json"
+                                       "trace_ref" trace-ref})
+               "evidence" {"trace_ref" trace-ref
+                           "metrics_ref" metrics-ref
                            "run_finalization_ref" "evidence/finalizations/run/evidence-finalization.json"}}
         target (io/file (str (:manifest/dir context)) "diagnostic-summary.json")]
     (lifecycle/atomic-json! target value)

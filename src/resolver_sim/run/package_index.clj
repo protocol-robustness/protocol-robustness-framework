@@ -247,7 +247,8 @@
 
 (defn- validate-registry-validation [run-root artifacts]
   (let [report (artifact-json run-root artifacts :registry-validation)
-        registry-ref (get-in artifacts [:artifact-registry :ref])
+        registry-entry (get artifacts :artifact-registry)
+        registry-ref (:ref registry-entry)
         registry-file (when registry-ref (contained-file run-root registry-ref))]
     (cond
       (:package/unreadable-artifact report)
@@ -263,11 +264,25 @@
                       {:valid? false :reasons [(reason :registry-validation/registry-unreadable)]})
             reasons (vec (concat
                           (when-not (= "passed" (:status report)) [(reason :registry-validation/persisted-not-passed)])
+                          ;; The persisted validation result is not merely an
+                          ;; accepted-looking report: it must identify the exact
+                          ;; indexed registry bytes it evaluated.
+                          (when-not (= registry-ref (:registry/ref report))
+                            [(reason :registry-validation/registry-path-mismatch
+                                     :expected registry-ref :actual (:registry/ref report))])
+                          (when-not (= (:sha256 registry-entry) (:registry/sha256 report))
+                            [(reason :registry-validation/registry-hash-mismatch
+                                     :expected (:sha256 registry-entry) :actual (:registry/sha256 report))])
+                          (when-not (= (:bytes registry-entry) (:registry/bytes report))
+                            [(reason :registry-validation/registry-byte-length-mismatch
+                                     :expected (:bytes registry-entry) :actual (:registry/bytes report))])
                           (when-not (= :passed (:status recalculated))
                             [(reason :registry-validation/recalculated-not-passed :causes (:errors recalculated))])
                           (when-not (:valid? closure) (:reasons closure))))]
         {:valid? (empty? reasons)
          :registry-path registry-ref
+         :registry-sha256 (:sha256 registry-entry)
+         :registry-bytes (:bytes registry-entry)
          :persisted-status (:status report)
          :recalculated-status (:status recalculated)
          :closure-report closure

@@ -11,18 +11,19 @@
    :max-dispute-duration 2592000 :appeal-bond-protocol-fee-bps 0
    :resolver-bond-bps 0})
 
-(defn sc [& {:keys [agents params init-time events schema-version]
+(defn sc [& {:keys [agents params init-time events schema-version allow-open-disputes?]
              :or   {agents       [alice bob resolver]
                     params       default-params
                     init-time    1000
                     schema-version "1.0"}}]
-  {:scenario-id        "test"
-   :schema-version     schema-version
-   :seed               42
-   :agents             agents
-   :protocol-params    params
-   :initial-block-time init-time
-   :events             events})
+  (cond-> {:scenario-id        "test"
+           :schema-version     schema-version
+           :seed               42
+           :agents             agents
+           :protocol-params    params
+           :initial-block-time init-time
+           :events             events}
+    allow-open-disputes? (assoc :allow-open-disputes? true)))
 
 (defn spe-projection
   "Build a minimal projection suitable for SPE evaluation, with a real raw-trace

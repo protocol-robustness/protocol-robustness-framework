@@ -36,6 +36,22 @@
     (is (= "completed" (get diagnostic "execution_status")))
     (is (= "fail" (get diagnostic "semantic_outcome")))))
 
+(deftest diagnostic-references-are-run-root-relative
+  (let [run-root (temp-dir)
+        scenario-root (io/file run-root "scenarios/example")
+        manifest-dir (io/file run-root "manifest")]
+    (.mkdirs manifest-dir)
+    (write-trace! scenario-root [])
+    (let [diagnostic (diagnostics/write! {:run/root (.getPath run-root)
+                                          :scenario/root (.getPath scenario-root)
+                                          :manifest/dir (.getPath manifest-dir)}
+                                         {:exit-code 0})]
+      (is (= "scenarios/example/summaries/trace-summary.json"
+             (get-in diagnostic ["evidence" "trace_ref"])))
+      (is (= "scenarios/example/summaries/metrics.json"
+             (get-in diagnostic ["evidence" "metrics_ref"])))))
+  )
+
 (deftest rejection-remains-the-diagnostic-fallback
   (let [diagnostic (diagnostic-for
                     [{"seq" 2 "time" 1100 "actor" "attacker"

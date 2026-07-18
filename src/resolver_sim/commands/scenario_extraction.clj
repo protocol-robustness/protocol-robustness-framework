@@ -109,6 +109,28 @@
 (defn extraction-schema-map [provenance]
   {"schema_version" "schema-map.v1" "map" schema-map "derived_from" provenance})
 
+(defn- json-safe-value
+  "Preserve exact persisted allocation witnesses when projecting to JSON.
+   Clojure ratios are not JSON values; encode them explicitly rather than
+   coercing to floating point or failing the canonical review run."
+  [value]
+  (cond
+    (ratio? value) {:ratio/numerator (numerator value)
+                    :ratio/denominator (denominator value)}
+    (map? value) (into {} (map (fn [[k v]]
+                                  [(if (or (string? k) (keyword? k)) k (pr-str k))
+                                   (json-safe-value v)])) value)
+    ;; Set iteration is not a JSON contract. Canonical textual ordering keeps
+    ;; reviewer projections deterministic without changing the source witness.
+    (set? value) (->> value (sort-by pr-str) (mapv json-safe-value))
+    (vector? value) (mapv json-safe-value value)
+    (seq? value) (mapv json-safe-value value)
+    ;; The raw authoritative world can contain runtime-only leaves (for example
+    ;; path objects). They are outside the allocation witness contract and must
+    ;; not prevent a reviewer projection from being emitted.
+    (or (nil? value) (string? value) (boolean? value) (number? value) (keyword? value)) value
+    :else (str value)))
+
 (defn partial-fill-decisions
   "Project replay-produced partial-fill decisions without recalculating them.
    This is conditional: scenarios with no decision artifacts do not receive it."
@@ -125,7 +147,7 @@
                     {"decision_id" (:decision/id decision)
                      "decision_sha256" (:decision/hash decision)
                      "decision_source" (some-> (:decision/source decision) name)
-                     "participants" (:participants decision)
+                     "participants" (json-safe-value (:participants decision))
                      "allocation_scope" (some-> (:allocation/scope decision) name)
                      "allocation_ordering" (some-> (:allocation/ordering decision) name)
                      "rounding_tie_break" (some-> (:allocation/rounding-tie-break decision) name)
@@ -142,10 +164,12 @@
                      "total_filled" filled
                      "total_deferred" deferred
                      "shortage" (max 0 (- requested available))
-                     "allocation_rows" (get-in decision [:evidence :allocation-rows] [])
-                     "allocation_detail" (get-in decision [:evidence :allocation-detail])
-                     "redistribution" (get-in decision [:evidence :redistribution])
-                     "allocation_passes" (get-in decision [:evidence :allocation-passes] [])
+                     "allocation_rows" (json-safe-value (get-in decision [:evidence :allocation-rows] []))
+                     "allocation_detail" (json-safe-value (get-in decision [:evidence :allocation-detail]))
+                     "allocation_mechanism" (json-safe-value (get-in decision [:evidence :allocation-mechanism]))
+                     "mechanism_evidence" (json-safe-value (get-in decision [:evidence :allocation-mechanism-evidence]))
+                     "redistribution" (json-safe-value (get-in decision [:evidence :redistribution]))
+                     "allocation_passes" (json-safe-value (get-in decision [:evidence :allocation-passes] []))
                      "unallocated_residual" (get-in decision [:evidence :unallocated-residual] 0)
                      "residual_reason" (some-> (get-in decision [:evidence :residual-reason]) name)
                      "conservation" {"holds" (and (= requested (+ filled deferred))
@@ -217,6 +241,7 @@
                      "member_snapshot_hash" (:liable-group/member-snapshot-hash slash)
                      "member_ordering" (some-> (:liable-group/ordering slash) name)
                      "workflow_id" (:workflow-id slash)
+                     "fraud_incident_ref" (:fraud-incident-ref slash)
                      "status" (some-> (:status slash) name)
                      "obligation" (:amount slash)
                      "member_snapshot" (:members slash)
@@ -293,7 +318,9 @@
   ([scenario-root replay provenance profile run-id raw-world]
   (let [root (io/file (str scenario-root))
         classification (claimable-classification replay run-id)
-        write-json (fn [relative value] (atomic-write! (io/file root relative) (json/write-str value)))]
+        write-json (fn [relative value]
+                     (atomic-write! (io/file root relative)
+                                    (json/write-str (json-safe-value value))))]
     (write-json "summaries/trace-summary.json" (trace-summary replay provenance))
     (write-json "summaries/metrics.json" (metrics-summary replay provenance))
     (write-json "summaries/claimable-classification.json" classification)

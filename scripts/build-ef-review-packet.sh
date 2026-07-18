@@ -28,6 +28,7 @@ cp "$JAR" "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar"
 cp "$PROJECT_DIR/scripts/verify-ef-review-packet.sh" "$OUTPUT_DIR/bin/verify-review-packet.sh"
 chmod +x "$OUTPUT_DIR/bin/verify-review-packet.sh"
 cp "$PROJECT_DIR/docs/review/EF_REVIEW_GUIDE.md" "$OUTPUT_DIR/docs/REVIEW_GUIDE.md"
+cp "$PROJECT_DIR/docs/review/SCENARIO_REVIEW_HIGHLIGHTS.md" "$OUTPUT_DIR/docs/SCENARIO_REVIEW_HIGHLIGHTS.md"
 cp "$PROJECT_DIR/docs/benchmarks/BENCHMARK_ASSURANCE_SPEC_V1.md" "$OUTPUT_DIR/docs/BENCHMARK_ASSURANCE_SPEC_V1.md"
 
 for scenario in \
@@ -182,6 +183,7 @@ EOF
     inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json \
     inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json \
     docs/REVIEW_GUIDE.md \
+    docs/SCENARIO_REVIEW_HIGHLIGHTS.md \
     docs/BENCHMARK_ASSURANCE_SPEC_V1.md \
     PROVENANCE.txt \
     REVIEW_PACKET_MANIFEST.json \

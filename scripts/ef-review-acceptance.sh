@@ -58,7 +58,7 @@ echo "=== EF canonical review acceptance ==="
 run_scenario "$SCENARIO_ROOT"
 verify_scenario "$SCENARIO_ROOT"
 
-a=$(python3 -c 'import json; x=json.load(open("'"$SCENARIO_ROOT"'/manifest/diagnostic-summary.json")); assert x["scenario_id"]; assert x["primary_diagnostic"]["classification"] == "rejected"; print("scenario diagnostic present")')
+a=$(python3 -c 'import json, os; root="'"$SCENARIO_ROOT"'"; x=json.load(open(root+"/manifest/diagnostic-summary.json")); assert x["scenario_id"]; refs=x["evidence"]; assert all(os.path.isfile(os.path.join(root, refs[k])) for k in ["trace_ref", "metrics_ref", "run_finalization_ref"]); print("scenario diagnostic references resolve")')
 echo "$a"
 
 java -jar "$JAR" run-benchmark sew/sew-force-authorisation-custody-v1 --run-root "$BENCHMARK_ROOT"

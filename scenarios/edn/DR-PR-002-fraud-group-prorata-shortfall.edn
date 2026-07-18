@@ -24,10 +24,22 @@
           {:seq 2 :time 1010 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 1000 :custom-resolver "0xresolver-b"}}
           {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
           {:seq 4 :time 1100 :agent "resolver-b" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xgroup-shortfall-resolution"}}
-          {:seq 5 :time 1130 :agent "governance" :action "propose_fraud_group_slash"
+          {:seq 5 :time 1130 :agent "governance" :action "declare_fraud_incident"
+           :params {:incident/id "dr-pr-002"
+                    :incident/kind :governance-declared-group-fraud
+                    :incident/affected-workflows [{:workflow-id 0}]
+                    :incident/related-claims []
+                    :incident/evidence-refs []
+                    :incident/rationale "Governance-declared common fraud event for the disputed workflow."}
+           :bind {:fraud-incident-id :incident-id :fraud-incident-hash :incident-hash}}
+          {:seq 6 :time 1131 :agent "governance" :action "propose_fraud_group_slash"
            :params {:workflow-id 0 :liable-resolvers ["0xresolver-b" "0xresolver-a"] :amount 600
-                    :liability-justification {:kind :governance-declared-group-fraud :incident "dr-pr-002"}}
+                    :liability-justification
+                    {:kind :governance-declared-group-fraud
+                     :incident-ref {:schema-version "fraud-incident-ref.v1"
+                                    :incident-id {:from-binding :fraud-incident-id}
+                                    :incident-hash {:from-binding :fraud-incident-hash}}}}
            :bind {:group-slash-id :slash-id}}
-          {:seq 6 :time 1161 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}
-          {:seq 7 :time 1200 :agent "keeper" :action "execute_fraud_group_slash"
+          {:seq 7 :time 1161 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}
+          {:seq 8 :time 1200 :agent "keeper" :action "execute_fraud_group_slash"
            :params {:workflow-id 0 :slash-id {:from-binding :group-slash-id}}}]}

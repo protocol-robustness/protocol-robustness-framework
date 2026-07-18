@@ -1364,6 +1364,72 @@
   ;; canonical ordering used by the pro-rata allocator's input-order policy.
   (str resolver-id))
 
+(def ^:private fraud-incident-schema-version "fraud-incident.v1")
+(def ^:private fraud-incident-ref-schema-version "fraud-incident-ref.v1")
+(def ^:private fraud-group-incident-kind :governance-declared-group-fraud)
+
+(defn declare-fraud-incident
+  "Declare an immutable, independently addressable fraud incident.
+
+   Incidents describe the alleged common event; they do not authorize or derive
+   liability. A later fraud-group slash must bind this exact declaration by ID
+   and canonical hash."
+  [world caller incident authorization provenance]
+  (let [incident-id (:incident/id incident)
+        kind (:incident/kind incident)
+        workflows (vec (:incident/affected-workflows incident))
+        normalized {:incident/schema-version fraud-incident-schema-version
+                    :incident/id incident-id
+                    :incident/kind kind
+                    :incident/status :declared
+                    :incident/declared-by caller
+                    :incident/declared-at (select-keys (time-ctx/temporal-context world)
+                                                                          [:schema-version :step :event-seq :block-ts :clock/mode])
+                    :incident/affected-workflows workflows
+                    :incident/related-claims (vec (:incident/related-claims incident))
+                    :incident/evidence-refs (vec (:incident/evidence-refs incident))
+                    :incident/rationale (:incident/rationale incident)}]
+    (cond
+      (or (not (string? incident-id)) (not (re-matches #"[a-z0-9]+(?:-[a-z0-9]+)*" incident-id)))
+      (t/fail :invalid-fraud-incident-id)
+      (not= kind fraud-group-incident-kind) (t/fail :unsupported-fraud-incident-kind)
+      (empty? workflows) (t/fail :empty-incident-affected-workflows)
+      (some #(not (t/valid-workflow-id? world (:workflow-id %))) workflows)
+      (t/fail :invalid-incident-workflow)
+      (contains? (:fraud-incidents world {}) incident-id) (t/fail :fraud-incident-already-declared)
+      :else
+      (let [incident-hash (hc/hash-with-intent {:hash/intent :provenance} normalized)
+            record (assoc normalized :incident/hash incident-hash
+                                     :incident/authorization authorization
+                                     :incident/provenance provenance)
+            world' (assoc-in world [:fraud-incidents incident-id] record)]
+        (attr/with-attribution {:subject/type :fraud-incident :subject/id incident-id
+                                :action/type :fraud-incident/declare
+                                :evidence/reason :fraud-incident-declared}
+          (cap/capture-event-evidence!
+           :fraud-incident-declared
+           {:fraud-incident/id incident-id :fraud-incident/hash incident-hash}
+           {:fraud-incident/record record}
+           {:fraud-incident/id incident-id :fraud-incident/hash incident-hash}))
+        (assoc (t/ok world') :incident-id incident-id :incident-hash incident-hash
+                               :incident record)))))
+
+(defn- resolve-fraud-incident-ref [world workflow-id ref]
+  (let [incident-id (:incident-id ref)
+        incident-hash (:incident-hash ref)
+        incident (get-in world [:fraud-incidents incident-id])]
+    (cond
+      (not= fraud-incident-ref-schema-version (:schema-version ref)) {:error :unsupported-fraud-incident-ref-schema}
+      (or (not (string? incident-id)) (not (re-matches #"[a-z0-9]+(?:-[a-z0-9]+)*" incident-id))) {:error :invalid-fraud-incident-id}
+      (nil? incident) {:error :fraud-incident-not-found}
+      (not= incident-id (:incident/id incident)) {:error :fraud-incident-id-mismatch}
+      (not= incident-hash (:incident/hash incident)) {:error :fraud-incident-hash-mismatch}
+      (not= fraud-group-incident-kind (:incident/kind incident)) {:error :incompatible-fraud-incident-kind}
+      (not= :declared (:incident/status incident)) {:error :fraud-incident-not-eligible}
+      (not (some #(= workflow-id (:workflow-id %)) (:incident/affected-workflows incident))) {:error :fraud-incident-workflow-mismatch}
+      :else {:incident-ref {:schema-version fraud-incident-ref-schema-version
+                            :incident-id incident-id :incident-hash incident-hash}})))
+
 (defn propose-fraud-group-slash
   "Propose an appealable, pro-rata fraud slash against a liable resolver group.
 
@@ -1373,6 +1439,7 @@
    retained verbatim for the governance/audit layer."
   [world workflow-id caller liable-resolvers amount liability-justification authorization provenance]
   (let [wf-id (t/normalize-workflow-id workflow-id)
+        incident-result (resolve-fraud-incident-ref world wf-id (:incident-ref liability-justification))
         members (vec liable-resolvers)
         member-ids (mapv #(if (map? %) (:id %) %) members)
         reject (fn [error] (t/fail error))]
@@ -1385,6 +1452,9 @@
 
       (not (fraud-slash-workflow-eligible? world wf-id))
       (reject :workflow-not-slashable)
+
+      (:error incident-result)
+      (reject (:error incident-result))
 
       (or (nil? liable-resolvers) (empty? members))
       (reject :empty-liable-resolvers)
@@ -1454,7 +1524,9 @@
                         :liable-group/ordering :canonical-resolver-id-ascending
                         :members snapshot-members
                         :appeals {}
-                        :liability-justification liability-justification
+                        :fraud-incident-ref (:incident-ref incident-result)
+                        :liability-justification {:kind fraud-group-incident-kind
+                                                  :incident-ref (:incident-ref incident-result)}
                         :authorization authorization
                         :provenance provenance
                         :policy-ordering :canonical-resolver-id-ascending}
@@ -1576,6 +1648,7 @@
        :else
        (let [members (:members pending)
              allocation-input {:slash-obligation (:amount pending)
+                               :fraud-incident/ref (:fraud-incident-ref pending)
                                :liable-parties members
                                :basis :slashable-stake
                                :cap-field :available-slashable

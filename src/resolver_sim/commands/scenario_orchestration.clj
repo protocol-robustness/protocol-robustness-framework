@@ -69,7 +69,18 @@
 (defn default-finalize-registry! [c _] (registry/finalize! (:run/root c)))
 (defn default-validate-registry! [c _]
   (let [registry-file (io/file (str (p (:manifest/dir c)) "/artifacts.json"))
+        registry-ref "manifest/artifacts.json"
         result (artifact-registry/validate-artifact-registry-from-file (.getPath registry-file))
+        ;; The persisted validation result explicitly commits to the exact
+        ;; registry bytes it evaluated. The package index separately commits to
+        ;; both artifacts, allowing package validation to reconcile the pair.
+        ;; `clojure.data.json` serializes namespaced keyword keys without their
+        ;; namespace. These are schema-defined wire keys, so preserve them
+        ;; literally; parsing with `:key-fn keyword` restores :registry/*.
+        result (assoc result
+                      "registry/ref" registry-ref
+                      "registry/sha256" (str "sha256:" (lifecycle/sha256-file registry-file))
+                      "registry/bytes" (.length registry-file))
         report (io/file (.getParentFile registry-file) "artifact-registry-validation.json")]
     (spit report (json/write-str result))
     (when (= :failed (:status result))
@@ -258,12 +269,22 @@
                                     :provenance prov}))
         persisted-value (fn [value]
                           (walk/postwalk (fn [x]
-                                           (if (or (instance? java.time.temporal.TemporalAccessor x)
-                                                   (fn? x)
-                                                   (instance? Double x)
-                                                   (instance? Float x))
+                                           (cond
+                                             (or (nil? x)
+                                                 (instance? Boolean x)
+                                                 (string? x)
+                                                 (keyword? x)
+                                                 (integer? x))
+                                             x
+                                             (or (instance? Double x)
+                                                 (instance? Float x)
+                                                 (decimal? x)
+                                                 (instance? clojure.lang.Ratio x)
+                                                 (instance? java.time.temporal.TemporalAccessor x)
+                                                 (fn? x))
                                              (str x)
-                                             x))
+                                             (instance? clojure.lang.IPersistentCollection x) x
+                                             :else (str x)))
                                          value))
         ;; Attestation files and their canonical commitments are persisted data;
         ;; normalize runtime temporal objects before hashing/serialization.
@@ -409,16 +430,16 @@
        (layout! context)
        (let [phase-fns (merge defaults overrides)
              records (atom [])
-             run-phase (fn [phase execution]
-                         (try
-                           (let [result (if (#{:check-runtime :execute} phase)
-                                          ((phase-fns phase) context)
-                                          ((phase-fns phase) context execution))]
-                             (swap! records conj {:phase phase :status :completed})
-                             result)
-                           (catch Throwable error
-                             (swap! records conj {:phase phase :status :failed :error (.getMessage error)})
-                             (throw error))))]
+              run-phase (fn [phase execution]
+                          (try
+                            (let [result (if (#{:check-runtime :execute} phase)
+                                           ((phase-fns phase) context)
+                                           ((phase-fns phase) context execution))]
+                              (swap! records conj {:phase phase :status :completed})
+                              result)
+                            (catch Throwable error
+                              (swap! records conj {:phase phase :status :failed :error (.getMessage error)})
+                              (throw error))))]
          (try
            (run-phase :check-runtime nil)
            (let [execution (assoc (run-phase :execute nil) :duration-ms 0)]

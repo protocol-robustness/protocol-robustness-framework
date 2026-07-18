@@ -567,10 +567,17 @@
   (cond
     (instance? clojure.lang.IRecord v) (into {} v)
     (instance? clojure.lang.Keyword v) (str v)
+    (instance? clojure.lang.Symbol v) (str v)
+    (instance? java.util.UUID v) (str v)
+    (set? v) (vec v)
     (instance? clojure.lang.IDeref v) (throw (ex-info "Ref values are not permitted in JSON artifacts" {:type (class v)}))
     (fn? v) (throw (ex-info "Function values are not permitted in JSON artifacts" {:type (class v)}))
     (instance? java.util.Date v) (str v)
-    :else v))
+    (instance? clojure.lang.Ratio v) (double v)
+    :else (if (or (nil? v) (instance? Boolean v) (instance? java.lang.Number v) (string? v) (vector? v) (map? v) (list? v))
+            v
+            (do (println "WARN: json-safe-value converting unsupported type:" (type v) "value:" (pr-str v))
+                (str v)))))
 
 (defn write-result-json
   "Write result map as JSON, preserving keyword namespaces in keys.

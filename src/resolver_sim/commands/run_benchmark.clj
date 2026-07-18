@@ -82,7 +82,7 @@
       :finalization_sha256 (sha-ref finalization-file)
       :final_ref (get finalization "final_ref")
       :run_package_index_ref "manifest/run-package-index.json"
-      :run_package_index_sha256 (sha-ref (io/file root "manifest/run-package-index.json"))
+      :run_package_index_sha256 (sha-ref (io/file (str root) "manifest/run-package-index.json"))
       :input_set_root (get finalization "input_set_root")
       :artifact_registry_ref "manifest/artifacts.json"
       :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))

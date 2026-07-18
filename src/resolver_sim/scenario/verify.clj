@@ -136,6 +136,7 @@
                                         (= (:liable-group/member-snapshot-hash slash)
                                            (:member_snapshot_hash projection))
                                         (= (:members slash) (:member_snapshot projection))
+                                        (= (:fraud-incident-ref slash) (:fraud_incident_ref projection))
                                         (= (get-in slash [:allocation :allocations]) (:execution_rows projection))
                                         (= (:amount slash) (+ (get-in projection [:totals :allocated])
                                                                (get-in projection [:totals :allocation_unmet])))

@@ -238,6 +238,7 @@
     "set-fee-recipient"
     "set-paused"
     "delegate-to-senior"
+    "declare-fraud-incident"
     "propose-fraud-slash"
     "propose-fraud-group-slash"
     "resolve-fraud-group-appeal"
@@ -255,6 +256,7 @@
     "execute-resolution"
     "execute-pending-settlement"
     "rotate-dispute-resolver"
+    "declare-fraud-incident"
     "propose-fraud-slash"
     "propose-fraud-group-slash"
     "appeal-fraud-group-slash"
@@ -351,7 +353,7 @@
         resolver (conj [:resolver resolver])
         token (conj [:token token]))
 
-      (contains? #{"set-resolver-capacity" "register-stake" "withdraw-stake"
+      (contains? #{"declare-fraud-incident" "set-resolver-capacity" "register-stake" "withdraw-stake"
                     "register-resolver-bond" "register-senior-bond"
                     "propose-fraud-slash" "propose-fraud-group-slash" "appeal-fraud-group-slash"
                     "resolve-fraud-group-appeal" "appeal-slash" "resolve-appeal"
@@ -1190,6 +1192,15 @@
             amount        (:amount p)]
         (res/propose-fraud-slash world workflow-id addr resolver-addr amount
                                  :authorization-provenance provenance)))))
+
+(defmethod apply-action "declare-fraud-incident"
+  [{:keys [agent-index] :as context} world event]
+  (run-governance-action context world event
+    (fn [addr _agent provenance]
+      (res/declare-fraud-incident
+       world addr (:params event) provenance
+       {:provenance/source :scenario-declared
+        :provenance/action "declare-fraud-incident"}))))
 
 (defmethod apply-action "propose-fraud-group-slash"
   [{:keys [agent-index] :as context} world event]
