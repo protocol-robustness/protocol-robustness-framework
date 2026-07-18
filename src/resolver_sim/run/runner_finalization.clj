@@ -39,8 +39,41 @@
     (assoc base :runner-finalization/hash hash)))
 
 
+(defn runner-finalization->wire [artifact]
+  (-> artifact
+      (update-in [:runner/selection :mode] name)
+      (update-in [:runner/local :runtime/kind] name)
+      (update-in [:execution/result :execution/termination] name)
+      (update-in [:execution/result :semantic/outcome] name)))
+
+(defn- strict-enum [value values field]
+  (if (contains? values value)
+    (keyword value)
+    (throw (ex-info "Unsupported runner-finalization wire enum"
+                    {:code :runner-finalization/unsupported-enum :field field :value value}))))
+
+(defn- wire-runner-id [value]
+  (case value
+    "local-bb" :runner/local-bb
+    "local-clojure" :runner/local-clojure
+    "runner/local-bb" :runner/local-bb
+    "runner/local-clojure" :runner/local-clojure
+    (throw (ex-info "Unsupported runner-finalization wire enum"
+                    {:code :runner-finalization/unsupported-enum :field :runner/id :value value}))))
+
+(defn wire->runner-finalization [wire]
+  (-> wire
+      (update-in [:runner/selection :mode] #(strict-enum % #{"pinned" "capability-match" "quorum"} :runner/mode))
+      (update-in [:runner/selection :runner-id] wire-runner-id)
+      (update-in [:runner/local :runtime/kind] #(strict-enum % #{"runner-local"} :runtime/kind))
+      (update-in [:execution/result :execution/termination] #(strict-enum % #{"completed" "aborted"} :execution/termination))
+      (update-in [:execution/result :semantic/outcome] #(strict-enum % #{"pass" "fail"} :semantic/outcome))))
+
 (defn valid? [artifact]
-  (let [base (dissoc artifact :runner-finalization/hash)
+  (let [artifact (if (string? (get-in artifact [:runner/selection :mode]))
+                   (wire->runner-finalization artifact)
+                   artifact)
+        base (dissoc artifact :runner-finalization/hash)
         expected (hc/hash-with-intent {:hash/intent :runner-finalization} base)
         errors (cond-> []
                  (not= schema-version (:runner-finalization/schema-version artifact))
@@ -80,5 +113,5 @@
     (when-not (:valid? validation)
       (throw (ex-info "Invalid runner finalization" validation)))
     (io/make-parents path)
-    (spit path (json/write-str artifact :key-fn json-key :indent true))
+    (spit path (json/write-str (runner-finalization->wire artifact) :key-fn json-key :indent true))
     {:path path :finalization artifact :validation validation}))

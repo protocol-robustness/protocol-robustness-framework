@@ -107,7 +107,8 @@
         cap (:cap row)
         effective-cap (if (some? cap) (min owed cap) owed)]
     {:key k
-     :owed owed
+     :obligation-id (:obligation-id row)
+    :owed owed
      :weight (or (:weight row) owed)
      :cap (when cap (long cap))
      :effective-cap (long effective-cap)
@@ -581,7 +582,7 @@
         policy-ref (propagation-policy/policy-reference policy)
         rows (get-in decision [:evidence :allocation-rows] [])
         participants
-        (mapv (fn [{:keys [key owed effective-cap filled deferred]}]
+        (mapv (fn [{:keys [key obligation-id owed effective-cap filled deferred]}]
                 (let [fulfilled (long (or filled 0))
                       deferred (long (or deferred 0))
                       owed (long (or owed 0))]
@@ -598,14 +599,14 @@
                    :waived 0
                    :obligation-after deferred
                    :position-status (if (pos? deferred) :partially-deferred :fulfilled)
-                   :origin {:obligation-id key
+                   :origin {:obligation-id obligation-id
                             :calculation-id (:decision/id decision)
                             :participant-id key
                             :sequence 1}
                    :next-position (when (pos? deferred)
                                     {:position/type (get-in policy [:shortfall :next-position/type])
                                      :position/id key
-                                     :position/root-obligation-id key
+                                     :position/root-obligation-id obligation-id
                                      :amount deferred
                                      :priority-policy (get-in policy [:priority :propagation-policy])
                                      :next-round-weight-policy (get-in policy [:shortfall :next-round-weight-policy])

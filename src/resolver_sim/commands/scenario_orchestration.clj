@@ -1,5 +1,6 @@
 (ns resolver-sim.commands.scenario-orchestration
   (:require [clojure.data.json :as json] [clojure.java.io :as io] [clojure.java.shell :as shell]
+            [clojure.walk :as walk]
             [resolver-sim.commands.scenario-registry :as registry]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.input-source :as input-source]
@@ -37,7 +38,7 @@
         result ((requiring-resolve 'resolver-sim.io.scenario-runner/run-and-report)
                 {:scenario (:input/snapshot provenance) :run-id (:run/id c) :run-root (p (:run/root c))
                  :scenario-id scenario-id :execution-id execution-id
-                                  :scenario/source-hash (:input/sha256 provenance)
+                                  :scenario/source-hash (str "sha256:" (:input/sha256 provenance))
                                   :scenario/input-snapshot-relative (:input/snapshot-relative provenance)
                                   :scenario-slug (:scenario/slug c) :scenario-root (p (:scenario/root c)) :execution-dir (p (:execution/dir c)) :artifact-dir (p (:forensic/dir c)) :summary-dir (p (:summaries/dir c)) :manifest-dir (p (:manifest/dir c)) :output-file (p (:replay/file c))} {:report-format (:report-format c)})]
     (assoc result :input/provenance provenance :scenario/id scenario-id :execution/id execution-id)))
@@ -255,9 +256,20 @@
                                    {:report-hash rh
                                     :source "sensitivity-report.v2"
                                     :provenance prov}))
-        objects-map {:attestations attestations
-                     :claim-results (get-in execution [:run-result :results] [])
-                     :evidence-nodes evidence-nodes}
+        persisted-value (fn [value]
+                          (walk/postwalk (fn [x]
+                                           (if (or (instance? java.time.temporal.TemporalAccessor x)
+                                                   (fn? x)
+                                                   (instance? Double x)
+                                                   (instance? Float x))
+                                             (str x)
+                                             x))
+                                         value))
+        ;; Attestation files and their canonical commitments are persisted data;
+        ;; normalize runtime temporal objects before hashing/serialization.
+        objects-map {:attestations (persisted-value attestations)
+                     :claim-results (persisted-value (get-in execution [:run-result :results] []))
+                     :evidence-nodes (persisted-value evidence-nodes)}
         bundle-dir (str (io/file (p (:run/root c)) "evidence" "attestation-bundle"))
         result (ab/build-attestation-bundle
                 {:attestations attestations
@@ -352,7 +364,7 @@
 (defn default-refresh-registry! [c _] (registry/finalize! (:run/root c)))
 (defn default-revalidate-registry! [c e] (default-validate-registry! c e))
 (defn default-complete! [c e]
-  (let [gate (package-index/validate-precompletion-package (:run/root c))
+  (let [gate (package-index/validate-precompletion-package (str (:run/root c)))
         _ (when-not (:valid? gate)
             (throw (ex-info "Canonical package completion gate failed"
                             {:code :package/completion-gate-failed

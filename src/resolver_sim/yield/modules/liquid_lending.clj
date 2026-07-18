@@ -315,6 +315,30 @@
 ;; ---------------------------------------------------------------------------
 ;; shared pro-rata withdrawal
 ;; ---------------------------------------------------------------------------
+(defn record-closed-deferred-position
+  "Test-facing immutable insertion for deferred-position closure history keyed by position ID."
+  [history record]
+  (let [history (or history {})
+        id (:position/id record)
+        existing (get history id)]
+    (cond
+      (nil? existing) (assoc history id record)
+      (= existing record) history
+      :else (throw (ex-info "Deferred position history conflict"
+                            {:reason :deferred-position-history-conflict
+                             :position-id id})))) )
+
+(defn application-order-key
+  "Canonical ordering key for accounting applications. Execution fields are
+   preferred; block step is the protocol-order fallback already carried by
+   the world model."
+  [order]
+  [(:run-id order) (:execution-id order) (:scenario-id order)
+   (:event-id order) (:step order)])
+
+(defn application-order-compare [a b]
+  (compare (application-order-key a) (application-order-key b)))
+
 (defn apply-pro-rata-propagation
   "Apply one validated shared-withdrawal propagation artifact exactly once.
    The artifact, not a recalculated allocation, is the authority for position
@@ -322,7 +346,12 @@
   [world propagation]
   (let [validation (partial-fill/validate-pro-rata-propagation propagation)
         pid (:propagation/id propagation)
-        application-key (get-in propagation [:propagation :idempotency-key])]
+        application-key (get-in propagation [:propagation :idempotency-key])
+                application-order {:run-id (:run/id world)
+                                   :execution-id (:execution/id world)
+                                   :scenario-id (get-in world [:params :scenario-id])
+                                   :event-id (:event/id world)
+                                   :step (:block-time world)}]
     (when-not (:valid? validation)
       (throw (ex-info "Invalid pro-rata propagation" {:stage :policy-validation
                                                         :validation validation})))
@@ -354,17 +383,24 @@
                             fulfilled (long (:fulfilled p 0))
                             position (get-in w [:yield/positions id])
                             prior-lineage (:deferred-position position)
-                            root (or (:position/root-obligation-id prior-lineage) id)
+                            root (or (:position/root-obligation-id prior-lineage)
+                                                                 (get-in p [:origin :obligation-id]))
+                                                        _ (when-not root
+                                                            (throw (ex-info "Missing withdrawal obligation identity"
+                                                                            {:reason :missing-withdrawal-obligation-id :participant-id id})))
                             round (inc (long (or (:position/round prior-lineage) 0)))
                             lineage {:position/id (str id "/deferred/" round)
                                      :position/type :deferred-withdrawal
-                                     :position/root-obligation-id root
+                                                                          :position/token token
+                                                                          :position/participant-id id
+                                                                          :position/root-obligation-id root
                                      :position/parent-id (:position/id prior-lineage)
                                      :position/origin-propagation-id pid
                                      :position/round round
                                      :position/original-priority (or (:position/original-priority prior-lineage) 0)
                                      :position/current-amount deferred
-                                     :position/eligibility :later-liquidity}
+                                                                          :position/cumulative-fulfilled (+ (long (:cumulative-fulfilled position 0)) fulfilled)
+                                                                          :position/eligibility :later-liquidity}
                             shortfall (when (pos? deferred)
                                         {:reason :liquidity-shortfall
                                          :basis-amount (+ fulfilled deferred)
@@ -379,10 +415,11 @@
                                                    :partial-fill-affected? (pos? deferred)
                                                    :cumulative-fulfilled (+ (long (:cumulative-fulfilled position 0)) fulfilled))
                                     (pos? deferred) (assoc :deferred-position lineage)
-                                    (zero? deferred) (assoc :deferred-position-history
-                                                            (assoc lineage :position/status :closed
-                                                                   :position/current-amount 0
-                                                                   :position/closed-by-propagation-id pid))
+                                    (zero? deferred) (update :deferred-position-history
+                                                                                                record-closed-deferred-position
+                                                                                                (assoc lineage :position/status :closed
+                                                                                                       :position/current-amount 0
+                                                                                                       :position/closed-by-propagation-id pid))
                                     (zero? deferred) (dissoc :deferred-position))))))
                                                         world participants)
             next-world (if (contains? (:total-held next-world {}) token)
@@ -393,7 +430,8 @@
                          :outcome-hash (:outcome-ref propagation)
                          :policy-hash (get-in propagation [:propagation-policy :policy/hash])
                          :application-key application-key
-                                                  :accounting-entry-set-hash (:accounting-entry-set-hash propagation)
+                                                  :application-order application-order
+                                                                           :accounting-entry-set-hash (:accounting-entry-set-hash propagation)
                                                   :source-account {:account :shared-liquidity :token token
                                           :before source-before :delta (- allocated)
                                           :after (when (some? source-before) (- source-before allocated))}
@@ -401,12 +439,17 @@
                                                                         (let [id (:participant-id p)
                                                                               before (long (get-in world [:yield/withdrawn token id] 0))
                                                                               delta (long (:fulfilled p 0))]
-                                                                          {:participant-id id :position-id id
-                                                                           :withdrawn {:account :withdrawn :token token :participant-id id
+                                                                          {:participant-id id :position-id id :obligation-id (get-in p [:origin :obligation-id])
+                                                                                                                             :position-before (get-in world [:yield/positions id])
+                                                                                                                             :position-after (get-in next-world [:yield/positions id])
+                                                                                                                             :withdrawn {:account :withdrawn :token token :participant-id id
                                                                                                                                                                   :before before :delta delta :after (+ before delta)}
                                                                            :obligation {:before (:eligible-obligation p) :fulfilled delta
-                                                                                        :deferred (:deferred p) :unmet (:unmet p 0) :waived (:waived p 0)
-                                                                                        :after (:obligation-after p)}})) participants)
+                                                                                                                                          :deferred (:deferred p) :unmet (:unmet p 0) :waived (:waived p 0)
+                                                                                                                                          :after (:obligation-after p)}
+                                                                                                                             :cumulative-fulfilled {:before (long (get-in world [:yield/positions id :cumulative-fulfilled] 0))
+                                                                                                                                                    :delta delta
+                                                                                                                                                    :after (+ (long (get-in world [:yield/positions id :cumulative-fulfilled] 0)) delta)}})) participants)
                          :residual {:available (get-in propagation [:summary :available])
                                     :allocated allocated :amount (get-in propagation [:summary :unallocated-residual])
                                     :destination (get-in propagation [:residual :destination])}
@@ -483,8 +526,9 @@
               rows (mapv (fn [oid]
                            (let [owed (long (get requested-by-owner oid 0))
                                  supplied-cap (get effective-caps oid owed)]
-                             {:key oid :owed owed :weight owed
-                              ;; The allocator applies min(owed, cap); recording the
+                             {:key oid :obligation-id (:position/id (get-in accrued-world [:yield/positions oid]))
+                                                           :owed owed :weight owed
+                                                           ;; The allocator applies min(owed, cap); recording the
                               ;; supplied effective cap makes policy constraints
                               ;; explicit without changing uncapped legacy behavior.
                               :cap (long supplied-cap)})) owners)

@@ -33,6 +33,23 @@
         file (.toAbsolutePath (.normalize (.toPath (io/file root ref))))]
     (when (.startsWith file root-path) (.toFile file))))
 
+(defn- package-index-payload [index]
+  (dissoc index :run-package/hash))
+
+(defn package-index->wire
+  "Schema-local JSON representation for run-package-index.v1."
+  [index]
+  (assoc index :run/type (name (:run/type index))))
+
+(defn wire->package-index
+  "Decode only the documented run-package-index.v1 enum values."
+  [wire]
+  (let [run-type (:run/type wire)]
+    (if (= "single-scenario" run-type)
+      (assoc wire :run/type :single-scenario)
+      (throw (ex-info "Unsupported package index run type"
+                      {:code :package/unsupported-run-type :run-type run-type})))))
+
 (defn build
   [{:keys [run-id scenario-id execution-id run-type bundle-root-hash artifacts input-snapshot runner-finalization run-finalization
            canonical-assurance execution-dag scenario-finalization artifact-registry registry-validation]}]
@@ -51,7 +68,7 @@
               :execution/id execution-id
               :bundle/root-hash bundle-root-hash
               :artifacts artifacts}
-        hash (hc/hash-with-intent {:hash/intent :run-package-index} base)]
+        hash (hc/hash-with-intent {:hash/intent :run-package-index} (package-index-payload base))]
     (assoc base :run-package/hash hash)))
 
 (defn write! [path input]
@@ -59,7 +76,7 @@
         target (io/file path)
         temp (io/file (str (.getPath target) ".tmp"))]
     (.mkdirs (.getParentFile target))
-    (spit temp (json/write-str index :key-fn json-key :indent true))
+    (spit temp (json/write-str (package-index->wire index) :key-fn json-key :indent true))
     (Files/move (.toPath temp) (.toPath target)
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
     {:path target :index index}))
@@ -118,8 +135,9 @@
               ;; derive any package verdict from it. Parsing is from `index-bytes`,
               ;; never a later filesystem read.
               index-result (when (and (empty? reasons) index-bytes)
-                             (try {:index (json/read-str (String. ^bytes index-bytes "UTF-8") :key-fn keyword)
-                                   :path index-file
+                             (try {:index (wire->package-index
+                                                                       (json/read-str (String. ^bytes index-bytes "UTF-8") :key-fn keyword))
+                                                                :path index-file
                                    :sha256 actual-hash
                                    :bytes actual-bytes}
                                   (catch Exception _ {:reason (reason :package/package-index-invalid-json :path path)})))
@@ -137,7 +155,7 @@
 (defn read-index [run-root]
   (let [file (io/file run-root "manifest/run-package-index.json")]
     (if (.isFile file)
-      {:index (json/read-str (slurp file) :key-fn keyword) :path file}
+      {:index (wire->package-index (json/read-str (slurp file) :key-fn keyword)) :path file}
       {:reason (reason :package/missing-index :path "manifest/run-package-index.json")})))
 
 (defn- artifact-json [run-root artifacts id]
@@ -397,7 +415,7 @@
    manifest path."
   [run-root completion index path]
       (let [run-type (:run/type index)
-            base (dissoc index :run-package/hash)
+            base (package-index-payload index)
             expected (hc/hash-with-intent {:hash/intent :run-package-index} base)
             artifacts (:artifacts index)
             entries (sort-by (comp name key) artifacts)
