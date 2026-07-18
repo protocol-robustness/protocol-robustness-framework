@@ -13,6 +13,7 @@
             [resolver-sim.yield.token :as tok]
             [resolver-sim.yield.accrual :as accrual]
             [resolver-sim.yield.partial-fill :as partial-fill]
+            [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.accounting :as acct]
             [resolver-sim.yield.market-state :as market-state]
@@ -314,14 +315,82 @@
 ;; ---------------------------------------------------------------------------
 ;; shared pro-rata withdrawal
 ;; ---------------------------------------------------------------------------
+(defn apply-pro-rata-propagation
+  "Apply one validated shared-withdrawal propagation artifact exactly once.
+   The artifact, not a recalculated allocation, is the authority for position
+   residuals, accounting debit, and closure."
+  [world propagation]
+  (let [validation (partial-fill/validate-pro-rata-propagation propagation)
+        pid (:propagation/id propagation)
+        application-key (get-in propagation [:propagation :idempotency-key])]
+    (when-not (:valid? validation)
+      (throw (ex-info "Invalid pro-rata propagation" {:stage :policy-validation
+                                                        :validation validation})))
+    (if (get-in world [:yield/applied-pro-rata-propagations pid])
+      {:status :already-applied :world world :propagation-id pid}
+      (let [allocated (long (get-in propagation [:summary :allocated] 0))
+            token (:token (first (vals (:yield/partial-fill-decisions world {}))))
+            ;; The caller retains the token in propagation context when applying
+            ;; directly; shared withdrawal supplies it below for the first apply.
+            token (or token (:token propagation) (get-in propagation [:allocation/domain :token]))
+            participants (:participants propagation)
+            next-world
+            (reduce (fn [w p]
+                      (let [id (:participant-id p)
+                            deferred (long (:deferred p 0))
+                            fulfilled (long (:fulfilled p 0))
+                            position (get-in w [:yield/positions id])
+                            prior-lineage (:deferred-position position)
+                            root (or (:position/root-obligation-id prior-lineage) id)
+                            round (inc (long (or (:position/round prior-lineage) 0)))
+                            lineage {:position/id (str id "/deferred/" round)
+                                     :position/type :deferred-withdrawal
+                                     :position/root-obligation-id root
+                                     :position/parent-id (:position/id prior-lineage)
+                                     :position/origin-propagation-id pid
+                                     :position/round round
+                                     :position/original-priority (or (:position/original-priority prior-lineage) 0)
+                                     :position/current-amount deferred
+                                     :position/eligibility :later-liquidity}
+                            shortfall (when (pos? deferred)
+                                        {:reason :liquidity-shortfall
+                                         :basis-amount (+ fulfilled deferred)
+                                         :fulfilled-amount fulfilled
+                                         :deferred-amount deferred
+                                         :haircut-amount 0})]
+                        (assoc-in w [:yield/positions id]
+                                  (cond-> (assoc position :status (if (pos? deferred) :unwinding :withdrawn)
+                                                   :shortfall shortfall
+                                                   :partial-fill-affected? (pos? deferred)
+                                                   :cumulative-fulfilled (+ (long (:cumulative-fulfilled position 0)) fulfilled))
+                                    (pos? deferred) (assoc :deferred-position lineage)
+                                    (zero? deferred) (dissoc :deferred-position)))))
+                    world participants)
+            next-world (if (contains? (:total-held next-world {}) token)
+                         (update-in next-world [:total-held token] (fnil - 0) allocated)
+                         next-world)
+            application {:propagation-id pid
+                         :calculation-id (:calculation-ref propagation)
+                         :outcome-hash (:outcome-ref propagation)
+                         :policy-hash (get-in propagation [:propagation-policy :policy/hash])
+                         :application-key application-key}]
+        {:status :applied
+         :propagation-id pid
+         :world (assoc-in next-world [:yield/applied-pro-rata-propagations pid] application)}))))
+
 (defn withdraw-shared
   "Atomically settle declared active positions against one shared liquidity pool.
 
    This is intentionally distinct from `withdraw-many`: all owners are allocated
    from one module/token/time liquidity amount using a single pro-rata decision,
    then applied together. It never falls back to sequential withdrawals."
-  [world module {:keys [owner-ids token allocation-mode effective-caps effective-cap-source] :as op}]
-  (let [mid (:module/id module)
+  [world module {:keys [owner-ids token allocation-mode effective-caps effective-cap-source propagation-policy-id] :as op}]
+  (let [requested-policy-id propagation-policy-id
+        propagation-policy* (propagation-policy/resolve-policy (or requested-policy-id :shared-withdrawal-propagation))
+        policy-selection {:requested-policy-id requested-policy-id
+                          :resolved-policy-id (:policy/id propagation-policy*)
+                          :selection-source (if requested-policy-id :operation :runtime-default)}
+        mid (:module/id module)
         token (normalize-token token)
         owners (vec (sort (or owner-ids [])))]
     (when-not (seq owners)
@@ -423,32 +492,9 @@
                                  :allocation/domain {:module/id mid :token token :block-time now}
                                                                   :allocation/ordering :canonical-owner-id-ascending
                                                                   :allocation/rounding-tie-break :canonical-owner-id-ascending}})
-              updated-world
-              (reduce (fn [w oid]
-                        (let [position (get-in w [:yield/positions oid])
-                              row (get row-by-owner oid)
-                              requested (long (:owed row 0))
-                              filled (long (:filled row 0))
-                              deferred (max 0 (- requested filled))
-                              shortfall (when (pos? deferred)
-                                          {:reason (or (get-in market [:shortfall-model :type]) :liquidity-shortfall)
-                                           :basis-amount requested
-                                           :available-ratio (if (pos? requested) (/ (rationalize filled) requested) 1)
-                                           :fulfilled-amount filled
-                                           :deferred-amount deferred
-                                           :haircut-amount 0
-                                           :as-of-index (:current-index position)
-                                           :started-at now})
-                              updated (-> position
-                                          (assoc :partial-fill-affected? (boolean shortfall))
-                                          (assoc :status (if shortfall :unwinding :withdrawn))
-                                          (assoc :realized-yield 0)
-                                          (assoc :unrealized-yield 0)
-                                          (assoc :shortfall shortfall))]
-                          (assoc-in w [:yield/positions oid] updated)))
-                      accrued-world owners)
-              propagation (partial-fill/pro-rata-propagation-artifact decision)
-              final-world (-> updated-world
+              propagation (partial-fill/pro-rata-propagation-artifact decision propagation-policy* policy-selection)
+              application (apply-pro-rata-propagation accrued-world propagation)
+              final-world (-> (:world application)
                               (partial-fill/attach-decision-artifact decision)
                               (partial-fill/attach-pro-rata-propagation propagation))]
           (evidence/capture-event-evidence!
@@ -460,7 +506,8 @@
                               :effective-caps (into {} (map (juxt :key :cap) rows))
                                                             :effective-cap-source (or effective-cap-source :scenario-fixture)}
             :withdraw/partial-fill-decision decision
-            :withdraw/pro-rata-propagation propagation}
+            :withdraw/pro-rata-propagation propagation
+                        :withdraw/pro-rata-propagation-policy (:propagation-policy propagation)}
            nil
            {:world-before world :world-after final-world})
           final-world)))))

@@ -71,7 +71,12 @@
     (is (= {"alice" 600 "bob" 1200} (:filled decision)))
     (is (= {"alice" 400 "bob" 800} (:deferred decision)))
     (is (= :pro-rata (get-in decision [:policy :mode])))
-    (is (= ["alice" "bob"] (:participants decision)))))
+    (is (= ["alice" "bob"] (:participants decision)))
+    (let [propagation (first (vals (get-in result [:world :yield/pro-rata-propagations])))]
+      (is (= "pro-rata-propagation.v1" (:schema-version propagation)))
+      (is (= 1800 (get-in propagation [:summary :allocated])))
+      (is (= 1200 (get-in propagation [:summary :deferred])))
+      (is (= :committed (:status propagation))))))
 
 (deftest y01-long-accrue-expectations
   (let [scenario (assoc base-scenario

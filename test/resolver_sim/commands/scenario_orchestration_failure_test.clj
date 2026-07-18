@@ -37,10 +37,21 @@
    :finalize-registry (fn [_ _] {})
    :validate-registry (fn [_ _] {})
    :finalize-run-evidence (fn [_ _] {})
+   ;; This test namespace exercises orchestration phase ordering and failure
+   ;; isolation. Package validity itself is covered by package-index tests, so
+   ;; its fixture supplies successful implementations for the package phases.
+   :build-attestation-bundle (fn [_ _] {})
+   :write-canonical-assurance (fn [_ _] {})
    :write-diagnostic (fn [_ _] {})
    :refresh-inventory (fn [_ _] {})
    :refresh-registry (fn [_ _] {})
-   :revalidate-registry (fn [_ _] {})})
+   :revalidate-registry (fn [_ _] {})
+   :write-package-index (fn [_ _] {})
+   :complete (fn [c _]
+               ;; Mirror the terminal lifecycle writer's permitted cleanup.
+               (spit (io/file (:run/root c) "completion.json") "{}")
+               (io/delete-file (io/file (:run/root c) ".run-state") true)
+               {})})
 
 (deftest required-phase-failure-never-completes-a-run
   (doseq [phase [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity
@@ -167,6 +178,7 @@
         (is (not (.exists (io/file root ".run.lock"))))
         (is (= [:check-runtime :execute :write-manifest :extract-artifacts
                 :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence
-                                                :write-diagnostic :refresh-inventory :refresh-registry :revalidate-registry :complete]
+                :build-attestation-bundle :write-canonical-assurance :write-diagnostic
+                :refresh-inventory :refresh-registry :revalidate-registry :write-package-index :complete]
                (mapv :phase (:phases result)))))
       (finally (delete-tree! root)))))

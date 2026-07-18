@@ -40,7 +40,11 @@
 
    :yield/aggregate-shortfall-cap
    {:description "Aggregate shortfall per (module-id, token) pair does not exceed the sum of position values. Prevents systemic over-counting."
-    :prf-tags [:liquidity-shortfall :conservation :aggregate]}})
+    :prf-tags [:liquidity-shortfall :conservation :aggregate]}
+
+   :yield/pro-rata-propagation-complete
+   {:description "Every shared pro-rata allocation is applied once, preserves each deferred residual as a position, and reconciles accounting and pool residuals."
+    :prf-tags [:pro-rata :propagation :accounting :conservation]}})
 
 (def default-runtime-invariant-ids
   "Checked on every successful replay step (yield-v1 adapter)."
@@ -51,7 +55,8 @@
    :yield/realized-non-negative
    :yield/value-conservation
    :yield/partial-liquidity-principal
-   :yield/deferred-reclaim])
+   :yield/deferred-reclaim
+   :yield/pro-rata-propagation-complete])
 
 (def default-transition-invariant-ids
   "Checked on each successful transition (yield-v1 adapter)."

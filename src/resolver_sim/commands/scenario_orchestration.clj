@@ -53,7 +53,7 @@
                  (safety/scan-internal-bundle! (:run/root c)))
         scenarios (get-in e [:run-result :results] [])
         run-sensitivity (prop/merge-sensitivity
-                          (mapv prop/effective-scenario-sensitivity scenarios))
+                          (mapv prop/effective-scenario-sensitivity scenarios))]
     (safety/write-sensitivity-report! (:manifest/dir c) result run-sensitivity scenarios
                                       {:run-id (:run/id c)
                                        :profile (:sensitivity/profile c)

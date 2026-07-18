@@ -260,6 +260,56 @@
                                          (not (resolver-owned-position? pos))))
                         #(held-for-token world %)))
 
+(defn check-pro-rata-propagation-complete
+  "Every persisted shared pro-rata outcome must have been applied exactly once.
+   Verifies allocation and entitlement conservation, state-position residuals,
+   capacity bounds, accounting deltas, and an explicit residual destination."
+  [world]
+  (let [propagations (vals (:yield/pro-rata-propagations world {}))
+        violations
+        (vec
+         (mapcat
+          (fn [artifact]
+            (let [participants (:participants artifact [])
+                  summary (:summary artifact {})
+                  positions (:yield/positions world {})
+                  sum-field (fn [field] (reduce + 0 (map #(long (get % field 0)) participants)))
+                  participant-errors
+                  (mapcat
+                   (fn [p]
+                     (let [id (:participant-id p)
+                           fulfilled (long (:fulfilled p 0))
+                           deferred (long (:deferred p 0))
+                           unmet (long (:unmet p 0))
+                           waived (long (:waived p 0))
+                           eligible (long (:eligible-obligation p 0))
+                           cap (long (:effective-cap p eligible))
+                           position (get positions id)
+                           position-deferred (long (get-in position [:shortfall :deferred-amount] 0))]
+                       (cond-> []
+                         (not= eligible (+ fulfilled deferred unmet waived)) (conj {:participant-id id :error :entitlement-not-conserved})
+                         (> fulfilled cap) (conj {:participant-id id :error :capacity-exceeded})
+                         (and (pos? deferred) (not= deferred position-deferred)) (conj {:participant-id id :error :deferred-position-not-applied})
+                         (and (zero? deferred) (not= :withdrawn (:status position))) (conj {:participant-id id :error :fulfilled-position-not-closed}))))
+                   participants)
+                  allocated (long (:allocated summary 0))
+                  available (long (:available summary 0))
+                  residual (long (:unallocated-residual summary 0))
+                  participant-accounting-total (reduce + 0 (map #(long (get-in % [:accounting-entry :delta] 0)) (:applications artifact [])))
+                  ledger-net (reduce + 0 (map #(long (:delta % 0)) (:accounting-entries artifact [])))
+                  artifact-errors (cond-> []
+                                    (not= allocated (sum-field :fulfilled)) (conj {:error :allocation-not-applied})
+                                    (not= allocated participant-accounting-total) (conj {:error :participant-accounting-not-reconciled})
+                                    (not= 0 ledger-net) (conj {:error :ledger-not-balanced})
+                                    (not= available (+ allocated residual)) (conj {:error :liquidity-not-conserved})
+                                    (not= (sum-field :eligible-obligation)
+                                          (+ (sum-field :fulfilled) (sum-field :deferred)
+                                             (sum-field :unmet) (sum-field :waived))) (conj {:error :aggregate-entitlement-not-conserved})
+                                    (and (pos? residual) (nil? (get-in artifact [:residual :destination]))) (conj {:error :residual-without-destination}))]
+              (concat participant-errors artifact-errors)))
+          propagations))]
+    {:holds? (empty? violations) :violations violations}))
+
 (def ^:private check-fns
   {:yield/position-consistency check-position-consistency
    :yield/exposure             check-provider-exposure
@@ -271,7 +321,8 @@
    :yield/partial-liquidity-principal check-partial-liquidity-principal
    :yield/value-conservation   check-value-conservation
    :yield/deferred-reclaim     check-deferred-reclaim
-   :yield/aggregate-shortfall-cap check-aggregate-shortfall-cap})
+   :yield/aggregate-shortfall-cap check-aggregate-shortfall-cap
+   :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete})
 
 (defn registered-ids []
   (vec (keys check-fns)))

@@ -35,12 +35,14 @@
 
 (defn build
   [{:keys [run-id scenario-id execution-id run-type bundle-root-hash artifacts input-snapshot runner-finalization run-finalization
-           canonical-assurance execution-dag scenario-finalization]}]
+           canonical-assurance execution-dag scenario-finalization artifact-registry registry-validation]}]
   (let [artifacts (or artifacts {:input-snapshot input-snapshot
                                  :scenario-finalization scenario-finalization
                                  :runner-finalization runner-finalization
                                  :run-finalization run-finalization
                                  :canonical-assurance canonical-assurance
+                                 :artifact-registry artifact-registry
+                                 :registry-validation registry-validation
                                  :execution-dag execution-dag})
         base {:run-package/schema-version schema-version
               :run/type (or run-type :single-scenario)
@@ -85,13 +87,16 @@
               index-file (when (string? path) (contained-file run-root path))
               expected-hash (get completion "run_package_index_sha256")
               expected-bytes (get completion "run_package_index_bytes")
+              ;; Read once: the parsed declarations must be the exact bytes whose
+              ;; hash and length completion seals.
               index-bytes (when (and index-file (.isFile index-file)) (Files/readAllBytes (.toPath index-file)))
               actual-hash (when index-bytes (bytes-sha-ref index-bytes))
               actual-bytes (when index-bytes (alength index-bytes))
               reasons (vec (concat
                             (when-not (= "run-completion.v1" (get completion "schema_version"))
                                                           [(reason :package/completion-invalid :field :schema_version)])
-                                                        (when-not (string? (get completion "run_id"))
+                                                        (when-not (and (string? (get completion "run_id"))
+                                                                       (seq (get completion "run_id")))
                                                           [(reason :package/completion-invalid :field :run_id)])
                                                         (when-not (= "completed" (get completion "lifecycle_status"))
                                                           [(reason :package/completion-invalid :field :lifecycle_status)])
@@ -109,14 +114,21 @@
                                                           [(reason :package/package-index-hash-mismatch :expected expected-hash :actual actual-hash)])
                                                         (when (and index-bytes (not= expected-bytes actual-bytes))
                                                           [(reason :package/package-index-byte-length-mismatch :expected expected-bytes :actual actual-bytes)])))
-                                                                        index-result (when (and index-file (.isFile index-file))
-                             (try {:index (json/read-str (slurp index-file) :key-fn keyword) :path index-file}
-                                  (catch Exception _ {:reason (reason :package/package-index-invalid-json :path path)})))]
+              ;; A mismatched index is not a trusted declaration. Do not parse or
+              ;; derive any package verdict from it. Parsing is from `index-bytes`,
+              ;; never a later filesystem read.
+              index-result (when (and (empty? reasons) index-bytes)
+                             (try {:index (json/read-str (String. ^bytes index-bytes "UTF-8") :key-fn keyword)
+                                   :path index-file
+                                   :sha256 actual-hash
+                                   :bytes actual-bytes}
+                                  (catch Exception _ {:reason (reason :package/package-index-invalid-json :path path)})))
+              all-reasons (vec (concat reasons (when-let [r (:reason index-result)] [r])))]
           {:run-root run-root
                      :completion completion
-                     :completion-report {:valid? (empty? reasons) :reasons reasons}
+                     :completion-report {:valid? (empty? all-reasons) :reasons all-reasons}
            :package-index index-result
-           :reasons (vec (concat reasons (when-let [r (:reason index-result)] [r])) )})
+           :reasons all-reasons})
         (catch Exception _
           {:run-root run-root
                      :completion-report {:valid? false :reasons [(reason :package/completion-invalid)]}
@@ -192,6 +204,11 @@
                       (when-not (vector? entries) [(reason :registry-validation/artifacts-not-vector)])
                       (when-not (= (count ids) (count (set ids))) [(reason :registry-validation/duplicate-artifact-id)])
                       (when-not (= (count paths) (count (set paths))) [(reason :registry-validation/duplicate-artifact-path)])
+                      ;; These terminal outer artifacts are deliberately outside
+                      ;; the pre-package registry to avoid a circular commitment.
+                      (mapcat (fn [path]
+                                [(reason :registry-validation/terminal-package-artifact-indexed :path path)])
+                              (filter #{"manifest/run-package-index.json" "completion.json"} paths))
                       (mapcat (fn [entry]
                                 (let [path (:path entry)
                                       file (and (string? path) (contained-file run-root path))
@@ -256,7 +273,10 @@
           scenario-final (artifact-json run-root artifacts :scenario-finalization)
           scenario-validation (when scenario-final (finalization/validate-finalization scenario-final {:require-execution-id? true}))
           run-final (artifact-json run-root artifacts :run-finalization)
-        dag (artifact-json run-root artifacts :execution-dag)
+          run-final-validation (when run-final
+                                 (finalization/validate-finalization run-final {:require-execution-identities? true}))
+          runner-validation (when runner (runner-finalization/valid? runner))
+          dag (artifact-json run-root artifacts :execution-dag)
         dag-validation (when dag (execution-dag/validate-persisted-dag dag {:require-identities? true}))
                 assurance-validation (validate-canonical-assurance run-root artifacts)
                         registry-validation (validate-registry-validation run-root artifacts)
@@ -340,13 +360,15 @@
     (vec (concat
               (for [artifact [runner scenario-final run-final dag] :when (:package/unreadable-artifact artifact)]
                 (reason :package/unreadable-artifact :artifact-id (:package/unreadable-artifact artifact)))
-              (when (and runner (not (:valid? (runner-finalization/valid? runner))))
-            [(reason :package/invalid-runner-finalization :artifact-id :runner-finalization)])
+              (when (and runner (not (:valid? runner-validation)))
+                [(reason :package/invalid-runner-finalization :artifact-id :runner-finalization
+                         :causes (:errors runner-validation))])
           (when (and scenario-final (not (:valid? scenario-validation)))
             [(reason :package/invalid-scenario-finalization :artifact-id :scenario-finalization
                      :causes (:errors scenario-validation))])
-          (when (and run-final (not (:valid? (finalization/validate-finalization run-final {:require-execution-identities? true}))))
-            [(reason :package/invalid-run-finalization :artifact-id :run-finalization)])
+          (when (and run-final (not (:valid? run-final-validation)))
+            [(reason :package/invalid-run-finalization :artifact-id :run-finalization
+                     :causes (:errors run-final-validation))])
           (when (and dag (not (:valid? dag-validation)))
                       [(reason :package/invalid-execution-dag :artifact-id :execution-dag
                                :causes (:reasons dag-validation))])
@@ -428,14 +450,20 @@
 
 (defn validate-precompletion-package
   "Validate the frozen package-index closure immediately before the terminal
-   completion seal is written. Semantic outcome and release policy are excluded."
+   completion seal is written. This deliberately does not call the sealed-package
+   completeness validator: completion.json cannot exist at this lifecycle point.
+   Semantic outcome and release policy are excluded."
   [run-root]
-  (let [{:keys [index path]} (read-index run-root)
-        complete (validate-completeness-at-root run-root)
+  (let [{:keys [index path] missing-reason :reason} (read-index run-root)
+        required (when index (case (:run/type index) :single-scenario single-scenario-artifacts #{}))
+        missing (when index (sort (set/difference required (set (keys (:artifacts index))))) )
+        complete {:complete? (and index (empty? missing))
+                  :status (if (and index (empty? missing)) :complete :incomplete)
+                  :reasons (vec (concat (when missing-reason [missing-reason])
+                                        (map #(reason :package/missing-required-artifact :artifact-id %) missing)))}
         integrity (if index
                     (validate-integrity-for-index run-root nil index path)
-                    {:valid? false :status :incomplete :reasons [(or (:reason (read-index run-root))
-                                                                    (reason :package/missing-index))]})
+                    {:valid? false :status :incomplete :reasons (:reasons complete)})
         reasons (vec (concat (:reasons complete) (:reasons integrity)))]
     {:valid? (empty? reasons) :reasons reasons
      :complete complete :integrity integrity}))
@@ -505,12 +533,18 @@
                                                                 (:code %))
                                                     (:reasons integrity))})))
 
-(defn validate-runnability [run-root]
-  (let [ctx (resolve-validation-context run-root)
-        complete (:completeness-report ctx) integrity (:integrity-report ctx)
+(defn validate-runnability-from-context
+  "Derive runnability from one resolved, completion-sealed filesystem view.
+   Semantic outcome is deliberately not an input to this structural verdict."
+  [ctx]
+  (let [complete (:completeness-report ctx)
+        integrity (:integrity-report ctx)
         reasons (vec (concat (:reasons complete) (:reasons integrity)))]
     {:runnable? (empty? reasons) :status (if (empty? reasons) :runnable :not-runnable)
      :reasons reasons :complete complete :integrity integrity}))
+
+(defn validate-runnability [run-root]
+  (validate-runnability-from-context (resolve-validation-context run-root)))
 
 (defn validate-semantic-result [run-root]
   (let [ctx (resolve-validation-context run-root)

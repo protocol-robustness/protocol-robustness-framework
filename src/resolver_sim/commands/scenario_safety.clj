@@ -51,7 +51,7 @@
                                          {:rule/id (:rule/id r)
                                           :rule/version (:rule/version r)
                                           :pattern (str (:pattern r))})
-                                       secret-rules)}})))
+                                       secret-rules)})))
 
 (defn secret-scanner-ruleset-hash
   "Deterministic hash of the secret-scanner ruleset for provenance binding."
@@ -145,7 +145,7 @@
                              ;; they never reproduce the matched secret value.
                              (when (re-find pattern body)
                                {:path (.getPath file) :pattern (str pattern)}))
-                           secret-patterns))))
+                           (map :pattern secret-rules)))))
          vec)))
 
 (defn scan-public-bundle! [run-root]

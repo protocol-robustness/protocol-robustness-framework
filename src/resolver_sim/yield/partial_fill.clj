@@ -18,6 +18,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.position :as pos]
+            [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.yield.token :as tok]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.util.evidence :as util-evidence]
@@ -562,14 +563,11 @@
   (assoc-in world [:yield/partial-fill-decisions (:decision/id artifact)] artifact))
 
 (defn pro-rata-propagation-artifact
-  "Build the authoritative application record for a shared pro-rata decision.
-
-   This intentionally consumes the already-calculated decision rather than
-   recalculating allocations.  Each non-zero residual is classified as a
-   deferred withdrawal position, preserving the originating decision and
-   participant identity for later rounds."
-  [decision]
-  (let [rows (get-in decision [:evidence :allocation-rows] [])
+  "Build the authoritative application record for a shared pro-rata decision."
+  [decision policy policy-selection]
+  (let [policy (propagation-policy/normalize-and-validate policy)
+        policy-ref (propagation-policy/policy-reference policy)
+        rows (get-in decision [:evidence :allocation-rows] [])
         participants
         (mapv (fn [{:keys [key owed effective-cap filled deferred]}]
                 (let [fulfilled (long (or filled 0))
@@ -593,13 +591,13 @@
                             :participant-id key
                             :sequence 1}
                    :next-position (when (pos? deferred)
-                                    {:position/type :deferred-withdrawal
+                                    {:position/type (get-in policy [:shortfall :next-position/type])
                                      :position/id key
-                                     :position/root-obligation key
+                                     :position/root-obligation-id key
                                      :amount deferred
-                                     :priority-policy :preserve-original-priority
-                                     :next-round-weight-policy :residual-entitlement
-                                     :reallocation-policy :eligible-next-liquidity-event})}))
+                                     :priority-policy (get-in policy [:priority :propagation-policy])
+                                     :next-round-weight-policy (get-in policy [:shortfall :next-round-weight-policy])
+                                     :reallocation-policy (get-in policy [:shortfall :next-position/eligibility])})}))
               rows)
         sum-field (fn [field] (reduce + 0 (map #(long (get % field 0)) participants)))
         available (long (get-in decision [:evidence :available-liquidity] 0))
@@ -609,44 +607,74 @@
               :calculation-ref (:decision/id decision)
               :outcome-ref (:decision/hash decision)
               :allocation-kind :shared-withdrawal-shortfall
-              :participants participants
+                            :token (:token decision)
+                            :propagation-policy policy-ref
+                                          :policy-selection policy-selection
+                                          :participants participants
               :summary {:obligation-before (sum-field :obligation-before)
                         :eligible-obligation (sum-field :eligible-obligation)
-                        :available available
-                        :allocated allocated
-                        :fulfilled allocated
-                        :deferred (sum-field :deferred)
-                        :unmet 0
-                        :waived 0
+                        :available available :allocated allocated :fulfilled allocated
+                        :deferred (sum-field :deferred) :unmet 0 :waived 0
                         :obligation-after (sum-field :obligation-after)
                         :unallocated-residual residual
                         :residual-reason (get-in decision [:evidence :residual-reason])}
-              :propagation {:policy :defer-shortfall
-                            :next-state :withdrawal-claims
+              :propagation {:policy :defer-shortfall :next-state :withdrawal-claims
                             :reallocation-eligible? true
-                            :rounding-propagation-policy :independent-rounds}
+                            :rounding-propagation-policy (get-in policy [:rounding :propagation-policy])
+                            :idempotency-key [:pro-rata-propagation (:decision/id decision)
+                                              (:decision/hash decision) (:policy/hash policy)]}
               :applications (mapv (fn [p]
                                     {:participant-id (:participant-id p)
                                      :fulfilled (:fulfilled p)
                                      :shortfall {:amount (:deferred p)
-                                                 :classification :deferred
+                                                 :classification (get-in policy [:shortfall :classification])
                                                  :next-position-ref (some-> p :next-position :position/id)}
                                      :accounting-entry {:account [:participant (:participant-id p) :withdrawn]
                                                         :delta (:fulfilled p)}})
                                   participants)
+              :accounting-entries (vec (concat [{:account :shared-liquidity :delta (- allocated)}]
+                                              (map (fn [p] {:account [:participant (:participant-id p) :withdrawn]
+                                                           :delta (:fulfilled p)}) participants)))
               :residual {:amount residual
                          :reason (get-in decision [:evidence :residual-reason])
-                         :destination (when (pos? residual) :return-to-pool)}
-              :reconciliation {:allocation-applied? true
-                               :shortfalls-preserved? true
-                               :capacity-reconciled? true
-                               :accounting-reconciled? true
+                         :destination (when (pos? residual)
+                                        (get-in policy [:residual-liquidity :destination]))}
+              :reconciliation {:allocation-applied? true :shortfalls-preserved? true
+                               :capacity-reconciled? true :accounting-reconciled? true
                                :residual-reconciled? true}
               :status :committed}
-        artifact-hash (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record} base))]
+        artifact-hash (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record} base))
+        ]
     (assoc base
            :propagation/id (str "pro-rata-propagation-" (subs artifact-hash 7 (min (count artifact-hash) 23)))
            :propagation/hash artifact-hash)))
+
+(defn validate-pro-rata-propagation
+  "Validate propagation-policy binding separately from allocation arithmetic.
+   Returns structured reasons so callers can distinguish policy violations."
+  [artifact]
+  (try
+    (let [ref (:propagation-policy artifact)
+          snapshot (:policy/snapshot ref)
+          policy (propagation-policy/normalize-and-validate snapshot)
+          policy-errors (cond-> []
+                          (not= (:policy/hash ref) (:policy/hash policy)) (conj :policy-hash-mismatch)
+                          (not= (:policy/id ref) (:policy/id policy)) (conj :policy-id-mismatch)
+                          (not= (:policy/version ref) (:policy/version policy)) (conj :policy-version-mismatch))
+          participant-errors
+          (mapcat (fn [p]
+                    (let [d (long (:deferred p 0))]
+                      (cond-> []
+                        (and (pos? d) (not= (get-in policy [:shortfall :classification]) :deferred)) (conj :shortfall-classification-mismatch)
+                        (and (pos? d) (not= (get-in p [:next-position :next-round-weight-policy])
+                                            (get-in policy [:shortfall :next-round-weight-policy]))) (conj :next-round-weight-policy-mismatch)
+                        (and (zero? d) (not= :fulfilled (:position-status p))) (conj :fulfilled-position-not-closed))))
+                  (:participants artifact []))]
+      {:valid? (empty? (concat policy-errors participant-errors))
+       :calculation-errors []
+       :policy-errors (vec (concat policy-errors participant-errors))})
+    (catch clojure.lang.ExceptionInfo e
+      {:valid? false :calculation-errors [] :policy-errors [(:reason (ex-data e))]})))
 
 (defn attach-pro-rata-propagation
   "Persist a committed pro-rata propagation artifact by its stable identity."
