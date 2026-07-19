@@ -8,6 +8,12 @@ lives here; protocol-specific packs appear under `packs/<protocol>/`.
 A concept or scenario mapping is not evidence by itself. A property is
 demonstrated only when an active benchmark executes its registered evaluator.
 
+Public-facing headline copy is separately generated from
+`public-headline-claims.edn`. A headline is publishable only when its stable ID,
+exact text, scope, assumptions, evaluator implementation/version hash, policy
+hash, and immutable evidence-package references validate. See
+[`docs/generated/public-headline-claims.md`](../docs/generated/public-headline-claims.md).
+
 | Capability | Concept | Claims | Evaluator | Active benchmark | Status |
 |---|---|---|---|---|---|
 | Sew yield shortfall handling | shortfall, partial fill | preservation, closed-form allocation correctness, cap bounds, and leakage | named Sew invariants plus closed-form partial-fill checks | none | Experimental until the workload emits and passes qualifying decision artifacts |

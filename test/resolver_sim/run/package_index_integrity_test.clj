@@ -135,10 +135,9 @@
     (is (= "single-scenario" (:run/type wire)))
     (is (= :single-scenario (:run/type restored)))
     (is (= (:run-package/hash logical) (:run-package/hash restored)))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                          #"Unsupported package index run type"
-                          (package-index/wire->package-index
-                           (assoc wire :run/type "benchmark"))))))
+    (is (= :benchmark (:run/type
+                        (package-index/wire->package-index
+                         (assoc wire :run/type "benchmark")))))))
 
 (deftest package-index-build-retains-the-pre-package-registry-commitments
   (let [index (package-index/build {:run-id "run-1"

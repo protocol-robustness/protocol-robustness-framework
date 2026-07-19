@@ -148,6 +148,16 @@ claims remain projection-scoped; they do not assert cap, quota, remainder, or
 redistribution-round witness claims. These packet examples do not claim that Y06
 is evidence for slashing allocation.
 
+The mechanism envelope carries a `:mechanism/validation-results` field recording
+only local structural validation summaries — hash validity, cap compliance,
+quota bounds, round-trace coherence, and canonical remainder assignment. These
+are integrity checks against the allocation result itself, not claim-engine
+evaluations. Claim-engine evidence remains a separate integration concern and
+is not included in this envelope. See
+[`PRO_RATA_ALLOCATION_BINDING_V2.md`](../architecture/PRO_RATA_ALLOCATION_BINDING_V2.md)
+for the exact authority chain, v1/v2 compatibility boundary, and explicit
+deferrals.
+
 ## Inspecting a completed bundle
 
 1. In a generated packet, begin with `REVIEW_PACKET_MANIFEST.json` for the

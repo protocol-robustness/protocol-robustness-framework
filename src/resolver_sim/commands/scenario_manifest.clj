@@ -1,7 +1,8 @@
 (ns resolver-sim.commands.scenario-manifest
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [resolver-sim.commands.scenario-value-at-risk :as value-at-risk])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (defn- atomic-json! [file value]
@@ -86,13 +87,28 @@
                               {"origin" (:input/origin input) "snapshot" (str "inputs/scenarios/" (.getName (io/file (:input/snapshot input))))
                                "sha256" (:input/sha256 input) "bytes" (:input/bytes input)})
                     "outcome" {"status" status "total" 1 "passed" (if (= status "pass") 1 0) "failed" (if (= status "pass") 0 1)}} enrichment)
+        snapshot (read-snapshot execution)
+        replay (get-in execution [:run-result :results 0] {})
+        value-at-risk (value-at-risk/build-observation
+                       snapshot replay (:input/provenance execution)
+                       (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
+        value-at-risk-validation (value-at-risk/validate-persisted
+                                           value-at-risk snapshot replay (:input/provenance execution)
+                                           (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
+        _ (when (and (not= "not-declared" (get value-at-risk "status"))
+                     (not= "pass" (get value-at-risk-validation "status")))
+            (throw (ex-info "Declared value-at-risk observation failed validation"
+                            {:code :value-at-risk/invalid-observation
+                             :reasons (get value-at-risk-validation "reason_codes")})))
         summary {"manifest" {"schema_version" "summary.v1"}
                  "run" {"id" (:run/id context) "overall_status" status
                         "outcome" {"status" status "exit_code" (:exit-code execution) "duration_ms" (:duration-ms execution 0)}}
-                 "value_at_risk" (value-at-risk-summary execution)}
+                 "value_at_risk" value-at-risk
+                 "value_at_risk_overview" (value-at-risk-summary execution)}
         claimable {"schema_version" "claimable-classification.v2" "run_id" (:run/id context)}]
     (atomic-json! (io/file dir "run.json") run)
     (atomic-json! (io/file dir "summary.json") summary)
+    (atomic-json! (io/file dir "value-at-risk.json") value-at-risk)
     (atomic-json! (io/file dir "claimable-classification.json") claimable)
     {:run run :summary summary :claimable claimable}))
 

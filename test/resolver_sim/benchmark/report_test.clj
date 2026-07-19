@@ -53,6 +53,24 @@
     (is (= "A buyer–merchant dispute was raised and the escrowed payment was released to the merchant."
            (get-in scenarios [3 :stakeholder/summary])))))
 
+(deftest benchmark-conclusion-requires-passing-claims
+  (let [pass-conclusion (rpt/build-conclusion {:total 1 :passed 1}
+                                               [{:claim/id :claim/funds-conserved :claim/outcome :pass}]
+                                               "evidence-hash"
+                                               "run-hash")
+        incomplete-conclusion (rpt/build-conclusion {:total 1 :passed 1}
+                                                     [{:claim/id :claim/funds-conserved :claim/outcome :not-exercised}]
+                                                     "evidence-hash"
+                                                     nil)
+        failure-conclusion (rpt/build-conclusion {:total 1 :passed 1}
+                                                  [{:claim/id :claim/funds-conserved :claim/outcome :fail}]
+                                                  "evidence-hash"
+                                                  nil)]
+    (is (= :pass (:outcome pass-conclusion)))
+    (is (= "evidence-hash" (:evidence/hash pass-conclusion)))
+    (is (= :incomplete (:outcome incomplete-conclusion)))
+    (is (= :fail (:outcome failure-conclusion)))))
+
 (deftest scenario-outcome-prefers-public-scenario-id
   (let [results [{:scenario/id "malicious-resolver-verdict-v1"
                   :file "scenarios/S25_profit-maximizer-slash-lifecycle.json"

@@ -18,10 +18,15 @@
    "benchmark/execution-plan.edn" ["benchmark.execution-plan" "benchmark.execution-plan" "benchmark-execution-plan.v1"]
    "benchmark/index.edn" ["benchmark.index" "benchmark.index" "benchmark-artifact-index.v1"]
    "benchmark/evidence/evidence.edn" ["benchmark.evidence" "benchmark.evidence" "benchmark-result.v1"]
+   "benchmark/evidence/content-registry.json" ["benchmark.content-registry" "benchmark.content-registry" "benchmark-content-registry.v1"]
+   "benchmark/finalization.json" ["benchmark.finalization" "benchmark.finalization" "benchmark-finalization.v1"]
+   "manifest/run-package-index.json" ["manifest.run-package-index" "run-package-index" "run-package-index.v1"]
    "benchmark/summary.json" ["benchmark.summary" "benchmark.summary" "benchmark-summary.v1"]
    "benchmark/conclusion.json" ["benchmark.conclusion" "benchmark.conclusion" "benchmark-conclusion.v1"]
    "benchmark/assertions/conservation.json" ["benchmark.conservation" "benchmark.conservation" "benchmark-conservation.v1"]
-   "benchmark/assertions/benchmark-assurance.json" ["benchmark.assurance" "benchmark.assurance" "benchmark-assurance.v1"]})
+   "benchmark/assertions/benchmark-assurance.json" ["benchmark.assurance" "benchmark.assurance" "benchmark-assurance.v1"]
+   "benchmark/assertions/canonical-integrity.json" ["benchmark.canonical-integrity" "canonical-integrity" "canonical-integrity.v1"]
+   "benchmark/assertions/forensic-claims-status.json" ["benchmark.forensic-claims-status" "forensic-claims-status" "forensic-claims-status.v1"]})
 
 (defn- sha256 [file]
   (let [digest (MessageDigest/getInstance "SHA-256")]

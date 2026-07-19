@@ -366,6 +366,31 @@
                             [])))))
         resolved-entries))
 
+(defn build-conclusion
+  "Return an explicit, scope-bounded conclusion for a benchmark evidence bundle.
+   A scenario pass alone is insufficient: every evaluated claim must pass."
+  [metrics claim-results evidence-hash benchmark-run-hash]
+  (let [scenarios-pass? (and (pos? (or (:total metrics) 0))
+                             (= (:total metrics) (:passed metrics)))
+        claims-present? (seq claim-results)
+        claims-pass? (and claims-present?
+                          (every? #(= :pass (:claim/outcome %)) claim-results))
+        claim-failed? (some #(= :fail (:claim/outcome %)) claim-results)
+        outcome (cond
+                  (or (not scenarios-pass?) claim-failed?) :fail
+                  claims-pass? :pass
+                  :else :incomplete)
+        statement (case outcome
+                    :pass "All executed scenarios and evaluated claims passed within the declared benchmark scope."
+                    :fail "The benchmark did not establish its declared conclusion because a scenario or evaluated claim failed."
+                    "The benchmark conclusion is incomplete because required claim evaluation is absent or not fully passing.")]
+    {:outcome outcome
+     :statement statement
+     :limits ["Applies only to the declared benchmark scenarios, protocol model, runner, and policies."
+              "Does not establish production equivalence or comprehensive protocol assurance."]
+     :evidence/hash evidence-hash
+     :benchmark-run/hash benchmark-run-hash}))
+
 (defn build-report
   "Build a complete report data structure from:
      evidence-path    — EDN evidence bundle produced by bb benchmark:run
@@ -425,6 +450,10 @@
                        (when (seq cr)
                          (claim-maturity-level cr manifest)))
      :claim-results (:claim-results evidence)
+     :conclusion (build-conclusion metrics
+                                    (:claim-results evidence)
+                                    (:evidence/hash evidence)
+                                    (:benchmark-run/hash evidence))
      :dimensions dimensions
      :invariant-summary inv-summary
      :concept/section (:concept/section evidence)

@@ -140,6 +140,24 @@ Maturity levels:
 
 ---
 
+## Conclusion
+
+```
+:conclusion
+  {:outcome :pass | :fail | :incomplete
+   :statement <scope-bounded summary>
+   :limits [<scope limitation> ...]
+   :evidence/hash <bundle SHA-256>
+   :benchmark-run/hash <run SHA-256 or nil>}
+```
+
+`build-report` derives this field from scenario metrics and evaluated claim
+results. `:pass` requires at least one executed scenario, all scenarios to
+pass, and every evaluated claim to pass. A claim result of `:not-exercised`,
+`:not-implemented`, or `:inconclusive` yields `:incomplete`; a scenario or
+claim failure yields `:fail`. The conclusion is bounded to the declared
+benchmark model, scenarios, runner, and policies.
+
 ## Claim status
 
 ```

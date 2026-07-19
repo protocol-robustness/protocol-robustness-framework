@@ -86,8 +86,8 @@
                  (get completion "run_package_index_bytes")))
           (is (= "scenario-value-at-risk.v1"
                  (get-in summary ["value_at_risk" "schema_version"])))
-          (is (= "available" (get-in summary ["value_at_risk" "status"])))
-          (is (seq (get-in summary ["value_at_risk" "declared_protected_amount" "by_unit"])))
+          (is (= "not-declared" (get-in summary ["value_at_risk" "status"])))
+          (is (seq (get-in summary ["value_at_risk_overview" "declared_protected_amount" "by_unit"])))
           ;; The input commitment is from the exact snapshotted scenario bytes,
           ;; carried as a formatted SHA-256 reference into the persisted DAG.
           (is (re-matches #"sha256:[0-9a-f]{64}" snapshot-sha))

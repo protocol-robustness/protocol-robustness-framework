@@ -35,10 +35,60 @@
       (throw (ex-info "Benchmark artifact registry validation failed" {:registry (.getPath registry-file)})))
     result))
 
+(def ^:private content-registry-exclusions
+  #{"benchmark/evidence/content-registry.json"
+    "benchmark/finalization.json"
+    "benchmark/assertions/canonical-integrity.json"
+    "benchmark/assertions/forensic-claims-status.json"
+    "manifest/artifacts.json"
+    "manifest/artifacts-validation.json"
+    "manifest/run-package-index.json"
+    "completion.json" ".run-state" ".run.lock"})
+
+(defn- content-role [path]
+  (cond
+    (= path "benchmark/definition.edn") "benchmark-definition"
+    (= path "benchmark/execution-plan.edn") "execution-plan"
+    (= path "manifest/run.json") "run-manifest"
+    (= path "benchmark/evidence/evidence.edn") "benchmark-evidence"
+    (= path "benchmark/assertions/conservation.json") "conservation-artifact"
+    (= path "benchmark/conclusion.json") "conclusion-input"
+    (str/starts-with? path "benchmark/executions/") "scenario-evidence"
+    :else "other-evidence"))
+
+(defn- write-content-registry! [context]
+  (let [root (io/file (str (:run/root context)))
+        root-path (.toPath root)
+        entries (->> (file-seq root)
+                     (filter #(.isFile %))
+                     (map (fn [file]
+                            (let [path (str (.relativize root-path (.toPath file)))]
+                              {"path" path "sha256" (sha-ref file)
+                               "bytes" (.length file) "role" (content-role path)})))
+                     (remove #(content-registry-exclusions (get % "path")))
+                     (sort-by #(get % "path"))
+                     vec)
+        projection {"domain" "prf/benchmark-content-registry/v1"
+                    "benchmark_id" (str (:benchmark/id context))
+                    "run_id" (:run/id context)
+                    "artifacts" entries
+                    "excluded_paths" (vec (sort content-registry-exclusions))}
+        value {"schema_version" "benchmark-content-registry.v1"
+               "domain" "prf/benchmark-content-registry/v1"
+               "benchmark_id" (str (:benchmark/id context))
+               "run_id" (:run/id context)
+               "content_scope" "benchmark-evidence-inner-package"
+               "hash_algorithm" "sha256"
+               "excluded_paths" (vec (sort content-registry-exclusions))
+               "artifacts" entries
+               "content_root" (str "sha256:" (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))}
+        target (io/file root "benchmark/evidence/content-registry.json")]
+    (lifecycle/atomic-json! target value)
+    value))
+
 (defn- write-finalization! [context conclusion]
   (let [root (:run/root context)
-        registry (io/file (str root) "manifest/artifacts.json")
-        validation (io/file (str root) "manifest/artifacts-validation.json")
+        content-registry (io/file (str root) "benchmark/evidence/content-registry.json")
         assurance (io/file (str root) "benchmark/assertions/benchmark-assurance.json")
         conclusion-file (io/file (str root) "benchmark/conclusion.json")
         assurance-value (json/read-str (slurp assurance))
@@ -47,8 +97,7 @@
                     "run_id" (:run/id context)
                     "assurance_artifact_sha256" (sha-ref assurance)
                     "conclusion_sha256" (sha-ref conclusion-file)
-                    "artifact_registry_sha256" (sha-ref registry)
-                    "registry_validation_sha256" (sha-ref validation)
+                    "evidence_content_registry_sha256" (sha-ref content-registry)
                     "input_set_root" (get assurance-value "input_set_root")}
         value {"schema_version" "benchmark-finalization.v1"
                "domain" "prf/benchmark-finalization/v1"
@@ -56,12 +105,39 @@
                "run_id" (:run/id context)
                "assurance_artifact" {"ref" "benchmark/assertions/benchmark-assurance.json" "sha256" (sha-ref assurance)}
                "conclusion_sha256" (sha-ref conclusion-file)
-               "artifact_registry_sha256" (sha-ref registry)
-               "registry_validation_sha256" (sha-ref validation)
+               "evidence_content_registry_sha256" (sha-ref content-registry)
                "input_set_root" (get assurance-value "input_set_root")
                "final_ref" (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))}
         target (io/file (str root) "benchmark/finalization.json")]
     (lifecycle/atomic-json! target value)
+    value))
+
+(defn- write-canonical-assurance! [context]
+  (let [root (io/file (str (:run/root context)))
+        finalization (io/file root "benchmark/finalization.json")
+        assurance (io/file root "benchmark/assertions/benchmark-assurance.json")
+        conservation (io/file root "benchmark/assertions/conservation.json")
+        content (io/file root "benchmark/evidence/content-registry.json")
+        value {"schema_version" "canonical-integrity.v1"
+               "assurance_kind" "unsigned-canonical-integrity"
+               "run_id" (:run/id context)
+               "benchmark_id" (str (:benchmark/id context)
+               )
+               "status" "passed"
+               "scope" {"content_integrity" true "evidence_reconciliation" true
+                        "operator_identity" false "runtime_isolation" false}
+               "benchmark_finalization" {"ref" "benchmark/finalization.json" "sha256" (sha-ref finalization)}
+               "benchmark_assurance" {"ref" "benchmark/assertions/benchmark-assurance.json" "sha256" (sha-ref assurance)}
+               "conservation" {"ref" "benchmark/assertions/conservation.json" "sha256" (sha-ref conservation)}
+               "evidence_content_registry" {"ref" "benchmark/evidence/content-registry.json" "sha256" (sha-ref content)}
+               "limitations" ["Unsigned assurance does not establish operator identity or signature trust."
+                              "Runtime isolation is outside this assurance scope."]}
+        deferred {"schema_version" "forensic-claims-status.v1" "run_id" (:run/id context)
+                  "status" "deferred" "reason_code" "unsigned-forensic-signing-not-configured"
+                  "canonical_integrity_ref" "benchmark/assertions/canonical-integrity.json"}
+        target (io/file root "benchmark/assertions/canonical-integrity.json")]
+    (lifecycle/atomic-json! target value)
+    (lifecycle/atomic-json! (io/file root "benchmark/assertions/forensic-claims-status.json") deferred)
     value))
 
 (defn- complete! [context conclusion]
@@ -83,6 +159,7 @@
       :final_ref (get finalization "final_ref")
       :run_package_index_ref "manifest/run-package-index.json"
       :run_package_index_sha256 (sha-ref (io/file (str root) "manifest/run-package-index.json"))
+      :run_package_index_bytes (.length (io/file (str root) "manifest/run-package-index.json"))
       :input_set_root (get finalization "input_set_root")
       :artifact_registry_ref "manifest/artifacts.json"
       :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))
@@ -97,10 +174,20 @@
     (package-index/write!
      (io/file root "manifest/run-package-index.json")
      {:run-id (:run/id context)
+      :run-type :benchmark
       :bundle-root-hash (sha-ref (io/file root "benchmark/evidence/evidence.edn"))
       :artifacts {:runner-finalization (ref "benchmark/execution/runner-finalization.json")
+                  :benchmark-definition (ref "benchmark/definition.edn")
+                  :execution-plan (ref "benchmark/execution-plan.edn")
+                  :benchmark-index (ref "benchmark/index.edn")
+                  :benchmark-evidence (ref "benchmark/evidence/evidence.edn")
+                  :content-registry (ref "benchmark/evidence/content-registry.json")
+                  :benchmark-conclusion (ref "benchmark/conclusion.json")
+                  :benchmark-conservation (ref "benchmark/assertions/conservation.json")
                   :benchmark-finalization (ref "benchmark/finalization.json")
-                  :benchmark-assurance (ref "benchmark/assertions/benchmark-assurance.json")}})))
+                  :benchmark-assurance (ref "benchmark/assertions/benchmark-assurance.json")
+                  :canonical-integrity (ref "benchmark/assertions/canonical-integrity.json")
+                  :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
@@ -300,11 +387,13 @@
                                                                                      (write-assurance! context (:evidence result) @benchmark-conclusion)
                                                                                      (write-summary! context (:evidence result) @benchmark-conclusion))
                                   :scan-sensitivity (fn [_ _] (scan-sensitivity! context))
+                                  :write-content-registry (fn [_ _] (write-content-registry! context))
+                                  :write-finalization (fn [_ _] (write-finalization! context @benchmark-conclusion))
+                                  :write-canonical-assurance (fn [_ _] (write-canonical-assurance! context))
+                                  :write-package-index (fn [_ _] (write-package-index! context))
                                   :build-inventory (fn [_ _] (inventory/build! context))
                                   :finalize-registry (fn [_ _] (registry/finalize! (:run/root context)))
                                   :validate-registry (fn [_ _] (validate-registry! context))
-                                  :write-finalization (fn [_ _] (write-finalization! context @benchmark-conclusion))
-                                  :write-package-index (fn [_ _] (write-package-index! context))
                                   :complete (fn [_ _] (complete! context @benchmark-conclusion))}
                                   overrides))]
         {:exit-code (or (:exit-code execution) 1) :run/id (:run/id context) :run/root (str (:run/root context))})

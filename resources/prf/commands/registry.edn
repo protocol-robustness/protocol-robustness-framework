@@ -282,11 +282,13 @@
    :command/backstop-tier :full
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--output" :type :string :doc "Output path for evidence bundle"}
+   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+                     {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
+                     {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
                      {:name "--key" :type :string :doc "Path to private key for signing"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
-   :command/description "Run a benchmark by ID or manifest path and produce evidence."}
+   :command/description "Run a registered or bundled benchmark as a canonical --run-root package, or use --output for a separate legacy export."}
 
   {:command/id :fmt-check
    :command/path ["fmt" "check"]

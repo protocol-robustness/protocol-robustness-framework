@@ -19,7 +19,8 @@
         (is (= "complete" (get-in run ["run" "status"])))
         (is (= "scenarios/s/execution/execution-dag.json" (get-in run ["execution" "dag-path"])))
         (is (= "pass" (get-in summary ["run" "overall_status"])))
-        (is (= "input-snapshot-unavailable" (get-in summary ["value_at_risk" "status"])))
+        (is (= "not-declared" (get-in summary ["value_at_risk" "status"])))
+                (is (= "input-snapshot-unavailable" (get-in summary ["value_at_risk_overview" "status"])))
         (is (.isFile (io/file dir "claimable-classification.json"))))
       (finally (delete-tree! root)))))
 

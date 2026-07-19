@@ -2,14 +2,16 @@
   "Immutable package index and package-level validation.
 
    A package index is the outer runnable boundary for a finalized run.  It is
-   intentionally distinct from the immutable inner bundle root.  The currently
-   supported profile is :single-scenario; other run types return an explicit
-   unsupported result rather than inheriting single-scenario requirements."
+   intentionally distinct from the immutable inner bundle root. Profiles have
+   distinct closure requirements: :single-scenario retains its scenario/DAG
+   semantics, while :benchmark validates benchmark artifact bindings only."
   (:require [clojure.data.json :as json]
-              [clojure.java.io :as io]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
               [clojure.set :as set]
             [clojure.string :as str]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
+            [resolver-sim.commands.scenario-value-at-risk :as value-at-risk]
                         [resolver-sim.evidence.finalization :as finalization]
                                                 [resolver-sim.forensic.execution-dag :as execution-dag]
                                                 [resolver-sim.hash.canonical :as hc]
@@ -20,10 +22,20 @@
              [java.math BigInteger]))
 
 (def schema-version "run-package-index.v1")
-(def ^:private supported-run-types #{:single-scenario})
+(def ^:private supported-run-types #{:single-scenario :benchmark})
 (def ^:private single-scenario-artifacts
   #{:input-snapshot :scenario-finalization :runner-finalization :run-finalization
-        :canonical-assurance :artifact-registry :registry-validation :execution-dag})
+    :canonical-assurance :artifact-registry :registry-validation :execution-dag})
+(def ^:private benchmark-artifacts
+  #{:runner-finalization :benchmark-definition :execution-plan :benchmark-index
+    :benchmark-evidence :content-registry :benchmark-conclusion :benchmark-conservation
+    :benchmark-finalization :benchmark-assurance :canonical-integrity :forensic-status})
+
+(defn- required-artifacts [run-type]
+  (case run-type
+    :single-scenario single-scenario-artifacts
+    :benchmark benchmark-artifacts
+    #{}))
 
 (defn- sha-ref [file] (str "sha256:" (lifecycle/sha256-file file)))
 (defn- reason [code & {:as data}] (assoc data :code code))
@@ -44,9 +56,13 @@
 (defn wire->package-index
   "Decode only the documented run-package-index.v1 enum values."
   [wire]
-  (let [run-type (:run/type wire)]
-    (if (= "single-scenario" run-type)
-      (assoc wire :run/type :single-scenario)
+  (let [run-type (:run/type wire)
+        decoded (case run-type
+                  "single-scenario" :single-scenario
+                  "benchmark" :benchmark
+                  nil)]
+    (if decoded
+      (assoc wire :run/type decoded)
       (throw (ex-info "Unsupported package index run type"
                       {:code :package/unsupported-run-type :run-type run-type})))))
 
@@ -62,7 +78,12 @@
                                  :registry-validation registry-validation
                                  :execution-dag execution-dag})
         base {:run-package/schema-version schema-version
-              :run/type (or run-type :single-scenario)
+              ;; The benchmark producer predates the explicit profile argument;
+              ;; its benchmark-finalization role is an unambiguous local signal.
+              :run/type (or run-type
+                            (if (contains? artifacts :benchmark-finalization)
+                              :benchmark
+                              :single-scenario))
               :run/id run-id
               :scenario/id scenario-id
               :execution/id execution-id
@@ -110,16 +131,17 @@
               actual-hash (when index-bytes (bytes-sha-ref index-bytes))
               actual-bytes (when index-bytes (alength index-bytes))
               reasons (vec (concat
-                            (when-not (= "run-completion.v1" (get completion "schema_version"))
-                                                          [(reason :package/completion-invalid :field :schema_version)])
+                            (when-not (contains? #{"run-completion.v1" "benchmark-completion.v1"}
+                                                 (get completion "schema_version"))
+                              [(reason :package/completion-invalid :field :schema_version)])
                                                         (when-not (and (string? (get completion "run_id"))
                                                                        (seq (get completion "run_id")))
                                                           [(reason :package/completion-invalid :field :run_id)])
                                                         (when-not (= "completed" (get completion "lifecycle_status"))
                                                           [(reason :package/completion-invalid :field :lifecycle_status)])
-                                                        (when (and (get completion "run_type")
-                                                                   (not= "scenario" (get completion "run_type")))
-                                                          [(reason :package/completion-invalid :field :run_type)])
+                            (when (and (get completion "run_type")
+                                       (not (contains? #{"scenario" "benchmark"} (get completion "run_type"))))
+                              [(reason :package/completion-invalid :field :run_type)])
                             (when-not (string? path) [(reason :package/completion-invalid :field :run_package_index_ref)])
                             (when (and path (nil? index-file)) [(reason :package/package-index-path-invalid :path path)])
                             (when (and index-file (not (.isFile index-file))) [(reason :package/package-index-missing :path path)])
@@ -141,11 +163,24 @@
                                    :sha256 actual-hash
                                    :bytes actual-bytes}
                                   (catch Exception _ {:reason (reason :package/package-index-invalid-json :path path)})))
-              all-reasons (vec (concat reasons (when-let [r (:reason index-result)] [r])))]
+              profile-reasons (when-let [index (:index index-result)]
+                                (case (:run/type index)
+                                  :single-scenario
+                                  (when (or (not= "run-completion.v1" (get completion "schema_version"))
+                                            (and (get completion "run_type")
+                                                 (not= "scenario" (get completion "run_type"))))
+                                    [(reason :package/completion-invalid :field :run_type)])
+                                  :benchmark
+                                  (when (or (not= "benchmark-completion.v1" (get completion "schema_version"))
+                                            (not= "benchmark" (get completion "run_type")))
+                                    [(reason :package/completion-invalid :field :run_type)])))
+              all-reasons (vec (concat reasons (when-let [r (:reason index-result)] [r]) profile-reasons))]
           {:run-root run-root
                      :completion completion
                      :completion-report {:valid? (empty? all-reasons) :reasons all-reasons}
-           :package-index index-result
+           ;; Profile incompatibility is terminal too: callers must never receive
+           ;; an index whose completion seal does not describe that profile.
+           :package-index (when (empty? all-reasons) index-result)
            :reasons all-reasons})
         (catch Exception _
           {:run-root run-root
@@ -451,6 +486,83 @@
                              :message (.getMessage error)
                              :data (ex-data error))]})))))
 
+(defn- registry-artifact-entry [registry pred]
+  (first (filter pred (:artifacts registry))))
+
+(defn- indexed-edn-artifact [run-root artifacts artifact-id]
+  (try
+    (when-let [ref (get-in artifacts [artifact-id :ref])]
+      (when-let [file (contained-file run-root ref)]
+        (when (.isFile file)
+          (edn/read-string (slurp file)))))
+    (catch Exception _ nil)))
+
+(defn- validate-value-at-risk
+  "Recompute the standalone value-at-risk observation from registry-bound
+   source artifacts. The registry path, rather than observation metadata,
+   authoritatively identifies the replay source."
+  [run-root artifacts]
+  (let [registry (artifact-json run-root artifacts :artifact-registry)
+        value-entry (when (map? registry)
+                      (registry-artifact-entry registry #(= "manifest/value-at-risk.json" (:path %))))
+        summary-entry (when (map? registry)
+                        (registry-artifact-entry registry #(= "manifest/summary.json" (:path %))))
+        replay-entry (when (map? registry)
+                       (registry-artifact-entry registry #(str/ends-with? (or (:path %) "") "execution/replay-output.json")))
+        ;; Declaration-free scenarios retain a stable not-declared artifact and
+        ;; need no historical replay source to validate that opt-out.
+        missing (vec (keep (fn [[artifact entry]] (when-not entry artifact))
+                           [[:value-at-risk value-entry] [:summary summary-entry]
+                            [:replay-output replay-entry]]))
+        observation (when value-entry
+                      (try (json/read-str (slurp (contained-file run-root (:path value-entry))) :key-fn keyword)
+                           (catch Exception _ nil)))
+        summary (when summary-entry
+                  (try (json/read-str (slurp (contained-file run-root (:path summary-entry))) :key-fn keyword)
+                       (catch Exception _ nil)))
+        replay-root (when replay-entry
+                      (try (json/read-str (slurp (contained-file run-root (:path replay-entry))) :key-fn keyword)
+                           (catch Exception _ nil)))
+        replay (if (and (map? replay-root) (contains? replay-root :run/scenario-results))
+                 (first (:run/scenario-results replay-root))
+                 replay-root)
+        snapshot (indexed-edn-artifact run-root artifacts :input-snapshot)
+        source-ref (:path replay-entry)
+        observed-source-ref (get-in observation [:calculation :source_ref])
+        ;; The input snapshot and replay path are package-bound. The original
+        ;; input-source provenance contains non-reconstructable origin metadata,
+        ;; so retain the persisted observation provenance only for that field.
+        provenance (:derived_from observation)
+        validator (when (and observation snapshot replay source-ref)
+                    (try (value-at-risk/validate-persisted observation snapshot replay provenance source-ref)
+                         (catch Exception error
+                           {:exception (.getMessage error)})))
+        not-declared? (= "not-declared" (:status observation))
+        missing (if not-declared? (vec (remove #{:replay-output} missing)) missing)
+        reasons (vec (concat
+                      (when (seq missing)
+                        [(reason :value-at-risk/source-not-registered :artifacts missing)])
+                      (when (and (not not-declared?) source-ref (not= source-ref observed-source-ref))
+                        [(reason :value-at-risk/source-ref-mismatch
+                                 :expected source-ref :actual observed-source-ref)])
+                      (when (and observation summary
+                                 (not= observation (:value_at_risk summary)))
+                        [(reason :value-at-risk/summary-mismatch)])
+                      (when (and (not not-declared?) (empty? missing)
+                                                       (or (nil? observation) (nil? summary) (nil? replay) (nil? snapshot)))
+                        [(reason :value-at-risk/validator-failed
+                                 :causes ["required-artifact-unreadable"] )])
+                      (when (and (not not-declared?) validator (not= "pass" (:status validator)))
+                        [(reason :value-at-risk/validator-failed
+                                 :causes (or (:reason_codes validator)
+                                             [(:exception validator) "validator-failed"]))])))]
+    {:valid? (empty? reasons)
+     :value-at-risk-path (:path value-entry)
+     :summary-path (:path summary-entry)
+     :replay-path source-ref
+     :validator-report validator
+     :reasons reasons}))
+
 (defn- validated-subordinate-reports
   "Collect the semantic reports used by package validation. Each parser is
    invoked once here; later reconciliation consumes these reports rather than
@@ -473,13 +585,15 @@
         dag (artifact-validation-report run-root artifacts :execution-dag
                                         #(execution-dag/validate-persisted-dag % {:require-identities? true}))
         assurance (validate-canonical-assurance run-root artifacts)
-        registry (validate-registry-validation run-root artifacts)]
+        registry (validate-registry-validation run-root artifacts)
+        value-at-risk (validate-value-at-risk run-root artifacts)]
     {:scenario-finalization-report scenario
      :run-finalization-report run-final
      :runner-finalization-report runner
      :execution-dag-report dag
      :canonical-assurance-report assurance
-     :registry-validation-report registry}))
+     :registry-validation-report registry
+     :value-at-risk-report value-at-risk}))
 
 (defn- report-causes [report]
   (or (:reasons report) (:errors report) []))
@@ -577,7 +691,8 @@
                [:run-finalization :run-finalization-report :package/invalid-run-finalization]
                [:execution-dag :execution-dag-report :package/invalid-execution-dag]
                [:canonical-assurance :canonical-assurance-report :package/invalid-canonical-assurance]
-               [:registry-validation :registry-validation-report :package/invalid-registry-validation]]
+               [:registry-validation :registry-validation-report :package/invalid-registry-validation]
+               [:value-at-risk :value-at-risk-report :package/invalid-value-at-risk]]
               :let [report (get reports report-key)]
               :when (and report (not (:valid? report)))]
           (reason package-code :artifact-id artifact-id :causes (vec (report-causes report))))
@@ -594,13 +709,67 @@
 
 (declare validate-completeness)
 
+(defn validate-benchmark-package-closure
+  "Validate the structural closure of a benchmark package. This public validator
+   intentionally validates indexed artifact refs/hashes and completion bindings,
+   not scenario identities, finalization membership, or an execution DAG."
+  [run-root completion index]
+  (let [artifacts (:artifacts index)
+        entries (sort-by (comp name key) artifacts)
+        missing (sort (set/difference benchmark-artifacts (set (keys artifacts))))
+        duplicate-paths (->> entries (map (comp :ref val)) (remove nil?) frequencies
+                             (keep (fn [[path n]] (when (> n 1) path))) vec)
+        artifact-reasons
+        (mapcat (fn [[id {:keys [ref sha256]}]]
+                  (let [file (and (string? ref) (contained-file run-root ref))]
+                    (cond-> []
+                      (nil? file) (conj (reason :package/path-outside-root :artifact-id id :path ref))
+                      (and file (not (.isFile file))) (conj (reason :package/missing-artifact :artifact-id id :path ref))
+                      (not (and (string? sha256) (re-matches sha256-ref-pattern sha256)))
+                      (conj (reason :package/invalid-artifact-sha256 :artifact-id id :path ref :actual sha256))
+                      (and file (.isFile file) (string? sha256) (re-matches sha256-ref-pattern sha256)
+                           (not= sha256 (sha-ref file)))
+                      (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref)))))
+                entries)
+        binding-reasons
+        (vec (concat
+              (when-not (= "benchmark-completion.v1" (get completion "schema_version"))
+                [(reason :package/completion-invalid :field :schema_version)])
+              (when-not (= "benchmark" (get completion "run_type"))
+                [(reason :package/completion-invalid :field :run_type)])
+              (when-not (= (:run/id index) (get completion "run_id"))
+                [(reason :package/run-id-mismatch :expected (:run/id index) :actual (get completion "run_id"))])
+              (for [[field artifact-field] [["finalization_ref" :ref] ["finalization_sha256" :sha256]]
+                    :let [expected (get-in artifacts [:benchmark-finalization artifact-field])
+                          actual (get completion field)]
+                    :when (not= expected actual)]
+                (reason :package/completion-artifact-commitment-mismatch
+                        :field field :artifact-id :benchmark-finalization
+                        :expected expected :actual actual))))
+        reasons (vec (concat
+                      (when-not (= schema-version (:run-package/schema-version index))
+                        [(reason :package/unsupported-schema)])
+                      (when-not (= :benchmark (:run/type index))
+                        [(reason :package/unsupported-run-type :run-type (:run/type index))])
+                      (when-not (= (hc/hash-with-intent {:hash/intent :run-package-index}
+                                                        (package-index-payload index))
+                                   (:run-package/hash index))
+                        [(reason :package/index-hash-mismatch)])
+                      (map #(reason :package/missing-required-artifact :artifact-id %) missing)
+                      (when (seq duplicate-paths) [(reason :package/duplicate-artifact-path :paths duplicate-paths)])
+                      artifact-reasons binding-reasons))]
+    {:valid? (empty? reasons) :status (if (empty? reasons) :valid :invalid)
+     :index index :reasons reasons}))
+
 (defn- validate-integrity-for-index
   "Validate a trusted, completion-bound immutable index and its indexed local
    closure. The caller must pass the same parsed index that was derived from
    the completion-bound bytes; this function never falls back to a default
    manifest path."
   [run-root completion index path]
-      (let [run-type (:run/type index)
+  (if (= :benchmark (:run/type index))
+    (assoc (validate-benchmark-package-closure run-root completion index) :index-path path)
+    (let [run-type (:run/type index)
             base (package-index-payload index)
             expected (hc/hash-with-intent {:hash/intent :run-package-index} base)
             artifacts (:artifacts index)
@@ -643,14 +812,15 @@
          :execution-dag-report (:execution-dag-report reports)
          :canonical-assurance-report (:canonical-assurance-report reports)
          :registry-validation-report (:registry-validation-report reports)
-         :reconciliation-report reconciliation}))
+         :value-at-risk-report (:value-at-risk-report reports)
+         :reconciliation-report reconciliation})))
 
 (defn- validate-completeness-at-root
   "Check required terminal artifacts for the package profile."
   [run-root]
   (let [{:keys [index] missing-reason :reason} (read-index run-root)]
       (if missing-reason {:complete? false :status :incomplete :reasons [missing-reason]}
-      (let [required (case (:run/type index) :single-scenario single-scenario-artifacts #{})
+      (let [required (required-artifacts (:run/type index))
             missing (sort (seq (clojure.set/difference required (set (keys (:artifacts index))))) )
             completion (io/file run-root "completion.json")
             reasons (vec (concat
@@ -674,7 +844,7 @@
    Semantic outcome and release policy are excluded."
   [run-root]
   (let [{:keys [index path] missing-reason :reason} (read-index run-root)
-        required (when index (case (:run/type index) :single-scenario single-scenario-artifacts #{}))
+        required (when index (required-artifacts (:run/type index)))
         missing (when index (sort (set/difference required (set (keys (:artifacts index))))) )
         complete {:complete? (and index (empty? missing))
                   :status (if (and index (empty? missing)) :complete :incomplete)
@@ -692,7 +862,7 @@
     {:complete? false :status :incomplete :reasons (:reasons ctx)}
     (let [index (get-in ctx [:package-index :index])
           run-type (:run/type index)
-          required (case run-type :single-scenario single-scenario-artifacts #{})
+          required (required-artifacts run-type)
           identity-reasons (when (= run-type :single-scenario)
                              (concat (when-not (and (string? (:scenario/id index)) (seq (:scenario/id index)))
                                        [(reason :package/missing-authoritative-identity :artifact-id :package-index :field :scenario/id)])
@@ -745,6 +915,7 @@
            :execution-dag-report (:execution-dag-report integrity)
            :canonical-assurance-report (:canonical-assurance-report integrity)
            :registry-validation-report (:registry-validation-report integrity)
+           :value-at-risk-report (:value-at-risk-report integrity)
            :reconciliation-report (:reconciliation-report integrity))))
 
 (defn validate-runnability-from-context

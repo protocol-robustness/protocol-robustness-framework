@@ -1,0 +1,66 @@
+{:public-headline-claim-registry/version 1
+ :public-headline-claim-registry/description
+ "Versioned source of truth for public benchmark headlines. A claim may be
+  published only when its exact evaluator implementation, evaluation policy,
+  and evidence package are each pinned by SHA-256. Draft entries are retained
+  for review but never rendered as public claims."
+ :claims
+ [{:claim/id "PHC-0001"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The included Sew dispute workload produces identical canonical results and evidence roots across repeated PRF-runner executions."
+   :claim/scope "Only :benchmark/prf-deterministic-replay-v1, its declared :suite/prf-replay-v1 workload, and two executions under the declared local runner policy. It excludes other PRF adapters, workloads, environments, and production deployments."
+   :claim/assumptions ["Identical scenario fixtures and benchmark configuration are supplied to both executions."
+                       "The evaluator receives complete scenario results with run pairing metadata and evidence roots."
+                       "The declared runner and evidence policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/prf-deterministic-replay-v1
+                       :claims [:claim/hash-consistency-across-runs]}]
+   :evaluator/id :claim/hash-consistency-across-runs
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "0857f05b04e454c6da7bb3d78f981e82712f084b3c7f44c2bf2ed458db2a7875"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/binary-claims-v1}"
+   :policy/sha256 "f8a6cd3376ac285741c07c3b33c7609494d3ec52f6d6ce862d51bc2fc35898be"
+   :evidence/packages []
+   :publication/copy {:headline "Sew-backed deterministic replay"
+                      :summary "The included Sew dispute workload produces matching canonical results and evidence roots across repeated PRF-runner executions."}}
+
+  {:claim/id "PHC-0002"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The Sew escrow-dispute benchmark checks that escrow funds are released only through authorized settlement paths."
+   :claim/scope "Only :benchmark/sew-escrow-dispute-v1 and its declared scenario suite under the declared local runner, evidence, and scoring policies. This is an invariant-backed simulation claim, not a production guarantee."
+   :claim/assumptions ["The benchmark manifest resolves the declared claim to its runnable evaluator."
+                       "Required conservation and release-monotonicity observations are emitted by each exercised scenario."
+                       "The declared runner, evidence, and scoring policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/sew-escrow-dispute-v1
+                       :claims [:claim/no-unauthorized-release]}]
+   :evaluator/id :claim/no-unauthorized-release
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "0857f05b04e454c6da7bb3d78f981e82712f084b3c7f44c2bf2ed458db2a7875"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
+   :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
+   :evidence/packages []
+   :publication/copy {:headline "Authorized escrow settlement"
+                      :summary "The Sew escrow-dispute benchmark checks that escrow funds are released only through authorized settlement paths."}}
+
+  {:claim/id "PHC-0003"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The Sew escrow-dispute benchmark checks that total escrow value is conserved across exercised state transitions."
+   :claim/scope "Only :benchmark/sew-escrow-dispute-v1, its declared scenario suite, and its declared local runner, evidence, and scoring policies. This is an invariant-backed simulation claim, not a production guarantee."
+   :claim/assumptions ["Each exercised scenario emits a :conservation-of-funds invariant observation."
+                       "The registered evaluator receives complete scenario results."
+                       "The declared runner, evidence, and scoring policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/sew-escrow-dispute-v1
+                       :claims [:claim/funds-conserved]}]
+   :evaluator/id :claim/funds-conserved
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "0857f05b04e454c6da7bb3d78f981e82712f084b3c7f44c2bf2ed458db2a7875"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
+   :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
+   :evidence/packages []
+   :publication/copy {:headline "Sew escrow-fund conservation"
+                      :summary "The Sew escrow-dispute benchmark checks escrow-fund conservation across exercised state transitions."}}]}

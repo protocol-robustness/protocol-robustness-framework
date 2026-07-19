@@ -14,19 +14,21 @@
    :benchmark/property-types  #{:liveness :safety}
    :benchmark/property-claims {:liveness [:claim/dispute-liveness
                                           :claim/bounded-resolution-time]
-                               :safety [:claim/slashing-conservation]}
+                               :safety [:claim/slashing-conservation
+                                                                       :claim/funds-conserved]}
     :benchmark/description
    "A lens over :suite/sew-dispute-safety-v1 focusing on dispute liveness:
-    timely resolution under adversarial load, bounded resolution time, and
-    slashing conservation. Shares the same 44-scenario suite with
+    timely resolution under adversarial load, bounded resolution time,
+    slashing conservation, and escrow-fund conservation. Shares the same
+    44-scenario suite with
     escrow-dispute-v1 and resolver-slashing-v1 — a single suite run
     provides evidence for all three, but each applies a different scoring
     rule and claim set. This benchmark uses :scoring/binary-claims-v1
     (all-or-nothing pass/fail per claim), not severity weighting."
    :benchmark/purpose
    "Evaluate Sew dispute liveness: timely resolution under adversarial
-    load, bounded resolution time, and slashing conservation across
-    concurrent disputes."
+    load, bounded resolution time, slashing conservation, and escrow-fund
+    conservation across concurrent disputes."
   :benchmark/concepts        [:ecommerce/purchase
                              :event/deposit
                              :consensus/authority
@@ -35,6 +37,7 @@
                              :consensus/escalation
                              :consensus/liveness
                              :consensus/legitimacy
+                             :concept/conservation
                              :concept/confidence
                              :concept/configuration]
   :benchmark/claims          [{:claim/id :claim/dispute-liveness
@@ -48,4 +51,8 @@
                              {:claim/id :claim/slashing-conservation
                               :claim/role :supporting
                               :claim/rationale "Slashing during dispute resolution must conserve value."
-                              :claim/failure-meaning "Slashing violated conservation rules."}]}
+                              :claim/failure-meaning "Slashing violated conservation rules."}
+                             {:claim/id :claim/funds-conserved
+                              :claim/role :supporting
+                              :claim/rationale "Total escrow value must be conserved across every exercised dispute state transition."
+                              :claim/failure-meaning "Escrow value was created, lost, or changed outside an authorized settlement transition."}]}

@@ -7,8 +7,8 @@ finalized canonical package path.
 | Path | Supported claim | Not currently claimed |
 |---|---|---|
 | `resolver-sim.io.scenario-runner/run-and-report` | Inner execution, replay output, scenario-local evidence, and partial/diagnostic output | Complete canonical package, run finalization, package index, completion seal, or package-level runnability |
-| `resolver-sim.commands.scenario-orchestration/run-scenario!` | Root-owned canonical single-scenario lifecycle with a pre-completion package gate: scenario finalization, runner/run finalization, registry validation, canonical assurance, required DAG, package index, and completion seal | `verify-scenario` is not yet the completion-first package-validation consumer; unsigned content integrity is not release/signer assurance |
-| `run-benchmark --run-root` | Root-owned benchmark lifecycle and benchmark-specific finalization artifacts | A supported package-validation profile; benchmark currently returns `:package/unsupported-run-type` to the single-scenario package validator |
+| `resolver-sim.commands.scenario-orchestration/run-scenario!` | Root-owned canonical single-scenario lifecycle with a pre-completion package gate: scenario finalization, runner/run finalization, registry validation, canonical assurance, required DAG, package index, completion seal, and declaration-driven value-at-risk artifact validation | `verify-scenario` is not yet the completion-first package-validation consumer; unsigned content integrity is not release/signer assurance; no production scenario has yet opted into a timestamped value-at-risk observation |
+| `run-benchmark --run-root` | Root-owned canonical benchmark package lifecycle: immutable execution plan, benchmark content finalization, assurance and conservation artifacts, unsigned canonical integrity, completion-bound `:benchmark` package index, final registry/validation, terminal completion, and completion-first `verify-benchmark` validation | Unsigned integrity is not signer/operator assurance; signed forensic assurance and runtime-isolation guarantees remain deferred |
 | Direct benchmark output | Legacy benchmark execution/output | Root-owned canonical package lifecycle or validated package profile |
 | Named suites, registry suites, fixture suites | Execution/reporting only | Canonical aggregate package finalization or aggregate runnable package validation |
 | Parallel scenario paths | Execution only, subject to runner behavior | Canonical aggregate package: no coordinator-owned exact-set reconciliation, isolated worker contract, or deterministic aggregate package profile is currently implemented |
@@ -34,11 +34,31 @@ finalized canonical package path.
   authoritative commitments.
 - Semantic hashes validate schema-defined logical payloads. Persisted-byte
   commitments validate exact on-disk bytes; neither replaces the other.
+- A scenario may optionally declare one `scenario-value-at-risk.v1` observation.
+  The current narrow contract supports only a workflow-scoped, post-event,
+  non-negative `scenario-native-integer` field read. Its declared UTC timestamp,
+  event index, event ID, selector, scope, asset, and amount are validated before
+  canonical completion. The standalone `manifest/value-at-risk.json` artifact is
+  CORE-inventoried and is embedded exactly in
+  `manifest/summary.json.value_at_risk`. Declaration-free scenarios persist a
+  stable `not-declared` observation and remain supported.
+- The value-at-risk artifact is not yet an EF-facing verified claim: before a
+  production scenario opts in, completion-first package verification must
+  independently load the package-bound input snapshot and replay output,
+  revalidate the standalone observation with trusted provenance/source identity,
+  and require exact equality with the summary embedding.
 - Unsigned canonical integrity establishes content integrity only. Release
   eligibility requires separate signer/operator assurance.
-- Unsupported benchmark, suite, fixture-suite, registry-suite, and parallel
-  aggregate profiles fail closed with `:package/unsupported-run-type`; they must
-  not inherit the `:single-scenario` package contract.
+- `verify-benchmark` is completion-first package validation for the supported
+  `:benchmark` package profile. It verifies the exact completion-bound package
+  index bytes, declared role closure, immutable execution plan/index/summary
+  reconciliation, benchmark assurance and conservation, content finalization,
+  canonical integrity, outer registry/validation, input-set commitment, and
+  terminal completion bindings.
+- Benchmark and single-scenario package profiles are distinct. A benchmark does
+  not inherit single-scenario identity, scenario-finalization, or execution-DAG
+  requirements. Suites, fixture suites, registry suites, and parallel aggregate
+  profiles remain unsupported and fail closed with `:package/unsupported-run-type`. 
 - A finalized `:single-scenario` package declares `:run/id`, `:scenario/id`,
   and `:execution/id` in its package index. Its execution ID is exactly
   `execution:<run-id>`. This rule is profile-specific and must not be reused

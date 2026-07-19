@@ -1452,6 +1452,39 @@
     (is (= :unregistered-liable-resolver
            (:error (res/propose-fraud-group-slash world workflow-id "0xGov" [resolver "0xOther"] 10 {} {} {}))))))
 
+(deftest fraud-incident-reference-fails-closed
+  (let [resolver "0xRes"
+        snap (snap-fix/escrow-snapshot {:appeal-window-duration 10})
+        world0 (reg/register-stake (t/empty-world 1000) resolver 100)
+        {:keys [world workflow-id]}
+        (world-ready-for-fraud-slash-propose world0 "0xBuyer" "USDC" "0xSeller" resolver 1000 snap)
+        declared (res/declare-fraud-incident
+                  world "0xGov"
+                  {:incident/id "test-incident"
+                   :incident/kind :governance-declared-group-fraud
+                   :incident/affected-workflows [{:workflow-id workflow-id}]
+                   :incident/rationale "test incident"}
+                  {} {})
+        declared-world (:world declared)
+        ref {:schema-version "fraud-incident-ref.v1"
+             :incident-id "test-incident" :incident-hash (:incident-hash declared)}
+        propose (fn [w incident-ref]
+                  (res/propose-fraud-group-slash w workflow-id "0xGov" [resolver] 10
+                                                 {:kind :governance-declared-group-fraud
+                                                  :incident-ref incident-ref} {} {}))]
+    (is (:ok declared))
+    (is (= :fraud-incident-not-found
+           (:error (propose declared-world (assoc ref :incident-id "unknown-incident")))))
+    (is (= :fraud-incident-hash-mismatch
+           (:error (propose declared-world (assoc ref :incident-hash "sha256:wrong")))))
+    (is (= :fraud-incident-already-declared
+           (:error (res/declare-fraud-incident declared-world "0xGov"
+                                               {:incident/id "test-incident"
+                                                :incident/kind :governance-declared-group-fraud
+                                                :incident/affected-workflows [{:workflow-id workflow-id}]} {} {}))))
+    (let [mutated (assoc-in declared-world [:fraud-incidents "test-incident" :incident/rationale] "mutated")]
+      (is (= :fraud-incident-hash-mismatch (:error (propose mutated ref)))))))
+
 ;; ============ Appeal resolution coverage ============
 
 (deftest resolve-appeal-rejected-non-usdc-bond-token

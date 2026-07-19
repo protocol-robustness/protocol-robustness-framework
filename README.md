@@ -96,15 +96,14 @@ PRF is a working robustness framework with a deliberately limited public
 benchmark catalogue. The current catalogue demonstrates named workloads and
 claims; it does not claim comprehensive protocol assurance.
 
-| Today | Scope |
-|---|---|
-| Sew-backed deterministic replay | The included Sew dispute workload produces matching canonical results and evidence roots across repeated PRF-runner executions. |
-| Sew yield shortfall checks | Experimental: the named yield workload now requires closed-form allocation artifacts before preservation, cap, or allocation correctness claims can be demonstrated. |
-| Sew dispute/slashing checks | Active Sew benchmarks run their declared invariant-backed safety and liveness claims. |
+The public headline copy is generated from the versioned
+[headline-claim registry](benchmarks/public-headline-claims.edn), not maintained
+as unbound prose. See [the generated public claims](docs/generated/public-headline-claims.md)
+for the current publishable headlines and their publication rule.
 
-Experimental profiles retain visible deferred claims for protocol robustness and
-shortfall research. Defined concepts and scenario mappings are explanatory;
-they do not count as evaluated coverage without a runnable claim evaluator.
+Yield-shortfall and broad protocol-robustness profiles remain experimental.
+Defined concepts and scenario mappings are explanatory; they do not count as
+evaluated coverage without a runnable claim evaluator and qualifying evidence package.
 
 Start with the [benchmark showcase](benchmarks/README.md#public-showcase) for
 the capability matrix, lifecycle definitions, and evidence-inspection path.

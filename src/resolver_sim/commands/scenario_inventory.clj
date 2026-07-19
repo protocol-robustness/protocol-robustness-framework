@@ -15,6 +15,7 @@
 (def ^:private known
   {"manifest/run.json" {:id "manifest.run" :kind "run-manifest" :schema "run-manifest.v1" :importance "CORE"}
    "manifest/summary.json" {:id "manifest.summary" :kind "summary" :schema "summary.v1" :importance "CORE"}
+   "manifest/value-at-risk.json" {:id "manifest.value-at-risk" :kind "scenario.value-at-risk" :schema "scenario-value-at-risk.v1" :importance "CORE"}
    "manifest/claimable-classification.json" {:id "manifest.claimable-classification" :kind "summary" :schema "claimable-classification.v2" :importance "CORE"}
    "manifest/run-enrichment.json" {:id "manifest.run-enrichment" :kind "run-enrichment" :schema "run-enrichment.v1" :importance "CORE"}
    "manifest/canonical-integrity.json" {:id "manifest.canonical-integrity" :kind "canonical-integrity" :schema "canonical-integrity.v1" :importance "CORE"}

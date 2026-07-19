@@ -30,8 +30,9 @@
 
    The allocation result is embedded so a later domain-specific propagation can
    bind to one immutable mathematical witness without reconstructing selected
-   witness fields. `:mechanism/claim-results` records only local structural
-   checks; claim-engine evidence remains a separate integration concern."
+   witness fields. `:mechanism/validation-results` records only local structural
+   validation summaries; claim-engine evidence remains a separate integration
+   concern."
   [result]
   (let [base {:schema-version schema-version
               :evidence/id [:pro-rata-mechanism-evidence
@@ -40,7 +41,7 @@
               :mechanism (:mechanism result)
               :mechanism/result result
               :mechanism/result-hash (:allocation/hash result)
-              :mechanism/claim-results (validation-results result)}]
+              :mechanism/validation-results (validation-results result)}]
     (assoc base :evidence/hash
            (hc/hash-with-intent {:hash/intent :projection-artifact} base))))
 

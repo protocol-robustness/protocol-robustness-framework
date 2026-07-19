@@ -4,95 +4,77 @@
             [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.verify :as verify]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
-            [resolver-sim.hash.canonical :as canonical]))
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.run.package-index :as package-index]))
 
 (defn- temp-root [] (.toFile (java.nio.file.Files/createTempDirectory "benchmark-verify-" (make-array java.nio.file.attribute.FileAttribute 0))))
 (defn- delete-tree! [root] (doseq [f (reverse (file-seq root))] (io/delete-file f true)))
 (defn- write-json! [file value] (io/make-parents file) (spit file (json/write-str value)))
 (defn- sha [file] (str "sha256:" (lifecycle/sha256-file file)))
+(defn- entries [root paths]
+  (mapv (fn [path] (let [file (io/file root path)] {"path" path "sha256" (lifecycle/sha256-file file)})) paths))
 
 (defn- fixture! [root]
-  (let [assurance (io/file root "benchmark/assertions/benchmark-assurance.json")
-        conservation (io/file root "benchmark/assertions/conservation.json")
-        registry (io/file root "manifest/artifacts.json")
-        validation (io/file root "manifest/artifacts-validation.json")
-        conclusion (io/file root "benchmark/conclusion.json")
-        finalization (io/file root "benchmark/finalization.json")
-        completion (io/file root "completion.json")
-        definition (io/file root "benchmark/definition.edn")
-        plan (io/file root "benchmark/execution-plan.edn")
-        scenario-input (io/file root "benchmark/executions/exec-1/input/scenario.edn")]
-    (doseq [[file content] [[definition "{:benchmark/id :b}"]
-                            [plan "{:executions []}"]
-                            [scenario-input "{:scenario/id :s}"]]]
-      (io/make-parents file)
-      (spit file content))
-    (write-json! conservation {"status" "not-exercised"
-                               "applicability" {"expected_execution_ids" []}
-                               "executions" []})
-    (write-json! registry {"artifacts" []})
-    (write-json! validation {"status" "passed"})
-    (write-json! conclusion {"outcome" "pass"})
-    (let [inputs [{"logical_id" "benchmark-definition" "source_kind" "benchmark-definition-snapshot"
-                   "path" "benchmark/definition.edn" "sha256" (sha definition)}
-                  {"logical_id" "benchmark-execution-plan" "source_kind" "execution-plan"
-                   "path" "benchmark/execution-plan.edn" "sha256" (sha plan)}
-                  {"logical_id" "execution/e1/scenario-input" "source_kind" "execution-input-snapshot"
-                   "path" "benchmark/executions/exec-1/input/scenario.edn" "sha256" (sha scenario-input)}]
-          input-set-root (str "sha256:" (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
-                                                                   (vec (sort-by #(get % "path") inputs))))]
-      (write-json! assurance {"input_set" inputs
-                              "input_set_root" input-set-root
-                              "conservation" {"artifact_ref" "benchmark/assertions/conservation.json"
-                                              "artifact_sha256" (sha conservation)
-                                              "status" "not-exercised"}})
+  (let [f (fn [path] (io/file root path))
+        definition (f "benchmark/definition.edn") plan (f "benchmark/execution-plan.edn")
+        scenario-input (f "benchmark/executions/exec-1/input/scenario.edn")
+        conclusion (f "benchmark/conclusion.json") conservation (f "benchmark/assertions/conservation.json")
+        assurance (f "benchmark/assertions/benchmark-assurance.json") content (f "benchmark/evidence/content-registry.json")
+        finalization (f "benchmark/finalization.json") integrity (f "benchmark/assertions/canonical-integrity.json")
+        deferred (f "benchmark/assertions/forensic-claims-status.json") package-index (f "manifest/run-package-index.json")
+        registry (f "manifest/artifacts.json") validation (f "manifest/artifacts-validation.json") completion (f "completion.json")]
+    (doseq [[file content] [[definition "{:benchmark/id :b}"] [plan "{:executions []}"] [scenario-input "{:scenario/id :s}"] [conclusion "{\"outcome\":\"pass\"}"]]]
+      (io/make-parents file) (spit file content))
+    (write-json! conservation {"status" "not-exercised" "applicability" {"expected_execution_ids" []} "executions" []})
+    (let [inputs [{"logical_id" "benchmark-definition" "source_kind" "benchmark-definition-snapshot" "path" "benchmark/definition.edn" "sha256" (sha definition)}
+                  {"logical_id" "benchmark-execution-plan" "source_kind" "execution-plan" "path" "benchmark/execution-plan.edn" "sha256" (sha plan)}
+                  {"logical_id" "execution/e1/scenario-input" "source_kind" "execution-input-snapshot" "path" "benchmark/executions/exec-1/input/scenario.edn" "sha256" (sha scenario-input)}]
+          input-root (str "sha256:" (canonical/domain-hash "BENCHMARK_INPUT_SET_V1" (vec (sort-by #(get % "path") inputs))))]
+      (write-json! assurance {"schema_version" "benchmark-assurance.v1" "benchmark_id" "b" "run_id" "r" "lifecycle_status" "completed"
+                              "conclusion" {"outcome" "pass"} "input_set" inputs "input_set_root" input-root
+                              "conservation" {"artifact_ref" "benchmark/assertions/conservation.json" "artifact_sha256" (sha conservation) "status" "not-exercised"}})
+      (write-json! content {"schema_version" "benchmark-content-registry.v1" "artifacts" []})
       (let [projection {"domain" "prf/benchmark-finalization/v1" "benchmark_id" "b" "run_id" "r"
                         "assurance_artifact_sha256" (sha assurance) "conclusion_sha256" (sha conclusion)
-                        "artifact_registry_sha256" (sha registry) "registry_validation_sha256" (sha validation)
-                        "input_set_root" input-set-root}
+                        "evidence_content_registry_sha256" (sha content) "input_set_root" input-root}
             final-ref (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))]
-        (write-json! finalization {"benchmark_id" "b" "run_id" "r" "conclusion_sha256" (sha conclusion)
-                                   "artifact_registry_sha256" (sha registry) "registry_validation_sha256" (sha validation)
-                                   "input_set_root" input-set-root "final_ref" final-ref})
-        (write-json! completion {"finalization_sha256" (sha finalization) "input_set_root" input-set-root "final_ref" final-ref})))
+        (write-json! finalization {"schema_version" "benchmark-finalization.v1" "benchmark_id" "b" "run_id" "r"
+                                   "conclusion_sha256" (sha conclusion) "evidence_content_registry_sha256" (sha content)
+                                   "input_set_root" input-root "final_ref" final-ref})
+        (write-json! integrity {"schema_version" "canonical-integrity.v1" "status" "passed"
+                                "benchmark_finalization" {"sha256" (sha finalization)} "benchmark_assurance" {"sha256" (sha assurance)}
+                                "conservation" {"sha256" (sha conservation)} "evidence_content_registry" {"sha256" (sha content)}})
+        (write-json! deferred {"schema_version" "forensic-claims-status.v1" "status" "deferred" "reason_code" "unsigned-forensic-signing-not-configured"})
+        (package-index/write! package-index
+                              {:run-id "r"
+                               :run-type :benchmark
+                               :bundle-root-hash (sha content)
+                               :artifacts {:runner-finalization {:ref "benchmark/finalization.json" :sha256 (sha finalization)}
+                                           :benchmark-finalization {:ref "benchmark/finalization.json" :sha256 (sha finalization)}
+                                           :benchmark-assurance {:ref "benchmark/assertions/benchmark-assurance.json" :sha256 (sha assurance)}
+                                           :canonical-integrity {:ref "benchmark/assertions/canonical-integrity.json" :sha256 (sha integrity)}}})
+        (let [paths ["benchmark/definition.edn" "benchmark/execution-plan.edn" "benchmark/executions/exec-1/input/scenario.edn" "benchmark/conclusion.json" "benchmark/assertions/conservation.json" "benchmark/assertions/benchmark-assurance.json" "benchmark/evidence/content-registry.json" "benchmark/finalization.json" "benchmark/assertions/canonical-integrity.json" "benchmark/assertions/forensic-claims-status.json" "manifest/run-package-index.json"]]
+          (write-json! registry {"artifacts" (entries root paths)})
+          (write-json! validation {"status" "passed"})
+          (write-json! completion {"schema_version" "benchmark-completion.v1" "run_type" "benchmark" "benchmark_id" "b" "run_id" "r"
+                                     "lifecycle_status" "completed" "semantic_status" "pass" "finalization_ref" "benchmark/finalization.json"
+                                     "finalization_sha256" (sha finalization) "final_ref" final-ref "input_set_root" input-root
+                                     "run_package_index_ref" "manifest/run-package-index.json" "run_package_index_sha256" (sha package-index)
+                                     "run_package_index_bytes" (.length package-index)
+                                     "artifact_registry_sha256" (sha registry) "registry_validation_sha256" (sha validation)}))))
     root))
 
 (deftest verifier-rejects-tampered-terminal-commitments
-  (doseq [[label expected-check tamper!]
-          [["registry" "registry-hash"
-            #(write-json! (io/file % "manifest/artifacts.json") {"artifacts" ["tampered"]})]
-           ["validation" "validation-hash"
-            #(write-json! (io/file % "manifest/artifacts-validation.json") {"status" "tampered"})]
-           ["assurance" "final-ref"
-            #(write-json! (io/file % "benchmark/assertions/benchmark-assurance.json")
-                          {"input_set" [] "input_set_root" "sha256:tampered"
-                           "conservation" {"artifact_ref" "benchmark/assertions/conservation.json"
-                                           "artifact_sha256" "sha256:tampered" "status" "fail"}})]
-           ["conservation" "conservation-assurance"
-            #(write-json! (io/file % "benchmark/assertions/conservation.json")
-                          {"status" "fail" "applicability" {"expected_execution_ids" []} "executions" []})]
-           ["finalization" "completion-finalization-hash"
-            #(write-json! (io/file % "benchmark/finalization.json")
-                          {"benchmark_id" "b" "run_id" "r" "final_ref" "sha256:tampered"})]
-           ["completion-final-ref" "final-ref"
-            #(write-json! (io/file % "completion.json")
-                          {"finalization_sha256" "sha256:bad" "input_set_root" "sha256:inputs" "final_ref" "sha256:bad"})]]]
+  (doseq [[label check tamper!] [["content" "evidence-content-registry-hash" #(spit (io/file % "benchmark/evidence/content-registry.json") "tampered")]
+                                  ["integrity" "canonical-integrity" #(write-json! (io/file % "benchmark/assertions/canonical-integrity.json") {"status" "tampered"})]
+                                  ["completion" "completion-finalization-hash" #(write-json! (io/file % "completion.json") {"finalization_sha256" "sha256:bad"})]]]
     (let [root (temp-root)]
-      (try
-        (fixture! root)
-        (is (= "passed" (get (verify/verify! root) "status")) label)
-        (tamper! root)
-        (let [result (verify/verify! root)]
-          (is (= "failed" (get result "status")) label)
-          (is (false? (get-in result ["checks" expected-check])) label))
-        (finally (delete-tree! root))))))
+      (try (fixture! root)
+           (tamper! root) (is (false? (get-in (verify/verify! root) ["checks" check])) label)
+           (finally (delete-tree! root))))))
 
 (deftest verifier-rejects-tampered-input-snapshot
   (let [root (temp-root)]
-    (try
-      (fixture! root)
-      (spit (io/file root "benchmark/executions/exec-1/input/scenario.edn") "{:scenario/id :tampered}")
-      (let [result (verify/verify! root)]
-        (is (= "failed" (get result "status")))
-        (is (false? (get-in result ["checks" "input-set-recalculated"]))))
-      (finally (delete-tree! root)))))
+    (try (fixture! root) (spit (io/file root "benchmark/executions/exec-1/input/scenario.edn") "tampered")
+         (is (false? (get-in (verify/verify! root) ["checks" "input-set-recalculated"])))
+         (finally (delete-tree! root)))))

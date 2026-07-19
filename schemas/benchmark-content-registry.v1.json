@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/benchmark-content-registry-v1.json",
+  "title": "Benchmark Content Registry v1",
+  "description": "Canonical inventory of immutable evidence-bearing content for one benchmark run. Finalization and outer-package closure artifacts are excluded.",
+  "type": "object",
+  "required": ["schema_version", "domain", "benchmark_id", "run_id", "content_scope", "hash_algorithm", "excluded_paths", "artifacts", "content_root"],
+  "properties": {
+    "schema_version": { "const": "benchmark-content-registry.v1" },
+    "domain": { "const": "prf/benchmark-content-registry/v1" },
+    "benchmark_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "content_scope": { "const": "benchmark-evidence-inner-package" },
+    "hash_algorithm": { "const": "sha256" },
+    "excluded_paths": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "content_root": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "bytes", "role"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+          "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "role": { "type": "string", "minLength": 1 },
+          "required_for": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
