@@ -27,7 +27,8 @@
    :run-benchmark 'resolver-sim.commands.run-benchmark/run
    :verify-scenario 'resolver-sim.commands.verify-scenario/run
    :verify-benchmark 'resolver-sim.commands.verify-benchmark/run
-   :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
+      :compare-runs 'resolver-sim.commands.compare-runs/run
+      :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
    :scenario-compare 'resolver-sim.commands.scenario-compare/compare-scenarios
    :scenario-pick 'resolver-sim.commands.scenario-pick/pick-scenarios
    :benchmark-list 'resolver-sim.commands.benchmark-list/list-benchmarks
@@ -75,7 +76,8 @@
              :run-benchmark         (requiring-resolve 'resolver-sim.commands.run-benchmark/run)
              :verify-scenario       (requiring-resolve 'resolver-sim.commands.verify-scenario/run)
              :verify-benchmark      (requiring-resolve 'resolver-sim.commands.verify-benchmark/run)
-             :scenario-list         (requiring-resolve 'resolver-sim.commands.scenario-list/list-scenarios)
+                          :compare-runs          (requiring-resolve 'resolver-sim.commands.compare-runs/run)
+                          :scenario-list         (requiring-resolve 'resolver-sim.commands.scenario-list/list-scenarios)
              :scenario-compare      (requiring-resolve 'resolver-sim.commands.scenario-compare/compare-scenarios)
              :scenario-pick         (requiring-resolve 'resolver-sim.commands.scenario-pick/pick-scenarios)
              :benchmark-list        (requiring-resolve 'resolver-sim.commands.benchmark-list/list-benchmarks)
@@ -126,6 +128,8 @@
    [nil "--out DIR" "Output directory"
     :default "target/report"]
    [nil "--output PATH" "Output path for evidence bundle"]
+      [nil "--package-a DIR" "First completed canonical package"]
+      [nil "--package-b DIR" "Second completed canonical package"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
    [nil "--key PATH" "Path to private key"]])

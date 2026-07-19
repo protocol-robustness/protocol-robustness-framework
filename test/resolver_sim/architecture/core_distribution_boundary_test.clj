@@ -2,31 +2,34 @@
   "Static boundary guard for namespaces that form the protocol-neutral PRF
    distribution surface. Protocol implementations may live elsewhere, but this
    surface must remain loadable without protocols_src or Sew resources."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]))
 
-(def core-distribution-roots
-  ["src/resolver_sim/cli"
-   "src/resolver_sim/core"
-   "src/resolver_sim/evidence"
-   "src/resolver_sim/reference"
-   "src/resolver_sim/run"])
+(def boundary-policy
+  (edn/read-string (slurp "config/architecture/protocol-boundaries.edn")))
 
-(def core-distribution-files
-  ["src/resolver_sim/sim/reference_validation.clj"
-   "src/resolver_sim/sim/reference_validation_evidence.clj"])
+(def core-distribution-roots (:core/source-roots boundary-policy))
+(def core-distribution-files (:core/source-files boundary-policy))
+(def forbidden-prefixes (:forbidden/core-namespace-prefixes boundary-policy))
 
 (defn- clojure-sources [root]
   (for [file (file-seq (io/file root))
         :when (and (.isFile file) (str/ends-with? (.getName file) ".clj"))]
     file))
 
+(defn- imports-forbidden-namespace? [file]
+  (let [source (slurp file)]
+    (some (fn [prefix]
+            (re-find (re-pattern (str "\\[" (java.util.regex.Pattern/quote prefix))) source))
+          forbidden-prefixes)))
+
 (deftest core-distribution-namespaces-do-not-import-sew
   (testing "the protocol-neutral core surface has no direct Sew namespace dependency"
     (let [offenders (->> (concat (mapcat clojure-sources core-distribution-roots)
                                  (map io/file core-distribution-files))
-                         (filter #(re-find #"\[resolver-sim\.protocols\.sew" (slurp %)))
+                         (filter imports-forbidden-namespace?)
                          (map #(.getPath %))
                          sort
                          vec)]

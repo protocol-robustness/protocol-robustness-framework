@@ -27,6 +27,7 @@
 
    Returns {:holds? bool :violations [...]}."
   (:require [clojure.set :as set]
+            [clojure.walk :as walk]
             [resolver-sim.pro-rata.invariants :as invariants]))
 
 ;; ── Evidence-node content extractors ─────────────────────────────────────
@@ -68,12 +69,20 @@
   [result]
   (or (:allocations result) []))
 
+(defn- normalize-integer-values
+  "Normalize integer representations before comparing semantically identical
+   allocation evidence produced by separate calculation paths."
+  [value]
+  (walk/postwalk #(if (integer? %) (bigint %) %) value))
+
 (defn- canonical-allocation-vector
   "Canonical, duplicate-preserving comparison view. Allocation rows may repeat
    economically meaningful values; only presentation-only ordering metadata is removed."
   [allocations]
   (->> allocations
-       (map #(dissoc % :idx :order))
+       (map #(-> %
+                 (dissoc :idx :order)
+                 normalize-integer-values))
        (sort-by pr-str)
        vec))
 
@@ -119,7 +128,8 @@
              :first (:projection-hash artifact)
              :second (:projection-hash artifact-again)})
 
-      (not= direct projection)
+      (not= (canonical-allocation-vector (:allocations direct))
+            (canonical-allocation-vector (:allocations projection)))
       (conj {:type :allocation-mismatch
              :direct (:allocations direct)
              :projection (:allocations projection)})))))

@@ -13,9 +13,7 @@
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.logging :as log]
             [resolver-sim.contract-model.replay :as replay]
-            [resolver-sim.protocols.sew :as sew]
-            [resolver-sim.protocols.sew.invariants :as sew-inv]
-            [resolver-sim.protocols.yield :as yp]
+            [resolver-sim.protocols.registry :as protocols]
             [resolver-sim.scenario.runner :as scenario-runner]
             [resolver-sim.scenario.suites :as suites]
             [clojure.edn :as edn]
@@ -176,21 +174,44 @@
        :scenario/chain-cursor (let [path (str (io/file dir "chain-cursor-final.json"))]
                                 (when (.exists (io/file path)) path))})))
 
+(defn- post-invariants
+  "Return protocol-native post-replay invariant results without making the
+   benchmark core depend on a concrete protocol namespace."
+  [protocol world]
+  (case protocol
+    "sew-v1" (let [canonical-ids @(requiring-resolve 'resolver-sim.protocols.sew.invariants/canonical-ids)
+                    check-all (requiring-resolve 'resolver-sim.protocols.sew.invariants/check-all)]
+                {:ids (sort canonical-ids)
+                 :results (:results (check-all world))})
+    "yield-v1" (let [catalog @(requiring-resolve 'resolver-sim.yield.invariant-catalog/catalog)
+                      run-invariants (requiring-resolve 'resolver-sim.yield.invariants/run-invariants)
+                      ids (sort (keys catalog))]
+                  {:ids ids :results (run-invariants world ids)})
+    {:ids [] :results {}}))
+
 (defn- execute-scenario
   [suite-kw scenario-source ordinal repetition-index run-count executions-dir]
   (let [path (:input/ref scenario-source)
         scenario (load-scenario scenario-source)
         descriptor (execution-identity/descriptor scenario-source scenario repetition-index)
         execution-id (execution-identity/execution-id descriptor)
-        protocol (:protocol scenario)
+        protocol (or (:protocol scenario) protocols/default-protocol-id)
+        adapter (protocols/get-protocol protocol)
+        _ (when-not adapter
+            (throw (ex-info "Benchmark scenario protocol extension is unavailable"
+                            {:protocol protocol
+                             :known-protocols (vec (protocols/known-protocol-ids))})))
         output-dir (execution-output-dir executions-dir ordinal descriptor)
         run-replay (fn []
-                     (if (= "yield-v1" protocol)
-                       (replay/replay-events (yp/protocol) scenario
-                                             {:flags {:yield-dt-validation? true
-                                                      :metrics-profile :yield-provider}})
-                       (sew/replay-with-sew-protocol scenario
-                                                     {:allow-dirty? (or chain/*allow-dirty* false)})))
+                     (if (= "sew-v1" protocol)
+                       ((requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol)
+                        scenario {:allow-dirty? (or chain/*allow-dirty* false)})
+                       (replay/replay-events
+                        adapter scenario
+                        (cond-> {:allow-dirty? (or chain/*allow-dirty* false)}
+                          (= "yield-v1" protocol)
+                          (assoc :flags {:yield-dt-validation? true
+                                         :metrics-profile :yield-provider})))))
         replay-result (if output-dir
                         (binding [evidence-config/*artifact-dir* output-dir]
                           (run-replay))
@@ -208,12 +229,13 @@
                                         [:events-processed :outcome :halt-reason]))
         final-world (:world replay-result)
         step-failures (get-in replay-result [:metrics :invariant-results] {})
-        all-inv-ids (sort sew-inv/canonical-ids)
-        post-check (when final-world
-                     (if output-dir
-                       (binding [evidence-config/*artifact-dir* output-dir]
-                         (:results (sew-inv/check-all final-world)))
-                       (:results (sew-inv/check-all final-world))))
+        post-invariant-result (when final-world
+                                (if output-dir
+                                  (binding [evidence-config/*artifact-dir* output-dir]
+                                    (post-invariants protocol final-world))
+                                  (post-invariants protocol final-world)))
+        all-inv-ids (:ids post-invariant-result)
+        post-check (:results post-invariant-result)
         inv-results (mapv (fn [id]
                             {:id id
                              :result (cond

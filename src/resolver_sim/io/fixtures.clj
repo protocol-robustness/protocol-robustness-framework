@@ -15,7 +15,6 @@
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.sim.fixtures :as sim-fix]
             [resolver-sim.util.deep-merge :as dm])
   (:import [java.security MessageDigest]))
 
@@ -216,7 +215,9 @@
    and delegate to the simulation-layer run-suite.
    Matches the legacy sim.fixtures/run-suite API for callers in the IO/shell layer."
   [suite-key mode protocol opts]
-  (let [compose-loader (fn [k] (sim-fix/compose-suite k load-fixture))
+  (let [compose-suite (requiring-resolve 'resolver-sim.sim.fixtures/compose-suite)
+        run-suite (requiring-resolve 'resolver-sim.sim.fixtures/run-suite)
+        compose-loader (fn [k] (compose-suite k load-fixture))
         raw-fixture (load-fixture suite-key)
         suite (compose-loader raw-fixture)
         traces (mapv (fn [entry]
@@ -235,11 +236,13 @@
                                          resolve-protocol-params-ref)]
                            {:trace trace})))
                      (:traces suite []))]
-    (sim-fix/run-suite suite traces mode protocol opts)))
+    (run-suite suite traces mode protocol opts)))
 
 (defn minimise-suite-from-key
   "Load a fixture suite by keyword and delegate to the simulation-layer minimiser."
   [suite-key target-invariant protocol]
-  (let [compose-loader (fn [k] (sim-fix/compose-suite k load-fixture))
+  (let [compose-suite (requiring-resolve 'resolver-sim.sim.fixtures/compose-suite)
+        minimise-suite (requiring-resolve 'resolver-sim.sim.fixtures/minimise-suite)
+        compose-loader (fn [k] (compose-suite k load-fixture))
         suite (compose-loader (load-fixture suite-key))]
-    (sim-fix/minimise-suite suite target-invariant protocol)))
+    (minimise-suite suite target-invariant protocol)))

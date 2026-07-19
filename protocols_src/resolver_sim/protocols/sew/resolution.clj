@@ -1368,6 +1368,22 @@
 (def ^:private fraud-incident-ref-schema-version "fraud-incident-ref.v1")
 (def ^:private fraud-group-incident-kind :governance-declared-group-fraud)
 
+(defn- fraud-incident-content
+  "The immutable, hash-bound declaration fields. Authorization and provenance
+   describe the declaration action but are not part of the incident identity."
+  [world caller incident]
+  {:incident/schema-version fraud-incident-schema-version
+   :incident/id (:incident/id incident)
+   :incident/kind (:incident/kind incident)
+   :incident/status :declared
+   :incident/declared-by caller
+   :incident/declared-at (select-keys (time-ctx/temporal-context world)
+                                      [:schema-version :step :event-seq :block-ts :clock/mode])
+   :incident/affected-workflows (vec (:incident/affected-workflows incident))
+   :incident/related-claims (vec (:incident/related-claims incident))
+   :incident/evidence-refs (vec (:incident/evidence-refs incident))
+   :incident/rationale (:incident/rationale incident)})
+
 (defn declare-fraud-incident
   "Declare an immutable, independently addressable fraud incident.
 
@@ -1378,17 +1394,7 @@
   (let [incident-id (:incident/id incident)
         kind (:incident/kind incident)
         workflows (vec (:incident/affected-workflows incident))
-        normalized {:incident/schema-version fraud-incident-schema-version
-                    :incident/id incident-id
-                    :incident/kind kind
-                    :incident/status :declared
-                    :incident/declared-by caller
-                    :incident/declared-at (select-keys (time-ctx/temporal-context world)
-                                                                          [:schema-version :step :event-seq :block-ts :clock/mode])
-                    :incident/affected-workflows workflows
-                    :incident/related-claims (vec (:incident/related-claims incident))
-                    :incident/evidence-refs (vec (:incident/evidence-refs incident))
-                    :incident/rationale (:incident/rationale incident)}]
+        normalized (fraud-incident-content world caller incident)]
     (cond
       (or (not (string? incident-id)) (not (re-matches #"[a-z0-9]+(?:-[a-z0-9]+)*" incident-id)))
       (t/fail :invalid-fraud-incident-id)
@@ -1424,6 +1430,11 @@
       (nil? incident) {:error :fraud-incident-not-found}
       (not= incident-id (:incident/id incident)) {:error :fraud-incident-id-mismatch}
       (not= incident-hash (:incident/hash incident)) {:error :fraud-incident-hash-mismatch}
+      (not= (:incident/hash incident)
+            (hc/hash-with-intent
+             {:hash/intent :provenance}
+             (fraud-incident-content world (:incident/declared-by incident) incident)))
+      {:error :fraud-incident-hash-mismatch}
       (not= fraud-group-incident-kind (:incident/kind incident)) {:error :incompatible-fraud-incident-kind}
       (not= :declared (:incident/status incident)) {:error :fraud-incident-not-eligible}
       (not (some #(= workflow-id (:workflow-id %)) (:incident/affected-workflows incident))) {:error :fraud-incident-workflow-mismatch}

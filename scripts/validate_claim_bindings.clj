@@ -41,7 +41,10 @@
                   package-file (when-let [uri (:package/uri package)]
                                  (when (str/starts-with? uri "file:") (io/file (subs uri 5))))
                   verification (when (and root (.isDirectory (io/file root)))
-                                 (benchmark-verify/verify! root))]
+                                 (benchmark-verify/verify! root))
+                  conclusion-file (when root (io/file root "benchmark/conclusion.json"))
+                  conclusion (when (and conclusion-file (.isFile conclusion-file))
+                               (json/read-str (slurp conclusion-file)))]
               (cond-> []
                 (not (and (string? (:package/uri package)) (re-matches sha-pattern (:package/sha256 package))))
                 (conj (error (:claim/id claim) :package-reference-invalid "package URI or SHA-256 is invalid"))
@@ -52,7 +55,10 @@
                 (and evidence-file (.isFile evidence-file) (not= (:evidence/sha256 package) (sha-ref evidence-file)))
                 (conj (error (:claim/id claim) :evidence-hash-stale evidence-ref))
                 (not= "passed" (get verification "status"))
-                (conj (error (:claim/id claim) :package-verification-failed (or (get verification "error") root))))))
+                (conj (error (:claim/id claim) :package-verification-failed (or (get verification "error") root)))
+                (not= "pass" (get conclusion "outcome"))
+                (conj (error (:claim/id claim) :package-semantic-outcome-not-pass
+                             (or (get conclusion "outcome") "missing conclusion"))))))
           (:evidence/packages claim)))
 
 (defn- claim-errors [manifests claim]

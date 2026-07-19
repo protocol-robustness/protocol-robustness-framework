@@ -15,7 +15,9 @@
       :pro-rata/permutation-invariant})
 
 (def extended-claims
-  (conj phase-6-claims :pro-rata/partial-fill-quota-bounded))
+  (conj phase-6-claims
+        :pro-rata/cap-respecting
+        :pro-rata/canonical-remainder-assignment))
 
 (defn- make-content
   "Build evidence content with matching direct and projection results."

@@ -16,6 +16,27 @@
   [reason data]
   (throw (ex-info "Invalid pro-rata allocation request" (assoc data :reason reason))))
 
+(defn canonical-id-key
+  "A typed, byte-stable ordering key for identities.  `pr-str` is deliberately
+   not used here: printed representation is not an allocation contract."
+  [identity]
+  (try
+    (hc/validate-canonical-value! identity)
+    (letfn [(key* [value]
+              (cond
+                (keyword? value) [:keyword (or (namespace value) "") (name value)]
+                (string? value) [:string value]
+                (vector? value) [:vector (mapv key* value)]
+                ;; Map ordering is supplied solely by the canonical encoding.
+                ;; It remains typed and deterministic without relying on map
+                ;; iteration or a printed representation.
+                (map? value) [:map (mapv #(bit-and (int %) 0xff) (hc/canonical-bytes value))]
+                :else [:scalar (mapv #(bit-and (int %) 0xff) (hc/canonical-bytes value))]))]
+      (key* identity))
+    (catch clojure.lang.ExceptionInfo error
+      (invalid! :unsupported-allocation-row-id
+                {:row/id identity :cause (ex-data error)}))))
+
 (defn canonical-rows
   "Validate and canonically order domain-neutral allocation rows.
 
@@ -29,6 +50,8 @@
       (invalid! :missing-allocation-row-id {:rows rows}))
     (when-not (= (count ids) (count (distinct ids)))
       (invalid! :duplicate-allocation-row-id {:row-ids ids}))
+    (doseq [row rows]
+      (canonical-id-key (:row/id row)))
     (doseq [row rows
             field [:requested :weight :cap]
             :let [value (get row field)]
@@ -41,13 +64,15 @@
                            requested (:requested row)]
                        {:row/id (:row/id row)
                         :obligation/id (:obligation/id row)
-                        :requested requested
-                        :weight (:weight row)
-                        :declared-cap declared-cap
-                        :effective-cap (if (some? declared-cap)
-                                         (min requested declared-cap)
-                                         requested)})))
-             (sort-by (comp pr-str :row/id))
+                        ;; All persisted allocation quantities use BigInt so
+                        ;; 3 and 3N are semantically and hash-equivalent.
+                        :requested (bigint requested)
+                        :weight (bigint (:weight row))
+                        :declared-cap (some-> declared-cap bigint)
+                        :effective-cap (bigint (if (some? declared-cap)
+                                                 (min requested declared-cap)
+                                                 requested))})))
+             (sort-by (comp canonical-id-key :row/id))
          vec)))
 
 (defn- rounding->payoffs
@@ -62,7 +87,7 @@
   (let [comparison (compare (* (:remainder-numerator right) (:remainder-denominator left))
                             (* (:remainder-numerator left) (:remainder-denominator right)))]
     (if (zero? comparison)
-      (compare (pr-str (:row/id left)) (pr-str (:row/id right)))
+      (compare (canonical-id-key (:row/id left)) (canonical-id-key (:row/id right)))
       comparison)))
 
 (defn- witness-round
@@ -199,13 +224,19 @@
     :as request}]
   (let [allocation-id (:allocation/id request)
         schema-version (:schema-version request "pro-rata-allocation-request.v1")
-        mechanism-version (:mechanism/version request 1)]
+        mechanism-version (:mechanism/version request 1)
+        available (when (integer? available) (bigint available))]
   (when-not (= "pro-rata-allocation-request.v1" schema-version)
     (invalid! :unsupported-allocation-request-schema {:schema-version schema-version}))
   (when-not (= 1 mechanism-version)
     (invalid! :unsupported-allocation-mechanism-version {:mechanism/version mechanism-version}))
   (when-not allocation-id
     (invalid! :missing-allocation-id {}))
+  (try
+    (hc/validate-canonical-value! allocation-id)
+    (catch clojure.lang.ExceptionInfo error
+      (invalid! :unsupported-allocation-id
+                {:allocation/id allocation-id :cause (ex-data error)})))
   (when-not (non-negative-integer? available)
     (invalid! :invalid-available {:available available}))
   (when-not (= :canonical-row-id tie-break-policy)
@@ -214,6 +245,16 @@
     (invalid! :unsupported-redistribution-policy
               {:redistribution-policy redistribution-policy}))
   (let [rows (canonical-rows rows)
+        canonical-request {:schema-version schema-version
+                           :mechanism/version mechanism-version
+                           :allocation/id allocation-id
+                           :available available
+                           :rows rows
+                           :rounding-policy rounding-policy
+                           :tie-break-policy tie-break-policy
+                           :redistribution-policy redistribution-policy}
+        request-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                          canonical-request)
         total-weight (reduce + 0 (map :weight rows))
         allocation-request {:amount available
                             :items rows
@@ -237,9 +278,11 @@
         {:schema-version "pro-rata-allocation-result.v1"
          :mechanism {:id :mechanism/pro-rata-allocation :version 1}
          :allocation/id allocation-id
+         :canonical-request canonical-request
+         :request/hash request-hash
          :available available
-         :allocated-total (:total-allocated allocation)
-         :unallocated-residual (:remainder allocation)
+         :allocated-total (bigint (:total-allocated allocation))
+         :unallocated-residual (bigint (:remainder allocation))
          :rounding-policy rounding-policy
          :tie-break-policy tie-break-policy
          :redistribution-policy redistribution-policy

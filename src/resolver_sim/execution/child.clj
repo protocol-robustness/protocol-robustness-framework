@@ -8,9 +8,7 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.io.input-source :as input-source]
-            [resolver-sim.protocols.sew :as sew]
-            [resolver-sim.protocols.sew.invariants :as sew-invariants]
-            [resolver-sim.protocols.yield :as yield]))
+            [resolver-sim.protocols.registry :as protocols]))
 
 (defn- child-file [root & parts]
   (apply io/file (str root) parts))
@@ -50,22 +48,28 @@
         artifact-dir (child-file execution-root "evidence")
         _ (.mkdirs artifact-dir)
         provenance (lifecycle/snapshot-input! run-root source input-file)
-        protocol (:protocol scenario)
+        protocol (or (:protocol scenario) protocols/default-protocol-id)
+        adapter (protocols/get-protocol protocol)
+        _ (when-not adapter
+            (throw (ex-info "Scenario protocol extension is unavailable"
+                            {:protocol protocol
+                             :known-protocols (vec (protocols/known-protocol-ids))})))
         run-replay (fn []
-                     (if (= "yield-v1" protocol)
-                       (replay/replay-events (yield/protocol) scenario
-                                             {:flags {:yield-dt-validation? true
-                                                      :metrics-profile :yield-provider}})
-                       (sew/replay-with-sew-protocol scenario
-                                                     {:allow-dirty? (or chain/*allow-dirty* false)})))
+                     (replay/replay-events
+                      adapter scenario
+                      (cond-> {:allow-dirty? (or chain/*allow-dirty* false)}
+                        (= "yield-v1" protocol)
+                        (assoc :flags {:yield-dt-validation? true
+                                       :metrics-profile :yield-provider}))))
         result (binding [chain/*allow-dirty* (or (:allow-dirty? request) chain/*allow-dirty* false)
                          evidence-config/*artifact-dir* (.getPath artifact-dir)]
                  (run-replay))
         post-check (when (and (= "sew-v1" protocol) (:world result))
                      (binding [chain/*allow-dirty* (or (:allow-dirty? request) chain/*allow-dirty* false)
                                evidence-config/*artifact-dir* (.getPath artifact-dir)]
-                       (:results (sew-invariants/check-all (:world result)))))
-        summary {:execution/id execution-id
+                       (:results ((requiring-resolve 'resolver-sim.protocols.sew.invariants/check-all)
+                                                                                (:world result)))))
+                               summary {:execution/id execution-id
                  :scenario/id (or (:scenario/id scenario) (:scenario-id scenario) (:id scenario))
                  :protocol protocol
                  :outcome (:outcome result)

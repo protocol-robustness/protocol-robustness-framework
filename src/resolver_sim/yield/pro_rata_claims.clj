@@ -14,16 +14,21 @@
   {:allocation-complete :pro-rata/allocation-complete
    :non-negative :pro-rata/non-negative
    :conservation :pro-rata/conservation
-   :rounding-bounded :pro-rata/quota-bounded
    :ordering-independent :pro-rata/permutation-invariant
-   :partial-fill-fairness :pro-rata/partial-fill-quota-bounded})
+   :partial-fill-fairness :pro-rata/partial-fill-fairness})
 
 (defn evaluate-claim
   "Compatibility adapter for legacy unqualified claim IDs. New callers must
    use the registered `:pro-rata/*` identifiers."
   [claim-id context]
-  (if (= claim-id :pro-rata-fairness)
+  (cond
+    (= claim-id :pro-rata-fairness)
     (claims/check-pro-rata-fairness context)
+
+    (= claim-id :rounding-bounded)
+    (claims/check-rounding-bounded context)
+
+    :else
     (claims/evaluate-claim (get legacy-claim-id->mechanism-id claim-id claim-id)
                            context)))
 (def check-projection-deterministic claims/check-projection-deterministic)

@@ -2,6 +2,7 @@
   "Independent structural and arithmetic checks for pro-rata result witnesses.
    These validators inspect persisted witnesses and never invoke the allocator."
   (:require [clojure.set]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.allocation :as allocation]))
 
 (defn cap-respecting-violations
@@ -69,7 +70,8 @@
                                             rd (get-in right [:fractional-remainder :remainder-denominator])
                                             comparison (compare (* rn ld) (* ln rd))]
                                         (if (zero? comparison)
-                                          (compare (pr-str (:row/id left)) (pr-str (:row/id right)))
+                                          (compare (allocation/canonical-id-key (:row/id left))
+                                                   (allocation/canonical-id-key (:row/id right)))
                                           comparison)))
                                     eligible))]
       (vec (concat rank-violations
@@ -145,7 +147,13 @@
 
 (defn result-violations
   [result]
-  (vec (concat (when-not (allocation/allocation-hash-valid? result)
+  (vec (concat (when-not (= (:request/hash result)
+                            (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                                 (:canonical-request result)))
+                 [{:reason :pro-rata/request-hash-mismatch
+                   :expected :recomputed-hash
+                   :observed (:request/hash result)}])
+               (when-not (allocation/allocation-hash-valid? result)
                  [{:reason :pro-rata/allocation-hash-mismatch
                    :expected :recomputed-hash
                    :observed (:allocation/hash result)}])

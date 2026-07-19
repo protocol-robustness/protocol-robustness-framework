@@ -1,0 +1,20 @@
+{:schema/version :prf.protocol-boundaries/v1
+ :core/source-roots ["src/resolver_sim/cli"
+                     "src/resolver_sim/core"
+                     "src/resolver_sim/evidence"
+                     "src/resolver_sim/reference"
+                     "src/resolver_sim/run"]
+ :core/source-files ["src/resolver_sim/benchmark/game_theory_validation.clj"
+                      "src/resolver_sim/benchmark/runner.clj"
+                      "src/resolver_sim/io/scenario_runner.clj"
+                      "src/resolver_sim/execution/child.clj"
+                      "src/resolver_sim/sim/reference_validation.clj"
+                      "src/resolver_sim/sim/reference_validation_evidence.clj"]
+ :forbidden/core-namespace-prefixes ["resolver-sim.protocols.sew"]
+ :extension/source-roots {"sew" ["protocols_src"]}
+ :rules [{:id :core-does-not-import-protocol-implementations
+          :description "Core framework namespaces may depend on adapter interfaces and registries, not a named protocol implementation."}
+         {:id :extension-depends-on-core
+          :description "Protocol extensions may depend on core; core may not require an extension namespace."}
+         {:id :prf-jar-excludes-extension-sources
+          :description "The PRF distribution is built from src and resources only; Sew source and corpus are supplied by :with-sew."}]}

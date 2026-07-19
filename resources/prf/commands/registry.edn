@@ -458,6 +458,20 @@
     :command/outputs []
     :command/description "Clear all community mailbox messages."}
 
+  {:command/id :compare-runs
+   :command/path ["compare-runs"]
+   :command/title "Compare completed run packages"
+   :command/category :validation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--package-a" :type :string :required true}
+                     {:name "--package-b" :type :string :required true}
+                     {:name "--output" :type :string}]
+   :command/outputs ["run-comparison.json"]
+   :command/description "Compare two completion-sealed run packages."}
+
   {:command/id :build-prf
    :command/path ["build" "prf"]
    :command/title "Build framework-only CLI JAR"

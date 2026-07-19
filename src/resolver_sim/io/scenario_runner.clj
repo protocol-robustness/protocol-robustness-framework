@@ -21,9 +21,6 @@
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.logging :as log]
             [resolver-sim.protocols.registry :as preg]
-            [resolver-sim.protocols.sew :as sew]
-            [resolver-sim.protocols.sew.invariant-scenarios :as inv-sc]
-            [resolver-sim.protocols.sew.narrative :as narrative]
             [resolver-sim.run.bundle-root :as br]
             [resolver-sim.scenario.normalize :as normalize]
             [resolver-sim.scenario.report :as report]
@@ -222,7 +219,7 @@
                           (assoc :flags {:yield-dt-validation? true
                                          :metrics-profile :yield-provider}))]
         (if (= "sew-v1" protocol-id)
-          (sew/replay-with-sew-protocol scenario replay-opts)
+          ((requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol) scenario replay-opts)
           (replay/replay-with-protocol protocol scenario replay-opts))))))
 
 (defn- scenario-file-details
@@ -436,7 +433,8 @@
 (defn- default-report-opts [opts]
   (merge {:outline-printer (fn [name result]
                              (let [{:keys [header lines footer separator]}
-                                   (narrative/scenario-outline name result)]
+                                   ((requiring-resolve 'resolver-sim.protocols.sew.narrative/scenario-outline)
+                                    name result)]
                                (println header)
                                (doseq [line lines] (println line))
                                (println footer)
@@ -479,6 +477,13 @@
          (or (nil? (:scenario/protocol selector))
              (= (str (:scenario/protocol selector)) (str protocol))))))
 
+(defn- sew-registry-scenarios []
+  @(requiring-resolve 'resolver-sim.protocols.sew.invariant-scenarios/all-scenarios))
+
+(defn- sew-scenario-type [scenario-id]
+  (get @(requiring-resolve 'resolver-sim.protocols.sew.invariant-scenarios/scenario-type-registry)
+       scenario-id {}))
+
 (def ^:private registry-suite-runners
   "Protocol ID → (fn [opts] → summary-map).
    sew-v1:   in-process invariant registry (protocols_src/.../invariant_scenarios.clj)
@@ -489,12 +494,12 @@
                                 (filterv (fn [entry]
                                            (let [s (if (vector? entry) (second entry) entry)]
                                              (and (map? s) (scenario-selected? selector s))))
-                                         inv-sc/all-scenarios))
-                              inv-sc/all-scenarios)]
+                                         (sew-registry-scenarios)))
+                              (sew-registry-scenarios))]
                 (runner/run-collection
                  {:entries entries
                   :replay-fn (sew-replay-fn)
-                  :type-meta-fn (fn [sid] (get inv-sc/scenario-type-registry sid {}))}
+                  :type-meta-fn sew-scenario-type}
                  (merge {:suite-id (or suite-id :sew-invariants)} opts))))
    "yield-v1" (fn [opts]
                 (run-paths (suites/suite-paths :yield-provider-scenarios)

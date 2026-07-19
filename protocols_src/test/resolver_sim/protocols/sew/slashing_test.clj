@@ -120,6 +120,25 @@
         world'' (:world (res/execute-resolution world' workflow-id resolver true "0xhash" nil))]
     {:world world'' :workflow-id workflow-id}))
 
+(defn- propose-test-fraud-group-slash
+  "Declare the immutable incident required by the public group-slash contract,
+   then propose a group slash bound to that exact declaration."
+  [world workflow-id caller liable-resolvers amount incident-id authorization provenance]
+  (let [declared (res/declare-fraud-incident
+                  world caller
+                  {:incident/id incident-id
+                   :incident/kind :governance-declared-group-fraud
+                   :incident/affected-workflows [{:workflow-id workflow-id}]
+                   :incident/rationale "test fraud incident"}
+                  authorization provenance)]
+    (res/propose-fraud-group-slash
+     (:world declared) workflow-id caller liable-resolvers amount
+     {:kind :governance-declared-group-fraud
+      :incident-ref {:schema-version "fraud-incident-ref.v1"
+                     :incident-id (:incident-id declared)
+                     :incident-hash (:incident-hash declared)}}
+     authorization provenance)))
+
 (deftest slashing-logic-test
   (let [world (t/empty-world 1000)
         buyer "0xBuyer"
@@ -1327,9 +1346,8 @@
                    (reg/register-stake r-b 300))
         {:keys [world workflow-id]}
         (world-ready-for-fraud-slash-propose world0 "0xBuyer" "USDC" "0xSeller" r-b 1000 snap)
-        proposed (res/propose-fraud-group-slash
-                  world workflow-id gov [r-b r-a] 200
-                  {:incident "test-group-fraud"}
+        proposed (propose-test-fraud-group-slash
+                  world workflow-id gov [r-b r-a] 200 "test-group-fraud"
                   {:authorization/type :governance}
                   {:provenance/source :test})
         slash-id (:slash-id proposed)
@@ -1372,10 +1390,9 @@
         {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
                                      world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
                                      (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
-        proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200
-                                                {:incident "test-epoch-cap"}
-                                                {:authorization/type :governance}
-                                                {:provenance/source :test})
+        proposed (propose-test-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 "test-epoch-cap"
+                                                 {:authorization/type :governance}
+                                                 {:provenance/source :test})
         slash-id (:slash-id proposed)
         pending (get-in (:world proposed) [:pending-fraud-slashes slash-id] {})
         before (time-ctx/advance-time (:world proposed) {:to (inc (:appeal-deadline pending 0))})
@@ -1393,10 +1410,9 @@
         {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
                                      world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
                                      (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
-         proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200
-                                                 {:incident "test-fraud-group"}
-                                                 {:authorization/type :governance}
-                                                 {:provenance/source :test})
+         proposed (propose-test-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 "test-fraud-group"
+                                                  {:authorization/type :governance}
+                                                  {:provenance/source :test})
         slash-id (:slash-id proposed)
         result (res/appeal-fraud-group-slash (:world proposed) workflow-id "0xOther" slash-id)]
     (is (false? (:ok result)))
@@ -1409,10 +1425,9 @@
         {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
                                      world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
                                      (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
-        proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200
-                                                {:incident "test-upheld-appeal"}
-                                                {:authorization/type :governance}
-                                                {:provenance/source :test})
+        proposed (propose-test-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 "test-upheld-appeal"
+                                                 {:authorization/type :governance}
+                                                 {:provenance/source :test})
         slash-id (:slash-id proposed)
         appealed (:world (res/appeal-fraud-group-slash (:world proposed) workflow-id r-a slash-id))
         resolved (:world (res/resolve-fraud-group-appeal appealed workflow-id "0xGov" r-a true slash-id
@@ -1436,10 +1451,9 @@
         {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
                                      world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
                                      (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
-         proposed (res/propose-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200
-                                                 {:incident "test-rejected-appeal"}
-                                                 {:authorization/type :governance}
-                                                 {:provenance/source :test})
+         proposed (propose-test-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 "test-rejected-appeal"
+                                                  {:authorization/type :governance}
+                                                  {:provenance/source :test})
         slash-id (:slash-id proposed)
         appealed (:world (res/appeal-fraud-group-slash (:world proposed) workflow-id r-a slash-id))
         resolved (:world (res/resolve-fraud-group-appeal appealed workflow-id "0xGov" r-a false slash-id
@@ -1458,20 +1472,17 @@
         {:keys [world workflow-id]}
         (world-ready-for-fraud-slash-propose world0 "0xBuyer" "USDC" "0xSeller" resolver 1000 snap)]
     (is (= :empty-liable-resolvers
-           (:error (res/propose-fraud-group-slash world workflow-id "0xGov" [] 10
-                                                  {:incident "test-invalid-groups"}
-                                                  {:authorization/type :governance}
-                                                  {:provenance/source :test}))))
+           (:error (propose-test-fraud-group-slash world workflow-id "0xGov" [] 10 "test-empty-group"
+                                                    {:authorization/type :governance}
+                                                    {:provenance/source :test}))))
     (is (= :duplicate-liable-resolver
-           (:error (res/propose-fraud-group-slash world workflow-id "0xGov" [resolver resolver] 10
-                                                  {:incident "test-invalid-groups"}
-                                                  {:authorization/type :governance}
-                                                  {:provenance/source :test}))))
+           (:error (propose-test-fraud-group-slash world workflow-id "0xGov" [resolver resolver] 10 "test-duplicate-group"
+                                                    {:authorization/type :governance}
+                                                    {:provenance/source :test}))))
     (is (= :unregistered-liable-resolver
-           (:error (res/propose-fraud-group-slash world workflow-id "0xGov" [resolver "0xOther"] 10
-                                                  {:incident "test-invalid-groups"}
-                                                  {:authorization/type :governance}
-                                                  {:provenance/source :test}))))))
+           (:error (propose-test-fraud-group-slash world workflow-id "0xGov" [resolver "0xOther"] 10 "test-unregistered-group"
+                                                    {:authorization/type :governance}
+                                                    {:provenance/source :test}))))))
 
 (deftest fraud-incident-reference-fails-closed
   (let [resolver "0xRes"

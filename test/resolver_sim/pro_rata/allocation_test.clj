@@ -133,3 +133,31 @@
                   (catch clojure.lang.ExceptionInfo exception exception))]
       (is error)
       (is (= :duplicate-allocation-row-id (:reason (ex-data error)))))))
+
+(deftest integer-representations-produce-the-same-canonical-result
+  (let [base {:allocation/id :integer-normalization
+              :available 3
+              :rows [{:row/id :a :obligation/id :a :requested 3 :weight 1 :cap 3}
+                     {:row/id :b :obligation/id :b :requested 3 :weight 1 :cap 3}]}
+        long-result (allocation/allocate base)
+        bigint-result (allocation/allocate
+                       {:allocation/id :integer-normalization
+                        :available 3N
+                        :rows [{:row/id :a :obligation/id :a :requested 3N :weight 1N :cap 3N}
+                               {:row/id :b :obligation/id :b :requested 3N :weight 1N :cap 3N}]})]
+    (is (= long-result bigint-result))
+    (is (= (:request/hash long-result) (:request/hash bigint-result)))
+    (is (= (:allocation/hash long-result) (:allocation/hash bigint-result)))
+    (is (empty? (invariants/result-violations bigint-result)))))
+
+(deftest allocation-rejects-non-canonical-identity
+  (let [error (try
+                (allocation/allocate {:allocation/id :invalid-id
+                                      :available 1
+                                      :rows [{:row/id #{:not :canonical}
+                                              :obligation/id :a
+                                              :requested 1 :weight 1}]})
+                nil
+                (catch clojure.lang.ExceptionInfo exception exception))]
+    (is error)
+    (is (= :unsupported-allocation-row-id (:reason (ex-data error))))))

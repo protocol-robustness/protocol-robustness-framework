@@ -12,7 +12,6 @@
   (:require [clojure.java.io :as io]
             [clojure.data.json :as json]
             [resolver-sim.io.fixtures :as fixtures]
-            [resolver-sim.protocols.sew.accounting :as sew-accounting]
             [resolver-sim.benchmark.strategic-claim-validation :as strategic]))
 
 ;; ── Available suite definitions ─────────────────────────────────────────────
@@ -162,7 +161,8 @@
                            [])
                        (sort-by :held-adjustment/id)
                        vec)
-        check-results (sew-accounting/held-custody-closed-form-checks artifacts)
+        check-results ((requiring-resolve 'resolver-sim.protocols.sew.accounting/held-custody-closed-form-checks)
+                       artifacts)
         verdict (if (every? #(= :pass (:status %)) check-results) :pass :fail)
         artifact {:artifact/kind :game-theoretic-validation
                   :artifact/version "game-theoretic-validation.artifact.v1"
