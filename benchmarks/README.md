@@ -1,3 +1,4 @@
+<!-- public-claims: registry -->
 # Benchmarks
 
 Canonical benchmark root. Protocol-agnostic benchmark infrastructure

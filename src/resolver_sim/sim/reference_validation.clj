@@ -13,8 +13,8 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.contract-model.replay.yield :as yield-replay]
-            [resolver-sim.protocols.sew :as sew]
-            [resolver-sim.protocols.sew.io.trace-export :as trace-export]
+            [resolver-sim.yield.invariant-catalog :as yield-invariant-catalog]
+            [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.sim.reference-validation-evidence :as evidence])
   (:gen-class))
 
@@ -28,13 +28,21 @@
   [scenario _opts]
   (yield-replay/replay-yield-scenario scenario))
 
-(def ^{:doc "Map of protocol keyword → replay function. Extend this when adding new protocols."}
+(def ^{:doc "Core protocol keyword → replay function. Protocol extensions are resolved lazily."}
   protocols
-  {:sew sew/replay-with-sew-protocol
-   :yield yield-replay-wrapper})
+  {:yield yield-replay-wrapper})
 
-(def ^{:doc "Default replay function (Sew protocol)."}
-  default-replay-fn sew/replay-with-sew-protocol)
+(defn- sew-replay-wrapper [scenario opts]
+  ((requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol) scenario opts))
+
+(defn- protocol-replay-fn [protocol]
+  (case protocol
+    :yield yield-replay-wrapper
+    :sew sew-replay-wrapper
+    (throw (ex-info "Unknown reference-validation protocol" {:protocol protocol}))))
+
+(def ^{:doc "Default replay function (loaded lazily so yield needs no Sew classpath)."}
+  default-replay-fn sew-replay-wrapper)
 
 (defn- suite-root
   [& [root]]
@@ -100,21 +108,17 @@
                    trace))}))
 
 (defn- write-trace-fixture!
-  "Write trace fixture for a protocol. Sew uses pretty-printed export; yield uses simplified JSON."
-  [replay-fn result scenario trace-path]
-  (cond
-    (= replay-fn sew/replay-with-sew-protocol)
-    (trace-export/write-fixture-file
-     (trace-export/export-trace-fixture result scenario)
-     trace-path)
-
-    (= replay-fn yield-replay-wrapper)
-    (write-json! trace-path (export-yield-trace-fixture result))
-
-    :else nil))
+  "Write trace fixture for a protocol. Sew support is resolved only when requested."
+  [protocol result scenario trace-path]
+  (case protocol
+    :sew (let [export-trace-fixture (requiring-resolve 'resolver-sim.protocols.sew.io.trace-export/export-trace-fixture)
+               write-fixture-file (requiring-resolve 'resolver-sim.protocols.sew.io.trace-export/write-fixture-file)]
+           (write-fixture-file (export-trace-fixture result scenario) trace-path))
+    :yield (write-json! trace-path (export-yield-trace-fixture result))
+    nil))
 
 (defn- run-simulator-scenario
-  [sc actual-dir replay-fn replay-opts]
+  [sc actual-dir protocol replay-fn replay-opts]
   (let [{:keys [id trace-slug upgrade-path classification primary-threat
                 expectations-passed invariants-passed claim-id invariant-ids]} sc
         scenario-path (:simulator/scenario-path sc)
@@ -122,7 +126,15 @@
         trace-path (str actual-dir "/traces/" trace-slug ".trace.json")
         scenario ((requiring-resolve 'resolver-sim.io.scenarios/load-scenario-file) scenario-path)
         result (replay-fn scenario replay-opts)]
-    (evidence/verify-evidence-invariants! result (or invariant-ids []))
+    (evidence/verify-evidence-invariants!
+     result (or invariant-ids [])
+     :world-invariant-ids (if (= protocol :yield)
+                            (set (keys yield-invariant-catalog/catalog))
+                            nil)
+     :check-all-fn (when (= protocol :yield)
+                          (fn [world]
+                            {:results (yield-invariants/run-invariants
+                                       world (keys yield-invariant-catalog/catalog))})))
     (let [metrics         (or (:metrics result) {})
           inv-violations  (:invariant-violations metrics 0)
           expectations    (:expectations result)
@@ -138,7 +150,7 @@
       (when-not exp-ok?
         (throw (ex-info "reference-validation scenario expectations failed"
                         {:scenario-id id :expectation-violations exp-violations})))
-      (write-trace-fixture! replay-fn result scenario trace-path)
+      (write-trace-fixture! protocol result scenario trace-path)
       (when (.exists (io/file trace-path))
         (write-sha256! trace-path))
       (let [trace-rel-path (if (.exists (io/file trace-path))
@@ -163,9 +175,9 @@
          :trace_path trace-rel-path
          :upgrade_path upgrade-path}))))
 
-(defn- build-scenario-results [manifest actual-dir replay-fn replay-opts]
+(defn- build-scenario-results [manifest actual-dir protocol replay-fn replay-opts]
   {:suite_id (:suite/id manifest)
-   :results (mapv #(run-simulator-scenario % actual-dir replay-fn replay-opts)
+   :results (mapv #(run-simulator-scenario % actual-dir protocol replay-fn replay-opts)
                   (:scenarios manifest))})
 
 (defn- build-invariants [manifest]
@@ -276,9 +288,10 @@
   (let [root-dir (or root (.getPath (suite-root)))
         manifest (load-manifest root)
         actual-dir (str root-dir "/actual")
-        replay-fn (or (when protocol (get protocols protocol)) replay-fn default-replay-fn)]
+        protocol (or protocol (when replay-fn :custom) :sew)
+        replay-fn (or replay-fn (protocol-replay-fn protocol))]
     (.mkdirs (io/file actual-dir "traces"))
-    (let [scenario-results (build-scenario-results manifest actual-dir replay-fn replay-opts)
+    (let [scenario-results (build-scenario-results manifest actual-dir protocol replay-fn replay-opts)
           results (:results scenario-results)
           outputs {"scenario-results" scenario-results
                    "invariants" (build-invariants manifest)

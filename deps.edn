@@ -188,8 +188,7 @@
   {:main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
 
   :reference-validation
-  {:extra-paths ["protocols_src" "protocols_src/test"]
-   :main-opts ["-m" "resolver-sim.sim.reference-validation"]}
+  {:main-opts ["-m" "resolver-sim.sim.reference-validation"]}
 
   :sign-manifest
   {:main-opts ["-m" "resolver-sim.scripts.sign-manifest"]}

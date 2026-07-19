@@ -28,13 +28,22 @@
         (is (= :completed (:command/status run-result)))
         (let [verified (verify/verify! root)
               integrity (io/file root "manifest/canonical-integrity.json")
-              deferred (io/file root "manifest/forensic-claims-status.json")]
-          (is (= "passed" (get verified "status")))
-          (is (.isFile integrity))
-          (is (.isFile deferred))
-          (is (true? (get-in verified ["checks" "canonical-integrity"])))
-          (is (true? (get-in verified ["checks" "assurance-artifacts-registered"]))))
-        (spit (first-event-evidence root) "{}")
+              deferred (io/file root "manifest/forensic-claims-status.json")
+                            verdict-policy (io/file root "manifest/verdict-policy.json")]
+                        (is (= "passed" (get verified "status")))
+                        (is (.isFile integrity))
+                        (is (.isFile deferred))
+                        (is (.isFile verdict-policy))
+                        (is (true? (get-in verified ["checks" "canonical-integrity"])))
+                        (is (true? (get-in verified ["checks" "verdict-policy"])))
+                        (is (true? (get-in verified ["checks" "assurance-artifacts-registered"])))
+                        ;; The policy self-commitment is an independent verifier gate; a
+                        ;; changed policy cannot be relabelled as the policy that ran.
+                        (spit verdict-policy "{}")
+                        (let [tampered (verify/verify! root)]
+                          (is (= "failed" (get tampered "status")))
+                          (is (false? (get-in tampered ["checks" "verdict-policy"])))) )
+                      (spit (first-event-evidence root) "{}")
         (let [result (verify/verify! root)]
           (is (= "failed" (get result "status")))
           (is (false? (get-in result ["checks" "terminal-artifacts-readable"]))))

@@ -1,6 +1,7 @@
 {:public-headline-claim-registry/version 1
- :public-headline-claim-registry/description
- "Versioned source of truth for public benchmark headlines. A claim may be
+ :public/documents ["README.md" "benchmarks/README.md" "docs/generated/public-headline-claims.md"]
+  :public-headline-claim-registry/description
+  "Versioned source of truth for public benchmark headlines. A claim may be
   published only when its exact evaluator implementation, evaluation policy,
   and evidence package are each pinned by SHA-256. Draft entries are retained
   for review but never rendered as public claims."

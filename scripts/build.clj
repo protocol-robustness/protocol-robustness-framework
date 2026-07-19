@@ -37,6 +37,20 @@
             (recur (.read in buffer))))))
     (format "%064x" (java.math.BigInteger. 1 (.digest digest)))))
 
+(defn- write-distribution-provenance! [jar-file variant main-class]
+  (let [jar (io/file jar-file)
+        target (io/file (str jar-file ".provenance.json"))
+        value {"schema_version" "prf-distribution-provenance.v1"
+               "variant" (name variant)
+               "version" version
+               "main_class" (str main-class)
+               "jar_file" (.getName jar)
+               "jar_sha256" (str "sha256:" (sha256-file jar))
+               "built_at" (str (java.time.Instant/now))}]
+    (spit target (json/write-str value))
+    (println "  Wrote distribution provenance:" (.getName target))
+    value))
+
 (defn- corpus-entry-files [entry]
   (let [paths (:paths entry)
         files (:files entry)
@@ -248,9 +262,12 @@
                  :main main-sym}))))
 
     (when is-sew
-      (validate-built-sew-jar! uber-file))
+          (validate-built-sew-jar! uber-file))
 
-    ;; Cleanup
+        (doseq [file (if is-prf ["target/prf.jar"] [jar-file uber-file])]
+          (write-distribution-provenance! file variant main-cls))
+
+        ;; Cleanup
     (b/delete {:path class-dir})
     (io/delete-file deps-path)
 

@@ -50,6 +50,13 @@
   "scenario-id": "s67-reentrancy-callback",
   "title": "s67-reentrancy-callback",
   "id": "scenarios\/s67-reentrancy-callback",
+  "expected-errors": [
+    {
+      "seq": 2,
+      "action": "execute_reentrant_withdraw",
+      "error": "reentrancy-guard-violated"
+    }
+  ],
   "agents": [
     {
       "id": "attacker",

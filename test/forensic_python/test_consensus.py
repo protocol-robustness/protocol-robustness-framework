@@ -19,7 +19,6 @@ if str(_scripts_root) not in sys.path:
     sys.path.insert(0, str(_scripts_root))
 
 from forensic import consensus
-from tests.forensic_python.conftest import make_minimal_bundle
 
 
 def _make_bundle_with_hash(tmp_path: Path, bundle_hash: str,

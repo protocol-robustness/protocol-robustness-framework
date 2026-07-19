@@ -13,7 +13,8 @@
 (def ^:private known
   {"manifest/run.json" ["manifest.run" "run-manifest" "benchmark-run-manifest.v1"]
    "manifest/sensitivity-report.json" ["manifest.sensitivity-report" "sensitivity-report" "sensitivity-report.v2"]
-      "benchmark/execution/runner-finalization.json" ["benchmark.runner-finalization" "runner-finalization" "runner-finalization.v1"]
+      "manifest/verdict-policy.json" ["manifest.verdict-policy" "verdict-policy" "verdict-policy.v1"]
+         "benchmark/execution/runner-finalization.json" ["benchmark.runner-finalization" "runner-finalization" "runner-finalization.v1"]
    "benchmark/definition.edn" ["benchmark.definition" "benchmark.definition" "edn.v1"]
    "benchmark/execution-plan.edn" ["benchmark.execution-plan" "benchmark.execution-plan" "benchmark-execution-plan.v1"]
    "benchmark/index.edn" ["benchmark.index" "benchmark.index" "benchmark-artifact-index.v1"]

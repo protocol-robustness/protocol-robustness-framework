@@ -37,3 +37,16 @@ jobs:
 
       - name: Run full unit tests (framework + Sew)
         run: bb test:unit
+
+      - name: Validate public claim bindings
+        run: |
+          bb public-claims:generate
+          bb claim-bindings:validate
+
+      - name: Upload claim-binding report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claim-binding-report
+          path: target/claim-binding-report.json
+          if-no-files-found: error

@@ -25,13 +25,13 @@
 (def ^:private supported-run-types #{:single-scenario :benchmark})
 (def ^:private single-scenario-artifacts
   #{:input-snapshot :scenario-finalization :runner-finalization :run-finalization
-    :canonical-assurance :artifact-registry :registry-validation :execution-dag})
+      :canonical-assurance :verdict-policy :artifact-registry :registry-validation :execution-dag})
 (def ^:private benchmark-artifacts
   #{:runner-finalization :benchmark-definition :execution-plan :benchmark-index
     :benchmark-evidence :content-registry :benchmark-conclusion :benchmark-conservation
-    :benchmark-finalization :benchmark-assurance :canonical-integrity :forensic-status})
+    :benchmark-finalization :benchmark-assurance :canonical-integrity :verdict-policy :forensic-status})
 
-(defn- required-artifacts [run-type]
+    (defn- required-artifacts [run-type]
   (case run-type
     :single-scenario single-scenario-artifacts
     :benchmark benchmark-artifacts
@@ -68,13 +68,14 @@
 
 (defn build
   [{:keys [run-id scenario-id execution-id run-type bundle-root-hash artifacts input-snapshot runner-finalization run-finalization
-           canonical-assurance execution-dag scenario-finalization artifact-registry registry-validation]}]
+           canonical-assurance verdict-policy execution-dag scenario-finalization artifact-registry registry-validation]}]
   (let [artifacts (or artifacts {:input-snapshot input-snapshot
                                  :scenario-finalization scenario-finalization
                                  :runner-finalization runner-finalization
                                  :run-finalization run-finalization
                                  :canonical-assurance canonical-assurance
-                                 :artifact-registry artifact-registry
+                                                                  :verdict-policy verdict-policy
+                                                                  :artifact-registry artifact-registry
                                  :registry-validation registry-validation
                                  :execution-dag execution-dag})
         base {:run-package/schema-version schema-version

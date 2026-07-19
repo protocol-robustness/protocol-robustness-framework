@@ -18,6 +18,8 @@ This directory contains versioned JSON Schemas for interchange artifacts. Schema
 | `evidence-envelope.v1.json` | Evidence transport envelope | Evidence import/export tooling | Envelope around evidence payloads. |
 | `event-evidence.v1.json` | Event-level evidence | Evidence pipeline | See the evidence specifications under `docs/specs/evidence/`. |
 | `trace-end-projection-v1.json` | Terminal trace projection | Replay and equivalence tooling | Used for terminal-state comparison and reporting. |
+| `claim-binding.v1.json` | Public headline claim provenance binding | Claim-binding CI gate | Requires stable claim identity, evaluator/source hash, policy hash, benchmark binding, and immutable evidence package fields. |
+| `benchmark-content-registry.v1.json` | Inner benchmark evidence-content inventory | Benchmark runner and read-only verifier | Sorted content-addressed inventory; excludes its own finalization and outer-package closure artifacts. |
 | `benchmark-conclusion.v1.json` | Benchmark conclusion projection | Benchmark pipeline | Written before inventory/registry finalization; declares outcome, counts, scope. |
 | `benchmark-assurance.v1.json` | Benchmark assurance/input-set commitment | Benchmark pipeline | Aggregates required artifact presence, conservation binding, and input-set root. |
 | `benchmark-finalization.v1.json` | Benchmark cryptographic finalization | Benchmark pipeline | Commits to finalized hashes; excluded from its own registry. |

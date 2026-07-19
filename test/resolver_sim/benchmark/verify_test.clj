@@ -5,7 +5,8 @@
             [resolver-sim.benchmark.verify :as verify]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.hash.canonical :as canonical]
-            [resolver-sim.run.package-index :as package-index]))
+                        [resolver-sim.run.package-index :as package-index]
+                        [resolver-sim.run.verdict-policy :as verdict-policy]))
 
 (defn- temp-root [] (.toFile (java.nio.file.Files/createTempDirectory "benchmark-verify-" (make-array java.nio.file.attribute.FileAttribute 0))))
 (defn- delete-tree! [root] (doseq [f (reverse (file-seq root))] (io/delete-file f true)))
@@ -21,7 +22,7 @@
         conclusion (f "benchmark/conclusion.json") conservation (f "benchmark/assertions/conservation.json")
         assurance (f "benchmark/assertions/benchmark-assurance.json") content (f "benchmark/evidence/content-registry.json")
         finalization (f "benchmark/finalization.json") integrity (f "benchmark/assertions/canonical-integrity.json")
-        deferred (f "benchmark/assertions/forensic-claims-status.json") package-index (f "manifest/run-package-index.json")
+        deferred (f "benchmark/assertions/forensic-claims-status.json") verdict-policy-file (f "manifest/verdict-policy.json") package-index (f "manifest/run-package-index.json")
         registry (f "manifest/artifacts.json") validation (f "manifest/artifacts-validation.json") completion (f "completion.json")]
     (doseq [[file content] [[definition "{:benchmark/id :b}"] [plan "{:executions []}"] [scenario-input "{:scenario/id :s}"] [conclusion "{\"outcome\":\"pass\"}"]]]
       (io/make-parents file) (spit file content))
@@ -45,15 +46,29 @@
                                 "benchmark_finalization" {"sha256" (sha finalization)} "benchmark_assurance" {"sha256" (sha assurance)}
                                 "conservation" {"sha256" (sha conservation)} "evidence_content_registry" {"sha256" (sha content)}})
         (write-json! deferred {"schema_version" "forensic-claims-status.v1" "status" "deferred" "reason_code" "unsigned-forensic-signing-not-configured"})
-        (package-index/write! package-index
+                (verdict-policy/write! verdict-policy-file
+                                       (verdict-policy/build {:run-id "r" :run-type "benchmark"
+                                                              :policy-id "fixture.v1" :semantic-outcome "pass"
+                                                              :inputs inputs
+                                                              :registries {"evidence_policy_hash" "fixture-evidence-policy"
+                                                                           "claim_definition_registry_hash" "fixture-claims"
+                                                                           "evaluator_registry" "fixture-evaluator"}
+                                                              :semantic-environment {"protocol_id" "benchmark" "runner_id" "fixture-runner"}
+                                                                                                                    :evaluator-implementation {"source_tree_hash" "fixture-source-tree"
+                                                                                                                                               "source_tree_hash_algorithm" "fixture.v1"
+                                                                                                                                               "evaluator_id" "fixture-evaluator"}
+                                                                                                                                                                                                     :distribution-provenance {"mode" "source-classpath"
+                                                                                                                                                                                                                               "reason" "fixture"}}))
+                (package-index/write! package-index
                               {:run-id "r"
                                :run-type :benchmark
                                :bundle-root-hash (sha content)
                                :artifacts {:runner-finalization {:ref "benchmark/finalization.json" :sha256 (sha finalization)}
                                            :benchmark-finalization {:ref "benchmark/finalization.json" :sha256 (sha finalization)}
                                            :benchmark-assurance {:ref "benchmark/assertions/benchmark-assurance.json" :sha256 (sha assurance)}
-                                           :canonical-integrity {:ref "benchmark/assertions/canonical-integrity.json" :sha256 (sha integrity)}}})
-        (let [paths ["benchmark/definition.edn" "benchmark/execution-plan.edn" "benchmark/executions/exec-1/input/scenario.edn" "benchmark/conclusion.json" "benchmark/assertions/conservation.json" "benchmark/assertions/benchmark-assurance.json" "benchmark/evidence/content-registry.json" "benchmark/finalization.json" "benchmark/assertions/canonical-integrity.json" "benchmark/assertions/forensic-claims-status.json" "manifest/run-package-index.json"]]
+                                           :canonical-integrity {:ref "benchmark/assertions/canonical-integrity.json" :sha256 (sha integrity)}
+                                                                                      :verdict-policy {:ref "manifest/verdict-policy.json" :sha256 (sha verdict-policy-file)}}})
+        (let [paths ["benchmark/definition.edn" "benchmark/execution-plan.edn" "benchmark/executions/exec-1/input/scenario.edn" "benchmark/conclusion.json" "benchmark/assertions/conservation.json" "benchmark/assertions/benchmark-assurance.json" "benchmark/evidence/content-registry.json" "benchmark/finalization.json" "benchmark/assertions/canonical-integrity.json" "benchmark/assertions/forensic-claims-status.json" "manifest/verdict-policy.json" "manifest/run-package-index.json"]]
           (write-json! registry {"artifacts" (entries root paths)})
           (write-json! validation {"status" "passed"})
           (write-json! completion {"schema_version" "benchmark-completion.v1" "run_type" "benchmark" "benchmark_id" "b" "run_id" "r"

@@ -6,6 +6,10 @@
   {:doc "Validate the public headline-claim registry and generate public copy."
    :task (shell "clojure" "-M" "-m" "scripts.generate-public-headline-claims")}
 
+  claim-bindings:validate
+  {:doc "CI acceptance gate for public claim bindings; writes target/claim-binding-report.json."
+   :task (shell "clojure" "-M:with-sew" "-m" "scripts.validate-claim-bindings")}
+
   run:scenario:legacy
   {:doc "Retired legacy scenario runner. Use bb run:scenario <scenario> --run-root <root>."
    :task (do

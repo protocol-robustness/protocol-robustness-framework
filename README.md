@@ -1,3 +1,4 @@
+<!-- public-claims: registry -->
 # Protocol Robustness Framework
 
 A framework for adversarial multi-actor scenario testing, specializing in robustness analysis for escrow, dispute-resolution, and state-machine protocols.

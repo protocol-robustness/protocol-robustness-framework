@@ -59,33 +59,37 @@
         jobs (parse-job-limit)
         sem (java.util.concurrent.Semaphore. jobs)
         futures (mapv (fn [i sym]
-                        (let [ns-artifact-dir (str tmp-root "/" (format "%03d" i) "-" (munge (str sym)))]
+                        (let [ns-artifact-dir (str tmp-root "/" (format "%03d" i) "-" (munge (str sym)))
+                              out-writer (java.io.StringWriter.)
+                              err-writer (java.io.StringWriter.)]
                           (.mkdirs (io/file ns-artifact-dir))
                           (future
                             (.acquire sem)
                             (try
-                              (chain/with-fresh-evidence-context*
-                               (fn []
-                                 (node/with-fresh-registry
-                                   (ar/with-fresh-registry*
-                                    (fn []
-                                      (binding [evcfg/*artifact-dir* ns-artifact-dir
-                                                chain/*allow-dirty* true
-                                                cap/*capture-event-evidence!* (if noop-capture?
-                                                                                noop-capture
-                                                                                cap/*capture-event-evidence!*)]
-                                        (let [r (try (t/run-tests sym)
-                                                     (catch Throwable t
-                                                       (when (instance? InterruptedException t)
-                                                         (.interrupt (Thread/currentThread)))
-                                                       (println "ERROR in" sym ":" (.getMessage t))
-                                                       (.printStackTrace t)
-                                                       {:test 0 :pass 0 :fail 0 :error 1}))]
-                                          {:sym sym :result r})))))))
+                              (binding [*out* (java.io.PrintWriter. out-writer)
+                                        *err* (java.io.PrintWriter. err-writer)]
+                                (chain/with-fresh-evidence-context*
+                                 (fn []
+                                   (node/with-fresh-registry
+                                     (ar/with-fresh-registry*
+                                      (fn []
+                                        (binding [evcfg/*artifact-dir* ns-artifact-dir
+                                                  chain/*allow-dirty* true
+                                                  cap/*capture-event-evidence!* (if noop-capture?
+                                                                                  noop-capture
+                                                                                  cap/*capture-event-evidence!*)]
+                                          (let [r (try (t/run-tests sym)
+                                                       (catch Throwable t
+                                                         (when (instance? InterruptedException t)
+                                                           (.interrupt (Thread/currentThread)))
+                                                         (println "ERROR in" sym ":" (.getMessage t))
+                                                         (.printStackTrace t)
+                                                         {:test 0 :pass 0 :fail 0 :error 1}))]
+                                            {:sym sym :result r :output (str out-writer) :err-output (str err-writer)}))))))))
                               (finally
                                 (.release sem))))))
-                      (range)
-                      syms)
+                        (range)
+                        syms)
         results (mapv deref futures)
         elapsed (- (System/currentTimeMillis) start)
         total {:test (apply + (map (comp :test :result) results))
@@ -94,10 +98,16 @@
                :error (apply + (map (comp :error :result) results))}
         failed? (pos? (+ (:fail total) (:error total)))
         keep? (or failed? (some? (System/getenv "KEEP_PARALLEL_TEST_ARTIFACTS")))]
-    ;; Per-namespace results
+    ;; Serialize per-namespace output (prevent interleaving from concurrent namespaces)
     (println)
-    (doseq [{:keys [sym result]} results]
+    (doseq [{:keys [sym result output err-output]} results]
       (let [label (str sym)]
+        (println)
+        (println "─────" label "─────")
+        (print output)
+        (when (not= "" err-output)
+          (print err-output))
+        (flush)
         (if (and (zero? (:fail result)) (zero? (:error result)))
           (println (str "  PASS  " label "  (" (:test result) " tests)"))
           (println (str "  FAIL  " label "  " (:fail result) " fail, " (:error result) " errors, "

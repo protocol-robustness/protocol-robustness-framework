@@ -17,7 +17,10 @@
             [resolver-sim.io.input-source :as input-source]
                         [resolver-sim.run.runner-finalization :as runner-finalization]
                                                 [resolver-sim.run.package-index :as package-index]
-                                                [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
+                                                                                                [resolver-sim.run.verdict-policy :as verdict-policy]
+                                                                                                                                                [resolver-sim.forensic.source-hash :as source-hash]
+                                                                                                                                                                                                [resolver-sim.run.distribution-provenance :as distribution]
+                                                                                                                                                                                                [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (declare sha-ref)
@@ -40,7 +43,8 @@
     "benchmark/finalization.json"
     "benchmark/assertions/canonical-integrity.json"
     "benchmark/assertions/forensic-claims-status.json"
-    "manifest/artifacts.json"
+        "manifest/verdict-policy.json"
+        "manifest/artifacts.json"
     "manifest/artifacts-validation.json"
     "manifest/run-package-index.json"
     "completion.json" ".run-state" ".run.lock"})
@@ -166,6 +170,30 @@
       :registry_validation_ref "manifest/artifacts-validation.json"
       :registry_validation_sha256 (str "sha256:" (lifecycle/sha256-file validation))})))
 
+(defn- write-verdict-policy! [context evidence conclusion]
+  (let [root (io/file (str (:run/root context)))
+        assurance (json/read-str (slurp (io/file root "benchmark/assertions/benchmark-assurance.json")))
+        artifact (verdict-policy/build
+                  {:run-id (:run/id context)
+                   :run-type "benchmark"
+                   :policy-id "canonical-benchmark-verdict.v1"
+                   :semantic-outcome (get conclusion "outcome")
+                   :inputs (get assurance "input_set")
+                   :registries {"evidence_policy_hash" "benchmark-evidence-policy.v1"
+                                "claim_definition_registry_hash" "benchmark-claim-registry.v1"
+                                "evaluator_registry" "resolver-sim.benchmark.claims/evaluator-registry.v1"}
+                   :semantic-environment {"protocol_id" "benchmark"
+                                          "runner_id" "runner/local-clojure"
+                                          "benchmark_id" (str (:benchmark/id context))
+                                          "execution_plan_sha256" (verdict-policy/sha-ref (io/file root "benchmark/execution-plan.edn"))}
+                                                             :evaluator-implementation (let [source (source-hash/source-hash)]
+                                                                                         {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
+                                                                                          "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
+                                                                                          "source_roots" (vec (or (:source/included-roots source) []))
+                                                                                          "evaluator_id" "resolver-sim.benchmark.claims/evaluator-registry.v1"})
+                                                                                                             :distribution-provenance (distribution/distribution-identity)})]
+                                                                                                                 (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
+
 (defn- write-package-index! [context]
   (let [root (io/file (str (:run/root context)))
         ref (fn [path]
@@ -187,7 +215,8 @@
                   :benchmark-finalization (ref "benchmark/finalization.json")
                   :benchmark-assurance (ref "benchmark/assertions/benchmark-assurance.json")
                   :canonical-integrity (ref "benchmark/assertions/canonical-integrity.json")
-                  :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}})))
+                                    :verdict-policy (ref "manifest/verdict-policy.json")
+                                    :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
@@ -390,7 +419,8 @@
                                   :write-content-registry (fn [_ _] (write-content-registry! context))
                                   :write-finalization (fn [_ _] (write-finalization! context @benchmark-conclusion))
                                   :write-canonical-assurance (fn [_ _] (write-canonical-assurance! context))
-                                  :write-package-index (fn [_ _] (write-package-index! context))
+                                                                    :write-verdict-policy (fn [_ result] (write-verdict-policy! context (:evidence result) @benchmark-conclusion))
+                                                                    :write-package-index (fn [_ _] (write-package-index! context))
                                   :build-inventory (fn [_ _] (inventory/build! context))
                                   :finalize-registry (fn [_ _] (registry/finalize! (:run/root context)))
                                   :validate-registry (fn [_ _] (validate-registry! context))
