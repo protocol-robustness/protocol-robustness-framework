@@ -1155,8 +1155,22 @@
                  :new-level    new-level
                  :new-resolver new-resolver))))))
 
+(defn- resolver-has-other-active-disputes?
+  "True when resolver-addr is assigned to at least one :disputed escrow on a
+   workflow OTHER than exclude-wf-id.  Used to prevent freezing a resolver
+   who has unrelated active disputes that governance has not rotated away."
+  [world resolver-addr exclude-wf-id]
+  (boolean
+   (some (fn [[wf-id et]]
+           (and (= :disputed (:escrow-state et))
+                (= resolver-addr (:dispute-resolver et))
+                (not= wf-id exclude-wf-id)))
+         (:escrow-transfers world))))
+
 (defn execute-fraud-slash
   "Execute a previously proposed fraud slash after the timelock/appeal window.
+   Guards against freezing a resolver with active disputed escrows to avoid
+   resolver-not-frozen-on-assign invariant violations.
    `slash-id` must be a canonical protocol entity ID belonging to `workflow-id`.
    Mirrors: ResolverSlashingModuleV1.executeSlash"
   ([world workflow-id] (execute-fraud-slash world workflow-id workflow-id))
@@ -1185,6 +1199,14 @@
        ;; cannot be ordered to defeat a timely appeal.
        (<= (time-ctx/block-ts world) (:appeal-deadline pending))
        (t/fail :timelock-not-expired)
+
+       ;; Prevent freeze-on-active-dispute: the resolver must not be frozen
+       ;; while assigned to a :disputed escrow on a DIFFERENT workflow.
+       ;; The same-workflow dispute is allowed because keeper settles it
+       ;; independently.  For other-workflow disputes, governance must rotate
+       ;; the resolver away first.
+       (resolver-has-other-active-disputes? world (:resolver pending) workflow-id)
+       (t/fail :freeze-blocked-active-dispute)
 
        :else
        (let [resolver        (:resolver pending)
@@ -1277,9 +1299,19 @@
                        evidence (assoc evidence
                                        :world/before-full-hash world-before-hash
                                        :world/after-full-hash (hc/hash-with-intent {:hash/intent :world-structure} world-slashed))]
-                   (cap/capture-event-evidence! evidence)
-                   (slashing-ev/write-allocation-result-artifact! artifact)))
-              (t/ok world')))))))))
+                    (cap/capture-event-evidence! evidence)
+                    (slashing-ev/write-allocation-result-artifact! artifact))
+               (cap/capture-event-evidence!
+                :resolver-frozen
+                {:freeze/before {:frozen-until (get-in world-slashed [:resolver-frozen-until resolver])}}
+                {:freeze/after  {:frozen-until freeze-until}}
+                {:freeze/resolver resolver
+                 :freeze/duration freeze-duration
+                 :freeze/trigger :execute-fraud-slash}
+                nil
+                {:world-before world-slashed
+                 :world-after world'}))
+               (t/ok world')))))))))
 
 (defn propose-fraud-slash
   "Governance (TIMELOCK) proposes a manual fraud slash for a resolver (Phase M).
@@ -1672,29 +1704,32 @@
              ;; An upheld appeal stays its immutable row and consumes neither
              ;; stake nor epoch capacity.
              epoch-cap-bps (get-in world [:params :slash-epoch-cap-bps] 2000)
-             preflight-violations
-             (vec
-              (for [{:keys [id paid]} (:allocations allocation)
-                    :let [appeal (get-in pending [:appeals id])
-                          stayed? (= :upheld (:status appeal))
-                          current-stake (reg/get-stake world id)
-                          epoch-slashed (get-in world [:resolver-epoch-slashed id :amount] 0)
-                          projected (+ epoch-slashed (if stayed? 0 paid))
-                          epoch-basis (+ current-stake epoch-slashed)]
-                    :when (and (not stayed?)
-                               (or (< current-stake paid)
-                                   (> (* projected 10000)
-                                      (* epoch-basis epoch-cap-bps))))]
-                {:member id
-                 :planned-debit paid
-                 :current-stake current-stake
-                 :epoch-slashed epoch-slashed
-                 :projected-epoch-slashed projected
-                 :epoch-basis epoch-basis
-                 :epoch-cap-bps epoch-cap-bps
-                 :reason (if (< current-stake paid)
-                           :insufficient-current-stake
-                           :slash-epoch-cap-exceeded)}))
+              preflight-violations
+              (vec
+               (for [{:keys [id paid]} (:allocations allocation)
+                     :let [appeal (get-in pending [:appeals id])
+                           stayed? (= :upheld (:status appeal))
+                           current-stake (reg/get-stake world id)
+                           epoch-slashed (get-in world [:resolver-epoch-slashed id :amount] 0)
+                           projected (+ epoch-slashed (if stayed? 0 paid))
+                           epoch-basis (+ current-stake epoch-slashed)
+                           active-dispute? (resolver-has-other-active-disputes? world id workflow-id)]
+                     :when (and (not stayed?)
+                                (or active-dispute?
+                                    (< current-stake paid)
+                                    (> (* projected 10000)
+                                       (* epoch-basis epoch-cap-bps))))]
+                 {:member id
+                  :planned-debit paid
+                  :current-stake current-stake
+                  :epoch-slashed epoch-slashed
+                  :projected-epoch-slashed projected
+                  :epoch-basis epoch-basis
+                  :epoch-cap-bps epoch-cap-bps
+                  :reason (cond
+                            active-dispute? :freeze-blocked-active-dispute
+                            (< current-stake paid) :insufficient-current-stake
+                            :else :slash-epoch-cap-exceeded)}))
              freeze-duration (* (get-in world [:params :freeze-duration-days] 3)
                                 (time-ctx/tick-seconds world))
              freeze-until (+ (time-ctx/block-ts world) freeze-duration)
@@ -1712,17 +1747,27 @@
                                                         :execution-status :stayed
                                                         :appeal-status :upheld))
 
-                      (pos? paid)
-                      (let [r (reg/slash-resolver-stake world id paid nil 0 workflow-id)
-                            w (-> (:world r)
-                                  (assoc-in [:resolver-frozen-until id] freeze-until)
-                                  (update-in [:resolver-epoch-slashed id :amount] (fnil + 0) paid)
-                                  (update-unavailability id true))]
-                        (assoc acc :world w
-                               :stake-evidence-hashes (conj stake-evidence-hashes (:stake-evidence-hash r))
-                               :payments (conj payments (assoc allocation-row :actual-paid paid
-                                                               :execution-status :paid
-                                                               :appeal-status (:status appeal)))))
+                       (pos? paid)
+                       (let [r (reg/slash-resolver-stake world id paid nil 0 workflow-id)
+                             w (-> (:world r)
+                                   (assoc-in [:resolver-frozen-until id] freeze-until)
+                                   (update-in [:resolver-epoch-slashed id :amount] (fnil + 0) paid)
+                                   (update-unavailability id true))]
+                         (cap/capture-event-evidence!
+                          :resolver-frozen
+                          {:freeze/before {:frozen-until (get-in world [:resolver-frozen-until id])}}
+                          {:freeze/after  {:frozen-until freeze-until}}
+                          {:freeze/resolver id
+                           :freeze/duration freeze-duration
+                           :freeze/trigger :execute-fraud-group-slash}
+                          nil
+                          {:world-before world
+                           :world-after w})
+                         (assoc acc :world w
+                                :stake-evidence-hashes (conj stake-evidence-hashes (:stake-evidence-hash r))
+                                :payments (conj payments (assoc allocation-row :actual-paid paid
+                                                                :execution-status :paid
+                                                                :appeal-status (:status appeal)))))
 
                       :else
                       (update acc :payments conj (assoc allocation-row :actual-paid 0

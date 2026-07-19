@@ -32,6 +32,43 @@
 (defn- token= [a b]
   (= (normalize-token a) (normalize-token b)))
 
+(defn classify-shared-withdrawal-position
+  "Classify a position before choosing its shared-withdrawal request amount.
+   A deferred amount is lifecycle-scoped: it is authoritative only for an
+   unwinding position with an active, later-liquidity deferred record."
+  [position]
+  (let [base-status (:status position)
+        deferred (:deferred-position position)
+        deferred-eligible? (and (= :deferred-withdrawal (:position/type deferred))
+                                (= :active (:position/status deferred))
+                                (= :later-liquidity (:position/eligibility deferred))
+                                (pos? (long (:position/current-amount deferred 0))))]
+    (cond
+      (and (= :active base-status) (nil? deferred))
+      {:classification :ordinary-base-request
+       :amount/source :base-position}
+
+      (= :active base-status)
+      {:classification :position-state-contradiction
+       :base-status base-status
+       :deferred-status (:position/status deferred)
+       :reason :active-base-with-stale-deferred-position}
+
+      (and (= :unwinding base-status) deferred-eligible?)
+      {:classification :eligible-deferred-request
+       :amount/source :deferred-position}
+
+      (= :unwinding base-status)
+      {:classification :invalid-incomplete-deferred-state
+       :base-status base-status
+       :deferred-status (:position/status deferred)
+       :reason :unwinding-without-eligible-deferred-position}
+
+      :else
+      {:classification :ineligible-position
+       :base-status base-status
+       :reason :position-not-active-or-unwinding})))
+
 (defn- get-in-token [world path module-id token & keys]
   (let [tok (normalize-token token)
         v   (or (get-in world (into path [module-id tok]))
@@ -51,19 +88,23 @@
   (attr/with-attribution {:deposit/module-id (:module/id module)
                           :deposit/position-id (:owner/id op)
                           :deposit/token (:token op)}
-    (let [oid    (:owner/id op)
-          amount (:amount op)
-          token  (normalize-token (:token op))
-          mid    (:module/id module)
-          index  (m/ratio (or (get-in-token world [:yield/indices] mid token) 1))
-          shares (m/shares-from-principal-and-index (long amount) index)
-          world' (assoc-in world [:yield/positions oid]
-                           (pos/make-position {:owner/id oid
-                                               :module/id mid
-                                               :token token
-                                               :principal (long amount)
-                                               :shares shares
-                                               :entry-index index}))]
+     (let [oid    (:owner/id op)
+           amount (:amount op)
+           token  (normalize-token (:token op))
+           mid    (:module/id module)
+           index  (m/ratio (or (get-in-token world [:yield/indices] mid token) 1))
+           shares (m/shares-from-principal-and-index (long amount) index)
+           seq-num (get-in world [:yield/deposit-seq mid token] 0)
+           world' (-> world
+                      (assoc-in [:yield/deposit-seq mid token] (inc seq-num))
+                      (assoc-in [:yield/positions oid]
+                                (pos/make-position {:owner/id oid
+                                                    :module/id mid
+                                                    :token token
+                                                    :principal (long amount)
+                                                    :shares shares
+                                                    :entry-index index
+                                                    :original-priority seq-num})))]
       (evidence/capture-event-evidence!
        :yield-deposit
        {:deposit/before-positions (:yield/positions world)}
@@ -409,7 +450,9 @@
                                      :position/parent-id (:position/id prior-lineage)
                                      :position/origin-propagation-id pid
                                      :position/round round
-                                     :position/original-priority (or (:position/original-priority prior-lineage) 0)
+                                      :position/original-priority (or (:position/original-priority prior-lineage)
+                                                                     (:original-priority position)
+                                                                     0)
                                                                           :position/original-obligation (or (:position/original-obligation prior-lineage)
                                                                                                             (:eligible-obligation p))
                                                                           :position/current-amount deferred
@@ -454,6 +497,7 @@
                                                   :outcome-hash (:outcome-ref propagation)
                          :policy-hash (get-in propagation [:propagation-policy :policy/hash])
                          :application-key application-key
+                         :allocation/invocation-context (:allocation/invocation-context propagation)
                                                   :application-order application-order
                                                                            :accounting-entry-set-hash (:accounting-entry-set-hash propagation)
                                                   :source-account {:account :shared-liquidity :token token
@@ -500,7 +544,12 @@
                           :selection-source (if requested-policy-id :operation :runtime-default)}
         mid (:module/id module)
         token (normalize-token token)
-        owners (vec (sort (or owner-ids [])))]
+        ;; Caller order is never a canonical allocation input. Position priority
+        ;; is primary; owner identity makes equal-priority ordering deterministic.
+        owners (vec (sort-by (fn [owner]
+                               [(get-in world [:yield/positions owner :original-priority] Long/MAX_VALUE)
+                                (str owner)])
+                             (or owner-ids [])))]
     (when-not (seq owners)
       (throw (ex-info "Shared withdrawal requires at least one owner" {:op op})))
     (when-not (= (count owners) (count (distinct owners)))
@@ -517,23 +566,24 @@
       (throw (ex-info "Shared withdrawal effective caps must be non-negative integers for declared owners"
                       {:owner-ids owners :effective-caps effective-caps})))
     (let [positions (mapv #(get-in world [:yield/positions %]) owners)
-          deferred-eligible? (fn [p]
-                               (let [d (:deferred-position p)]
-                                 (and (= :unwinding (:status p))
-                                      (= :deferred-withdrawal (:position/type d))
-                                      (= :active (:position/status d))
-                                      (= :later-liquidity (:position/eligibility d))
-                                      (pos? (long (:position/current-amount d 0))))))
-          eligible? (fn [p]
-                      (and p (= mid (:module/id p)) (token= token (:token p))
-                           (or (= :active (:status p)) (deferred-eligible? p))))
-          invalid (->> (map vector owners positions)
-                       (remove (fn [[_ p]] (eligible? p)))
-                       (map first)
+          classifications (mapv classify-shared-withdrawal-position positions)
+          valid-classifications #{:ordinary-base-request :eligible-deferred-request}
+          invalid (->> (map vector owners positions classifications)
+                       (remove (fn [[_ p classification]]
+                                 (and p
+                                      (= mid (:module/id p))
+                                      (token= token (:token p))
+                                      (valid-classifications (:classification classification)))))
                        vec)]
       (when (seq invalid)
-        (throw (ex-info "Shared withdrawal requires active base positions or eligible deferred positions in one module and token"
-                        {:module-id mid :token token :invalid-owner-ids invalid})))
+        (let [[owner _ classification] (first invalid)]
+          (throw (ex-info "Shared withdrawal position is invalid"
+                          {:module-id mid
+                           :token token
+                           :owner-id owner
+                           :classification (:classification classification)
+                           :reason (:reason classification)
+                           :invalid-owner-ids (mapv first invalid)}))))
       (attr/with-attribution {:withdraw/module-id mid
                               :withdraw/token token
                               :withdraw/position-ids owners
@@ -556,11 +606,19 @@
               accrued-positions (mapv #(get-in accrued-world [:yield/positions %]) owners)
               requested-by-owner (into {}
                                        (map (fn [oid p]
-                                              [oid (if-let [deferred (:deferred-position p)]
-                                                     (long (:position/current-amount deferred 0))
-                                                     (reduce + 0 (vals (:requested
+                                              (let [{:keys [classification]} (classify-shared-withdrawal-position p)]
+                                                [oid (case classification
+                                                       :eligible-deferred-request
+                                                       (long (get-in p [:deferred-position :position/current-amount] 0))
+
+                                                       :ordinary-base-request
+                                                       (reduce + 0 (vals (:requested
                                                                          (partial-fill/calculate-fulfillment
-                                                                          Long/MAX_VALUE p)))))] )
+                                                                          Long/MAX_VALUE p))))
+
+                                                       (throw (ex-info "Shared withdrawal position became invalid during accrual"
+                                                                       {:owner-id oid
+                                                                        :classification classification})))]))
                                             owners accrued-positions))
               rows (mapv (fn [oid]
                            (let [position (get-in accrued-world [:yield/positions oid])
@@ -580,8 +638,8 @@
               policy (merge partial-fill/default-partial-fill-policy
                             {:mode :pro-rata
                              :rounding-policy :largest-remainder
-                             :allocation-ordering :canonical-owner-id-ascending
-                             :rounding-tie-break :canonical-owner-id-ascending})
+                             :allocation-ordering :original-priority-ascending
+                             :rounding-tie-break :original-priority-ascending})
               settlement (-> (partial-fill/calculate-fulfillment-pro-rata available {} policy {:rows rows})
                              ;; Row allocation always follows the capped path. Normalize
                              ;; its semantic settlement mode when every claim is met.
@@ -602,6 +660,13 @@
                                                             :denominator owed})))
                                                 allocation-rows))))
               row-by-owner (into {} (map (juxt :key identity) (get-in settlement [:evidence :allocation-rows])))
+              temporal-context (time-ctx/temporal-context accrued-world)
+              invocation-context {:schema-version "pro-rata-invocation-context.v1"
+                                  :run/id (:run/id accrued-world)
+                                  :execution/id (:execution/id accrued-world)
+                                  :scenario/id (get-in accrued-world [:params :scenario-id])
+                                  :event/id (:event-seq temporal-context)
+                                  :step (:step temporal-context)}
               decision (partial-fill/decision-artifact
                         {:owner/id "shared-pool" :module/id mid :token token}
                         settlement
@@ -612,8 +677,9 @@
                                                                   :allocation/effective-cap-source (or effective-cap-source :scenario-fixture)
                                                                   :allocation/scope :shared-liquidity-pool
                                  :allocation/domain {:module/id mid :token token :block-time now}
-                                                                  :allocation/ordering :canonical-owner-id-ascending
-                                                                  :allocation/rounding-tie-break :canonical-owner-id-ascending}})
+                                                                   :allocation/ordering :original-priority-ascending
+                                                                   :allocation/rounding-tie-break :original-priority-ascending
+                                 :allocation/invocation-context invocation-context}})
               propagation (partial-fill/pro-rata-propagation-artifact decision propagation-policy* policy-selection)
               binding-violations (partial-fill/propagation-allocation-binding-violations decision propagation)
               _ (when (seq binding-violations)

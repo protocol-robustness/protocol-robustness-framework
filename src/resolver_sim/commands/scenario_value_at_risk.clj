@@ -62,6 +62,38 @@
                                                                                         "checks" ["timestamp-resolves" "event-coordinate-matches"
                                                                                                   "selector-scope-matches" "valid-amount"]}
                                                                           "derived_from" provenance})))))))))
+(defn value-at-risk-timeline
+  "Derived reviewer table for an opted-in observation. It is intentionally not a
+   second authoritative observation contract: each row is a post-event reading
+   using the declared workflow selector."
+  [scenario replay source-ref]
+  (let [d (declared scenario)
+        selector (some-> d (mget :calculation) (mget :selector))
+        asset (some-> d (mget :value) (mget :asset))
+        scope (some-> d (mget :scope))]
+    (if-not d
+      {"schema_version" "scenario-value-at-risk-timeline.v1" "status" "not-declared" "rows" []}
+      (let [rows (->> (or (mget replay :trace) [])
+                      (keep (fn [event]
+                              (let [amount (select* (mget event :world) selector)
+                                    ts (timestamp (mget event :time))]
+                                (when (and ts (valid-amount? amount (mget (mget d :value) :amount-encoding)))
+                                  {"event_index" (mget event :seq)
+                                   "timestamp" ts
+                                   "phase" "post-event"
+                                   "asset" asset
+                                   "amount" amount
+                                   "scope" {"kind" (kind (mget scope :kind)) "id" (mget scope :id)}
+                                   "source_ref" source-ref}))))
+                      vec)
+            rows (mapv (fn [previous row]
+                         (assoc row "change" (when previous (- (get row "amount") (get previous "amount")))))
+                       (cons nil rows) rows)]
+        {"schema_version" "scenario-value-at-risk-timeline.v1"
+         "status" "derived"
+         "authoritative" false
+         "rows" rows}))))
+
 (defn build-observation [scenario replay provenance source-ref] (derive-observation scenario replay provenance source-ref))
 (defn validate-persisted [observation scenario replay expected-provenance expected-source-ref]
   (let [expected (derive-observation scenario replay expected-provenance expected-source-ref)]

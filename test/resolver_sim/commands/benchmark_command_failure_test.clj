@@ -27,14 +27,20 @@
       (finally (delete-tree! root)))))
 
 (deftest every-phase-failure-retains-state-and-never-completes
-  (doseq [failed-phase [:execute :write-manifest :snapshot-definition :write-conclusion
-                        :write-summary :scan-sensitivity :build-inventory
-                        :finalize-registry :validate-registry]]
+  (doseq [failed-phase [:execute :finalize-runner :write-manifest :snapshot-definition
+                        :write-conclusion :write-summary :scan-sensitivity
+                        :write-content-registry :write-finalization
+                        :write-canonical-assurance :write-verdict-policy
+                        :write-package-index :build-inventory :finalize-registry
+                        :validate-registry]]
     (let [root (temp-dir)
           calls (atom [])
-          phases [:execute :write-manifest :snapshot-definition :write-conclusion
-                  :write-summary :scan-sensitivity :build-inventory
-                  :finalize-registry :validate-registry :complete]
+          phases [:execute :finalize-runner :write-manifest :snapshot-definition
+                  :write-conclusion :write-summary :scan-sensitivity
+                  :write-content-registry :write-finalization
+                  :write-canonical-assurance :write-verdict-policy
+                  :write-package-index :build-inventory :finalize-registry
+                  :validate-registry :complete]
           record (fn [phase]
                    (fn [& _]
                      (swap! calls conj phase)
@@ -55,7 +61,7 @@
 (deftest public-sensitivity-failure-prevents-finalization
   (let [root (temp-dir)
         calls (atom [])
-        phases [:execute :write-manifest :snapshot-definition :write-conclusion :write-summary]
+        phases [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion :write-summary]
         overrides (merge
                    (into {} (map (fn [phase]
                                    [phase (fn [& _]
@@ -73,7 +79,7 @@
     (try
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"sensitivity scan failed"
                             (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)))
-      (is (= [:execute :write-manifest :snapshot-definition :write-conclusion :write-summary :scan-sensitivity]
+      (is (= [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion :write-summary :scan-sensitivity]
              @calls))
       (is (.exists (io/file root ".run-state")))
       (is (not (.exists (io/file root "completion.json"))))
@@ -83,9 +89,12 @@
 (deftest completion-failure-retains-running-state
   (let [root (temp-dir)
         calls (atom [])
-        phases [:execute :write-manifest :snapshot-definition :write-conclusion
-                :write-summary :scan-sensitivity :build-inventory
-                :finalize-registry :validate-registry]
+        phases [:execute :finalize-runner :write-manifest :snapshot-definition
+                :write-conclusion :write-summary :scan-sensitivity
+                :write-content-registry :write-finalization
+                :write-canonical-assurance :write-verdict-policy
+                :write-package-index :build-inventory :finalize-registry
+                :validate-registry]
         overrides (merge
                    (into {} (map (fn [phase]
                                    [phase (fn [& _]
@@ -110,11 +119,17 @@
         record (fn [phase value]
                  (fn [& _] (swap! calls conj phase) value))
         overrides {:execute (record :execute {:exit-code 0 :evidence {}})
+                   :finalize-runner (record :finalize-runner {})
                    :write-manifest (record :write-manifest {})
                    :snapshot-definition (record :snapshot-definition {})
                    :write-conclusion (record :write-conclusion {"outcome" "pass"})
                    :write-summary (record :write-summary {})
                    :scan-sensitivity (record :scan-sensitivity {})
+                   :write-content-registry (record :write-content-registry {})
+                   :write-finalization (record :write-finalization {})
+                   :write-canonical-assurance (record :write-canonical-assurance {})
+                   :write-verdict-policy (record :write-verdict-policy {})
+                   :write-package-index (record :write-package-index {})
                    :build-inventory (record :build-inventory {})
                    :finalize-registry (fn [& _]
                                         (swap! calls conj :finalize-registry)
@@ -125,8 +140,10 @@
       (is (thrown-with-msg? clojure.lang.ExceptionInfo
                             #"injected registry failure"
                             (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)))
-      (is (= [:execute :write-manifest :snapshot-definition :write-conclusion
-              :write-summary :scan-sensitivity :build-inventory :finalize-registry]
+      (is (= [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion
+              :write-summary :scan-sensitivity :write-content-registry :write-finalization
+              :write-canonical-assurance :write-verdict-policy :write-package-index
+              :build-inventory :finalize-registry]
              @calls))
       (is (.exists (io/file root ".run-state")))
       (is (not (.exists (io/file root "completion.json"))))

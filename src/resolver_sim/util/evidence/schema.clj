@@ -477,6 +477,27 @@
    {:domain :unavailability
     :description "Circuit breaker activation threshold (basis points)."}
 
+   ;; Freeze evidence
+   :freeze/before
+   {:domain :freeze
+    :description "Pre-freeze state (frozen-until time, typically 0)."}
+
+   :freeze/after
+   {:domain :freeze
+    :description "Post-freeze state (frozen-until set to expiry block time)."}
+
+   :freeze/resolver
+   {:domain :freeze
+    :description "Resolver being frozen."}
+
+   :freeze/duration
+   {:domain :freeze
+    :description "Freeze duration in seconds."}
+
+   :freeze/trigger
+   {:domain :freeze
+    :description "Action that triggered the freeze (e.g. :execute-fraud-slash)."}
+
    ;; Unfreeze evidence
    :unfreeze/before
    {:domain :unfreeze

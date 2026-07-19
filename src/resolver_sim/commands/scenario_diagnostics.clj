@@ -41,8 +41,14 @@
                                        "event" (select-keys failing-step ["seq" "time" "actor" "action"])
                                        "trace_ref" trace-ref})
                "evidence" {"trace_ref" trace-ref
-                           "metrics_ref" metrics-ref
-                           "run_finalization_ref" "evidence/finalizations/run/evidence-finalization.json"}}
-        target (io/file (str (:manifest/dir context)) "diagnostic-summary.json")]
+                            "metrics_ref" metrics-ref
+                            "run_finalization_ref" "evidence/finalizations/run/evidence-finalization.json"}
+                "assurance" {"kind" "pre-assurance"
+                             "note" "Pre-assurance verifies unsigned canonical package integrity and internal consistency. It does not establish producer identity, signer trust, or forensic-release eligibility."
+                             "verification_command" "verify-scenario --run-root <run-root>"
+                             "evidence" {"canonical_integrity" "manifest/canonical-integrity.json"
+                                         "forensic_claims_status" "manifest/forensic-claims-status.json"
+                                         "verdict_policy" "manifest/verdict-policy.json"}}}
+         target (io/file (str (:manifest/dir context)) "diagnostic-summary.json")]
     (lifecycle/atomic-json! target value)
     value))

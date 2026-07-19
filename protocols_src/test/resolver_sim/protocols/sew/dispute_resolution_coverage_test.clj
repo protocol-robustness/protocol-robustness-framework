@@ -711,6 +711,7 @@
     :insufficient-module-liquidity :token-liquidity-crunch
     :circuit-breaker-active :resolver-at-capacity :resolver-frozen
     :insufficient-resolver-stake :active-disputes-block-withdrawal
+    :freeze-blocked-active-dispute
     :pending-slash-blocks-withdrawal :missing-fee-bps
     :no-fees-to-withdraw :liquidity-insufficient :no-claimable-balance
     :no-bond-to-slash :no-bond-to-return :senior-not-registered

@@ -189,3 +189,41 @@
     (is (= {:claim/partial-fill-decision-integrity :not-exercised
             :claim/cap-adherence :not-exercised}
            outcomes))))
+
+(defn- reversal-result
+  [scenario-id invariant-overrides]
+  {:scenario/id scenario-id
+   :outcome :pass
+   :checks {:expectations {:ok? true}}
+   :invariant-results (mapv (fn [id]
+                              {:id id
+                               :result (get invariant-overrides id :pass)})
+                            [:slash-distribution-consistent
+                             :resolver/balances-conserved
+                             :conservation-of-funds])})
+
+(deftest reversal-claims-verify-declared-coverage-and-conservation
+  (let [scenario-ids ["DR-N-001-reversal-slash-appeal-lifecycle"
+                      "DR-N-002-reversal-slash-appeal-rejected"
+                      "DR-N-003-reversal-slash-appeal-window-expired"
+                      "DR-N-004-reversal-slash-appeal-wrong-party"]
+        results (mapv #(reversal-result % {}) scenario-ids)
+        pass-result (claims/evaluate-claim
+                     :claim/reversal-reviewer-due-process
+                     {:benchmark/results results})
+        conservation-failure (claims/evaluate-claim
+                              :claim/reversal-reviewer-due-process
+                              {:benchmark/results
+                               (assoc results 0
+                                      (reversal-result (first scenario-ids)
+                                                       {:conservation-of-funds :fail}))})]
+    (testing "a claim passes only when every registered scenario supplies the required checks"
+      (is (= :pass (:claim/outcome pass-result)))
+      (is (= 4 (count (:claim/assertions pass-result))))
+      (is (every? :holds? (:claim/assertions pass-result))))
+    (testing "conservation of funds is an explicit required invariant"
+      (is (= :fail (:claim/outcome conservation-failure)))
+      (is (= [:reversal-claim-scenario-failed]
+             (:claim/evidence conservation-failure)))
+      (is (= [:conservation-of-funds]
+             (get-in conservation-failure [:claim/assertions 0 :invariants/failed]))))))

@@ -253,7 +253,7 @@
                                         :invariant-results inv-results})))]
     (merge entry
            {:file path
-            :scenario/id public-id
+            :scenario/id (or public-id (:scenario-id entry) (:scenario-id scenario))
             :simulator/scenario-path path
             :execution/id execution-id
             :execution/descriptor descriptor

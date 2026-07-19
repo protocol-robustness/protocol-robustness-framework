@@ -1447,6 +1447,7 @@
     :resolver-frozen
     :insufficient-resolver-stake
     :active-disputes-block-withdrawal
+    :freeze-blocked-active-dispute
     :pending-slash-blocks-withdrawal
     :missing-fee-bps
     :no-fees-to-withdraw

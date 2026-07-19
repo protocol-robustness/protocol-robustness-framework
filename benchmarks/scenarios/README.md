@@ -12,7 +12,7 @@ classifies existing scenario material without duplicating it.
 | `:suite/prf-replay-v1`                  | `suites/reference-validation-v1/`     | `active`    |
 | `:suite/reference-validation-v1`        | `suites/reference-validation-v1/`     | `active`    |
 | `:suite/sew-shortfall-allocation-v0`    | (resolved via suites.clj)             | `active`    |
-| `:suite/sew-reversal-slashing-v1`       | `suites/reversal-slashing-v1/`        | `active`    |
+| `:suite/sew-reversal-slashing-v1`       | `scenarios/edn/` via `suites.clj`     | `active`    |
 | `:suite/prf-evidence-v1`                | (not yet materialized)                | `planned`   |
 | `:suite/stablecoin-transfer-v0`         | (not yet materialized)                | `deferred`  |
 | `:suite/stablecoin-redemption-v0`       | (not yet materialized)                | `deferred`  |

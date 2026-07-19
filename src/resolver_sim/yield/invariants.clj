@@ -555,10 +555,6 @@
                                                     (conj {:propagation-id (:propagation/id p) :participant-id id :reason :deferred-position-token-mismatch})
                                                     (and (pos? deferred) (not superseded?) active (not= (get-in participant [:origin :obligation-id]) (:position/root-obligation-id active)))
                                                     (conj {:propagation-id (:propagation/id p) :participant-id id :reason :deferred-position-root-obligation-mismatch})
-                                                    (and (pos? deferred) (not superseded?) active (not= :deferred-withdrawal (:position/type active)))
-                                                    (conj {:propagation-id (:propagation/id p) :participant-id id :reason :deferred-position-type-mismatch})
-                                                    (and (pos? deferred) (not superseded?) active (not= :later-liquidity (:position/eligibility active)))
-                                                    (conj {:propagation-id (:propagation/id p) :participant-id id :reason :deferred-position-eligibility-mismatch})
                                                     (and (pos? deferred) (not superseded?) active (not= (:propagation/id p) (:position/origin-propagation-id active)))
                                                     (conj {:propagation-id (:propagation/id p) :participant-id id :reason :deferred-position-origin-mismatch})
                                                     (and (zero? deferred) active)
@@ -707,12 +703,10 @@
                                  participants (:participants p)
                                  apps (:participants a)
                                  entries (:accounting-entries p)
-                                                                  entry-hash (partial-fill/accounting-entry-set-hash entries)
-                                                                  expected-key [:pro-rata-propagation (:calculation-ref p) (:outcome-ref p)
-                                                                                (get-in p [:propagation-policy :policy/hash])]
-                                                                  debit (filter #(and (= :debit (:entry/type %)) (= :shared-liquidity (:account %))) entries)
-                                                                  participant-credit-entries (filter #(= :credit (:entry/type %)) entries)
-                                                                  credits (filter #(and (= :credit (:entry/type %)) (= :withdrawn (:account %))) entries)
+                                                                   entry-hash (partial-fill/accounting-entry-set-hash entries)
+                                                                    debit (filter #(and (= :debit (:entry/type %)) (= (:source-account accounting-contract) (:account %))) entries)
+                                                                   participant-credit-entries (filter #(= :credit (:entry/type %)) entries)
+                                                                   credits (filter #(and (= :credit (:entry/type %)) (= (:participant-credit-account accounting-contract) (:account %))) entries)
                                                                                                    credit-errors (mapcat (fn [participant]
                                                                                                                            (let [fulfilled (long (:fulfilled participant 0))
                                                                                                                                  key [(:token p) (:participant-id participant) (get-in participant [:origin :obligation-id])]
@@ -732,8 +726,10 @@
                                                               (conj {:propagation-id id :reason :application-hash-mismatch})
                                                               (and a (= "pro-rata-propagation.v2" (:schema-version p))
                                                                                                                                  (not= {:propagation/id id :propagation/hash (:propagation/hash p)}
-                                                                                                                                       (:propagation/reference a))) (conj {:propagation-id id :reason :application-propagation-reference-mismatch})
-                                                              (and a (not= expected-key (:application-key a))) (conj {:propagation-id id :reason :application-key-mismatch :expected expected-key :observed (:application-key a)})
+                                                                        (:propagation/reference a))) (conj {:propagation-id id :reason :application-propagation-reference-mismatch})
+                                                               (and a (not= (:allocation/invocation-context p)
+                                                                         (:allocation/invocation-context a)))
+                                                              (conj {:propagation-id id :reason :application-invocation-context-mismatch})
                                                               (and a (not= (:calculation-ref p) (:calculation-id a))) (conj {:propagation-id id :reason :application-calculation-id-mismatch})
                                                               (and a (not= (:outcome-ref p) (:outcome-hash a))) (conj {:propagation-id id :reason :application-outcome-hash-mismatch})
                                                               (and a (not= (get-in p [:propagation-policy :policy/hash]) (:policy-hash a))) (conj {:propagation-id id :reason :application-policy-hash-mismatch})
@@ -761,9 +757,7 @@
                                              :destination (get-in p [:residual :destination])}
                                             (select-keys application-residual [:token :available :allocated :amount :destination])))
                                (conj {:propagation-id id :reason :residual-record-mismatch})
-                               (and a (not= :remain-in-shared-liquidity (:destination application-residual)))
-                               (conj {:propagation-id id :reason :residual-destination-mismatch})
-                               ;; Zero-allocation propagations have no material financial
+                                ;; Zero-allocation propagations have no material financial
                                ;; source debit; canonical entry normalization omits it.
                                (and (pos? allocated) (not= 1 (count debit))) (conj {:propagation-id id :reason :source-account-entry-missing})
                                (not= 0 (reduce + 0 (map #(long (:delta % 0)) entries))) (conj {:propagation-id id :reason :accounting-entry-set-unbalanced})
@@ -821,8 +815,8 @@
                                 :deferred-position-presence-valid (pass? #{:deferred-position-missing :fulfilled-position-still-active})
                                                 :deferred-position-amounts-valid (pass? #{:deferred-position-amount-mismatch})
                                                 :deferred-position-identities-valid (pass? #{:deferred-position-token-mismatch :deferred-position-root-obligation-mismatch :deferred-position-origin-mismatch})
-                                                :deferred-position-policy-valid (pass? #{:deferred-position-type-mismatch :deferred-position-eligibility-mismatch})
-                                                                                                :deferred-position-policy-compliant (pass? #{:deferred-position-type-mismatch :deferred-position-eligibility-mismatch :deferred-position-policy-mismatch})
+                                                :deferred-position-policy-valid (pass? #{:deferred-position-policy-mismatch})
+                                                                                                :deferred-position-policy-compliant (pass? #{:deferred-position-policy-mismatch})
                                                 :obligation-identities-valid (pass? #{:participant-obligation-id-missing})
                                                                 :application-obligation-identities-valid (pass? #{:application-participant-record-missing :application-participant-record-duplicate :application-obligation-id-mismatch :application-obligation-token-mismatch :application-obligation-participant-mismatch})
                                                                 :obligation-conservation (pass? #{:obligation-conservation-failed :invalid-obligation-amount})
@@ -841,7 +835,7 @@
                                                                 :account-classes-valid (pass? #{:source-account-policy-mismatch :participant-account-policy-mismatch :application-source-account-policy-mismatch :source-entry-account-policy-mismatch :participant-credit-account-policy-mismatch})
                                                                 :source-token-consistent (pass? #{:source-token-mismatch})
                                                                 :available-allocation-residual (pass? #{:available-allocation-residual-mismatch :residual-record-mismatch :residual-token-mismatch})
-                                                                :residual-retained-in-pool (pass? #{:residual-destination-mismatch})
+                                                                :residual-retained-in-pool (pass? #{:residual-destination-policy-mismatch})
                                                                 :entry-set-balanced (pass? #{:accounting-entry-set-unbalanced})}
        :violations failures})))
 

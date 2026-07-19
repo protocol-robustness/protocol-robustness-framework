@@ -38,6 +38,32 @@
                              :consensus/escalation
                              :consensus/liveness
                              :consensus/legitimacy]
+ :benchmark/review-guide    "benchmarks/packs/sew/REVERSAL_SLASHING_REVIEW.md"
+ :benchmark/review-coverage
+ {:claim/reversal-reviewer-due-process
+  {:headline "A reversal reviewer can appeal their own slash."
+   :scenarios ["DR-N-001-reversal-slash-appeal-lifecycle"
+               "DR-N-002-reversal-slash-appeal-rejected"
+               "DR-N-003-reversal-slash-appeal-window-expired"
+               "DR-N-004-reversal-slash-appeal-wrong-party"]}
+  :claim/reversal-slash-conservation
+  {:headline "Requested reversal-slash value is fully accounted for."
+   :scenarios ["DR-N-001-reversal-slash-appeal-lifecycle"
+               "DR-R-001-reversal-slash-insufficient-stake"]}
+  :claim/vindication-stability
+  {:headline "Vindication credits occur once, without slash-accounting drift."
+   :scenarios ["DR-N-001-reversal-slash-appeal-lifecycle"
+               "DR-O-001-vindication-4-level"
+               "DR-O-002-vindication-minimum-stake"
+               "DR-O-003-vindication-zero-stake"]}
+  :claim/challenge-bounty-correctness
+  {:headline "A bounded bounty is paid only to the recorded challenger."
+   :scenarios ["DR-Q-001-challenge-bounty-reversal"
+               "DR-Q-002-challenge-bounty-no-challenger"]}
+  :claim/governance-force-reversal-authorized
+  {:headline "Only authorized governance can force a reversal slash, and retries are idempotent."
+   :scenarios ["DR-P-001-force-reversal-slash"
+               "DR-P-002-force-reversal-slash-idempotent"]}}
  :benchmark/claims          [{:claim/id :claim/reversal-reviewer-due-process
                               :claim/role :primary
                               :claim/rationale "A reversing resolver (L1) who is themselves reversed must have due-process access to appeal their own slash."

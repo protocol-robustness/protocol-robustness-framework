@@ -29,12 +29,16 @@
     :accrual-dust-remainder 0         ; exact fractional remainder carried forward (ratio)
     :shortfall-affected?   false
     :oracle-stale-affected? false
-    :partial-fill-affected?  false
+    :partial-fill-affected? false
     :capital-event-affected? false
+    :original-priority      Long/MAX_VALUE
     :last-accrual-time     nil
     :last-accrual-index    nil
     :status                :active}
-   Statuses: :active, :unwinding, :unwound, :withdrawn, :queued, :settled"
+  Statuses: :active, :unwinding, :unwound, :withdrawn, :queued, :settled
+
+  :original-priority is the deposit sequence number for FIFO ordering — lower
+  values are older positions that get priority in shared withdrawals."
   (:require [resolver-sim.yield.exact-math :as m]))
 
 (def default-position
@@ -50,8 +54,9 @@
    :shortfall-affected? false
    :oracle-stale-affected? false
    :partial-fill-affected? false
-   :capital-event-affected? false
-   :status :active})
+    :capital-event-affected? false
+    :original-priority      Long/MAX_VALUE
+    :status :active})
 
 (defn make-position
   "Construct a position map with all required fields initialized.
@@ -91,9 +96,10 @@
           :unrealized-yield (long (or (:unrealized-yield pos) 0))
           :deferred-yield (long (or (:deferred-yield pos) 0))
           :haircut-yield (long (or (:haircut-yield pos) 0))
-          :principal-impairment (long (or (:principal-impairment pos) 0))
-          :accrual-dust-remainder (m/ratio (or (:accrual-dust-remainder pos) 0))
-          :shortfall-affected? (boolean (:shortfall-affected? pos))
+           :principal-impairment (long (or (:principal-impairment pos) 0))
+           :accrual-dust-remainder (m/ratio (or (:accrual-dust-remainder pos) 0))
+           :original-priority (long (or (:original-priority pos) Long/MAX_VALUE))
+           :shortfall-affected? (boolean (:shortfall-affected? pos))
           :oracle-stale-affected? (boolean (:oracle-stale-affected? pos))
           :partial-fill-affected? (boolean (:partial-fill-affected? pos))
           :capital-event-affected? (boolean (:capital-event-affected? pos))

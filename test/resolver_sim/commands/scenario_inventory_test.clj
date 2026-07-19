@@ -39,6 +39,7 @@
       (write! root (str prefix "summaries/schema-map.json") "{}")
       (write! root (str prefix "forensic/claims/result.json") "{}")
       (write! root (str prefix "forensic/attestations/result.json") "{}")
+      (write! root (str prefix "forensic/evidence-nodes/node-abc.edn") "{:node-hash \"abc\"}")
       (let [registry (inventory/build! c)
             by-id (into {} (map (juxt :id identity) (:artifacts registry)))
             persisted (json/read-str (slurp (io/file root "manifest/artifacts.json")) :key-fn keyword)]
@@ -58,7 +59,12 @@
           (is (= "scenarios/fixture-abc123/forensic/claims/result.json"
                  (:path (by-id "forensic.claims.result.json"))))
           (is (= "scenarios/fixture-abc123/forensic/attestations/result.json"
-                 (:path (by-id "forensic.attestations.result.json"))))))
+                 (:path (by-id "forensic.attestations.result.json")))))
+        (testing "persisted evidence nodes are core package artifacts"
+          (let [node-entry (by-id "forensic.evidence.nodes.node.abc.edn")]
+            (is (= "evidence.node" (:kind node-entry)))
+            (is (= "evidence-node.v1" (:schema_version node-entry)))
+            (is (= "CORE" (:importance node-entry))))))
       (finally (delete-tree! root)))))
 
 (deftest build-registers-snapshotted-scenario-input-by-content-hash

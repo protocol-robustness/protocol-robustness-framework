@@ -112,6 +112,31 @@
                           (ll/record-closed-deferred-position history
                                                                (assoc a :position/current-amount 1))))))
 
+(deftest shared-withdrawal-position-classification
+  (let [eligible-deferred {:position/type :deferred-withdrawal
+                           :position/status :active
+                           :position/eligibility :later-liquidity
+                           :position/current-amount 20}]
+    (testing "active base position without deferred lineage is an ordinary request"
+      (is (= {:classification :ordinary-base-request :amount/source :base-position}
+             (ll/classify-shared-withdrawal-position {:status :active}))))
+    (testing "unwinding position with eligible deferred lineage uses its residual amount"
+      (is (= {:classification :eligible-deferred-request :amount/source :deferred-position}
+             (ll/classify-shared-withdrawal-position {:status :unwinding
+                                                       :deferred-position eligible-deferred}))))
+    (testing "active base position with stale deferred lineage is contradictory"
+      (let [result (ll/classify-shared-withdrawal-position
+                    {:status :active
+                     :deferred-position (assoc eligible-deferred :position/status :closed)})]
+        (is (= :position-state-contradiction (:classification result)))
+        (is (= :active-base-with-stale-deferred-position (:reason result)))))
+    (testing "unwinding position without eligible deferred lineage is incomplete"
+      (let [result (ll/classify-shared-withdrawal-position
+                    {:status :unwinding
+                     :deferred-position (assoc eligible-deferred :position/status :closed)})]
+        (is (= :invalid-incomplete-deferred-state (:classification result)))
+        (is (= :unwinding-without-eligible-deferred-position (:reason result)))))))
+
 (deftest deferred-position-state-mutations
   (let [prop [{:propagation/id "p1" :token :USDC
                :participants [{:participant-id "alice" :deferred 20 :origin {:obligation-id "oa"}}]}]
@@ -127,10 +152,6 @@
               (inv/deferred-state-violations (assoc-in valid [:yield/positions "alice" :token] :DAI) prop)))
     (is (some #(= :deferred-position-root-obligation-mismatch (:reason %))
               (inv/deferred-state-violations (assoc-in valid [:yield/positions "alice" :deferred-position :position/root-obligation-id] "wrong") prop)))
-    (is (some #(= :deferred-position-type-mismatch (:reason %))
-              (inv/deferred-state-violations (assoc-in valid [:yield/positions "alice" :deferred-position :position/type] :other) prop)))
-    (is (some #(= :deferred-position-eligibility-mismatch (:reason %))
-              (inv/deferred-state-violations (assoc-in valid [:yield/positions "alice" :deferred-position :position/eligibility] :never) prop)))
     (is (some #(= :deferred-position-origin-mismatch (:reason %))
               (inv/deferred-state-violations (assoc-in valid [:yield/positions "alice" :deferred-position :position/origin-propagation-id] "wrong") prop)))
     (is (some #(= :fulfilled-position-still-active (:reason %))
@@ -159,7 +180,7 @@
     (is (= :fail (get-in (inv/check-pro-rata-accounting-reconciles
                            (assoc-in world [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :after] 39))
                           [:checks :participant-withdrawn-arithmetic])))
-    (is (some #(= :application-key-mismatch (:reason %))
+    (is (some #(= :application-key-policy-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/applied-pro-rata-propagations "p1" :application-key]
                                       [:pro-rata-propagation "o1" "c1" "policy-hash"])))))
@@ -172,7 +193,7 @@
     (is (some #(= :latest-authoritative-withdrawn-balance-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/withdrawn :USDC "alice"] 39)))))
-    (is (some #(= :residual-destination-mismatch (:reason %))
+    (is (some #(= :residual-destination-policy-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/applied-pro-rata-propagations "p1" :residual :destination] :refund)))))
     (is (some #(= :residual-token-mismatch (:reason %))

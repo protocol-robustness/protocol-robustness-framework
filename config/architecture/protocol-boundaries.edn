@@ -9,6 +9,7 @@
                       "src/resolver_sim/io/claimable_classification_emitter.clj"
                       "src/resolver_sim/validation/scenario_registry.clj"
                       "src/resolver_sim/sim/trace_score.clj"
+                      "src/resolver_sim/scenario/subgame_counterfactual.clj"
                       "src/resolver_sim/benchmark/runner.clj"
                       "src/resolver_sim/io/scenario_runner.clj"
                       "src/resolver_sim/execution/child.clj"

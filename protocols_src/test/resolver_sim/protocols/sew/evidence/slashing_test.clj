@@ -102,6 +102,9 @@
       (is (some? (get-in result [:pro-rata :allocation-hash]))
           "envelope has allocation-hash")
       (is (map? (get result :allocation)) "envelope has original allocation-result")
+      (is (= :allocation-only (get-in result [:execution-boundary :authority]))
+          "allocation evidence makes no execution or collection claim")
+      (is (= :not-established (get-in result [:execution-boundary :execution-claim])))
       (is (some? (:evidence/subject evidence)) "envelope has subject")
       (is (some? (:evidence/frame evidence)) "envelope has frame"))))
 
@@ -220,7 +223,17 @@
       (is (some #(= claim-eval-hash %) (:parent-hashes exec-node))
           "execution node references claim-eval-node as parent")
       (is (= "test-artifact-hash" (get-in exec-node [:extensions :pro-rata/allocation-result-hash]))
-          "execution node extensions include allocation-result-hash"))))
+          "execution node extensions include allocation-result-hash")
+      (is (= :mechanism/pro-rata-allocation (get-in exec-node [:extensions :mechanism/id]))
+          "execution node declares the canonical mechanism identity")
+      (is (= 1 (get-in exec-node [:extensions :mechanism/version]))
+          "execution node declares the canonical mechanism version")
+      (is (= "pro-rata-mechanism-node.v1"
+             (get-in exec-node [:extensions :mechanism/node-schema-version]))
+          "execution node declares the mechanism-node schema")
+      (is (= (:evidence/hash evidence)
+             (get-in exec-node [:extensions :pro-rata/evidence-hash]))
+          "execution node exposes its bound domain evidence hash"))))
 
 ;; ── Validation tests ───────────────────────────────────────────────────
 

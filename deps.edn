@@ -196,12 +196,14 @@
   ;; Promote all stored adversarial traces into Forge regression suite:
   ;;   clojure -M:trace-regress [store-dir] [regression-dir]
   :trace-regress
-  {:main-opts ["-m" "resolver-sim.io.trace-store"]}
+  {:extra-paths ["protocols_src"]
+   :main-opts ["-m" "resolver-sim.io.trace-store"]}
 
   ;; Run Phase Z adversarial scenarios, score them, persist top 1%:
   ;;   clojure -M:phase-z-persist [store-dir]
   :phase-z-persist
-  {:main-opts ["-m" "resolver-sim.io.phase-z-persist"]}
+  {:extra-paths ["protocols_src"]
+   :main-opts ["-m" "resolver-sim.io.phase-z-persist"]}
 
   :clerk
   {:exec-fn nextjournal.clerk/serve!

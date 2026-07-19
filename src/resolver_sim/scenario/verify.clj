@@ -6,6 +6,7 @@
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.finalization :as finalization]
+            [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.hash.canonical :as canonical]
                         [resolver-sim.run.verdict-policy :as verdict-policy]
                         [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
@@ -150,6 +151,40 @@
                                         (:stayed_plus_unpaid_equals_uncollected (:reconciles projection))))
                                  replay-slashes projections)))})))
 
+(defn- verify-pro-rata-mechanism-nodes
+  "Validate the first-class pro-rata mechanism-node contract when present.
+   Older nodes remain readable; only the versioned contract emitted by current
+   producers is required to carry these package-verifiable bindings."
+  [root event-records]
+  (let [files (->> (file-seq (io/file root "scenarios"))
+                   (filter #(.isFile %))
+                   (filter #(and (= "evidence-nodes" (.getName (.getParentFile %))
+                                 (.endsWith (.getName %) ".edn"))))
+                   vec)
+        loaded (mapv (fn [file]
+                       (try {:file file :node (edn/read-string (slurp file))}
+                            (catch Exception _ {:file file :error :unreadable})))
+                     files)
+        nodes (map :node (remove :error loaded))
+        known-hashes (set (keep :node-hash nodes))
+        mechanism-nodes (filter #(= "pro-rata-mechanism-node.v1"
+                                    (get-in % [:extensions :mechanism/node-schema-version]))
+                                nodes)
+        event-hashes (set (map :evidence/hash event-records))
+        valid-node? (fn [node]
+                      (and (:valid? (evidence-node/validate-node node :known-parent-hashes known-hashes))
+                           (= :mechanism/pro-rata-allocation
+                              (get-in node [:extensions :mechanism/id]))
+                           (= 1 (get-in node [:extensions :mechanism/version]))
+                           (contains? event-hashes
+                                      (get-in node [:extensions :pro-rata/evidence-hash]))
+                           (string? (get-in node [:extensions :pro-rata/allocation-result-hash]))
+                           (string? (get-in node [:extensions :pro-rata/artifact-hash]))))]
+    {:applicable? (boolean (seq mechanism-nodes))
+     :valid? (and (empty? (filter :error loaded))
+                  (every? valid-node? mechanism-nodes))
+     :node-count (count mechanism-nodes)}))
+
 (defn- verify-canonical-integrity [root completion]
   (let [integrity-file (io/file root "manifest/canonical-integrity.json")
         deferred-file (io/file root "manifest/forensic-claims-status.json")
@@ -158,23 +193,26 @@
     (if-not (every? #(.isFile %) [integrity-file deferred-file finalization-file content-registry-file])
       {:valid? false :reason :missing-assurance-artifact}
       (let [integrity (read-json integrity-file)
-            deferred (read-json deferred-file)]
-        {:valid? (and (= "canonical-integrity.v1" (:schema_version integrity))
-                      (= "unsigned-canonical-integrity" (:assurance_kind integrity))
-                      (= "passed" (:status integrity))
-                      (= (:run_id completion) (:run_id integrity))
-                      (= (sha-ref finalization-file) (get-in integrity [:run_finalization :sha256]))
-                      (= (sha-ref content-registry-file) (get-in integrity [:evidence_content_registry :sha256]))
-                      (true? (get-in integrity [:checks :run_finalization_verified]))
-                      (true? (get-in integrity [:checks :pre_assurance_registry_valid]))
-                      (false? (get-in integrity [:scope :operator_identity]))
-                      (false? (get-in integrity [:scope :runtime_isolation]))
-                      (= "forensic-claims-status.v1" (:schema_version deferred))
-                      (= "deferred" (:status deferred))
-                      (= "unsigned-forensic-signing-not-configured" (:reason_code deferred))
-                      (= "manifest/canonical-integrity.json" (:canonical_integrity_ref deferred)))
+            deferred (read-json deferred-file)
+            sub-checks {:schema_version (= "canonical-integrity.v1" (:schema_version integrity))
+                        :assurance_kind (= "unsigned-canonical-integrity" (:assurance_kind integrity))
+                        :status (= "passed" (:status integrity))
+                        :run_id (= (:run_id completion) (:run_id integrity))
+                        :run_finalization_match (= (sha-ref finalization-file) (get-in integrity [:run_finalization :sha256]))
+                        :content_registry_match (= (sha-ref content-registry-file) (get-in integrity [:evidence_content_registry :sha256]))
+                        :run_finalization_verified (true? (get-in integrity [:checks :run_finalization_verified]))
+                        :pre_assurance_registry_valid (true? (get-in integrity [:checks :pre_assurance_registry_valid]))
+                        :operator_identity_excluded (false? (get-in integrity [:scope :operator_identity]))
+                        :runtime_isolation_excluded (false? (get-in integrity [:scope :runtime_isolation]))
+                        :forensic_schema_version (= "forensic-claims-status.v1" (:schema_version deferred))
+                        :forensic_status (= "deferred" (:status deferred))
+                        :forensic_reason_code (= "unsigned-forensic-signing-not-configured" (:reason_code deferred))
+                        :forensic_integrity_ref (= "manifest/canonical-integrity.json" (:canonical_integrity_ref deferred))}]
+        {:valid? (every? true? (vals sub-checks))
+         :checks sub-checks
          :integrity integrity
          :deferred deferred}))))
+
 
 (defn verify! [run-root]
   (try
@@ -214,7 +252,8 @@
             canonical-integrity-verification (verify-canonical-integrity root completion)
                         verdict-policy-verification (verdict-policy/verify! root (json/read-str (slurp verdict-policy-file)) "scenario" (:run_id completion))
                         partial-fill-verification (verify-partial-fill-artifacts root)
-            fraud-group-slash-verification (verify-fraud-group-slash-artifacts root)
+                        fraud-group-slash-verification (verify-fraud-group-slash-artifacts root)
+                        pro-rata-mechanism-node-verification (verify-pro-rata-mechanism-nodes root event-records)
             relative-run-finalization "evidence/finalizations/run/evidence-finalization.json"
             diagnostic-file (io/file root "manifest/diagnostic-summary.json")
             relative-scenario-finalizations
@@ -238,13 +277,15 @@
                     "diagnostic-summary" (and (.isFile diagnostic-file)
                                                 (contains? registry-paths "manifest/diagnostic-summary.json"))
                     "canonical-integrity" (:valid? canonical-integrity-verification)
+                                        "canonical-integrity-checks" (:checks canonical-integrity-verification)
                                         "verdict-policy" (:valid? verdict-policy-verification)
                                         "assurance-artifacts-registered" (every? registry-paths
                                                                                   #{"manifest/canonical-integrity.json"
                                                                                     "manifest/forensic-claims-status.json"
                                                                                     "manifest/verdict-policy.json"})
                     "partial-fill-artifacts" (:valid? partial-fill-verification)
-                    "fraud-group-slash-artifacts" (:valid? fraud-group-slash-verification)}]
+                    "fraud-group-slash-artifacts" (:valid? fraud-group-slash-verification)
+                    "pro-rata-mechanism-nodes" (:valid? pro-rata-mechanism-node-verification)}]
         {"schema_version" "scenario-verification.v1"
          "status" (if (every? true? (vals checks)) "passed" "failed")
          "checks" checks

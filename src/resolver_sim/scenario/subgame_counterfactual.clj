@@ -23,9 +23,9 @@
    Phase I — structured counterexample maps for every profitable deviation
    Phase J — off-path coverage reporting"
   (:require [clojure.string :as str]
+            [clojure.string :as str]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.protocol :as proto]
-            [resolver-sim.protocols.sew.trace-metadata :as meta]
             [resolver-sim.scenario.reputation-profiles :as rep-profiles]))
 
 (def ^:private default-continuation-policy
@@ -56,7 +56,10 @@
    :undefined-policy :inconclusive})
 
 (def ^:private strategic-actions
-  (clojure.set/difference meta/strategic-actions #{"create-escrow"}))
+  "Cross-protocol action-name convention for bounded strategic-node analysis.
+   Creation is intentionally excluded because it has no prior subgame state."
+  #{"raise-dispute" "escalate-dispute" "execute-resolution"
+    "sender-cancel" "recipient-cancel"})
 
 (def ^:private action-alternatives
   {"raise_dispute" ["settle_now" "wait"]

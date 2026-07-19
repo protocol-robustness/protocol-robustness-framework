@@ -59,16 +59,19 @@
           {:seq 4 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
           ;; L0 rules: release
           {:seq 5 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
-          ;; L1 reverses to refund — Track 1 auto-slash on L0 (reversal level 0, executed)
-          {:seq 6 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
-          ;; L2 reverses back to release — Track 1 auto-slash on L1 (reversal level 1, executed)
-          ;; L0 vindicated by L2 agreement (L0 slash reversed-with-credit)
-          {:seq 7 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
-          ;; L1 submits new evidence to support Track 2 appeal of their own slash
-          {:seq 8 :time 1250 :agent "l1resolver" :action "submit_evidence" :params {:workflow-id 0 :evidence-hash "0xl1-justification"}}
+          ;; Challenge advances the workflow to L1 before L1 can resolve it.
+          {:seq 6 :time 1125 :agent "buyer" :action "challenge_resolution" :params {:workflow-id 0}}
+          ;; New evidence makes subsequent reversal slashes use the appealable Track 2 path.
+          {:seq 7 :time 1130 :agent "l1resolver" :action "submit_evidence" :params {:workflow-id 0 :evidence-hash "0xl1-justification"}}
+          ;; L1 reverses to refund, producing the L0 Track 2 slash.
+          {:seq 8 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          ;; Challenge advances the workflow to L2 before L2 can resolve it.
+          {:seq 9 :time 1175 :agent "buyer" :action "challenge_resolution" :params {:workflow-id 0}}
+          ;; L2 reverses back to release, producing the appealable L1 Track 2 slash.
+          {:seq 10 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
           ;; L1 appeals their own reversal slash within window (deadline 1200+120=1320)
-          {:seq 9 :time 1300 :agent "l1resolver" :action "appeal_slash" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}}}}
+          {:seq 11 :time 1300 :agent "l1resolver" :action "appeal_slash" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}}}}
           ;; Governance upholds L1's appeal: slash reversed, bond refunded
-          {:seq 10 :time 1400 :agent "governance" :action "resolve_appeal" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}} :upheld? true}}
+          {:seq 12 :time 1400 :agent "governance" :action "resolve_appeal" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}} :upheld? true}}
           ;; Keeper executes pending settlement
-          {:seq 11 :time 2000 :agent "keeper" :action "automate_timed_actions" :params {:workflow-id 0}}]}
+          {:seq 13 :time 2000 :agent "keeper" :action "automate_timed_actions" :params {:workflow-id 0}}]}

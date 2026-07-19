@@ -216,8 +216,17 @@ tunneling."
     :inputs {:projection-artifact (select-keys projection-artifact [:projection-hash :projection-definition-hash])
              :allocation-input (select-keys (get-in evidence [:evidence/inputs :allocation] {})
                                             [:slash-obligation :liable-parties :basis :cap-field])}
-    :outputs {:evidence-hash (:evidence/hash evidence)}
-    :extensions {:pro-rata/type :pro-rata-allocation
+    ;; Output values are integrity-committed by the node policy; these stable
+    ;; extensions remain directly inspectable by package-level verifiers.
+    :outputs {:evidence-hash (:evidence/hash evidence)
+              :allocation-result-hash (or (:allocation-result-hash allocation-result)
+                                          (:allocation-result-hash artifact))
+              :allocation-artifact-hash (:allocation-result-hash artifact)}
+    :extensions {:mechanism/id :mechanism/pro-rata-allocation
+                 :mechanism/version 1
+                 :mechanism/node-schema-version "pro-rata-mechanism-node.v1"
+                 :pro-rata/type :pro-rata-allocation
+                 :pro-rata/evidence-hash (:evidence/hash evidence)
                  :pro-rata/projection-hash (:projection-hash projection-artifact)
                  :pro-rata/re-projection-hash (:projection-hash projection-artifact-again)
                  :pro-rata/allocation-result-hash (or (:allocation-result-hash allocation-result)
@@ -335,9 +344,21 @@ tunneling."
                                     :summary (merge (claim-summary shaped-claims)
                                                     (pro-rata-summary allocation-result))}
                          :allocation allocation-result
-                         ;; Proposal allocation is immutable.  This separate
-                         ;; projection reports execution effects after member
-                         ;; appeals; it must never be mistaken for a reallocation.
+                         ;; Allocation is the authoritative mathematical claim.
+                         ;; Any execution rows are observational until a separate
+                         ;; stake-state/debit reconciliation witness is supplied;
+                         ;; allocation must never be read as proof of collection.
+                         :execution-boundary {:authority :allocation-only
+                                              :execution-claim :not-established
+                                              :required-for-execution-claim
+                                              [:authoritative-stake-state
+                                               :actual-debit
+                                               :destination-credit-or-burn
+                                               :execution-time-uncollected
+                                               :post-state-reconciliation]}
+                         ;; Proposal allocation is immutable. This projection may
+                         ;; report execution effects after appeals, but is not a
+                         ;; reallocation and does not upgrade the claim boundary.
                          :execution execution-summary}
         ;; Targeted evidence is finalized independently of the generic replay
         ;; event. Bind its scenario identity before hashing so it remains in the
@@ -399,13 +420,23 @@ tunneling."
    chain registry. Returns the file path written."
   [artifact]
   (let [result-id (:allocation-result-id artifact)
-        filename (str "allocation-result-" result-id ".json")
+        result-hash (:allocation-result-hash artifact)
+        _ (when-not (and (string? result-hash) (<= 16 (count result-hash)))
+            (throw (ex-info "Allocation artifact requires a content hash"
+                            {:reason :missing-allocation-result-hash
+                             :allocation-result-id result-id})))
+        hash-suffix (subs result-hash 0 16)
+        ;; Presentation paths are content-addressed so two allocations with an
+        ;; identical logical ID cannot overwrite one another. The artifact
+        ;; registry remains authoritative.
+        filename (str "allocation-result-" result-id "-" hash-suffix ".json")
+        registry-id (keyword (str result-id "-" hash-suffix))
         out-dir (str (evcfg/artifact-dir))
         f (io/file out-dir filename)]
     (.mkdirs (io/file out-dir))
     (spit f (json/write-str artifact {:key-fn name :indent true}))
     (println "Wrote allocation result artifact:" filename)
     (chain/register-additional-artifact!
-     (chain/index-artifact-entry (keyword result-id) filename
+     (chain/index-artifact-entry registry-id filename
                                  "allocation-result.v1" "CORE"))
     (.getPath f)))

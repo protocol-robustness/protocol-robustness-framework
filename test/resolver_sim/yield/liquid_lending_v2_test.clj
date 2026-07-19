@@ -48,10 +48,12 @@
 
 (defn- shared-withdrawal-world
   [owners available]
+  ;; The fixture varies operation input order below, not deposit chronology.
+  ;; Deposit order sets :original-priority and is therefore semantic state.
   (-> (reduce (fn [world owner]
                 (ll/deposit world test-mod {:owner/id owner :amount 100 :token "USDC"}))
               test-world
-              owners)
+              (sort owners))
       (assoc-in [:total-held :USDC] available)))
 
 (defn- shared-decision
@@ -175,6 +177,9 @@
     (is (= (get-in decision [:evidence :allocation-mechanism :allocation/hash])
            (:allocation/hash reference)))
     (is (empty? (partial-fill/propagation-allocation-binding-violations decision propagation)))
+    (is (some #(= :propagation-invocation-context-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               decision (assoc-in propagation [:allocation/invocation-context :event/id] 99))))
     (is (some #(= :decision-hash-mismatch (:reason %))
               (partial-fill/propagation-allocation-binding-violations
                (assoc-in decision [:evidence :allocation-rows 0 :filled] 1) propagation)))

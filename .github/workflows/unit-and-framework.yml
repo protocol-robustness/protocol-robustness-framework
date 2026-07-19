@@ -38,6 +38,9 @@ jobs:
       - name: Run full unit tests (framework + Sew)
         run: bb test:unit
 
+      - name: Evidence-chain validation gate
+        run: bb test:evidence
+
       - name: Validate public claim bindings
         run: |
           bb public-claims:generate

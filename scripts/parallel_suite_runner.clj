@@ -71,10 +71,13 @@
   [& args]
   (let [suite-keys (mapv parse-suite-key args)
         n (count suite-keys)
-        _ (println "Pre-loading protocol namespaces...")
-        _ (doseq [ns-sym (preg/known-protocol-namespaces)]
-          (require ns-sym))
-        _ (println "Loaded" (count (preg/known-protocol-namespaces)) "protocol namespaces.")
+         default-id preg/default-protocol-id
+         _ (println (str "Pre-loading default protocol: " default-id "..."))
+         _ (preg/get-protocol default-id)
+         _ (println "Pre-loading protocol namespaces...")
+         _ (doseq [ns-sym (preg/known-protocol-namespaces)]
+           (require ns-sym))
+         _ (println "Loaded" (count (preg/known-protocol-namespaces)) "protocol namespaces.")
         _ (println (str "Running " n " canonical fixture suites (single JVM, parallel)..."))
         _ (flush)
         start (System/currentTimeMillis)

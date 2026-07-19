@@ -92,6 +92,9 @@
         value-at-risk (value-at-risk/build-observation
                        snapshot replay (:input/provenance execution)
                        (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
+        value-at-risk-timeline (value-at-risk/value-at-risk-timeline
+                                snapshot replay
+                                (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
         value-at-risk-validation (value-at-risk/validate-persisted
                                            value-at-risk snapshot replay (:input/provenance execution)
                                            (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
@@ -104,12 +107,14 @@
                  "run" {"id" (:run/id context) "overall_status" status
                         "outcome" {"status" status "exit_code" (:exit-code execution) "duration_ms" (:duration-ms execution 0)}}
                  "value_at_risk" value-at-risk
-                 "value_at_risk_overview" (value-at-risk-summary execution)}
+                                  "value_at_risk_timeline_ref" "manifest/value-at-risk-timeline.json"
+                                  "value_at_risk_overview" (value-at-risk-summary execution)}
         claimable {"schema_version" "claimable-classification.v2" "run_id" (:run/id context)}]
     (atomic-json! (io/file dir "run.json") run)
     (atomic-json! (io/file dir "summary.json") summary)
     (atomic-json! (io/file dir "value-at-risk.json") value-at-risk)
-    (atomic-json! (io/file dir "claimable-classification.json") claimable)
+        (atomic-json! (io/file dir "value-at-risk-timeline.json") value-at-risk-timeline)
+        (atomic-json! (io/file dir "claimable-classification.json") claimable)
     {:run run :summary summary :claimable claimable}))
 
 (defn write-classification! [manifest-dir classification]

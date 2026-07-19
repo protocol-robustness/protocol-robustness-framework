@@ -25,6 +25,18 @@ hash, and immutable evidence-package references validate. See
 | Evidence-reference integrity | evidence DAG reference integrity | no active claim yet | none | none | Roadmap |
 | Game-theory validation | equilibrium, SPE, cancellation dominance | trace-end and bounded equilibrium checks | fixture-suite validators | none | Research validation; not active benchmark coverage |
 
+### Reversal-slashing review
+
+The canonical executable review entry point for reversal-reviewer behavior is
+[`sew/reversal-slashing-v1`](packs/sew/reversal-slashing-v1.edn). It exercises
+appeals, multi-level vindication, governance force slashing, challenger bounties,
+and reversal-slash accounting through `:suite/sew-reversal-slashing-v1`.
+
+Start with the [reversal-slashing reviewer guide](packs/sew/REVERSAL_SLASHING_REVIEW.md)
+for the headline claims, scenario coverage, and evidence boundaries. The guide
+maps each claim to its registered scenarios; it is not a substitute for a
+completed, hash-verified benchmark evidence bundle.
+
 ### First Run
 
 ```bash

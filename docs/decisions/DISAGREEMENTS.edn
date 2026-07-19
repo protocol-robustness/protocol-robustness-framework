@@ -1,0 +1,11 @@
+{:schema-version "protocol-semantic-disagreements.v1"
+ :disagreements
+ [{:id :position/current-amount-precedence
+   :status :provisional
+   :question "When is :position/current-amount authoritative?"
+   :affected-paths [:shared-withdrawal :deferred-position]
+   :current-behaviour :fail-closed-on-contradictory-or-incomplete-position-state
+   :interpretation "It is authoritative only for an unwinding position with an active, eligible deferred position."
+   :contradictory-state "An active base position coexists with a deferred position."
+   :falsifier "A valid protocol transition or scenario intentionally preserves both records while the base amount remains authoritative."
+   :risk :malformed-state-may-be-masked}]}

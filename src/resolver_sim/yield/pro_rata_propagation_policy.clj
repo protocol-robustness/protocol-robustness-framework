@@ -1,5 +1,13 @@
 (ns resolver-sim.yield.pro-rata-propagation-policy
-  "Canonical, domain-specific policy contracts for pro-rata propagation."
+  "Canonical, domain-specific policy contracts for pro-rata propagation.
+
+   Semantics:
+     :priority {:propagation-policy :preserve-original}
+       The allocation order in shared withdrawals is determined by each
+       position's `:original-priority` (deposit sequence number).  Deferred
+       positions inherit the original priority from their prior lineage so
+       that earlier depositors maintain priority across partial-fill cycles.
+       See `liquid-lending/withdraw-shared` for the ordering implementation."
   (:require [resolver-sim.hash.canonical :as hc]))
 
 (def shared-withdrawal-policy

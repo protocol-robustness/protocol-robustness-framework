@@ -2,19 +2,20 @@
  :schema-version "1.0"
  :allow-open-disputes? true
  :purpose "adversarial-robustness"
- :title "Freezing a resolver while holding an active disputed escrow violates resolver-not-frozen-on-assign invariant"
- :description "When a fraud slash is executed on a resolver who has an active disputed escrow, the resolver is frozen but the disputed escrow remains assigned. The invariant resolver-not-frozen-on-assign detects this inconsistency. Documenting as a protocol limitation: governance must rotate disputed escrows before slashing a resolver."
- :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
- :expected-failures {:dr-m-003-freeze-vs-active-dispute [:resolver-not-frozen-on-assign :no-stale-automatable-escrows]}
- :claim {:id "freeze-vs-active-dispute-invariant-violation"
-         :statement "Executing a fraud slash on a resolver with an active disputed escrow violates the resolver-not-frozen-on-assign invariant. The protocol does not auto-reassign disputed escrows when a resolver is frozen."
-         :falsifies-if ["Slash does not freeze resolver"
-                        "resolver-not-frozen-on-assign invariant holds after slash"]}
+ :title "Freeze-with-active-dispute is now prevented by protocol guard"
+ :description "Executing a fraud slash on a resolver with an active disputed escrow is now rejected by the protocol guard :freeze-blocked-active-dispute. Governance must rotate disputed escrows (rotate-dispute-resolver) before slashing a resolver. This replaces the previous post-hoc invariant violation with a pre-condition rejection."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0" :updated-at "2026-07-20"}
+ :expected-failures {:dr-m-003-freeze-vs-active-dispute []}
+ :claim {:id "freeze-vs-active-dispute-guard-rejection"
+         :statement "Executing a fraud slash on a resolver with an active disputed escrow is rejected by the protocol guard :freeze-blocked-active-dispute."
+         :falsifies-if ["Fraud slash is not rejected with :freeze-blocked-active-dispute"
+                        "Slash proceeds despite active disputed escrow"]}
  :expectations {:terminal-state "refunded"}
  :threat {:family "freeze-governance" :attack "freeze-with-active-dispute" :severity "high"
           :actors ["governance"] :victims ["buyer" "seller"]
-          :assumptions ["Governance can slash a resolver with active disputes"
-                       "The protocol does not auto-reassign disputed escrows on freeze"]}
+          :assumptions ["Governance attempts to slash a resolver with active disputes"
+                       "The protocol guard prevents the freeze"]
+          :fix "Governance must rotate-dispute-resolver before slashing a resolver with active disputes."}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "governance" "protocol" "claimableBalances"]}
  :initial-block-time 1000
  :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000 :fraud-slash-bps 5000 :appeal-bond-bps 500}
@@ -28,17 +29,12 @@
           {:seq 1 :time 1000 :agent "buyer" :action "create_escrow"
            :params {:token "USDC" :to "0xseller" :amount 10000 :custom-resolver "0xresolver"}}
           {:seq 2 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
-          ;; Resolution creates pending settlement — escrow stays in :disputed state
           {:seq 3 :time 1100 :agent "resolver" :action "execute_resolution"
            :params {:workflow-id 0 :is-release false :resolution-hash "0xhash"}}
-          ;; Propose fraud slash on the same resolver while they have an active disputed escrow
           {:seq 4 :time 1200 :agent "governance" :action "propose_fraud_slash"
            :params {:workflow-id 0 :resolver-addr "0xresolver" :amount 3000}}
-          ;; Execute the fraud slash after timelock expires
+          ;; Slash execution is now rejected by the protocol guard
           {:seq 5 :time 1350 :agent "keeper" :action "execute_fraud_slash"
            :params {:workflow-id 0}}
-          ;; The resolver is now frozen but the disputed escrow is still assigned to them
-          ;; This triggers resolver-not-frozen-on-assign invariant
-          ;; Keeper can still settle the escrow after appeal window (deadline 1100+120=1220)
           {:seq 6 :time 1400 :agent "keeper" :action "execute_pending_settlement"
            :params {:workflow-id 0}}]}

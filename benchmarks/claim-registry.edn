@@ -195,8 +195,8 @@
    :claim/description "A reversing resolver who is themselves reversed may appeal their own reversal slash. The slash lifecycle includes proposed, executed, appeal/opened, appeal/resolved, and (when upheld) reversed."
    :claim/property-types #{:safety :fairness}
    :claim/concepts #{:allocation/slash-obligation :consensus/legitimacy :consensus/escalation}
-   :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved]
-   :claim/evaluator :claim/reversal-reviewer-due-process}
+   :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+      :claim/evaluator :claim/reversal-reviewer-due-process}
 
   {:claim/id :claim/reversal-slash-conservation
    :claim/title "Reversal slash conservation"
@@ -211,24 +211,24 @@
    :claim/description "Multi-level vindication credits each vindicated resolver exactly once with no duplicate credit, no slash drift, and no missed vindication."
    :claim/property-types #{:safety :fairness}
    :claim/concepts #{:allocation/slash-obligation :consensus/finality}
-   :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved]
-   :claim/evaluator :claim/vindication-stability}
+   :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+      :claim/evaluator :claim/vindication-stability}
 
   {:claim/id :claim/challenge-bounty-correctness
    :claim/title "Challenge bounty correctness"
    :claim/description "Challenge bounty is paid to the challenger (not keeper/caller), bounded by max rate. When no challenger is recorded, no bounty is paid and no nil deref occurs."
    :claim/property-types #{:fairness}
    :claim/concepts #{:allocation/slash-obligation :consensus/legitimacy}
-   :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved]
-   :claim/evaluator :claim/challenge-bounty-correctness}
+   :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+      :claim/evaluator :claim/challenge-bounty-correctness}
 
    {:claim/id :claim/governance-force-reversal-authorized
     :claim/title "Governance force reversal slash authorization"
     :claim/description "Governance can issue force-reversal-slash bypassing the appeal window. Duplicate force slash is rejected (idempotent). Only authorized governance may issue."
     :claim/property-types #{:safety :liveness}
     :claim/concepts #{:consensus/authority :allocation/slash-obligation}
-    :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved]
-    :claim/evaluator :claim/governance-force-reversal-authorized}
+    :claim/invariants [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+        :claim/evaluator :claim/governance-force-reversal-authorized}
 
    {:claim/id :claim/level-cascade-integrity
     :claim/title "Level cascade integrity"

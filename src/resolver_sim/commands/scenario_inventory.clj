@@ -23,6 +23,7 @@
       "manifest/verdict-policy.json" {:id "manifest.verdict-policy" :kind "verdict-policy" :schema "verdict-policy.v1" :importance "CORE"}
 
          "manifest/diagnostic-summary.json" {:id "manifest.diagnostic-summary" :kind "scenario.diagnostic-summary" :schema "scenario-diagnostic-summary.v1" :importance "CORE"}
+         "manifest/pro-rata-mechanism-nodes.json" {:id "manifest.pro-rata-mechanism-nodes" :kind "mechanism.pro-rata-nodes" :schema "pro-rata-mechanism-nodes.v1" :importance "CORE"}
        "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v2" :importance "CORE"}
    "execution/replay-output.json" {:id "execution.replay-output" :kind "raw.replay" :schema "bundle-root.v1" :importance "DIAGNOSTIC"}
    "execution/execution-dag.json" {:id "execution.dag" :kind "execution.dag" :schema "execution-dag.v1" :importance "CORE"}
@@ -61,9 +62,12 @@
      :kind "evidence.scenario-finalization" :schema "evidence-finalization.v2" :importance "CORE"}))
 
 (defn- forensic-spec [relative]
-  (let [suffix (subs relative (count "forensic/"))]
+  (let [suffix (subs relative (count "forensic/"))
+        evidence-node? (str/includes? suffix "evidence-nodes/")]
     {:id (str "forensic." (str/replace suffix #"[^A-Za-z0-9]+" "."))
-     :kind "forensic.evidence" :schema "unknown" :importance "DIAGNOSTIC"}))
+     :kind (if evidence-node? "evidence.node" "forensic.evidence")
+     :schema (if evidence-node? "evidence-node.v1" "unknown")
+     :importance (if evidence-node? "CORE" "DIAGNOSTIC")}))
 
 (defn- run-evidence-spec [relative]
   {:id (str "evidence." (str/replace relative #"[^A-Za-z0-9]+" "."))

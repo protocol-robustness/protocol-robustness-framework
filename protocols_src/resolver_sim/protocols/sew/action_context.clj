@@ -26,8 +26,7 @@
 
 (defn check-unfrozen
   [world actor]
-  (if (and (contains? (:resolver-stakes world) actor)
-           (> (get-in world [:resolver-frozen-until actor] 0) (time-ctx/block-ts world)))
+  (if (> (get-in world [:resolver-frozen-until actor] 0) (time-ctx/block-ts world))
     (t/fail :resolver-frozen)
     {:ok true}))
 

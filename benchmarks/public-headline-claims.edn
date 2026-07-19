@@ -64,4 +64,104 @@
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []
    :publication/copy {:headline "Sew escrow-fund conservation"
-                      :summary "The Sew escrow-dispute benchmark checks escrow-fund conservation across exercised state transitions."}}]}
+                      :summary "The Sew escrow-dispute benchmark checks escrow-fund conservation across exercised state transitions."}}
+
+  {:claim/id "PHC-0004"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The Sew reversal-slashing benchmark checks that a reversal reviewer can appeal their own slash through the declared due-process lifecycle."
+   :claim/scope "Only :benchmark/sew-reversal-slashing-v1 and its declared reversal appeal scenarios under the pinned local runner, evidence, and scoring policies. This is a simulator benchmark claim, not a production guarantee."
+   :claim/assumptions ["Each registered due-process scenario replays successfully and passes its declared expectations."
+                       "The evaluator receives complete scenario results with the required conservation and resolver-balance invariants."
+                       "The declared runner, evidence, and scoring policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/sew-reversal-slashing-v1
+                       :claims [:claim/reversal-reviewer-due-process]}]
+   :evaluator/id :claim/reversal-reviewer-due-process
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
+   :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
+   :evidence/packages []
+   :publication/copy {:headline "Reversal-reviewer due process"
+                      :summary "The Sew reversal-slashing benchmark checks the declared appeal lifecycle for a resolver who is themselves reversed."}}
+
+  {:claim/id "PHC-0005"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The Sew reversal-slashing benchmark checks that requested reversal-slash value is accounted for through debit, unmet obligation, or reversal, while conserving funds."
+   :claim/scope "Only :benchmark/sew-reversal-slashing-v1 and its declared slash-accounting scenarios under the pinned local runner, evidence, and scoring policies. This is a simulator benchmark claim, not a production guarantee."
+   :claim/assumptions ["Each registered accounting scenario replays successfully and passes its declared expectations."
+                       "The evaluator receives :slash-distribution-consistent and :conservation-of-funds invariant results."
+                       "The declared runner, evidence, and scoring policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/sew-reversal-slashing-v1
+                       :claims [:claim/reversal-slash-conservation]}]
+   :evaluator/id :claim/reversal-slash-conservation
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
+   :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
+   :evidence/packages []
+   :publication/copy {:headline "Reversal-slash conservation"
+                      :summary "The Sew reversal-slashing benchmark checks slash accounting and conservation of funds across its declared accounting scenarios."}}
+
+  {:claim/id "PHC-0006"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The Sew reversal-slashing benchmark checks that multi-level vindication credits a resolver once without slash-accounting drift."
+   :claim/scope "Only :benchmark/sew-reversal-slashing-v1 and its declared multi-level vindication scenarios under the pinned local runner, evidence, and scoring policies. This is a simulator benchmark claim, not a production guarantee."
+   :claim/assumptions ["Each registered vindication scenario replays successfully and passes its declared expectations."
+                       "The evaluator receives the required slash-distribution, resolver-balance, and conservation-of-funds invariant results."
+                       "The declared runner, evidence, and scoring policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/sew-reversal-slashing-v1
+                       :claims [:claim/vindication-stability]}]
+   :evaluator/id :claim/vindication-stability
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
+   :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
+   :evidence/packages []
+   :publication/copy {:headline "Vindication stability"
+                      :summary "The Sew reversal-slashing benchmark checks that declared multi-level vindications do not duplicate credit or drift slash accounting."}}
+
+  {:claim/id "PHC-0007"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The Sew reversal-slashing benchmark checks that a bounded challenge bounty is paid to the recorded challenger and not paid when no challenger is recorded."
+   :claim/scope "Only :benchmark/sew-reversal-slashing-v1 and its declared challenger-bounty scenarios under the pinned local runner, evidence, and scoring policies. This is a simulator benchmark claim, not a production guarantee."
+   :claim/assumptions ["Each registered bounty scenario replays successfully and passes its declared expectations."
+                       "The evaluator receives the required slash-distribution, resolver-balance, and conservation-of-funds invariant results."
+                       "The declared runner, evidence, and scoring policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/sew-reversal-slashing-v1
+                       :claims [:claim/challenge-bounty-correctness]}]
+   :evaluator/id :claim/challenge-bounty-correctness
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
+   :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
+   :evidence/packages []
+   :publication/copy {:headline "Challenge-bounty correctness"
+                      :summary "The Sew reversal-slashing benchmark checks bounded challenger-only bounty allocation in its declared scenarios."}}
+
+  {:claim/id "PHC-0008"
+   :claim/version 1
+   :publication/status :draft
+   :claim/text "The Sew reversal-slashing benchmark checks that authorized governance force-slash scenarios are idempotent and conserve funds."
+   :claim/scope "Only :benchmark/sew-reversal-slashing-v1 and its declared governance force-slash scenarios under the pinned local runner, evidence, and scoring policies. This is a simulator benchmark claim, not a production guarantee."
+   :claim/assumptions ["Each registered force-slash scenario replays successfully and passes its declared expectations."
+                       "The evaluator receives the required slash-distribution, resolver-balance, and conservation-of-funds invariant results."
+                       "The declared runner, evidence, and scoring policies are applied unchanged."]
+   :benchmark/claims [{:benchmark/id :benchmark/sew-reversal-slashing-v1
+                       :claims [:claim/governance-force-reversal-authorized]}]
+   :evaluator/id :claim/governance-force-reversal-authorized
+   :evaluator/version "benchmark-claims-v1"
+   :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
+                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
+   :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
+   :evidence/packages []
+   :publication/copy {:headline "Governance force-slash authorization"
+                      :summary "The Sew reversal-slashing benchmark checks authorized, idempotent force-slash behavior in its declared scenarios."}}]}

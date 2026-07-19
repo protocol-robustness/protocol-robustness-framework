@@ -66,8 +66,8 @@
    :time 1202,
    :agent "gov",
    :action "resolve_appeal",
-   :params {:workflow-id 0, :slash-id {:slash-ref {:workflow-id 0, :kind :reversal, :level 0}}, :upheld? false}
-  {:seq 10,
+    :params {:workflow-id 0, :slash-id {:slash-ref {:workflow-id 0, :kind :reversal, :level 0}}, :upheld? false}}
+   {:seq 10,
    :time 1261,
    :agent "keeper",
    :action "execute_pending_settlement",

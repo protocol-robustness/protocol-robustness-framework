@@ -10,7 +10,8 @@
    semantic property is proxied by invariant results from check-all.
 
    See benchmarks/DESIGN_CLAIM_VERIFICATION.md for maturity level definitions."
-  (:require [resolver-sim.claims.engine :as evidence-claims]
+  (:require [clojure.string :as str]
+            [resolver-sim.claims.engine :as evidence-claims]
             [resolver-sim.definitions.passive-registries :as passive-registries]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.yield.partial-fill :as partial-fill]))
@@ -138,6 +139,93 @@
         {:holds? (empty? failures)
          :violations failures
          :witnesses witnesses}))))
+
+(def ^:private reversal-claim-coverage
+  {:claim/reversal-reviewer-due-process
+   ["DR-N-001-reversal-slash-appeal-lifecycle"
+    "DR-N-002-reversal-slash-appeal-rejected"
+    "DR-N-003-reversal-slash-appeal-window-expired"
+    "DR-N-004-reversal-slash-appeal-wrong-party"]
+   :claim/reversal-slash-conservation
+   ["DR-N-001-reversal-slash-appeal-lifecycle"
+    "DR-R-001-reversal-slash-insufficient-stake"]
+   :claim/vindication-stability
+   ["DR-N-001-reversal-slash-appeal-lifecycle"
+    "DR-O-001-vindication-4-level"
+    "DR-O-002-vindication-minimum-stake"
+    "DR-O-003-vindication-zero-stake"]
+   :claim/challenge-bounty-correctness
+   ["DR-Q-001-challenge-bounty-reversal"
+    "DR-Q-002-challenge-bounty-no-challenger"]
+   :claim/governance-force-reversal-authorized
+   ["DR-P-001-force-reversal-slash"
+    "DR-P-002-force-reversal-slash-idempotent"]})
+
+(def ^:private reversal-claim-invariants
+  {:claim/reversal-reviewer-due-process
+   [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+   :claim/reversal-slash-conservation
+   [:slash-distribution-consistent :conservation-of-funds]
+   :claim/vindication-stability
+   [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+   :claim/challenge-bounty-correctness
+   [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+   :claim/governance-force-reversal-authorized
+   [:slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]})
+
+(defn- expectation-passed?
+  [result]
+  (true? (get-in result [:checks :expectations :ok?])))
+
+(defn- reversal-claim-check
+  "Verify that every scenario specifically registered for a reversal claim ran,
+   passed its replay and declared expectations, and produced passing accounting
+   invariants. Returns reviewer-readable assertions for each required scenario."
+  [claim-id results]
+  (let [required-scenarios (get reversal-claim-coverage claim-id)
+        required-invariants (get reversal-claim-invariants claim-id)
+        by-id (group-by (comp str/upper-case :scenario/id) results)
+        assertions
+        (mapv (fn [scenario-id]
+                (let [result (first (get by-id (str/upper-case scenario-id)))
+                      invariant-results (:invariant-results result)
+                      missing-invariants (->> required-invariants
+                                              (remove (fn [id]
+                                                        (some #(= id (:id %)) invariant-results)))
+                                              vec)
+                      failed-invariants (->> required-invariants
+                                             (keep (fn [id]
+                                                     (let [entry (some #(when (= id (:id %)) %) invariant-results)]
+                                                       (when (and entry (not= :pass (:result entry))) id))))
+                                             vec)]
+                  {:scenario/id scenario-id
+                   :scenario/present? (boolean result)
+                   :replay/outcome (:outcome result)
+                   :expectations/passed? (when result (expectation-passed? result))
+                   :invariants/missing missing-invariants
+                   :invariants/failed failed-invariants
+                   :holds? (and result
+                                (= :pass (:outcome result))
+                                (expectation-passed? result)
+                                (empty? missing-invariants)
+                                (empty? failed-invariants))}))
+              required-scenarios)
+        violations (->> assertions
+                        (keep (fn [assertion]
+                                (when-not (:holds? assertion)
+                                  {:type :reversal-claim-scenario-failed
+                                   :scenario/id (:scenario/id assertion)
+                                   :message "Required reversal-claim scenario did not satisfy replay, expectation, and invariant checks"
+                                   :details (dissoc assertion :holds?)})))
+                        vec)]
+    (if (empty? results)
+      {:outcome :not-exercised
+       :violations [{:type :missing-reversal-claim-results
+                     :message "No scenario results were supplied for reversal claim evaluation"}]
+       :assertions []}
+      {:holds? (empty? violations)
+       :violations violations
+       :assertions assertions})))
 
 (defn- scenario-group-key
   [result]
@@ -546,31 +634,33 @@
     :check (fn [ctx]
              (check-invariants ctx [:solvency :conservation-of-funds]))}
 
-   ;; reversal-slashing-v1 pack
+   ;; reversal-slashing-v1 pack: benchmark-scoped so each claim verifies its
+   ;; own registered scenario coverage rather than treating unrelated scenarios
+   ;; as evidence for every reversal property.
    :claim/reversal-reviewer-due-process
-   {:scope :scenario
+   {:scope :benchmark
     :check (fn [ctx]
-             (check-invariants ctx [:slash-distribution-consistent :resolver/balances-conserved]))}
+             (reversal-claim-check :claim/reversal-reviewer-due-process (:benchmark/results ctx)))}
 
    :claim/reversal-slash-conservation
-   {:scope :scenario
+   {:scope :benchmark
     :check (fn [ctx]
-             (check-invariants ctx [:slash-distribution-consistent :conservation-of-funds]))}
+             (reversal-claim-check :claim/reversal-slash-conservation (:benchmark/results ctx)))}
 
    :claim/vindication-stability
-   {:scope :scenario
+   {:scope :benchmark
     :check (fn [ctx]
-             (check-invariants ctx [:slash-distribution-consistent :resolver/balances-conserved]))}
+             (reversal-claim-check :claim/vindication-stability (:benchmark/results ctx)))}
 
    :claim/challenge-bounty-correctness
-   {:scope :scenario
+   {:scope :benchmark
     :check (fn [ctx]
-             (check-invariants ctx [:slash-distribution-consistent :resolver/balances-conserved]))}
+             (reversal-claim-check :claim/challenge-bounty-correctness (:benchmark/results ctx)))}
 
    :claim/governance-force-reversal-authorized
-   {:scope :scenario
+   {:scope :benchmark
     :check (fn [ctx]
-             (check-invariants ctx [:slash-distribution-consistent :resolver/balances-conserved]))}})
+             (reversal-claim-check :claim/governance-force-reversal-authorized (:benchmark/results ctx)))}})
 
 (def ^:private scoring-rule-paths
   {:scoring/robustness-dimensions-v0 "resource:benchmarks/scoring/robustness-dimensions-v0.edn"
@@ -633,11 +723,13 @@
                                       [:scenario/id :simulator/scenario-path :file])]
      (with-provenance
        (if-let [{:keys [scope check]} (evaluator-resolver claim-id)]
-         (let [{:keys [holds? violations outcome]} (check context)]
+         (let [{:keys [holds? violations outcome assertions]} (check context)]
            (merge {:claim/id claim-id
                    :claim/outcome (or outcome (if holds? :pass :fail))
                    :claim/severity severity
                    :claim/evidence (mapv :type violations)}
+                  (when (some? assertions)
+                    {:claim/assertions assertions})
                   (when (= scope :scenario)
                     {:claim/scope :scenario
                      :scenario/id (:scenario/id scenario-fields)

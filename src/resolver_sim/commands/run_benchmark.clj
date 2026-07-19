@@ -144,31 +144,41 @@
     (lifecycle/atomic-json! (io/file root "benchmark/assertions/forensic-claims-status.json") deferred)
     value))
 
-(defn- complete! [context conclusion]
+(defn complete-canonical-benchmark-run-root!
+  "Write the irreversible terminal seal for a fully finalized canonical benchmark
+   root. All referenced package and registry artifacts must already exist; this
+   function deliberately cannot turn a partial root into a completed package."
+  [context conclusion]
   (let [root (:run/root context)
-        finalization (json/read-str (slurp (io/file (str root) "benchmark/finalization.json")))
+        finalization-file (io/file (str root) "benchmark/finalization.json")
+        package-index-file (io/file (str root) "manifest/run-package-index.json")
         registry (io/file (str root) "manifest/artifacts.json")
         validation (io/file (str root) "manifest/artifacts-validation.json")
-        finalization-file (io/file (str root) "benchmark/finalization.json")]
-    (lifecycle/complete!
-     root
-     {:schema_version "benchmark-completion.v1"
-      :benchmark_id (str (:benchmark/id context))
-      :run_id (:run/id context)
-      :run_type "benchmark"
-      :lifecycle_status "completed"
-      :semantic_status (get conclusion "outcome")
-      :finalization_ref "benchmark/finalization.json"
-      :finalization_sha256 (sha-ref finalization-file)
-      :final_ref (get finalization "final_ref")
-      :run_package_index_ref "manifest/run-package-index.json"
-      :run_package_index_sha256 (sha-ref (io/file (str root) "manifest/run-package-index.json"))
-      :run_package_index_bytes (.length (io/file (str root) "manifest/run-package-index.json"))
-      :input_set_root (get finalization "input_set_root")
-      :artifact_registry_ref "manifest/artifacts.json"
-      :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))
-      :registry_validation_ref "manifest/artifacts-validation.json"
-      :registry_validation_sha256 (str "sha256:" (lifecycle/sha256-file validation))})))
+        required-files [finalization-file package-index-file registry validation]]
+    (when-let [missing (first (remove #(.isFile %) required-files))]
+      (throw (ex-info "Canonical benchmark root is not ready for completion"
+                      {:run-root (str root)
+                       :missing-terminal-artifact (.getPath missing)})))
+    (let [finalization (json/read-str (slurp finalization-file))]
+      (lifecycle/complete!
+       root
+       {:schema_version "benchmark-completion.v1"
+        :benchmark_id (str (:benchmark/id context))
+        :run_id (:run/id context)
+        :run_type "benchmark"
+        :lifecycle_status "completed"
+        :semantic_status (get conclusion "outcome")
+        :finalization_ref "benchmark/finalization.json"
+        :finalization_sha256 (sha-ref finalization-file)
+        :final_ref (get finalization "final_ref")
+        :run_package_index_ref "manifest/run-package-index.json"
+        :run_package_index_sha256 (sha-ref package-index-file)
+        :run_package_index_bytes (.length package-index-file)
+        :input_set_root (get finalization "input_set_root")
+        :artifact_registry_ref "manifest/artifacts.json"
+        :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))
+        :registry_validation_ref "manifest/artifacts-validation.json"
+        :registry_validation_sha256 (str "sha256:" (lifecycle/sha256-file validation))}))))
 
 (defn- write-verdict-policy! [context evidence conclusion]
   (let [root (io/file (str (:run/root context)))
@@ -424,8 +434,8 @@
                                   :build-inventory (fn [_ _] (inventory/build! context))
                                   :finalize-registry (fn [_ _] (registry/finalize! (:run/root context)))
                                   :validate-registry (fn [_ _] (validate-registry! context))
-                                  :complete (fn [_ _] (complete! context @benchmark-conclusion))}
-                                  overrides))]
+                                  :complete (fn [_ _] (complete-canonical-benchmark-run-root! context @benchmark-conclusion))
+                                  } overrides))]
         {:exit-code (or (:exit-code execution) 1) :run/id (:run/id context) :run/root (str (:run/root context))})
       (finally (lifecycle/release-run-lock! lock)))))
 

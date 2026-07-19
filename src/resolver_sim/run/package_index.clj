@@ -13,6 +13,7 @@
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.commands.scenario-value-at-risk :as value-at-risk]
                         [resolver-sim.evidence.finalization :as finalization]
+                        [resolver-sim.evidence.node :as evidence-node]
                                                 [resolver-sim.forensic.execution-dag :as execution-dag]
                                                 [resolver-sim.hash.canonical :as hc]
             [resolver-sim.run.runner-finalization :as runner-finalization]
@@ -323,6 +324,41 @@
          :recalculated-status (:status recalculated)
          :closure-report closure
          :reasons reasons}))))
+
+(defn- validate-pro-rata-mechanism-nodes
+  [run-root artifacts]
+  (if-not (contains? artifacts :pro-rata-mechanism-nodes)
+    {:valid? true :reasons []}
+    (let [manifest (artifact-json run-root artifacts :pro-rata-mechanism-nodes)
+          registry (artifact-json run-root artifacts :artifact-registry)
+          entries (into {} (map (juxt :path identity) (:artifacts registry)))
+          nodes (:nodes manifest)
+          reasons (vec (concat
+                        (when-not (= "pro-rata-mechanism-nodes.v1" (:schema_version manifest))
+                          [(reason :pro-rata-mechanism-nodes/unsupported-schema)])
+                        (when-not (= "pro-rata-allocation" (:mechanism_id manifest))
+                          [(reason :pro-rata-mechanism-nodes/invalid-mechanism-id)])
+                        (when-not (= 1 (:mechanism_version manifest))
+                          [(reason :pro-rata-mechanism-nodes/invalid-mechanism-version)])
+                        (when-not (vector? nodes)
+                          [(reason :pro-rata-mechanism-nodes/nodes-not-vector)])
+                        (mapcat (fn [{:keys [path node_hash evidence_hash allocation_result_hash allocation_artifact_hash]}]
+                                  (let [file (and (string? path) (contained-file run-root path))
+                                        registry-entry (get entries path)
+                                        node (try (when (and file (.isFile file))
+                                                    (edn/read-string (slurp file)))
+                                                  (catch Exception _ nil))]
+                                    (cond-> []
+                                      (nil? registry-entry) (conj (reason :pro-rata-mechanism-nodes/not-registered :path path))
+                                      (and registry-entry (not= "evidence.node" (:kind registry-entry))) (conj (reason :pro-rata-mechanism-nodes/not-core-node :path path))
+                                      (nil? node) (conj (reason :pro-rata-mechanism-nodes/unreadable-node :path path))
+                                      (and node (not= node_hash (:node-hash node))) (conj (reason :pro-rata-mechanism-nodes/node-hash-mismatch :path path))
+                                      (and node (not= :mechanism/pro-rata-allocation (get-in node [:extensions :mechanism/id]))) (conj (reason :pro-rata-mechanism-nodes/invalid-node-mechanism :path path))
+                                      (and node (not= evidence_hash (get-in node [:extensions :pro-rata/evidence-hash]))) (conj (reason :pro-rata-mechanism-nodes/evidence-hash-mismatch :path path))
+                                      (and node (not= allocation_result_hash (get-in node [:extensions :pro-rata/allocation-result-hash]))) (conj (reason :pro-rata-mechanism-nodes/allocation-result-hash-mismatch :path path))
+                                      (and node (not= allocation_artifact_hash (get-in node [:extensions :pro-rata/artifact-hash]))) (conj (reason :pro-rata-mechanism-nodes/allocation-artifact-hash-mismatch :path path)))))
+                                (if (vector? nodes) nodes []))))]
+      {:valid? (empty? reasons) :reasons reasons})))
 
 (defn- completion-commitment-reasons
   [completion artifacts]
@@ -777,6 +813,7 @@
             entries (sort-by (comp name key) artifacts)
             reports (validated-subordinate-reports run-root artifacts)
             reconciliation (reconciliation-report index completion artifacts reports)
+            pro-rata-mechanism-nodes (validate-pro-rata-mechanism-nodes run-root artifacts)
             duplicate-paths (->> entries (map (comp :ref val)) (remove nil?) frequencies (keep (fn [[p n]] (when (> n 1) p))) vec)
             reasons (vec (concat
                           (when-not (= schema-version (:run-package/schema-version index)) [(reason :package/unsupported-schema)])
@@ -804,6 +841,9 @@
                                       (not= bytes (.length (io/file file))))
                                  (conj (reason :package/artifact-length-mismatch :artifact-id id :path ref)))))
                            entries)
+                          (when-not (:valid? pro-rata-mechanism-nodes)
+                            [(reason :package/invalid-pro-rata-mechanism-nodes
+                                     :causes (:reasons pro-rata-mechanism-nodes))])
                           (subordinate-validation-reasons reports reconciliation)))]
         {:valid? (empty? reasons) :status (if (empty? reasons) :valid :invalid)
          :index index :index-path path :reasons reasons
@@ -953,7 +993,10 @@
                                (not= "unsigned-canonical-integrity" (:assurance-kind assurance)))
         reasons (vec (concat (:reasons runnable)
                              (when-not (and assurance (:valid? assurance))
-                               [(reason :package/canonical-assurance-not-passed)])
+                               [(reason :package/canonical-assurance-not-passed
+                                        :causes (vec (report-causes assurance))
+                                        :assurance-kind (:assurance-kind assurance)
+                                        :scope (:scope assurance))])
                              ;; Canonical content integrity is intentionally not
                              ;; an operator/signature release authorization.
                              (when-not signed-assurance?

@@ -648,8 +648,10 @@
       result
       (let [resolver (get-in (:world result) [:escrow-transfers workflow-id :dispute-resolver])]
         (if (and resolver (t/resolver-at-capacity? world resolver))
-          (t/fail :resolver-capacity-exceeded)
-          (let [et (t/get-transfer world workflow-id)
+           (t/fail :resolver-capacity-exceeded)
+           (if (and resolver (> (get-in world [:resolver-frozen-until resolver] 0) (time-ctx/block-ts world)))
+             (t/fail :resolver-frozen)
+             (let [et (t/get-transfer world workflow-id)
                 afa (:amount-after-fee et)
                 max-escrow (reg/get-max-escrow-per-case world resolver)]
             (if (> afa max-escrow)
@@ -672,7 +674,7 @@
                    nil
                    {:world-before world
                     :world-after world'}))
-                (t/ok world')))))))))
+                (t/ok world'))))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; release

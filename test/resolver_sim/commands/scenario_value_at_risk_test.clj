@@ -13,3 +13,4 @@
     (is (= "pass" (get (v/validate-persisted o scenario replay provenance source) "status")))
     (is (= "fail" (get (v/build-observation (assoc-in scenario [:value-at-risk :calculation :selector] [:workflows 99 :custody :held]) replay provenance source) "status")))
     (is (some #{"valid-amount"} (get-in o ["validation" "checks"]))))
+  )

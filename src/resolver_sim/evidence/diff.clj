@@ -507,7 +507,7 @@
    :total-breached #{:slash_resolver :execute_fraud_slash :finalize}
    :resolver-stakes #{:register_stake :withdraw_stake :slash_resolver
                       :execute_fraud_slash :handle_reversal_slashing}
-   :resolver-frozen-until #{:execute_fraud_slash :unfreeze_resolver}
+   :resolver-frozen-until #{:execute_fraud_slash :execute_fraud_group_slash :unfreeze_resolver}
    :resolver-capacities #{:raise_dispute :execute_resolution :finalize}
    :resolver-epoch-slashed #{:execute_fraud_slash}
    :resolver-slash-total #{:execute_fraud_slash}
