@@ -127,6 +127,29 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (claims/evaluate-claim :unknown-claim {:evidence-nodes []})))))
 
+(deftest claims-compare-integer-equivalent-rows-by-canonical-identity
+  (let [direct {:allocations [{:id :alice :owed 3 :paid 2 :unmet 1}
+                              {:id :bob :owed 3 :paid 1 :unmet 2}]
+                :total-requested 6 :total-allocated 3 :total-unmet 3 :remainder 0}
+        projection {:allocations [{:id :bob :owed 3N :paid 1N :unmet 2N}
+                                  {:id :alice :owed 3N :paid 2N :unmet 1N}]
+                    :total-requested 6N :total-allocated 3N :total-unmet 3N :remainder 0N}
+        content (assoc (make-content direct) :claims/projection-result projection)
+        result (claims/evaluate-claim :pro-rata/conservation
+                                      {:evidence-nodes [{:result content}]})]
+    (is (true? (:holds? result)))
+    (is (empty? (:violations result)))))
+
+(deftest duplicate-allocation-identities-fail-closed
+  (let [duplicate {:allocations [{:id :alice :owed 3 :paid 2 :unmet 1}
+                                 {:id :alice :owed 3 :paid 1 :unmet 2}]
+                   :total-requested 6 :total-allocated 3 :total-unmet 3 :remainder 0}
+        result (claims/evaluate-claim :pro-rata/conservation
+                                      {:evidence-nodes [{:result (make-content duplicate)}]})]
+    (is (false? (:holds? result)))
+    (is (some #(= :duplicate-allocation-identity (:type %))
+              (:violations result)))))
+
 (deftest claims-engine-integrates-with-evaluator-resolver
   (testing "claims.engine/evaluate-claims resolves pro-rata evaluators correctly"
     (let [input (first representative-fixtures)

@@ -725,6 +725,11 @@
                                                                                                (cond-> []
                                (nil? a) (conj {:propagation-id id :reason :missing-propagation-application})
                                                               (and a (not= "pro-rata-propagation-application.v2" (:schema-version a))) (conj {:propagation-id id :reason :unsupported-application-schema})
+                                                              (and a (nil? (:application/hash a))) (conj {:propagation-id id :reason :application-hash-missing})
+                                                              (and a (:application/hash a)
+                                                                   (not= (:application/hash a)
+                                                                         (partial-fill/application-hash a)))
+                                                              (conj {:propagation-id id :reason :application-hash-mismatch})
                                                               (and a (= "pro-rata-propagation.v2" (:schema-version p))
                                                                                                                                  (not= {:propagation/id id :propagation/hash (:propagation/hash p)}
                                                                                                                                        (:propagation/reference a))) (conj {:propagation-id id :reason :application-propagation-reference-mismatch})

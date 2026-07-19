@@ -4,10 +4,12 @@
             [clojure.java.io :as io]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.io.scenario-runner :as scenario-runner]
-            [resolver-sim.protocols.sew.claimable-classification :as cc]
             [resolver-sim.vcs :as vcs]))
 
 (def producer-id (evcfg/producer :claimable-classification))
+
+(defn- classifier-var [name]
+  (requiring-resolve (symbol "resolver-sim.protocols.sew.claimable-classification" name)))
 
 (defn- write-json! [path doc]
   (let [f (io/file path)
@@ -30,7 +32,7 @@
   [& {:keys [run-id git-sha override-sha input-result-path]}]
   (let [sha (or override-sha git-sha (current-vcs-sha))]
     (cond-> {:producer producer-id
-             :classifier_version cc/classifier-version
+             :classifier_version @(classifier-var "classifier-version")
              :produced_at (str (java.time.Instant/now))}
       run-id (assoc :run_id run-id)
       sha (assoc :git_sha sha)
@@ -42,7 +44,7 @@
   [output-path {:keys [worlds contexts scope scenarios-passed observations-status
                        run-id git-sha aggregation aggregation-note input-result-path]}]
   (write-json! output-path
-               (cc/build-document
+               ((classifier-var "build-document")
                 :worlds worlds
                 :contexts contexts
                 :scope scope
@@ -58,7 +60,7 @@
   "Write taxonomy without replaying scenarios (scenario-manifest path)."
   [output-path & {:keys [run-id git-sha]}]
   (write-json! output-path
-               (cc/build-document
+               ((classifier-var "build-document")
                 :observations-status "taxonomy-only"
                 :provenance (provenance-block :run-id run-id :git-sha git-sha))))
 
@@ -66,7 +68,7 @@
   "Replay Sew invariant registry and write v2 with terminal observations."
   [output-path & {:keys [run-id suite-id git-sha]}]
   (let [summary  (scenario-runner/run-registry-suite {:suite-id (or suite-id :sew-invariants)})
-        contexts (cc/terminal-contexts-from-summary summary)
+        contexts ((classifier-var "terminal-contexts-from-summary") summary)
         worlds   (mapv :world contexts)
         passed   (count (filter :pass? (or (:results summary) (:entries summary))))]
     (emit-terminal-document! output-path
@@ -84,7 +86,7 @@
   "Replay one scenario JSON and write v2 with terminal observations."
   [output-path scenario-path & {:keys [run-id git-sha scenarios-passed]}]
   (let [summary  (scenario-runner/run-scenario-file scenario-path {:suite-id :bb-scenario-run})
-        contexts (cc/terminal-contexts-from-summary summary)
+        contexts ((classifier-var "terminal-contexts-from-summary") summary)
         worlds   (mapv :world contexts)
         passed   (or scenarios-passed (count (filter :pass? (:entries summary))))
         sid      (or (:scenario-id (first contexts)) scenario-path)]
@@ -104,7 +106,7 @@
   "Load scenario-result JSON (evidence:build output) without replay."
   [output-path result-path & {:keys [run-id git-sha scenarios-passed]}]
   (let [result  (json/read-str (slurp result-path) :key-fn keyword)
-        context (cc/terminal-context-from-replay-result result :result-path result-path)]
+        context ((classifier-var "terminal-context-from-replay-result") result :result-path result-path)]
     (when-not context
       (throw (ex-info "scenario result has no terminal world in trace"
                       {:path result-path})))

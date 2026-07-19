@@ -117,7 +117,8 @@
       (cond
         (empty? active)
         {:rounds rounds :committed committed :active []
-         :remaining remaining :residual-reason :no-remaining-capacity}
+         :remaining remaining
+         :residual-reason (if (seq rows) :all-participants-capped :no-remaining-capacity)}
 
         (zero? weight-total)
         {:rounds rounds :committed committed :active active
@@ -245,11 +246,21 @@
     (invalid! :unsupported-redistribution-policy
               {:redistribution-policy redistribution-policy}))
   (let [rows (canonical-rows rows)
+        ;; Persist request-shaped rows, rather than internal normalized rows:
+        ;; replay must feed precisely the same public contract back into
+        ;; `allocate`.
+        canonical-request-rows (mapv (fn [row]
+                                       {:row/id (:row/id row)
+                                        :obligation/id (:obligation/id row)
+                                        :requested (:requested row)
+                                        :weight (:weight row)
+                                        :cap (:declared-cap row)})
+                                     rows)
         canonical-request {:schema-version schema-version
                            :mechanism/version mechanism-version
                            :allocation/id allocation-id
                            :available available
-                           :rows rows
+                           :rows canonical-request-rows
                            :rounding-policy rounding-policy
                            :tie-break-policy tie-break-policy
                            :redistribution-policy redistribution-policy}

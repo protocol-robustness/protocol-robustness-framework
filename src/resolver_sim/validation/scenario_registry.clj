@@ -15,7 +15,6 @@
             [resolver-sim.io.scenario-runner :as sr]
             [resolver-sim.io.scenarios :as sc]
             [resolver-sim.protocols.registry :as preg]
-            [resolver-sim.protocols.sew.invariant-scenarios :as inv-sc]
             [resolver-sim.scenario.suites :as suites]))
 
 (defn- duplicate-values
@@ -29,7 +28,14 @@
 
 (defn- known-protocol-id?
   [protocol-id]
-  ((set (preg/known-protocol-ids)) protocol-id))
+  (or ((set (preg/known-protocol-ids)) protocol-id)
+      (some? (preg/get-protocol protocol-id))))
+
+(defn- sew-invariant-registry []
+  (try
+    {:validate-all! (requiring-resolve 'resolver-sim.protocols.sew.invariant-scenarios/validate-all-scenarios!)
+     :scenario-type-registry @(requiring-resolve 'resolver-sim.protocols.sew.invariant-scenarios/scenario-type-registry)}
+    (catch java.io.FileNotFoundException _ nil)))
 
 (defn- resolve-suite-paths
   "Resolve :scenario-ids via sc/scenario-path, or return :paths as-is."
@@ -183,12 +189,19 @@
   ([]
    (validate-all! (suites/known-suite-definitions)))
   ([suite-registry]
-   (inv-sc/validate-all-scenarios!)
-   (let [file-backed-summary (validate-file-backed-suite-registry! suite-registry)]
-     {:ok?                   true
-      :registry/invariants   {:ok? true
-                              :scenario-count (count (set (keys inv-sc/scenario-type-registry)))}
-      :registry/file-backed  file-backed-summary})))
+   (let [sew-registry (sew-invariant-registry)
+         _ (when-let [validate! (:validate-all! sew-registry)] (validate!))
+         file-backed-summary (validate-file-backed-suite-registry! suite-registry)]
+     {:ok?                  true
+      :registry/invariants  (if sew-registry
+                              {:ok? true
+                               :status :available
+                               :scenario-count (count (set (keys (:scenario-type-registry sew-registry))))}
+                              {:ok? true
+                               :status :unavailable
+                               :reason :sew-extension-not-on-classpath
+                               :scenario-count 0})
+      :registry/file-backed file-backed-summary})))
 
 (defn -main
   [& _args]

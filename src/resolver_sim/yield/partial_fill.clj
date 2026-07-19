@@ -603,10 +603,36 @@
             ;; for independent post-persistence verification.
             :decision/preimage (pr-str base)))))
 
+(defn decision-hash-valid?
+  "Verify the exact decision artifact preimage that downstream propagation
+   references. This does not depend on caller-provided position state."
+  [decision]
+  (= (:decision/hash decision)
+     (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
+                                          (dissoc decision :decision/id :decision/hash :decision/preimage)))))
+
 (defn attach-decision-artifact
   "Attach a partial-fill decision artifact to world state under a stable map."
   [world artifact]
   (assoc-in world [:yield/partial-fill-decisions (:decision/id artifact)] artifact))
+
+(defn application-hash-preimage
+  "Canonical application projection. Position snapshots may contain exact
+   ratios, which the canonical hash ABI intentionally rejects; the applied
+   accounting, propagation binding, and participant deltas remain committed
+   while snapshots are reconciled by the state invariants."
+  [application]
+  (-> application
+      (dissoc :application/hash)
+      (update :participants
+              (fn [participants]
+                (mapv #(dissoc % :position-before :position-after)
+                      (or participants []))))))
+
+(defn application-hash
+  [application]
+  (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
+                                       (application-hash-preimage application))))
 
 (defn canonical-accounting-entries
   "Return a deterministically ordered vector of entries. This is a list
@@ -731,7 +757,15 @@
    Returns structured reasons so callers can distinguish policy violations."
   [artifact]
   (try
-    (let [ref (:propagation-policy artifact)
+    (let [expected-propagation-hash
+          (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
+                                                (dissoc artifact :propagation/id :propagation/hash)))
+          hash-errors (cond-> []
+                        (nil? (:propagation/id artifact)) (conj :propagation-id-missing)
+                        (nil? (:propagation/hash artifact)) (conj :propagation-hash-missing)
+                        (not= (:propagation/hash artifact) expected-propagation-hash)
+                        (conj :propagation-hash-mismatch))
+          ref (:propagation-policy artifact)
           snapshot (:policy/snapshot ref)
           policy (propagation-policy/normalize-and-validate snapshot)
           allocation-ref (:allocation/reference artifact)
@@ -758,9 +792,9 @@
                                             (get-in policy [:shortfall :next-round-weight-policy]))) (conj :next-round-weight-policy-mismatch)
                         (and (zero? d) (not= :fulfilled (:position-status p))) (conj :fulfilled-position-not-closed))))
                   (:participants artifact []))]
-      {:valid? (empty? (concat reference-errors policy-errors participant-errors))
+      {:valid? (empty? (concat hash-errors reference-errors policy-errors participant-errors))
              :calculation-errors []
-             :policy-errors (vec (concat reference-errors policy-errors participant-errors))})
+             :policy-errors (vec (concat hash-errors reference-errors policy-errors participant-errors))})
     (catch clojure.lang.ExceptionInfo e
       {:valid? false :calculation-errors [] :policy-errors [(:reason (ex-data e))]})))
 
@@ -777,6 +811,12 @@
                       :source-evidence {:artifact/id (:decision/id decision)
                                         :artifact/hash (:decision/hash decision)}}
         actual-ref (:allocation/reference propagation)
+        decision-hash-errors
+        (cond-> []
+          (nil? (:decision/id decision)) (conj {:reason :decision-id-missing})
+          (nil? (:decision/hash decision)) (conj {:reason :decision-hash-missing})
+          (and (:decision/hash decision) (not (decision-hash-valid? decision)))
+          (conj {:reason :decision-hash-mismatch}))
         mechanism-evidence-errors
         (mapv #(assoc % :reason :decision-mechanism-evidence-invalid)
               (pro-rata-evidence/evidence-violations
@@ -828,7 +868,8 @@
         observed-fulfilled (reduce + 0 (map #(long (:fulfilled % 0)) propagation-participants))
         expected-unmet (reduce + 0 (map #(long (:deferred % 0)) decision-rows))
         observed-unmet (reduce + 0 (map #(long (:deferred % 0)) propagation-participants))]
-    (vec (concat mechanism-evidence-errors
+    (vec (concat decision-hash-errors
+                 mechanism-evidence-errors
                  reference-errors
                  (map #(hash-map :reason :missing-propagation-participant :key %) missing)
                  (map #(hash-map :reason :extra-propagation-participant :key %) extra)

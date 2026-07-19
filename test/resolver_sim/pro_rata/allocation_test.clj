@@ -4,7 +4,8 @@
             [resolver-sim.pro-rata.invariants :as invariants]
             [resolver-sim.pro-rata.evidence :as mechanism-evidence]
             [resolver-sim.pro-rata.claims :as claims]
-                                    [resolver-sim.economics.payoffs :as payoffs]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.economics.payoffs :as payoffs]))
 
 (def rows
   [{:row/id :row/alice :obligation/id :withdrawal/alice :requested 8 :weight 8 :cap 8}
@@ -121,7 +122,16 @@
                (assoc-in envelope [:mechanism/result :rows 0 :allocated] 99))))
     (is (some #(= :pro-rata/mechanism-evidence-result-hash-mismatch (:reason %))
               (mechanism-evidence/evidence-violations
-               (assoc envelope :mechanism/result-hash "other"))))))
+               (assoc envelope :mechanism/result-hash "other"))))
+    (let [forged-result (assoc-in result [:rows 0 :allocated] 9)
+          forged-result (assoc forged-result :allocation/hash
+                               (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                                    (dissoc forged-result :allocation/hash)))
+          forged-envelope (mechanism-evidence/mechanism-evidence-artifact forged-result)]
+      ;; All self-hashes and envelope hashes are internally consistent, but the
+      ;; verifier still rejects a witness that cannot be reconstructed.
+      (is (some #(= :pro-rata/allocation-reconstruction-mismatch (:reason %))
+                (mechanism-evidence/evidence-violations forged-envelope))))))
 
 (deftest allocation-rejects-duplicate-row-identity
   (testing "duplicate evidence is rejected rather than silently collapsed"
@@ -161,3 +171,25 @@
                 (catch clojure.lang.ExceptionInfo exception exception))]
     (is error)
     (is (= :unsupported-allocation-row-id (:reason (ex-data error))))))
+
+(deftest residual-reasons-are-machine-verifiable
+  (let [no-participants (allocation/allocate {:allocation/id :no-participants
+                                              :available 5 :rows []})
+        no-weight (allocation/allocate {:allocation/id :no-weight
+                                        :available 5
+                                        :rows [{:row/id :a :obligation/id :a
+                                                :requested 5 :weight 0}]})
+        floor-dust (allocation/allocate {:allocation/id :floor-dust
+                                         :available 5 :rounding-policy :floor
+                                         :rows [{:row/id :a :obligation/id :a :requested 5 :weight 1}
+                                                {:row/id :b :obligation/id :b :requested 5 :weight 1}]})]
+    (is (= [:no-remaining-capacity :no-active-weight :floor-rounding]
+           (mapv :residual-reason [no-participants no-weight floor-dust])))
+    (is (every? #(empty? (invariants/residual-violations %))
+                [no-participants no-weight floor-dust]))
+    (is (some #(= :pro-rata/residual-reason-not-established (:reason %))
+              (invariants/residual-violations
+               (assoc no-weight :residual-reason :no-remaining-capacity))))
+    (is (some #(= :pro-rata/unexpected-residual-reason (:reason %))
+              (invariants/residual-violations
+               (assoc no-weight :unallocated-residual 0))))))

@@ -20,6 +20,8 @@
     :holds? (empty? (invariants/quota-bounded-violations result))}
    {:claim/id :pro-rata/round-trace-coherent
     :holds? (empty? (invariants/round-trace-violations result))}
+   {:claim/id :pro-rata/residual-valid
+    :holds? (empty? (invariants/residual-violations result))}
    {:claim/id :pro-rata/canonical-remainder-assignment
     :status (if (= :largest-remainder (:rounding-policy result)) :exercised :not-exercised)
     :holds? (or (not= :largest-remainder (:rounding-policy result))
@@ -56,9 +58,31 @@
    :allocation/id (get-in artifact [:mechanism/result :allocation/id])
    :allocation/hash (get-in artifact [:mechanism/result :allocation/hash])})
 
+(defn- reconstruction-violations
+  "Rebuild the result from its committed request rather than trusting stored
+   allocations, rounds, or validation verdicts."
+  [result]
+  (try
+    (let [request (:canonical-request result)]
+      (cond
+        (nil? request)
+        [{:reason :pro-rata/missing-canonical-request}]
+
+        :else
+        (let [reconstructed (allocation/allocate request)]
+          (when-not (= reconstructed result)
+            [{:reason :pro-rata/allocation-reconstruction-mismatch
+              :expected-hash (:allocation/hash reconstructed)
+              :observed-hash (:allocation/hash result)}]))))
+    (catch Exception error
+      [{:reason :pro-rata/allocation-reconstruction-failed
+        :message (.getMessage error)
+        :class (.getName (class error))}])))
+
 (defn evidence-violations
-  "Validate an envelope without invoking allocation arithmetic. Returns
-   structured violations for malformed or tampered persisted evidence."
+  "Independently validate a complete persisted envelope. In addition to schema
+   and hash checks, this reconstructs the allocation from its canonical request
+   and compares the full semantic witness."
   [artifact]
   (let [result (:mechanism/result artifact)
         expected-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
@@ -78,4 +102,5 @@
       (when-not (= (:mechanism artifact) (:mechanism result))
         [{:reason :pro-rata/mechanism-evidence-mechanism-mismatch
           :expected (:mechanism result) :observed (:mechanism artifact)}])
-      (invariants/result-violations result)))))
+      (invariants/result-violations result)
+      (reconstruction-violations result)))))

@@ -28,6 +28,7 @@
    Returns {:holds? bool :violations [...]}."
   (:require [clojure.set :as set]
             [clojure.walk :as walk]
+            [resolver-sim.pro-rata.allocation :as allocation]
             [resolver-sim.pro-rata.invariants :as invariants]))
 
 ;; ── Evidence-node content extractors ─────────────────────────────────────
@@ -83,7 +84,9 @@
        (map #(-> %
                  (dissoc :idx :order)
                  normalize-integer-values))
-       (sort-by pr-str)
+       ;; Claim rows are keyed by the same typed identity contract as the
+       ;; allocator; map iteration and printed representations are irrelevant.
+       (sort-by (comp allocation/canonical-id-key :id))
        vec))
 
 (defn- evidence-shape-violations
@@ -110,6 +113,16 @@
 
     (not (vector? (:allocations (projection-result content))))
     (conj {:type :missing-allocation-rows :path :projection})
+
+    (and (vector? (:allocations (direct-result content)))
+         (not= (count (:allocations (direct-result content)))
+               (count (distinct (map :id (:allocations (direct-result content)))))))
+    (conj {:type :duplicate-allocation-identity :path :direct})
+
+    (and (vector? (:allocations (projection-result content)))
+         (not= (count (:allocations (projection-result content)))
+               (count (distinct (map :id (:allocations (projection-result content)))))))
+    (conj {:type :duplicate-allocation-identity :path :projection})
 ))
 
 ;; ── Violation helpers ────────────────────────────────────────────────────

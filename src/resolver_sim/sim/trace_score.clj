@@ -1,8 +1,10 @@
 (ns resolver-sim.sim.trace-score
   "Pure trace scoring for replay results (no I/O).
 
-   Used by simulation phases and by io/trace-score for persistence workflows."
-  (:require [resolver-sim.protocols.sew.types :as t]))
+   Used by simulation phases and by io/trace-score for persistence workflows.
+   The optional escrow projection convention treats :pending and :disputed as
+   open states; protocols that do not expose :escrow-transfers simply receive
+   no escrow liveness penalty.")
 
 (defn- classify-issue
   [result]
@@ -18,13 +20,15 @@
       attack?              :attack-success
       :else                :none)))
 
+(def ^:private open-escrow-states #{:pending :disputed})
+
 (defn- liveness-failure?
   [trace]
   (let [last-entry (last trace)
         proj       (:projection last-entry)]
     (when proj
       (let [transfers (vals (:escrow-transfers proj {}))]
-        (boolean (some #(contains? t/live-states (:escrow-state %)) transfers))))))
+        (boolean (some #(contains? open-escrow-states (:escrow-state %)) transfers))))))
 
 (defn score-result
   "Compute :trace-score for a replay-with-protocol result map."

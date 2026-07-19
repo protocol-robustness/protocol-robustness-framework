@@ -145,6 +145,56 @@
                    [{:reason :pro-rata/final-round-binding-mismatch
                      :expected final-active :observed witness-active}])))))
 
+(defn residual-violations
+  "Validate that a non-zero residual has a declared, mechanically provable
+   cause. Residual is availability that the mechanism did not allocate; cap
+   shortfall recorded in participant unmet amounts is intentionally distinct."
+  [result]
+  (let [residual (:unallocated-residual result)
+        reason (:residual-reason result)
+        rows (:rows result)
+        total-weight (reduce + 0 (map :weight rows))]
+    (cond
+      (or (not (integer? residual)) (neg? residual))
+      [{:reason :pro-rata/invalid-unallocated-residual :observed residual}]
+
+      (zero? residual)
+      (if (= :none reason)
+        []
+        [{:reason :pro-rata/unexpected-residual-reason
+          :expected :none :observed reason}])
+
+      (= reason :no-remaining-capacity)
+      (if (empty? rows)
+        []
+        [{:reason :pro-rata/residual-reason-not-established
+          :residual-reason reason :expected :no-rows}])
+
+      (= reason :all-participants-capped)
+      (if (and (seq rows)
+               (every? #(= (:allocated %) (:effective-cap %)) rows))
+        []
+        [{:reason :pro-rata/residual-reason-not-established
+          :residual-reason reason :expected :all-rows-at-effective-cap}])
+
+      (= reason :no-active-weight)
+      (if (zero? total-weight)
+        []
+        [{:reason :pro-rata/residual-reason-not-established
+          :residual-reason reason :expected :zero-total-weight
+          :observed total-weight}])
+
+      (= reason :floor-rounding)
+      (if (= :floor (:rounding-policy result))
+        []
+        [{:reason :pro-rata/residual-reason-not-established
+          :residual-reason reason :expected :floor-rounding-policy
+          :observed (:rounding-policy result)}])
+
+      :else
+      [{:reason :pro-rata/unsupported-residual-reason
+        :observed reason}])) )
+
 (defn result-violations
   [result]
   (vec (concat (when-not (= (:request/hash result)
@@ -158,6 +208,7 @@
                    :expected :recomputed-hash
                    :observed (:allocation/hash result)}])
                (cap-respecting-violations result)
+               (residual-violations result)
                (round-trace-violations result)
                (quota-bounded-violations result)
                (when (= :largest-remainder (:rounding-policy result))

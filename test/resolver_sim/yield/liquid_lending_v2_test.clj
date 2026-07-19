@@ -159,16 +159,25 @@
         reference (:allocation/reference propagation)
         mechanism-evidence (get-in decision [:evidence :allocation-mechanism-evidence])]
     (is (= "pro-rata-propagation.v2" (:schema-version propagation)))
+    (is (true? (:valid? (partial-fill/validate-pro-rata-propagation propagation))))
+    (is (some #{:propagation-hash-mismatch}
+              (:policy-errors
+               (partial-fill/validate-pro-rata-propagation
+                (assoc-in propagation [:participants 0 :fulfilled] 1)))))
     (is (= "pro-rata-mechanism-evidence.v1" (:schema-version mechanism-evidence)))
     (is (= (get-in mechanism-evidence [:mechanism/result :allocation/hash])
            (get-in reference [:mechanism-evidence :allocation/hash])))
     (is (= (:evidence/hash mechanism-evidence)
            (get-in reference [:mechanism-evidence :evidence/hash])))
+    (is (true? (partial-fill/decision-hash-valid? decision)))
     (is (= (:decision/id decision) (get-in reference [:source-evidence :artifact/id])))
     (is (= (:decision/hash decision) (get-in reference [:source-evidence :artifact/hash])))
     (is (= (get-in decision [:evidence :allocation-mechanism :allocation/hash])
            (:allocation/hash reference)))
     (is (empty? (partial-fill/propagation-allocation-binding-violations decision propagation)))
+    (is (some #(= :decision-hash-mismatch (:reason %))
+              (partial-fill/propagation-allocation-binding-violations
+               (assoc-in decision [:evidence :allocation-rows 0 :filled] 1) propagation)))
     (is (some #(= :propagation-allocation-hash-mismatch (:reason %))
               (partial-fill/propagation-allocation-binding-violations
                decision (assoc-in propagation [:allocation/reference :allocation/hash] "bad"))))

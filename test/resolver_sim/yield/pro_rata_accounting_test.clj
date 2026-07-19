@@ -40,7 +40,8 @@
                           :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
                                          :obligation {:before 40} :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
                                         {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
-                                         :obligation {:before 20} :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}]
+                                         :obligation {:before 20} :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
+        app (assoc app :application/hash (pf/application-hash app))]
     {:yield/pro-rata-propagations {"p1" p}
      :yield/applied-pro-rata-propagations {"p1" app}
      :total-held {:USDC 40}

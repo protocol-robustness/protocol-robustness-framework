@@ -446,7 +446,7 @@
             ;; independent of the standalone display projection.
             next-world (assoc-in next-world [:total-held token]
                                  (- source-before allocated))
-            application {:schema-version "pro-rata-propagation-application.v2"
+            application-base {:schema-version "pro-rata-propagation-application.v2"
                          :propagation-id pid
                                                   :propagation/reference {:propagation/id pid
                                                                           :propagation/hash (:propagation/hash propagation)}
@@ -478,7 +478,10 @@
                                                              :available (get-in propagation [:summary :available])
                                                              :allocated allocated :amount (get-in propagation [:summary :unallocated-residual])
                                     :destination (get-in propagation [:residual :destination])}
-                         :status :committed}]
+                         :status :committed}
+            application (assoc application-base
+                               :application/hash
+                               (partial-fill/application-hash application-base))]
         {:status :applied
          :propagation-id pid
          :world (assoc-in next-world [:yield/applied-pro-rata-propagations pid] application)}))))

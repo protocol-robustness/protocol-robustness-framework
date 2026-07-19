@@ -2,8 +2,7 @@
   "Pure scenario-bundle extraction projections."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str]
-                        [resolver-sim.protocols.sew.claimable-classification :as claimable])
+            [clojure.string :as str])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (defn normalize-replay [bundle]
@@ -290,9 +289,10 @@
          (apply str (map render (get projection "slashes" []))))))
 
 (defn claimable-classification [replay run-id]
-  (let [world (:world replay {})
+  (let [build-document (requiring-resolve 'resolver-sim.protocols.sew.claimable-classification/build-document)
+        world (:world replay {})
         scenario-id (get-in replay [:source :scenario-id])]
-    (claimable/build-document
+    (build-document
      :worlds [world]
      :contexts [{:world world :scenario-id scenario-id :outcome (:outcome replay)}]
      :scope (str "scenario/" scenario-id)

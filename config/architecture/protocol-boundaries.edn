@@ -5,6 +5,10 @@
                      "src/resolver_sim/reference"
                      "src/resolver_sim/run"]
  :core/source-files ["src/resolver_sim/benchmark/game_theory_validation.clj"
+                      "src/resolver_sim/commands/scenario_extraction.clj"
+                      "src/resolver_sim/io/claimable_classification_emitter.clj"
+                      "src/resolver_sim/validation/scenario_registry.clj"
+                      "src/resolver_sim/sim/trace_score.clj"
                       "src/resolver_sim/benchmark/runner.clj"
                       "src/resolver_sim/io/scenario_runner.clj"
                       "src/resolver_sim/execution/child.clj"
