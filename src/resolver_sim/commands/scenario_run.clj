@@ -1,7 +1,8 @@
 (ns resolver-sim.commands.scenario-run
   (:require [clojure.string :as str]
             [clojure.tools.cli :as cli]
-            [resolver-sim.commands.run-lifecycle :as lifecycle])
+            [resolver-sim.commands.run-lifecycle :as lifecycle]
+            [resolver-sim.io.paths :as paths])
   (:import [java.nio.file Files LinkOption Path Paths]
            [java.time Instant ZoneOffset]
            [java.time.format DateTimeFormatter]
@@ -31,14 +32,14 @@
 (defn- hash-prefix [s] (let [d (MessageDigest/getInstance "SHA-256")] (.update d (.getBytes (str s) "UTF-8")) (subs (format "%064x" (BigInteger. 1 (.digest d))) 0 12)))
 (defn scenario-slug [ref] (let [base (-> ref (str/replace #"^.*/" "") (str/replace #"\.(edn|json)$" "") (str/replace #"[^A-Za-z0-9._-]+" "-") (str/replace #"(^-+|-+$)" ""))] (str (if (str/blank? base) "scenario" base) "-" (hash-prefix ref))))
 (defn generate-run-id ([] (generate-run-id (Instant/now) (UUID/randomUUID))) ([instant uuid] (str "run-" (.format (DateTimeFormatter/ofPattern "yyyyMMdd'T'HHmmss'Z'") (.atZone instant ZoneOffset/UTC)) "-" (subs (str uuid) 0 12))))
-(defn- state [^Path root] (cond (not (Files/exists root (make-array LinkOption 0))) :absent (not (Files/isDirectory root (make-array LinkOption 0))) :not-a-directory (or (Files/exists (.resolve root "COMPLETED") (make-array LinkOption 0)) (Files/exists (.resolve root "completion.json") (make-array LinkOption 0))) :completed (or (Files/exists (.resolve root "manifest") (make-array LinkOption 0)) (Files/exists (.resolve root "scenarios") (make-array LinkOption 0)) (Files/exists (.resolve root ".run-state") (make-array LinkOption 0))) :incomplete :else (with-open [s (Files/list root)] (if (.hasNext (.iterator s)) :unrelated :empty))))
+(defn- state [^Path root] (cond (not (Files/exists root (make-array LinkOption 0))) :absent (not (Files/isDirectory root (make-array LinkOption 0))) :not-a-directory (or (Files/exists (.resolve root "COMPLETED") (make-array LinkOption 0)) (Files/exists (.resolve root paths/completion) (make-array LinkOption 0))) :completed (or (Files/exists (.resolve root "manifest") (make-array LinkOption 0)) (Files/exists (.resolve root "scenarios") (make-array LinkOption 0)) (Files/exists (.resolve root paths/run-state) (make-array LinkOption 0))) :incomplete :else (with-open [s (Files/list root)] (if (.hasNext (.iterator s)) :unrelated :empty))))
 (defn- child [^Path root & xs] (reduce #(.resolve ^Path %1 ^String %2) root xs))
 (defn build-run-context [{:keys [scenario/ref run/root report-format sensitivity/profile] :as request} {:keys [project-root run-id] :or {project-root "."}}]
   (when-not (and (string? ref) (not (str/blank? ref)))
     (throw (ex-info "Scenario reference is required" {:request request})))
   (let [id (or run-id (generate-run-id))
         slug (scenario-slug ref)
-        input (or root (str "results/runs/" slug "-" id))
+        input (or root (str paths/runs-root "/" slug "-" id))
         envelope (lifecycle/build-run-envelope
                   {:run-id id :run-type :scenario :run-root input
                    :project-root project-root :sensitivity-profile profile})

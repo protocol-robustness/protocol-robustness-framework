@@ -7,6 +7,7 @@
 (def ^:private capability->op
   {:deposit           :yield/deposit
    :withdraw          :yield/withdraw
+   :withdraw-many     :yield/withdraw-many
    :withdraw-shared   :yield/withdraw-shared
    :accrue            :yield/accrue
    :emergency-unwind  :yield/emergency-unwind

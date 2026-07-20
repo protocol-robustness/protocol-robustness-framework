@@ -2,7 +2,8 @@
   "Initial root-relative artifact inventory for structured scenario bundles."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [resolver-sim.io.paths :as paths])
   (:import [java.security MessageDigest]
            [java.math BigInteger]
            [java.nio.file Files StandardCopyOption Path Paths]))
@@ -10,7 +11,7 @@
 (def ^:private terminal-outer-artifacts
   "Excluded to keep the registry/package/completion commitment chain non-circular.
    The package index commits to the registry; completion commits to the index."
-  #{"manifest/run-package-index.json" "completion.json"})
+  #{paths/run-package-index paths/completion})
 
 (def ^:private known
   {"manifest/run.json" {:id "manifest.run" :kind "run-manifest" :schema "run-manifest.v1" :importance "CORE"}
@@ -24,7 +25,7 @@
 
          "manifest/diagnostic-summary.json" {:id "manifest.diagnostic-summary" :kind "scenario.diagnostic-summary" :schema "scenario-diagnostic-summary.v1" :importance "CORE"}
          "manifest/pro-rata-mechanism-nodes.json" {:id "manifest.pro-rata-mechanism-nodes" :kind "mechanism.pro-rata-nodes" :schema "pro-rata-mechanism-nodes.v1" :importance "CORE"}
-       "manifest/sensitivity-report.json" {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v2" :importance "CORE"}
+       paths/sensitivity-report {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v2" :importance "CORE"}
    "execution/replay-output.json" {:id "execution.replay-output" :kind "raw.replay" :schema "bundle-root.v1" :importance "DIAGNOSTIC"}
    "execution/execution-dag.json" {:id "execution.dag" :kind "execution.dag" :schema "execution-dag.v1" :importance "CORE"}
    "execution/pre-run-commitment.json" {:id "execution.pre-run-commitment" :kind "pre-run-commitment" :schema "pre-run-commitment.v1" :importance "CORE"}
@@ -136,5 +137,5 @@
                   :sensitivity_profile (name profile)
                   :export_policy (if (= :public profile) "public-scan-required" "internal-retention")
                   :artifacts entries}]
-    (atomic-write! (io/file root "manifest/artifacts.json") (json/write-str registry))
+    (atomic-write! (io/file root paths/artifacts-suffix) (json/write-str registry))
     registry))

@@ -327,9 +327,10 @@
                        :result          :rejected
                        :error           (:error temporal-failure)
                        :temporal-rule-id (:rule-id temporal-failure)
-                       :extra           nil
-                       :event-tags      tags
-                       :invariant-phase :temporal-rule
+                        :extra           nil
+                        :guard-context   (:guard-context temporal-failure)
+                        :event-tags      tags
+                        :invariant-phase :temporal-rule
                        :invariants-ok?  true
                        :violations      nil
                        :world           (proto/world-snapshot protocol world)
@@ -408,8 +409,9 @@
             :action          (:action event)
             :params          (:params event)
             :save-id-as      (:save-id-as event)
-            :transition/id   (analysis/action->transition-id (:action event))
-            :result          result-kw
+:transition/id   (analysis/action->transition-id (:action event))
+             :transition/hash (:evidence-hash (:evidence result))
+             :result          result-kw
             :error           error-kw
             :extra           (:extra result)
             :detail          (:detail result)

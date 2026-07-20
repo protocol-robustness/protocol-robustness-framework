@@ -5,6 +5,7 @@
             [clojure.java.io :as io]
             [resolver-sim.benchmark.conservation :as conservation]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
+            [resolver-sim.io.paths :as paths]
                         [resolver-sim.hash.canonical :as canonical]
                                                 [resolver-sim.run.package-index :as package-index]
                                                 [resolver-sim.run.verdict-policy :as verdict-policy]))
@@ -136,12 +137,12 @@
 (defn verify! [run-root]
   (try
     (let [root (io/file run-root)
-          completion-file (io/file root "completion.json")
+          completion-file (io/file root paths/completion)
           finalization-file (io/file root "benchmark/finalization.json")
           assurance-file (io/file root "benchmark/assertions/benchmark-assurance.json")
           conservation-file (io/file root "benchmark/assertions/conservation.json")
-          registry-file (io/file root "manifest/artifacts.json")
-          validation-file (io/file root "manifest/artifacts-validation.json")
+          registry-file (io/file root paths/artifacts-suffix)
+          validation-file (io/file root paths/artifacts-validation)
           content-registry-file (io/file root "benchmark/evidence/content-registry.json")
           canonical-integrity-file (io/file root "benchmark/assertions/canonical-integrity.json")
           forensic-status-file (io/file root "benchmark/assertions/forensic-claims-status.json")

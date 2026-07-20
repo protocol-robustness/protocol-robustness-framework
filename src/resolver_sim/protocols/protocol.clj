@@ -54,6 +54,26 @@
     "Query the world state using a protocol-specific projection query."))
 
 ;; ---------------------------------------------------------------------------
+;; 1b. TemporalDeadlines (Optional)
+;;
+;; Generic deadline lookup for temporal rule enforcement.
+;; Protocols that enforce time-based gates (evidence windows, appeal windows,
+;; settlement timelocks) implement this to supply deadline timestamps.
+;; The replay engine's built-in :deadline-enforcement temporal rule uses
+;; this to reject actions that violate temporal boundaries.
+;; ---------------------------------------------------------------------------
+
+(defprotocol TemporalDeadlines
+  "Optional interface for deadline-driven temporal rule enforcement."
+
+  (deadline-for [model world deadline-kind subject context]
+    "Return the deadline timestamp (integer) for deadline-kind and subject,
+     or nil if no deadline applies (action allowed).
+     deadline-kind is a keyword such as :evidence-submission, :settlement,
+     or :appeal. subject is protocol-specific (e.g., a workflow-id).
+     context is the opaque execution context from build-execution-context."))
+
+;; ---------------------------------------------------------------------------
 ;; 2. EconomicModel (Optional)
 ;;
 ;; Required for economic simulations, adversarial metrics, and payoff analysis.

@@ -1,15 +1,16 @@
 (ns resolver-sim.commands.scenario-registry
   "Immutable final inventory for structured scenario bundles."
   (:require [clojure.data.json :as json]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [resolver-sim.io.paths :as paths])
   (:import [java.nio.file Files Path Paths]
            [java.security MessageDigest]
            [java.math BigInteger]))
 
-(def ^:private excluded #{"manifest/artifacts.json"
-                          "manifest/artifact-registry-validation.json"
-                          "manifest/artifacts-validation.json"
-                          "completion.json" ".run-state" ".run.lock"})
+(def ^:private excluded #{paths/artifacts-suffix
+                           "manifest/artifact-registry-validation.json"
+                           paths/artifacts-validation
+                           paths/completion paths/run-state paths/run-lock})
 
 (defn- sha256 [file]
   (let [digest (MessageDigest/getInstance "SHA-256")]
@@ -36,7 +37,7 @@
 
 (defn finalize! [run-root]
   (let [root (.toAbsolutePath (.normalize (Paths/get (str run-root) (make-array String 0))))
-        registry-file (.toFile (.resolve root "manifest/artifacts.json"))
+        registry-file (.toFile (.resolve root paths/artifacts-suffix))
         registry (json/read-str (slurp registry-file) :key-fn keyword)
         seen (atom #{})
         entries (mapv (fn [entry]

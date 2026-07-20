@@ -14,18 +14,19 @@
   (str "sha256:" (canonical/domain-hash domain (dissoc artifact "policy_sha256"))))
 
 (defn build
-  [{:keys [run-id run-type policy-id semantic-outcome inputs registries semantic-environment evaluator-implementation distribution-provenance]}]
-  (let [artifact {"schema_version" schema-version
-                  "policy_id" policy-id
-                  "run" {"id" run-id "type" run-type}
-                  "verdict" {"semantic_outcome" semantic-outcome
-                             "mapping" {"pass" "pass" "fail" "fail"}}
-                  "registries" registries
-                                    "evaluator_implementation" evaluator-implementation
-                                                      "distribution_provenance" distribution-provenance
-                                                      "immutable_inputs" (vec (sort-by #(get % "logical_id") inputs))
-                  "semantic_environment" semantic-environment}]
-    (assoc artifact "policy_sha256" (policy-hash artifact))))
+   [{:keys [run-id run-type policy-id version-id semantic-outcome inputs registries semantic-environment evaluator-implementation distribution-provenance]}]
+   (let [artifact (cond-> {"schema_version" schema-version
+                           "policy_id" policy-id
+                           "run" {"id" run-id "type" run-type}
+                           "verdict" {"semantic_outcome" semantic-outcome
+                                      "mapping" {"pass" "pass" "fail" "fail"}}
+                           "registries" registries
+                                         "evaluator_implementation" evaluator-implementation
+                                                       "distribution_provenance" distribution-provenance
+                                                       "immutable_inputs" (vec (sort-by #(get % "logical_id") inputs))
+                           "semantic_environment" semantic-environment}
+                     (some? version-id) (assoc "version_id" version-id))]
+     (assoc artifact "policy_sha256" (policy-hash artifact))))
 
 (defn write! [file artifact]
   (lifecycle/atomic-json! file artifact)

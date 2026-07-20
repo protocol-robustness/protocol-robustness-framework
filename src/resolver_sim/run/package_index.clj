@@ -16,6 +16,7 @@
                         [resolver-sim.evidence.node :as evidence-node]
                                                 [resolver-sim.forensic.execution-dag :as execution-dag]
                                                 [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.io.paths :as paths]
             [resolver-sim.run.runner-finalization :as runner-finalization]
                         [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
   (:import [java.nio.file Files StandardCopyOption]
@@ -113,7 +114,7 @@
   "Read the terminal completion seal first. A package index becomes trusted only
    after its exact persisted bytes match completion's path/hash/length binding."
   [run-root]
-  (let [completion-file (io/file run-root "completion.json")]
+  (let [completion-file (io/file run-root paths/completion)]
     (cond
       (not (.isFile completion-file))
       {:run-root run-root
@@ -190,10 +191,10 @@
            :reasons [(reason :package/completion-invalid)]})))))
 
 (defn read-index [run-root]
-  (let [file (io/file run-root "manifest/run-package-index.json")]
+  (let [file (io/file run-root paths/run-package-index)]
     (if (.isFile file)
-      {:index (wire->package-index (json/read-str (slurp file) :key-fn keyword)) :path file}
-      {:reason (reason :package/missing-index :path "manifest/run-package-index.json")})))
+      (read-live-registry file 0 (count-ids file))
+      {:reason (reason :package/missing-index :path paths/run-package-index)})))
 
 (defn- artifact-json [run-root artifacts id]
   (try
@@ -264,7 +265,7 @@
                       ;; the pre-package registry to avoid a circular commitment.
                       (mapcat (fn [path]
                                 [(reason :registry-validation/terminal-package-artifact-indexed :path path)])
-                              (filter #{"manifest/run-package-index.json" "completion.json"} paths))
+                              (filter #{paths/run-package-index paths/completion} paths))
                       (mapcat (fn [entry]
                                 (let [path (:path entry)
                                       file (and (string? path) (contained-file run-root path))
@@ -875,17 +876,17 @@
       (if missing-reason {:complete? false :status :incomplete :reasons [missing-reason]}
       (let [required (required-artifacts (:run/type index))
             missing (sort (seq (clojure.set/difference required (set (keys (:artifacts index))))) )
-            completion (io/file run-root "completion.json")
+            completion (io/file run-root paths/completion)
             reasons (vec (concat
                           (when-not (contains? supported-run-types (:run/type index)) [(reason :package/unsupported-run-type :run-type (:run/type index))])
                           (map #(reason :package/missing-required-artifact :artifact-id %) missing)
                           (when-not (.isFile completion) [(reason :package/missing-completion)])
                           (when (and (.isFile completion)
-                                     (not= (str "sha256:" (lifecycle/sha256-file (io/file run-root "manifest/run-package-index.json")))
+                                     (not= (str "sha256:" (lifecycle/sha256-file (io/file run-root paths/run-package-index)))
                                            (get (json/read-str (slurp completion)) "run_package_index_sha256")))
                             [(reason :package/completion-index-mismatch)])
                           (when (and (.isFile completion)
-                                     (not= (.length (io/file run-root "manifest/run-package-index.json"))
+                                     (not= (.length (io/file run-root paths/run-package-index))
                                            (get (json/read-str (slurp completion)) "run_package_index_bytes")))
                             [(reason :package/completion-index-length-mismatch)])))]
         {:complete? (empty? reasons) :status (if (empty? reasons) :complete :incomplete) :reasons reasons}))))

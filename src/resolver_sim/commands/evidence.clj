@@ -8,6 +8,7 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.registry :as reg]
             [resolver-sim.evidence.registry-validation :as rv]
+            [resolver-sim.io.paths :as paths]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.io.event-evidence :as io-evidence]
             [resolver-sim.sim.reference-validation :as rv-suite]))
@@ -26,7 +27,7 @@
    :message "Specify --run-root for a canonical bundle or --artifact-dir for a legacy evidence directory"})
 
 (defn- canonical-registry-file [dir]
-  (io/file dir "manifest/artifacts.json"))
+  (io/file dir paths/artifacts-suffix))
 
 (defn- load-registry
   "Load or build the evidence registry for an artifact directory."

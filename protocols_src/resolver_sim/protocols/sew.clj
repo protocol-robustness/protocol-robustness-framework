@@ -209,9 +209,18 @@
     (or (:workflow-id p) (compat/wf-id event))))
 
 (defn- event-slash-id
-  "Return the canonical slash ID supplied by a replay event. Scenario bindings
-   and semantic references have already been resolved before dispatch."
-  [_world event]
+  "Return the slash identity from event params for dedupe-key and business-logic use.
+
+   Resolution order:
+     1. Explicit :slash-id on the event params.
+     2. :workflow-id on the event params (used when slash-id = workflow-id
+        for non-slash actions such as execute-resolution).
+     3. Legacy fallback via compat/wf-id for :id-based workflows.
+
+   The world is intentionally NOT consulted: the dedupe key must be
+   deterministic across retries regardless of world state changes.
+   Slash identity is an event-level property, not a world-derived one."
+  [event]
   (let [p (:params event)]
     (or (:slash-id p) (:workflow-id p) (compat/wf-id event))))
 
@@ -250,7 +259,8 @@
     "revoke-force-authorisation"})
 
 (def replay-sensitive-actions
-  "Actions that should be replay-idempotent when a logical event-id is provided."
+  "Actions that should be replay-idempotent when a logical event-id is provided.
+   17 canonical actions + 3 backward-compat aliases = 19 entries."
   #{"escalate-dispute"
     "challenge-resolution"
     "execute-resolution"
@@ -264,10 +274,11 @@
     "resolve-appeal"
     "execute-fraud-slash"
     "execute-fraud-group-slash"
+    "force-reversal-slash"
     "grant-force-authorisation"
     "revoke-force-authorisation"
     "execute-force-authorised-action"
-    ;; backward compatibility: old action names
+    ;; backward compatibility: old action names (normalize to canonical above)
     "grant-force-authorization"
     "revoke-force-authorization"
     "execute-force-authorized-action"})
@@ -277,45 +288,42 @@
   [event]
   (contains? replay-sensitive-actions (compat/canonical-action event)))
 
-(defn- replay-sensitive?
-  [event]
-  (replay-sensitive-action? event))
+(defn dedupe-op-key
+  "Build a stable, fixed-length dedupe key for replay-sensitive events.
 
-(defn- dedupe-op-key
-  "Build a stable dedupe key for replay-sensitive events."
+   Key schema: :sew/replay-dedupe-v1
+   Returns an 8-element vector:
+     [:sew :replay-dedupe <action> <agent> <wf-id> <slash-id> <hop-scope> <event-id>]
+
+   Field semantics:
+     action     – canonical action name (string, kebab-case, normalized by compat/canonical-action)
+     agent      – event envelope agent identifier (string from (:agent event))
+     workflow-id – stable workflow identity (string or number; from :workflow-id or legacy :id)
+     slash-id   – slash operation identity  (string or number; explicit :slash-id, or = wf-id for non-slash actions)
+     hop-scope  – escalation/dispute level (string or nil; nil means no hop scope)
+     event-id   – logical event identity    (string; must be non-nil for dedupe to activate)
+
+   Determinism guarantee: every field is derived solely from the event and stable
+   world state (dispute level for hop-scope lookup).  The key does NOT depend on
+   mutable incidental state such as timestamps, iteration order, or derived
+   non-authoritative values."
   [world event]
-  (let [wf  (event-workflow-id event)
-        sid (event-slash-id world event)
-        eid (event-id event)
-        action (compat/canonical-action event)
+  (let [action (compat/canonical-action event)
+        agent  (:agent event)
+        wf     (event-workflow-id event)
+        sid    (event-slash-id event)
+        eid    (event-id event)
         explicit-hop (compat/hop-id event)
         hop-level (when (and (nil? explicit-hop)
                              (contains? #{"escalate-dispute" "challenge-resolution"} action))
                     (t/dispute-level world wf))
-        hop-scope (or explicit-hop hop-level)]
-    [:sew
-     :replay-dedupe
-     action
-     (:agent event)
-     wf
-     sid
-     hop-scope
-     eid]))
-
-(defn- sew-temporal-rules
-  "Protocol-aware temporal guards executed before dispatch.
-   These rules are optional and run through replay's generic temporal rule engine."
-  []
-  [{:id :sew/appeal-window-open
-    :check (fn [{:keys [world event event-time]}]
-             (if (= "execute_pending_settlement" (:action event))
-               (let [wf-id   (compat/wf-id event)
-                     pending (t/get-pending world wf-id)]
-                 (if (and (:exists pending)
-                          (< event-time (:appeal-deadline pending)))
-                   {:ok? false :error :appeal-window-not-expired}
-                   {:ok? true}))
-               {:ok? true}))}])
+        hop-scope (or explicit-hop hop-level)
+        ;; Named map for reviewability — each field is explicit.
+        key-map {:action action, :agent agent, :workflow-id wf,
+                 :slash-id sid, :hop-scope hop-scope, :event-id eid}]
+    [:sew :replay-dedupe
+     (:action key-map) (:agent key-map) (:workflow-id key-map)
+     (:slash-id key-map) (:hop-scope key-map) (:event-id key-map)]))
 
 (defn- sew-event-conflict-domains
   "Conservative serialization/conflict domains for same-timestamp batch replay.
@@ -374,7 +382,7 @@
             ;; the immutable member set from the stored slash record.
             slash-members (when group-action?
                             (some-> (get-in world [:pending-fraud-slashes
-                                                   (event-slash-id world event)
+                                                   (event-slash-id event)
                                                    :members])
                                     (->> (map :id))))
             g2-resolvers (if (seq group-members)
@@ -1219,7 +1227,7 @@
     agent-index event
     (fn [addr]
       (res/appeal-fraud-group-slash world (event-workflow-id event) addr
-                                    (event-slash-id world event)
+                                    (event-slash-id event)
                                     :authorization-provenance
                                     {:authorization/type :member-appeal
                                      :authorization/source :scenario-declared}))))
@@ -1231,7 +1239,7 @@
       (let [params (:params event)]
         (res/resolve-fraud-group-appeal world (event-workflow-id event) addr
                                         (:member params) (boolean (:upheld? params))
-                                        (event-slash-id world event)
+                                        (event-slash-id event)
                                         :authorization-provenance provenance)))))
 
 (defmethod apply-action "challenge-resolution"
@@ -1255,7 +1263,7 @@
   (run-governance-action context world event
     (fn [addr _agent _provenance]
       (let [workflow-id (event-workflow-id event)
-            slash-id (event-slash-id world event)
+            slash-id (event-slash-id event)
             slash-entry (get-in world [:pending-fraud-slashes slash-id])
             resolver-caller (or (:resolver slash-entry) addr)
             provenance (build-force-authorisation-provenance
@@ -1279,7 +1287,7 @@
                             (event-workflow-id event)
                             addr
                             (boolean (:upheld? p))
-                            (event-slash-id world event)
+                            (event-slash-id event)
                             :authorization-provenance provenance)))))
 
 (defmethod apply-action "execute-fraud-slash"
@@ -1298,7 +1306,7 @@
                         :execution/source :replay-context/agent-index
                         :execution/action action}
             result (res/execute-fraud-slash world (event-workflow-id event)
-                                            (event-slash-id world event)
+                                            (event-slash-id event)
                                             :execution-provenance provenance)]
         (if (:ok result)
           (update result :extra merge {:execution/provenance provenance})
@@ -1315,7 +1323,7 @@
                         :execution/address addr
                         :execution/action "execute-fraud-group-slash"}
             result (res/execute-fraud-group-slash world (event-workflow-id event)
-                                                  (event-slash-id world event)
+                                                  (event-slash-id event)
                                                   provenance)]
         (if (:ok result)
           (update result :extra merge {:execution/provenance provenance})
@@ -1611,7 +1619,6 @@
            :escalation-fn        esc-fn
            :resolution-module-fn rm-fn
            :resolution-level-map level-map
-           :temporal-rules       (sew-temporal-rules)
            :governance-mode      (get pp :governance-mode :restricted)
            :resolver-overflow-policy (merge def-policy of-policy)
            :force-authorisation-policy (merge def-fa-policy fa-policy)})))
@@ -1627,11 +1634,11 @@
                             (update result :world bind-scenario-result event result)
                             result)))]
       (cond
-        (and require-id? (replay-sensitive? event) (nil? eid))
+        (and require-id? (replay-sensitive-action? event) (nil? eid))
         {:ok false :error :missing-event-id
          :detail {:action (:action event) :seq (:seq event)}}
 
-        (and eid (replay-sensitive? event))
+        (and eid (replay-sensitive-action? event))
         (idem/apply-once world (dedupe-op-key world event) apply!)
 
         :else
@@ -1737,6 +1744,36 @@
                                  (get wf actor 0)))]
         (+ hold claim))
       nil))
+
+  proto/TemporalDeadlines
+
+  (deadline-for [_ world deadline-kind subject _context]
+    (let [wf-id subject]
+      (case deadline-kind
+        :evidence-submission
+        (let [snap       (t/get-snapshot world wf-id)
+              window-dur (:evidence-window-duration snap 0)]
+          (when (pos? window-dur)
+            (let [dispute-ts (get-in world [:dispute-timestamps wf-id] 0)]
+              (+ dispute-ts window-dur))))
+        :settlement
+        (let [pending (t/get-pending world wf-id)]
+          (if (:exists pending)
+            (:appeal-deadline pending)
+            (let [current-level (t/dispute-level world wf-id)]
+              (some (fn [entry]
+                      (when (= (:level entry) current-level)
+                        (:appeal-deadline (:pending entry))))
+                    (get-in world [:superseded-pending-settlements wf-id] [])))))
+        :appeal
+        (let [pending (t/get-pending world wf-id)]
+          (when (:exists pending)
+            (:appeal-deadline pending)))
+        :earliest-execution
+        (let [pending (get-in world [:pending-fraud-slashes subject])]
+          (when pending
+            (:appeal-deadline pending)))
+        nil)))
 
   proto/BatchConflictModel
 

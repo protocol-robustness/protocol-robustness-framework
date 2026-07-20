@@ -1,65 +1,59 @@
 (ns resolver-sim.sensitivity.report
-  "Sensitivity report builder for scenario run outputs.
-   Produces sensitivity-report.v2 combining classification,
-   provenance, and safety-scan results.
-
-   Provenance is constructed here — this is the single canonical
-   provenance authority. All downstream artifacts (bundle root,
-   attestation bundle) consume this report by persisted reference.
-
-   Provenance records derivation and data lineage only. It does NOT
-   imply operator identity, signer identity, trusted execution,
-   signature verification, external attestation, or human approval."
+  "Sensitivity report construction for scenario runs.
+   Builds canonical reports with provenance, evidence-backed classification,
+   and aggregation for disclosure policy enforcement."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.sensitivity.propagation :as prop]
             [resolver-sim.sensitivity.sentinel :as sentinel])
-  (:import [java.nio.file Files StandardCopyOption]
+  (:import [java.time Instant]
            [java.security MessageDigest]
-           [java.time Instant]))
+           [java.nio.file Files StandardCopyOption]))
 
 (def ^:const report-schema-version "sensitivity-report.v2")
 
 ;; ── Policy identity (deterministic) ─────────────────────────────────────────
 
 (def ^:private sentinel-ruleset
-  {:ruleset/id "sensitivity-sentinel"
-   :ruleset/schema "sentinel-rules.v1"
-   :ruleset/version sentinel/sentinel-version
-   :ruleset/hash (sentinel/policy-hash)
-   :level-ordering/version sentinel/sentinel-version
-   :level-ordering/levels (vec (map name sentinel/levels))
-   :risk-severity-ordering/version sentinel/sentinel-version
-   :risk-severity-ordering/levels (vec (map name sentinel/risk-severities))
-   :disclosure-policy/id "disclosure-matrix"
-   :disclosure-policy/version "v2"
-   :disclosure-policy/hash (sentinel/policy-hash)})
+  (delay
+    {:ruleset/id "sensitivity-sentinel"
+     :ruleset/schema "sentinel-rules.v1"
+     :ruleset/version sentinel/sentinel-version
+     :ruleset/hash (sentinel/policy-hash)
+     :level-ordering/version sentinel/sentinel-version
+     :level-ordering/levels (vec (map name sentinel/levels))
+     :risk-severity-ordering/version sentinel/sentinel-version
+     :risk-severity-ordering/levels (vec (map name sentinel/risk-severities))
+     :disclosure-policy/id "disclosure-matrix"
+     :disclosure-policy/version "v2"
+     :disclosure-policy/hash (sentinel/policy-hash)}))
 
 (def ^:private structural-classifier
-  {:implementation/id "structural-classifier"
-   :implementation/version "v1"
-   :implementation/source "resolver-sim.sensitivity.sentinel/classify-structural"
-   :ruleset-ref {:ruleset/id "structural-heuristics"
-                 :ruleset/schema "sentinel-rules.v1"
-                 :ruleset/version sentinel/sentinel-version}
-   :ruleset/hash (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      {:ruleset/id "structural-heuristics"
-                                       :version sentinel/sentinel-version
-                                       :source "resolver-sim.sensitivity.sentinel/classify-structural"})})
+  (delay
+    {:implementation/id "structural-classifier"
+     :implementation/version "v1"
+     :implementation/source "resolver-sim.sensitivity.sentinel/classify-structural"
+     :ruleset-ref {:ruleset/id "structural-heuristics"
+                   :ruleset/schema "sentinel-rules.v1"
+                   :ruleset/version sentinel/sentinel-version}
+     :ruleset/hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                        {:ruleset/id "structural-heuristics"
+                                         :version sentinel/sentinel-version
+                                         :source "resolver-sim.sensitivity.sentinel/classify-structural"})}))
 
 (def ^:private secret-scanner-classifier
-  {:implementation/id "secret-scanner"
-   :implementation/version "v1"
-   :implementation/source "resolver-sim.commands.scenario-safety/sensitivity-findings"
-   :ruleset-ref {:ruleset/id "secret-patterns"
-                 :ruleset/schema "regex-patterns.v1"
-                 :ruleset/version "v1"}
-   :ruleset/hash (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      {:ruleset/id "secret-patterns"
-                                       :version "v1"
-                                       :source "resolver-sim.commands.scenario-safety/secret-rules"})})
+  (delay
+    {:implementation/id "secret-scanner"
+     :implementation/version "v1"
+     :implementation/source "resolver-sim.commands.scenario-safety/sensitivity-findings"
+     :ruleset-ref {:ruleset/id "secret-patterns"
+                   :ruleset/schema "regex-patterns.v1"
+                   :ruleset/version "v1"}
+     :ruleset/hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                        {:ruleset/id "secret-patterns"
+                                         :version "v1"
+                                         :source "resolver-sim.commands.scenario-safety/secret-rules"})}))
 
 (def ^:private merge-function
   {:implementation/id "merge-sensitivity"
@@ -72,6 +66,18 @@
    :implementation/source "resolver-sim.hash.canonical/hash-with-intent"
    :domain-tag/intent :evidence-record
    :domain-tag/prefix "EVIDENCE_RECORD_V1"})
+
+(def ^:private secret-scanner-ruleset-hash
+  "Deferred resolution of scenario-safety's ruleset hash to break the
+   circular dependency: scenario-safety requires this namespace, and this
+   namespace references scenario-safety/secret-scanner-ruleset-hash.
+   requiring-resolve defers the resolution to runtime, avoiding the
+   compile-time cycle."
+  (delay
+    (if-let [f (requiring-resolve 'resolver-sim.commands.scenario-safety/secret-scanner-ruleset-hash)]
+      (f)
+      (throw (ex-info "secret-scanner-ruleset-hash not available"
+                      {:namespace 'resolver-sim.commands.scenario-safety})))))
 
 ;; ── Sensitivity status codes ────────────────────────────────────────────────
 
@@ -141,16 +147,23 @@
 
 (defn- per-scenario-entry
   "Build a deterministic scenario entry for the report.
-
+   
    Includes structural/declared/effective levels, exact declaration provenance
    (source path, hash, schema version when available), structured status code,
    and structural derivation evidence (rule IDs, finding refs) connecting
-   safety-scan findings to the scenario."
+   safety-scan findings to the scenario. Evidence-backed classification
+   uses actual findings to derive the sensitivity level."
   [result findings]
   (let [sens (get-in result [:scenario-metadata :scenario/sensitivity])
         declared-level (:level sens)
-        structural (sentinel/classify-structural result)
+        scenario-path (:scenario-path result)
+        matched-findings (vec (matching-findings scenario-path findings))
+        ;; Attach matched findings to result for evidence-backed classification
+        result-with-findings (when (seq matched-findings)
+                               (assoc result :sensitivity/findings matched-findings))
+        structural (sentinel/classify-structural result-with-findings)
         effective (if (and declared-level
+                           (contains? sentinel/level-set declared-level)
                            (sentinel/level>= declared-level structural))
                     declared-level
                     structural)
@@ -170,9 +183,9 @@
                          source-hash (assoc :declaration/source-bytes-hash source-hash)
                          scenario-hash (assoc :declaration/source-content-hash scenario-hash)
                          (:risk-meta sens) (assoc :declaration/risk-meta-hash
-                                                  (hc/hash-with-intent
-                                                   {:hash/intent :evidence-record}
-                                                   (:risk-meta sens))))))
+                                                    (hc/hash-with-intent
+                                                     {:hash/intent :evidence-record}
+                                                     (:risk-meta sens))))))
         ;; Result-artifact provenance — sensitivity of the scenario execution
         ;; output artifact.  This is distinct from the scenario's effective
         ;; sensitivity (which classifies the scenario result content).
@@ -181,24 +194,26 @@
         result-artifact (when-let [artifact-sens (:sensitivity/result-level result)]
                           {:result/artifact-id (:scenario-id result)
                            :result/sensitivity (name artifact-sens)})
-        scenario-path (:scenario-path result)
-        matched-findings (vec (matching-findings scenario-path findings))
-        structural-reasons (when (seq matched-findings)
-                             {:structural/classification-level (name structural)
-                              :structural/reasons
-                              (mapv (fn [f]
-                                      {:reason/code (case (:rule/id f)
-                                                      :secret-scanner/private-key :contains-live-vulnerability
-                                                      :secret-scanner/credential-assignment :contains-unpublished-evidence
-                                                      :secret-scanner/bearer-auth :contains-unpublished-evidence
-                                                      :secret-scanner/jwt-token :contains-protocol-identifier
-                                                      :secret-scanner/github-token :contains-linkable-subject-hash
-                                                      :secret-scanner/npm-token :contains-linkable-subject-hash
-                                                      :contains-unpublished-evidence)
-                                       :rule/id (:rule/id f)
-                                       :rule/version (:rule/version f)
-                                       :finding/ref (:finding/id f)})
-                                    matched-findings)})]
+        ;; Evidence-backed structural derivation - uses actual findings to derive level
+        structural-derivation (when (seq matched-findings)
+                                (let [evidence-classification (sentinel/classify-from-findings matched-findings)]
+                                  {:structural/classification-level (name (:level evidence-classification))
+                                   :structural/reasons
+                                   (mapv (fn [f]
+                                           {:reason/code (case (:rule/id f)
+                                                           :secret-scanner/private-key :contains-live-vulnerability
+                                                           :secret-scanner/credential-assignment :contains-unpublished-evidence
+                                                           :secret-scanner/bearer-auth :contains-unpublished-evidence
+                                                           :secret-scanner/jwt-token :contains-protocol-identifier
+                                                           :secret-scanner/github-token :contains-linkable-subject-hash
+                                                           :secret-scanner/npm-token :contains-linkable-subject-hash
+                                                           :contains-unpublished-evidence)
+                                            :rule/id (:rule/id f)
+                                            :rule/version (:rule/version f)
+                                            :finding/ref (:finding/id f)})
+                                           matched-findings)
+                                   :structural/ruleset-hash @secret-scanner-ruleset-hash
+                                   :evidence/findings matched-findings}))]
     (cond-> {:id (:scenario-id result)
              :input-hash (:scenario-input-hash result)
              :structural-level (name structural)
@@ -209,35 +224,43 @@
       sens (assoc :risk-meta (when-let [rm (:risk-meta sens)]
                                (update rm :reason-codes (fn [v]
                                                           (vec (sort (map name v)))))))
-      structural-reasons (assoc :structural-derivation structural-reasons)
+      structural-derivation (assoc :structural-derivation structural-derivation)
       result-artifact (assoc :result-artifact result-artifact))))
 
 ;; ── Provenance construction (canonical source) ──────────────────────────────
 
 (defn- build-canonical-report-provenance
   "Build the canonical provenance record for a sensitivity report.
-
+   
    This is the single call site for prop/build-sensitivity-derivation on the
    report's sensitivity decision. No other layer independently
    persists a materially equivalent provenance object.
-
+   
    propagation.clj's build-sensitivity-derivation is a pure derivation
    helper — it computes fact records from inputs.  This function binds
    those facts to exact inputs, policy, implementation, and report identity.
-
+   
    Arguments:
      run-sensitivity — result from prop/merge-sensitivity
      scenarios       — seq of scenario result maps (used for per-scenario
-                        structural classification and contribution tracking)
+                       structural classification and contribution tracking)
      context         — map with :run-id, :profile, :scenario-ids, :sentinel-version"
   [run-sensitivity scenarios context]
   (let [level (:level run-sensitivity)
-        ;; Per-scenario structured records
+        ;; Per-scenario structured records - attach findings for evidence-backed classification
         scenario-records
         (mapv (fn [result]
                 (let [sens (get-in result [:scenario-metadata :scenario/sensitivity])
                       declared-level (:level sens)
-                      s-level (sentinel/classify-structural result)
+                      scenario-path (:scenario-path result)
+                      matched-findings (when (seq context)
+                                         (vec (filter #(= (:finding/path-token %)
+                                                           (scenario-path-token scenario-path))
+                                                      (:findings context))))
+                      ;; Attach findings to result for evidence-backed classification
+                      result-with-findings (when (seq matched-findings)
+                                             (assoc result :sensitivity/findings matched-findings))
+                      s-level (sentinel/classify-structural result-with-findings)
                       effective (if (and declared-level
                                          (sentinel/level>= declared-level s-level))
                                   declared-level
@@ -245,9 +268,9 @@
                   (scenario-source-record result effective level)))
               scenarios)
         ;; Implementation sources
-        impl-records [sentinel-ruleset
-                      structural-classifier
-                      secret-scanner-classifier
+        impl-records [@sentinel-ruleset
+                      @structural-classifier
+                      @secret-scanner-classifier
                       merge-function
                       canonical-hash-impl]
         ;; Policy source
@@ -273,8 +296,8 @@
                              :unexpected-scenario-ids []}
         ;; All structured sources
         structured (vec (concat scenario-records
-                                impl-records
-                                [policy-source scenario-set-source]))
+                               impl-records
+                               [policy-source scenario-set-source]))
         ;; Display summary
         display (display-sources structured)
         effective-level (name level)]
@@ -297,7 +320,8 @@
 
 (defn- build-aggregation-derivation
   "Build a structured derivation record showing how the run-level
-   sensitivity was computed from per-scenario sensitivities.
+   sensitivity was computed from per-scenario sensitivities. Evidence-backed
+   classification uses actual safety findings when available.
    Records input-set hash, winners (including ties), and risk
    aggregation provenance."
   [run-sensitivity scenarios findings]
@@ -307,39 +331,46 @@
                                    (:sensitivity/status %))
                                 scenario-entries))
         evaluated (count (filter #(= ":sensitivity-status/evaluated"
-                                     (:sensitivity/status %))
-                                  scenario-entries))
+                                       (:sensitivity/status %))
+                                   scenario-entries))
         run-level-name (when run-sensitivity (name (:level run-sensitivity)))
         winners (filterv #(= (:effective-level %) run-level-name)
                          scenario-entries)
         multiple-winners? (> (count winners) 1)
         ;; Input-set hash: canonical hash of the collection of
-        ;; per-scenario sensitivity input vectors.
+        ;; per-scenario sensitivity input vectors with evidence-backed classification.
         input-set-hash (when run-sensitivity
                          (str (hc/hash-with-intent
                                {:hash/intent :evidence-record}
                                (vec (sort-by :scenario-id
                                      (mapv (fn [s]
                                              (let [sens (get-in s [:scenario-metadata :scenario/sensitivity])
-                                                   structural (sentinel/classify-structural s)]
+                                                   scenario-path (:scenario-path s)
+                                                   matched-findings (when (and scenario-path findings)
+                                                                     (vec (filter #(= (:finding/path-token %)
+                                                                                     (scenario-path-token scenario-path))
+                                                                                      findings)))
+                                                   result-with-findings (when (seq matched-findings)
+                                                                        (assoc s :sensitivity/findings matched-findings))
+                                                   structural-level (sentinel/classify-structural result-with-findings)]
                                                {:scenario-id (:scenario-id s)
                                                 :declared-level (when (:level sens) (name (:level sens)))
-                                                :structural-level (name structural)
+                                                :structural-level (name structural-level)
                                                 :effective-level (name (if (and (:level sens)
-                                                                                (sentinel/level>= (:level sens) structural))
-                                                                         (:level sens)
-                                                                         structural))}))
-                                           scenarios))))))
+                                                                                  (sentinel/level>= (:level sens) structural-level))
+                                                                           (:level sens)
+                                                                            structural-level))}))
+                                            scenarios))))))
         ;; Risk-aggregation winner: find the scenario whose risk-severity
         ;; matches the merged result's risk-severity.
         risk-severity (when run-sensitivity
                         (get-in run-sensitivity [:risk-meta :risk-severity]))
         risk-winner (when risk-severity
                       (first (filterv (fn [s]
-                                        (let [sens (get-in s [:scenario-metadata :scenario/sensitivity])
-                                              sev (get-in sens [:risk-meta :risk-severity])]
-                                          (= sev risk-severity)))
-                                      scenarios)))]
+                                          (let [sens (get-in s [:scenario-metadata :scenario/sensitivity])
+                                                sev (get-in sens [:risk-meta :risk-severity])]
+                                            (= sev risk-severity)))
+                                        scenarios)))]
     {:aggregation/function :max-effective-sensitivity
      :aggregation/version "merge-sensitivity.v2"
      :aggregation/merge-function-ref merge-function
@@ -361,30 +392,32 @@
 
 (defn build-sensitivity-report
   "Build a v2 sensitivity report combining classification,
-   safety-scan results, and provenance.
-
+   safety-scan results, and provenance. Evidence-backed classification
+   derives sensitivity levels from actual safety findings when present.
+   
    This is the canonical provenance authority for the run-level
    sensitivity decision. Provenance is constructed here, not by
    callers. Downstream artifacts consume the persisted report or
    reference its hash.
-
+   
    Arguments:
      safety-result     — map from scan-public-bundle! or scan-internal-bundle!
      run-sensitivity   — map from prop/merge-sensitivity or nil
      scenarios         — seq of scenario result maps
      context           — map with :run-id, :profile, :scenario-ids, :sentinel-version
-
+   
    Returns a sensitivity-report.v2 map."
   [safety-result run-sensitivity scenarios context]
   (let [findings (vec (sort-by (fn [f] (str (:finding/id f) (:rule/id f))) (:findings safety-result [])))
+        context-with-findings (assoc context :findings findings)
         scenario-entries (vec (sort-by :id (mapv #(per-scenario-entry % findings) scenarios)))
         sensitive-count (count (filter :declared-level scenario-entries))
         total-count (count scenario-entries)
         has-prov? (some? run-sensitivity)
         provenance (when has-prov?
-                     (build-canonical-report-provenance run-sensitivity scenarios context))
+                     (build-canonical-report-provenance run-sensitivity scenarios context-with-findings))
         aggregation-derivation (when has-prov?
-                                 (build-aggregation-derivation run-sensitivity scenarios findings))
+                                  (build-aggregation-derivation run-sensitivity scenarios findings))
         ;; Decision provenance — separates classification (what level) from
         ;; decision (what action was taken given profile + policy).
         decision-provenance

@@ -14,7 +14,7 @@
      (domain-hash domain-tag value)        — SHA-256(domain_tag || canonical_bytes), returns hex"
   (:import [java.security MessageDigest]
            [java.io ByteArrayOutputStream]
-           [java.math BigInteger]))
+           [java.math BigInteger BigDecimal]))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Type Tags (per Binary Encoding ABI)
@@ -273,16 +273,15 @@
            len (encode-varuint (count bs))]
        (ba-concat (ba-of tag-string) len bs))
 
-     (instance? clojure.lang.Keyword v)
-     (let [s (keyword-string v)
-           bs (utf8-bytes s)
-           len (encode-varuint (count bs))]
-       (ba-concat (ba-of tag-keyword) len bs))
+      (instance? clojure.lang.Keyword v)
+      (let [s (keyword-string v)
+            bs (utf8-bytes s)
+            len (encode-varuint (count bs))]
+        (ba-concat (ba-of tag-keyword) len bs))
 
-     (instance? clojure.lang.Ratio v)
-     (let [num-bytes (canonical-bytes (numerator v))
-           den-bytes (canonical-bytes (denominator v))]
-       (ba-concat (ba-of tag-ratio) num-bytes den-bytes))
+      (instance? java.math.BigDecimal v)
+      (let [double-bytes (canonical-bytes (double v))]
+        double-bytes)
 
      (instance? clojure.lang.IPersistentVector v)
     (let [count-enc (encode-varuint (count v))
@@ -395,10 +394,15 @@
                  Ratio→{:type :ratio :value-str \"%.17g\"}
      Replace  — functions→{:type :fn} (structured marker)
 
+   When flattened-fields-atom is provided, records each flattening event
+   as {:path [...], :type kw, :value raw, :contract kw} into the atom.
+   This metadata is excluded from the returned structure so hashes remain
+   stable; callers attach it externally as :projection/flattened-fields.
+
    Idempotent and fully deterministic across JVM invocations.
    Output passes validate-canonical-value! and is safe for canonical-bytes."
-  [world intent]
-  (letfn [(walk [x]
+  [world intent & [flattened-fields-atom]]
+  (letfn [(walk [x path]
             (cond
               ;; Primitives — pass through unchanged
               (nil? x) nil
@@ -408,38 +412,95 @@
               (keyword? x) x
               ;; java.time.Instant → ISO-8601 string
               (instance? java.time.Instant x)
-              (.toString x)
+              (do (when flattened-fields-atom
+                    (swap! flattened-fields-atom conj
+                           {:path path
+                            :type :instant
+                            :value (.toString x)
+                            :contract :instant→iso8601-string}))
+                  (.toString x))
               ;; Double, Float → tagged representation (preserves type identity)
               (instance? Double x)
-              {:type :float64 :value-str (format "%.17g" (double x))}
+              (do (when flattened-fields-atom
+                    (swap! flattened-fields-atom conj
+                           {:path path
+                            :type :float64
+                            :value (double x)
+                            :contract :float64-tagged-representation}))
+                  {:type :float64 :value-str (format "%.17g" (double x))})
               (instance? Float x)
-              {:type :float64 :value-str (format "%.17g" (float x))}
-              ;; Ratio → exact tagged representation. Converting through double
-              ;; would alias distinct rational values in a commitment.
-              (instance? clojure.lang.Ratio x)
-              {:type :ratio
-               :numerator (numerator x)
-               :denominator (denominator x)}
+              (do (when flattened-fields-atom
+                    (swap! flattened-fields-atom conj
+                           {:path path
+                            :type :float64
+                            :value (float x)
+                            :contract :float64-tagged-representation}))
+                  {:type :float64 :value-str (format "%.17g" (float x))})
+               ;; Ratio → exact tagged representation. Converting through double
+               ;; would alias distinct rational values in a commitment.
+               (instance? clojure.lang.Ratio x)
+               (do (when flattened-fields-atom
+                     (swap! flattened-fields-atom conj
+                            {:path path
+                             :type :ratio
+                             :value (str (numerator x) "/" (denominator x))
+                             :contract :ratio-tagged-representation}))
+                   {:type :ratio
+                    :value-str (format "%.17g" (double x))
+                    :numerator (numerator x)
+                    :denominator (denominator x)})
+              ;; BigDecimal → tagged float64 representation
+              (instance? java.math.BigDecimal x)
+              (do (when flattened-fields-atom
+                    (swap! flattened-fields-atom conj
+                           {:path path
+                            :type :float64
+                            :value (.doubleValue x)
+                            :contract :bigdecimal→float64-tagged-representation}))
+                  {:type :float64 :value-str (format "%.17g" (.doubleValue x))})
               ;; Function → structured marker (NOT lossy :fn atom)
               (fn? x)
-              {:type :fn}
+              (do (when flattened-fields-atom
+                    (swap! flattened-fields-atom conj
+                           {:path path
+                            :type :function
+                            :value (pr-str x)
+                            :contract :function→fn-marker}))
+                  {:type :fn})
               ;; Vector — recurse elements
-              (vector? x) (mapv walk x)
+              (vector? x) (mapv #(walk % (conj path [:vector %2])) x (range))
               ;; Map — recurse keys and values; ordering at encode time
               (map? x)
               (persistent!
-               (reduce-kv (fn [m k v] (assoc! m (walk k) (walk v)))
+               (reduce-kv (fn [m k v]
+                            (assoc! m
+                                    (walk k (conj path [:key k]))
+                                    (walk v (conj path [:value k]))))
                           (transient {}) x))
               ;; Set → sorted deterministic vector
-              (set? x) (vec (sort (map walk x)))
+              (set? x) (do (when flattened-fields-atom
+                             (swap! flattened-fields-atom conj
+                                    {:path path
+                                     :type :set
+                                     :value (vec (sort (map str x)))
+                                     :contract :set→sorted-vector}))
+                           (vec (sort (map #(walk % (conj path [:set %2])) x (range)))))
               ;; List, LazySeq, etc. → vector for canonical encoding compliance
-              (sequential? x) (mapv walk x)
+              (sequential? x)
+              (do (when flattened-fields-atom
+                    (swap! flattened-fields-atom conj
+                           {:path path
+                            :type :sequential
+                            :value (vec x)
+                            :contract :sequential→vector}))
+                  (mapv #(walk % (conj path [:sequential %2])) x (range)))
               :else
               (throw (ex-info
                       "Cannot project unsupported type to structure view"
                       {:type (type x) :value x}))))]
     {:intent intent
-     :structure (walk world)}))
+     :structure (walk world [])
+     :projection/flattened-fields (when flattened-fields-atom (vec @flattened-fields-atom))}))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Hashing
@@ -490,33 +551,56 @@
    hashing that survives JSON serialization/deserialization.
    Keywords are converted to strings (matching JSON behavior) and
    maps are sorted for deterministic ordering.
-   Accepts optional intent arg (ignored) for compatibility with
-   hash-with-intent's projection-fn signature."
-  [data & _]
-  (letfn [(walk [v]
-            (cond
-              (instance? clojure.lang.Keyword v) (name v)
-              ;; Ratios are not part of the canonical binary ABI. Preserve their
-              ;; exact value in a JSON-round-trippable tagged representation at
-              ;; the evidence projection boundary rather than truncating them.
-              (ratio? v) {"$type" "ratio"
-                          "$numerator" (numerator v)
-                          "$denominator" (denominator v)}
-              ;; Floating-point values are not valid raw canonical ABI values.
-              ;; Content evidence preserves their exact IEEE value as hexadecimal,
-              ;; rather than rounding to a decimal representation.
-              (instance? Double v) {"$type" "float64"
-                                    "$hex" (Double/toHexString v)}
-              (instance? Float v) {"$type" "float32"
-                                   "$hex" (Float/toHexString v)}
-              (instance? clojure.lang.IPersistentMap v)
-              (into (sorted-map) (map (fn [[k v]] [(walk k) (walk v)]) v))
-              (instance? clojure.lang.IPersistentVector v)
-              (mapv walk v)
-              (sequential? v)
-              (mapv walk v)
-              :else v))]
-    (walk data)))
+   Accepts optional intent arg (ignored) and optional flattened-fields-atom."
+  [data & args]
+  (let [[_ flattened-fields-atom] args
+        _intent (first args)]
+    (letfn [(walk [v path]
+              (cond
+                (instance? clojure.lang.Keyword v)
+                (do (when flattened-fields-atom
+                      (swap! flattened-fields-atom conj
+                             {:path path
+                              :type :keyword
+                              :value (name v)
+                              :contract :keyword→string}))
+                  (name v))
+                (ratio? v)
+                (do (when flattened-fields-atom
+                      (swap! flattened-fields-atom conj
+                             {:path path
+                              :type :ratio
+                              :value (str (numerator v) "/" (denominator v))
+                              :contract :ratio→tagged-map}))
+                  {"$type" "ratio"
+                   "$numerator" (numerator v)
+                   "$denominator" (denominator v)})
+                (instance? Double v)
+                (do (when flattened-fields-atom
+                      (swap! flattened-fields-atom conj
+                             {:path path
+                              :type :float64
+                              :value (double v)
+                              :contract :double→tagged-hex}))
+                  {"$type" "float64"
+                   "$hex" (Double/toHexString v)})
+                (instance? Float v)
+                (do (when flattened-fields-atom
+                      (swap! flattened-fields-atom conj
+                             {:path path
+                              :type :float32
+                              :value (float v)
+                              :contract :float→tagged-hex}))
+                  {"$type" "float32"
+                   "$hex" (Float/toHexString v)})
+                (instance? clojure.lang.IPersistentMap v)
+                (into (sorted-map) (map (fn [[k v]] [(walk k (conj path [:key k])) (walk v (conj path [:value k]))]) v))
+                (instance? clojure.lang.IPersistentVector v)
+                (mapv (fn [x i] (walk x (conj path [:vector i]))) v (range))
+                (sequential? v)
+                (mapv (fn [x i] (walk x (conj path [:sequential i]))) v (range))
+                :else v))]
+      (walk data []))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Intent Registry Contract
@@ -1556,8 +1640,16 @@
 
    See hash-intents for all supported intents with their scope
    and exclusion contracts."
-  [{:keys [hash/intent]} value]
-  (let [{:intent/keys [projection-fn domain-tag]} (resolve-intent intent)]
-    (when *validate-intent-constraints*
-      (validate-intent-constraints! intent value))
-    (domain-hash domain-tag (projection-fn value intent))))
+[{:keys [hash/intent]} value]
+   (let [{:intent/keys [projection-fn domain-tag]} (resolve-intent intent)
+         flattened-fields (atom [])
+         projected (if (or (= projection-fn project-world-to-structure-view)
+                           (= projection-fn project-for-content-hash))
+                     (projection-fn value intent flattened-fields)
+                     (projection-fn value intent))]
+     (when *validate-intent-constraints*
+       (validate-intent-constraints! intent value))
+     (domain-hash domain-tag
+                  (if (= projection-fn project-world-to-structure-view)
+                    (dissoc projected :projection/flattened-fields)
+                    projected))))

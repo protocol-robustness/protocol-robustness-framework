@@ -474,7 +474,15 @@
             :inputs [:pro-rata-allocation-result]
             :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
             :outputs [:holds? :result :reason :violations]}
-            ;; Protocol-specific claim definitions are registered dynamically
+           {:id :pro-rata/projection-diff
+            :version 1
+            :category :safety
+            :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
+            :inputs [:projection-artifact]
+            :evaluation {:type :metadata-completeness
+                         :required-keys [:path :type :value :contract]}
+            :outputs [:holds? :violations]}
+             ;; Protocol-specific claim definitions are registered dynamically
            ;; by protocol implementation namespaces via register-claim-definitions!.
            ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
             ;; the Sew forensic-grade claims (registry-hash-verifies,
@@ -907,7 +915,8 @@
     :arithmetic-equality
     :policy-check
     :permutation-test
-    :code-reference})
+    :code-reference
+    :metadata-completeness})
 
 (defn validate-claim-definition-registry-entries
   "Return claim-definition-registry-specific validation errors for entries.

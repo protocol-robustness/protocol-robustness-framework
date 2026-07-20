@@ -4,6 +4,7 @@
             [resolver-sim.commands.scenario-registry :as registry]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.input-source :as input-source]
+            [resolver-sim.io.paths :as paths]
             [resolver-sim.io.scenarios :as io-scenarios]
                         [resolver-sim.commands.scenario-manifest :as manifest]
                                     [resolver-sim.commands.scenario-safety :as safety]
@@ -25,7 +26,7 @@
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
 (defn- p [x] (str x))
 (defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
-(defn- layout! [c] (doseq [x [(:run/root c) (:manifest/dir c) (:scenario/root c) (:execution/dir c) (:forensic/dir c) (:summaries/dir c)]] (.mkdirs (io/file (p x)))) (spit (io/file (p (:run/root c)) ".run-state") (pr-str {:run/id (:run/id c) :state :running})) c)
+(defn- layout! [c] (doseq [x [(:run/root c) (:manifest/dir c) (:scenario/root c) (:execution/dir c) (:forensic/dir c) (:summaries/dir c)]] (.mkdirs (io/file (p x)))) (spit (io/file (p (:run/root c)) paths/run-state) (pr-str {:run/id (:run/id c) :state :running})) c)
 (defn default-check-runtime! [_] {})
 (defn default-execute! [c]
   (let [source (input-source/source (:scenario/ref c))
@@ -72,7 +73,7 @@
 (defn default-finalize-registry! [c _] (registry/finalize! (:run/root c)))
 (defn default-validate-registry! [c _]
   (let [registry-file (io/file (str (p (:manifest/dir c)) "/artifacts.json"))
-        registry-ref "manifest/artifacts.json"
+        registry-ref paths/artifacts-suffix
         result (artifact-registry/validate-artifact-registry-from-file (.getPath registry-file))
         ;; The persisted validation result explicitly commits to the exact
         ;; registry bytes it evaluated. The package index separately commits to
@@ -336,7 +337,7 @@
                    :runner_finalization {:ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json")
                                          :sha256 (when (.isFile runner-finalization-file)
                                                    (str "sha256:" (lifecycle/sha256-file runner-finalization-file)))}
-                   :outer_registry {:ref "manifest/artifacts.json"
+                   :outer_registry {:ref paths/artifacts-suffix
                                     :verification "verified-by-verify-scenario-after-inventory"}
                    :checks {:run_finalization_verified (= "verified" (get-in finalization [:verification :status]))
                             :runner_finalization_present (.isFile runner-finalization-file)
@@ -360,27 +361,28 @@
         input-file (io/file root input)
         bundle-root (:bundle-root execution)
         registry-snapshot (:registry/snapshot bundle-root)
-        artifact (verdict-policy/build
-                  {:run-id (:run/id c)
-                   :run-type "scenario"
-                   :policy-id "canonical-scenario-verdict.v1"
-                   :semantic-outcome (if (zero? (:exit-code execution)) "pass" "fail")
-                   :inputs [{"logical_id" "scenario-input-snapshot"
-                             "path" input
-                             "sha256" (verdict-policy/sha-ref input-file)}]
-                   :registries {"evidence_policy_hash" (str (or (:evidence-policy-hash registry-snapshot) "unavailable"))
-                                "claim_definition_registry_hash" (str (or (:claim-definition-registry-hash registry-snapshot) "unavailable"))
-                                "evaluator_registry" "scenario-invariant-evaluator.v1"}
-                   :semantic-environment {"protocol_id" (str (or (:protocol execution) "unknown"))
-                                          "runner_id" (str (or (get-in bundle-root [:run/request :runner-selection :runner-id]) "runner/local"))
-                                          "execution_id" (:execution/id execution)
-                                          "deterministic_time_source" "simulation"}
-                                                             :evaluator-implementation (let [source (source-hash/source-hash)]
-                                                                                         {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
-                                                                                          "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
-                                                                                          "source_roots" (vec (or (:source/included-roots source) (:source/hash-roots source) []))
-                                                                                          "evaluator_id" "scenario-invariant-evaluator.v1"})
-                                                                                                             :distribution-provenance (distribution/distribution-identity)})]
+artifact (verdict-policy/build
+                   {:run-id (:run/id c)
+                    :run-type "scenario"
+                    :policy-id "canonical-scenario-verdict.v1"
+                    :version-id "verdict-policy.v1"
+                    :semantic-outcome (if (zero? (:exit-code execution)) "pass" "fail")
+                    :inputs [{"logical_id" "scenario-input-snapshot"
+                              "path" input
+                              "sha256" (verdict-policy/sha-ref input-file)}]
+                    :registries {"evidence_policy_hash" (str (or (:evidence-policy-hash registry-snapshot) "unavailable"))
+                                 "claim_definition_registry_hash" (str (or (:claim-definition-registry-hash registry-snapshot) "unavailable"))
+                                 "evaluator_registry" "scenario-invariant-evaluator.v1"}
+                    :semantic-environment {"protocol_id" (str (or (:protocol execution) "unknown"))
+                                           "runner_id" (str (or (get-in bundle-root [:run/request :runner-selection :runner-id]) "runner/local"))
+                                           "execution_id" (:execution/id execution)
+                                           "deterministic_time_source" "simulation"}
+                                                              :evaluator-implementation (let [source (source-hash/source-hash)]
+                                                                                          {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
+                                                                                           "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
+                                                                                           "source_roots" (vec (or (:source/included-roots source) (:source/hash-roots source) []))
+                                                                                           "evaluator_id" "scenario-invariant-evaluator.v1"})
+                                                                                                              :distribution-provenance (distribution/distribution-identity)})]
                                                                                                                  (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
 
 (defn default-write-package-index!
@@ -411,7 +413,7 @@
       :run-finalization (ref "evidence/finalizations/run/evidence-finalization.json")
       :canonical-assurance (ref "manifest/canonical-integrity.json")
             :verdict-policy (ref "manifest/verdict-policy.json")
-            :artifact-registry (ref "manifest/artifacts.json")
+            :artifact-registry (ref paths/artifacts-suffix)
       :registry-validation (ref "manifest/artifact-registry-validation.json")
       :execution-dag (ref (str "scenarios/" (:scenario/slug c) "/execution/execution-dag.json"))
       :pro-rata-mechanism-nodes (when (.isFile (io/file root "manifest/pro-rata-mechanism-nodes.json"))
@@ -453,7 +455,7 @@
                             {:code :package/completion-gate-failed
                              :reasons (:reasons gate)})))
         root (:run/root c)
-        registry (io/file (str root) "manifest/artifacts.json")
+        registry (io/file (str root) paths/artifacts-suffix)
         validation (io/file (str root) "manifest/artifact-registry-validation.json")
         runner-finalization (io/file (str (:execution/dir c)) "runner-finalization.json")
         outcome (if (zero? (:exit-code e)) "pass" "fail")]
@@ -472,13 +474,13 @@
       :runner_finalization_ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json")
       :runner_finalization_sha256 (when (.isFile runner-finalization)
                                     (str "sha256:" (lifecycle/sha256-file runner-finalization)))
-      :run_package_index_ref "manifest/run-package-index.json"
-      :run_package_index_sha256 (let [package-index (io/file (str root) "manifest/run-package-index.json")]
+      :run_package_index_ref paths/run-package-index
+      :run_package_index_sha256 (let [package-index (io/file (str root) paths/run-package-index)]
                                   (when (.isFile package-index)
                                     (str "sha256:" (lifecycle/sha256-file package-index))))
-      :run_package_index_bytes (let [package-index (io/file (str root) "manifest/run-package-index.json")]
+      :run_package_index_bytes (let [package-index (io/file (str root) paths/run-package-index)]
                                  (when (.isFile package-index) (.length package-index)))
-      :artifact_registry_ref "manifest/artifacts.json"
+      :artifact_registry_ref paths/artifacts-suffix
       :artifact_registry_sha256 (when (.isFile registry) (str "sha256:" (lifecycle/sha256-file registry)))
       :registry_validation_ref "manifest/artifact-registry-validation.json"
       :registry_validation_sha256 (when (.isFile validation) (str "sha256:" (lifecycle/sha256-file validation)))})

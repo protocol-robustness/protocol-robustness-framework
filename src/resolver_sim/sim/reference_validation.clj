@@ -78,18 +78,23 @@
                     (str json-path ".sha256"))]
     (spit hash-path (str (sha256-file json-path) "\n"))))
 
-(defn- kw-str [k]
-  (name k))
+(defn- namespace-keyword->string
+   "Convert a namespaced keyword to a string preserving namespace.
+    :transition/hash -> \"transition/hash\", :foo -> \"foo\""
+   [k]
+   (if (keyword? k)
+     (str (when-let [ns (namespace k)] (str ns "/")) (name k))
+     (str k)))
 
-(defn- keyword->string
-  "Recursively convert keywords to strings and ratios to doubles for JSON-safe output."
-  [x]
-  (cond
-    (keyword? x) (name x)
-    (instance? clojure.lang.Ratio x) (double x)
-    (map? x) (into {} (map (fn [[k v]] [(keyword->string k) (keyword->string v)]) x))
-    (coll? x) (map keyword->string x)
-    :else x))
+ (defn- keyword->string
+   "Recursively convert keywords to strings and ratios to doubles for JSON-safe output."
+   [x]
+   (cond
+     (keyword? x) (namespace-keyword->string x)
+     (instance? clojure.lang.Ratio x) (double x)
+     (map? x) (into {} (map (fn [[k v]] [(namespace-keyword->string k) (keyword->string v)]) x)
+     (coll? x) (map keyword->string x)
+     :else x))
 
 (defn- export-yield-trace-fixture
   "Export a yield-v1 replay result as a JSON-safe trace fixture map.
@@ -102,10 +107,10 @@
      :scenario_id (:scenario-id result)
      :description (str "Yield-v1 trace: " (:scenario-id result))
      :step_count (count trace)
-     :steps (keyword->string
-             (mapv (fn [entry]
-                     (select-keys entry [:seq :time :action :agent :result :error :params]))
-                   trace))}))
+:steps (keyword->string
+              (mapv (fn [entry]
+                      (select-keys entry [:seq :time :action :agent :result :error :params :transition/id :transition/hash]))
+                    trace))}))
 
 (defn- write-trace-fixture!
   "Write trace fixture for a protocol. Sew support is resolved only when requested."

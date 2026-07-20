@@ -502,7 +502,7 @@
    :evidence-content  "aa84921b0d4b447aaad5a450ffee9b36e2e3f9d3d39991c0eb3842162b05630d"
    :evidence-chain    "365e311bef1cd758d3961a2b08dc59fffc8d636f8826ff4901328cfd4a49a84b"
    :manifest          "b6398eb7538ee05172ce62d656c2c4042819ad7d62fe1694c5dfafbf3ab242b7"
-   :bundle-root       "689fc33fa03ad8e031515bb68dfbb90a7b8afc8b341cdbffdba215313afe70db"
+   :bundle-root       "ebf3a96c2062e800866f6c353c28d4ebd340a538fbb630d0c75fa3b2420ff057"
    :registry          "ec2edbfaec899d9134ed51aec519e683d23cd7c58e36d9c6f42d5e1af15a6e37"
    :provenance        "43c51800d4418215e9a0c1c4b25a25733bf4c38e1288fe2e1cdc3be35578196a"
    :state-diff        "ece887daefd0565ff3770592def75aceb969d8903d8be7156617daea2d1e13a1"

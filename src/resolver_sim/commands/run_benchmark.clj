@@ -15,6 +15,7 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.io.input-source :as input-source]
+            [resolver-sim.io.paths :as paths]
                         [resolver-sim.run.runner-finalization :as runner-finalization]
                                                 [resolver-sim.run.package-index :as package-index]
                                                                                                 [resolver-sim.run.verdict-policy :as verdict-policy]
@@ -44,10 +45,10 @@
     "benchmark/assertions/canonical-integrity.json"
     "benchmark/assertions/forensic-claims-status.json"
         "manifest/verdict-policy.json"
-        "manifest/artifacts.json"
-    "manifest/artifacts-validation.json"
-    "manifest/run-package-index.json"
-    "completion.json" ".run-state" ".run.lock"})
+        paths/artifacts-suffix
+    paths/artifacts-validation
+    paths/run-package-index
+    paths/completion paths/run-state paths/run-lock})
 
 (defn- content-role [path]
   (cond
@@ -151,9 +152,9 @@
   [context conclusion]
   (let [root (:run/root context)
         finalization-file (io/file (str root) "benchmark/finalization.json")
-        package-index-file (io/file (str root) "manifest/run-package-index.json")
-        registry (io/file (str root) "manifest/artifacts.json")
-        validation (io/file (str root) "manifest/artifacts-validation.json")
+        package-index-file (io/file (str root) paths/run-package-index)
+        registry (io/file (str root) paths/artifacts-suffix)
+        validation (io/file (str root) paths/artifacts-validation)
         required-files [finalization-file package-index-file registry validation]]
     (when-let [missing (first (remove #(.isFile %) required-files))]
       (throw (ex-info "Canonical benchmark root is not ready for completion"
@@ -171,37 +172,38 @@
         :finalization_ref "benchmark/finalization.json"
         :finalization_sha256 (sha-ref finalization-file)
         :final_ref (get finalization "final_ref")
-        :run_package_index_ref "manifest/run-package-index.json"
+        :run_package_index_ref paths/run-package-index
         :run_package_index_sha256 (sha-ref package-index-file)
         :run_package_index_bytes (.length package-index-file)
         :input_set_root (get finalization "input_set_root")
-        :artifact_registry_ref "manifest/artifacts.json"
+        :artifact_registry_ref paths/artifacts-suffix
         :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))
-        :registry_validation_ref "manifest/artifacts-validation.json"
+        :registry_validation_ref paths/artifacts-validation
         :registry_validation_sha256 (str "sha256:" (lifecycle/sha256-file validation))}))))
 
 (defn- write-verdict-policy! [context evidence conclusion]
   (let [root (io/file (str (:run/root context)))
         assurance (json/read-str (slurp (io/file root "benchmark/assertions/benchmark-assurance.json")))
-        artifact (verdict-policy/build
-                  {:run-id (:run/id context)
-                   :run-type "benchmark"
-                   :policy-id "canonical-benchmark-verdict.v1"
-                   :semantic-outcome (get conclusion "outcome")
-                   :inputs (get assurance "input_set")
-                   :registries {"evidence_policy_hash" "benchmark-evidence-policy.v1"
-                                "claim_definition_registry_hash" "benchmark-claim-registry.v1"
-                                "evaluator_registry" "resolver-sim.benchmark.claims/evaluator-registry.v1"}
-                   :semantic-environment {"protocol_id" "benchmark"
-                                          "runner_id" "runner/local-clojure"
-                                          "benchmark_id" (str (:benchmark/id context))
-                                          "execution_plan_sha256" (verdict-policy/sha-ref (io/file root "benchmark/execution-plan.edn"))}
-                                                             :evaluator-implementation (let [source (source-hash/source-hash)]
-                                                                                         {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
-                                                                                          "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
-                                                                                          "source_roots" (vec (or (:source/included-roots source) []))
-                                                                                          "evaluator_id" "resolver-sim.benchmark.claims/evaluator-registry.v1"})
-                                                                                                             :distribution-provenance (distribution/distribution-identity)})]
+artifact (verdict-policy/build
+                   {:run-id (:run/id context)
+                    :run-type "benchmark"
+                    :policy-id "canonical-benchmark-verdict.v1"
+                    :version-id "verdict-policy.v1"
+                    :semantic-outcome (get conclusion "outcome")
+                    :inputs (get assurance "input_set")
+                    :registries {"evidence_policy_hash" "benchmark-evidence-policy.v1"
+                                 "claim_definition_registry_hash" "benchmark-claim-registry.v1"
+                                 "evaluator_registry" "resolver-sim.benchmark.claims/evaluator-registry.v1"}
+                    :semantic-environment {"protocol_id" "benchmark"
+                                           "runner_id" "runner/local-clojure"
+                                           "benchmark_id" (str (:benchmark/id context))
+                                           "execution_plan_sha256" (verdict-policy/sha-ref (io/file root "benchmark/execution-plan.edn"))}
+                                                              :evaluator-implementation (let [source (source-hash/source-hash)]
+                                                                                          {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
+                                                                                           "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
+                                                                                           "source_roots" (vec (or (:source/included-roots source) []))
+                                                                                           "evaluator_id" "resolver-sim.benchmark.claims/evaluator-registry.v1"})
+                                                                                                              :distribution-provenance (distribution/distribution-identity)})]
                                                                                                                  (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
 
 (defn- write-package-index! [context]
@@ -210,7 +212,7 @@
               (let [file (io/file root path)]
                 {:ref path :sha256 (when (.isFile file) (sha-ref file))}))]
     (package-index/write!
-     (io/file root "manifest/run-package-index.json")
+     (io/file root paths/run-package-index)
      {:run-id (:run/id context)
       :run-type :benchmark
       :bundle-root-hash (sha-ref (io/file root "benchmark/evidence/evidence.edn"))

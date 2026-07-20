@@ -481,6 +481,33 @@
      :claims/projection-artifact {:projection-hash "partial-fill-direct"}
      :claims/projection-artifact-again {:projection-hash "partial-fill-direct"}}))
 
+(defn check-projection-diff
+  "Verify :projection/flattened-fields provenance metadata on projection artifacts.
+   Every recorded flattening event must carry :path, :type, :value, and :contract.
+   This claim does not validate the absolute correctness of the projection;
+   that is enforced by check-projection-canonical-safe. It only guarantees
+   that transformations are explicitly documented, enabling reproducible
+   cross-language verification without silent coercions."
+  [{:keys [evidence-nodes]}]
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [flat (get content :projection/flattened-fields [])
+            required-keys #{:path :type :value :contract}]
+        (if (empty? flat)
+          {:holds? true}
+          (let [violations (vec (keep-indexed
+                                 (fn [i entry]
+                                   (let [missing (clojure.set/difference required-keys (set (keys entry)))]
+                                     (when (seq missing)
+                                       {:type :flattening-metadata-incomplete
+                                        :index i
+                                        :entry entry
+                                        :missing (vec missing)})))
+                                 flat))]
+            {:holds? (empty? violations)
+             :violations violations}))))))
+
 (defn check-partial-fill-fairness
   "Pro-rata fairness check over partial-fill decision artifacts.
    Reads a partial-fill decision from evidence-node content and verifies
@@ -511,6 +538,7 @@
    :pro-rata/permutation-invariant    check-ordering-independent
    :pro-rata/cap-respecting           check-cap-respecting
    :pro-rata/canonical-remainder-assignment check-canonical-remainder-assignment
+   :pro-rata/projection-diff          check-projection-diff
    ;; Exact fill-ratio equality is not valid after integer largest-remainder
    ;; allocation. The registered claim uses the passive registry's bounded
    ;; partial-fill fairness definition.

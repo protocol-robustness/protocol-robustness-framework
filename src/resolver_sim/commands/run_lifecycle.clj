@@ -3,7 +3,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [resolver-sim.io.input-source :as input-source])
+            [resolver-sim.io.input-source :as input-source]
+            [resolver-sim.io.paths :as paths])
   (:import [java.math BigInteger]
            [java.nio.file FileAlreadyExistsException Files LinkOption Path Paths StandardCopyOption]
            [java.security MessageDigest]))
@@ -12,9 +13,9 @@
   (cond
     (not (Files/exists root (make-array LinkOption 0))) :absent
     (not (Files/isDirectory root (make-array LinkOption 0))) :not-a-directory
-    (Files/exists (.resolve root "completion.json") (make-array LinkOption 0)) :completed
+    (Files/exists (.resolve root paths/completion) (make-array LinkOption 0)) :completed
     (or (Files/exists (.resolve root "manifest") (make-array LinkOption 0))
-        (Files/exists (.resolve root ".run-state") (make-array LinkOption 0))) :incomplete
+        (Files/exists (.resolve root paths/run-state) (make-array LinkOption 0))) :incomplete
     :else (with-open [entries (Files/list root)]
             (if (.hasNext (.iterator entries)) :unrelated :empty))))
 
@@ -60,9 +61,9 @@
      :run/root-state state
      :sensitivity/profile (or sensitivity-profile :public)
      :manifest/dir (.resolve root "manifest")
-     :lifecycle/state-file (.resolve root ".run-state")
-     :lifecycle/completion-file (.resolve root "completion.json")
-     :lifecycle/lock-file (.resolve root ".run.lock")}))
+     :lifecycle/state-file (.resolve root paths/run-state)
+     :lifecycle/completion-file (.resolve root paths/completion)
+     :lifecycle/lock-file (.resolve root paths/run-lock)}))
 
 (defn snapshot-input!
   "Snapshot an InputSource below `run-root`, returning immutable provenance
@@ -80,7 +81,7 @@
   "Acquire the exclusive root lock before any lifecycle or artifact write."
   [run-root run-id run-type]
   (let [root (io/file (str run-root))
-        lock (io/file root ".run.lock")]
+        lock (io/file root paths/run-lock)]
     (.mkdirs root)
     (try
       (Files/createFile (.toPath lock) (make-array java.nio.file.attribute.FileAttribute 0))
@@ -97,13 +98,13 @@
 
 (defn mark-running! [run-root run-id run-type]
   (let [root (io/file (str run-root))
-        target (io/file root ".run-state")]
+        target (io/file root paths/run-state)]
     (.mkdirs root)
     (spit target (pr-str {:run/id run-id :run/type run-type :lifecycle/status :running}))
     target))
 
 (defn complete! [run-root completion]
   (let [root (io/file (str run-root))]
-    (atomic-json! (io/file root "completion.json") completion)
-    (.delete (io/file root ".run-state"))
+    (atomic-json! (io/file root paths/completion) completion)
+    (.delete (io/file root paths/run-state))
     completion))

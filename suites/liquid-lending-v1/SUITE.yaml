@@ -1,0 +1,9 @@
+suite: liquid-lending-v1
+version: "1.0.0"
+description: >
+  Liquid-lending yield archetype reference validation suite. Covers positive accrual,
+  negative yield mark-to-market stress, partial liquidity shortfall, liquidity shortage
+  on deposit, deferred recovery, and long-horizon monthly accrual.
+simulator_backed: true
+protocol: yield
+created: "2026-07-21"

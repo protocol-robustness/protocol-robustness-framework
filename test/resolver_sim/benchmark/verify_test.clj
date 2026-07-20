@@ -46,19 +46,19 @@
                                 "benchmark_finalization" {"sha256" (sha finalization)} "benchmark_assurance" {"sha256" (sha assurance)}
                                 "conservation" {"sha256" (sha conservation)} "evidence_content_registry" {"sha256" (sha content)}})
         (write-json! deferred {"schema_version" "forensic-claims-status.v1" "status" "deferred" "reason_code" "unsigned-forensic-signing-not-configured"})
-                (verdict-policy/write! verdict-policy-file
-                                       (verdict-policy/build {:run-id "r" :run-type "benchmark"
-                                                              :policy-id "fixture.v1" :semantic-outcome "pass"
-                                                              :inputs inputs
-                                                              :registries {"evidence_policy_hash" "fixture-evidence-policy"
-                                                                           "claim_definition_registry_hash" "fixture-claims"
-                                                                           "evaluator_registry" "fixture-evaluator"}
-                                                              :semantic-environment {"protocol_id" "benchmark" "runner_id" "fixture-runner"}
-                                                                                                                    :evaluator-implementation {"source_tree_hash" "fixture-source-tree"
-                                                                                                                                               "source_tree_hash_algorithm" "fixture.v1"
-                                                                                                                                               "evaluator_id" "fixture-evaluator"}
-                                                                                                                                                                                                     :distribution-provenance {"mode" "source-classpath"
-                                                                                                                                                                                                                               "reason" "fixture"}}))
+(verdict-policy/write! verdict-policy-file
+                                        (verdict-policy/build {:run-id "r" :run-type "benchmark"
+                                                               :policy-id "fixture.v1" :version-id "verdict-policy.v1" :semantic-outcome "pass"
+                                                               :inputs inputs
+                                                               :registries {"evidence_policy_hash" "fixture-evidence-policy"
+                                                                            "claim_definition_registry_hash" "fixture-claims"
+                                                                            "evaluator_registry" "fixture-evaluator"}
+                                                               :semantic-environment {"protocol_id" "benchmark" "runner_id" "fixture-runner"}
+                                                                                                                     :evaluator-implementation {"source_tree_hash" "fixture-source-tree"
+                                                                                                                                                "source_tree_hash_algorithm" "fixture.v1"
+                                                                                                                                                "evaluator_id" "fixture-evaluator"}
+                                                                                                                                                                                                      :distribution-provenance {"mode" "source-classpath"
+                                                                                                                                                                                                                                "reason" "fixture"}}))
                 (package-index/write! package-index
                               {:run-id "r"
                                :run-type :benchmark

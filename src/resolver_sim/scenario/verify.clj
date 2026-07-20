@@ -8,6 +8,7 @@
             [resolver-sim.evidence.finalization :as finalization]
             [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.io.paths :as paths]
                         [resolver-sim.run.verdict-policy :as verdict-policy]
                         [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.yield.partial-fill :as partial-fill]))
@@ -217,8 +218,8 @@
 (defn verify! [run-root]
   (try
     (let [root (io/file run-root)
-          completion-file (io/file root "completion.json")
-          registry-file (io/file root "manifest/artifacts.json")
+          completion-file (io/file root paths/completion)
+          registry-file (io/file root paths/artifacts-suffix)
           validation-file (io/file root "manifest/artifact-registry-validation.json")
           run-finalization-file (io/file root "evidence/finalizations/run/evidence-finalization.json")
           canonical-integrity-file (io/file root "manifest/canonical-integrity.json")

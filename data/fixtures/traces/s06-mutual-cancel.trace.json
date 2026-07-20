@@ -1,10 +1,10 @@
 {
-  "protocol-params": {
-    "resolver-fee-bps": 150,
-    "appeal-window-duration": 0,
-    "max-dispute-duration": 2592000
-  },
-  "threat-tags": [],
+"protocol-params": {
+      "resolver-fee-bps": 150,
+      "appeal-window-duration": 0,
+      "max-dispute-duration": 2592000
+    },
+    "threat-tags": [],
   "purpose": "regression",
   "events": [
     {

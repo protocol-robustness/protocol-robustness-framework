@@ -143,76 +143,140 @@
 
 ;; ── Classification ───────────────────────────────────────────────────────────
 
+;; ── Evidence-Backed Classification ───────────────────────────────────────────
+
+(defn classify-from-findings
+  "Classify an artifact based on safety findings (evidence) from scanning.
+   
+   Maps finding rule IDs to sensitivity levels and reason codes.
+   Findings provide concrete evidence for the classification rather than
+   just structural heuristics.
+   
+   Arguments:
+     findings — vector of finding maps from sensitivity-findings
+                Each finding has :rule/id and :rule/version
+   
+   Returns {:level <kw> :reasons [<kw> ...] :findings [<finding-ref> ...]}"
+   [findings]
+   (when (seq findings)
+     (let [highest-level (apply max-key
+                              level-index
+                              (map (fn [f]
+                                     (case (:rule/id f)
+                                       :secret-scanner/private-key :sensitivity/private
+                                       :secret-scanner/credential-assignment :sensitivity/private
+                                       :secret-scanner/bearer-auth :sensitivity/internal
+                                       :secret-scanner/jwt-token :sensitivity/internal
+                                       :secret-scanner/github-token :sensitivity/internal
+                                       :secret-scanner/npm-token :sensitivity/internal
+                                       :sensitivity/critical-private))
+                                   findings))
+           reason-codes (vec (distinct
+                              (mapcat (fn [f]
+                                        (case (:rule/id f)
+                                          :secret-scanner/private-key [:contains-live-vulnerability]
+                                          :secret-scanner/credential-assignment [:contains-unpublished-evidence]
+                                          :secret-scanner/bearer-auth [:contains-unpublished-evidence]
+                                          :secret-scanner/jwt-token [:contains-protocol-identifier]
+                                          :secret-scanner/github-token [:contains-linkable-subject-hash]
+                                          :secret-scanner/npm-token [:contains-linkable-subject-hash]
+                                          [:contains-unpublished-evidence]))
+                                      findings)))]
+        {:level highest-level
+        :reasons reason-codes
+        :findings (vec (map :finding/id findings))})))
+
+(defn- evidence-backed-classification
+  "Attempt to classify based on evidence findings attached to the artifact.
+   Looks for :sensitivity/findings or :safety/findings keys.
+   
+   Arguments:
+     artifact — artifact map that may contain findings under :sensitivity/findings
+   
+   Returns {:level <kw> :reasons [<kw> ...]} or nil if no findings present."
+   [artifact]
+   (when-let [findings (or (:sensitivity/findings artifact)
+                          (:safety/findings artifact))]
+     (classify-from-findings findings)))
+
+;; ── Classification ───────────────────────────────────────────────────────────
+
 (defn classify-structural
   "Classify an artifact using structural heuristics only.
-
+   
    Returns a sensitivity level based on artifact shape, ignoring any
-   declared :sensitivity/level metadata.
-
+   declared :sensitivity/level metadata. Evidence-backed classification
+   (via safety findings) is preferred when available; structural heuristics
+   act as a conservative fallback when no evidence is present.
+   
    See `classify` for the full list of rules."
-  [artifact]
-  (let [;; Evidence node: fail status
-        result-status (get-in artifact [:result :status])
-        failure-details (get-in artifact [:result :failure-details])
-        ;; Attestation presence
-        is-attestation (some? (:attestation/id artifact))
-        claim-result (:attestation/claim-result artifact)
-        claim-id (:attestation/claim-id artifact)
-        ;; Claim result
-        holds? (:holds? artifact)
-        ;; Evidence presence
-        has-attestations (seq (:attestations artifact))
-        ;; Provenance
-        provenance (:attestation/provenance artifact)
-        scenario-id (or (:scenario-id provenance)
-                        (:scenario-id artifact))
-        ;; Scenario content (unredacted)
-        scenario-events (seq (:events artifact))
-        scenario-agents (seq (:agents artifact))
-        ;; Subject
-        subject-kind (:attestation/subject-kind artifact)
-        ;; Bundle
-        bundle-kind (:bundle/kind artifact)]
-    (cond
-      ;; Critical: evidence node with failure details (reproducible issues)
-      (and (some? result-status) (seq failure-details))
-      :sensitivity/private
+   [artifact]
+   (let [;; First try evidence-backed classification if findings are present
+         evidence-classification (evidence-backed-classification artifact)
+         ;; Evidence node: fail status
+         result-status (get-in artifact [:result :status])
+         failure-details (get-in artifact [:result :failure-details])
+         ;; Attestation presence
+         is-attestation (some? (:attestation/id artifact))
+         claim-result (:attestation/claim-result artifact)
+         claim-id (:attestation/claim-id artifact)
+         ;; Claim result
+         holds? (:holds? artifact)
+         ;; Evidence presence
+         has-attestations (seq (:attestations artifact))
+         ;; Provenance
+         provenance (:attestation/provenance artifact)
+         scenario-id (or (:scenario-id provenance)
+                         (:scenario-id artifact))
+         ;; Scenario content (unredacted)
+         scenario-events (seq (:events artifact))
+         scenario-agents (seq (:agents artifact))
+         ;; Subject
+         subject-kind (:attestation/subject-kind artifact)
+         ;; Bundle
+         bundle-kind (:bundle/kind artifact)]
+     (if evidence-classification
+       (:level evidence-classification)
+       (cond
+         ;; Critical: evidence node with failure details (reproducible issues)
+         (and (some? result-status) (seq failure-details))
+         :sensitivity/private
 
-      ;; Critical: attestation with claim-id (references a claim definition)
-      (and is-attestation claim-id)
-      :sensitivity/private
+         ;; Critical: attestation with claim-id (references a claim definition)
+         (and is-attestation claim-id)
+         :sensitivity/private
 
-      ;; Critical: attestation on claim subject (references a claim result)
-      (and is-attestation (= :claim subject-kind))
-      :sensitivity/private
+         ;; Critical: attestation on claim subject (references a claim result)
+         (and is-attestation (= :claim subject-kind))
+         :sensitivity/private
 
-      ;; High: attestation (credible attributable statement)
-      is-attestation :sensitivity/internal
+         ;; High: attestation (credible attributable statement)
+         is-attestation :sensitivity/internal
 
-      ;; High: evidence node with fail status
-      (= :fail result-status) :sensitivity/internal
+         ;; High: evidence node with fail status
+         (= :fail result-status) :sensitivity/internal
 
-      ;; Medium: evidence with attestations attached
-      has-attestations :sensitivity/internal
+         ;; Medium: evidence with attestations attached
+         has-attestations :sensitivity/internal
 
-      ;; Medium: claim result with failed claim
-      (false? holds?) :sensitivity/internal
+         ;; Medium: claim result with failed claim
+         (false? holds?) :sensitivity/internal
 
-      ;; Medium: passing claim result (no failure)
-      (true? holds?) :sensitivity/internal
+         ;; Medium: passing claim result (no failure)
+         (true? holds?) :sensitivity/internal
 
-      ;; Medium: unredacted scenario content with events and agents
-      (and scenario-id scenario-events scenario-agents)
-      :sensitivity/private
+         ;; Medium: unredacted scenario content with events and agents
+         (and scenario-id scenario-events scenario-agents)
+         :sensitivity/private
 
-      ;; Medium: artifact with scenario provenance
-      scenario-id :sensitivity/internal
+         ;; Medium: artifact with scenario provenance
+         scenario-id :sensitivity/internal
 
-      ;; Bundle: classify as bundle
-      bundle-kind :sensitivity/internal
+         ;; Bundle: classify as bundle
+         bundle-kind :sensitivity/internal
 
-      ;; Default: conservative
-      :else :sensitivity/critical-private)))
+         ;; Default: conservative
+         :else :sensitivity/critical-private))))
 
 (defn classify
   "Classify an artifact and return its sensitivity level.
@@ -297,6 +361,29 @@
   [artifact]
   (vec (get-in artifact [:sensitivity/risk-meta :reason-codes] [])))
 
+(defn- finding-reasons
+  "Extract reason codes from safety findings attached to the artifact.
+   
+   Arguments:
+     artifact — artifact map with :sensitivity/findings or :safety/findings
+   
+   Returns vector of reason code keywords, or empty vector if no findings."
+  [artifact]
+  (let [findings (or (:sensitivity/findings artifact)
+                     (:safety/findings artifact))]
+    (when (seq findings)
+      (vec (distinct
+            (mapcat (fn [f]
+                      (case (:rule/id f)
+                        :secret-scanner/private-key [:contains-live-vulnerability]
+                        :secret-scanner/credential-assignment [:contains-unpublished-evidence]
+                        :secret-scanner/bearer-auth [:contains-unpublished-evidence]
+                        :secret-scanner/jwt-token [:contains-protocol-identifier]
+                        :secret-scanner/github-token [:contains-linkable-subject-hash]
+                        :secret-scanner/npm-token [:contains-linkable-subject-hash]
+                        [:contains-unpublished-evidence]))
+                    findings))))))
+
 (defn- extract-risk-meta
   "Extract the risk metadata map from an artifact, if present."
   [artifact]
@@ -306,11 +393,11 @@
 
 (defn sentinel-report
   "Produce a full sentinel report for an artifact and requested sink.
-
+   
    Arguments:
      artifact — artifact map to classify
      sink     — requested sink keyword
-
+   
    Returns the sentinel report map including:
    - :sentinel/report-hash over structural fields (deterministic)
    - :sentinel/declared-level if the artifact carried explicit metadata
@@ -324,7 +411,8 @@
         declared-level (:sensitivity/level artifact)
         risk-meta (extract-risk-meta artifact)
         reasons (vec (distinct (concat (default-reasons level)
-                                       (declared-reasons artifact))))
+                                       (declared-reasons artifact)
+                                       (finding-reasons artifact))))
         allowed-sinks (vec (sort (filter #(disclosure-allowed? level %) all-sinks)))
         input-kind (cond (:attestation/id artifact) :attestation-record
                          (:node-hash artifact) :evidence-node
@@ -336,24 +424,26 @@
                        (:bundle/root-hash artifact)
                        (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
         base-report {:sentinel/version sentinel-version
-                     :sentinel/policy-hash (compute-policy-hash)
-                     :sentinel/evaluated-at (str (Instant/now))
-                     :sentinel/input-kind input-kind
-                     :sentinel/input-hash input-hash
-                     :sentinel/requested-sink sink
-                     :sentinel/decision decision
-                     :sentinel/level level
-                     :sentinel/structural-level structural-level
-                     :sentinel/reasons reasons
-                     :sentinel/allowed-sinks allowed-sinks
-                     :sentinel/redaction-required? (level>= level :sensitivity/private)
-                     :sentinel/override-required?
-                     {:required? (and (not allowed?)
-                                      (level>= level :sensitivity/private))
-                      :mode (effective-override-mode level risk-meta)}}
+                    :sentinel/policy-hash (compute-policy-hash)
+                    :sentinel/evaluated-at (str (Instant/now))
+                    :sentinel/input-kind input-kind
+                    :sentinel/input-hash input-hash
+                    :sentinel/requested-sink sink
+                    :sentinel/decision decision
+                    :sentinel/level level
+                    :sentinel/structural-level structural-level
+                    :sentinel/reasons reasons
+                    :sentinel/allowed-sinks allowed-sinks
+                    :sentinel/redaction-required? (level>= level :sensitivity/private)
+                    :sentinel/override-required?
+                    {:required? (and (not allowed?)
+                                     (level>= level :sensitivity/private))
+                     :mode (effective-override-mode level risk-meta)}}
         base-report (cond-> base-report
                       declared-level (assoc :sentinel/declared-level declared-level)
-                      risk-meta (assoc :sentinel/risk-meta risk-meta))
+                      risk-meta (assoc :sentinel/risk-meta risk-meta)
+                      (seq (:sensitivity/findings artifact))
+                      (assoc :sentinel/evidence-findings (:sensitivity/findings artifact)))
         report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                         (dissoc base-report
                                                 :sentinel/report-hash

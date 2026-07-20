@@ -1,5 +1,5 @@
 {
-  "schema-version": "1.1",
+  "schema-version": "1.0",
   "scenario-author": "kilo",
   "provenance": {"author": "auto-generated", "purpose": "Liquid lending shared withdrawal tests"},
   "id": "scenarios/s120-shared-withdrawal-basic",
@@ -22,6 +22,7 @@
   "events": [
     {"seq": 0, "time": 1000, "agent": "alice", "action": "yield_deposit", "params": {"token": "USDC", "amount": 10000}},
     {"seq": 1, "time": 2000, "agent": "bob", "action": "yield_deposit", "params": {"token": "USDC", "amount": 10000}},
-    {"seq": 2, "time": 3000, "agent": "alice", "action": "yield_shared_withdrawal", "params": {"token": "USDC", "allocation-mode": "pro-rata", "owner-ids": ["alice", "bob"]}}
+    {"seq": 2, "time": 3000, "agent": "alice", "action": "yield_accrue", "params": {"token": "USDC", "dt": 1000}},
+    {"seq": 3, "time": 4000, "agent": "alice", "action": "yield_shared_withdrawal", "params": {"token": "USDC", "allocation-mode": "pro-rata", "owner-ids": ["alice", "bob"]}}
   ]
 }

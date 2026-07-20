@@ -19,6 +19,7 @@
      ;; => {:runnable? true} | {:runnable? false :errors [...]}"
   (:require [clojure.walk :as walk]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.io.paths :as paths]
             [resolver-sim.run.overview :as overview]
             [resolver-sim.run.criteria :as criteria]
             [resolver-sim.sensitivity.propagation :as prop])
@@ -272,7 +273,7 @@
                         :sentinel/report-reference
                         {:schema "sensitivity-report-reference"
                          :format "sensitivity-report.v2"
-                         :path "manifest/sensitivity-report.json"}}))
+                         :path paths/sensitivity-report}}))
         bundle-hash (hc/hash-with-intent {:hash/intent :bundle-root} base)]
     (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash)))
 

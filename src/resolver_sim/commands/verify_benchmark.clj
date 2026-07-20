@@ -1,6 +1,7 @@
 (ns resolver-sim.commands.verify-benchmark
   (:require [clojure.string :as str]
-            [resolver-sim.benchmark.verify :as verify]))
+            [resolver-sim.benchmark.verify :as verify]
+            [resolver-sim.io.paths :as paths]))
 
 (def ^:private check-labels
   {"completion-first-package-index" "Completion-bound package index and role closure"
@@ -24,24 +25,24 @@
    "terminal-artifacts-readable" "Terminal artifacts readable"})
 
 (def ^:private check-evidence
-  {"completion-first-package-index" ["completion.json" "manifest/run-package-index.json"]
-   "completion-finalization-hash" ["completion.json" "benchmark/finalization.json"]
-   "completion-lifecycle" ["completion.json"]
-   "completion-semantic-outcome" ["completion.json" "benchmark/assertions/benchmark-assurance.json"]
-   "completion-registry-hash" ["completion.json" "manifest/artifacts.json"]
-   "completion-validation-hash" ["completion.json" "manifest/artifacts-validation.json"]
+  {"completion-first-package-index" [paths/completion paths/run-package-index]
+   "completion-finalization-hash" [paths/completion "benchmark/finalization.json"]
+   "completion-lifecycle" [paths/completion]
+   "completion-semantic-outcome" [paths/completion "benchmark/assertions/benchmark-assurance.json"]
+   "completion-registry-hash" [paths/completion paths/artifacts-suffix]
+   "completion-validation-hash" [paths/completion paths/artifacts-validation]
    "evidence-content-registry-hash" ["benchmark/finalization.json" "benchmark/evidence/content-registry.json"]
    "content-registry-recalculated" ["benchmark/evidence/content-registry.json"]
-   "artifact-registry-recalculated" ["manifest/artifacts.json"]
+   "artifact-registry-recalculated" [paths/artifacts-suffix]
    "execution-plan-index-closure" ["benchmark/execution-plan.edn" "benchmark/index.edn"]
-   "input-set-root" ["benchmark/assertions/benchmark-assurance.json" "benchmark/finalization.json" "completion.json"]
+   "input-set-root" ["benchmark/assertions/benchmark-assurance.json" "benchmark/finalization.json" paths/completion]
    "input-set-recalculated" ["benchmark/assertions/benchmark-assurance.json"]
    "conservation-assurance" ["benchmark/assertions/benchmark-assurance.json" "benchmark/assertions/conservation.json"]
    "conservation-recalculated" ["benchmark/assertions/conservation.json"]
    "canonical-integrity" ["benchmark/assertions/canonical-integrity.json"]
    "forensic-status-deferred" ["benchmark/assertions/forensic-claims-status.json"]
    "verdict-policy" ["manifest/verdict-policy.json"]
-   "final-ref" ["benchmark/finalization.json" "completion.json"]})
+   "final-ref" ["benchmark/finalization.json" paths/completion]})
 
 (defn- check-label [check]
   (get check-labels check (-> check (str/replace #"-" " ") str/capitalize)))

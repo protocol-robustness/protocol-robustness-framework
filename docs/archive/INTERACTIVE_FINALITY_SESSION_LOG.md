@@ -517,11 +517,13 @@ Conservation: 4925 + 75 = 5000 ✓
 
 ### F-004 — force-reversal-slash is NOT idempotent despite documentation claim
 
-**Status:** `bug`
+**Status:** `resolved`
 **Pathway:** 11 (governance force-slash)
-**Observed:** Calling `force-reversal-slash` twice on the same workflow debits the resolver's stake twice. After first call (2500 bps on 10000): L0=7500. After second call (2500 bps on 7500): L0=5625. The slash entry with ID `{wf-id}-force-reversal-0` is overwritten each call, losing the original amount in the audit trail (though `:resolver-slash-total` tracks cumulatively).
-**Expected:** The function should check `(get-in world [:pending-fraud-slashes (str workflow-id "-force-reversal-0")])` and return world unchanged if an entry already exists.
-**Impact:** Governance could accidentally double-slash a resolver without realizing. The economic impact compounds because each call uses the reduced post-slash stake.
+**Fix:** Guard added at `resolution.clj:323` using `:slash-by-context` key `[workflow-id :force-reversal 0]` — returns world unchanged when entry exists. Uses `:slash-by-context` (not `:pending-fraud-slashes` as originally suggested) because immediate-track slashes bypass `:pending-fraud-slashes` entirely.
+**Tests:** `force-reversal-slash-idempotent` in `slashing_test.clj:873` + DR-P-002 scenario + `checklist-force-reversal-slash-idempotent` in `idempotence_checklist_test.clj`.
+**Observed (pre-fix):** Calling `force-reversal-slash` twice on the same workflow debits the resolver's stake twice. After first call (2500 bps on 10000): L0=7500. After second call (2500 bps on 7500): L0=5625. The slash entry with ID `{wf-id}-force-reversal-0` is overwritten each call, losing the original amount in the audit trail (though `:resolver-slash-total` tracks cumulatively).
+**Original expected:** The function should check `(get-in world [:pending-fraud-slashes (str workflow-id "-force-reversal-0")])` and return world unchanged if an entry already exists.
+**Impact (pre-fix):** Governance could accidentally double-slash a resolver without realizing. The economic impact compounds because each call uses the reduced post-slash stake.
 
 ---
 

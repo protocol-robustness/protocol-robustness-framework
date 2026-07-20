@@ -319,6 +319,10 @@
    schema, same `slash-resolver-stake` call, same invariants apply."
   [world workflow-id & {:keys [slash-bps track authorization-provenance]
                         :or   {track :pending}}]
+  ;; Guard uses :slash-by-context rather than :pending-fraud-slashes because
+  ;; immediate-track slashes never enter :pending-fraud-slashes — they execute
+  ;; directly via slash-resolver-stake.  :slash-by-context captures both tracks
+  ;; uniformly and avoids creating a separate dedup map.
   (let [slash-level 0]
     (if (get-in world [:slash-by-context [workflow-id :force-reversal slash-level]])
       world

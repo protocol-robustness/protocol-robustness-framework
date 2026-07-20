@@ -137,9 +137,21 @@ defn register-evidence! [evidence]
 - No race conditions or duplicate issues are observed in production.
 - Logs provide clear visibility into duplicate detection and handling.
 
+## Disposition
+
+This document has been superseded by `docs/testing/IDEMPOTENCE_CHECKLIST.md`. Below is the disposition of each phase:
+
+| Phase | Description | Status | Notes |
+|-------|-------------|--------|-------|
+| 1 | Concurrency controls | PARTIAL | `register-evidence!` uses `locking` (chain.clj:521). Other functions rely on Clojure's single-threaded simulation model — adequate for current use. |
+| 2 | Logging for duplicates | DONE | `register-evidence!` logs duplicates at `debug!` level (chain.clj:530); missing-hash at `warn!` (chain.clj:539). Consciously not `warn!` because content-addressed duplicates are normal during replay. |
+| 3 | Concurrency tests | DONE | `register-evidence-concurrent-idempotent` test (chain_test.clj:51) spawns 10 futures. |
+| 4 | Non-deterministic elements | DONE | Replay engine and scenario format enforce determinism. `replay-idempotent-same-trace?` verifies byte-for-byte equivalence. |
+| 5 | State management audit | ADDRESSED | IDEMPOTENCE_CHECKLIST.md tracks 12+ surfaces with PASS status. Archived doc retains historical context. |
+
 ## Next Steps
-1. Implement concurrency controls for sensitive operations.
-2. Add logging for duplicate detection.
-3. Develop and run concurrency tests.
-4. Review and address non-deterministic elements in replay scenarios.
-5. Audit and secure state management functions.
+1. Implement concurrency controls for sensitive operations. *(→ Phase 1: PARTIAL)*
+2. Add logging for duplicate detection. *(→ Phase 2: DONE)*
+3. Develop and run concurrency tests. *(→ Phase 3: DONE)*
+4. Review and address non-deterministic elements in replay scenarios. *(→ Phase 4: DONE)*
+5. Audit and secure state management functions. *(→ Phase 5: ADDRESSED by checklist)*

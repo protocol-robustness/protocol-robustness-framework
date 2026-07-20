@@ -620,10 +620,13 @@
   "Canonical application projection. Position snapshots may contain exact
    ratios, which the canonical hash ABI intentionally rejects; the applied
    accounting, propagation binding, and participant deltas remain committed
-   while snapshots are reconciled by the state invariants."
+   while snapshots are reconciled by the state invariants.
+   
+   Excludes both :application/hash and :application/output, which are
+   meta-artifacts about the application record itself."
   [application]
   (-> application
-      (dissoc :application/hash)
+      (dissoc :application/hash :application/output)
       (update :participants
               (fn [participants]
                 (mapv #(dissoc % :position-before :position-after)
@@ -646,6 +649,132 @@
   (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
                                        (canonical-accounting-entries entries))))
 
+(defn- canonical-output-participants
+  "Project participant credit records with token identity, sorted deterministically.
+   Each row commits to the token, participant id, obligation id, and balances."
+  [participants]
+  (->> (or participants [])
+       (mapv (fn [p]
+               {:token (get-in p [:withdrawn :token])
+                :participant-id (:participant-id p)
+                :obligation-id (:obligation-id p)
+                :balance-before (get-in p [:withdrawn :before] 0)
+                :credit (get-in p [:withdrawn :delta] 0)
+                :balance-after (get-in p [:withdrawn :after] 0)}))
+       (sort-by (fn [row]
+                  [(:token row) (:participant-id row) (:obligation-id row)]))
+       vec))
+
+(defn- canonical-output-obligations
+  "Project obligation fulfillment records with token identity, sorted deterministically.
+   Each obligation row commits to token, participant id, obligation id, and fulfillment breakdown."
+  [participants source-token]
+  (->> (or participants [])
+       (mapv (fn [p]
+               {:token source-token
+                :participant-id (:participant-id p)
+                :obligation-id (:obligation-id p)
+                :amount-before (get-in p [:obligation :before] 0)
+                :fulfilled (get-in p [:obligation :fulfilled] 0)
+                :deferred (get-in p [:obligation :deferred] 0)
+                :unmet (get-in p [:obligation :unmet] 0)
+                :waived (get-in p [:obligation :waived] 0)
+                :amount-after (get-in p [:obligation :after] 0)}))
+       (sort-by (fn [row]
+                  [(:token row) (:participant-id row) (:obligation-id row)]))
+       vec))
+
+(defn- canonical-output-accounting-entries
+  "Project accounting entries with explicit token identity, sorted deterministically.
+   Preserves entry ids and token binding for each entry."
+  [propagation]
+  (let [entries (:accounting-entries propagation [])
+        entries-with-ids (into [] (map-indexed
+                                   (fn [idx entry]
+                                     (assoc entry :entry-index idx))
+                                   entries))]
+    (->> entries-with-ids
+         (mapv (fn [entry]
+                 {:token (:token entry)
+                  :account (:account entry)
+                  :participant-id (:participant-id entry)
+                  :obligation-id (:obligation-id entry)
+                  :entry-index (:entry-index entry)
+                  :direction (case (:entry/type entry)
+                               :debit :debit
+                               :credit :credit
+                               :unknown)
+                  :amount (:delta entry)}))
+         (sort-by (fn [entry]
+                    [(:token entry) (:account entry) (:participant-id entry)
+                     (:obligation-id entry) (:entry-index entry)]))
+         vec)))
+
+(defn- ensure-token!
+  "Fail closed when token is missing from a row that requires it."
+  [token row reason-code reason-data]
+  (when-not token
+    (throw (ex-info
+            (str "Token missing in output projection: " reason-code)
+            (assoc reason-data :reason reason-code))))
+  token)
+
+(defn pro-rata-application-output-projection
+  "Create the canonical output projection that commits to authoritative application results.
+   
+   The projection includes:
+   - source account with token-dimensioned balance deltas
+   - participants with token-dimensioned credit deltas and balances
+   - obligations with token-dimensioned fulfillment breakdown
+   - accounting entries with explicit token binding
+   
+   This projection is deterministically ordered and suitable for independent verification."
+  [application propagation]
+  (let [source (:source-account application)
+        source-token (ensure-token! (:token source) source
+                                    :application-output-token-missing
+                                    {:context :source-account})
+        participants (:participants application [])
+        accounting-entries (:accounting-entries propagation [])]
+    
+    ;; Verify all participants have explicit tokens in their withdrawn records
+    (doseq [p participants]
+      (ensure-token! (get-in p [:withdrawn :token]) p
+                     :application-output-token-missing
+                     {:context :participant-withdrawn :participant-id (:participant-id p)}))
+    
+    ;; Verify all accounting entries have tokens
+    (doseq [entry accounting-entries]
+      (ensure-token! (:token entry) entry
+                     :application-output-token-missing
+                     {:context :accounting-entry :entry-index (.indexOf accounting-entries entry)}))
+    
+    {:schema-version "pro-rata-application-output.v1"
+     :application
+     {:application-key (:application-key application)
+      :propagation-hash (get-in application [:propagation/reference :propagation/hash])}
+     :source
+     {:account (:account source)
+      :token source-token
+      :balance-before (:before source 0)
+      :debit (- (long (:delta source 0)))
+      :balance-after (:after source 0)}
+     :participants (canonical-output-participants participants)
+     :obligations (canonical-output-obligations participants source-token)
+     :accounting
+     {:entry-count (count accounting-entries)
+      :entries (canonical-output-accounting-entries propagation)}}))
+
+(defn pro-rata-application-output-hash
+  "Compute the output hash that commits to authoritative application results.
+   
+   This hash is independent of the application/hash and verifies the semantic
+   correctness of the mutation's outputs rather than the application record itself."
+  [application propagation]
+  (str "sha256:" (hc/hash-with-intent
+                  {:hash/intent :evidence-record}
+                  (pro-rata-application-output-projection application propagation))))
+
 (defn- capped-keys-from-passes
   "Extract participant keys that were cap-constrained in redistribution passes.
    Mechanism row-ids use [:shared-withdrawal-row <obligation-id> <source-position-id> <key>]."
@@ -663,6 +792,12 @@
         passes (get-in decision [:evidence :allocation-passes])
         capped-keys (capped-keys-from-passes passes)
         step (get-in decision [:allocation/invocation-context :step])
+        idempotency-key (let [components (get-in policy [:idempotency :identity-components])
+                              component-values {:calculation-id (:decision/id decision)
+                                                :outcome-hash (:decision/hash decision)
+                                                :policy-hash (:policy/hash policy)}]
+                          (into [:pro-rata-propagation]
+                                (map component-values components)))
         participants
         (mapv (fn [{:keys [key obligation-id source-position-id owed effective-cap filled deferred]}]
                 (let [fulfilled (long (or filled 0))
@@ -686,8 +821,6 @@
                     :waived 0
                     :obligation-after deferred
                     :position-status (if (pos? deferred) :partially-deferred :fulfilled)
-                    :apparent-application {:application-key key
-                                           :applied-at-step step}
                     :origin {:obligation-id obligation-id
                                                :source-position-id source-position-id
                                                :calculation-id (:decision/id decision)
@@ -706,7 +839,27 @@
         available (long (get-in decision [:evidence :available-liquidity] 0))
         allocated (sum-field :fulfilled)
         residual (max 0 (- available allocated))
-base {:schema-version "pro-rata-propagation.v2"
+        application-entries (mapv (fn [p]
+                                    (let [deferred (:deferred p 0)
+                                          fulfilled (:fulfilled p)
+                                          delta fulfilled]
+                                      {:participant-id (:participant-id p)
+                                       :allocation-applied (zero? deferred)
+                                       :apparent-application (cond-> {:application-key idempotency-key
+                                                                        :accounting-delta delta}
+                                                                     step (assoc :applied-at-step step))
+                                       :fulfilled fulfilled
+                                       :shortfall {:amount deferred
+                                                   :classification (get-in policy [:shortfall :classification])
+                                                   :next-position-ref (some-> p :next-position :position/id)}
+                                       :accounting-entry {:account [:participant (:participant-id p) :withdrawn]
+                                                          :delta delta}}))
+                                 participants)
+        accounting-reconciled? (every? (fn [app]
+                                         (= (get-in app [:accounting-entry :delta])
+                                            (:fulfilled app)))
+                                       application-entries)
+        base {:schema-version "pro-rata-propagation.v2"
                :calculation-ref (:decision/id decision)
                :outcome-ref (:decision/hash decision)
                :allocation-kind :shared-withdrawal-shortfall
@@ -734,28 +887,11 @@ base {:schema-version "pro-rata-propagation.v2"
                          :obligation-after (sum-field :obligation-after)
                          :unallocated-residual residual
                          :residual-reason (get-in decision [:evidence :residual-reason])}
-              :propagation {:policy :defer-shortfall :next-state :withdrawal-claims
-                            :reallocation-eligible? true
-                            :rounding-propagation-policy (get-in policy [:rounding :propagation-policy])
-                             :idempotency-key (let [components (get-in policy [:idempotency :identity-components])
-                                                   component-values {:calculation-id (:decision/id decision)
-                                                                     :outcome-hash (:decision/hash decision)
-                                                                     :policy-hash (:policy/hash policy)}]
-                                               (into [:pro-rata-propagation]
-                                                     (map component-values components)))}
-               :applications (mapv (fn [p]
-                                      (let [deferred (:deferred p 0)]
-                                        {:participant-id (:participant-id p)
-                                         :allocation-applied (zero? deferred)
-                                         :apparent-application {:application-key (:participant-id p)
-                                                                :applied-at-step step}
-                                         :fulfilled (:fulfilled p)
-                                         :shortfall {:amount deferred
-                                                     :classification (get-in policy [:shortfall :classification])
-                                                     :next-position-ref (some-> p :next-position :position/id)}
-                                         :accounting-entry {:account [:participant (:participant-id p) :withdrawn]
-                                                            :delta (:fulfilled p)}}))
-                                    participants)
+               :propagation {:policy :defer-shortfall :next-state :withdrawal-claims
+                             :reallocation-eligible? true
+                             :rounding-propagation-policy (get-in policy [:rounding :propagation-policy])
+                             :idempotency-key idempotency-key}
+               :applications application-entries
               :accounting-entries (vec (concat (when (pos? allocated)
                                                    [{:entry/type :debit :account :shared-liquidity
                                                      :token (:token decision) :delta (- allocated)}])
@@ -773,7 +909,8 @@ base {:schema-version "pro-rata-propagation.v2"
                :reconciliation {:all-allocations-applied (every? #(zero? (:deferred % 0)) participants)
                                 :allocation-applied? true
                                 :shortfalls-preserved? true
-                                :capacity-reconciled? true :accounting-reconciled? true
+                                 :capacity-reconciled? true :accounting-reconciled? accounting-reconciled?
+
                                 :residual-reconciled? true}
               :status :committed}
         entry-hash (accounting-entry-set-hash (:accounting-entries base))

@@ -157,8 +157,9 @@
 
 (defn effective-sensitivity
   "Compute the effective sensitivity for an artifact given optional
-   scenario sensitivity metadata.
-
+   scenario sensitivity metadata. Evidence-backed classification is preferred
+   when safety findings are present on the artifact.
+   
    Returns a canonical provenance map:
      {:sentinel/structural-level <kw>
       :sentinel/declared-level <kw | nil>
@@ -166,7 +167,7 @@
       :sentinel/reasons [<kw> ...]
       :sentinel/risk-meta <map | nil>
       :sentinel/sources [<str> ...]}
-
+   
    The effective level is the maximum of:
    - structural classification of the artifact
    - declared sensitivity from scenario metadata"
@@ -174,18 +175,29 @@
   (let [structural (sentinel/classify-structural artifact)
         declared-level (:level scenario-sensitivity)
         risk-meta (:risk-meta scenario-sensitivity)
-        structural-level structural
+        ;; Evidence-backed reasons from findings
+        finding-reasons (some->> (or (:sensitivity/findings artifact)
+                                     (:safety/findings artifact))
+                                 (sentinel/classify-from-findings)
+                                 :reasons)
+        evidence-level (when (seq finding-reasons)
+                         (some-> (sentinel/classify-from-findings
+                                   (or (:sensitivity/findings artifact)
+                                       (:safety/findings artifact)))
+                                 :level))
+        structural-level (or evidence-level structural)
         effective (if (and declared-level
                            (contains? sentinel/level-set declared-level)
-                           (sentinel/level>= declared-level structural))
+                           (sentinel/level>= declared-level structural-level))
                     declared-level
-                    structural)
+                    structural-level)
         base-reasons (sentinel/default-reasons effective)
         declared-reasons (vec (get-in scenario-sensitivity [:risk-meta :reason-codes] []))
-        all-reasons (vec (distinct (concat base-reasons declared-reasons)))
+        all-reasons (vec (distinct (concat base-reasons declared-reasons finding-reasons)))
         sources (cond-> []
                   (some? scenario-sensitivity) (conj (str "scenario:" (:level scenario-sensitivity)))
-                  (not= structural effective) (conj (str "declared-floor:" (name declared-level))))]
+                  (not= structural-level effective) (conj (str "declared-floor:" (name declared-level)))
+                  (seq finding-reasons) (conj "evidence/safety-findings"))]
     {:sentinel/structural-level structural-level
      :sentinel/declared-level declared-level
      :sentinel/effective-level effective

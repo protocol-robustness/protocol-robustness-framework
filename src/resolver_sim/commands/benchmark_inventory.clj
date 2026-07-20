@@ -2,17 +2,18 @@
   "Root-relative inventory for canonical benchmark bundles."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [resolver-sim.io.paths :as paths])
   (:import [java.math BigInteger]
            [java.nio.file Files Path StandardCopyOption]
            [java.security MessageDigest]))
 
-(def ^:private excluded #{"manifest/artifacts.json" "manifest/artifacts-validation.json"
-                         "completion.json" ".run-state" ".run.lock"})
+(def ^:private excluded #{paths/artifacts-suffix paths/artifacts-validation
+                          paths/completion paths/run-state paths/run-lock})
 
 (def ^:private known
   {"manifest/run.json" ["manifest.run" "run-manifest" "benchmark-run-manifest.v1"]
-   "manifest/sensitivity-report.json" ["manifest.sensitivity-report" "sensitivity-report" "sensitivity-report.v2"]
+   paths/sensitivity-report ["manifest.sensitivity-report" "sensitivity-report" "sensitivity-report.v2"]
       "manifest/verdict-policy.json" ["manifest.verdict-policy" "verdict-policy" "verdict-policy.v1"]
          "benchmark/execution/runner-finalization.json" ["benchmark.runner-finalization" "runner-finalization" "runner-finalization.v1"]
    "benchmark/definition.edn" ["benchmark.definition" "benchmark.definition" "edn.v1"]
@@ -21,7 +22,7 @@
    "benchmark/evidence/evidence.edn" ["benchmark.evidence" "benchmark.evidence" "benchmark-result.v1"]
    "benchmark/evidence/content-registry.json" ["benchmark.content-registry" "benchmark.content-registry" "benchmark-content-registry.v1"]
    "benchmark/finalization.json" ["benchmark.finalization" "benchmark.finalization" "benchmark-finalization.v1"]
-   "manifest/run-package-index.json" ["manifest.run-package-index" "run-package-index" "run-package-index.v1"]
+   paths/run-package-index ["manifest.run-package-index" "run-package-index" "run-package-index.v1"]
    "benchmark/summary.json" ["benchmark.summary" "benchmark.summary" "benchmark-summary.v1"]
    "benchmark/conclusion.json" ["benchmark.conclusion" "benchmark.conclusion" "benchmark-conclusion.v1"]
    "benchmark/assertions/conservation.json" ["benchmark.conservation" "benchmark.conservation" "benchmark-conservation.v1"]
@@ -69,7 +70,7 @@
         ids (map :id entries)]
     (when-not (= (count ids) (count (set ids)))
       (throw (ex-info "Benchmark inventory generated duplicate artifact IDs" {:ids ids})))
-    (let [target (io/file root "manifest/artifacts.json")
+    (let [target (io/file root paths/artifacts-suffix)
           temp (io/file (str (.getPath target) ".tmp"))
           registry {:schema_version "benchmark-artifacts.v1"
                     :contract_version "evidence-contract.v1"

@@ -32,9 +32,11 @@ Per-action dedupe key reference: `docs/replay/REPLAY_SENSITIVE_ACTIONS.md`.
 | `unfreeze-resolver` | Multiple calls converge to same state | PASS | Idempotent state overwrite |
 | `rotate-dispute-resolver` | Same target rotation should not create duplicate audit events | PASS | Business-logic `:idempotent?` flag; replay dedupe when `event-id` present |
 | `escalate_dispute` / `challenge_resolution` | Replay-idempotent under duplicate ingestion (same logical tx) | PASS* | *When `event-id` present; otherwise business guards apply |
-| `replay-sensitive-actions` (8 actions) | Replay dedupe when `event-id` present | PASS* | See `sew/replay-sensitive-actions` |
+| `replay-sensitive-actions` (8+ actions) | Replay dedupe when `event-id` present | PASS* | See `sew/replay-sensitive-actions` |
 | superseded pending fallback | Repeated keeper execution over superseded history cannot re-finalize | PASS | Guarded by terminal/pending logic; verified by `checklist-superseded-pending-single-finalization` test + S116 fixture |
 | SPE fork continuations (`cont-events`) | Main-line tail replayed after deviation | PASS | Uses `:world-checkpoints` + normalized replay events; `:event-identity :inherit-from-main-trace` |
+| `force-reversal-slash` | Duplicate call returns world unchanged; no compound slash | PASS | Guarded by `:slash-by-context` check at `resolution.clj:323`; verified by `force-reversal-slash-idempotent` test + DR-P-002 scenario |
+| cross-layer (business + replay) | Replay-boundary dedup takes precedence over business-logic guard on duplicate | PASS | Verified by `checklist-cross-layer-idempotence` test in `idempotence_checklist_test.clj` |
 
 ---
 

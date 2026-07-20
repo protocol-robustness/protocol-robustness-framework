@@ -1,15 +1,10 @@
 (ns resolver-sim.protocols.sew.invariants.temporal
-  "Temporal consistency invariants for the Sew contract model."
+  "Temporal consistency invariants for the Sew contract model.
+   Delegates to the canonical core implementation."
   (:require [resolver-sim.time.context :as time-ctx]))
 
 (defn check-temporal-consistency
-  "Invariant: Ensures :block-time matches the :block-ts in :context/time."
+  "Invariant: Ensures :block-time matches the :block-ts in :context/time.
+   Delegates to the canonical engine in resolver-sim.time.context."
   [world]
-  (let [ctx (time-ctx/temporal-context world)
-        legacy (:block-time world)
-        canon (:block-ts ctx)]
-    (if (or (nil? legacy) (= legacy canon))
-      {:holds? true}
-      {:holds? false :violations [{:error :temporal-drift
-                                   :legacy legacy
-                                   :canonical canon}]})))
+  (time-ctx/check-temporal-consistency world))

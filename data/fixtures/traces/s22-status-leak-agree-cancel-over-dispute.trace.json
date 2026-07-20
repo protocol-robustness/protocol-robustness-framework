@@ -1,11 +1,11 @@
 {
-  "protocol-params": {
-    "resolver-fee-bps": 150,
-    "appeal-window-duration": 0,
-    "max-dispute-duration": 2592000
-  },
-  "allow-open-disputes?": true,
-  "threat-tags": [
+"protocol-params": {
+      "resolver-fee-bps": 150,
+      "appeal-window-duration": 0,
+      "max-dispute-duration": 2592000
+    },
+    "allow-open-disputes?": true,
+   "threat-tags": [
     "state-transition",
     "concurrent-disputes"
   ],

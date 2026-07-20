@@ -1,7 +1,8 @@
 (ns resolver-sim.run.comparison
   (:require [clojure.data.json :as json] [clojure.java.io :as io]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
-            [resolver-sim.hash.canonical :as canonical]))
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.io.paths :as paths]))
 (defn- sha [f] (str "sha256:" (lifecycle/sha256-file f)))
 (defn- readj [f] (json/read-str (slurp f)))
 (defn- verify-package! [root completion]
@@ -12,7 +13,7 @@
 
 (defn submission [root]
   (try
-    (let [root (io/file root) completion (io/file root "completion.json") c (readj completion)
+    (let [root (io/file root) completion (io/file root paths/completion) c (readj completion)
           index (io/file root (get c "run_package_index_ref")) policy (io/file root "manifest/verdict-policy.json")
           i (readj index) p (readj policy)
           verification (verify-package! root c)]

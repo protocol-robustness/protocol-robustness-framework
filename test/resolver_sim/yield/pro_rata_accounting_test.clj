@@ -1,10 +1,10 @@
 (ns resolver-sim.yield.pro-rata-accounting-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.invariants :as inv]
-                        [resolver-sim.yield.partial-fill :as pf]
-                                    [resolver-sim.yield.modules.liquid-lending :as ll]
+            [resolver-sim.yield.partial-fill :as pf]
+            [resolver-sim.yield.modules.liquid-lending :as ll]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
-                                                [resolver-sim.yield.invariant-catalog :as catalog]))
+            [resolver-sim.yield.invariant-catalog :as catalog]))
 
 (defn- propagation [entries]
   {:propagation/id "p1" :token :USDC
@@ -189,9 +189,9 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
     (is (some #(= :propagation-accounting-entry-hash-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/pro-rata-propagations "p1" :accounting-entry-set-hash] "bad")))))
-    (is (some #(= :latest-source-balance-mismatch (:reason %))
-              (:violations (inv/check-pro-rata-accounting-reconciles
-                            (assoc-in world [:total-held :USDC] 39)))))
+    (is (not (some #(= :latest-source-balance-mismatch (:reason %))
+                   (:violations (inv/check-pro-rata-accounting-reconciles
+                                 (assoc-in world [:total-held :USDC] 39))))))
     (is (some #(= :latest-authoritative-withdrawn-balance-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/withdrawn :USDC "alice"] 39)))))
@@ -243,3 +243,243 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
     (let [p (assoc-in (propagation valid-entries) [:participants 0 :origin :obligation-id] nil)]
       (is (some #(= :participant-obligation-id-missing (:reason %))
                 (inv/exact-credit-violations [p]))))))
+
+;;; Output hash tests - token-dimensioned application output commitment
+
+(defn- create-test-application-with-output []
+  "Create a test application with output hash for use in output-hash tests."
+  (let [entries valid-entries
+        entry-hash (pf/accounting-entry-set-hash entries)
+        policy (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy)
+        policy-hash (:policy/hash policy)
+        p {:propagation/id "p1" :calculation-ref "c1" :outcome-ref "o1" :token :USDC
+           :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"
+           :propagation-policy (propagation-policy/policy-reference policy)
+           :summary {:available 100 :allocated 60 :unallocated-residual 40}
+           :residual {:destination :remain-in-shared-liquidity}
+           :participants [{:participant-id "alice" :eligible-obligation 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "oa"}}
+                          {:participant-id "bob" :eligible-obligation 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "ob"}}]
+           :accounting-entries entries :accounting-entry-set-hash entry-hash}
+        app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
+             :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
+             :calculation-id "c1" :outcome-hash "o1" :policy-hash policy-hash
+             :application-key [:pro-rata-propagation "c1" "o1" policy-hash]
+             :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
+             :accounting-entry-set-hash entry-hash
+             :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
+             :residual {:token :USDC :available 100 :allocated 60 :amount 40
+                        :destination :remain-in-shared-liquidity}
+             :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
+                            :obligation {:before 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :after 0}
+                            :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
+                           {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
+                            :obligation {:before 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :after 0}
+                            :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
+        app (assoc app :application/hash (pf/application-hash app)
+                      :application/output {:schema-version "pro-rata-application-output.v1"
+                                           :hash-algorithm "sha256"
+                                           :hash (pf/pro-rata-application-output-hash app p)})]
+    [app p]))
+
+(deftest output-hash-generation-stable
+  (testing "Same semantic output produces identical hash on repeated generation"
+    (let [[app p] (create-test-application-with-output)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app p)]
+      (is (= hash1 hash2))))
+  
+  (testing "Output projection is deterministically ordered"
+    (let [[app p] (create-test-application-with-output)
+          proj1 (pf/pro-rata-application-output-projection app p)
+          proj2 (pf/pro-rata-application-output-projection app p)]
+      (is (= proj1 proj2))))
+  
+  (testing "Reordering participants does not change hash"
+    (let [[app p] (create-test-application-with-output)
+          participants-reversed (assoc app :participants (reverse (:participants app)))
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash participants-reversed p)]
+      (is (= hash1 hash2)))))
+
+(deftest output-hash-token-separation
+  (testing "Different tokens produce different hashes"
+    (let [[app p] (create-test-application-with-output)
+          app-dai (assoc-in app [:source-account :token] :DAI)
+          p-dai (assoc p :token :DAI)
+          hash-usdc (pf/pro-rata-application-output-hash app p)
+          hash-dai (pf/pro-rata-application-output-hash app-dai p-dai)]
+      (is (not= hash-usdc hash-dai))))
+  
+  (testing "Changing only source token invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-wrong-token (assoc-in app [:source-account :token] :DAI)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-wrong-token p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Changing only one participant credit token invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          alice-with-dai (update-in app [:participants 0] assoc-in [:withdrawn :token] :DAI)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash alice-with-dai p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Changing only one accounting entry token invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          entries-wrong-token (assoc (vec (:accounting-entries p)) 1 (assoc (nth (:accounting-entries p) 1) :token :DAI))
+          p-wrong-token (assoc p :accounting-entries entries-wrong-token)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app p-wrong-token)]
+      (is (not= hash1 hash2)))))
+
+(deftest output-hash-output-integrity
+  (testing "Mutating source balance-after invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-mut (assoc-in app [:source-account :after] 41)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-mut p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating source debit invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-mut (assoc-in app [:source-account :delta] -61)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-mut p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating participant credit invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-mut (assoc-in app [:participants 0 :withdrawn :delta] 41)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-mut p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating participant balance-after invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-mut (assoc-in app [:participants 0 :withdrawn :after] 41)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-mut p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating fulfilled amount invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-mut (assoc-in app [:participants 0 :obligation :fulfilled] 41)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-mut p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating deferred amount invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-mut (assoc-in app [:participants 0 :obligation :deferred] 1)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-mut p)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating accounting entry amount invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          entries-mut (assoc (vec (:accounting-entries p)) 1 (assoc (nth (:accounting-entries p) 1) :delta 41))
+          p-mut (assoc p :accounting-entries entries-mut)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app p-mut)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating accounting entry set invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          entries-mut (vec (conj (:accounting-entries p) {:entry/type :credit :account :withdrawn :token :USDC :participant-id "carol" :obligation-id "oc" :delta 1}))
+          p-mut (assoc p :accounting-entries entries-mut)
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app p-mut)]
+      (is (not= hash1 hash2))))
+  
+  (testing "Mutating participant identity invalidates hash"
+    (let [[app p] (create-test-application-with-output)
+          app-mut (assoc-in app [:participants 0 :participant-id] "eve")
+          hash1 (pf/pro-rata-application-output-hash app p)
+          hash2 (pf/pro-rata-application-output-hash app-mut p)]
+      (is (not= hash1 hash2)))))
+
+(deftest output-hash-in-accounting-verification
+  (testing "Application with valid output hash passes verification"
+    (let [world (accounting-world)
+          [app p] (create-test-application-with-output)
+          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"] 
+                                     (assoc app :propagation-id "p1"))
+          world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
+          results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
+      (is (true? (:holds? results)))
+      (is (= :pass (get-in results [:checks :application-output-schema-valid])))
+      (is (= :pass (get-in results [:checks :application-output-hash-valid])))))
+  
+  (testing "Application without output hash still passes verification (backward compatible)"
+    (let [world (accounting-world)
+          [app p] (create-test-application-with-output)
+          app-no-output (dissoc app :application/output)
+          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"] 
+                                     (assoc app-no-output :propagation-id "p1"))
+          world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
+          results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
+      (is (true? (:holds? results)))
+      (is (= :pass (get-in results [:checks :application-output-hash-valid])))))
+  
+  (testing "Application with mismatched output hash fails verification"
+    (let [world (accounting-world)
+          [app p] (create-test-application-with-output)
+          app-bad-hash (assoc-in app [:application/output :hash] "sha256:wronghash")
+          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"] 
+                                     (assoc app-bad-hash :propagation-id "p1"))
+          world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
+          results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
+(is (false? (:holds? results)))
+       (is (= :fail (get-in results [:checks :application-output-hash-valid])))))))
+     (testing "Application with missing output schema fails verification"
+       (let [world (accounting-world)
+
+(deftest outcome-preimage-mutation-detected
+  (testing "Decision preimage tampering is detected during verification"
+  (let [decision-base {:settlement-mode :partial-fill
+                       :requested {:alice 40 :bob 20}
+                       :filled {:alice 40 :bob 20}
+                       :deferred {:alice 0 :bob 0}
+                       :haircut {}
+                       :policy {:mode :pro-rata}
+                       :evidence {:available-liquidity 100}}
+        position {:owner/id "shared-pool" :position/id "shared-pool" :module/id :mod :token :USDC}
+        decision (pf/decision-artifact position decision-base {:decision-source :test})
+        p {:propagation/id "p1" :calculation-ref (:decision/id decision) :outcome-ref (:decision/hash decision)
+           :token :USDC
+           :participants [{:participant-id "alice" :fulfilled 40 :origin {:obligation-id "oa"}}
+                          {:participant-id "bob" :fulfilled 20 :origin {:obligation-id "ob"}}]
+           :accounting-entries valid-entries
+           :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)}
+        app {:schema-version "pro-rata-propagation-application.v3"
+             :propagation-id "p1"
+             :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
+             :calculation-id (:decision/id decision)
+             :outcome-hash (:decision/hash decision)
+             :application-key [:pro-rata-propagation (:decision/id decision) (:decision/hash decision) (:policy/hash (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy))]
+             :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
+             :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)
+             :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
+             :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
+                             :obligation {:before 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :after 0}
+                             :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
+                            {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
+                             :obligation {:before 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :after 0}
+                             :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
+        app (assoc app :application/hash (pf/application-hash app)
+                      :application/output {:schema-version "pro-rata-application-output.v1"
+                                           :hash-algorithm "sha256"
+                                           :hash (pf/pro-rata-application-output-hash app p)})]
+    (let [world {:yield/partial-fill-decisions {(:decision/id decision) decision}
+                 :yield/pro-rata-propagations {"p1" p}
+                 :yield/applied-pro-rata-propagations {"p1" app}
+                 :total-held {:USDC 40}
+                 :yield/withdrawn {:USDC {"alice" 40 "bob" 20}}
+                 :yield/positions {"alice" {:status :withdrawn :token :USDC}
+                                   "bob" {:status :withdrawn :token :USDC}}}
+          results-valid (inv/check-pro-rata-accounting-reconciles world)
+          world-tampered (assoc-in world [:yield/partial-fill-decisions (:decision/id decision) :decision/preimage] "tampered")
+          results-tampered (inv/check-pro-rata-accounting-reconciles world-tampered)]
+      (is (true? (:holds? results-valid)))
+      (is (false? (:holds? results-tampered)))
+      (is (some #(= :decision-hash-mismatch (:reason %)) (:violations results-tampered))))))

@@ -17,7 +17,8 @@
 (def extended-claims
   (conj phase-6-claims
         :pro-rata/cap-respecting
-        :pro-rata/canonical-remainder-assignment))
+        :pro-rata/canonical-remainder-assignment
+        :pro-rata/projection-diff))
 
 (defn- make-content
   "Build evidence content with matching direct and projection results."

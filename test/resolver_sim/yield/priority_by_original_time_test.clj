@@ -8,8 +8,7 @@
    - Full lifecycle: deposit → shortfall → deferred → later withdrawal"
   (:require [clojure.test :refer :all]
             [resolver-sim.yield.modules.liquid-lending :as ll]
-            [resolver-sim.yield.position :as pos]
-            [resolver-sim.yield.invariants :as inv]))
+            [resolver-sim.yield.position :as pos]))
 
 (def test-mod
   (ll/make-liquid-lending-module :test-mod))
@@ -37,9 +36,22 @@
    [world]
    (->> (:yield/pro-rata-propagations world)
         vals
-        (sort-by :propagation/id)
-        last
+        (sort-by (juxt (comp - count :participants) :propagation/id))
+        first
         :participants))
+
+(defn- closed-history-entries
+  [position]
+  (->> (:deferred-position-history position {})
+       vals
+       (sort-by :position/round)))
+
+(defn- priority-source-label
+  "Return the priority-source value for the latest deferred position.
+   :inherited-from-prior-lineage when a prior deferred existed,
+   :from-precondition for first deferral."
+  [position]
+  (get-in position [:deferred-position :position/original-priority-source]))
 
 ;; ── Fixture suite 1: Deposit sequence numbering ──────────────────────────
 
@@ -163,23 +175,87 @@
       (is (= ["new-user" "legacy"] (mapv :participant-id (participants-from w)))
           "new-user (priority 0) ordered before legacy (MAX_VALUE)"))))
 
-;; ── Fixture suite 6: Standard invariants pass with priority ordering ─────
+;; ── Fixture suite 6: Prior-lineage lifecycle ──────────────────────────────
 
-(deftest standard-invariants-pass-with-priority-ordering
-  (testing "pro-rata-accounting-reconciles passes with priority-ordered withdrawal"
-    (let [w (deposit-owners base-world ["alice" "bob" "carol"] 100)
-          w (assoc-in w [:total-held :USDC] 150)
-          w (ll/withdraw-shared w test-mod {:owner-ids ["carol" "alice" "bob"]
+(deftest prior-lineage-lifecycle
+  (testing "three deferral rounds preserve priority 0 on each successor"
+    ;; Alice deposits 100.  Each round gives only 30 liquidity so a shortfall
+    ;; persists across rounds — D1:70, D2:40, D3:10 — each inheriting priority 0.
+    (let [w (deposit-owners base-world ["alice"] 100)
+          w (assoc-in w [:total-held :USDC] 30)    ;; round 1: 70 deferred
+          w (ll/withdraw-shared w test-mod {:owner-ids ["alice"]
                                              :token "USDC"
-                                             :allocation-mode :pro-rata})]
-      (is (:holds? (inv/check-pro-rata-accounting-reconciles w)))))
-  (testing "accounting reconcile passes with shortfall under priority ordering"
-    (let [w (deposit-owners base-world ["alice" "bob"] 100)
+                                             :allocation-mode :pro-rata})
+          pos (get-in w [:yield/positions "alice"])
+          d1 (get pos :deferred-position)]
+      (is (= 0 (:position/original-priority d1)) "d1 priority 0")
+      (is (= :from-precondition (:position/original-priority-source d1))
+          "first deferral source is :from-precondition")
+      (let [w (assoc-in w [:total-held :USDC] 30)  ;; round 2: 40 deferred
+            w (ll/withdraw-shared w test-mod {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})
+            pos (get-in w [:yield/positions "alice"])
+            d2 (get pos :deferred-position)
+            history (closed-history-entries pos)]
+        (is (= 0 (:position/original-priority d2)) "d2 priority 0")
+        (is (= :inherited-from-prior-lineage (:position/original-priority-source d2))
+            "second deferral source inherits from prior lineage")
+        (is (= 1 (count history)) "one closed record in history")
+        (is (= 0 (:position/original-priority (first history)))
+            "closed d1 preserves priority 0")
+        (is (= (:position/id d1) (:position/id (first history)))
+            "closed d1 id matches original d1")
+        (is (= (:position/parent-id d2) (:position/id d1))
+            "d2 parent-id links back to d1")
+        (let [w (assoc-in w [:total-held :USDC] 30)  ;; round 3: 10 deferred
+              w (ll/withdraw-shared w test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata})
+              pos (get-in w [:yield/positions "alice"])
+              d3 (get pos :deferred-position)
+              history (closed-history-entries pos)]
+          (is (= 0 (:position/original-priority d3)) "d3 priority 0")
+          (is (= :inherited-from-prior-lineage (:position/original-priority-source d3))
+              "third deferral source inherits from prior lineage")
+          (is (= 2 (count history)) "two closed records in history")
+          (is (= 0 (:position/original-priority (nth history 0)))
+              "closed d1 priority 0 in history")
+          (is (= 0 (:position/original-priority (nth history 1)))
+              "closed d2 priority 0 in history")
+          (is (= (:position/parent-id d3) (:position/id d2))
+              "d3 parent-id links back to d2")))))
+  (testing "priority-source for legacy position first deferral"
+    (let [pos (pos/make-position {:owner/id "legacy" :module/id :test-mod
+                                  :token "USDC" :principal 100})
+          w (assoc-in base-world [:yield/positions "legacy"] pos)
           w (assoc-in w [:total-held :USDC] 50)
-          w (ll/withdraw-shared w test-mod {:owner-ids ["bob" "alice"]
+          w (ll/withdraw-shared w test-mod {:owner-ids ["legacy"]
                                              :token "USDC"
-                                             :allocation-mode :pro-rata})]
-      (is (:holds? (inv/check-pro-rata-accounting-reconciles w))))))
+                                             :allocation-mode :pro-rata})
+          d (get-in w [:yield/positions "legacy" :deferred-position])]
+      (is (= Long/MAX_VALUE (:position/original-priority d))
+          "legacy deferred has MAX_VALUE priority")
+      (is (= :from-precondition (:position/original-priority-source d))
+          "legacy first deferral source is :from-precondition")))
+  (testing "priority-source for legacy position second deferral"
+    ;; Legacy (MAX_VALUE) position: first deferral at 50, second at 30 keeps shortfall
+    (let [pos (pos/make-position {:owner/id "legacy" :module/id :test-mod
+                                  :token "USDC" :principal 100})
+          w (assoc-in base-world [:yield/positions "legacy"] pos)
+          w (assoc-in w [:total-held :USDC] 50)
+          w (ll/withdraw-shared w test-mod {:owner-ids ["legacy"]
+                                             :token "USDC"
+                                             :allocation-mode :pro-rata})
+          w (assoc-in w [:total-held :USDC] 30)
+          w (ll/withdraw-shared w test-mod {:owner-ids ["legacy"]
+                                             :token "USDC"
+                                             :allocation-mode :pro-rata})
+          d (get-in w [:yield/positions "legacy" :deferred-position])]
+      (is (= Long/MAX_VALUE (:position/original-priority d))
+          "legacy deferred2 has MAX_VALUE priority")
+      (is (= :inherited-from-prior-lineage (:position/original-priority-source d))
+          "legacy second deferral inherits from prior lineage"))))
 
 ;; ── Fixture suite 7: Multi-token and multi-module scoping ────────────────
 

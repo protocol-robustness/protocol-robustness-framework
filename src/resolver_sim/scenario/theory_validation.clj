@@ -38,15 +38,14 @@
 
       (:or pred)
       (let [children (:or pred)]
-        (first (keep #(validate-predicate % (dec depth)) children)))
+        (first (keep #(validate-predicate % (dec depth)) children))))
 
       (:not pred)
       (validate-predicate (:not pred) (dec depth))
 
       (:implies pred)
-      (let [impl (:implies pred)]
-        (or (validate-predicate (:if impl) (dec depth))
-            (validate-predicate (:then impl) (dec depth))))
+      (or (validate-predicate (:if pred) (dec depth))
+          (validate-predicate (:then pred) (dec depth)))
 
       (:always pred)
       (validate-predicate (:always pred) (dec depth))
@@ -59,16 +58,17 @@
         (cond
           (not (map? a)) "expected :after to be a map"
           (not (string? (:event a))) "expected :event in :after to be a string"
-          :else (validate-predicate (:predicate a) (dec depth))))
+          :else (validate-predicate (:predicate a) (dec depth)))
 
       (:before pred)
       (let [b (:before pred)]
         (cond
           (not (map? b)) "expected :before to be a map"
           (not (string? (:event b))) "expected :event in :before to be a string"
-          :else (validate-predicate (:predicate b) (dec depth))))
+          :else (validate-predicate (:predicate b) (dec depth)))
 
       :else "unrecognized predicate shape: expected :metric, :state, :and, :or, :not, :implies, :always, :eventually, :after, or :before")))
+
 
 (defn- validate-falsifies-if
   "Validate a :falsifies-if value (vector of predicates or a single predicate)."
@@ -76,6 +76,7 @@
   (if (vector? conds)
     (first (keep #(validate-predicate % 10) conds))
     (validate-predicate conds 10)))
+
 
 (defn validate-theory
   "Validate a theory block.
@@ -100,4 +101,4 @@
           valid-errors (filter string? errors)]
       (if (seq valid-errors)
         {:valid? false :errors valid-errors}
-        {:valid? true}))))
+        {:valid? true})))))

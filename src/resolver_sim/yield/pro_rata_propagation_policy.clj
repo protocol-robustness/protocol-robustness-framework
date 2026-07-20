@@ -52,28 +52,47 @@
                                   {:reason :missing-policy-field :section section :fields (vec missing)})))))
 
 (defn validate-policy-semantics [policy]
-  (when-not (= "pro-rata-propagation-policy.v1" (:schema-version policy))
-    (throw (ex-info "Unsupported pro-rata propagation policy schema" {:reason :unsupported-policy-schema})))
-  (when-not (= :shared-withdrawal-propagation (:policy/id policy))
-    (throw (ex-info "Propagation policy ID does not match shared-withdrawal contract" {:reason :policy-id-mismatch})))
-  (when-not (= 1 (:policy/version policy))
-    (throw (ex-info "Unsupported propagation policy version" {:reason :unsupported-policy-version})))
-  (when-not (= :shared-withdrawal (:policy/domain policy))
-    (throw (ex-info "Unsupported propagation policy domain" {:reason :unsupported-policy-domain})))
+  (let [schema "pro-rata-propagation-policy.v1"]
+    (when-not (= schema (:schema-version policy))
+      (throw (ex-info "Unsupported pro-rata propagation policy schema"
+                      {:reason :unsupported-policy-schema :expected schema}))))
+  (doseq [[k expected] {:policy/id :shared-withdrawal-propagation
+                        :policy/version 1
+                        :policy/domain :shared-withdrawal}]
+    (when-not (= expected (k policy))
+      (throw (ex-info (str "Propagation policy " (name k) " does not match contract")
+                      {:reason (keyword "policy" (name k)) :expected expected}))))
   (doseq [section (keys required-fields)] (ensure-fields! policy section))
-  (when-not (and (= :deferred (get-in policy [:shortfall :classification]))
-                 (= :deferred-withdrawal (get-in policy [:shortfall :next-position/type]))
-                 (= :later-liquidity (get-in policy [:shortfall :next-position/eligibility]))
-                 (= :residual-entitlement (get-in policy [:shortfall :next-round-weight-policy]))
-                 (= :preserve-original (get-in policy [:priority :propagation-policy]))
-                 (= :independent-rounds (get-in policy [:rounding :propagation-policy]))
-                 (= :closed (get-in policy [:fulfilled-position :terminal-state]))
-                 (= :remain-in-shared-liquidity (get-in policy [:residual-liquidity :destination]))
-                 (= {:source-account :shared-liquidity :participant-credit-account :withdrawn
-                     :deferred-position-account :deferred-withdrawal} (:accounting-contract policy))
-                 (= [:calculation-id :outcome-hash :policy-hash] (get-in policy [:idempotency :identity-components])))
-    (throw (ex-info "Unsupported shared-withdrawal propagation policy semantics"
-                    {:reason :unsupported-policy-enum})))
+  (let [canonical shared-withdrawal-policy
+        checks [[:shortfall :classification]
+                [:shortfall :next-position/type]
+                [:shortfall :next-position/eligibility]
+                [:shortfall :next-round-weight-policy]
+                [:priority :propagation-policy]
+                [:rounding :propagation-policy]
+                [:fulfilled-position :terminal-state]
+                [:residual-liquidity :destination]]]
+    (doseq [[section field] checks]
+      (let [path [section field]
+            expected (get-in canonical path)
+            actual (get-in policy path)]
+        (when-not (= expected actual)
+          (throw (ex-info (str "Unsupported " (name section) " " (name field))
+                          {:reason :unsupported-policy-enum
+                           :section section :field field
+                           :expected expected :actual actual}))))))
+  (let [expected-acct (:accounting-contract canonical)
+        actual-acct (:accounting-contract policy)]
+    (when-not (= expected-acct actual-acct)
+      (throw (ex-info "Unsupported accounting-contract"
+                      {:reason :unsupported-policy-enum
+                       :expected expected-acct :actual actual-acct}))))
+  (let [expected-ids (:identity-components (:idempotency canonical))
+        actual-ids (get-in policy [:idempotency :identity-components])]
+    (when-not (= expected-ids actual-ids)
+      (throw (ex-info "Unsupported idempotency identity-components"
+                      {:reason :unsupported-policy-enum
+                       :expected expected-ids :actual actual-ids}))))
   policy)
 
 (defn normalize-and-validate [policy]

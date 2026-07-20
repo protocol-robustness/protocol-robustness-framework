@@ -4,4 +4,5 @@
  :suite/class :safety
  :suite/criticality :high
  :state :states/liquid-lending-test
- :traces [:traces/s120-shared-withdrawal-basic]}
+ :traces [:traces/s120-shared-withdrawal-basic
+          :traces/s121-withdrawal-with-deferred]}

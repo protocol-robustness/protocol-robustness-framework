@@ -56,7 +56,7 @@
 (defn- base-position-id [owner-id position]
   (or (:position/id position) owner-id))
 
-(defn- lineage-original-priority [position]
+(defn- deferred-original-priority [position]
   (get-in position [:deferred-position :position/original-priority]))
 
 (defn- authoritative-original-priority
@@ -66,7 +66,7 @@
    Missing priority defaults to Long/MAX_VALUE for legacy positions."
   [owner-id position]
   (let [base-priority (:original-priority position)
-        deferred-priority (lineage-original-priority position)]
+        deferred-priority (deferred-original-priority position)]
     (when (and (some? base-priority)
                (some? deferred-priority)
                (not= base-priority deferred-priority))
@@ -135,9 +135,10 @@
                  (partial-fill/calculate-fulfillment Long/MAX_VALUE position)))))
 
 (defn- source-liquidity-balance [world token]
-  (or (get-in world [:total-held token])
-      (get-in world [:yield/held-balances (name token)])
-      (get-in world [:yield/held-balances token])))
+   (or (get-in world [:total-held token])
+       (get-in world [:yield/held-balances token])
+       (get-in world [:yield/held-balances (name token)])
+       0))
 
 ;; ---------------------------------------------------------------------------
 ;; deposit
@@ -894,7 +895,7 @@
                (let [participant-id (:participant-id participant)
                      position (get-in next-world
                                       [:yield/positions participant-id])
-                     prior-lineage (:deferred-position position)
+                     current-deferred (:deferred-position position)
                      precondition (get preconditions participant-id)
                      current-commitment
                      (get commitment-by-participant participant-id)
@@ -921,9 +922,11 @@
                       :position/type :deferred-withdrawal
                       :position/token token
                       :position/participant-id participant-id
-                      :position/root-obligation-id obligation-id
+                       :position/root-obligation-id
+                       (or (:position/root-obligation-id current-deferred)
+                           obligation-id)
                       :position/parent-id
-                      (or (:position/id prior-lineage)
+                      (or (:position/id current-deferred)
                           (:position-id current-commitment))
                       :position/parent-hash
                       (or (:deferred-position-hash current-commitment)
@@ -933,21 +936,25 @@
                       :position/created-order application-order
                       :position/created-event-time event-time
                       :position/round round
-                      :position/original-priority original-priority
-                      :position/original-obligation
-                      (or (:position/original-obligation prior-lineage)
-                          (:eligible-obligation participant))
+                       :position/original-priority
+                       (or (:position/original-priority current-deferred)
+                           original-priority)
+                       :position/original-priority-source
+                       (if current-deferred :inherited-from-prior-lineage :from-precondition)
+                       :position/original-obligation
+                       (or (:position/original-obligation current-deferred)
+                           (:eligible-obligation participant))
                       :position/current-amount deferred
                       :position/cumulative-fulfilled
                       (+ (long (:cumulative-fulfilled position 0)) fulfilled)
                       :position/eligibility :later-liquidity
                       :position/status :active}
                      closed-prior
-                     (when prior-lineage
-                       (assoc prior-lineage
+                     (when current-deferred
+                       (assoc current-deferred
                               :position/status :closed
                               :position/closed-from-amount
-                              (:position/current-amount prior-lineage)
+                              (:position/current-amount current-deferred)
                               :position/current-amount 0
                               :position/closed-by-propagation-id propagation-id
                               :position/closed-by-transition-hash transition-hash
@@ -991,45 +998,46 @@
                                updated-position))))
              world
              participants)
-            next-world (assoc-in next-world
-                                 [:total-held token]
-                                 (- source-before allocated))
-            application-base
-            {:schema-version "pro-rata-propagation-application.v3"
-             :propagation-id propagation-id
-             :propagation/reference
-             {:propagation/id propagation-id
-              :propagation/hash (:propagation/hash propagation)
-              :propagation/content-hash
-              (get propagation propagation-content-hash-field)}
-             :propagation-content-hash
-             (get propagation propagation-content-hash-field)
-             :calculation-id (:calculation-ref propagation)
-             :outcome-hash (:outcome-ref propagation)
-             :policy-hash (get-in propagation
-                                  [:propagation-policy :policy/hash])
-             :application-key application-key
-             :allocation/invocation-context
-             (:allocation/invocation-context propagation)
-             :application-order application-order
-             :time-claims
-             {:event-time event-time
-              :captured-at nil
-              :signed-at nil
-              :timestamped-at nil
-              :signature-status :unsigned
-              :claim-note :protocol-time-is-not-proof-of-signing-time}
-             :accounting-entry-set-hash
-             (:accounting-entry-set-hash propagation)
-             :source-account
-             {:account :shared-liquidity
-              :token token
-              :before source-before
-              :delta (- allocated)
-              :after (- source-before allocated)}
-             :participants
-             (mapv
-              (fn [participant]
+             application-base
+             {:schema-version "pro-rata-propagation-application.v3"
+              :propagation-id propagation-id
+              :propagation/reference
+              {:propagation/id propagation-id
+               :propagation/hash (:propagation/hash propagation)
+               :propagation/content-hash
+               (get propagation propagation-content-hash-field)}
+              :propagation-content-hash
+              (get propagation propagation-content-hash-field)
+              :calculation-id (:calculation-ref propagation)
+              :outcome-hash (:outcome-ref propagation)
+              :policy-hash (get-in propagation
+                                   [:propagation-policy :policy/hash])
+              :application-key application-key
+              :allocation/invocation-context
+              (:allocation/invocation-context propagation)
+              :application-order application-order
+              :time-claims
+              {:event-time event-time
+               :captured-at nil
+               :signed-at nil
+               :timestamped-at nil
+               :signature-status :unsigned
+               :claim-note :protocol-time-is-not-proof-of-signing-time}
+              :accounting-entry-set-hash
+              (:accounting-entry-set-hash propagation)
+               :source-account
+               ;; Accounting intent record, not a state-mutation log.
+               ;; The enclosing protocol custody path adjusts :total-held;
+               ;; :before/:after here document the expected balance transition
+               ;; for downstream reconciliation.
+               {:account :shared-liquidity
+                :token token
+                :before source-before
+                :delta (- allocated)
+                :after (- source-before allocated)}
+              :participants
+              (mapv
+               (fn [participant]
                 (let [participant-id (:participant-id participant)
                       before (long (get-in world
                                            [:yield/withdrawn
@@ -1091,9 +1099,17 @@
                                    [:residual :destination])}
              :status :committed}
             application
-            (assoc application-base
-                   :application/hash
-                   (canonical-hash application-base))]
+            (let [app-hash (canonical-hash application-base)
+                  app-with-hash (assoc application-base :application/hash app-hash)
+                  output-hash {:schema-version "pro-rata-application-output.v1"
+                               :hash-algorithm "sha256"
+                               :hash (partial-fill/pro-rata-application-output-hash app-with-hash propagation)}
+                  outcome {:schema-version "partial-fill-decision.v1"
+                           :artifact/id (:calculation-id application-base)
+                           :artifact/hash (:outcome-hash application-base)}]
+              (assoc app-with-hash
+                     :application/output output-hash
+                     :application/outcome outcome))]
         {:status :applied
          :propagation-id propagation-id
          :world
@@ -1697,6 +1713,7 @@
     :module/capabilities
     #{:deposit
       :withdraw
+      :withdraw-many
       :withdraw-shared
       :accrue
       :emergency-unwind
@@ -1705,6 +1722,7 @@
     :ops
     {:yield/deposit deposit
      :yield/withdraw withdraw
+     :yield/withdraw-many withdraw-many
      :yield/withdraw-shared withdraw-shared
      :yield/accrue accrue
      :yield/emergency-unwind emergency-unwind
