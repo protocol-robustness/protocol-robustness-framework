@@ -851,10 +851,22 @@
          :scenario-finalization-report (:scenario-finalization-report reports)
          :run-finalization-report (:run-finalization-report reports)
          :execution-dag-report (:execution-dag-report reports)
-         :canonical-assurance-report (:canonical-assurance-report reports)
-         :registry-validation-report (:registry-validation-report reports)
-         :value-at-risk-report (:value-at-risk-report reports)
-         :reconciliation-report reconciliation})))
+          :canonical-assurance-report (:canonical-assurance-report reports)
+          :registry-validation-report (:registry-validation-report reports)
+          :value-at-risk-report (:value-at-risk-report reports)
+          :reconciliation-report reconciliation
+          :checks (merge
+                    (into {} (for [[artifact-id report-key check-key]
+                                    [[:runner-finalization :runner-finalization-report :runner-finalization-valid]
+                                     [:scenario-finalization :scenario-finalization-report :scenario-finalization-valid]
+                                     [:run-finalization :run-finalization-report :run-finalization-valid]
+                                     [:execution-dag :execution-dag-report :execution-dag-valid]
+                                     [:canonical-assurance :canonical-assurance-report :canonical-assurance-valid]
+                                     [:registry-validation :registry-validation-report :registry-validation-valid]
+                                     [:value-at-risk :value-at-risk-report :value-at-risk-valid]]]
+                                    (let [report (get reports report-key)]
+                                      [check-key (if (and report (:valid? report)) :pass :fail)])))
+                      {:reconciliation-valid (if (:valid? reconciliation) :pass :fail)})})))
 
 (defn- validate-completeness-at-root
   "Check required terminal artifacts for the package profile."
@@ -946,11 +958,12 @@
     ;; collects each subordinate report once. Preserve those reports here rather
     ;; than independently reopening finalization, DAG, assurance, or registry
     ;; files for each derived package predicate.
-    (assoc ctx
-           :closure-report integrity
-           :integrity-report integrity
-           :completeness-report complete
-           :runner-finalization-report (:runner-finalization-report integrity)
+     (assoc ctx
+            :closure-report integrity
+            :integrity-report integrity
+            :completeness-report complete
+            :checks (:checks integrity)
+            :runner-finalization-report (:runner-finalization-report integrity)
            :scenario-finalization-report (:scenario-finalization-report integrity)
            :run-finalization-report (:run-finalization-report integrity)
            :execution-dag-report (:execution-dag-report integrity)

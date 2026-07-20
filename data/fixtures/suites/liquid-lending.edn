@@ -1,0 +1,7 @@
+{:suite/id :suites/liquid-lending
+ :suite/title "Liquid Lending Shared Withdrawal Suite"
+ :suite/purpose "Validate shared withdrawal pro-rata allocation in the liquid-lending module"
+ :suite/class :safety
+ :suite/criticality :high
+ :state :states/liquid-lending-test
+ :traces [:traces/s120-shared-withdrawal-basic]}

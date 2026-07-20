@@ -1,0 +1,9 @@
+{:suite/id :suites/force-authorisation-custody-v1
+ :suite/title "Force-Authorisation Custody Suite v1"
+ :suite/purpose "Force-authorisation grant, execution, expiry, replay, and held-custody scenarios"
+ :suite/class :safety
+ :suite/criticality :high
+ :protocol :protocol/sew
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/dr-fa-001-force-authorisation-basic
+          :traces/dr-fa-002-force-authorisation-expired]}

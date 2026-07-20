@@ -706,25 +706,26 @@
         available (long (get-in decision [:evidence :available-liquidity] 0))
         allocated (sum-field :fulfilled)
         residual (max 0 (- available allocated))
-        base {:schema-version "pro-rata-propagation.v2"
-              :calculation-ref (:decision/id decision)
-              :outcome-ref (:decision/hash decision)
-              :allocation-kind :shared-withdrawal-shortfall
-              :allocation/invocation-context (:allocation/invocation-context decision)
-              :allocation/reference
-              (let [mechanism (get-in decision [:evidence :allocation-mechanism])
-                    mechanism-evidence (get-in decision [:evidence :allocation-mechanism-evidence])]
-                {:schema-version "pro-rata-allocation-reference.v1"
-                 :allocation/id (:allocation/id mechanism)
-                 :allocation/hash (:allocation/hash mechanism)
-                 :mechanism (:mechanism mechanism)
-                 :mechanism-evidence (pro-rata-evidence/evidence-reference mechanism-evidence)
-                 :source-evidence {:artifact/id (:decision/id decision)
-                                   :artifact/hash (:decision/hash decision)}})
-                            :token (:token decision)
-                            :propagation-policy policy-ref
-                                          :policy-selection policy-selection
-                                          :participants participants
+base {:schema-version "pro-rata-propagation.v2"
+               :calculation-ref (:decision/id decision)
+               :outcome-ref (:decision/hash decision)
+               :allocation-kind :shared-withdrawal-shortfall
+               :allocation/invocation-context (:allocation/invocation-context decision)
+               :allocation/reference
+               (let [mechanism (get-in decision [:evidence :allocation-mechanism])
+                     mechanism-evidence (get-in decision [:evidence :allocation-mechanism-evidence])]
+                 {:schema-version "pro-rata-allocation-reference.v1"
+                  :allocation/id (:allocation/id mechanism)
+                  :allocation/hash (:allocation/hash mechanism)
+                  :mechanism (:mechanism mechanism)
+                  :mechanism-evidence (pro-rata-evidence/evidence-reference mechanism-evidence)
+                  :source-evidence {:artifact/id (:decision/id decision)
+                                    :artifact/hash (:decision/hash decision)}})
+               :token (:token decision)
+               :module/id (:module/id decision)
+               :propagation-policy policy-ref
+               :policy-selection policy-selection
+               :participants participants
                :summary {:obligation-before (sum-field :obligation-before)
                          :eligible-obligation (sum-field :eligible-obligation)
                          :available available :allocated allocated :fulfilled allocated
@@ -783,50 +784,52 @@
            :propagation/hash artifact-hash)))
 
 (defn validate-pro-rata-propagation
-  "Validate propagation-policy binding separately from allocation arithmetic.
-   Returns structured reasons so callers can distinguish policy violations."
-  [artifact]
-  (try
-    (let [expected-propagation-hash
-          (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                                (dissoc artifact :propagation/id :propagation/hash)))
-          hash-errors (cond-> []
-                        (nil? (:propagation/id artifact)) (conj :propagation-id-missing)
-                        (nil? (:propagation/hash artifact)) (conj :propagation-hash-missing)
-                        (not= (:propagation/hash artifact) expected-propagation-hash)
-                        (conj :propagation-hash-mismatch))
-          ref (:propagation-policy artifact)
-          snapshot (:policy/snapshot ref)
-          policy (propagation-policy/normalize-and-validate snapshot)
-          allocation-ref (:allocation/reference artifact)
-          reference-errors (cond-> []
-                             (not= "pro-rata-allocation-reference.v1" (:schema-version allocation-ref)) (conj :allocation-reference-schema-mismatch)
-                             (nil? (:allocation/id allocation-ref)) (conj :allocation-reference-id-missing)
-                             (nil? (:allocation/hash allocation-ref)) (conj :allocation-reference-hash-missing)
-                             (not= {:id :mechanism/pro-rata-allocation :version 1}
-                                   (:mechanism allocation-ref)) (conj :allocation-reference-mechanism-mismatch)
-                             (not= (:calculation-ref artifact)
-                                   (get-in allocation-ref [:source-evidence :artifact/id])) (conj :allocation-reference-source-id-mismatch)
-                             (not= (:outcome-ref artifact)
-                                   (get-in allocation-ref [:source-evidence :artifact/hash])) (conj :allocation-reference-source-hash-mismatch))
-          policy-errors (cond-> []
-                          (not= (:policy/hash ref) (:policy/hash policy)) (conj :policy-hash-mismatch)
-                          (not= (:policy/id ref) (:policy/id policy)) (conj :policy-id-mismatch)
-                          (not= (:policy/version ref) (:policy/version policy)) (conj :policy-version-mismatch))
-          participant-errors
-          (mapcat (fn [p]
-                    (let [d (long (:deferred p 0))]
-                      (cond-> []
-                        (and (pos? d) (not= (get-in policy [:shortfall :classification]) :deferred)) (conj :shortfall-classification-mismatch)
-                        (and (pos? d) (not= (get-in p [:next-position :next-round-weight-policy])
-                                            (get-in policy [:shortfall :next-round-weight-policy]))) (conj :next-round-weight-policy-mismatch)
-                        (and (zero? d) (not= :fulfilled (:position-status p))) (conj :fulfilled-position-not-closed))))
-                  (:participants artifact []))]
-      {:valid? (empty? (concat hash-errors reference-errors policy-errors participant-errors))
-             :calculation-errors []
-             :policy-errors (vec (concat hash-errors reference-errors policy-errors participant-errors))})
-    (catch clojure.lang.ExceptionInfo e
-      {:valid? false :calculation-errors [] :policy-errors [(:reason (ex-data e))]})))
+   "Validate propagation-policy binding separately from allocation arithmetic.
+    Returns structured reasons so callers can distinguish policy violations."
+   [artifact]
+   (try
+     (let [validated-artifact
+           (or (:application/base-propagation artifact) artifact)
+           expected-propagation-hash
+           (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
+                                                (dissoc validated-artifact :propagation/id :propagation/hash)))
+           hash-errors (cond-> []
+                         (nil? (:propagation/id validated-artifact)) (conj :propagation-id-missing)
+                         (nil? (:propagation/hash validated-artifact)) (conj :propagation-hash-missing)
+                         (not= (:propagation/hash validated-artifact) expected-propagation-hash)
+                         (conj :propagation-hash-mismatch))
+           ref (:propagation-policy validated-artifact)
+           snapshot (:policy/snapshot ref)
+           policy (propagation-policy/normalize-and-validate snapshot)
+           allocation-ref (:allocation/reference validated-artifact)
+           reference-errors (cond-> []
+                              (not= "pro-rata-allocation-reference.v1" (:schema-version allocation-ref)) (conj :allocation-reference-schema-mismatch)
+                              (nil? (:allocation/id allocation-ref)) (conj :allocation-reference-id-missing)
+                              (nil? (:allocation/hash allocation-ref)) (conj :allocation-reference-hash-missing)
+                              (not= {:id :mechanism/pro-rata-allocation :version 1}
+                                    (:mechanism allocation-ref)) (conj :allocation-reference-mechanism-mismatch)
+                              (not= (:calculation-ref validated-artifact)
+                                    (get-in allocation-ref [:source-evidence :artifact/id])) (conj :allocation-reference-source-id-mismatch)
+                              (not= (:outcome-ref validated-artifact)
+                                    (get-in allocation-ref [:source-evidence :artifact/hash])) (conj :allocation-reference-source-hash-mismatch))
+           policy-errors (cond-> []
+                           (not= (:policy/hash ref) (:policy/hash policy)) (conj :policy-hash-mismatch)
+                           (not= (:policy/id ref) (:policy/id policy)) (conj :policy-id-mismatch)
+                           (not= (:policy/version ref) (:policy/version policy)) (conj :policy-version-mismatch))
+           participant-errors
+           (mapcat (fn [p]
+                     (let [d (long (:deferred p 0))]
+                       (cond-> []
+                         (and (pos? d) (not= (get-in policy [:shortfall :classification]) :deferred)) (conj :shortfall-classification-mismatch)
+                         (and (pos? d) (not= (get-in p [:next-position :next-round-weight-policy])
+                                              (get-in policy [:shortfall :next-round-weight-policy]))) (conj :next-round-weight-policy-mismatch)
+                         (and (zero? d) (not= :fulfilled (:position-status p))) (conj :fulfilled-position-not-closed))))
+                   (:participants validated-artifact []))]
+       {:valid? (empty? (concat hash-errors reference-errors policy-errors participant-errors))
+        :calculation-errors []
+        :policy-errors (vec (concat hash-errors reference-errors policy-errors participant-errors))})
+     (catch clojure.lang.ExceptionInfo e
+       {:valid? false :calculation-errors [] :policy-errors [(:reason (ex-data e))]})))
 
 (defn propagation-allocation-binding-violations
   "Verify that a v2 propagation is an exact domain translation of the committed

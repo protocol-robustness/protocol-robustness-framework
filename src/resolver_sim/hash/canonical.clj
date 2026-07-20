@@ -24,6 +24,7 @@
 (def ^:const tag-bool-false (byte 0x01))
 (def ^:const tag-bool-true  (byte 0x02))
 (def ^:const tag-int        (byte 0x10))
+(def ^:const tag-ratio      (byte 0x11))
 (def ^:const tag-string     (byte 0x20))
 (def ^:const tag-keyword    (byte 0x22))
 (def ^:const tag-array      (byte 0x30))
@@ -243,42 +244,47 @@
 ;; ──────────────────────────────────────────────────────────────────────────────
 
 (defn canonical-bytes
-  "Produce the canonical typed binary encoding of a value.
-   Returns a byte-array per CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI."
-  [v]
-  (cond
-    (nil? v)
-    (ba-of tag-null)
+   "Produce the canonical typed binary encoding of a value.
+    Returns a byte-array per CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI."
+   [v]
+   (cond
+     (nil? v)
+     (ba-of tag-null)
 
-    (instance? Boolean v)
-    (ba-of (if v tag-bool-true tag-bool-false))
+     (instance? Boolean v)
+     (ba-of (if v tag-bool-true tag-bool-false))
 
-    ;; Only integer types have a canonical representation.  Do not use
-    ;; number? here: coercing floating-point values or ratios to long silently
-    ;; aliases distinct semantic values (for example, 1 and 1.9).
-    (or (instance? Long v)
-        (instance? Integer v)
-        (instance? Short v)
-        (instance? Byte v)
-        (instance? clojure.lang.BigInt v)
-        (instance? BigInteger v))
-    (let [bi (coerce-integer v)
-          zv (zigzag bi)
-          vu (encode-varuint zv)]
-      (ba-concat (ba-of tag-int) vu))
+     ;; Only integer types have a canonical representation.  Do not use
+     ;; number? here: coercing floating-point values or ratios to long silently
+     ;; aliases distinct semantic values (for example, 1 and 1.9).
+     (or (instance? Long v)
+         (instance? Integer v)
+         (instance? Short v)
+         (instance? Byte v)
+         (instance? clojure.lang.BigInt v)
+         (instance? BigInteger v))
+     (let [bi (coerce-integer v)
+           zv (zigzag bi)
+           vu (encode-varuint zv)]
+       (ba-concat (ba-of tag-int) vu))
 
-    (instance? String v)
-    (let [bs (utf8-bytes v)
-          len (encode-varuint (count bs))]
-      (ba-concat (ba-of tag-string) len bs))
+     (instance? String v)
+     (let [bs (utf8-bytes v)
+           len (encode-varuint (count bs))]
+       (ba-concat (ba-of tag-string) len bs))
 
-    (instance? clojure.lang.Keyword v)
-    (let [s (keyword-string v)
-          bs (utf8-bytes s)
-          len (encode-varuint (count bs))]
-      (ba-concat (ba-of tag-keyword) len bs))
+     (instance? clojure.lang.Keyword v)
+     (let [s (keyword-string v)
+           bs (utf8-bytes s)
+           len (encode-varuint (count bs))]
+       (ba-concat (ba-of tag-keyword) len bs))
 
-    (instance? clojure.lang.IPersistentVector v)
+     (instance? clojure.lang.Ratio v)
+     (let [num-bytes (canonical-bytes (numerator v))
+           den-bytes (canonical-bytes (denominator v))]
+       (ba-concat (ba-of tag-ratio) num-bytes den-bytes))
+
+     (instance? clojure.lang.IPersistentVector v)
     (let [count-enc (encode-varuint (count v))
           elements (map canonical-bytes v)]
       (apply ba-concat (ba-of tag-array) count-enc elements))

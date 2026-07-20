@@ -18,10 +18,13 @@
   {:yield/indices {:test-mod {"USDC" 1.0}}
    :yield/rates   {:test-mod {"USDC" 0.05}}
    :yield/risk    {:test-mod {"USDC" {:liquidity-mode :available
-                                      :loss-mode :none}}}
+                                        :loss-mode :none}}}
    :yield/held-balances {"USDC" 1000000}
    :yield/module-status {:test-mod :active}
-   :block-time 1000})
+   :block-time 1000
+   :run/id "test-run"
+   :execution/id "test-execution"
+   :params {:scenario-id "test-scenario"}})
 
 (defn- deposit-owners
   [world owners amount]
@@ -31,12 +34,12 @@
           owners))
 
 (defn- participants-from
-  [world]
-  (->> (:yield/pro-rata-propagations world)
-       vals
-       (sort-by :propagation/id)
-       last
-       :participants))
+   [world]
+   (->> (:yield/pro-rata-propagations world)
+        vals
+        (sort-by :propagation/id)
+        last
+        :participants))
 
 ;; ── Fixture suite 1: Deposit sequence numbering ──────────────────────────
 

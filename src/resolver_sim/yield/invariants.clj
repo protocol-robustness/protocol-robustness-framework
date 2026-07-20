@@ -44,51 +44,60 @@
                                 (neg? (:shares pos 0)) (conj :negative-shares)
                                 (neg? (:realized-yield pos 0)) (conj :negative-realized-yield)
                                 (and (not mtm?) (not authorized-impairment?) (neg? (:unrealized-yield pos 0))) (conj :negative-unrealized-yield))]
-                   (when (seq issues)
-                     {:owner-id oid :issues issues})))
-               (:yield/positions world {})))]
-    {:holds? (empty? violations) :violations (vec violations)}))
+                    (when (seq issues)
+                      {:owner-id oid :issues issues})))
+                (:yield/positions world {}))]
+     {:holds? (empty? violations)
+      :violations (vec violations)
+      :checks {:principal-non-negative (if (some #(contains? (set (:issues %)) :negative-principal) violations) :fail :pass)
+               :shares-non-negative (if (some #(contains? (set (:issues %)) :negative-shares) violations) :fail :pass)
+               :realized-yield-non-negative (if (some #(contains? (set (:issues %)) :negative-realized-yield) violations) :fail :pass)
+               :unrealized-yield-non-negative (if (some #(contains? (set (:issues %)) :negative-unrealized-yield) violations) :fail :pass)}}))
 
 (defn check-realized-non-negative
   [world]
-  (every? #(>= (:realized-yield % 0) 0) (vals (:yield/positions world {}))))
+  (let [holds? (every? #(>= (:realized-yield % 0) 0) (vals (:yield/positions world {})))]
+    {:holds? holds? :violations [] :checks {:realized-yield-non-negative (if holds? :pass :fail)}}))
 
 (defn check-status-fsm
   [world]
-  (let [allowed #{:active :unwinding :withdrawn :settled}]
-    (every? #(contains? allowed (:status %)) (vals (:yield/positions world {})))))
+  (let [allowed #{:active :unwinding :withdrawn :settled}
+        holds? (every? #(contains? allowed (:status %)) (vals (:yield/positions world {})))]
+    {:holds? holds? :violations [] :checks {:status-fsm-valid (if holds? :pass :fail)}}))
 
 (defn check-shortfall-splits
   "When :shortfall exists, fulfilled + deferred + haircut = basis."
   [world]
-  (every? (fn [pos]
-            (if-let [sf (:shortfall pos)]
-              (let [f (long (or (:fulfilled-amount sf) 0))
-                    d (long (or (:deferred-amount sf) 0))
-                    h (long (or (:haircut-amount sf) 0))
-                    b (long (or (:basis-amount sf) 0))]
-                (= (+ f d h) b))
-              true))
-          (vals (:yield/positions world {}))))
+  (let [holds? (every? (fn [pos]
+                         (if-let [sf (:shortfall pos)]
+                           (let [f (long (or (:fulfilled-amount sf) 0))
+                                 d (long (or (:deferred-amount sf) 0))
+                                 h (long (or (:haircut-amount sf) 0))
+                                 b (long (or (:basis-amount sf) 0))]
+                             (= (+ f d h) b))
+                           true))
+                       (vals (:yield/positions world {})))]
+    {:holds? holds? :violations [] :checks {:shortfall-splits-balanced (if holds? :pass :fail)}}))
 
 (defn check-partial-liquidity-principal
   "Under :partial-liquidity, unwinding positions must not haircut principal on the shortfall map."
   [world]
-  (every? (fn [pos]
-            (let [risk (get-in world [:yield/risk (:module/id pos) (:token pos)] {})
-                  failures (risk/normalize-failure-modes (:failure-modes risk))
-                  partial? (contains? failures :partial-liquidity)]
-              (if (and partial? (= (:status pos) :unwinding) (:shortfall pos))
-                (let [sf (:shortfall pos)
-                      principal (:principal pos 0)
-                      f (long (or (:fulfilled-amount sf) 0))
-                      d (long (or (:deferred-amount sf) 0))
-                      b (long (or (:basis-amount sf) 0))]
-                  (and (pos? principal)
-                       (zero? (long (or (:haircut-amount sf) 0)))
-                       (= (+ f d) b)))
-                true)))
-          (vals (:yield/positions world {}))))
+  (let [holds? (every? (fn [pos]
+                         (let [risk (get-in world [:yield/risk (:module/id pos) (:token pos)] {})
+                               failures (risk/normalize-failure-modes (:failure-modes risk))
+                               partial? (contains? failures :partial-liquidity)]
+                           (if (and partial? (= (:status pos) :unwinding) (:shortfall pos))
+                             (let [sf (:shortfall pos)
+                                   principal (:principal pos 0)
+                                   f (long (or (:fulfilled-amount sf) 0))
+                                   d (long (or (:deferred-amount sf) 0))
+                                   b (long (or (:basis-amount sf) 0))]
+                               (and (pos? principal)
+                                    (zero? (long (or (:haircut-amount sf) 0)))
+                                    (= (+ f d) b)))
+                             true)))
+                       (vals (:yield/positions world {})))]
+    {:holds? holds? :violations [] :checks {:partial-liquidity-principal-intact (if holds? :pass :fail)}}))
 
 (defn check-value-conservation
   "Conservation invariant: shortfall components are non-negative and
@@ -102,19 +111,20 @@
    For now, verifies: deferred-amount + haircut-amount >= 0
    and (deferred-amount + haircut-amount) <= principal + unrealized-yield
    when shortfall exists."
-  [world]
-  (every? (fn [pos]
-            (let [principal (long (:principal pos 0))
-                  unrealized (long (:unrealized-yield pos 0))
-                  sf (:shortfall pos)
-                  deferred  (long (or (:deferred-amount sf) 0))
-                  haircut   (long (or (:haircut-amount sf) 0))
-                  fulfilled (long (or (:fulfilled-amount sf) 0))]
-              (and (>= deferred 0) (>= haircut 0) (>= fulfilled 0)
-                   (if sf
-                     (<= (+ deferred haircut) (+ principal (max 0 unrealized)))
-                     true))))
-          (vals (:yield/positions world {}))))
+   [world]
+   (let [holds? (every? (fn [pos]
+                          (let [principal (long (:principal pos 0))
+                                unrealized (long (:unrealized-yield pos 0))
+                                sf (:shortfall pos)
+                                deferred  (long (or (:deferred-amount sf) 0))
+                                haircut   (long (or (:haircut-amount sf) 0))
+                                fulfilled (long (or (:fulfilled-amount sf) 0))]
+                            (and (>= deferred 0) (>= haircut 0) (>= fulfilled 0)
+                                 (if sf
+                                   (<= (+ deferred haircut) (+ principal (max 0 unrealized)))
+                                   true))))
+                        (vals (:yield/positions world {})))]
+     {:holds? holds? :violations [] :checks {:value-conservation-valid (if holds? :pass :fail)}}))
 
 (defn check-aggregate-shortfall-cap
   "Aggregate shortfall per (module-id, token) pair must not exceed
@@ -136,24 +146,26 @@
                                                                          (long (:realized-yield p 0))
                                                                          (max 0 (long (:unrealized-yield p 0)))))
                                                                     pos-group))]
-                                   (when (> total-basis total-value)
-                                     {:module-id mid :token tok
-                                      :total-basis total-basis
-                                      :total-value total-value
-                                      :imbalance (- total-basis total-value)}))))
-                         by-key)]
-    {:holds? (empty? violations)
-     :violations (vec violations)}))
+                                    (when (> total-basis total-value)
+                                      {:module-id mid :token tok
+                                       :total-basis total-basis
+                                       :total-value total-value
+                                       :imbalance (- total-basis total-value)}))))
+                          by-key)]
+     {:holds? (empty? violations)
+      :violations (vec violations)
+      :checks {:aggregate-shortfall-within-value (if (seq violations) :fail :pass)}}))
 
 (defn check-deferred-reclaim
   "Withdrawn positions: no shortfall; reclaimed ≥ 0."
   [world]
-  (every? (fn [pos]
-            (if (= (:status pos) :withdrawn)
-              (and (nil? (:shortfall pos))
-                   (>= (long (or (:reclaimed-amount pos) 0)) 0))
-              true))
-          (vals (:yield/positions world {}))))
+  (let [holds? (every? (fn [pos]
+                         (if (= (:status pos) :withdrawn)
+                           (and (nil? (:shortfall pos))
+                                (>= (long (or (:reclaimed-amount pos) 0)) 0))
+                           true))
+                       (vals (:yield/positions world {})))]
+    {:holds? holds? :violations [] :checks {:deferred-reclaim-valid (if holds? :pass :fail)}}))
 
 (defn check-shortfall-detected
   "Verify shortfall detection correctness:
@@ -197,7 +209,37 @@
                   false
 
                   :else true)))
-            positions)))
+             positions)))
+  (let [holds? (every? (fn [[oid pos]]
+                         (let [mid (:module/id pos)
+                               tok (:token pos)
+                               status (:status pos)
+                               sf (:shortfall pos)
+                               risk (get-in world [:yield/risk mid tok] {})
+                               liquidity-mode (risk/effective-liquidity-mode risk)
+                               market-state (get-in world [:yield/market-state mid tok])
+                               available-ratio (double (or (:available-ratio market-state) 1.0))
+                               principal (long (:principal pos 0))
+                               realized (long (:realized-yield pos 0))
+                               unrealized (long (:unrealized-yield pos 0))
+                               total-value (+ principal realized (max 0 unrealized))
+                               shortfall-mode? (and (= liquidity-mode :shortfall)
+                                                    (< available-ratio 1.0))]
+                           (cond
+                             ;; Over-detection: shortfall basis must not exceed position value
+                             (and sf (pos? (:basis-amount sf 0))
+                                  (> (long (:basis-amount sf 0)) total-value))
+                             false
+
+                             ;; Under-detection: unwinding during shortfall must have :shortfall
+                             (and shortfall-mode?
+                                  (#{:unwinding} status)
+                                  (nil? sf))
+                             false
+
+                             :else true)))
+                       positions)]
+    {:holds? holds? :violations [] :checks {:shortfall-detected-valid (if holds? :pass :fail)}}))
 
 (defn position-custody-need
   [world pos]
@@ -211,19 +253,20 @@
 (defn check-yield-exposure
   [world live-position-pred held-balance-fn]
   (let [positions (get world :yield/positions {})
-        tokens    (into #{} (map :token (vals positions)))]
-    (every? (fn [token]
-              (let [held (held-balance-fn token)
-                    total-needed (reduce (fn [acc [oid pos]]
-                                           (if (and (= (:token pos) token)
-                                                    (= (:status pos) :active)
-                                                    (live-position-pred oid pos))
-                                             (+ acc (position-custody-need world pos))
-                                             acc))
-                                         0
-                                         positions)]
-                (>= held total-needed)))
-            tokens)))
+        tokens    (into #{} (map :token (vals positions)))
+        holds? (every? (fn [token]
+                         (let [held (held-balance-fn token)
+                               total-needed (reduce (fn [acc [oid pos]]
+                                                      (if (and (= (:token pos) token)
+                                                               (= (:status pos) :active)
+                                                               (live-position-pred oid pos))
+                                                        (+ acc (position-custody-need world pos))
+                                                        acc))
+                                                    0
+                                                    positions)]
+                           (>= held total-needed)))
+                       tokens)]
+    {:holds? holds? :violations [] :checks {:exposure-covered (if holds? :pass :fail)}}))
 
 (defn- resolver-owned-position?
   "True when the position belongs to a resolver (backed by resolver-stakes, not total-held)."
@@ -250,8 +293,10 @@
               (for [[normalized keys] grouped
                     :when (> (count keys) 1)]
                 {:path path :token normalized :keys (vec (sort-by str keys))})))
-          paths))]
-    {:holds? (empty? violations) :violations violations}))
+           paths))]
+     {:holds? (empty? violations)
+      :violations violations
+      :checks {:token-key-representation-consistent (if (seq violations) :fail :pass)}}))
 
 (defn check-provider-exposure
   "Yield exposure invariant: total-held must cover active yield positions.
@@ -275,7 +320,7 @@
   [world applications]
   (let [order-valid? (fn [a]
                        (let [order (:application-order a)]
-                         (and (= "pro-rata-application-order.v1" (:schema-version order))
+                         (and (#{"pro-rata-application-order.v1" "pro-rata-application-order.v2"} (:schema-version order))
                               (integer? (:step order))
                               (not (neg? (:step order)))
                               (integer? (:event-id order))
@@ -716,17 +761,17 @@
                                                                                                                                (and (pos? fulfilled) (> (count matching) 1)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-duplicate})
                                                                                                                                (and (pos? fulfilled) (= 1 (count matching)) (not= fulfilled (long (:delta (first matching) 0)))) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-mismatch})
                                                                                                                                (and (zero? fulfilled) (seq matching)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :unexpected-zero-fulfilment-credit})))) participants)]
-                                                                                               (cond-> []
-                               (nil? a) (conj {:propagation-id id :reason :missing-propagation-application})
-                                                              (and a (not= "pro-rata-propagation-application.v2" (:schema-version a))) (conj {:propagation-id id :reason :unsupported-application-schema})
-                                                              (and a (nil? (:application/hash a))) (conj {:propagation-id id :reason :application-hash-missing})
-                                                              (and a (:application/hash a)
-                                                                   (not= (:application/hash a)
-                                                                         (partial-fill/application-hash a)))
-                                                              (conj {:propagation-id id :reason :application-hash-mismatch})
-                                                              (and a (= "pro-rata-propagation.v2" (:schema-version p))
-                                                                                                                                 (not= {:propagation/id id :propagation/hash (:propagation/hash p)}
-                                                                        (:propagation/reference a))) (conj {:propagation-id id :reason :application-propagation-reference-mismatch})
+(cond-> []
+                                (nil? a) (conj {:propagation-id id :reason :missing-propagation-application})
+                                (and a (not (#{"pro-rata-propagation-application.v2" "pro-rata-propagation-application.v3"} (:schema-version a)))) (conj {:propagation-id id :reason :unsupported-application-schema})
+                                (and a (nil? (:application/hash a))) (conj {:propagation-id id :reason :application-hash-missing})
+                                (and a (:application/hash a)
+                                     (not= (:application/hash a)
+                                           (partial-fill/application-hash a)))
+                                (conj {:propagation-id id :reason :application-hash-mismatch})
+                                (and a (let [expected-ref {:propagation/id id :propagation/hash (:propagation/hash p) :propagation/content-hash (:propagation/content-hash p)}
+                                              actual-ref (:propagation/reference a)]
+                                          (not= expected-ref actual-ref))) (conj {:propagation-id id :reason :application-propagation-reference-mismatch})
                                                                (and a (not= (:allocation/invocation-context p)
                                                                          (:allocation/invocation-context a)))
                                                               (conj {:propagation-id id :reason :application-invocation-context-mismatch})
@@ -805,8 +850,26 @@
                 :propagated-unmet-mismatch
                 :propagation-fulfilled-total-mismatch
                 :propagation-unmet-total-mismatch})
-       :application-order-valid (pass? #{:application-order-missing :application-order-duplicate})
-                :source-balance-chain-valid (pass? #{:source-balance-chain-broken :latest-source-balance-mismatch})
+        :application-order-valid (pass? #{:application-order-missing :application-order-duplicate})
+                 :application-binding-valid
+                 (pass? #{:unsupported-application-schema
+                          :application-hash-missing
+                          :application-hash-mismatch
+                          :application-propagation-reference-mismatch
+                          :application-invocation-context-mismatch
+                          :application-calculation-id-mismatch
+                          :application-outcome-hash-mismatch
+                          :application-policy-hash-mismatch})
+                 :application-participant-set-valid (pass? #{:application-participant-set-mismatch})
+                 :participant-credit-total-valid (pass? #{:participant-credit-total-mismatch})
+                 :source-account-arithmetic-valid
+                 (pass? #{:source-account-arithmetic-failed
+                          :source-debit-mismatch
+                          :source-account-entry-missing})
+                 :accounting-entry-set-hash-consistent
+                 (pass? #{:propagation-accounting-entry-hash-mismatch
+                          :application-accounting-entry-hash-mismatch})
+                 :source-balance-chain-valid (pass? #{:source-balance-chain-broken :latest-source-balance-mismatch})
                 :participant-withdrawn-arithmetic (pass? #{:participant-withdrawn-arithmetic-failed :application-withdrawn-delta-mismatch})
                 :participant-balance-chain-valid (pass? #{:participant-balance-chain-broken :latest-authoritative-withdrawn-balance-mismatch})
                 :participant-credit-keys-complete (pass? #{:participant-obligation-id-missing :credit-obligation-id-missing :duplicate-propagation-participant})
@@ -914,8 +977,18 @@
                          :propagated-fulfilled-mismatch
                          :propagated-unmet-mismatch
                          :propagation-fulfilled-total-mismatch
-                         :propagation-unmet-total-mismatch})}
-       :violations violations})))
+                         :propagation-unmet-total-mismatch})
+                 :entitlement-conserved (pass? #{:entitlement-not-conserved
+                                                 :aggregate-entitlement-not-conserved})
+                 :capacity-within-bounds (pass? #{:capacity-exceeded})
+                 :deferred-position-applied (pass? #{:deferred-position-not-applied})
+                 :fulfilled-position-closed (pass? #{:fulfilled-position-not-closed})
+                 :allocation-applied (pass? #{:allocation-not-applied})
+                 :ledger-balanced (pass? #{:ledger-not-balanced})
+                 :liquidity-conserved (pass? #{:liquidity-not-conserved})
+                 :participant-accounting-reconciled (pass? #{:participant-accounting-not-reconciled})
+                 :residual-has-destination (pass? #{:residual-without-destination})}
+        :violations violations})))
 
 (def ^:private check-fns
   {:yield/position-consistency check-position-consistency

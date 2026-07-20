@@ -22,19 +22,21 @@
         entry-hash (pf/accounting-entry-set-hash entries)
         policy (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy)
         policy-hash (:policy/hash policy)
-        p {:propagation/id "p1" :calculation-ref "c1" :outcome-ref "o1" :token :USDC
-           :propagation-policy (propagation-policy/policy-reference policy)
-           :summary {:available 100 :allocated 60 :unallocated-residual 40}
-                                 :residual {:destination :remain-in-shared-liquidity}
-                                 :participants [{:participant-id "alice" :eligible-obligation 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "oa"}}
-                                                {:participant-id "bob" :eligible-obligation 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "ob"}}]
-                                                :accounting-entries entries :accounting-entry-set-hash entry-hash}
-        app {:schema-version "pro-rata-propagation-application.v2" :propagation-id "p1"
-             :calculation-id "c1" :outcome-hash "o1" :policy-hash policy-hash
-             :application-key [:pro-rata-propagation "c1" "o1" policy-hash]
-             :application-order {:schema-version "pro-rata-application-order.v1" :step 1 :event-id 0}
-             :accounting-entry-set-hash entry-hash
-             :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
+p {:propagation/id "p1" :calculation-ref "c1" :outcome-ref "o1" :token :USDC
+            :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"
+            :propagation-policy (propagation-policy/policy-reference policy)
+            :summary {:available 100 :allocated 60 :unallocated-residual 40}
+            :residual {:destination :remain-in-shared-liquidity}
+            :participants [{:participant-id "alice" :eligible-obligation 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "oa"}}
+                           {:participant-id "bob" :eligible-obligation 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "ob"}}]
+            :accounting-entries entries :accounting-entry-set-hash entry-hash}
+app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
+               :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
+               :calculation-id "c1" :outcome-hash "o1" :policy-hash policy-hash
+               :application-key [:pro-rata-propagation "c1" "o1" policy-hash]
+              :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
+              :accounting-entry-set-hash entry-hash
+              :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
                           :residual {:token :USDC :available 100 :allocated 60 :amount 40
                                      :destination :remain-in-shared-liquidity}
                           :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
@@ -57,22 +59,22 @@
     (is (true? (get-in results [:yield/pro-rata-accounting-reconciles :holds?])))))
 
 (deftest accounting-chain-mutations
-  (let [a {:propagation-id "p1" :application-order {:schema-version "pro-rata-application-order.v1" :step 1 :event-id 0}
-           :source-account {:token :USDC :before 100 :after 60}
-           :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 40 :before 0 :after 40}}]}
-        b {:propagation-id "p2" :application-order {:schema-version "pro-rata-application-order.v1" :step 2 :event-id 0}
-           :source-account {:token :USDC :before 60 :after 30}
-           :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 30 :before 40 :after 70}}]}
-        world {:total-held {:USDC 30} :yield/withdrawn {:USDC {"alice" 70}}}]
-    (is (empty? (inv/chain-violations world [a b])))
-    (is (some #(= :source-balance-chain-broken (:reason %))
-              (inv/chain-violations world [a (assoc-in b [:source-account :before] 59)])))
-    (is (some #(= :participant-balance-chain-broken (:reason %))
-              (inv/chain-violations world [a (assoc-in b [:participants 0 :withdrawn :before] 39)])))
-    (is (some #(= :application-order-duplicate (:reason %))
-              (inv/chain-violations world [a (assoc b :application-order {:schema-version "pro-rata-application-order.v1" :step 1 :event-id 0})])))
-    (is (some #(= :application-order-missing (:reason %))
-              (inv/chain-violations world [a (assoc b :application-order {:step 2})])))))
+   (let [a {:propagation-id "p1" :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
+            :source-account {:token :USDC :before 100 :after 60}
+            :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 40 :before 0 :after 40}}]}
+         b {:propagation-id "p2" :application-order {:schema-version "pro-rata-application-order.v2" :step 2 :event-id 0}
+            :source-account {:token :USDC :before 60 :after 30}
+            :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 30 :before 40 :after 70}}]}
+         world {:total-held {:USDC 30} :yield/withdrawn {:USDC {"alice" 70}}}]
+     (is (empty? (inv/chain-violations world [a b])))
+     (is (some #(= :source-balance-chain-broken (:reason %))
+               (inv/chain-violations world [a (assoc-in b [:source-account :before] 59)])))
+     (is (some #(= :participant-balance-chain-broken (:reason %))
+               (inv/chain-violations world [a (assoc-in b [:participants 0 :withdrawn :before] 39)])))
+     (is (some #(= :application-order-duplicate (:reason %))
+               (inv/chain-violations world [a (assoc b :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0})])))
+     (is (some #(= :application-order-missing (:reason %))
+               (inv/chain-violations world [a (assoc b :application-order {:step 2})])))))
 
 (deftest closure-history-mutations
   (let [prior {:position/id "alice/deferred/1" :position/root-obligation-id "oa" :position/current-amount 20}
