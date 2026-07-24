@@ -1,8 +1,8 @@
 (ns resolver-sim.concepts.benchmark-test
   (:require [clojure.test :refer [deftest is testing]]
-              [resolver-sim.concepts.benchmark :as benchmark-concepts]
-              [resolver-sim.concepts.registry :as concepts-registry]
-              [resolver-sim.concepts.reporting :as reporting]))
+            [resolver-sim.concepts.benchmark :as benchmark-concepts]
+            [resolver-sim.concepts.registry :as concepts-registry]
+            [resolver-sim.concepts.reporting :as reporting]))
 
 (deftest resolve-benchmark-concepts-prefers-local-shadow
   (testing "benchmark-local concepts override global concepts with the same id"

@@ -2,16 +2,19 @@
   "Backstop orchestration: runs registered review-gate commands in-process.
    Port of scripts/backstop.clj — no ProcessBuilder, no bb shelling out."
   (:require [clojure.string :as str]
-            [resolver-sim.cli.registry :as reg]))
+            [resolver-sim.cli.registry :as reg]
+            [resolver-sim.cli.dispatch :as dispatch]))
 
 (def tier-rank {:fast 0 :default 1 :full 2 :manual 3 :deprecated 4})
 
 (defn- include-command?
   "True when a command should run for the given target-tier.
-   Keys match output of reg/list-commands: :tier, :id, :jar-avail."
-  [target-tier {:keys [tier jar-avail status] :or {status :active}}]
+   Keys match output of reg/list-commands: :tier, :id, :jar-avail.
+   Also checks if command is available in current distribution."
+  [target-tier {:keys [tier jar-avail status] :or {status :active}} cmd-id]
   (and (= :active status)
-       (not= :external-runtime jar-avail)
+       (not= :external jar-avail)
+       (dispatch/command-available? cmd-id)
        (<= (tier-rank (or tier :manual))
            (tier-rank target-tier))
        (contains? #{:fast :default :full} tier)))
@@ -38,7 +41,7 @@
    opts — {:keys [tier include-external? json? explain?]}"
   [{:keys [tier] :as opts}]
   (println (str "▶ backstop " (name (or tier :default))))
-  (let [commands (filter #(include-command? (or tier :default) %) (reg/list-commands))
+  (let [commands (filter #(include-command? (or tier :default) % (:id %)) (reg/list-commands))
         results (mapv (fn [cmd]
                         (assoc (run-handler (:id cmd) opts)
                                :command-id (:id cmd)))
@@ -51,7 +54,7 @@
         (do (println (str "BACKSTOP " (str/upper-case (name (or tier :default))) " PASSED"))
             {:exit-code 0 :message "backstop passed" :results results})
         (do (println (str "BACKSTOP " (str/upper-case (name (or tier :default))) " FAILED - "
-                          (count failures) " failure(s)"))
+                            (count failures) " failure(s)"))
             {:exit-code 1 :message (str (count failures) " failure(s)")
              :results results :failures failures})))))
 

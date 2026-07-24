@@ -46,7 +46,7 @@
    :claimable-delta (- (claimable-total world-after) (claimable-total world-before))
    :held-adjustment-ids (mapv :held-adjustment/id
                               (drop (count (:held-adjustments world-before))
-                                    (:held-adjustments world-after)))} )
+                                    (:held-adjustments world-after)))})
 
 (defn- emit-yield-execution-node! [event accounting-delta]
   (try
@@ -327,10 +327,10 @@
                        :result          :rejected
                        :error           (:error temporal-failure)
                        :temporal-rule-id (:rule-id temporal-failure)
-                        :extra           nil
-                        :guard-context   (:guard-context temporal-failure)
-                        :event-tags      tags
-                        :invariant-phase :temporal-rule
+                       :extra           nil
+                       :guard-context   (:guard-context temporal-failure)
+                       :event-tags      tags
+                       :invariant-phase :temporal-rule
                        :invariants-ok?  true
                        :violations      nil
                        :world           (proto/world-snapshot protocol world)
@@ -409,9 +409,9 @@
             :action          (:action event)
             :params          (:params event)
             :save-id-as      (:save-id-as event)
-:transition/id   (analysis/action->transition-id (:action event))
-             :transition/hash (:evidence-hash (:evidence result))
-             :result          result-kw
+            :transition/id   (analysis/action->transition-id (:action event))
+            :transition/hash (:evidence-hash (:evidence result))
+            :result          result-kw
             :error           error-kw
             :extra           (:extra result)
             :detail          (:detail result)
@@ -727,25 +727,25 @@
 
                 (:halted? step)
                 (do
-                (temporal/maybe-record-temporal! temporal-cfg temporal-enabled? scenario-id :fail (:world step) new-metrics new-trace)
-                (attr/with-attribution
-                  {:ctx/scenario-id scenario-id
-                   :ctx/run-id run-id}
-                  (attr/log-with-attr :error "scenario/halt" {:id scenario-id :seq (:seq event) :reason :invariant-violation}))
-                (when (evidence-mode-allows? replay-flags :invariant-failure)
-                  (emit-invariant-failure-evidence!
-                   (:seq event) scenario-id
-                   (get-in step [:trace-entry :violations])))
-                {:outcome :fail
-                 :scenario-id scenario-id
-                 :events-processed (count new-trace)
-                 :halted-at-seq (:seq event)
-                 :halt-reason :invariant-violation
-                 :trace new-trace
-                 :metrics new-metrics
-                 :execution {:mode :sequential}
-                 :protocol protocol
-                 :last-valid-world world
-                 :world-checkpoints checkpoints'})
+                  (temporal/maybe-record-temporal! temporal-cfg temporal-enabled? scenario-id :fail (:world step) new-metrics new-trace)
+                  (attr/with-attribution
+                    {:ctx/scenario-id scenario-id
+                     :ctx/run-id run-id}
+                    (attr/log-with-attr :error "scenario/halt" {:id scenario-id :seq (:seq event) :reason :invariant-violation}))
+                  (when (evidence-mode-allows? replay-flags :invariant-failure)
+                    (emit-invariant-failure-evidence!
+                     (:seq event) scenario-id
+                     (get-in step [:trace-entry :violations])))
+                  {:outcome :fail
+                   :scenario-id scenario-id
+                   :events-processed (count new-trace)
+                   :halted-at-seq (:seq event)
+                   :halt-reason :invariant-violation
+                   :trace new-trace
+                   :metrics new-metrics
+                   :execution {:mode :sequential}
+                   :protocol protocol
+                   :last-valid-world world
+                   :world-checkpoints checkpoints'})
                 :else
                 (recur new-world (rest events) new-trace new-metrics new-states checkpoints' checkpoint-log' diagnostics' new-alias-map)))))))))

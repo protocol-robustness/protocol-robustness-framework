@@ -7,12 +7,12 @@
 
 (def phase-6-claims
   #{:projection-deterministic
-      :projection-canonical-safe
-      :pro-rata/allocation-complete
-      :pro-rata/non-negative
-      :pro-rata/conservation
-      :pro-rata/quota-bounded
-      :pro-rata/permutation-invariant})
+    :projection-canonical-safe
+    :pro-rata/allocation-complete
+    :pro-rata/non-negative
+    :pro-rata/conservation
+    :pro-rata/quota-bounded
+    :pro-rata/permutation-invariant})
 
 (def extended-claims
   (conj phase-6-claims
@@ -314,7 +314,7 @@
 (deftest conservation-reports-each-invalid-row
   (testing "one corrupted allocation row fails conservation even when another is valid"
     (let [direct {:allocations [{:id :resolver-a :owed 10 :paid 8 :unmet 2}
-                               {:id :resolver-b :owed 10 :paid 7 :unmet 1}]
+                                {:id :resolver-b :owed 10 :paid 7 :unmet 1}]
                   :total-requested 20 :total-allocated 15 :total-unmet 4 :remainder 1}
           result (claims/evaluate-claim
                   :conservation

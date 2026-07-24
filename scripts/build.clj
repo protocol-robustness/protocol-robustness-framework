@@ -135,14 +135,22 @@
         lib (symbol (str "resolver-sim/prf-runner-" vname))
 
         ;; Build deps file for clean classpath
-        core-deps-str (pr-str
+core-deps-str (pr-str
                        '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}
                                 org.clojure/tools.logging {:mvn/version "1.2.4"}
                                 org.slf4j/slf4j-api {:mvn/version "1.7.36"}
                                 org.slf4j/slf4j-simple {:mvn/version "1.7.36"}
                                 org.clojure/tools.cli {:mvn/version "1.0.219"}
-                                org.clojure/data.json {:mvn/version "2.4.0"}}
-                         :paths ["src" "resources"]})
+                                org.clojure/data.json {:mvn/version "2.4.0"}
+                                buddy/buddy-core {:mvn/version "1.12.0-430"}
+                                com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
+                                org.postgresql/postgresql {:mvn/version "42.7.2"}
+                                metosin/malli {:mvn/version "0.17.0"}
+                                org.clojure/core.async {:mvn/version "1.9.865"}
+                                io.grpc/grpc-netty-shaded {:mvn/version "1.64.0"}
+                                io.grpc/grpc-stub {:mvn/version "1.64.0"}
+                                scicloj/tablecloth {:mvn/version "7.029.2"}}
+                        :paths ["src" "resources"]})
         sew-deps-str (pr-str
                       '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}
                                org.clojure/tools.logging {:mvn/version "1.2.4"}
@@ -160,7 +168,7 @@
                        "/prf-build-deps-" (System/nanoTime) ".edn")
         _ (spit deps-path deps-str)
         basis (b/create-basis {:project deps-path})
-        src-dirs (if is-prf ["src" "resources"] ["src" "protocols_src" "resources"])
+        src-dirs (if is-prf ["src" "resources" "scenarios"] ["src" "protocols_src" "resources" "scenarios"])
         class-dir (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-" (System/nanoTime))
         jar-file (if is-prf "target/prf.jar" (str "target/prf-runner-" vname "-" version ".jar"))
@@ -209,29 +217,16 @@
           (pr-str {:variant vname :main main-cls :version version :source-only true
                    :built-at (str (java.time.Instant/now))}))
 
-    ;; Both supported distributions use the unified CLI bootstrapper.
-    (when is-sew
-      (println "  Compiling AOT for unified Sew CLI bootstrapper...")
-      (let [bs-deps (pr-str '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}}
-                              :paths ["scripts/cli-bootstrap"]})
-            bs-deps-path (str (System/getProperty "java.io.tmpdir")
-                              "/prf-bs-deps-" (System/nanoTime) ".edn")]
-        (spit bs-deps-path bs-deps)
-        (let [bs-basis (b/create-basis {:project bs-deps-path})]
-          (b/compile-clj {:basis bs-basis
-                          :src-dirs ["scripts/cli-bootstrap"]
-                          :class-dir class-dir
-                          :ns-compile-command ['resolver-sim.cli-bootstrap]}))
-        (io/delete-file bs-deps-path)))
-
-    ;; Build JAR(s)
+    ;; PRF variant: AOT compile the unified CLI bootstrapper (no protocol deps),
+    ;; then build standalone uberjar with Main-Class pointing at it.
+    ;; Sew variant: source-only build using clojure.main as Main-Class.
     (let [prf-build? (= variant :prf)]
     (if prf-build?
       ;; PRF variant: AOT compile the unified CLI bootstrapper (no protocol deps),
       ;; then build standalone uberjar with Main-Class pointing at it.
       (let [main-sym 'resolver-sim.cli-bootstrap
             bs-deps (pr-str '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}}
-                             :paths ["scripts/cli-bootstrap"]})
+                           :paths ["scripts/cli-bootstrap"]})
             bs-deps-path (str (System/getProperty "java.io.tmpdir")
                               "/prf-bs-deps-" (System/nanoTime) ".edn")]
         (spit bs-deps-path bs-deps)
@@ -246,8 +241,9 @@
                  :uber-file "target/prf.jar"
                  :basis basis
                  :main main-sym}))
-      ;; Other variants: build both source JAR and uberjar
-      (let [main-sym 'resolver-sim.cli-bootstrap]
+      ;; Sew variant: source-only build using clojure.main as Main-Class.
+      ;; This allows running via: java -jar ... -m resolver-sim.minimal-runner
+      (let [main-sym 'clojure.main]
         (println "  Building source JAR (Main-Class:" main-sym ")...")
         (b/jar {:class-dir class-dir
                 :jar-file jar-file
@@ -264,8 +260,9 @@
     (when is-sew
           (validate-built-sew-jar! uber-file))
 
-        (doseq [file (if is-prf ["target/prf.jar"] [jar-file uber-file])]
-          (write-distribution-provenance! file variant main-cls))
+        (let [actual-main (if is-sew 'clojure.main main-cls)]
+          (doseq [file (if is-prf ["target/prf.jar"] [jar-file uber-file])]
+            (write-distribution-provenance! file variant actual-main)))
 
         ;; Cleanup
     (b/delete {:path class-dir})
@@ -277,7 +274,9 @@
       (let [jf (java.io.File. f)]
         (when (.exists jf)
           (printf "  %-50s %d KB\n" (.getName jf) (quot (.length jf) 1024)))))
-    (printf "\n  AOT bootstrapper compiled for JAR Main-Class.\n")
+    (if is-prf
+      (printf "\n  AOT bootstrapper compiled for JAR Main-Class.\n")
+      (printf "\n  Source-only JAR with clojure.main as Main-Class.\n"))
     (println "  Done.\n")
     (flush)))
 

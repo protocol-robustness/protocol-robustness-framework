@@ -1,4 +1,4 @@
-{"description":"Generated trace: ",
+{"description":"Generated trace: s20-dr3-kleros-max-escalation-guard",
  "fee_bps":100,
  "schema_version":"2",
  "resolutions":
@@ -165,4 +165,4 @@
  "step_count":6,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s20-dr3-kleros-max-escalation-guard"}

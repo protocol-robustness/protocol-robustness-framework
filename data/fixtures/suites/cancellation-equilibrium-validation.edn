@@ -17,4 +17,6 @@
          :traces/s-extortion-unilateral-cancel-dual
          :traces/s-auto-cancel-time-via-keeper
          :traces/s-auto-cancel-time-boundary
-         :traces/s-auto-cancel-time-orphaned-by-dispute]}
+          :traces/s-auto-cancel-time-orphaned-by-dispute
+          :traces/s-same-timestamp-auto-cancel-vs-dispute
+          :traces/s-same-timestamp-dispute-vs-auto-cancel]}

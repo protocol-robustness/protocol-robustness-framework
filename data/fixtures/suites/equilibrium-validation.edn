@@ -16,9 +16,9 @@
           :traces/eq-v6-spe-always-inconclusive
           :traces/eq-v7-collusion-resistance-inconclusive
           :traces/eq-v8-individual-rationality-inconclusive
-          ;; Negative cases — purpose :theory-falsification; expected to produce :fail
-          :traces/eq-v9-nash-fail-attack-success
-          :traces/eq-v10-incentive-compat-fail-attack-success
+           ;; Negative cases — purpose :theory-falsification; expected to produce :fail
+           :traces/eq-v9-nash-fail-attack-success
+           :traces/eq-v10-incentive-compat-fail-attack-success
           ;; SPE heuristic: v11=:pass (honest, no slash); v12=:fail (slashed after decision)
           :traces/eq-v11-spe-pass-honest-resolver
           :traces/eq-v12-spe-fail-slashed-resolver]}

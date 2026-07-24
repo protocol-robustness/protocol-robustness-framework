@@ -352,7 +352,7 @@
   (let [records (vec records)
         observed-scenario-ids (set (keep :scenario/id records))
         resolved-scenario-id (or scenario-id (when (= 1 (count observed-scenario-ids))
-                                                (first observed-scenario-ids)))]
+                                               (first observed-scenario-ids)))]
     (if (empty? records)
       {:chain/scope :scenario
        :chain/scenario-id resolved-scenario-id
@@ -1239,7 +1239,7 @@
         reg-hash (:registry-hash registry)
         reg-path (write-registry! registry
                                   (when dir (str (io/file dir evidence-registry-filename))))
-                                          sig-result (write-registry-signature! registry
+        sig-result (write-registry-signature! registry
                                               :private-key-path private-key-path
                                               :password password
                                               :dir dir)

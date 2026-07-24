@@ -27,20 +27,32 @@
    Examples:
      :protocol/kleros    → data/fixtures/protocol/kleros.edn
      :traces/s18-kleros   → data/fixtures/traces/s18-kleros.trace.json
-   Bare keywords (no namespace) go to data/fixtures/<name>.edn."
+   Bare keywords (no namespace) go to data/fixtures/<name>.edn.
+   Singular fixture namespaces are mapped to plural directory names
+   so that identity keys (e.g. :state/id) resolve correctly."
   [k]
   (let [ns  (namespace k)
         nm  (name k)
-        ext (if (= ns "traces") ".trace.json" ".edn")]
-    (if ns
-      (str "data/fixtures/" ns "/" nm ext)
+        ext (if (= ns "traces") ".trace.json" ".edn")
+        dir (cond (= ns "state") "states"
+                  (= ns "actor") "actors"
+                  (= ns "token") "tokens"
+                  (= ns "threshold") "thresholds"
+                  (= ns "suite") "suites"
+                  :else ns)]
+    (if dir
+      (str "data/fixtures/" dir "/" nm ext)
       (str "data/fixtures/" nm ext))))
 
 (def allowed-fixture-namespaces
   "Set of valid fixture namespace strings.
+   Both singular and plural forms are included to support
+   fixture-ref keywords (plural, matching directory names) and
+   identity-key namespaces (singular, used in fixture data files).
    Used by valid-fixture-ref? and fixture-ref? (sim layer).
    Add new fixture types here — both layers reference this single source."
-  #{"protocol" "states" "actors" "authority" "tokens" "thresholds" "suites" "traces"})
+  #{"protocol" "state" "states" "actor" "actors" "authority"
+    "token" "tokens" "threshold" "thresholds" "suites" "traces"})
 
 (defn valid-fixture-ref?
   "True when k is a fixture reference keyword with a known namespace."
@@ -223,10 +235,8 @@
         traces (mapv (fn [entry]
                        (if (and (map? entry) (contains? entry :trace))
                          (let [trace-ref (:trace entry)
-                               trace (-> (if (fixture-ref? trace-ref)
-                                           (compose-loader trace-ref)
-                                           trace-ref)
-                                         resolve-protocol-params-ref)]
+                              trace (-> (compose-loader trace-ref)
+                                        resolve-protocol-params-ref)]
                            {:trace trace
                             :expected-outcome (:expected-outcome entry)
                             :expected-halt-reason (:expected-halt-reason entry)})

@@ -62,13 +62,13 @@
   #{:local :sealed-log :private-encrypted-bundle :sealed-private-workspace})
 
 (def low-risk-sinks
-  #{:encrypted-bundle})
+  #{:encrypted-bundle :git-commit})
 
 (def medium-risk-sinks
   #{:public-bundle :public-ci-artifact})
 
 (def high-risk-sinks
-  #{:ipfs :nostr-public-relay :on-chain-registry :git-commit})
+  #{:ipfs :nostr-public-relay :on-chain-registry})
 
 (def public-sinks
   "Sinks that result in public disclosure."
@@ -157,34 +157,34 @@
                 Each finding has :rule/id and :rule/version
    
    Returns {:level <kw> :reasons [<kw> ...] :findings [<finding-ref> ...]}"
-   [findings]
-   (when (seq findings)
-     (let [highest-level (apply max-key
-                              level-index
-                              (map (fn [f]
-                                     (case (:rule/id f)
-                                       :secret-scanner/private-key :sensitivity/private
-                                       :secret-scanner/credential-assignment :sensitivity/private
-                                       :secret-scanner/bearer-auth :sensitivity/internal
-                                       :secret-scanner/jwt-token :sensitivity/internal
-                                       :secret-scanner/github-token :sensitivity/internal
-                                       :secret-scanner/npm-token :sensitivity/internal
-                                       :sensitivity/critical-private))
-                                   findings))
-           reason-codes (vec (distinct
-                              (mapcat (fn [f]
-                                        (case (:rule/id f)
-                                          :secret-scanner/private-key [:contains-live-vulnerability]
-                                          :secret-scanner/credential-assignment [:contains-unpublished-evidence]
-                                          :secret-scanner/bearer-auth [:contains-unpublished-evidence]
-                                          :secret-scanner/jwt-token [:contains-protocol-identifier]
-                                          :secret-scanner/github-token [:contains-linkable-subject-hash]
-                                          :secret-scanner/npm-token [:contains-linkable-subject-hash]
-                                          [:contains-unpublished-evidence]))
-                                      findings)))]
-        {:level highest-level
-        :reasons reason-codes
-        :findings (vec (map :finding/id findings))})))
+  [findings]
+  (when (seq findings)
+    (let [highest-level (apply max-key
+                               level-index
+                               (map (fn [f]
+                                      (case (:rule/id f)
+                                        :secret-scanner/private-key :sensitivity/private
+                                        :secret-scanner/credential-assignment :sensitivity/private
+                                        :secret-scanner/bearer-auth :sensitivity/internal
+                                        :secret-scanner/jwt-token :sensitivity/internal
+                                        :secret-scanner/github-token :sensitivity/internal
+                                        :secret-scanner/npm-token :sensitivity/internal
+                                        :sensitivity/critical-private))
+                                    findings))
+          reason-codes (vec (distinct
+                             (mapcat (fn [f]
+                                       (case (:rule/id f)
+                                         :secret-scanner/private-key [:contains-live-vulnerability]
+                                         :secret-scanner/credential-assignment [:contains-unpublished-evidence]
+                                         :secret-scanner/bearer-auth [:contains-unpublished-evidence]
+                                         :secret-scanner/jwt-token [:contains-protocol-identifier]
+                                         :secret-scanner/github-token [:contains-linkable-subject-hash]
+                                         :secret-scanner/npm-token [:contains-linkable-subject-hash]
+                                         [:contains-unpublished-evidence]))
+                                     findings)))]
+      {:level highest-level
+       :reasons reason-codes
+       :findings (vec (map :finding/id findings))})))
 
 (defn- evidence-backed-classification
   "Attempt to classify based on evidence findings attached to the artifact.
@@ -194,10 +194,10 @@
      artifact — artifact map that may contain findings under :sensitivity/findings
    
    Returns {:level <kw> :reasons [<kw> ...]} or nil if no findings present."
-   [artifact]
-   (when-let [findings (or (:sensitivity/findings artifact)
+  [artifact]
+  (when-let [findings (or (:sensitivity/findings artifact)
                           (:safety/findings artifact))]
-     (classify-from-findings findings)))
+    (classify-from-findings findings)))
 
 ;; ── Classification ───────────────────────────────────────────────────────────
 
@@ -210,73 +210,73 @@
    act as a conservative fallback when no evidence is present.
    
    See `classify` for the full list of rules."
-   [artifact]
-   (let [;; First try evidence-backed classification if findings are present
-         evidence-classification (evidence-backed-classification artifact)
+  [artifact]
+  (let [;; First try evidence-backed classification if findings are present
+        evidence-classification (evidence-backed-classification artifact)
          ;; Evidence node: fail status
-         result-status (get-in artifact [:result :status])
-         failure-details (get-in artifact [:result :failure-details])
+        result-status (get-in artifact [:result :status])
+        failure-details (get-in artifact [:result :failure-details])
          ;; Attestation presence
-         is-attestation (some? (:attestation/id artifact))
-         claim-result (:attestation/claim-result artifact)
-         claim-id (:attestation/claim-id artifact)
+        is-attestation (some? (:attestation/id artifact))
+        claim-result (:attestation/claim-result artifact)
+        claim-id (:attestation/claim-id artifact)
          ;; Claim result
-         holds? (:holds? artifact)
+        holds? (:holds? artifact)
          ;; Evidence presence
-         has-attestations (seq (:attestations artifact))
+        has-attestations (seq (:attestations artifact))
          ;; Provenance
-         provenance (:attestation/provenance artifact)
-         scenario-id (or (:scenario-id provenance)
-                         (:scenario-id artifact))
+        provenance (:attestation/provenance artifact)
+        scenario-id (or (:scenario-id provenance)
+                        (:scenario-id artifact))
          ;; Scenario content (unredacted)
-         scenario-events (seq (:events artifact))
-         scenario-agents (seq (:agents artifact))
+        scenario-events (seq (:events artifact))
+        scenario-agents (seq (:agents artifact))
          ;; Subject
-         subject-kind (:attestation/subject-kind artifact)
+        subject-kind (:attestation/subject-kind artifact)
          ;; Bundle
-         bundle-kind (:bundle/kind artifact)]
-     (if evidence-classification
-       (:level evidence-classification)
-       (cond
+        bundle-kind (:bundle/kind artifact)]
+    (if evidence-classification
+      (:level evidence-classification)
+      (cond
          ;; Critical: evidence node with failure details (reproducible issues)
-         (and (some? result-status) (seq failure-details))
-         :sensitivity/private
+        (and (some? result-status) (seq failure-details))
+        :sensitivity/private
 
          ;; Critical: attestation with claim-id (references a claim definition)
-         (and is-attestation claim-id)
-         :sensitivity/private
+        (and is-attestation claim-id)
+        :sensitivity/private
 
          ;; Critical: attestation on claim subject (references a claim result)
-         (and is-attestation (= :claim subject-kind))
-         :sensitivity/private
+        (and is-attestation (= :claim subject-kind))
+        :sensitivity/private
 
          ;; High: attestation (credible attributable statement)
-         is-attestation :sensitivity/internal
+        is-attestation :sensitivity/internal
 
          ;; High: evidence node with fail status
-         (= :fail result-status) :sensitivity/internal
+        (= :fail result-status) :sensitivity/internal
 
          ;; Medium: evidence with attestations attached
-         has-attestations :sensitivity/internal
+        has-attestations :sensitivity/internal
 
          ;; Medium: claim result with failed claim
-         (false? holds?) :sensitivity/internal
+        (false? holds?) :sensitivity/internal
 
          ;; Medium: passing claim result (no failure)
-         (true? holds?) :sensitivity/internal
+        (true? holds?) :sensitivity/internal
 
          ;; Medium: unredacted scenario content with events and agents
-         (and scenario-id scenario-events scenario-agents)
-         :sensitivity/private
+        (and scenario-id scenario-events scenario-agents)
+        :sensitivity/private
 
          ;; Medium: artifact with scenario provenance
-         scenario-id :sensitivity/internal
+        scenario-id :sensitivity/internal
 
          ;; Bundle: classify as bundle
-         bundle-kind :sensitivity/internal
+        bundle-kind :sensitivity/internal
 
          ;; Default: conservative
-         :else :sensitivity/critical-private))))
+        :else :sensitivity/critical-private))))
 
 (defn classify
   "Classify an artifact and return its sensitivity level.
@@ -424,30 +424,34 @@
                        (:bundle/root-hash artifact)
                        (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
         base-report {:sentinel/version sentinel-version
-                    :sentinel/policy-hash (compute-policy-hash)
-                    :sentinel/evaluated-at (str (Instant/now))
-                    :sentinel/input-kind input-kind
-                    :sentinel/input-hash input-hash
-                    :sentinel/requested-sink sink
-                    :sentinel/decision decision
-                    :sentinel/level level
-                    :sentinel/structural-level structural-level
-                    :sentinel/reasons reasons
-                    :sentinel/allowed-sinks allowed-sinks
-                    :sentinel/redaction-required? (level>= level :sensitivity/private)
-                    :sentinel/override-required?
-                    {:required? (and (not allowed?)
-                                     (level>= level :sensitivity/private))
-                     :mode (effective-override-mode level risk-meta)}}
+                     :sentinel/policy-hash (compute-policy-hash)
+                     :sentinel/evaluated-at (str (Instant/now))
+                     :sentinel/input-kind input-kind
+                     :sentinel/input-hash input-hash
+                     :sentinel/requested-sink sink
+                     :sentinel/decision decision
+                     :sentinel/level level
+                     :sentinel/structural-level structural-level
+                     :sentinel/reasons reasons
+                     :sentinel/allowed-sinks allowed-sinks
+                     :sentinel/redaction-required? (level>= level :sensitivity/private)
+                     :sentinel/override-required?
+                     {:required? (and (not allowed?)
+                                      (level>= level :sensitivity/private))
+                      :mode (effective-override-mode level risk-meta)}}
         base-report (cond-> base-report
-                      declared-level (assoc :sentinel/declared-level declared-level)
-                      risk-meta (assoc :sentinel/risk-meta risk-meta)
-                      (seq (:sensitivity/findings artifact))
+                       declared-level (assoc :sentinel/declared-level declared-level)
+                       risk-meta (assoc :sentinel/risk-meta risk-meta
+                                        :sentinel/risk-meta-hash
+                                        (hc/hash-with-intent
+                                         {:hash/intent :evidence-record}
+                                         risk-meta))
+                       (seq (:sensitivity/findings artifact))
                       (assoc :sentinel/evidence-findings (:sensitivity/findings artifact)))
         report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
-                                        (dissoc base-report
-                                                :sentinel/report-hash
-                                                :sentinel/evaluated-at))]
+                                         (dissoc base-report
+                                                 :sentinel/report-hash
+                                                 :sentinel/evaluated-at))]
     (assoc base-report :sentinel/report-hash report-hash)))
 
 ;; ── Assertion Functions ──────────────────────────────────────────────────────

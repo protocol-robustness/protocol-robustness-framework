@@ -122,8 +122,7 @@
     (and (vector? (:allocations (projection-result content)))
          (not= (count (:allocations (projection-result content)))
                (count (distinct (map :id (:allocations (projection-result content)))))))
-    (conj {:type :duplicate-allocation-identity :path :projection})
-))
+    (conj {:type :duplicate-allocation-identity :path :projection})))
 
 ;; ── Violation helpers ────────────────────────────────────────────────────
 
@@ -135,17 +134,17 @@
         projection (projection-result content)]
     (into (evidence-shape-violations content)
           (cond-> []
-      (not= (:projection-hash artifact)
-            (:projection-hash artifact-again))
-      (conj {:type :non-deterministic-projection-hash
-             :first (:projection-hash artifact)
-             :second (:projection-hash artifact-again)})
+            (not= (:projection-hash artifact)
+                  (:projection-hash artifact-again))
+            (conj {:type :non-deterministic-projection-hash
+                   :first (:projection-hash artifact)
+                   :second (:projection-hash artifact-again)})
 
-      (not= (canonical-allocation-vector (:allocations direct))
-            (canonical-allocation-vector (:allocations projection)))
-      (conj {:type :allocation-mismatch
-             :direct (:allocations direct)
-             :projection (:allocations projection)})))))
+            (not= (canonical-allocation-vector (:allocations direct))
+                  (canonical-allocation-vector (:allocations projection)))
+            (conj {:type :allocation-mismatch
+                   :direct (:allocations direct)
+                   :projection (:allocations projection)})))))
 
 (defn- non-negative-violations
   [result]

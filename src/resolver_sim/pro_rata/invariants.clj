@@ -193,7 +193,7 @@
 
       :else
       [{:reason :pro-rata/unsupported-residual-reason
-        :observed reason}])) )
+        :observed reason}])))
 
 (defn result-violations
   [result]

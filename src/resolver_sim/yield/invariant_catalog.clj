@@ -55,11 +55,14 @@
   [:yield/position-consistency
    :yield/exposure
    :yield/shortfall-splits
+   :yield/shortfall-detected
    :yield/status-fsm
    :yield/realized-non-negative
+   :yield/token-key-consistency
    :yield/value-conservation
    :yield/partial-liquidity-principal
    :yield/deferred-reclaim
+   :yield/aggregate-shortfall-cap
    :yield/pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles])
 

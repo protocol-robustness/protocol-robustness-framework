@@ -98,15 +98,15 @@
         structural-level (sentinel/classify-structural result)
         declared-level (:level sens)
         at-max? (= effective-level run-level)]
-     {:source/type :scenario-sensitivity
-      :scenario/id (:scenario-id result)
-      :scenario/input-hash (:scenario-input-hash result)
-      :scenario/content-hash (:scenario-hash result)
-      :scenario/path (:scenario-path result)
-      :declared-level (when declared-level (name declared-level))
-      :structural-level (name structural-level)
-      :effective-level (name effective-level)
-      :run-level-role (if at-max? :run-max :below-max)}))
+    {:source/type :scenario-sensitivity
+     :scenario/id (:scenario-id result)
+     :scenario/input-hash (:scenario-input-hash result)
+     :scenario/content-hash (:scenario-hash result)
+     :scenario/path (:scenario-path result)
+     :declared-level (when declared-level (name declared-level))
+     :structural-level (name structural-level)
+     :effective-level (name effective-level)
+     :run-level-role (if at-max? :run-max :below-max)}))
 
 (defn- display-sources
   "Human-readable summary derived from structured records."
@@ -171,6 +171,10 @@
                  (nil? sens) :sensitivity-status/no-declaration-structural-only
                  (some? declared-level) :sensitivity-status/evaluated
                  :else :sensitivity-status/evaluated)
+        ;; Normalize risk-meta for display: sort and stringify reason-codes
+        display-rm (when-let [rm (:risk-meta sens)]
+                     (update rm :reason-codes (fn [v]
+                                                (vec (sort (map name v))))))
         ;; Declaration provenance — where did the declared level come from?
         dec-source (when sens
                      (let [path (:scenario-path result)
@@ -182,10 +186,10 @@
                          path (assoc :declaration/source-path path)
                          source-hash (assoc :declaration/source-bytes-hash source-hash)
                          scenario-hash (assoc :declaration/source-content-hash scenario-hash)
-                         (:risk-meta sens) (assoc :declaration/risk-meta-hash
-                                                    (hc/hash-with-intent
-                                                     {:hash/intent :evidence-record}
-                                                     (:risk-meta sens))))))
+                         display-rm (assoc :declaration/risk-meta-hash
+                                           (hc/hash-with-intent
+                                            {:hash/intent :evidence-record}
+                                             display-rm)))))
         ;; Result-artifact provenance — sensitivity of the scenario execution
         ;; output artifact.  This is distinct from the scenario's effective
         ;; sensitivity (which classifies the scenario result content).
@@ -211,7 +215,7 @@
                                             :rule/id (:rule/id f)
                                             :rule/version (:rule/version f)
                                             :finding/ref (:finding/id f)})
-                                           matched-findings)
+                                         matched-findings)
                                    :structural/ruleset-hash @secret-scanner-ruleset-hash
                                    :evidence/findings matched-findings}))]
     (cond-> {:id (:scenario-id result)
@@ -221,9 +225,7 @@
              :sensitivity/status (name status)}
       declared-level (assoc :declared-level (name declared-level))
       dec-source (assoc :declaration-provenance dec-source)
-      sens (assoc :risk-meta (when-let [rm (:risk-meta sens)]
-                               (update rm :reason-codes (fn [v]
-                                                          (vec (sort (map name v)))))))
+      display-rm (assoc :risk-meta display-rm)
       structural-derivation (assoc :structural-derivation structural-derivation)
       result-artifact (assoc :result-artifact result-artifact))))
 
@@ -255,7 +257,7 @@
                       scenario-path (:scenario-path result)
                       matched-findings (when (seq context)
                                          (vec (filter #(= (:finding/path-token %)
-                                                           (scenario-path-token scenario-path))
+                                                          (scenario-path-token scenario-path))
                                                       (:findings context))))
                       ;; Attach findings to result for evidence-backed classification
                       result-with-findings (when (seq matched-findings)
@@ -296,25 +298,30 @@
                              :unexpected-scenario-ids []}
         ;; All structured sources
         structured (vec (concat scenario-records
-                               impl-records
-                               [policy-source scenario-set-source]))
+                                impl-records
+                                [policy-source scenario-set-source]))
         ;; Display summary
         display (display-sources structured)
         effective-level (name level)]
-    (prop/build-sensitivity-derivation
-     {:sentinel/effective-level effective-level
-      :sentinel/structural-level (name (:structural-level run-sensitivity :sensitivity/internal))
-      :sentinel/declared-level (when-let [d (:declared-level run-sensitivity)]
-                                 (name d))
-      :sentinel/reasons (vec (sort (map name (sentinel/default-reasons level))))
-      :sentinel/risk-meta (:risk-meta run-sensitivity)
-      :sentinel/sources display
-      :sentinel/structured-sources structured}
+    (let [rm (:risk-meta run-sensitivity)]
+      (prop/build-sensitivity-derivation
+       {:sentinel/effective-level effective-level
+        :sentinel/structural-level (name (:structural-level run-sensitivity :sensitivity/internal))
+        :sentinel/declared-level (when-let [d (:declared-level run-sensitivity)]
+                                   (name d))
+        :sentinel/reasons (vec (sort (map name (sentinel/default-reasons level))))
+        :sentinel/risk-meta rm
+        :sentinel/risk-meta-hash (when rm
+                                   (hc/hash-with-intent
+                                    {:hash/intent :evidence-record}
+                                    rm))
+        :sentinel/sources display
+        :sentinel/structured-sources structured}
      ;; Additional context as structured records
      {:source/type :run-context
       :run/id (:run-id context)
       :profile profile-name
-      :sentinel-version (:sentinel-version context)})))
+       :sentinel-version (:sentinel-version context)}))))
 
 ;; ── Aggregation derivation ──────────────────────────────────────────────────
 
@@ -329,10 +336,10 @@
         total (count scenarios)
         missing (count (filter #(= ":sensitivity-status/no-declaration-structural-only"
                                    (:sensitivity/status %))
-                                scenario-entries))
+                               scenario-entries))
         evaluated (count (filter #(= ":sensitivity-status/evaluated"
-                                       (:sensitivity/status %))
-                                   scenario-entries))
+                                     (:sensitivity/status %))
+                                 scenario-entries))
         run-level-name (when run-sensitivity (name (:level run-sensitivity)))
         winners (filterv #(= (:effective-level %) run-level-name)
                          scenario-entries)
@@ -343,34 +350,34 @@
                          (str (hc/hash-with-intent
                                {:hash/intent :evidence-record}
                                (vec (sort-by :scenario-id
-                                     (mapv (fn [s]
-                                             (let [sens (get-in s [:scenario-metadata :scenario/sensitivity])
-                                                   scenario-path (:scenario-path s)
-                                                   matched-findings (when (and scenario-path findings)
-                                                                     (vec (filter #(= (:finding/path-token %)
-                                                                                     (scenario-path-token scenario-path))
-                                                                                      findings)))
-                                                   result-with-findings (when (seq matched-findings)
-                                                                        (assoc s :sensitivity/findings matched-findings))
-                                                   structural-level (sentinel/classify-structural result-with-findings)]
-                                               {:scenario-id (:scenario-id s)
-                                                :declared-level (when (:level sens) (name (:level sens)))
-                                                :structural-level (name structural-level)
-                                                :effective-level (name (if (and (:level sens)
-                                                                                  (sentinel/level>= (:level sens) structural-level))
-                                                                           (:level sens)
-                                                                            structural-level))}))
-                                            scenarios))))))
+                                             (mapv (fn [s]
+                                                     (let [sens (get-in s [:scenario-metadata :scenario/sensitivity])
+                                                           scenario-path (:scenario-path s)
+                                                           matched-findings (when (and scenario-path findings)
+                                                                              (vec (filter #(= (:finding/path-token %)
+                                                                                               (scenario-path-token scenario-path))
+                                                                                           findings)))
+                                                           result-with-findings (when (seq matched-findings)
+                                                                                  (assoc s :sensitivity/findings matched-findings))
+                                                           structural-level (sentinel/classify-structural result-with-findings)]
+                                                       {:scenario-id (:scenario-id s)
+                                                        :declared-level (when (:level sens) (name (:level sens)))
+                                                        :structural-level (name structural-level)
+                                                        :effective-level (name (if (and (:level sens)
+                                                                                        (sentinel/level>= (:level sens) structural-level))
+                                                                                 (:level sens)
+                                                                                 structural-level))}))
+                                                   scenarios))))))
         ;; Risk-aggregation winner: find the scenario whose risk-severity
         ;; matches the merged result's risk-severity.
         risk-severity (when run-sensitivity
                         (get-in run-sensitivity [:risk-meta :risk-severity]))
         risk-winner (when risk-severity
                       (first (filterv (fn [s]
-                                          (let [sens (get-in s [:scenario-metadata :scenario/sensitivity])
-                                                sev (get-in sens [:risk-meta :risk-severity])]
-                                            (= sev risk-severity)))
-                                        scenarios)))]
+                                        (let [sens (get-in s [:scenario-metadata :scenario/sensitivity])
+                                              sev (get-in sens [:risk-meta :risk-severity])]
+                                          (= sev risk-severity)))
+                                      scenarios)))]
     {:aggregation/function :max-effective-sensitivity
      :aggregation/version "merge-sensitivity.v2"
      :aggregation/merge-function-ref merge-function
@@ -378,13 +385,17 @@
      :aggregation/included-count evaluated
      :aggregation/missing-count missing
      :aggregation/scenario-id-set-hash (str (hc/hash-with-intent
-                                              {:hash/intent :evidence-record}
-                                              (vec (sort (map :id scenario-entries)))))
+                                             {:hash/intent :evidence-record}
+                                             (vec (sort (map :id scenario-entries)))))
      :aggregation/input-set-hash input-set-hash
      :aggregation/winners (mapv :id winners)
      :aggregation/multiple-winners? multiple-winners?
      :aggregation/result (when run-sensitivity (name (:level run-sensitivity)))
      :risk-aggregation/function :max-risk-severity
+     :risk-aggregation/risk-meta-hash (when-let [rm (:risk-meta run-sensitivity)]
+                                        (hc/hash-with-intent
+                                         {:hash/intent :evidence-record}
+                                         rm))
      :risk-aggregation/winner-scenario-id (when risk-winner (:scenario-id risk-winner))
      :risk-aggregation/result (when risk-severity (name risk-severity))}))
 
@@ -414,19 +425,20 @@
         sensitive-count (count (filter :declared-level scenario-entries))
         total-count (count scenario-entries)
         has-prov? (some? run-sensitivity)
+        risk-meta-val (:risk-meta run-sensitivity)
         provenance (when has-prov?
                      (build-canonical-report-provenance run-sensitivity scenarios context-with-findings))
         aggregation-derivation (when has-prov?
-                                  (build-aggregation-derivation run-sensitivity scenarios findings))
+                                 (build-aggregation-derivation run-sensitivity scenarios findings))
         ;; Decision provenance — separates classification (what level) from
         ;; decision (what action was taken given profile + policy).
         decision-provenance
         (let [profile-name (name (:profile safety-result :internal))
               profile-hash (hc/hash-with-intent {:hash/intent :evidence-record}
-                                                 {:profile profile-name
-                                                  :scan-mode (name (:profile safety-result :internal))
-                                                  :ruleset-ref {:ruleset/id "disclosure-policy"
-                                                                :ruleset/version "v2"}})
+                                                {:profile profile-name
+                                                 :scan-mode (name (:profile safety-result :internal))
+                                                 :ruleset-ref {:ruleset/id "disclosure-policy"
+                                                               :ruleset/version "v2"}})
               decision-str (name (or (:decision safety-result) :allowed))
               decision-reasons (cond
                                  (= "blocked" decision-str)
@@ -443,27 +455,27 @@
            :profile/hash profile-hash
            :evaluation/input-level (when has-prov? (name (:level run-sensitivity)))
            :evaluation/risk-severity (when-let [sev (get-in run-sensitivity [:risk-meta :risk-severity])]
-                                        (name sev))
+                                       (name sev))
            :evaluation/decision decision-str
-            :evaluation/reasons decision-reasons})
+           :evaluation/reasons decision-reasons})
          ;; Scenario-set reconciliation — proves the report considered the
          ;; full scenario set.  missing-scenario-ids and unexpected-scenario-ids
          ;; are populated when reconciling against an authoritative execution
          ;; inventory or package index (future — currently empty).
-         scenario-ids (vec (sort (map :id scenario-entries)))
-         scenario-id-set-hash (str (hc/hash-with-intent
-                                    {:hash/intent :evidence-record}
-                                    scenario-ids))
-         duplicate-ids (let [freq (frequencies (map :id scenario-entries))]
-                         (vec (keys (filter (fn [[_k v]] (> v 1)) freq))))
-         scenario-set-reconciliation
-         {:report/scenario-count total-count
-          :scenario-id-set-hash scenario-id-set-hash
-          :scenario-ids scenario-ids
-          :missing-scenario-ids []
-          :unexpected-scenario-ids []
-          :duplicate-scenario-ids duplicate-ids}
-         base {:schema-version report-schema-version
+        scenario-ids (vec (sort (map :id scenario-entries)))
+        scenario-id-set-hash (str (hc/hash-with-intent
+                                   {:hash/intent :evidence-record}
+                                   scenario-ids))
+        duplicate-ids (let [freq (frequencies (map :id scenario-entries))]
+                        (vec (keys (filter (fn [[_k v]] (> v 1)) freq))))
+        scenario-set-reconciliation
+        {:report/scenario-count total-count
+         :scenario-id-set-hash scenario-id-set-hash
+         :scenario-ids scenario-ids
+         :missing-scenario-ids []
+         :unexpected-scenario-ids []
+         :duplicate-scenario-ids duplicate-ids}
+        base {:schema-version report-schema-version
               :run-id (:run-id context)
               :profile (name (:profile safety-result :internal))
               :decision (name (or (:decision safety-result) :allowed))
@@ -472,10 +484,14 @@
               :sensitive-scenario-count sensitive-count
               :scenarios scenario-entries}
         base (cond-> base
-               has-prov? (assoc :run-level (name (:level run-sensitivity))
-                                :structural-level (name (:structural-level run-sensitivity :sensitivity/internal))
-                                :risk-meta (:risk-meta run-sensitivity))
-               provenance (assoc :provenance provenance)
+                has-prov? (assoc :run-level (name (:level run-sensitivity))
+                                 :structural-level (name (:structural-level run-sensitivity :sensitivity/internal))
+                                 :risk-meta risk-meta-val)
+                (and has-prov? risk-meta-val) (assoc :risk-meta-hash
+                                                      (hc/hash-with-intent
+                                                       {:hash/intent :evidence-record}
+                                                       risk-meta-val))
+                provenance (assoc :provenance provenance)
                aggregation-derivation (assoc :aggregation-derivation aggregation-derivation)
                true (assoc :decision-provenance decision-provenance)
                true (assoc :scenario-set-reconciliation scenario-set-reconciliation))
@@ -486,8 +502,8 @@
         hash-input (dissoc base :evaluated-at :report-hash :report-byte-hash)
         semantic-hash (hc/hash-with-intent {:hash/intent :evidence-record} hash-input)]
     (assoc base :evaluated-at (str (Instant/now))
-               :report-hash semantic-hash
-               :report/semantic-hash semantic-hash)))
+           :report-hash semantic-hash
+           :report/semantic-hash semantic-hash)))
 
 ;; ── Persistence ────────────────────────────────────────────────────────────
 

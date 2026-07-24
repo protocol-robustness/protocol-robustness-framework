@@ -1,6 +1,0 @@
-{:protocol/id :protocol/liquid-lending
- :resolver-fee-bps 150
- :appeal-window-duration 0
- :max-dispute-duration 2592000
- :resolver-bond-bps 1000
- :fraud-slash-bps 5000}

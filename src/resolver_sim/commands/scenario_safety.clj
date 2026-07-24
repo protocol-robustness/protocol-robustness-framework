@@ -154,30 +154,31 @@
    Returns nil or a map with :structural/classification-level and
    :structural/reasons, plus :evidence/findings for evidence-backed classification."
   [result findings]
-  (let [scenario-path (:scenario-path result)
-        scenario-path-token (when scenario-path
-                              (let [digest (doto (MessageDigest/getInstance "SHA-256")
-                                         (.update (.getBytes scenario-path "UTF-8")))]
-                                                                 (format "path-%s" (subs (format "%064x" (java.math.BigInteger. 1 (.digest digest))) 0 12))))))]
-    (when-let [relevant-findings (seq (filter #(= (:finding/path-token %) scenario-path-token) findings))]
-      (let [evidence-classification (sentinel/classify-from-findings relevant-findings)]
-        {:structural/classification-level (name (:level evidence-classification))
-         :structural/reasons
-         (mapv (fn [f]
-                 {:reason/code (case (:rule/id f)
-                                 :secret-scanner/private-key :contains-live-vulnerability
-                                 :secret-scanner/credential-assignment :contains-unpublished-evidence
-                                 :secret-scanner/bearer-auth :contains-unpublished-evidence
-                                 :secret-scanner/jwt-token :contains-protocol-identifier
-                                 :secret-scanner/github-token :contains-linkable-subject-hash
-                                 :secret-scanner/npm-token :contains-linkable-subject-hash
-                                 :contains-unpublished-evidence)
-                  :rule/id (:rule/id f)
-                  :rule/version (:rule/version f)
-                  :finding/ref (:finding/id f)})
-               relevant-findings)
-         :structural/ruleset-hash (secret-scanner-ruleset-hash)
-         :evidence/findings relevant-findings}))
+  (let [scenario-path (:scenario-path result)]
+    (let [scenario-path-token (when scenario-path
+                                (let [digest (doto (MessageDigest/getInstance "SHA-256")
+                                               (.update (.getBytes scenario-path "UTF-8")))]
+                                  (format "path-%s"
+                                          (subs (format "%064x" (java.math.BigInteger. 1 (.digest digest))) 0 12))))]
+      (when-let [relevant-findings (seq (filter #(= (:finding/path-token %) scenario-path-token) findings))]
+        (let [evidence-classification (sentinel/classify-from-findings relevant-findings)]
+          {:structural/classification-level (name (:level evidence-classification))
+           :structural/reasons
+           (mapv (fn [f]
+                   {:reason/code (case (:rule/id f)
+                                   :secret-scanner/private-key :contains-live-vulnerability
+                                   :secret-scanner/credential-assignment :contains-unpublished-evidence
+                                   :secret-scanner/bearer-auth :contains-unpublished-evidence
+                                   :secret-scanner/jwt-token :contains-protocol-identifier
+                                   :secret-scanner/github-token :contains-linkable-subject-hash
+                                   :secret-scanner/npm-token :contains-linkable-subject-hash
+                                   :contains-unpublished-evidence)
+                    :rule/id (:rule/id f)
+                    :rule/version (:rule/version f)
+                    :finding/ref (:finding/id f)})
+                 relevant-findings)
+           :structural/ruleset-hash (secret-scanner-ruleset-hash)
+           :evidence/findings relevant-findings})))))
 
 (defn write-sensitivity-report!
   "Persist the pre-finalization export decision so it can be registered with the bundle.

@@ -33,11 +33,11 @@
                                       :artifacts {}})]
     (try
       (let [{written :index} (package-index/write! path {:run-id "run-1"
-                                                          :scenario-id "scenario-1"
-                                                          :execution-id "execution:run-1"
-                                                          :run-type :single-scenario
-                                                          :bundle-root-hash "bundle"
-                                                          :artifacts {}})
+                                                         :scenario-id "scenario-1"
+                                                         :execution-id "execution:run-1"
+                                                         :run-type :single-scenario
+                                                         :bundle-root-hash "bundle"
+                                                         :artifacts {}})
             wire (json/read-str (slurp path) :key-fn keyword)
             restored (package-index/wire->package-index wire)
             persisted-sha (str "sha256:" (lifecycle/sha256-file path))]

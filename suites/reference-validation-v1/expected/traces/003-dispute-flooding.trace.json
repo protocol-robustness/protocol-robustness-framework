@@ -1,4 +1,4 @@
-{"description":"Generated trace: ",
+{"description":"Generated trace: s62-resolver-throughput-exhaustion",
  "fee_bps":100,
  "schema_version":"2",
  "resolutions":
@@ -323,4 +323,4 @@
  "step_count":12,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s62-resolver-throughput-exhaustion"}

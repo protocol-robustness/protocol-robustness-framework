@@ -12,6 +12,7 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.tools.cli :as cli]
             [resolver-sim.contract-model.replay.yield :as yield-replay]
             [resolver-sim.yield.invariant-catalog :as yield-invariant-catalog]
             [resolver-sim.yield.invariants :as yield-invariants]
@@ -31,6 +32,13 @@
 (def ^{:doc "Core protocol keyword → replay function. Protocol extensions are resolved lazily."}
   protocols
   {:yield yield-replay-wrapper})
+
+(def cli-options
+  [["-h" "--help" "Show help"]
+   [nil "--suite-root DIR" "Suite root directory (default suites/reference-validation-v1)"]
+   [nil "--protocol PROTOCOL" "Protocol ID (default sew)"
+    :parse-fn keyword]
+   [nil "--refresh-expected" "Copy actual/ to expected/ after generation"]])
 
 (defn- sew-replay-wrapper [scenario opts]
   ((requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol) scenario opts))
@@ -79,22 +87,22 @@
     (spit hash-path (str (sha256-file json-path) "\n"))))
 
 (defn- namespace-keyword->string
-   "Convert a namespaced keyword to a string preserving namespace.
+  "Convert a namespaced keyword to a string preserving namespace.
     :transition/hash -> \"transition/hash\", :foo -> \"foo\""
-   [k]
-   (if (keyword? k)
-     (str (when-let [ns (namespace k)] (str ns "/")) (name k))
-     (str k)))
+  [k]
+  (if (keyword? k)
+    (str (when-let [ns (namespace k)] (str ns "/")) (name k))
+    (str k)))
 
- (defn- keyword->string
-   "Recursively convert keywords to strings and ratios to doubles for JSON-safe output."
-   [x]
-   (cond
-     (keyword? x) (namespace-keyword->string x)
-     (instance? clojure.lang.Ratio x) (double x)
-     (map? x) (into {} (map (fn [[k v]] [(namespace-keyword->string k) (keyword->string v)]) x)
-     (coll? x) (map keyword->string x)
-     :else x))
+(defn- keyword->string
+  "Recursively convert keywords to strings and ratios to doubles for JSON-safe output."
+  [x]
+  (cond
+    (keyword? x) (namespace-keyword->string x)
+    (instance? clojure.lang.Ratio x) (double x)
+    (map? x) (into {} (map (fn [[k v]] [(namespace-keyword->string k) (keyword->string v)]) x))
+    (coll? x) (map keyword->string x)
+    :else x))
 
 (defn- export-yield-trace-fixture
   "Export a yield-v1 replay result as a JSON-safe trace fixture map.
@@ -107,10 +115,10 @@
      :scenario_id (:scenario-id result)
      :description (str "Yield-v1 trace: " (:scenario-id result))
      :step_count (count trace)
-:steps (keyword->string
-              (mapv (fn [entry]
-                      (select-keys entry [:seq :time :action :agent :result :error :params :transition/id :transition/hash]))
-                    trace))}))
+     :steps (keyword->string
+             (mapv (fn [entry]
+                     (select-keys entry [:seq :time :action :agent :result :error :params :transition/id :transition/hash]))
+                   trace))}))
 
 (defn- write-trace-fixture!
   "Write trace fixture for a protocol. Sew support is resolved only when requested."
@@ -137,9 +145,9 @@
                             (set (keys yield-invariant-catalog/catalog))
                             nil)
      :check-all-fn (when (= protocol :yield)
-                          (fn [world]
-                            {:results (yield-invariants/run-invariants
-                                       world (keys yield-invariant-catalog/catalog))})))
+                     (fn [world]
+                       {:results (yield-invariants/run-invariants
+                                  world (keys yield-invariant-catalog/catalog))})))
     (let [metrics         (or (:metrics result) {})
           inv-violations  (:invariant-violations metrics 0)
           expectations    (:expectations result)
@@ -164,7 +172,7 @@
             trace-hash (when trace-rel-path
                          (sha256-file trace-path))]
         {:scenario_id id
-         :classification (kw-str classification)
+         :classification (namespace-keyword->string classification)
          :confidence "high"
          :evidence_type "simulator-backed"
          :expectations_failed (if exp-ok? 0 exp-violations)
@@ -232,7 +240,7 @@
        :status "pass"
        :checks
        [{:check_id check-id
-         :classification (kw-str classification)
+         :classification (namespace-keyword->string classification)
          :confidence "provisional"
          :evidence_type "pinned-derivation"
          :simulator_backed false
@@ -316,40 +324,38 @@
        :scenario-count (count (:results scenario-results))
        :simulator-backed (count results)})))
 
-(defn- parse-arg
-  "Find value for --key in args, or nil."
-  [args key]
-  (let [args-vec (vec args)
-        idx (.indexOf args-vec key)]
-    (when (<= 0 idx)
-      (nth args-vec (inc idx) nil))))
-
-(defn- kw-arg
-  "Parse --key value from args as keyword."
-  [args key]
-  (when-let [v (parse-arg args key)]
-    (keyword v)))
-
 (defn -main
   [& args]
-  (let [refresh?     (some #{"--refresh-expected"} args)
-        protocol-kw  (kw-arg args "--protocol")
-        suite-root   (parse-arg args "--suite-root")
+  (let [{:keys [options summary errors]} (cli/parse-opts args cli-options)
+        suite-root   (:suite-root options)
+        protocol-kw  (:protocol options)
+        refresh?     (:refresh-expected options)
         suite-label  (or suite-root "reference-validation-v1")]
-    (try
-      (let [{:keys [ok? scenario-count simulator-backed]}
-            (generate! :refresh-expected? refresh?
-                       :protocol protocol-kw
-                       :root suite-root)]
-        (when ok?
-          (println (str "PASS " suite-label))
-          (println scenario-count "scenarios")
-          (println "0 failures")
-          (println "0 inconclusive")
-          (when (pos? simulator-backed)
-            (println simulator-backed "simulator-backed"))))
-      (catch Exception e
-        (println (str "FAIL " suite-label ":") (.getMessage e))
-        (when-let [data (ex-data e)]
-          (println "  data:" (pr-str data)))
-        (System/exit 1)))))
+    (cond
+      errors
+      (do (doseq [e errors] (println e))
+          (println)
+          (println summary)
+          (System/exit 2))
+      (:help options)
+      (do (println "Usage: clojure -M:reference-validation [options]")
+          (println summary)
+          (System/exit 0))
+      :else
+      (try
+        (let [{:keys [ok? scenario-count simulator-backed]}
+              (generate! :refresh-expected? refresh?
+                         :protocol protocol-kw
+                         :root suite-root)]
+          (when ok?
+            (println (str "PASS " suite-label))
+            (println scenario-count "scenarios")
+            (println "0 failures")
+            (println "0 inconclusive")
+            (when (pos? simulator-backed)
+              (println simulator-backed "simulator-backed"))))
+        (catch Exception e
+          (println (str "FAIL " suite-label ":") (.getMessage e))
+          (when-let [data (ex-data e)]
+            (println "  data:" (pr-str data)))
+          (System/exit 1))))))

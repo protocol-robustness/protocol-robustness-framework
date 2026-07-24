@@ -39,7 +39,7 @@ for scenario in \
   DR-N-002-reversal-slash-appeal-rejected.edn; do
   cp "$PROJECT_DIR/scenarios/edn/$scenario" "$OUTPUT_DIR/inputs/scenarios/$scenario"
 done
-cp "$PROJECT_DIR/benchmarks/packs/sew/force-authorisation-custody-v1.edn" \
+cp "$PROJECT_DIR/benchmarks/packs/prf-core/force-authorisation-custody-v1.edn" \
    "$OUTPUT_DIR/inputs/benchmarks/force-authorisation-custody-v1.edn"
 # These are calculator-reference inputs, not replay witnesses for Y06.
 cp "$PROJECT_DIR/resources/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json" \
@@ -86,7 +86,7 @@ cp "$PROJECT_DIR/resources/test-vectors/pro-rata/liquidity-fulfillment-liquidity
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
     verify-scenario --run-root scenario-semantic-failure
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
-    run-benchmark sew/sew-force-authorisation-custody-v1 \
+    run-benchmark force-authorisation-custody-v1 \
     --run-root benchmark-force-authorisation
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
     verify-benchmark --run-root benchmark-force-authorisation

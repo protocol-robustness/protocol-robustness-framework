@@ -14,8 +14,9 @@
 
 (def ^:dynamic *scenario-dir*
   "Directory for executable scenario files.
-   Internal default uses explicit resource: path for JAR portability."
-  "resource:scenarios/edn")
+   Bare filesystem path — resource-path/slurp-path handles classpath
+   fallback for JAR portability."
+  "scenarios/edn")
 
 (def ^:dynamic *scenario-ext*
   "File extension for executable scenario files, including leading dot."

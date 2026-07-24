@@ -9,15 +9,15 @@
            :error 1}]
          (strategic/check-merge-invariance
           [1 1 1] 1 {:mode :pro-rata
-                      :rounding-policy :largest-remainder})))
+                     :rounding-policy :largest-remainder})))
   (is (some #(= {:claims [1 2]
-                  :individual-sum 0
-                  :merged-allocation 1
-                  :error 1}
-                 %)
+                 :individual-sum 0
+                 :merged-allocation 1
+                 :error 1}
+                %)
             (strategic/check-merge-invariance
              [1 1 1] 2 {:mode :pro-rata
-                         :rounding-policy :floor}))))
+                        :rounding-policy :floor}))))
 
 (deftest rounding-policies-have-distinct-accounting-semantics
   (let [input [1 1 1]

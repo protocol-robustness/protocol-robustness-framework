@@ -14,7 +14,7 @@
 ;; Use resolve at runtime to avoid circular load dependencies.
 ;; ---------------------------------------------------------------------------
 
-(def ^:private handler-cache (atom nil))
+(def ^:private handler-cache (atom {}))
 
 (declare get-command-handlers)
 
@@ -22,19 +22,42 @@
   ;; Commands that are part of either supported runtime distribution resolve
   ;; individually. This prevents an optional command's dependencies (such as
   ;; the gRPC simulation server) from breaking an unrelated CLI invocation.
+  ;; Note: :commands-validate is intentionally excluded to avoid circular
+  ;; dependency with registry-validate namespace.
   {:run-scenario 'resolver-sim.commands.scenario/run
    :run-invariants 'resolver-sim.commands.invariants/run
    :run-benchmark 'resolver-sim.commands.run-benchmark/run
    :verify-scenario 'resolver-sim.commands.verify-scenario/run
    :verify-benchmark 'resolver-sim.commands.verify-benchmark/run
-      :compare-runs 'resolver-sim.commands.compare-runs/run
-      :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
+   :compare-runs 'resolver-sim.commands.compare-runs/run
+   :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
    :scenario-compare 'resolver-sim.commands.scenario-compare/compare-scenarios
    :scenario-pick 'resolver-sim.commands.scenario-pick/pick-scenarios
    :benchmark-list 'resolver-sim.commands.benchmark-list/list-benchmarks
+   :benchmark-validate 'resolver-sim.commands.benchmark/validate
    :benchmark-validate-jar 'resolver-sim.commands.benchmark-validate-jar/validate-jar
    :benchmark-smoke 'resolver-sim.commands.benchmark-smoke/smoke
-   :suite-list 'resolver-sim.commands.suite-list/list-suites})
+   :suite-list 'resolver-sim.commands.suite-list/list-suites
+   :backstop 'resolver-sim.commands.backstop/run-default
+   :backstop-fast 'resolver-sim.commands.backstop/run-fast
+   :evidence-verify-chain 'resolver-sim.commands.evidence/verify-chain
+   :evidence-validate 'resolver-sim.commands.evidence/validate
+   :evidence-coverage 'resolver-sim.commands.evidence/coverage
+   :evidence-backstop 'resolver-sim.commands.evidence/run-backstop
+   :validate 'resolver-sim.commands.validate/run
+   :concepts-validate 'resolver-sim.commands.concepts/validate
+   :fmt-check 'resolver-sim.commands.validate/fmt-check
+   :lint 'resolver-sim.commands.validate/lint
+   :run-simulation 'resolver-sim.commands.run-simulation/run
+   :community-task-list 'resolver-sim.commands.community/task-list
+   :community-task-show 'resolver-sim.commands.community/task-show
+   :community-task-register 'resolver-sim.commands.community/task-register
+   :community-task-run 'resolver-sim.commands.community/task-run
+   :community-task-reproduce 'resolver-sim.commands.community/task-reproduce
+   :community-task-verify 'resolver-sim.commands.community/task-verify
+   :community-task-report 'resolver-sim.commands.community/task-report
+   :community-graph-export 'resolver-sim.commands.community/graph-export
+   :community-mailbox-clear 'resolver-sim.commands.community/mailbox-clear})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
@@ -49,54 +72,45 @@
 (defn command-available? [cmd-id]
   (or (not (sew-command-ids cmd-id)) (sew-capable?)))
 
+(defn- load-handler-if-available [cmd-id]
+  "Try to load a handler for the given command ID.
+   Returns the handler var if successful, nil otherwise."
+  (when-let [symbol (get handler-symbols cmd-id)]
+    (try
+      (requiring-resolve symbol)
+      (catch Exception _ nil))))
+
 (defn- handler-for [cmd-id]
   (when (command-available? cmd-id)
     (if-let [symbol (get handler-symbols cmd-id)]
-      (requiring-resolve symbol)
-      (get (get-command-handlers) cmd-id))))
+      (try
+        (requiring-resolve symbol)
+        (catch Exception _ nil))
+      ;; Handle :commands-validate specially to avoid circular dependency
+      (when (= cmd-id :commands-validate)
+        (try
+          (requiring-resolve 'resolver-sim.commands.registry-validate/validate)
+          (catch Exception _ nil))))))
 
 (defn get-command-handlers
-  "Return the command handler map, building it on first call.
-   Requires command namespaces lazily to break circular load deps."
+  "Return a map of available command handlers.
+   Only loads handlers that can be resolved without errors.
+   Commands requiring unavailable dependencies return nil."
   []
-  (when-not @handler-cache
-    (reset! handler-cache
-            {:backstop              (requiring-resolve 'resolver-sim.commands.backstop/run-default)
-             :backstop-fast         (requiring-resolve 'resolver-sim.commands.backstop/run-fast)
-             :commands-validate     (requiring-resolve 'resolver-sim.commands.registry-validate/validate)
-             :evidence-verify-chain (requiring-resolve 'resolver-sim.commands.evidence/verify-chain)
-             :evidence-validate     (requiring-resolve 'resolver-sim.commands.evidence/validate)
-             :evidence-coverage     (requiring-resolve 'resolver-sim.commands.evidence/coverage)
-             :evidence-backstop     (requiring-resolve 'resolver-sim.commands.evidence/run-backstop)
-             :validate              (requiring-resolve 'resolver-sim.commands.validate/run)
-             :concepts-validate     (requiring-resolve 'resolver-sim.commands.concepts/validate)
-             :benchmark-validate    (requiring-resolve 'resolver-sim.commands.benchmark/validate)
-             :run-scenario          (requiring-resolve 'resolver-sim.commands.scenario/run)
-             :run-invariants        (requiring-resolve 'resolver-sim.commands.invariants/run)
-             :run-benchmark         (requiring-resolve 'resolver-sim.commands.run-benchmark/run)
-             :verify-scenario       (requiring-resolve 'resolver-sim.commands.verify-scenario/run)
-             :verify-benchmark      (requiring-resolve 'resolver-sim.commands.verify-benchmark/run)
-                          :compare-runs          (requiring-resolve 'resolver-sim.commands.compare-runs/run)
-                          :scenario-list         (requiring-resolve 'resolver-sim.commands.scenario-list/list-scenarios)
-             :scenario-compare      (requiring-resolve 'resolver-sim.commands.scenario-compare/compare-scenarios)
-             :scenario-pick         (requiring-resolve 'resolver-sim.commands.scenario-pick/pick-scenarios)
-             :benchmark-list        (requiring-resolve 'resolver-sim.commands.benchmark-list/list-benchmarks)
-             :benchmark-validate-jar (requiring-resolve 'resolver-sim.commands.benchmark-validate-jar/validate-jar)
-             :benchmark-smoke       (requiring-resolve 'resolver-sim.commands.benchmark-smoke/smoke)
-             :suite-list            (requiring-resolve 'resolver-sim.commands.suite-list/list-suites)
-             :fmt-check             (requiring-resolve 'resolver-sim.commands.validate/fmt-check)
-             :lint                  (requiring-resolve 'resolver-sim.commands.validate/lint)
-             :run-simulation        (requiring-resolve 'resolver-sim.commands.run-simulation/run)
-             :community-task-list   (requiring-resolve 'resolver-sim.commands.community/task-list)
-             :community-task-show   (requiring-resolve 'resolver-sim.commands.community/task-show)
-             :community-task-register (requiring-resolve 'resolver-sim.commands.community/task-register)
-             :community-task-run    (requiring-resolve 'resolver-sim.commands.community/task-run)
-             :community-task-reproduce (requiring-resolve 'resolver-sim.commands.community/task-reproduce)
-             :community-task-verify (requiring-resolve 'resolver-sim.commands.community/task-verify)
-             :community-task-report (requiring-resolve 'resolver-sim.commands.community/task-report)
-             :community-graph-export (requiring-resolve 'resolver-sim.commands.community/graph-export)
-             :community-mailbox-clear (requiring-resolve 'resolver-sim.commands.community/mailbox-clear)}))
-  @handler-cache)
+  (let [result (atom {})]
+    (doseq [[cmd-id symbol] handler-symbols]
+      (when (command-available? cmd-id)
+        (try
+          (let [handler (requiring-resolve symbol)]
+            (swap! result assoc cmd-id handler))
+          (catch Exception _ nil))))
+    ;; Special case for :commands-validate (circular dependency with dispatch)
+    (when (command-available? :commands-validate)
+      (try
+        (let [handler (requiring-resolve 'resolver-sim.commands.registry-validate/validate)]
+          (swap! result assoc :commands-validate handler))
+        (catch Exception _ nil)))
+    @result))
 
 ;; ---------------------------------------------------------------------------
 ;; CLI option definitions
@@ -109,6 +123,7 @@
    [nil "--scenario ID" "Scenario ID to run"]
    [nil "--scenario-file PATH" "Scenario file path"]
    [nil "--run-root DIR" "Authoritative root directory for a complete scenario bundle"]
+   [nil "--suite-root DIR" "Suite root directory (directory containing manifest.edn)"]
    [nil "--output-dir DIR" "Deprecated scenario alias for --run-root"]
    [nil "--scenario-output-dir DIR" "Deprecated scenario alias for --run-root"]
    [nil "--save-output DIR" "Legacy scenario output-copy option"]
@@ -128,8 +143,8 @@
    [nil "--out DIR" "Output directory"
     :default "target/report"]
    [nil "--output PATH" "Output path for evidence bundle"]
-      [nil "--package-a DIR" "First completed canonical package"]
-      [nil "--package-b DIR" "Second completed canonical package"]
+   [nil "--package-a DIR" "First completed canonical package"]
+   [nil "--package-b DIR" "Second completed canonical package"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
    [nil "--key PATH" "Path to private key"]])

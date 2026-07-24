@@ -28,7 +28,8 @@
                                {:level :sensitivity/private}])
      ;; => {:level :sensitivity/private}"
 
-  (:require [resolver-sim.sensitivity.sentinel :as sentinel]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.sensitivity.sentinel :as sentinel]))
 
 ;; ── Constants ────────────────────────────────────────────────────────────────
 
@@ -105,8 +106,8 @@
       (when level
         (cond-> {:level level}
           risk-meta (assoc :risk-meta (select-keys risk-meta
-                                                    [:value-at-risk :risk-severity
-                                                     :risk-vector :reason-codes])))))))
+                                                   [:value-at-risk :risk-severity
+                                                    :risk-vector :reason-codes])))))))
 
 (defn effective-scenario-sensitivity
   "Compute the effective sensitivity for a scenario result, using the
@@ -182,8 +183,8 @@
                                  :reasons)
         evidence-level (when (seq finding-reasons)
                          (some-> (sentinel/classify-from-findings
-                                   (or (:sensitivity/findings artifact)
-                                       (:safety/findings artifact)))
+                                  (or (:sensitivity/findings artifact)
+                                      (:safety/findings artifact)))
                                  :level))
         structural-level (or evidence-level structural)
         effective (if (and declared-level
@@ -203,6 +204,10 @@
      :sentinel/effective-level effective
      :sentinel/reasons all-reasons
      :sentinel/risk-meta risk-meta
+     :sentinel/risk-meta-hash (when risk-meta
+                                (hc/hash-with-intent
+                                 {:hash/intent :evidence-record}
+                                 risk-meta))
      :sentinel/sources (vec sources)}))
 
 ;; ── Attachment ──────────────────────────────────────────────────────────────
@@ -308,13 +313,14 @@
    finalization records, and verification reports."
   [effective & sources]
   (let [provenance-map (select-keys effective
-                                    [:sentinel/structural-level
-                                     :sentinel/declared-level
-                                     :sentinel/effective-level
-                                     :sentinel/reasons
-                                     :sentinel/risk-meta
-                                     :sentinel/sources
-                                     :sentinel/structured-sources])
+                                     [:sentinel/structural-level
+                                      :sentinel/declared-level
+                                      :sentinel/effective-level
+                                      :sentinel/reasons
+                                      :sentinel/risk-meta
+                                      :sentinel/risk-meta-hash
+                                      :sentinel/sources
+                                      :sentinel/structured-sources])
         ;; Separate structured maps from plain strings
         [structured extra-strings]
         ((fn [xs]

@@ -54,9 +54,9 @@
           (when-not (by-id id)
             (swap! errors conj (str "reference-validation manifest missing public scenario id " id))
             (println "    FAIL public scenario id missing:" id)))
-        (doseq [path ["scenarios/S25_profit-maximizer-slash-lifecycle.json"
-                      "scenarios/S62_resolver-throughput-exhaustion.json"
-                      "scenarios/S05_pending-settlement-execute.json"]]
+        (doseq [path ["scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
+                      "scenarios/edn/S62_resolver-throughput-exhaustion.edn"
+                      "scenarios/edn/S05_pending-settlement-execute.edn"]]
           (when-not (by-path path)
             (swap! errors conj (str "reference-validation manifest missing simulator path " path))
             (println "    FAIL simulator path missing:" path)))))))
@@ -159,7 +159,7 @@
     ;; or be explicitly listed as a deferred semantic claim.
     (let [deferred-claims (or (:benchmark/deferred-scenario-claims benchmark)
                               #{})
-          all-registered-ids (set (map :claim/id (:claims claim-registry)))
+          all-registered-ids (set (keys claim-registry))
           all-scenario-claims (set (keep :claim (:benchmark/scenarios benchmark)))]
       (doseq [scenario (:benchmark/scenarios benchmark)
               :let [scenario-claim (:claim scenario)]
@@ -258,8 +258,8 @@
                 (swap! errors conj (str "benchmark domain " bdomain " for " bid " is not registered in benchmarks/registry.edn"))
                 (println "    FAIL benchmark domain" bdomain "for" bid "not registered")))))
         (doseq [benchmark-ref (:benchmarks data)]
-          (let [status (:benchmark/status benchmark-ref)]
-            (when-not (contains? #{:active :experimental :deprecated} status)
+            (let [status (:benchmark/status benchmark-ref)]
+            (when-not (contains? #{:active :experimental :deprecated :alias} status)
               (swap! errors conj (str "invalid :benchmark/status " status " for " (:benchmark/id benchmark-ref)))
               (println "    FAIL invalid :benchmark/status" status "for" (:benchmark/id benchmark-ref)))
             (when (= :deprecated status)
@@ -269,11 +269,14 @@
               (when-not (:replaced-by benchmark-ref)
                 (swap! errors conj (str "deprecated benchmark " (:benchmark/id benchmark-ref) " missing :replaced-by"))
                 (println "    FAIL deprecated benchmark" (:benchmark/id benchmark-ref) "missing :replaced-by"))))
-          (let [benchmark-path (str pack-dir "/" (:benchmark/file benchmark-ref))]
-            (validate-file-exists! errors benchmark-path "benchmark file")
-            (when-let [benchmark (read-edn-file benchmark-path)]
-               (validate-benchmark-file! errors concept-idx claim-registry benchmark-path
-                                         (assoc benchmark :benchmark/status (:benchmark/status benchmark-ref))))))))))
+          (when (= :alias (:benchmark/status benchmark-ref))
+            (println "    OK alias" (:benchmark/id benchmark-ref) "->" (:benchmark/alias-of benchmark-ref)))
+          (when-not (= :alias (:benchmark/status benchmark-ref))
+            (let [benchmark-path (str pack-dir "/" (:benchmark/file benchmark-ref))]
+              (validate-file-exists! errors benchmark-path "benchmark file")
+              (when-let [benchmark (read-edn-file benchmark-path)]
+                 (validate-benchmark-file! errors concept-idx claim-registry benchmark-path
+                                            (assoc benchmark :benchmark/status (:benchmark/status benchmark-ref)))))))))))
 
 (defn validate-pack-capabilities! [errors claim-registry registry-path]
   (when-let [pack (read-edn-file registry-path)]

@@ -178,61 +178,61 @@
     (if-not (:ok validation)
       {:outcome :invalid :scenario-id (:scenario-id scenario) :events-processed 0 :trace [] :metrics (metrics/zero-metrics protocol (:metrics-profile flags)) :halt-reason (:error validation) :protocol protocol}
       (binding [evcapture/*capture-event-evidence!* (if (= :none (:evidence-mode flags))
-                                                       evcapture/noop-capture
-                                                       evcapture/*capture-event-evidence!*)]
+                                                      evcapture/noop-capture
+                                                      evcapture/*capture-event-evidence!*)]
         (let [agents   (:agents scenario)
-            p-params (get scenario :protocol-params {})
-            context  (-> (proto/build-execution-context protocol agents p-params)
-                         (assoc :replay-flags flags))
-            agent-index (:agent-index context)
-            scenario-id (:scenario-id scenario)
+              p-params (get scenario :protocol-params {})
+              context  (-> (proto/build-execution-context protocol agents p-params)
+                           (assoc :replay-flags flags))
+              agent-index (:agent-index context)
+              scenario-id (:scenario-id scenario)
             ;; The execution loop derives per-event evidence attribution from
             ;; world parameters. Preserve the explicit input identity there
             ;; for every protocol before processing its first transition.
-            world0  (assoc-in (proto/init-world protocol scenario)
-                              [:params :scenario-id]
-                              scenario-id)
-            events  (sort-by :seq (:events scenario))
-            expected-errors-set (set (map expected-error-key (:expected-errors scenario [])))
-            strict-expected-errors? (boolean (:strict-expected-errors? scenario false))
-            run-id  (or (:run-id opts) (:run-id scenario) (str scenario-id "-run"))
-            options {:expected-errors-set expected-errors-set
-                     :strict-expected-errors? strict-expected-errors?
-                     :allow-open-entities? (:allow-open-entities? scenario)
-                     :allow-open-disputes? (:allow-open-disputes? scenario)
-                     :agents agents
-                     :temporal-cfg temporal-cfg
-                     :temporal-enabled? temporal-enabled?
-                     :agent-index agent-index
-                     :scenario scenario
-                     :run-id run-id
-                     :replay-flags flags}
-            run-loop #(execution/run-simulation-loop protocol context scenario-id events world0 [] (metrics/zero-metrics protocol (:metrics-profile flags)) options)
-            raw-result (if (= :none (:evidence-mode flags))
-                         (risk/with-fresh-risk-context
-                           (let [result (run-loop)]
-                             (assoc result :yield/risk-events (risk/events))))
-                         (run-loop))
-            trimmed-result (replay-checkpoints/apply-checkpoint-policy-to-result
-                            (:world-checkpoint-policy flags)
-                            raw-result)
-            triggered (set (mapcat :short-circuits (:yield/risk-events trimmed-result)))
-            forbidden (set (:fail-on-short-circuits flags))
-            policy-result (if-let [matched (seq (set/intersection triggered forbidden))]
-                            (assoc trimmed-result :outcome :fail
-                                   :halt-reason :short-circuit-policy
-                                   :short-circuit-violations (vec (sort matched)))
-                            trimmed-result)
-            finalized-result (if (:evaluate-expectations? flags true)
-                               (finalize-scenario-result scenario policy-result flags)
-                               policy-result)]
+              world0  (assoc-in (proto/init-world protocol scenario)
+                                [:params :scenario-id]
+                                scenario-id)
+              events  (sort-by :seq (:events scenario))
+              expected-errors-set (set (map expected-error-key (:expected-errors scenario [])))
+              strict-expected-errors? (boolean (:strict-expected-errors? scenario false))
+              run-id  (or (:run-id opts) (:run-id scenario) (str scenario-id "-run"))
+              options {:expected-errors-set expected-errors-set
+                       :strict-expected-errors? strict-expected-errors?
+                       :allow-open-entities? (:allow-open-entities? scenario)
+                       :allow-open-disputes? (:allow-open-disputes? scenario)
+                       :agents agents
+                       :temporal-cfg temporal-cfg
+                       :temporal-enabled? temporal-enabled?
+                       :agent-index agent-index
+                       :scenario scenario
+                       :run-id run-id
+                       :replay-flags flags}
+              run-loop #(execution/run-simulation-loop protocol context scenario-id events world0 [] (metrics/zero-metrics protocol (:metrics-profile flags)) options)
+              raw-result (if (= :none (:evidence-mode flags))
+                           (risk/with-fresh-risk-context
+                             (let [result (run-loop)]
+                               (assoc result :yield/risk-events (risk/events))))
+                           (run-loop))
+              trimmed-result (replay-checkpoints/apply-checkpoint-policy-to-result
+                              (:world-checkpoint-policy flags)
+                              raw-result)
+              triggered (set (mapcat :short-circuits (:yield/risk-events trimmed-result)))
+              forbidden (set (:fail-on-short-circuits flags))
+              policy-result (if-let [matched (seq (set/intersection triggered forbidden))]
+                              (assoc trimmed-result :outcome :fail
+                                     :halt-reason :short-circuit-policy
+                                     :short-circuit-violations (vec (sort matched)))
+                              trimmed-result)
+              finalized-result (if (:evaluate-expectations? flags true)
+                                 (finalize-scenario-result scenario policy-result flags)
+                                 policy-result)]
         ;; The simulation kernel may not retain this source-level identity in
         ;; its accumulator. Every replay result nevertheless has the explicit
         ;; scenario input available at this boundary, so preserve it before
         ;; protocol-neutral consumers construct entries or finalizations.
-        (cond-> finalized-result
-          (nil? (:scenario-id finalized-result))
-          (assoc :scenario-id (:scenario-id scenario))))))))
+          (cond-> finalized-result
+            (nil? (:scenario-id finalized-result))
+            (assoc :scenario-id (:scenario-id scenario))))))))
 
 (defn replay-with-protocol
   "Full replay plus evidence-chain, persistence, signing, timestamping and
@@ -298,7 +298,7 @@
                     :tsa-url tsa-url
                     :allow-dirty? allow-dirty?)))
                (chain/register-scenario-snapshot!)
-                (assoc result :risk-events (risk/events))))))))))
+               (assoc result :risk-events (risk/events))))))))))
 
 (defn replay-yield-scenario
   "INTERNAL COMPATIBILITY ADAPTER — delegates to replay.yield/replay-yield-scenario.
@@ -363,8 +363,8 @@
         base (if (or (not (:context/version result))
                      (not (:context/source result)))
                (assoc base :context/version "1.0"
-                            :context/source {:scenario-id scenario-id
-                                             :run-id effective-run-id})
+                      :context/source {:scenario-id scenario-id
+                                       :run-id effective-run-id})
                base)]
     (merge result base)))
 
@@ -398,7 +398,7 @@
    :signing-password, :tsa-url, :skip-finalize, :allow-dirty?"
   ([protocol scenario]
    (simple-replay protocol scenario nil))
-   ([protocol scenario replay-opts]
+  ([protocol scenario replay-opts]
    (let [prep         (prepare-simple-scenario scenario)
          prepared     (:scenario prep)
          normalizations (:normalizations prep)

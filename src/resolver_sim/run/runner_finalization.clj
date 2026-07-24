@@ -28,16 +28,15 @@
   (when-not (and (string? run-id) (seq run-id))
     (throw (ex-info "Runner finalization requires a run id" {:run-id run-id})))
   (let [base (cond-> {:runner-finalization/schema-version schema-version
-              :run/id run-id
-              :runner/selection (select-keys runner-selection [:mode :runner-id])
-              :runner/local (local-runtime-identity)
-              :runner/implementation-hash (:source/hash source-provenance)
-              :execution/result execution-result}
+                      :run/id run-id
+                      :runner/selection (select-keys runner-selection [:mode :runner-id])
+                      :runner/local (local-runtime-identity)
+                      :runner/implementation-hash (:source/hash source-provenance)
+                      :execution/result execution-result}
                scenario-id (assoc :scenario/id scenario-id)
                execution-id (assoc :execution/id execution-id))
         hash (hc/hash-with-intent {:hash/intent :runner-finalization} base)]
     (assoc base :runner-finalization/hash hash)))
-
 
 (defn runner-finalization->wire [artifact]
   (-> artifact

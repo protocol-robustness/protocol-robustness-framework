@@ -205,11 +205,12 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
-                     {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
-                     {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
-   :command/outputs ["<run-root>/completion.json" "<run-root>/manifest/artifacts.json"]
-    :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. Registered suite execution is a separate future command."}
+    :command/options [{:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
+                      {:name "--suite-root" :type :string :doc "Suite root directory (contains manifest.edn)"}
+                      {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
+                      {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
+    :command/outputs ["<run-root>/completion.json" "<run-root>/manifest/artifacts.json"]
+     :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. Registered suite execution is a separate future command."}
 
   {:command/id :verify-scenario
    :command/path ["verify-scenario"]
@@ -231,10 +232,11 @@
    :command/backstop-tier :default
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--protocol" :type :string :doc "Protocol ID (default sew-v1)"}
-                     {:name "--json" :type :flag :doc "Output as JSON"}]
-   :command/outputs []
-   :command/description "Run the full protocol invariant suite (S01–S100 for sew-v1)."}
+    :command/options [{:name "--protocol" :type :string :doc "Protocol ID (default sew-v1)"}
+                      {:name "--suite-root" :type :string :doc "Suite root directory (contains manifest.edn)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Run the full protocol invariant suite (S01–S100 for sew-v1)."}
 
    {:command/id :benchmark-validate-jar
     :command/path ["benchmark" "validate-jar"]
@@ -572,11 +574,44 @@
    :command/bb-task "notebook:index"
    :command/description "Open the notebook navigation hub in the browser."}
 
-  {:command/id :workspace-doctor
-   :command/path ["workspace" "doctor"]
-   :command/title "Validate workspace"
-   :command/category :maintenance
-   :command/surface :bb
-   :command/runtime :bb
-   :command/bb-task "workspace:doctor"
-   :command/description "Validate workspace structure, README, deps.edn, and path resolution."}]}
+   {:command/id :workspace-doctor
+    :command/path ["workspace" "doctor"]
+    :command/title "Validate workspace"
+    :command/category :maintenance
+    :command/surface :bb
+    :command/runtime :bb
+    :command/bb-task "workspace:doctor"
+    :command/description "Validate workspace structure, README, deps.edn, and path resolution."}
+
+   {:command/id :test-yield
+    :command/path ["test" "yield"]
+    :command/title "Run yield unit tests"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :default
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:yield"
+    :command/description "Run yield protocol unit tests (accrual, partial-fill, invariants, modules)."}
+
+   {:command/id :test-yield-scenarios
+    :command/path ["test" "yield-scenarios"]
+    :command/title "Run yield JSON scenarios"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :default
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:yield-scenarios"
+    :command/description "Run yield provider and Sew-yield integration JSON scenarios."}
+
+   {:command/id :test-sew-yield-scenarios
+    :command/path ["test" "sew-yield-scenarios"]
+    :command/title "Run Sew+yield integration scenarios"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :default
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:sew-yield-scenarios"
+    :command/description "Run Sew escrow + yield integration JSON scenarios."}]}

@@ -451,9 +451,9 @@
                          (claim-maturity-level cr manifest)))
      :claim-results (:claim-results evidence)
      :conclusion (build-conclusion metrics
-                                    (:claim-results evidence)
-                                    (:evidence/hash evidence)
-                                    (:benchmark-run/hash evidence))
+                                   (:claim-results evidence)
+                                   (:evidence/hash evidence)
+                                   (:benchmark-run/hash evidence))
      :dimensions dimensions
      :invariant-summary inv-summary
      :concept/section (:concept/section evidence)

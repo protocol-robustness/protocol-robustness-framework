@@ -43,15 +43,15 @@
 
 (deftest yield-provider-suite-is-canonical-top-level
   (let [paths (suites/suite-paths :yield-provider-scenarios)]
-    (is (= ["resource:scenarios/edn/Y01_vault-shared-liquidity.edn"
-            "resource:scenarios/edn/Y02_vault-shortfall-partial-withdraw.edn"
-            "resource:scenarios/edn/Y03_vault-risk-override-schedule-shadowing.edn"
-            "resource:scenarios/edn/Y04_vault-recovery-claim-deferred.edn"
-            "resource:scenarios/edn/Y05_auto-generated-shortfall.edn"
-            "resource:scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn"
-            "resource:scenarios/edn/Y07_adversarial-shortfall-exploit.edn"]
+    (is (= ["scenarios/edn/Y01_vault-shared-liquidity.edn"
+            "scenarios/edn/Y02_vault-shortfall-partial-withdraw.edn"
+            "scenarios/edn/Y03_vault-risk-override-schedule-shadowing.edn"
+            "scenarios/edn/Y04_vault-recovery-claim-deferred.edn"
+            "scenarios/edn/Y05_auto-generated-shortfall.edn"
+            "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn"
+            "scenarios/edn/Y07_adversarial-shortfall-exploit.edn"]
            paths))
-    (is (every? #(str/starts-with? % "resource:scenarios/edn/Y") paths))
+    (is (every? #(str/starts-with? % "scenarios/edn/Y") paths))
     (is (not-any? #(str/includes? % "resource:scenarios/yield/") paths))
     (is (= "yield-v1" (suites/suite-protocol-id :yield-provider-scenarios)))))
 

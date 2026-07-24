@@ -8,32 +8,32 @@
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-              [clojure.set :as set]
+            [clojure.set :as set]
             [clojure.string :as str]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.commands.scenario-value-at-risk :as value-at-risk]
-                        [resolver-sim.evidence.finalization :as finalization]
-                        [resolver-sim.evidence.node :as evidence-node]
-                                                [resolver-sim.forensic.execution-dag :as execution-dag]
-                                                [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.evidence.finalization :as finalization]
+            [resolver-sim.evidence.node :as evidence-node]
+            [resolver-sim.forensic.execution-dag :as execution-dag]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.run.runner-finalization :as runner-finalization]
-                        [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
+            [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
   (:import [java.nio.file Files StandardCopyOption]
-             [java.security MessageDigest]
-             [java.math BigInteger]))
+           [java.security MessageDigest]
+           [java.math BigInteger]))
 
 (def schema-version "run-package-index.v1")
 (def ^:private supported-run-types #{:single-scenario :benchmark})
 (def ^:private single-scenario-artifacts
   #{:input-snapshot :scenario-finalization :runner-finalization :run-finalization
-      :canonical-assurance :verdict-policy :artifact-registry :registry-validation :execution-dag})
+    :canonical-assurance :verdict-policy :artifact-registry :registry-validation :execution-dag})
 (def ^:private benchmark-artifacts
   #{:runner-finalization :benchmark-definition :execution-plan :benchmark-index
     :benchmark-evidence :content-registry :benchmark-conclusion :benchmark-conservation
     :benchmark-finalization :benchmark-assurance :canonical-integrity :verdict-policy :forensic-status})
 
-    (defn- required-artifacts [run-type]
+(defn- required-artifacts [run-type]
   (case run-type
     :single-scenario single-scenario-artifacts
     :benchmark benchmark-artifacts
@@ -76,8 +76,8 @@
                                  :runner-finalization runner-finalization
                                  :run-finalization run-finalization
                                  :canonical-assurance canonical-assurance
-                                                                  :verdict-policy verdict-policy
-                                                                  :artifact-registry artifact-registry
+                                 :verdict-policy verdict-policy
+                                 :artifact-registry artifact-registry
                                  :registry-validation registry-validation
                                  :execution-dag execution-dag})
         base {:run-package/schema-version schema-version
@@ -110,7 +110,7 @@
   (let [digest (MessageDigest/getInstance "SHA-256")]
     (str "sha256:" (format "%064x" (BigInteger. 1 (.digest digest bytes))))))
 
-    (defn resolve-completion-context
+(defn resolve-completion-context
   "Read the terminal completion seal first. A package index becomes trusted only
    after its exact persisted bytes match completion's path/hash/length binding."
   [run-root]
@@ -118,7 +118,7 @@
     (cond
       (not (.isFile completion-file))
       {:run-root run-root
-             :completion-report {:valid? false :reasons [(reason :package/completion-missing)]}
+       :completion-report {:valid? false :reasons [(reason :package/completion-missing)]}
        :reasons [(reason :package/completion-missing)]}
 
       :else
@@ -137,11 +137,11 @@
                             (when-not (contains? #{"run-completion.v1" "benchmark-completion.v1"}
                                                  (get completion "schema_version"))
                               [(reason :package/completion-invalid :field :schema_version)])
-                                                        (when-not (and (string? (get completion "run_id"))
-                                                                       (seq (get completion "run_id")))
-                                                          [(reason :package/completion-invalid :field :run_id)])
-                                                        (when-not (= "completed" (get completion "lifecycle_status"))
-                                                          [(reason :package/completion-invalid :field :lifecycle_status)])
+                            (when-not (and (string? (get completion "run_id"))
+                                           (seq (get completion "run_id")))
+                              [(reason :package/completion-invalid :field :run_id)])
+                            (when-not (= "completed" (get completion "lifecycle_status"))
+                              [(reason :package/completion-invalid :field :lifecycle_status)])
                             (when (and (get completion "run_type")
                                        (not (contains? #{"scenario" "benchmark"} (get completion "run_type"))))
                               [(reason :package/completion-invalid :field :run_type)])
@@ -149,20 +149,20 @@
                             (when (and path (nil? index-file)) [(reason :package/package-index-path-invalid :path path)])
                             (when (and index-file (not (.isFile index-file))) [(reason :package/package-index-missing :path path)])
                             (when-not (and (string? expected-hash) (re-matches sha256-ref-pattern expected-hash))
-                                                          [(reason :package/completion-invalid :field :run_package_index_sha256)])
-                                                        (when-not (and (integer? expected-bytes) (not (neg? expected-bytes)))
-                                                          [(reason :package/completion-invalid :field :run_package_index_bytes)])
-                                                        (when (and index-bytes (not= expected-hash actual-hash))
-                                                          [(reason :package/package-index-hash-mismatch :expected expected-hash :actual actual-hash)])
-                                                        (when (and index-bytes (not= expected-bytes actual-bytes))
-                                                          [(reason :package/package-index-byte-length-mismatch :expected expected-bytes :actual actual-bytes)])))
+                              [(reason :package/completion-invalid :field :run_package_index_sha256)])
+                            (when-not (and (integer? expected-bytes) (not (neg? expected-bytes)))
+                              [(reason :package/completion-invalid :field :run_package_index_bytes)])
+                            (when (and index-bytes (not= expected-hash actual-hash))
+                              [(reason :package/package-index-hash-mismatch :expected expected-hash :actual actual-hash)])
+                            (when (and index-bytes (not= expected-bytes actual-bytes))
+                              [(reason :package/package-index-byte-length-mismatch :expected expected-bytes :actual actual-bytes)])))
               ;; A mismatched index is not a trusted declaration. Do not parse or
               ;; derive any package verdict from it. Parsing is from `index-bytes`,
               ;; never a later filesystem read.
               index-result (when (and (empty? reasons) index-bytes)
                              (try {:index (wire->package-index
-                                                                       (json/read-str (String. ^bytes index-bytes "UTF-8") :key-fn keyword))
-                                                                :path index-file
+                                           (json/read-str (String. ^bytes index-bytes "UTF-8") :key-fn keyword))
+                                   :path index-file
                                    :sha256 actual-hash
                                    :bytes actual-bytes}
                                   (catch Exception _ {:reason (reason :package/package-index-invalid-json :path path)})))
@@ -179,21 +179,25 @@
                                     [(reason :package/completion-invalid :field :run_type)])))
               all-reasons (vec (concat reasons (when-let [r (:reason index-result)] [r]) profile-reasons))]
           {:run-root run-root
-                     :completion completion
-                     :completion-report {:valid? (empty? all-reasons) :reasons all-reasons}
+           :completion completion
+           :completion-report {:valid? (empty? all-reasons) :reasons all-reasons}
            ;; Profile incompatibility is terminal too: callers must never receive
            ;; an index whose completion seal does not describe that profile.
            :package-index (when (empty? all-reasons) index-result)
            :reasons all-reasons})
         (catch Exception _
           {:run-root run-root
-                     :completion-report {:valid? false :reasons [(reason :package/completion-invalid)]}
+           :completion-report {:valid? false :reasons [(reason :package/completion-invalid)]}
            :reasons [(reason :package/completion-invalid)]})))))
 
 (defn read-index [run-root]
   (let [file (io/file run-root paths/run-package-index)]
     (if (.isFile file)
-      (read-live-registry file 0 (count-ids file))
+      (try
+        {:index (wire->package-index (json/read-str (slurp file) :key-fn keyword))
+         :path file}
+        (catch Exception _
+          {:reason (reason :package/package-index-invalid-json :path paths/run-package-index)}))
       {:reason (reason :package/missing-index :path paths/run-package-index)})))
 
 (defn- artifact-json [run-root artifacts id]
@@ -377,99 +381,99 @@
 
 (defn- legacy-subordinate-reasons [run-root index completion artifacts]
   (let [runner (artifact-json run-root artifacts :runner-finalization)
-          scenario-final (artifact-json run-root artifacts :scenario-finalization)
-          scenario-validation (when scenario-final (finalization/validate-finalization scenario-final {:require-execution-id? true}))
-          run-final (artifact-json run-root artifacts :run-finalization)
-          run-final-validation (when run-final
-                                 (finalization/validate-finalization run-final {:require-execution-identities? true}))
-          runner-validation (when runner (runner-finalization/valid? runner))
-          dag (artifact-json run-root artifacts :execution-dag)
+        scenario-final (artifact-json run-root artifacts :scenario-finalization)
+        scenario-validation (when scenario-final (finalization/validate-finalization scenario-final {:require-execution-id? true}))
+        run-final (artifact-json run-root artifacts :run-finalization)
+        run-final-validation (when run-final
+                               (finalization/validate-finalization run-final {:require-execution-identities? true}))
+        runner-validation (when runner (runner-finalization/valid? runner))
+        dag (artifact-json run-root artifacts :execution-dag)
         dag-validation (when dag (execution-dag/validate-persisted-dag dag {:require-identities? true}))
-                assurance-validation (validate-canonical-assurance run-root artifacts)
-                        registry-validation (validate-registry-validation run-root artifacts)
-                                indexed-scenario-hash (get-in artifacts [:scenario-finalization :sha256])
-                                committed-scenario-hashes (set (map #(get-in % [:finalization :sha256])
-                                                                    (get-in run-final [:evidence :scenario-finalizations])))
-                                registry (artifact-json run-root artifacts :artifact-registry)
-                                        expected-run-id (:run/id index)
-                                        expected-scenario-id (:scenario/id index)
-                                        expected-execution-id (:execution/id index)
-                                        expected-input-hash (get-in artifacts [:input-snapshot :sha256])
-                                        input-reasons (vec (concat
-                                                             (when-not (and (string? expected-input-hash) (re-matches sha256-ref-pattern expected-input-hash))
-                                                               [(reason :package/missing-authoritative-input-commitment :artifact-id :input-snapshot)])
-                                                             (when (and scenario-final expected-input-hash
-                                                                        (not= expected-input-hash (get-in scenario-final [:subject :scenario-input :sha256])))
-                                                               [(reason :package/scenario-input-hash-mismatch :artifact-id :scenario-finalization
-                                                                        :expected expected-input-hash :actual (get-in scenario-final [:subject :scenario-input :sha256]))])
-                                                             (when (and run-final expected-input-hash
-                                                                        (not= expected-input-hash (get-in run-final [:run :run-input-hash])))
-                                                               [(reason :package/run-input-hash-mismatch :artifact-id :run-finalization
-                                                                        :expected expected-input-hash :actual (get-in run-final [:run :run-input-hash]))])
-                                                             (when (and dag-validation expected-input-hash
-                                                                        (not-every? #(= expected-input-hash (get-in % [:node/input-hashes :scenario/source-hash]))
-                                                                                    (:nodes dag-validation)))
-                                                               [(reason :package/dag-input-hash-mismatch :artifact-id :execution-dag
-                                                                        :expected expected-input-hash)])))
-                                        run-ids {:completion (or (get completion "run_id") (:run_id completion) (:run/id completion))
-                                                 :execution-dag (:run-id dag-validation)
-                                                 :runner (:run/id runner)
-                                                 :run-final (get-in run-final [:run :run-id])
-                                                 :assurance (:run-id assurance-validation)
-                                                 :registry (or (:run_id registry) (:run/id registry))}
-                                        run-id-mismatches (vec (for [[source actual] run-ids
-                                                                     :when (and actual (not= actual expected-run-id))]
-                                                                 {:source source :expected expected-run-id :actual actual}))
-                                        identity-reasons (vec (concat
-                                                          (when-not (and (string? expected-scenario-id) (seq expected-scenario-id))
-                                                            [(reason :package/missing-authoritative-identity :artifact-id :package-index :field :scenario/id)])
-                                                          (when-not (and (string? expected-execution-id) (seq expected-execution-id))
-                                                            [(reason :package/missing-authoritative-identity :artifact-id :package-index :field :execution/id)])
-                                                          (for [[artifact-id actual] [[:execution-dag (:scenario-id dag-validation)]
-                                                                                     [:runner-finalization (:scenario/id runner)]]
-                                                                :when (and actual (not= actual expected-scenario-id))]
-                                                            (reason :package/scenario-id-mismatch :artifact-id artifact-id :expected expected-scenario-id :actual actual))
-                                                          (when (and runner (not (and (string? (:scenario/id runner)) (seq (:scenario/id runner)))))
-                                                            [(reason :package/missing-authoritative-identity :artifact-id :runner-finalization :field :scenario/id)])
-                                                          (for [[artifact-id actual] [[:execution-dag (:execution-id dag-validation)]
-                                                                                     [:runner-finalization (:execution/id runner)]
-                                                                                     [:scenario-finalization (:execution-id scenario-validation)]]
-                                                                :when (and actual (not= actual expected-execution-id))]
-                                                            (reason :package/execution-id-mismatch :artifact-id artifact-id :expected expected-execution-id :actual actual))
-                                                          (when (and runner (not (and (string? (:execution/id runner)) (seq (:execution/id runner)))))
-                                                            [(reason :package/missing-authoritative-identity :artifact-id :runner-finalization :field :execution/id)])
-                                                          (let [members (get-in run-final [:evidence :scenario-finalizations])
-                                                                ids (set (map :scenario-id members))
-                                                                execution-ids (set (map :execution/id members))
-                                                                member (first members)]
-                                                            (concat
-                                                             (when (and run-final (not= #{expected-scenario-id} ids))
-                                                               [(reason :package/scenario-id-mismatch :artifact-id :run-finalization
-                                                                        :expected expected-scenario-id :actual (vec (sort ids)))])
-                                                             (when (and run-final (not= #{expected-execution-id} execution-ids))
-                                                               [(reason :package/execution-id-mismatch :artifact-id :run-finalization
-                                                                        :expected expected-execution-id :actual (vec (sort execution-ids)) )])
-                                                             (when (and scenario-final member
-                                                                        (not= (:execution-id scenario-validation) (:execution/id member)))
-                                                               [(reason :package/execution-id-mismatch :artifact-id :scenario-finalization
-                                                                        :expected (:execution/id member) :actual (:execution-id scenario-validation))])
-                                                             (when (and scenario-final member
-                                                                        (not= (:scenario-id scenario-validation) (:scenario-id member)))
-                                                               [(reason :package/scenario-id-mismatch :artifact-id :scenario-finalization
-                                                                        :expected (:scenario-id member) :actual (:scenario-id scenario-validation))])))))
-                                        scenario-reconciliation (cond
-                                                          (nil? run-final) {:valid? false :reasons [(reason :package/run-finalization-unreadable)]}
-                                                          (not (contains? committed-scenario-hashes indexed-scenario-hash))
-                                                          {:valid? false :reasons [(reason :package/scenario-finalization-not-committed
-                                                                                       :indexed-hash indexed-scenario-hash
-                                                                                       :committed-hashes (vec (sort committed-scenario-hashes)))]}
-                                                          :else {:valid? true :reasons []})]
+        assurance-validation (validate-canonical-assurance run-root artifacts)
+        registry-validation (validate-registry-validation run-root artifacts)
+        indexed-scenario-hash (get-in artifacts [:scenario-finalization :sha256])
+        committed-scenario-hashes (set (map #(get-in % [:finalization :sha256])
+                                            (get-in run-final [:evidence :scenario-finalizations])))
+        registry (artifact-json run-root artifacts :artifact-registry)
+        expected-run-id (:run/id index)
+        expected-scenario-id (:scenario/id index)
+        expected-execution-id (:execution/id index)
+        expected-input-hash (get-in artifacts [:input-snapshot :sha256])
+        input-reasons (vec (concat
+                            (when-not (and (string? expected-input-hash) (re-matches sha256-ref-pattern expected-input-hash))
+                              [(reason :package/missing-authoritative-input-commitment :artifact-id :input-snapshot)])
+                            (when (and scenario-final expected-input-hash
+                                       (not= expected-input-hash (get-in scenario-final [:subject :scenario-input :sha256])))
+                              [(reason :package/scenario-input-hash-mismatch :artifact-id :scenario-finalization
+                                       :expected expected-input-hash :actual (get-in scenario-final [:subject :scenario-input :sha256]))])
+                            (when (and run-final expected-input-hash
+                                       (not= expected-input-hash (get-in run-final [:run :run-input-hash])))
+                              [(reason :package/run-input-hash-mismatch :artifact-id :run-finalization
+                                       :expected expected-input-hash :actual (get-in run-final [:run :run-input-hash]))])
+                            (when (and dag-validation expected-input-hash
+                                       (not-every? #(= expected-input-hash (get-in % [:node/input-hashes :scenario/source-hash]))
+                                                   (:nodes dag-validation)))
+                              [(reason :package/dag-input-hash-mismatch :artifact-id :execution-dag
+                                       :expected expected-input-hash)])))
+        run-ids {:completion (or (get completion "run_id") (:run_id completion) (:run/id completion))
+                 :execution-dag (:run-id dag-validation)
+                 :runner (:run/id runner)
+                 :run-final (get-in run-final [:run :run-id])
+                 :assurance (:run-id assurance-validation)
+                 :registry (or (:run_id registry) (:run/id registry))}
+        run-id-mismatches (vec (for [[source actual] run-ids
+                                     :when (and actual (not= actual expected-run-id))]
+                                 {:source source :expected expected-run-id :actual actual}))
+        identity-reasons (vec (concat
+                               (when-not (and (string? expected-scenario-id) (seq expected-scenario-id))
+                                 [(reason :package/missing-authoritative-identity :artifact-id :package-index :field :scenario/id)])
+                               (when-not (and (string? expected-execution-id) (seq expected-execution-id))
+                                 [(reason :package/missing-authoritative-identity :artifact-id :package-index :field :execution/id)])
+                               (for [[artifact-id actual] [[:execution-dag (:scenario-id dag-validation)]
+                                                           [:runner-finalization (:scenario/id runner)]]
+                                     :when (and actual (not= actual expected-scenario-id))]
+                                 (reason :package/scenario-id-mismatch :artifact-id artifact-id :expected expected-scenario-id :actual actual))
+                               (when (and runner (not (and (string? (:scenario/id runner)) (seq (:scenario/id runner)))))
+                                 [(reason :package/missing-authoritative-identity :artifact-id :runner-finalization :field :scenario/id)])
+                               (for [[artifact-id actual] [[:execution-dag (:execution-id dag-validation)]
+                                                           [:runner-finalization (:execution/id runner)]
+                                                           [:scenario-finalization (:execution-id scenario-validation)]]
+                                     :when (and actual (not= actual expected-execution-id))]
+                                 (reason :package/execution-id-mismatch :artifact-id artifact-id :expected expected-execution-id :actual actual))
+                               (when (and runner (not (and (string? (:execution/id runner)) (seq (:execution/id runner)))))
+                                 [(reason :package/missing-authoritative-identity :artifact-id :runner-finalization :field :execution/id)])
+                               (let [members (get-in run-final [:evidence :scenario-finalizations])
+                                     ids (set (map :scenario-id members))
+                                     execution-ids (set (map :execution/id members))
+                                     member (first members)]
+                                 (concat
+                                  (when (and run-final (not= #{expected-scenario-id} ids))
+                                    [(reason :package/scenario-id-mismatch :artifact-id :run-finalization
+                                             :expected expected-scenario-id :actual (vec (sort ids)))])
+                                  (when (and run-final (not= #{expected-execution-id} execution-ids))
+                                    [(reason :package/execution-id-mismatch :artifact-id :run-finalization
+                                             :expected expected-execution-id :actual (vec (sort execution-ids)))])
+                                  (when (and scenario-final member
+                                             (not= (:execution-id scenario-validation) (:execution/id member)))
+                                    [(reason :package/execution-id-mismatch :artifact-id :scenario-finalization
+                                             :expected (:execution/id member) :actual (:execution-id scenario-validation))])
+                                  (when (and scenario-final member
+                                             (not= (:scenario-id scenario-validation) (:scenario-id member)))
+                                    [(reason :package/scenario-id-mismatch :artifact-id :scenario-finalization
+                                             :expected (:scenario-id member) :actual (:scenario-id scenario-validation))])))))
+        scenario-reconciliation (cond
+                                  (nil? run-final) {:valid? false :reasons [(reason :package/run-finalization-unreadable)]}
+                                  (not (contains? committed-scenario-hashes indexed-scenario-hash))
+                                  {:valid? false :reasons [(reason :package/scenario-finalization-not-committed
+                                                                   :indexed-hash indexed-scenario-hash
+                                                                   :committed-hashes (vec (sort committed-scenario-hashes)))]}
+                                  :else {:valid? true :reasons []})]
     (vec (concat
-              (for [artifact [runner scenario-final run-final dag] :when (:package/unreadable-artifact artifact)]
-                (reason :package/unreadable-artifact :artifact-id (:package/unreadable-artifact artifact)))
-              (when (and runner (not (:valid? runner-validation)))
-                [(reason :package/invalid-runner-finalization :artifact-id :runner-finalization
-                         :causes (:errors runner-validation))])
+          (for [artifact [runner scenario-final run-final dag] :when (:package/unreadable-artifact artifact)]
+            (reason :package/unreadable-artifact :artifact-id (:package/unreadable-artifact artifact)))
+          (when (and runner (not (:valid? runner-validation)))
+            [(reason :package/invalid-runner-finalization :artifact-id :runner-finalization
+                     :causes (:errors runner-validation))])
           (when (and scenario-final (not (:valid? scenario-validation)))
             [(reason :package/invalid-scenario-finalization :artifact-id :scenario-finalization
                      :causes (:errors scenario-validation))])
@@ -477,23 +481,23 @@
             [(reason :package/invalid-run-finalization :artifact-id :run-finalization
                      :causes (:errors run-final-validation))])
           (when (and dag (not (:valid? dag-validation)))
-                      [(reason :package/invalid-execution-dag :artifact-id :execution-dag
-                               :causes (:reasons dag-validation))])
-                    (when-not (:valid? assurance-validation)
-                                [(reason :package/invalid-canonical-assurance :artifact-id :canonical-assurance
-                                         :causes (:reasons assurance-validation))])
-                              (when-not (:valid? registry-validation)
-                                          [(reason :package/invalid-registry-validation :artifact-id :registry-validation
-                                                   :causes (:reasons registry-validation))])
-                                        (when-not (:valid? scenario-reconciliation)
-                                                    [(reason :package/scenario-finalization-reconciliation-failed
-                                                             :artifact-id :scenario-finalization
-                                                             :causes (:reasons scenario-reconciliation))])
-                                                  (when (seq run-id-mismatches)
-                                                    [(reason :package/run-id-mismatch :causes run-id-mismatches)])
-                                                  identity-reasons
-                                                  input-reasons
-                                                  (completion-commitment-reasons completion artifacts)))))
+            [(reason :package/invalid-execution-dag :artifact-id :execution-dag
+                     :causes (:reasons dag-validation))])
+          (when-not (:valid? assurance-validation)
+            [(reason :package/invalid-canonical-assurance :artifact-id :canonical-assurance
+                     :causes (:reasons assurance-validation))])
+          (when-not (:valid? registry-validation)
+            [(reason :package/invalid-registry-validation :artifact-id :registry-validation
+                     :causes (:reasons registry-validation))])
+          (when-not (:valid? scenario-reconciliation)
+            [(reason :package/scenario-finalization-reconciliation-failed
+                     :artifact-id :scenario-finalization
+                     :causes (:reasons scenario-reconciliation))])
+          (when (seq run-id-mismatches)
+            [(reason :package/run-id-mismatch :causes run-id-mismatches)])
+          identity-reasons
+          input-reasons
+          (completion-commitment-reasons completion artifacts)))))
 
 (defn- artifact-validation-report
   "Read an indexed JSON artifact once and retain only the validated report and
@@ -587,9 +591,9 @@
                                  (not= observation (:value_at_risk summary)))
                         [(reason :value-at-risk/summary-mismatch)])
                       (when (and (not not-declared?) (empty? missing)
-                                                       (or (nil? observation) (nil? summary) (nil? replay) (nil? snapshot)))
+                                 (or (nil? observation) (nil? summary) (nil? replay) (nil? snapshot)))
                         [(reason :value-at-risk/validator-failed
-                                 :causes ["required-artifact-unreadable"] )])
+                                 :causes ["required-artifact-unreadable"])])
                       (when (and (not not-declared?) validator (not= "pass" (:status validator)))
                         [(reason :value-at-risk/validator-failed
                                  :causes (or (:reason_codes validator)
@@ -808,88 +812,88 @@
   (if (= :benchmark (:run/type index))
     (assoc (validate-benchmark-package-closure run-root completion index) :index-path path)
     (let [run-type (:run/type index)
-            base (package-index-payload index)
-            expected (hc/hash-with-intent {:hash/intent :run-package-index} base)
-            artifacts (:artifacts index)
-            entries (sort-by (comp name key) artifacts)
-            reports (validated-subordinate-reports run-root artifacts)
-            reconciliation (reconciliation-report index completion artifacts reports)
-            pro-rata-mechanism-nodes (validate-pro-rata-mechanism-nodes run-root artifacts)
-            duplicate-paths (->> entries (map (comp :ref val)) (remove nil?) frequencies (keep (fn [[p n]] (when (> n 1) p))) vec)
-            reasons (vec (concat
-                          (when-not (= schema-version (:run-package/schema-version index)) [(reason :package/unsupported-schema)])
-                          (when-not (contains? supported-run-types run-type) [(reason :package/unsupported-run-type :run-type run-type)])
-                          (when-not (= expected (:run-package/hash index)) [(reason :package/index-hash-mismatch)])
-                          (when (seq duplicate-paths) [(reason :package/duplicate-artifact-path :paths duplicate-paths)])
-                          (mapcat
-                           (fn [[id {:keys [ref sha256 bytes]}]]
-                             (let [file (and (string? ref) (contained-file run-root ref))]
-                               (cond-> []
-                                 (nil? file)
-                                 (conj (reason :package/path-outside-root :artifact-id id :path ref))
-                                 (and file (not (.isFile (io/file file))))
-                                 (conj (reason :package/missing-artifact :artifact-id id :path ref))
-                                 (not (and (string? sha256) (re-matches sha256-ref-pattern sha256)))
-                                 (conj (reason :package/invalid-artifact-sha256 :artifact-id id :path ref :actual sha256))
-                                 (and file (.isFile (io/file file)) (string? sha256)
-                                      (re-matches sha256-ref-pattern sha256) (not= sha256 (sha-ref file)))
-                                 (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref))
-                                 (and (contains? single-scenario-artifacts id) (nil? bytes))
-                                 (conj (reason :package/missing-artifact-byte-length :artifact-id id :path ref))
-                                 (and (some? bytes) (not (and (integer? bytes) (not (neg? bytes)))))
-                                 (conj (reason :package/invalid-artifact-byte-length :artifact-id id :path ref :actual bytes))
-                                 (and file (integer? bytes) (not (neg? bytes)) (.isFile (io/file file))
-                                      (not= bytes (.length (io/file file))))
-                                 (conj (reason :package/artifact-length-mismatch :artifact-id id :path ref)))))
-                           entries)
-                          (when-not (:valid? pro-rata-mechanism-nodes)
-                            [(reason :package/invalid-pro-rata-mechanism-nodes
-                                     :causes (:reasons pro-rata-mechanism-nodes))])
-                          (subordinate-validation-reasons reports reconciliation)))]
-        {:valid? (empty? reasons) :status (if (empty? reasons) :valid :invalid)
-         :index index :index-path path :reasons reasons
-         :runner-finalization-report (:runner-finalization-report reports)
-         :scenario-finalization-report (:scenario-finalization-report reports)
-         :run-finalization-report (:run-finalization-report reports)
-         :execution-dag-report (:execution-dag-report reports)
-          :canonical-assurance-report (:canonical-assurance-report reports)
-          :registry-validation-report (:registry-validation-report reports)
-          :value-at-risk-report (:value-at-risk-report reports)
-          :reconciliation-report reconciliation
-          :checks (merge
-                    (into {} (for [[artifact-id report-key check-key]
-                                    [[:runner-finalization :runner-finalization-report :runner-finalization-valid]
-                                     [:scenario-finalization :scenario-finalization-report :scenario-finalization-valid]
-                                     [:run-finalization :run-finalization-report :run-finalization-valid]
-                                     [:execution-dag :execution-dag-report :execution-dag-valid]
-                                     [:canonical-assurance :canonical-assurance-report :canonical-assurance-valid]
-                                     [:registry-validation :registry-validation-report :registry-validation-valid]
-                                     [:value-at-risk :value-at-risk-report :value-at-risk-valid]]]
-                                    (let [report (get reports report-key)]
-                                      [check-key (if (and report (:valid? report)) :pass :fail)])))
-                      {:reconciliation-valid (if (:valid? reconciliation) :pass :fail)})})))
+          base (package-index-payload index)
+          expected (hc/hash-with-intent {:hash/intent :run-package-index} base)
+          artifacts (:artifacts index)
+          entries (sort-by (comp name key) artifacts)
+          reports (validated-subordinate-reports run-root artifacts)
+          reconciliation (reconciliation-report index completion artifacts reports)
+          pro-rata-mechanism-nodes (validate-pro-rata-mechanism-nodes run-root artifacts)
+          duplicate-paths (->> entries (map (comp :ref val)) (remove nil?) frequencies (keep (fn [[p n]] (when (> n 1) p))) vec)
+          reasons (vec (concat
+                        (when-not (= schema-version (:run-package/schema-version index)) [(reason :package/unsupported-schema)])
+                        (when-not (contains? supported-run-types run-type) [(reason :package/unsupported-run-type :run-type run-type)])
+                        (when-not (= expected (:run-package/hash index)) [(reason :package/index-hash-mismatch)])
+                        (when (seq duplicate-paths) [(reason :package/duplicate-artifact-path :paths duplicate-paths)])
+                        (mapcat
+                         (fn [[id {:keys [ref sha256 bytes]}]]
+                           (let [file (and (string? ref) (contained-file run-root ref))]
+                             (cond-> []
+                               (nil? file)
+                               (conj (reason :package/path-outside-root :artifact-id id :path ref))
+                               (and file (not (.isFile (io/file file))))
+                               (conj (reason :package/missing-artifact :artifact-id id :path ref))
+                               (not (and (string? sha256) (re-matches sha256-ref-pattern sha256)))
+                               (conj (reason :package/invalid-artifact-sha256 :artifact-id id :path ref :actual sha256))
+                               (and file (.isFile (io/file file)) (string? sha256)
+                                    (re-matches sha256-ref-pattern sha256) (not= sha256 (sha-ref file)))
+                               (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref))
+                               (and (contains? single-scenario-artifacts id) (nil? bytes))
+                               (conj (reason :package/missing-artifact-byte-length :artifact-id id :path ref))
+                               (and (some? bytes) (not (and (integer? bytes) (not (neg? bytes)))))
+                               (conj (reason :package/invalid-artifact-byte-length :artifact-id id :path ref :actual bytes))
+                               (and file (integer? bytes) (not (neg? bytes)) (.isFile (io/file file))
+                                    (not= bytes (.length (io/file file))))
+                               (conj (reason :package/artifact-length-mismatch :artifact-id id :path ref)))))
+                         entries)
+                        (when-not (:valid? pro-rata-mechanism-nodes)
+                          [(reason :package/invalid-pro-rata-mechanism-nodes
+                                   :causes (:reasons pro-rata-mechanism-nodes))])
+                        (subordinate-validation-reasons reports reconciliation)))]
+      {:valid? (empty? reasons) :status (if (empty? reasons) :valid :invalid)
+       :index index :index-path path :reasons reasons
+       :runner-finalization-report (:runner-finalization-report reports)
+       :scenario-finalization-report (:scenario-finalization-report reports)
+       :run-finalization-report (:run-finalization-report reports)
+       :execution-dag-report (:execution-dag-report reports)
+       :canonical-assurance-report (:canonical-assurance-report reports)
+       :registry-validation-report (:registry-validation-report reports)
+       :value-at-risk-report (:value-at-risk-report reports)
+       :reconciliation-report reconciliation
+       :checks (merge
+                (into {} (for [[artifact-id report-key check-key]
+                               [[:runner-finalization :runner-finalization-report :runner-finalization-valid]
+                                [:scenario-finalization :scenario-finalization-report :scenario-finalization-valid]
+                                [:run-finalization :run-finalization-report :run-finalization-valid]
+                                [:execution-dag :execution-dag-report :execution-dag-valid]
+                                [:canonical-assurance :canonical-assurance-report :canonical-assurance-valid]
+                                [:registry-validation :registry-validation-report :registry-validation-valid]
+                                [:value-at-risk :value-at-risk-report :value-at-risk-valid]]]
+                           (let [report (get reports report-key)]
+                             [check-key (if (and report (:valid? report)) :pass :fail)])))
+                {:reconciliation-valid (if (:valid? reconciliation) :pass :fail)})})))
 
 (defn- validate-completeness-at-root
   "Check required terminal artifacts for the package profile."
   [run-root]
   (let [{:keys [index] missing-reason :reason} (read-index run-root)]
-      (if missing-reason {:complete? false :status :incomplete :reasons [missing-reason]}
-      (let [required (required-artifacts (:run/type index))
-            missing (sort (seq (clojure.set/difference required (set (keys (:artifacts index))))) )
-            completion (io/file run-root paths/completion)
-            reasons (vec (concat
-                          (when-not (contains? supported-run-types (:run/type index)) [(reason :package/unsupported-run-type :run-type (:run/type index))])
-                          (map #(reason :package/missing-required-artifact :artifact-id %) missing)
-                          (when-not (.isFile completion) [(reason :package/missing-completion)])
-                          (when (and (.isFile completion)
-                                     (not= (str "sha256:" (lifecycle/sha256-file (io/file run-root paths/run-package-index)))
-                                           (get (json/read-str (slurp completion)) "run_package_index_sha256")))
-                            [(reason :package/completion-index-mismatch)])
-                          (when (and (.isFile completion)
-                                     (not= (.length (io/file run-root paths/run-package-index))
-                                           (get (json/read-str (slurp completion)) "run_package_index_bytes")))
-                            [(reason :package/completion-index-length-mismatch)])))]
-        {:complete? (empty? reasons) :status (if (empty? reasons) :complete :incomplete) :reasons reasons}))))
+    (if missing-reason {:complete? false :status :incomplete :reasons [missing-reason]}
+        (let [required (required-artifacts (:run/type index))
+              missing (sort (seq (clojure.set/difference required (set (keys (:artifacts index))))))
+              completion (io/file run-root paths/completion)
+              reasons (vec (concat
+                            (when-not (contains? supported-run-types (:run/type index)) [(reason :package/unsupported-run-type :run-type (:run/type index))])
+                            (map #(reason :package/missing-required-artifact :artifact-id %) missing)
+                            (when-not (.isFile completion) [(reason :package/missing-completion)])
+                            (when (and (.isFile completion)
+                                       (not= (str "sha256:" (lifecycle/sha256-file (io/file run-root paths/run-package-index)))
+                                             (get (json/read-str (slurp completion)) "run_package_index_sha256")))
+                              [(reason :package/completion-index-mismatch)])
+                            (when (and (.isFile completion)
+                                       (not= (.length (io/file run-root paths/run-package-index))
+                                             (get (json/read-str (slurp completion)) "run_package_index_bytes")))
+                              [(reason :package/completion-index-length-mismatch)])))]
+          {:complete? (empty? reasons) :status (if (empty? reasons) :complete :incomplete) :reasons reasons}))))
 
 (defn validate-precompletion-package
   "Validate the frozen package-index closure immediately before the terminal
@@ -899,7 +903,7 @@
   [run-root]
   (let [{:keys [index path] missing-reason :reason} (read-index run-root)
         required (when index (required-artifacts (:run/type index)))
-        missing (when index (sort (set/difference required (set (keys (:artifacts index))))) )
+        missing (when index (sort (set/difference required (set (keys (:artifacts index))))))
         complete {:complete? (and index (empty? missing))
                   :status (if (and index (empty? missing)) :complete :incomplete)
                   :reasons (vec (concat (when missing-reason [missing-reason])
@@ -922,7 +926,7 @@
                                        [(reason :package/missing-authoritative-identity :artifact-id :package-index :field :scenario/id)])
                                      (when-not (and (string? (:execution/id index)) (seq (:execution/id index)))
                                        [(reason :package/missing-authoritative-identity :artifact-id :package-index :field :execution/id)])))
-          missing (sort (seq (set/difference required (set (keys (:artifacts index))))) )
+          missing (sort (seq (set/difference required (set (keys (:artifacts index))))))
           reasons (vec (concat
                         (when-not (contains? supported-run-types run-type)
                           [(reason :package/unsupported-run-type :run-type run-type)])
@@ -932,20 +936,20 @@
        :status (if (empty? reasons) :complete :incomplete)
        :reasons reasons})))
 
-    (defn validate-integrity-from-context [ctx]
-      (if (seq (:reasons ctx))
-        {:valid? false :status :invalid :reasons (:reasons ctx)}
+(defn validate-integrity-from-context [ctx]
+  (if (seq (:reasons ctx))
+    {:valid? false :status :invalid :reasons (:reasons ctx)}
         ;; The trusted index was parsed from the exact bytes completion commits to.
         ;; Artifact files are still read for closure validation, but index declarations
         ;; are never resolved again through an unsealed default path.
-        (let [{:keys [index path]} (:package-index ctx)]
-          (validate-integrity-for-index (:run-root ctx) (:completion ctx) index path))))
+    (let [{:keys [index path]} (:package-index ctx)]
+      (validate-integrity-for-index (:run-root ctx) (:completion ctx) index path))))
 
-    (defn validate-completeness [run-root]
-      (validate-completeness-from-context (resolve-completion-context run-root)))
+(defn validate-completeness [run-root]
+  (validate-completeness-from-context (resolve-completion-context run-root)))
 
-    (defn validate-integrity [run-root]
-      (validate-integrity-from-context (resolve-completion-context run-root)))
+(defn validate-integrity [run-root]
+  (validate-integrity-from-context (resolve-completion-context run-root)))
 
 (defn resolve-validation-context
   "Resolve the completion-sealed package once and retain independent reports.
@@ -959,12 +963,12 @@
     ;; collects each subordinate report once. Preserve those reports here rather
     ;; than independently reopening finalization, DAG, assurance, or registry
     ;; files for each derived package predicate.
-     (assoc ctx
-            :closure-report integrity
-            :integrity-report integrity
-            :completeness-report complete
-            :checks (:checks integrity)
-            :runner-finalization-report (:runner-finalization-report integrity)
+    (assoc ctx
+           :closure-report integrity
+           :integrity-report integrity
+           :completeness-report complete
+           :checks (:checks integrity)
+           :runner-finalization-report (:runner-finalization-report integrity)
            :scenario-finalization-report (:scenario-finalization-report integrity)
            :run-finalization-report (:run-finalization-report integrity)
            :execution-dag-report (:execution-dag-report integrity)

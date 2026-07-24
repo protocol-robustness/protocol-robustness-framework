@@ -148,24 +148,24 @@
                         (when (and v (not (expected-type v)))
                           (swap! errors conj (str path " concept " cid " :maps-to " (name k) " must be a vector"))))))))))))
     ;; collision detection between global concepts and local concept files
-    (try
-      (let [global-registry (requiring-resolve 'resolver-sim.concepts.registry/load-registry)
-            global-concepts (:concepts (global-registry))
-            global-ids (set (map :concept/id global-concepts))
-            local-concepts (mapcat (fn [path]
-                                     (let [data (read-edn path)]
-                                       (when data (:concepts data))))
-                                   files)
-            local-ids (set (map :concept/id local-concepts))
-            collisions (set/intersection global-ids local-ids)]
-        (doseq [cid (sort collisions)]
-          (let [shadows? (some (fn [c]
-                                 (and (= (:concept/id c) cid)
-                                      (:concept/shadows-global? c)))
-                               local-concepts)]
-            (when-not shadows?
-              (swap! errors conj (str "Concept " cid " shadows global concept without :concept/shadows-global? true"))))))
-      (catch Exception _)))))
+      (try
+        (let [global-registry (requiring-resolve 'resolver-sim.concepts.registry/load-registry)
+              global-concepts (:concepts (global-registry))
+              global-ids (set (map :concept/id global-concepts))
+              local-concepts (mapcat (fn [path]
+                                       (let [data (read-edn path)]
+                                         (when data (:concepts data))))
+                                     files)
+              local-ids (set (map :concept/id local-concepts))
+              collisions (set/intersection global-ids local-ids)]
+          (doseq [cid (sort collisions)]
+            (let [shadows? (some (fn [c]
+                                   (and (= (:concept/id c) cid)
+                                        (:concept/shadows-global? c)))
+                                 local-concepts)]
+              (when-not shadows?
+                (swap! errors conj (str "Concept " cid " shadows global concept without :concept/shadows-global? true"))))))
+        (catch Exception _)))))
 
 ;; ───────────────────────────────────────────────────────────────────────
 ;; Scoring validation
@@ -203,7 +203,7 @@
                   (swap! id-set conj cid)
                   (doseq [k [:claim/title :claim/description :claim/property-types :claim/evaluator]]
                     (when-not (get claim k)
-                       (swap! errors conj (str "Claim " cid " missing " (name k) " in " path)))))))))))))
+                      (swap! errors conj (str "Claim " cid " missing " (name k) " in " path)))))))))))))
 
 ;; ───────────────────────────────────────────────────────────────────────
 ;; Manifest validation
@@ -299,32 +299,32 @@
                 (when-not (contains? (set (:benchmark/concepts manifest)) dim)
                   (swap! errors conj (str "Scenario dimension " dim " not declared in :benchmark/concepts in " manifest-path))))))))
     ;; Claim references validate against claim registry
-    (let [claim-reg (claim-registry-map "benchmarks/claim-registry.edn")]
-      (when claim-reg
-        (let [deferred (or (:benchmark/deferred-scenario-claims manifest) #{})
-              all-registered-ids (set (keys claim-reg))
-              claim-refs (:benchmark/claims manifest)]
-          (doseq [ref claim-refs]
-            (let [cid (if (keyword? ref) ref (:claim/id ref))]
-              (when (keyword? cid)
-                (cond
-                  (contains? all-registered-ids cid) nil
-                  (contains? deferred cid) nil
-                  :else (swap! errors conj (str "Claim " cid " does not resolve to claim registry or deferred-claims in " manifest-path))))))
+      (let [claim-reg (claim-registry-map "benchmarks/claim-registry.edn")]
+        (when claim-reg
+          (let [deferred (or (:benchmark/deferred-scenario-claims manifest) #{})
+                all-registered-ids (set (keys claim-reg))
+                claim-refs (:benchmark/claims manifest)]
+            (doseq [ref claim-refs]
+              (let [cid (if (keyword? ref) ref (:claim/id ref))]
+                (when (keyword? cid)
+                  (cond
+                    (contains? all-registered-ids cid) nil
+                    (contains? deferred cid) nil
+                    :else (swap! errors conj (str "Claim " cid " does not resolve to claim registry or deferred-claims in " manifest-path))))))
           ;; Scenario claim references
-          (doseq [scenario (:benchmark/scenarios manifest)
-                  :let [sc-claim (:claim scenario)]
-                  :when sc-claim]
-            (cond
-              (contains? all-registered-ids sc-claim) nil
-              (contains? deferred sc-claim) nil
-              :else (swap! errors conj (str "Scenario claim " sc-claim " does not resolve to claim registry or deferred-claims in " manifest-path))))))
+            (doseq [scenario (:benchmark/scenarios manifest)
+                    :let [sc-claim (:claim scenario)]
+                    :when sc-claim]
+              (cond
+                (contains? all-registered-ids sc-claim) nil
+                (contains? deferred sc-claim) nil
+                :else (swap! errors conj (str "Scenario claim " sc-claim " does not resolve to claim registry or deferred-claims in " manifest-path))))))
       ;; Active lifecycle via coverage
-      (when (= :active status-from-registry)
-        (let [known-ids (set (keys claim-reg))]
-          (doseq [violation (coverage/active-benchmark-errors manifest known-ids)]
-            (swap! errors conj (str "Active benchmark lifecycle violation " violation " in " manifest-path)))))))))
- 
+        (when (= :active status-from-registry)
+          (let [known-ids (set (keys claim-reg))]
+            (doseq [violation (coverage/active-benchmark-errors manifest known-ids)]
+              (swap! errors conj (str "Active benchmark lifecycle violation " violation " in " manifest-path)))))))))
+
 ;; ───────────────────────────────────────────────────────────────────────
 ;; Pack capability validation
 ;; ───────────────────────────────────────────────────────────────────────

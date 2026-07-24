@@ -1,4 +1,5 @@
-{"description":"Generated trace: ",
+{"description":
+ "Generated trace: s61-governance-snapshot-mid-dispute-immutability",
  "fee_bps":150,
  "schema_version":"2",
  "resolutions":
@@ -182,4 +183,4 @@
  "step_count":6,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s61-governance-snapshot-mid-dispute-immutability"}

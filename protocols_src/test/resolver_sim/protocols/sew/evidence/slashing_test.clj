@@ -61,7 +61,7 @@
     (let [evidence (build-evidence)
           result (:evidence/result evidence)
           claims (get-in result [:pro-rata :claims])]
-      (is (= 7 (count claims)) "legacy projection-compatible pro-rata claims present")
+      (is (= 8 (count claims)) "legacy projection-compatible pro-rata claims present")
       (is (every? :claim-id claims) "each claim has :claim-id")
       (is (every? :claim-definition-hash claims) "each claim has :claim-definition-hash")
       (is (every? :claim-result-hash claims) "each claim has :claim-result-hash")

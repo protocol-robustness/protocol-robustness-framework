@@ -141,7 +141,7 @@
                                                     :owner-ids owner-ids
                                                     :allocation-mode (param event :allocation-mode)
                                                     :effective-caps (param event :effective-caps)
-                                                                                                        :effective-cap-source (or (param event :effective-cap-source) :scenario-fixture)})]
+                                                    :effective-cap-source (or (param event :effective-cap-source) :scenario-fixture)})]
         (with-held-sync world'))
       (catch Exception e
         (err :yield-withdraw-shared-failed {:message (.getMessage e)

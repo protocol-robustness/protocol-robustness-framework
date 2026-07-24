@@ -161,7 +161,7 @@
                            [])
                        (sort-by :held-adjustment/id)
                        vec)
-        check-results ((requiring-resolve 'resolver-sim.protocols.sew.accounting/held-custody-closed-form-checks)
+        check-results ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
                        artifacts)
         verdict (if (every? #(= :pass (:status %)) check-results) :pass :fail)
         artifact {:artifact/kind :game-theoretic-validation

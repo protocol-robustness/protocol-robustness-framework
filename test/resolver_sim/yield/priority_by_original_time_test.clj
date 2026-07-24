@@ -17,7 +17,7 @@
   {:yield/indices {:test-mod {"USDC" 1.0}}
    :yield/rates   {:test-mod {"USDC" 0.05}}
    :yield/risk    {:test-mod {"USDC" {:liquidity-mode :available
-                                        :loss-mode :none}}}
+                                      :loss-mode :none}}}
    :yield/held-balances {"USDC" 1000000}
    :yield/module-status {:test-mod :active}
    :block-time 1000
@@ -33,12 +33,12 @@
           owners))
 
 (defn- participants-from
-   [world]
-   (->> (:yield/pro-rata-propagations world)
-        vals
-        (sort-by (juxt (comp - count :participants) :propagation/id))
-        first
-        :participants))
+  [world]
+  (->> (:yield/pro-rata-propagations world)
+       vals
+       (sort-by (juxt (comp - count :participants) :propagation/id))
+       first
+       :participants))
 
 (defn- closed-history-entries
   [position]
@@ -80,24 +80,24 @@
     (let [w (deposit-owners base-world ["alice" "bob" "carol"] 100)
           w (assoc-in w [:total-held :USDC] 300)
           w (ll/withdraw-shared w test-mod {:owner-ids ["carol" "bob" "alice"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})]
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})]
       (is (= ["alice" "bob" "carol"] (mapv :participant-id (participants-from w)))
           "ordered by original-priority, not by input order")))
   (testing "participants ordered by deposit order when deposited in reverse"
     (let [w (deposit-owners base-world ["carol" "bob" "alice"] 100)
           w (assoc-in w [:total-held :USDC] 300)
           w (ll/withdraw-shared w test-mod {:owner-ids ["alice" "bob" "carol"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})]
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})]
       (is (= ["carol" "bob" "alice"] (mapv :participant-id (participants-from w)))
           "carol priority 0, bob priority 1, alice priority 2")))
   (testing "participant order is not alphabetical"
     (let [w (deposit-owners base-world ["alice" "zara" "bob"] 100)
           w (assoc-in w [:total-held :USDC] 300)
           w (ll/withdraw-shared w test-mod {:owner-ids ["alice" "bob" "zara"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})]
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})]
       (is (= ["alice" "zara" "bob"] (mapv :participant-id (participants-from w)))
           "alice priority 0, zara priority 1, bob priority 2"))))
 
@@ -108,8 +108,8 @@
     (let [w (deposit-owners base-world ["alice" "bob"] 100)
           w (assoc-in w [:total-held :USDC] 50)
           w (ll/withdraw-shared w test-mod {:owner-ids ["alice" "bob"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})
           pos-alice (get-in w [:yield/positions "alice"])
           pos-bob (get-in w [:yield/positions "bob"])]
       (is (= :unwinding (:status pos-alice)))
@@ -122,12 +122,12 @@
     (let [w (deposit-owners base-world ["alice" "bob"] 100)
           w (assoc-in w [:total-held :USDC] 50)
           w (ll/withdraw-shared w test-mod {:owner-ids ["alice" "bob"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})
           w (assoc-in w [:total-held :USDC] 30)
           w (ll/withdraw-shared w test-mod {:owner-ids ["alice" "bob"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})]
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})]
       (is (= 0 (get-in w [:yield/positions "alice" :deferred-position :position/original-priority])))
       (is (= 1 (get-in w [:yield/positions "bob" :deferred-position :position/original-priority]))))))
 
@@ -138,21 +138,21 @@
     (let [w (deposit-owners base-world ["alice" "bob"] 100)
           w (assoc-in w [:total-held :USDC] 100)
           w (ll/withdraw-shared w test-mod {:owner-ids ["bob" "alice"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})]
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})]
       (is (= ["alice" "bob"] (mapv :participant-id (participants-from w)))
           "alice (priority 0) ordered before bob (priority 1)")))
   (testing "deferred-position holder ordered before newer depositor"
     (let [w (deposit-owners base-world ["alice"] 100)
           w (assoc-in w [:total-held :USDC] 50)
           w (ll/withdraw-shared w test-mod {:owner-ids ["alice"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})
           w (ll/deposit w test-mod {:owner/id "bob" :amount 100 :token "USDC"})
           w (assoc-in w [:total-held :USDC] 100)
           w (ll/withdraw-shared w test-mod {:owner-ids ["bob" "alice"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})]
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})]
       (is (= ["alice" "bob"] (mapv :participant-id (participants-from w)))
           "alice (priority 0) ordered before bob (priority 1)"))))
 
@@ -170,8 +170,8 @@
           w (ll/deposit w test-mod {:owner/id "new-user" :amount 100 :token "USDC"})
           w (assoc-in w [:total-held :USDC] 200)
           w (ll/withdraw-shared w test-mod {:owner-ids ["legacy" "new-user"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})]
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})]
       (is (= ["new-user" "legacy"] (mapv :participant-id (participants-from w)))
           "new-user (priority 0) ordered before legacy (MAX_VALUE)"))))
 
@@ -184,8 +184,8 @@
     (let [w (deposit-owners base-world ["alice"] 100)
           w (assoc-in w [:total-held :USDC] 30)    ;; round 1: 70 deferred
           w (ll/withdraw-shared w test-mod {:owner-ids ["alice"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})
           pos (get-in w [:yield/positions "alice"])
           d1 (get pos :deferred-position)]
       (is (= 0 (:position/original-priority d1)) "d1 priority 0")
@@ -193,8 +193,8 @@
           "first deferral source is :from-precondition")
       (let [w (assoc-in w [:total-held :USDC] 30)  ;; round 2: 40 deferred
             w (ll/withdraw-shared w test-mod {:owner-ids ["alice"]
-                                               :token "USDC"
-                                               :allocation-mode :pro-rata})
+                                              :token "USDC"
+                                              :allocation-mode :pro-rata})
             pos (get-in w [:yield/positions "alice"])
             d2 (get pos :deferred-position)
             history (closed-history-entries pos)]
@@ -210,8 +210,8 @@
             "d2 parent-id links back to d1")
         (let [w (assoc-in w [:total-held :USDC] 30)  ;; round 3: 10 deferred
               w (ll/withdraw-shared w test-mod {:owner-ids ["alice"]
-                                                 :token "USDC"
-                                                 :allocation-mode :pro-rata})
+                                                :token "USDC"
+                                                :allocation-mode :pro-rata})
               pos (get-in w [:yield/positions "alice"])
               d3 (get pos :deferred-position)
               history (closed-history-entries pos)]
@@ -231,8 +231,8 @@
           w (assoc-in base-world [:yield/positions "legacy"] pos)
           w (assoc-in w [:total-held :USDC] 50)
           w (ll/withdraw-shared w test-mod {:owner-ids ["legacy"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})
           d (get-in w [:yield/positions "legacy" :deferred-position])]
       (is (= Long/MAX_VALUE (:position/original-priority d))
           "legacy deferred has MAX_VALUE priority")
@@ -245,12 +245,12 @@
           w (assoc-in base-world [:yield/positions "legacy"] pos)
           w (assoc-in w [:total-held :USDC] 50)
           w (ll/withdraw-shared w test-mod {:owner-ids ["legacy"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})
           w (assoc-in w [:total-held :USDC] 30)
           w (ll/withdraw-shared w test-mod {:owner-ids ["legacy"]
-                                             :token "USDC"
-                                             :allocation-mode :pro-rata})
+                                            :token "USDC"
+                                            :allocation-mode :pro-rata})
           d (get-in w [:yield/positions "legacy" :deferred-position])]
       (is (= Long/MAX_VALUE (:position/original-priority d))
           "legacy deferred2 has MAX_VALUE priority")

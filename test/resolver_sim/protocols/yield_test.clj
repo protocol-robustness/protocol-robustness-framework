@@ -4,7 +4,7 @@
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.yield :as yp]
             [resolver-sim.protocols.registry :as preg]
-                        [resolver-sim.yield.invariants :as yield-invariants]))
+            [resolver-sim.yield.invariants :as yield-invariants]))
 
 (def base-scenario
   {:scenario-id "yield-test-inline"

@@ -1,4 +1,0 @@
-{:protocol/id :protocol/ieo-timeout
- :resolver-fee-bps 0
- :appeal-window-duration 0
- :max-dispute-duration 300}

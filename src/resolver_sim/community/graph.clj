@@ -192,7 +192,7 @@
     (.append sb "  <key id=\"d9\" for=\"edge\" yfiles.type=\"edgegraphics\"/>\n")
     (.append sb "  <graph id=\"G\" edgedefault=\"directed\">\n")
     (doseq [node (:nodes graph)]
-      (let [nid (str "n" (subs (:node/id node) 0 (min 12 (count (:node/id node)))) )
+      (let [nid (str "n" (subs (:node/id node) 0 (min 12 (count (:node/id node)))))
             label (esc (:node/label node))
             c (get coords (:node/id node) {:x 50 :y 50 :w 220 :h 40})]
         (.append sb (str "    <node id=\"" nid "\">\n"))
@@ -209,7 +209,7 @@
         (.append sb "    </node>\n")))
     (doseq [edge (:edges graph)]
       (let [from (str "n" (subs (:edge/from edge) 0 (min 12 (count (:edge/from edge)))))
-                  to (str "n" (subs (:edge/to edge) 0 (min 12 (count (:edge/to edge)))))
+            to (str "n" (subs (:edge/to edge) 0 (min 12 (count (:edge/to edge)))))
             label (esc (:edge/label edge))]
         (.append sb (str "    <edge id=\"e" from "-" to "\" source=\"" from "\" target=\"" to "\">\n"))
         (.append sb (str "      <data key=\"edge-label\">" label "</data>\n"))

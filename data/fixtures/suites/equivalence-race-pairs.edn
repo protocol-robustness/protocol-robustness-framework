@@ -11,4 +11,7 @@
  :traces [:traces/s46a-settlement-before-escalation-window-edge
           :traces/s46b-escalation-before-settlement-window-edge
           :traces/s47a-appeal-window-last-second-settlement
-          :traces/s47b-appeal-window-plus-one-rejected]}
+           :traces/s47b-appeal-window-plus-one-rejected
+           {:trace :traces/s81-appeal-deadline-boundary-before
+            :expected-outcome :fail
+            :expected-halt-reason :open-entities-at-end}]}

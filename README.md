@@ -43,7 +43,7 @@ bb run:scenario scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
 
 ```bash
 java -jar target/prf-runner-sew-0.1.0-uber.jar \
-  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  run-benchmark force-authorisation-custody-v1 \
   --run-root /tmp/prf-benchmark
 ```
 

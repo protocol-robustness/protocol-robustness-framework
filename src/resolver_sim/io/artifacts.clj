@@ -7,7 +7,6 @@
    This is the code-level source of truth.  config/evidence.json may
    enrich or validate these entries but must not silently redefine them.")
 
-
 (def artifacts
   {:run/completion
    {:file "completion.json"
@@ -44,7 +43,6 @@
     :durability :canonical
     :review-surface? true}})
 
-
 (def noncanonical-artifacts
   {:run/state
    {:file ".run-state"
@@ -58,11 +56,9 @@
     :durability :transient
     :review-surface? false}})
 
-
 (def all-artifact-ids
   "Every registered artifact ID, canonical and transient, for validation."
   (vec (concat (keys artifacts) (keys noncanonical-artifacts))))
-
 
 (defn artifact
   "Look up an artifact by its semantic ID.
@@ -74,20 +70,17 @@
                       {:artifact/id artifact-id
                        :known-ids all-artifact-ids}))))
 
-
 (defn artifact-file
   "Return the filename string for an artifact, e.g.
    (artifact-file :run/completion) → \"completion.json\"."
   [artifact-id]
   (:file (artifact artifact-id)))
 
-
 (defn artifact-path
   "Resolve an artifact to a Path relative to run-root.
    (artifact-path run-root :run/completion) → (Path \".../completion.json\")."
   [^java.nio.file.Path run-root artifact-id]
   (.resolve run-root (artifact-file artifact-id)))
-
 
 ;; ── Convenience functions for very common paths ────────────────────────
 

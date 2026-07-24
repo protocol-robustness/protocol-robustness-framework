@@ -1,4 +1,0 @@
-{:token/id :tokens/usdc-like
- :decimals 6
- :fee-on-transfer 0
- :rebasing false}

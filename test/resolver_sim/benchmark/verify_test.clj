@@ -5,8 +5,8 @@
             [resolver-sim.benchmark.verify :as verify]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.hash.canonical :as canonical]
-                        [resolver-sim.run.package-index :as package-index]
-                        [resolver-sim.run.verdict-policy :as verdict-policy]))
+            [resolver-sim.run.package-index :as package-index]
+            [resolver-sim.run.verdict-policy :as verdict-policy]))
 
 (defn- temp-root [] (.toFile (java.nio.file.Files/createTempDirectory "benchmark-verify-" (make-array java.nio.file.attribute.FileAttribute 0))))
 (defn- delete-tree! [root] (doseq [f (reverse (file-seq root))] (io/delete-file f true)))
@@ -46,20 +46,20 @@
                                 "benchmark_finalization" {"sha256" (sha finalization)} "benchmark_assurance" {"sha256" (sha assurance)}
                                 "conservation" {"sha256" (sha conservation)} "evidence_content_registry" {"sha256" (sha content)}})
         (write-json! deferred {"schema_version" "forensic-claims-status.v1" "status" "deferred" "reason_code" "unsigned-forensic-signing-not-configured"})
-(verdict-policy/write! verdict-policy-file
-                                        (verdict-policy/build {:run-id "r" :run-type "benchmark"
-                                                               :policy-id "fixture.v1" :version-id "verdict-policy.v1" :semantic-outcome "pass"
-                                                               :inputs inputs
-                                                               :registries {"evidence_policy_hash" "fixture-evidence-policy"
-                                                                            "claim_definition_registry_hash" "fixture-claims"
-                                                                            "evaluator_registry" "fixture-evaluator"}
-                                                               :semantic-environment {"protocol_id" "benchmark" "runner_id" "fixture-runner"}
-                                                                                                                     :evaluator-implementation {"source_tree_hash" "fixture-source-tree"
-                                                                                                                                                "source_tree_hash_algorithm" "fixture.v1"
-                                                                                                                                                "evaluator_id" "fixture-evaluator"}
-                                                                                                                                                                                                      :distribution-provenance {"mode" "source-classpath"
-                                                                                                                                                                                                                                "reason" "fixture"}}))
-                (package-index/write! package-index
+        (verdict-policy/write! verdict-policy-file
+                               (verdict-policy/build {:run-id "r" :run-type "benchmark"
+                                                      :policy-id "fixture.v1" :version-id "verdict-policy.v1" :semantic-outcome "pass"
+                                                      :inputs inputs
+                                                      :registries {"evidence_policy_hash" "fixture-evidence-policy"
+                                                                   "claim_definition_registry_hash" "fixture-claims"
+                                                                   "evaluator_registry" "fixture-evaluator"}
+                                                      :semantic-environment {"protocol_id" "benchmark" "runner_id" "fixture-runner"}
+                                                      :evaluator-implementation {"source_tree_hash" "fixture-source-tree"
+                                                                                 "source_tree_hash_algorithm" "fixture.v1"
+                                                                                 "evaluator_id" "fixture-evaluator"}
+                                                      :distribution-provenance {"mode" "source-classpath"
+                                                                                "reason" "fixture"}}))
+        (package-index/write! package-index
                               {:run-id "r"
                                :run-type :benchmark
                                :bundle-root-hash (sha content)
@@ -67,22 +67,22 @@
                                            :benchmark-finalization {:ref "benchmark/finalization.json" :sha256 (sha finalization)}
                                            :benchmark-assurance {:ref "benchmark/assertions/benchmark-assurance.json" :sha256 (sha assurance)}
                                            :canonical-integrity {:ref "benchmark/assertions/canonical-integrity.json" :sha256 (sha integrity)}
-                                                                                      :verdict-policy {:ref "manifest/verdict-policy.json" :sha256 (sha verdict-policy-file)}}})
+                                           :verdict-policy {:ref "manifest/verdict-policy.json" :sha256 (sha verdict-policy-file)}}})
         (let [paths ["benchmark/definition.edn" "benchmark/execution-plan.edn" "benchmark/executions/exec-1/input/scenario.edn" "benchmark/conclusion.json" "benchmark/assertions/conservation.json" "benchmark/assertions/benchmark-assurance.json" "benchmark/evidence/content-registry.json" "benchmark/finalization.json" "benchmark/assertions/canonical-integrity.json" "benchmark/assertions/forensic-claims-status.json" "manifest/verdict-policy.json" "manifest/run-package-index.json"]]
           (write-json! registry {"artifacts" (entries root paths)})
           (write-json! validation {"status" "passed"})
           (write-json! completion {"schema_version" "benchmark-completion.v1" "run_type" "benchmark" "benchmark_id" "b" "run_id" "r"
-                                     "lifecycle_status" "completed" "semantic_status" "pass" "finalization_ref" "benchmark/finalization.json"
-                                     "finalization_sha256" (sha finalization) "final_ref" final-ref "input_set_root" input-root
-                                     "run_package_index_ref" "manifest/run-package-index.json" "run_package_index_sha256" (sha package-index)
-                                     "run_package_index_bytes" (.length package-index)
-                                     "artifact_registry_sha256" (sha registry) "registry_validation_sha256" (sha validation)}))))
+                                   "lifecycle_status" "completed" "semantic_status" "pass" "finalization_ref" "benchmark/finalization.json"
+                                   "finalization_sha256" (sha finalization) "final_ref" final-ref "input_set_root" input-root
+                                   "run_package_index_ref" "manifest/run-package-index.json" "run_package_index_sha256" (sha package-index)
+                                   "run_package_index_bytes" (.length package-index)
+                                   "artifact_registry_sha256" (sha registry) "registry_validation_sha256" (sha validation)}))))
     root))
 
 (deftest verifier-rejects-tampered-terminal-commitments
   (doseq [[label check tamper!] [["content" "evidence-content-registry-hash" #(spit (io/file % "benchmark/evidence/content-registry.json") "tampered")]
-                                  ["integrity" "canonical-integrity" #(write-json! (io/file % "benchmark/assertions/canonical-integrity.json") {"status" "tampered"})]
-                                  ["completion" "completion-finalization-hash" #(write-json! (io/file % "completion.json") {"finalization_sha256" "sha256:bad"})]]]
+                                 ["integrity" "canonical-integrity" #(write-json! (io/file % "benchmark/assertions/canonical-integrity.json") {"status" "tampered"})]
+                                 ["completion" "completion-finalization-hash" #(write-json! (io/file % "completion.json") {"finalization_sha256" "sha256:bad"})]]]
     (let [root (temp-root)]
       (try (fixture! root)
            (tamper! root) (is (false? (get-in (verify/verify! root) ["checks" check])) label)

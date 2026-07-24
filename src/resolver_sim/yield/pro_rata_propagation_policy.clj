@@ -39,7 +39,7 @@
 
 (defn policy-hash [policy]
   (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                       (dissoc policy :policy/hash))))
+                                      (dissoc policy :policy/hash))))
 
 (defn- ensure-fields! [policy section]
   (let [actual (get policy section)
@@ -81,13 +81,15 @@
                           {:reason :unsupported-policy-enum
                            :section section :field field
                            :expected expected :actual actual}))))))
-  (let [expected-acct (:accounting-contract canonical)
+  (let [canonical shared-withdrawal-policy
+        expected-acct (:accounting-contract canonical)
         actual-acct (:accounting-contract policy)]
     (when-not (= expected-acct actual-acct)
       (throw (ex-info "Unsupported accounting-contract"
                       {:reason :unsupported-policy-enum
                        :expected expected-acct :actual actual-acct}))))
-  (let [expected-ids (:identity-components (:idempotency canonical))
+  (let [canonical shared-withdrawal-policy
+        expected-ids (:identity-components (:idempotency canonical))
         actual-ids (get-in policy [:idempotency :identity-components])]
     (when-not (= expected-ids actual-ids)
       (throw (ex-info "Unsupported idempotency identity-components"
@@ -105,7 +107,7 @@
   (let [expected (policy-hash policy)]
     (when-not (= expected (:policy/hash policy))
       (throw (ex-info "Pro-rata propagation policy hash mismatch" {:reason :policy-hash-mismatch
-                                                                      :expected expected :actual (:policy/hash policy)})))
+                                                                   :expected expected :actual (:policy/hash policy)})))
     (validate-policy-semantics (dissoc policy :policy/hash))))
 
 (defn resolve-policy [policy-id]

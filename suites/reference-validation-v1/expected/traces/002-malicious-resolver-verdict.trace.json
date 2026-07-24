@@ -1,4 +1,5 @@
-{"description":"Generated trace: ",
+{"description":
+ "Generated trace: s25-profit-maximizer-slash-lifecycle",
  "fee_bps":150,
  "schema_version":"2",
  "resolutions":
@@ -127,12 +128,12 @@
    "cdrs_version":"0.2",
    "expected":
    {"reverted":true,
-    "error":"no-pending-slash",
+    "error":"slash-not-found",
     "escrow_state":4,
     "pending_settlement_exists":true,
     "accepted":false,
     "state_changed":false,
-    "rejection_reason":"no-pending-slash"},
+    "rejection_reason":"slash-not-found"},
    "state_bucket":"RECONCILING",
    "seq":5,
    "event_type":"RESOLVE APPEAL",
@@ -149,12 +150,12 @@
    "cdrs_version":"0.2",
    "expected":
    {"reverted":true,
-    "error":"no-pending-slash",
+    "error":"slash-not-found",
     "escrow_state":4,
     "pending_settlement_exists":true,
     "accepted":false,
     "state_changed":false,
-    "rejection_reason":"no-pending-slash"},
+    "rejection_reason":"slash-not-found"},
    "state_bucket":"RECONCILING",
    "seq":6,
    "event_type":"EXECUTE FRAUD SLASH",
@@ -225,4 +226,4 @@
  "step_count":8,
  "metadata":
  {"scenario_class":"adversarial", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s25-profit-maximizer-slash-lifecycle"}

@@ -125,8 +125,8 @@
 
 (deftest yield-replay-rejects-unknown-top-level-options
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
-        #"unsupported options"
-        (replay/simple-replay yp/protocol yield-scenario {:minimal false}))))
+                        #"unsupported options"
+                        (replay/simple-replay yp/protocol yield-scenario {:minimal false}))))
 
 (deftest yield-replay-run-id-ignored
   (let [result (replay/simple-replay yp/protocol yield-scenario {:run-id "custom-run-id"})]
@@ -188,15 +188,15 @@
 (deftest yield-replay-unchanged-by-unsupported-opts
   (doseq [opt [:evidence-mode :signing-key :tsa-url]]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
-          #"Simple replay does not support"
-          (replay/simple-replay yp/protocol yield-scenario {opt "some-value"}))
+                          #"Simple replay does not support"
+                          (replay/simple-replay yp/protocol yield-scenario {opt "some-value"}))
         (str "Option " opt " rejected on yield path"))))
 
 (deftest generic-replay-rejects-prohibited-nested-flags
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
-        #"cannot override enforced profile flags"
-        (replay/simple-replay dummy/protocol minimal-scenario
-                              {:flags {:evidence-mode :all :strict-validation? true}}))))
+                        #"cannot override enforced profile flags"
+                        (replay/simple-replay dummy/protocol minimal-scenario
+                                              {:flags {:evidence-mode :all :strict-validation? true}}))))
 
 (deftest simple-replay-generic-result-includes-execution
   (let [result (replay/simple-replay dummy/protocol minimal-scenario)]
@@ -276,7 +276,7 @@
                             :world-checkpoint-policy :retain-all
                             :projection-mode :full})
         effective (flags/resolve-replay-flags scenario {:profile :replay/simple
-                                                         :minimal true})
+                                                        :minimal true})
         result (replay/simple-replay dummy/protocol scenario)]
     (is (= :none (:evidence-mode effective)))
     (is (false? (:include-telemetry-evidence? effective)))
@@ -299,8 +299,8 @@
                           [{:seq 0 :time 1000 :agent "a" :action "noop" :params {}}
                            {:seq 1 :time 1001 :agent "a" :action "noop" :params {}}])
           result (replay/replay-events dummy/protocol scenario
-                                      {:minimal true
-                                       :flags {:fail-on-short-circuits #{:module-frozen-zero-accrual}}})]
+                                       {:minimal true
+                                        :flags {:fail-on-short-circuits #{:module-frozen-zero-accrual}}})]
       (is (= :fail (:outcome result)))
       (is (= :short-circuit-policy (:halt-reason result)))
       (is (= [:module-frozen-zero-accrual] (:short-circuit-violations result)))
@@ -311,8 +311,8 @@
 (deftest unsupported-flags-rejected-on-generic-path
   (doseq [opt [:signing-key :signing-password :tsa-url :evidence-mode]]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
-          #"Simple replay does not support"
-          (replay/simple-replay dummy/protocol minimal-scenario {opt "some-value"}))
+                          #"Simple replay does not support"
+                          (replay/simple-replay dummy/protocol minimal-scenario {opt "some-value"}))
         (str "Option " opt " rejected"))))
 
 (deftest allowed-flags-pass-through-on-generic-path

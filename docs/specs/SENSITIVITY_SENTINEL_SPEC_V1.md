@@ -126,7 +126,7 @@ Reason codes explain why something was blocked without exposing the sensitive co
 | `:nostr-public-relay` | `:high` | Public Nostr relay. |
 | `:on-chain-registry` | `:high` | Public on-chain registry write. |
 | `:public-ci-artifact` | `:medium` | Public CI/CD artifact. |
-| `:git-commit` | `:high` | Public git repository commit. |
+| `:git-commit` | `:low` | Git commit (supports private repos, amend, revert, audit trail). |
 
 ### 5.2 Sink Risk Groups
 
@@ -135,13 +135,13 @@ Reason codes explain why something was blocked without exposing the sensitive co
   #{:local :sealed-log :private-encrypted-bundle :sealed-private-workspace})
 
 (def low-risk-sinks
-  #{:encrypted-bundle})
+  #{:encrypted-bundle :git-commit})
 
 (def medium-risk-sinks
   #{:public-bundle :public-ci-artifact})
 
 (def high-risk-sinks
-  #{:ipfs :nostr-public-relay :on-chain-registry :git-commit})
+  #{:ipfs :nostr-public-relay :on-chain-registry})
 
 (def public-sinks
   (set/union medium-risk-sinks high-risk-sinks))

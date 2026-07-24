@@ -170,8 +170,6 @@
                                       :evidence-policy-hash)))
                  (conj {:code :missing-evidence-policy-hash})
 
-
-
                  (not= (:bundle/id bundle-root) (:bundle/hash bundle-root))
                  (conj {:code :bundle-id-hash-mismatch
                         :bundle/id (:bundle/id bundle-root)

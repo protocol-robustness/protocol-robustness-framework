@@ -64,10 +64,10 @@
                     divergence (diff/diff-traces trace-a trace-b)]
                 (if json?
                   (println (json/write-str {:divergence? (some? divergence)
-                                             :divergence divergence
-                                             :run-a run-a-dir
-                                             :run-b run-b-dir}
-                                            :indent true))
+                                            :divergence divergence
+                                            :run-a run-a-dir
+                                            :run-b run-b-dir}
+                                           :indent true))
                   (diff/print-diff-report divergence))
                 (if divergence
                   {:exit-code 1 :message "Traces diverged"}

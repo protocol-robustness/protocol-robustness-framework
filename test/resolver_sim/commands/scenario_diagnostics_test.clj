@@ -49,12 +49,11 @@
       (is (= "scenarios/example/summaries/trace-summary.json"
              (get-in diagnostic ["evidence" "trace_ref"])))
       (is (= "scenarios/example/summaries/metrics.json"
-             (get-in diagnostic ["evidence" "metrics_ref"])))))
-  )
+             (get-in diagnostic ["evidence" "metrics_ref"]))))))
 
 (deftest rejection-remains-the-diagnostic-fallback
   (let [diagnostic (diagnostic-for
                     [{"seq" 2 "time" 1100 "actor" "attacker"
                       "action" "execute_resolution" "result" "rejected"}])]
     (is (= "rejected" (get-in diagnostic ["primary_diagnostic" "classification"])))
-    (is (= 2 (get-in diagnostic ["primary_diagnostic" "event" "seq"])))) )
+    (is (= 2 (get-in diagnostic ["primary_diagnostic" "event" "seq"])))))

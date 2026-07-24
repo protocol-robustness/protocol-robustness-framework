@@ -32,10 +32,10 @@
      "scenario_title" (or (get-in replay [:source :description]) (get-in replay [:source :scenario-id]))
      "outcome" (or (:outcome replay) "unknown") "events_processed" (or (:events-processed replay) (count trace))
      "steps" (mapv (fn [index event] (let [seq (or (:seq event) index) action (action-name event)]
-                                        {"seq" seq "time" (or (:time event) (:block-time event))
-                                         "actor" (actor event) "action" action "result" (or (:result event) (:outcome event) "?")
-                                         "evidence_refs" [(format "evidence/events/%03d-%s.json" seq action)]}))
-                    (range) trace)
+                                       {"seq" seq "time" (or (:time event) (:block-time event))
+                                        "actor" (actor event) "action" action "result" (or (:result event) (:outcome event) "?")
+                                        "evidence_refs" [(format "evidence/events/%03d-%s.json" seq action)]}))
+                   (range) trace)
      "derived_from" provenance}))
 
 (defn- metric [metrics name default] (get metrics (keyword name) default))
@@ -81,12 +81,12 @@
 
 (def ^:private schema-map
   {"mechanism-summary.v1" {"description" "High-level summary of simulation mechanism outcomes (escrow, disputes, slashing)."
-                            "fields" {"scenario_id" "Unique identifier of the scenario." "outcome" "Final simulation outcome (pass/fail)."
-                                      "escrow" "Aggregated stats on escrow lifecycles." "dispute" "Aggregated stats on dispute resolutions."
-                                      "slashing" "Aggregated stats on slashing actions." "claimable" "Summary of claimable fund classifications."
-                                      "temporal" "Temporal statistics (steps, consistency)."}}
+                           "fields" {"scenario_id" "Unique identifier of the scenario." "outcome" "Final simulation outcome (pass/fail)."
+                                     "escrow" "Aggregated stats on escrow lifecycles." "dispute" "Aggregated stats on dispute resolutions."
+                                     "slashing" "Aggregated stats on slashing actions." "claimable" "Summary of claimable fund classifications."
+                                     "temporal" "Temporal statistics (steps, consistency)."}}
    "scenario-metrics.v1" {"description" "Raw numeric metrics collected during simulation."
-                           "fields" {"scenario_id" "Unique identifier of the scenario." "metrics" "Detailed numeric metrics."}}})
+                          "fields" {"scenario_id" "Unique identifier of the scenario." "metrics" "Detailed numeric metrics."}}})
 
 (defn mechanism-summary [replay provenance]
   (let [trace (:trace replay []) metrics (:metrics replay {})
@@ -117,8 +117,8 @@
     (ratio? value) {:ratio/numerator (numerator value)
                     :ratio/denominator (denominator value)}
     (map? value) (into {} (map (fn [[k v]]
-                                  [(if (or (string? k) (keyword? k)) k (pr-str k))
-                                   (json-safe-value v)])) value)
+                                 [(if (or (string? k) (keyword? k)) k (pr-str k))
+                                  (json-safe-value v)])) value)
     ;; Set iteration is not a JSON contract. Canonical textual ordering keeps
     ;; reviewer projections deterministic without changing the source witness.
     (set? value) (->> value (sort-by pr-str) (mapv json-safe-value))
@@ -172,7 +172,7 @@
                      "unallocated_residual" (get-in decision [:evidence :unallocated-residual] 0)
                      "residual_reason" (some-> (get-in decision [:evidence :residual-reason]) name)
                      "conservation" {"holds" (and (= requested (+ filled deferred))
-                                                     (<= filled available))
+                                                  (<= filled available))
                                      "requested_equals_filled_plus_deferred" (= requested (+ filled deferred))
                                      "filled_not_above_available" (<= filled available)
                                      "residual" (- available filled)}}))]
@@ -200,7 +200,7 @@
                                "- **Policy:** `" (get-in decision ["policy" "mode"]) "`, rounding `"
                                (get-in decision ["policy" "rounding_policy"]) "`\n"
                                "- **Tie-break:** `" (or (get decision "rounding_tie_break")
-                                                            (get-in decision ["policy" "rounding_tie_break"])) "`\n"
+                                                        (get-in decision ["policy" "rounding_tie_break"])) "`\n"
                                "- **Liquidity:** " (get decision "available_liquidity") "; requested "
                                (get decision "total_requested") "; filled " (get decision "total_filled")
                                "; deferred " (get decision "total_deferred") "; shortage " (get decision "shortage") ".\n"
@@ -232,7 +232,7 @@
                         stayed (reduce + 0 (map #(if (= "stayed" (some-> (:execution-status %) name))
                                                    (or (:paid %) 0) 0) rows))
                         unpaid (reduce + 0 (map #(if (= "unpaid" (some-> (:execution-status %) name))
-                                                    (or (:paid %) 0) 0) rows))
+                                                   (or (:paid %) 0) 0) rows))
                         allocation-unmet (max 0 (- (or (:amount slash) 0) allocated))
                         uncollected (- allocated paid)]
                     {"slash_id" (:slash/id slash)
@@ -316,37 +316,36 @@
   ([scenario-root replay provenance profile run-id]
    (write-basic-projections! scenario-root replay provenance profile run-id (:world replay {})))
   ([scenario-root replay provenance profile run-id raw-world]
-  (let [root (io/file (str scenario-root))
-        classification (claimable-classification replay run-id)
-        write-json (fn [relative value]
-                     (atomic-write! (io/file root relative)
-                                    (json/write-str (json-safe-value value))))]
-    (write-json "summaries/trace-summary.json" (trace-summary replay provenance))
-    (write-json "summaries/metrics.json" (metrics-summary replay provenance))
-    (write-json "summaries/claimable-classification.json" classification)
-    (write-json "summaries/mechanism-summary.json" (mechanism-summary replay provenance))
-    (write-json "summaries/schema-map.json" (extraction-schema-map provenance))
-    (let [partial-fill (partial-fill-decisions replay provenance)
-          partial-fill-path "summaries/partial-fill-decisions.json"]
-      (when (pos? (get partial-fill "decision_count" 0))
-        (write-json partial-fill-path partial-fill)
-        (atomic-write! (io/file root "summaries/partial-fill-decisions.md")
-                       (partial-fill-decisions-markdown partial-fill)))
-      (let [fraud-group (fraud-group-slash-allocation replay provenance)
-            fraud-group-path "summaries/fraud-group-slash-allocation.json"]
-        (when (pos? (get fraud-group "slash_count" 0))
-          (write-json fraud-group-path fraud-group)
-          (atomic-write! (io/file root "summaries/fraud-group-slash-allocation.md")
-                         (fraud-group-slash-allocation-markdown fraud-group)))
-        )
-      (write-json "state/world-final.json" (world-final replay provenance profile raw-world))
-      (atomic-write! (io/file root "summaries/trace-plain.md") (plain-trace replay))
-      {:classification classification
-       :written (cond-> ["summaries/trace-summary.json" "summaries/metrics.json"
+   (let [root (io/file (str scenario-root))
+         classification (claimable-classification replay run-id)
+         write-json (fn [relative value]
+                      (atomic-write! (io/file root relative)
+                                     (json/write-str (json-safe-value value))))]
+     (write-json "summaries/trace-summary.json" (trace-summary replay provenance))
+     (write-json "summaries/metrics.json" (metrics-summary replay provenance))
+     (write-json "summaries/claimable-classification.json" classification)
+     (write-json "summaries/mechanism-summary.json" (mechanism-summary replay provenance))
+     (write-json "summaries/schema-map.json" (extraction-schema-map provenance))
+     (let [partial-fill (partial-fill-decisions replay provenance)
+           partial-fill-path "summaries/partial-fill-decisions.json"]
+       (when (pos? (get partial-fill "decision_count" 0))
+         (write-json partial-fill-path partial-fill)
+         (atomic-write! (io/file root "summaries/partial-fill-decisions.md")
+                        (partial-fill-decisions-markdown partial-fill)))
+       (let [fraud-group (fraud-group-slash-allocation replay provenance)
+             fraud-group-path "summaries/fraud-group-slash-allocation.json"]
+         (when (pos? (get fraud-group "slash_count" 0))
+           (write-json fraud-group-path fraud-group)
+           (atomic-write! (io/file root "summaries/fraud-group-slash-allocation.md")
+                          (fraud-group-slash-allocation-markdown fraud-group))))
+       (write-json "state/world-final.json" (world-final replay provenance profile raw-world))
+       (atomic-write! (io/file root "summaries/trace-plain.md") (plain-trace replay))
+       {:classification classification
+        :written (cond-> ["summaries/trace-summary.json" "summaries/metrics.json"
                           "summaries/claimable-classification.json" "summaries/mechanism-summary.json"
                           "summaries/schema-map.json" "state/world-final.json" "summaries/trace-plain.md"]
-                  (pos? (get partial-fill "decision_count" 0)) (conj partial-fill-path)
-                  (pos? (get partial-fill "decision_count" 0)) (conj "summaries/partial-fill-decisions.md"))}))))
+                   (pos? (get partial-fill "decision_count" 0)) (conj partial-fill-path)
+                   (pos? (get partial-fill "decision_count" 0)) (conj "summaries/partial-fill-decisions.md"))}))))
 
 (defn extract!
   "Write scenario projections. The two-argument canonical form consumes the
@@ -371,4 +370,4 @@
          provenance {"path" (str (:replay/file context))}
          result (write-basic-projections! (:scenario/root context) replay provenance
                                           (:sensitivity/profile context) (:run/id context) raw-world)]
-    result)))
+     result)))

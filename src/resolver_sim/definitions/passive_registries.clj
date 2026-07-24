@@ -223,7 +223,7 @@
                   :modules #{:slashing}}
           :inputs #{:obligations :weights :caps :balances :eligible-participants}
           :constraints #{:pro-rata/conservation :pro-rata/non-negative
-                                   :pro-rata/allocation-complete :pro-rata/quota-bounded}
+                         :pro-rata/allocation-complete :pro-rata/quota-bounded}
           :output {:type :allocation-vector
                    :unit :wei
                    :rounding :floor-with-largest-remainder}
@@ -448,40 +448,40 @@
            :version 1
            :category :invariant
            :description "Exact pro-rata allocations require cross-product equality. Quantized largest-remainder allocations instead require bounded quota error and the declared deterministic remainder/tie-break ordering."
-                      :inputs [:projection-artifact :allocation-result]
-                      :evaluation {:type :policy-check
-                                   :policy :exact-or-quantized-pro-rata-fairness}
+           :inputs [:projection-artifact :allocation-result]
+           :evaluation {:type :policy-check
+                        :policy :exact-or-quantized-pro-rata-fairness}
            :outputs [:holds? :violations]}
           {:id :pro-rata/partial-fill-fairness
-            :version 1
-            :category :invariant
-            :description "Pro-rata fairness over partial-fill decisions: exact allocations use cross-product equality; largest-remainder allocations use bounded exact quota error and deterministic remainder ordering."
-                       :inputs [:evidence-nodes]
-                       :evaluation {:type :policy-check
-                                    :policy :exact-or-quantized-pro-rata-fairness}
-            :outputs [:holds? :violations]}
-           {:id :pro-rata/cap-respecting
-            :version 1
-            :category :invariant
-            :description "Every persisted allocation row is bounded by its effective cap and requested amount."
-            :inputs [:pro-rata-allocation-result]
-            :evaluation {:type :policy-check :policy :pro-rata/cap-respecting}
-            :outputs [:holds? :violations]}
-           {:id :pro-rata/canonical-remainder-assignment
-            :version 1
-            :category :invariant
-            :description "Largest-remainder awards follow the persisted canonical rank witness."
-            :inputs [:pro-rata-allocation-result]
-            :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
-            :outputs [:holds? :result :reason :violations]}
-           {:id :pro-rata/projection-diff
-            :version 1
-            :category :safety
-            :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
-            :inputs [:projection-artifact]
-            :evaluation {:type :metadata-completeness
-                         :required-keys [:path :type :value :contract]}
-            :outputs [:holds? :violations]}
+           :version 1
+           :category :invariant
+           :description "Pro-rata fairness over partial-fill decisions: exact allocations use cross-product equality; largest-remainder allocations use bounded exact quota error and deterministic remainder ordering."
+           :inputs [:evidence-nodes]
+           :evaluation {:type :policy-check
+                        :policy :exact-or-quantized-pro-rata-fairness}
+           :outputs [:holds? :violations]}
+          {:id :pro-rata/cap-respecting
+           :version 1
+           :category :invariant
+           :description "Every persisted allocation row is bounded by its effective cap and requested amount."
+           :inputs [:pro-rata-allocation-result]
+           :evaluation {:type :policy-check :policy :pro-rata/cap-respecting}
+           :outputs [:holds? :violations]}
+          {:id :pro-rata/canonical-remainder-assignment
+           :version 1
+           :category :invariant
+           :description "Largest-remainder awards follow the persisted canonical rank witness."
+           :inputs [:pro-rata-allocation-result]
+           :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
+           :outputs [:holds? :result :reason :violations]}
+          {:id :pro-rata/projection-diff
+           :version 1
+           :category :safety
+           :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
+           :inputs [:projection-artifact]
+           :evaluation {:type :metadata-completeness
+                        :required-keys [:path :type :value :contract]}
+           :outputs [:holds? :violations]}
              ;; Protocol-specific claim definitions are registered dynamically
            ;; by protocol implementation namespaces via register-claim-definitions!.
            ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
@@ -606,7 +606,7 @@
     :execution/mode :inline
     :description "Pro-rata allocation execution evidence node — records the full pro-rata computation chain (projection, allocation, claims, artifact) as a DAG-verifiable evidence node."
     :claims #{:pro-rata/allocation-complete :pro-rata/non-negative :pro-rata/conservation :pro-rata/quota-bounded :pro-rata/permutation-invariant}}
-       {:id :execution/yield-accounting
+   {:id :execution/yield-accounting
     :version 1
     :kind :accounting
     :runner :protocol-layer

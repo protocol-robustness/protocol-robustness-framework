@@ -20,7 +20,7 @@
         (is (= "scenarios/s/execution/execution-dag.json" (get-in run ["execution" "dag-path"])))
         (is (= "pass" (get-in summary ["run" "overall_status"])))
         (is (= "not-declared" (get-in summary ["value_at_risk" "status"])))
-                (is (= "input-snapshot-unavailable" (get-in summary ["value_at_risk_overview" "status"])))
+        (is (= "input-snapshot-unavailable" (get-in summary ["value_at_risk_overview" "status"])))
         (is (.isFile (io/file dir "claimable-classification.json"))))
       (finally (delete-tree! root)))))
 
@@ -31,7 +31,7 @@
       (spit snapshot
             "{:events [{:action \"create_escrow\" :params {:token \"USDC\" :amount 100}}\n           {:action :create_escrow :params {:token \"USDC\" :amount 250}}\n           {:action \"create_escrow\" :params {:token \"DAI\" :amount 40}}\n           {:action \"raise_dispute\" :params {:amount 999}}]}")
       (let [execution {:input/provenance {:input/snapshot (.getPath snapshot)
-                                           :input/snapshot-relative "inputs/scenarios/scenario.edn"}
+                                          :input/snapshot-relative "inputs/scenarios/scenario.edn"}
                        :run-result {:results [{:world {:total-held {"USDC" 75 "DAI" 40}}}]}}
             projection (manifest/value-at-risk-summary execution)]
         (is (= "available" (get projection "status")))

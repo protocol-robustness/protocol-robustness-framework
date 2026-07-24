@@ -5,5 +5,9 @@
  :suite/criticality :high
  :protocol :protocol/sew
  :thresholds :thresholds/strict-baseline
- :traces [:traces/dr-fa-001-force-authorisation-basic
-          :traces/dr-fa-002-force-authorisation-expired]}
+  :traces [{:trace :traces/dr-fa-001-force-authorisation-basic
+            :expected-outcome :fail
+            :expected-halt-reason :open-entities-at-end}
+           {:trace :traces/dr-fa-002-force-authorisation-expired
+            :expected-outcome :fail
+            :expected-halt-reason :open-entities-at-end}]}

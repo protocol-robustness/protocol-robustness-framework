@@ -3,15 +3,15 @@
    Persistence, package inventory, signatures, timestamps, and DAG binding are
    intentionally owned by the coordinated artifact-contract integration."
   (:require [clojure.data.json :as json]
-              [clojure.edn :as edn]
-              [clojure.java.io :as io]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [resolver-sim.evidence.chain :as chain]
-                        [resolver-sim.evidence.node :as evidence-node]
-                        [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.evidence.node :as evidence-node]
+            [resolver-sim.hash.canonical :as hc])
   (:import [java.nio.file Files StandardCopyOption AtomicMoveNotSupportedException]
-             [java.security MessageDigest]
-                        [java.math BigInteger]))
+           [java.security MessageDigest]
+           [java.math BigInteger]))
 
 (def schema-version "evidence-finalization.v2")
 (def hash-set-schema-version "evidence-hash-set.v1")
@@ -100,13 +100,13 @@
                  (and (not empty?) (not (contains? #{"verified" "partial"} status)))
                  (conj :non-empty-chain-has-unsupported-status))]
     (cond-> (envelope "scenario-chain-finalization" run subject execution
-                       {:chain (assoc chain :reachable-hash-set hash-set)
-                        :supplemental-channels (vec (or supplemental-channels []))}
-                       bindings
-                       (merge {:result-version "scenario-chain-verification.v2"
-                               :status (if (seq errors) "invalid" (:status verification))
-                               :reasons (vec errors)} verification)
-                       policy)
+                      {:chain (assoc chain :reachable-hash-set hash-set)
+                       :supplemental-channels (vec (or supplemental-channels []))}
+                      bindings
+                      (merge {:result-version "scenario-chain-verification.v2"
+                              :status (if (seq errors) "invalid" (:status verification))
+                              :reasons (vec errors)} verification)
+                      policy)
       execution-id (assoc :execution/id execution-id))))
 
 (defn build-run-finalization
@@ -138,14 +138,14 @@
                                       :aggregate-only (vec (sort (clojure.set/difference (nth normalized 3) (first normalized))))}}]
     (envelope "run-evidence-finalization" run {:subject-kind "run-evidence-set"} execution
               {:scenario-finalizations scenario-finalizations
-                             :scenario-finalization-set scenario-finalization-set
-                             :scenario-chain-heads scenario-chain-heads
-                             :scenario-chain-head-set scenario-chain-head-set
-                             :declared-evidence-hashes (:hashes declared-set)
-                             :declared-evidence-hash-set declared-set}
-                            (merge bindings
-                                   {:scenario-finalization-set-root (:root scenario-finalization-set)
-                                    :scenario-chain-head-set-root (:root scenario-chain-head-set)})
+               :scenario-finalization-set scenario-finalization-set
+               :scenario-chain-heads scenario-chain-heads
+               :scenario-chain-head-set scenario-chain-head-set
+               :declared-evidence-hashes (:hashes declared-set)
+               :declared-evidence-hash-set declared-set}
+              (merge bindings
+                     {:scenario-finalization-set-root (:root scenario-finalization-set)
+                      :scenario-chain-head-set-root (:root scenario-chain-head-set)})
               (merge {:result-version "run-evidence-verification.v2"
                       :status (if exact? "verified" "invalid")
                       :reconciliation reconciliation
@@ -169,7 +169,7 @@
     (try
       (Files/move (.toPath temp) (.toPath target)
                   (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE
-                                                   StandardCopyOption/REPLACE_EXISTING]))
+                                                  StandardCopyOption/REPLACE_EXISTING]))
       (catch AtomicMoveNotSupportedException _
         (Files/move (.toPath temp) (.toPath target)
                     (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING])))
@@ -323,7 +323,7 @@
                                                               [{:reason-code "scenario-execution-aborted"}
                                                                {:reason-code "chain-terminal-state-unproven"}])
                                                             (when (and empty? (not (true? (:allow-empty-targeted-evidence? policy))))
-                                                              [{:reason-code "empty-targeted-evidence-not-authorized"}]))) }
+                                                              [{:reason-code "empty-targeted-evidence-not-authorized"}])))}
                        :policy policy})
         validation (validate-finalization finalization {:require-execution-id? (boolean execution-id)})
         path (io/file forensic-dir "finalizations" "scenarios" scenario-artifact-id "evidence-finalization.json")]
@@ -342,12 +342,12 @@
 (defn- read-finalization!
   ([file] (read-finalization! file {}))
   ([file opts]
-  (let [payload (json/read-str (slurp file) :key-fn keyword)
-        validation (validate-finalization payload opts)]
-    (when-not (:valid? validation)
-      (throw (ex-info "Scenario finalization failed validation"
-                      {:path (str file) :validation validation})))
-    payload)))
+   (let [payload (json/read-str (slurp file) :key-fn keyword)
+         validation (validate-finalization payload opts)]
+     (when-not (:valid? validation)
+       (throw (ex-info "Scenario finalization failed validation"
+                       {:path (str file) :validation validation})))
+     payload)))
 
 (defn- persisted-evidence-hash! [file]
   (let [record (normalize-persisted-evidence-record
@@ -426,7 +426,7 @@
    content files, and the already-finalized content registry. This function does
    not add the finalization to that registry, preventing an inventory cycle."
   [{:keys [finalization-path reconciliation-report-path scenario-finalization-files evidence-files evidence-node-files registry-path
-            run execution policy bindings require-execution-identities?]
+           run execution policy bindings require-execution-identities?]
     :or {policy {} bindings {} require-execution-identities? false}}]
   (when-not (and finalization-path (seq scenario-finalization-files) registry-path)
     (throw (ex-info "Run finalization requires destination, scenario finalizations, and registry"
@@ -443,7 +443,7 @@
                               {:scenario-id (get-in finalization [:subject :scenario-id])
                                :execution/id (:execution/id finalization)
                                :finalization {:artifact-id (str "scenario-finalization/"
-                                                               (get-in finalization [:subject :scenario-artifact-id]))
+                                                                (get-in finalization [:subject :scenario-artifact-id]))
                                               :sha256 (file-sha256-ref file)}
                                :execution-status (get-in finalization [:execution :status])
                                :chain-status (get-in finalization [:evidence :chain :status])
@@ -451,8 +451,8 @@
                             scenario-files scenarios)
         dag-binding (evidence-dag-binding evidence-node-files)
         scenarios-accepted? (every? #(and (= "verified" (get-in % [:verification :status]))
-                                           (contains? #{"verified" "valid-empty"}
-                                                      (get-in % [:evidence :chain :status])))
+                                          (contains? #{"verified" "valid-empty"}
+                                                     (get-in % [:evidence :chain :status])))
                                     scenarios)
         result (build-run-finalization
                 {:run run
@@ -464,16 +464,16 @@
                  :declared-hashes chain-hashes
                  :bindings (merge bindings
                                   {:evidence-content-registry
-                                                                     {:artifact-id "evidence/content-registry"
-                                                                      :root (some-> (or (:registry-hash registry) (:root registry)) sha256-ref)}
-                                                                     :evidence-dag (select-keys dag-binding [:root :node-count :status])})
+                                   {:artifact-id "evidence/content-registry"
+                                    :root (some-> (or (:registry-hash registry) (:root registry)) sha256-ref)}
+                                   :evidence-dag (select-keys dag-binding [:root :node-count :status])})
                  :policy policy
                  :verification (cond-> (if scenarios-accepted?
-                                                           {}
-                                                           {:status "invalid"
-                                                            :reasons [{:reason-code "scenario-finalization-not-accepted"}]})
-                                                   (not= "verified" (:status dag-binding))
-                                                   (update :reasons (fnil into []) (:reasons dag-binding)))})
+                                         {}
+                                         {:status "invalid"
+                                          :reasons [{:reason-code "scenario-finalization-not-accepted"}]})
+                                 (not= "verified" (:status dag-binding))
+                                 (update :reasons (fnil into []) (:reasons dag-binding)))})
         policy-evaluation (evaluate-run-policy result)
         result (assoc-in result [:verification :policy] policy-evaluation)
         result (if (:satisfied? policy-evaluation)
@@ -518,119 +518,119 @@
    {:require-execution-id? true} for scenario finalizations."
   ([finalization] (validate-finalization finalization {}))
   ([finalization {:keys [require-execution-id? require-execution-identities?]}]
-  (let [kind (:finalization-kind finalization)
-        scenario? (= kind "scenario-chain-finalization")
-        run? (= kind "run-evidence-finalization")
-        chain (get-in finalization [:evidence :chain])
-        execution (:execution finalization)
-        verification (:verification finalization)
-        hash-set (or (get-in finalization [:evidence :chain :reachable-hash-set])
-                     (get-in finalization [:evidence :declared-evidence-hash-set]))
-        reachable (:reachable-hashes chain)
-        run-hash-sets [(get-in finalization [:evidence :scenario-finalization-set])
-                       (get-in finalization [:evidence :scenario-chain-head-set])]
-        run-scenarios (get-in finalization [:evidence :scenario-finalizations])
-        declared-heads (get-in finalization [:evidence :scenario-chain-heads])
-        expected-finalization-set (when run?
-                                   (build-hash-set (map #(get-in % [:finalization :sha256]) run-scenarios)))
-        expected-heads (when run?
-                         (mapv (fn [{:keys [scenario-id chain-head]}]
-                                 {:scenario-id scenario-id :head-hash (:hash chain-head)})
-                               run-scenarios))
-        expected-head-set (when run?
-                            (build-hash-set
-                             (map #(hc/hash-with-intent {:hash/intent :evidence-finalization-v2} %)
-                                  expected-heads)))
-        errors (cond-> []
-                 (not= schema-version (:schema-version finalization)) (conj :unsupported-schema-version)
-                 (and require-execution-id? scenario? (nil? (:execution/id finalization)))
-                 (conj :missing-execution-id)
-                 (and require-execution-id? scenario?
-                      (some? (:execution/id finalization))
-                      (not (and (string? (:execution/id finalization)) (seq (:execution/id finalization)))))
-                 (conj :malformed-execution-id)
-                 (not (contains? #{"scenario-chain-finalization" "run-evidence-finalization"} kind)) (conj :unsupported-finalization-kind)
-                 (not= "prf-canonical-hash-v1" (get-in finalization [:canonicalization :scheme])) (conj :unsupported-canonicalization)
-                 (not= "evidence-finalization-v2" (get-in finalization [:canonicalization :intent])) (conj :unsupported-intent)
-                 (and hash-set (not (:valid? (validate-hash-set hash-set)))) (conj :invalid-hash-set)
-                                  (and run? (some #(not (:valid? (validate-hash-set %))) run-hash-sets))
-                                  (conj :invalid-run-scenario-set-commitment)
-                 (and (= kind "scenario-chain-finalization") (= "valid-empty" (:status chain))
-                                       (or (pos? (:record-count chain)) (:head chain) (:genesis chain)
-                                           (seq (:reachable-hashes chain)))) (conj :invalid-valid-empty-chain)
-                                  (and (= kind "scenario-chain-finalization") (= "verified" (:status chain))
-                                       (pos? (:record-count chain))
-                                       (or (nil? (:genesis chain))
-                                           (nil? (:head chain))
-                                           (not= "verified" (get-in chain [:head-verification :membership]))
-                                           (not= "unique-terminal" (get-in chain [:head-verification :terminality]))))
-                                  (conj :verified-chain-missing-verified-terminal-head)
-                                  (and (= kind "scenario-chain-finalization")
-                                       (some? (get-in chain [:head :artifact-bytes-sha256]))
-                                       (not (sha256-ref? (get-in chain [:head :artifact-bytes-sha256]))))
-                                  (conj :malformed-head-artifact-bytes-sha256)
-                                  (and scenario?
-                                       (some? (get-in chain [:genesis :artifact-bytes-sha256]))
-                                       (not (sha256-ref? (get-in chain [:genesis :artifact-bytes-sha256]))))
-                                  (conj :malformed-genesis-artifact-bytes-sha256)
-                                  (and scenario? (= "verified" (:status chain))
-                                       (not= "verified" (:status verification)))
-                                  (conj :verified-chain-has-nonverified-result)
-                                  (and scenario? (= "verified" (:status chain))
-                                       (not= "closed" (:terminality execution)))
-                                  (conj :verified-chain-not-closed)
-                                  (and scenario? (= "verified" (:status chain))
-                                                        (not= "passed"
-                                                              (:status (some #(when (= "registry-membership" (:check-id %)) %)
-                                                                             (:checks verification)))))
-                                                   (conj :verified-chain-registry-membership-not-passed)
-                                  (and scenario? (= "partial" (:status chain))
-                                       (or (= "verified" (:status verification))
-                                           (not= "open" (:terminality execution))))
-                                  (conj :partial-chain-claims-terminal-verification)
-                                  (and scenario? (= "valid-empty" (:status chain))
-                                       (or (not= "verified" (:status verification))
-                                           (not= "closed" (:terminality execution))))
-                                  (conj :valid-empty-chain-has-invalid-execution-status)
-                                  (and scenario? (not (vector? reachable)))
-                                  (conj :reachable-hashes-not-vector)
-                                  (and scenario? (vector? reachable)
-                                       (or (not= (:record-count chain) (count reachable))
-                                           (not= reachable (:hashes hash-set))))
-                                  (conj :reachable-hashes-do-not-match-chain-commitment)
-                                  (and scenario? (vector? reachable)
-                                       (not-every? sha256-ref? reachable))
-                                  (conj :malformed-reachable-hash)
-                                  (and run? (= "verified" (:status verification))
-                                       (not= "exact" (get-in verification [:reconciliation :status])))
-                                  (conj :verified-run-reconciliation-not-exact)
-                                  (and run? (= "verified" (:status verification))
-                                       (not= "closed" (:terminality execution)))
-                                  (conj :verified-run-not-closed)
-                                  (and run?
-                                       (not= (count (get-in finalization [:evidence :scenario-finalizations]))
-                                             (count (set (map :scenario-id
-                                                              (get-in finalization [:evidence :scenario-finalizations]))))))
-                                  (conj :duplicate-run-scenario-finalization)
-                                  (and run?
-                                                                         (some (fn [entry]
-                                                                                 (not (sha256-ref? (get-in entry [:finalization :sha256]))) )
-                                                                               run-scenarios))
-                                                                    (conj :malformed-scenario-finalization-digest)
-                                  (and run? require-execution-identities?
-                                       (some #(not (and (string? (:execution/id %)) (seq (:execution/id %)))) run-scenarios))
-                                                                    (conj :missing-run-member-execution-id)
-                                                                    (and run? (not= run-scenarios (vec (sort-by :scenario-id run-scenarios))))
-                                                                    (conj :run-scenario-finalizations-not-canonically-ordered)
-                                                                    (and run? (not= declared-heads expected-heads))
-                                                                    (conj :scenario-chain-heads-do-not-match-finalizations)
-                                                                    (and run? (not= (get-in finalization [:evidence :scenario-finalization-set :root])
-                                                                                    (:root expected-finalization-set)))
-                                                                    (conj :scenario-finalization-set-root-mismatch)
-                                                                    (and run? (not= (get-in finalization [:evidence :scenario-chain-head-set :root])
-                                                                                    (:root expected-head-set)))
-                                                                    (conj :scenario-chain-head-set-root-mismatch))]
-    {:valid? (empty? errors) :errors errors
-     :run-id (get-in finalization [:run :run-id])
-     :scenario-id (get-in finalization [:subject :scenario-id])
-     :execution-id (:execution/id finalization)})))
+   (let [kind (:finalization-kind finalization)
+         scenario? (= kind "scenario-chain-finalization")
+         run? (= kind "run-evidence-finalization")
+         chain (get-in finalization [:evidence :chain])
+         execution (:execution finalization)
+         verification (:verification finalization)
+         hash-set (or (get-in finalization [:evidence :chain :reachable-hash-set])
+                      (get-in finalization [:evidence :declared-evidence-hash-set]))
+         reachable (:reachable-hashes chain)
+         run-hash-sets [(get-in finalization [:evidence :scenario-finalization-set])
+                        (get-in finalization [:evidence :scenario-chain-head-set])]
+         run-scenarios (get-in finalization [:evidence :scenario-finalizations])
+         declared-heads (get-in finalization [:evidence :scenario-chain-heads])
+         expected-finalization-set (when run?
+                                     (build-hash-set (map #(get-in % [:finalization :sha256]) run-scenarios)))
+         expected-heads (when run?
+                          (mapv (fn [{:keys [scenario-id chain-head]}]
+                                  {:scenario-id scenario-id :head-hash (:hash chain-head)})
+                                run-scenarios))
+         expected-head-set (when run?
+                             (build-hash-set
+                              (map #(hc/hash-with-intent {:hash/intent :evidence-finalization-v2} %)
+                                   expected-heads)))
+         errors (cond-> []
+                  (not= schema-version (:schema-version finalization)) (conj :unsupported-schema-version)
+                  (and require-execution-id? scenario? (nil? (:execution/id finalization)))
+                  (conj :missing-execution-id)
+                  (and require-execution-id? scenario?
+                       (some? (:execution/id finalization))
+                       (not (and (string? (:execution/id finalization)) (seq (:execution/id finalization)))))
+                  (conj :malformed-execution-id)
+                  (not (contains? #{"scenario-chain-finalization" "run-evidence-finalization"} kind)) (conj :unsupported-finalization-kind)
+                  (not= "prf-canonical-hash-v1" (get-in finalization [:canonicalization :scheme])) (conj :unsupported-canonicalization)
+                  (not= "evidence-finalization-v2" (get-in finalization [:canonicalization :intent])) (conj :unsupported-intent)
+                  (and hash-set (not (:valid? (validate-hash-set hash-set)))) (conj :invalid-hash-set)
+                  (and run? (some #(not (:valid? (validate-hash-set %))) run-hash-sets))
+                  (conj :invalid-run-scenario-set-commitment)
+                  (and (= kind "scenario-chain-finalization") (= "valid-empty" (:status chain))
+                       (or (pos? (:record-count chain)) (:head chain) (:genesis chain)
+                           (seq (:reachable-hashes chain)))) (conj :invalid-valid-empty-chain)
+                  (and (= kind "scenario-chain-finalization") (= "verified" (:status chain))
+                       (pos? (:record-count chain))
+                       (or (nil? (:genesis chain))
+                           (nil? (:head chain))
+                           (not= "verified" (get-in chain [:head-verification :membership]))
+                           (not= "unique-terminal" (get-in chain [:head-verification :terminality]))))
+                  (conj :verified-chain-missing-verified-terminal-head)
+                  (and (= kind "scenario-chain-finalization")
+                       (some? (get-in chain [:head :artifact-bytes-sha256]))
+                       (not (sha256-ref? (get-in chain [:head :artifact-bytes-sha256]))))
+                  (conj :malformed-head-artifact-bytes-sha256)
+                  (and scenario?
+                       (some? (get-in chain [:genesis :artifact-bytes-sha256]))
+                       (not (sha256-ref? (get-in chain [:genesis :artifact-bytes-sha256]))))
+                  (conj :malformed-genesis-artifact-bytes-sha256)
+                  (and scenario? (= "verified" (:status chain))
+                       (not= "verified" (:status verification)))
+                  (conj :verified-chain-has-nonverified-result)
+                  (and scenario? (= "verified" (:status chain))
+                       (not= "closed" (:terminality execution)))
+                  (conj :verified-chain-not-closed)
+                  (and scenario? (= "verified" (:status chain))
+                       (not= "passed"
+                             (:status (some #(when (= "registry-membership" (:check-id %)) %)
+                                            (:checks verification)))))
+                  (conj :verified-chain-registry-membership-not-passed)
+                  (and scenario? (= "partial" (:status chain))
+                       (or (= "verified" (:status verification))
+                           (not= "open" (:terminality execution))))
+                  (conj :partial-chain-claims-terminal-verification)
+                  (and scenario? (= "valid-empty" (:status chain))
+                       (or (not= "verified" (:status verification))
+                           (not= "closed" (:terminality execution))))
+                  (conj :valid-empty-chain-has-invalid-execution-status)
+                  (and scenario? (not (vector? reachable)))
+                  (conj :reachable-hashes-not-vector)
+                  (and scenario? (vector? reachable)
+                       (or (not= (:record-count chain) (count reachable))
+                           (not= reachable (:hashes hash-set))))
+                  (conj :reachable-hashes-do-not-match-chain-commitment)
+                  (and scenario? (vector? reachable)
+                       (not-every? sha256-ref? reachable))
+                  (conj :malformed-reachable-hash)
+                  (and run? (= "verified" (:status verification))
+                       (not= "exact" (get-in verification [:reconciliation :status])))
+                  (conj :verified-run-reconciliation-not-exact)
+                  (and run? (= "verified" (:status verification))
+                       (not= "closed" (:terminality execution)))
+                  (conj :verified-run-not-closed)
+                  (and run?
+                       (not= (count (get-in finalization [:evidence :scenario-finalizations]))
+                             (count (set (map :scenario-id
+                                              (get-in finalization [:evidence :scenario-finalizations]))))))
+                  (conj :duplicate-run-scenario-finalization)
+                  (and run?
+                       (some (fn [entry]
+                               (not (sha256-ref? (get-in entry [:finalization :sha256]))))
+                             run-scenarios))
+                  (conj :malformed-scenario-finalization-digest)
+                  (and run? require-execution-identities?
+                       (some #(not (and (string? (:execution/id %)) (seq (:execution/id %)))) run-scenarios))
+                  (conj :missing-run-member-execution-id)
+                  (and run? (not= run-scenarios (vec (sort-by :scenario-id run-scenarios))))
+                  (conj :run-scenario-finalizations-not-canonically-ordered)
+                  (and run? (not= declared-heads expected-heads))
+                  (conj :scenario-chain-heads-do-not-match-finalizations)
+                  (and run? (not= (get-in finalization [:evidence :scenario-finalization-set :root])
+                                  (:root expected-finalization-set)))
+                  (conj :scenario-finalization-set-root-mismatch)
+                  (and run? (not= (get-in finalization [:evidence :scenario-chain-head-set :root])
+                                  (:root expected-head-set)))
+                  (conj :scenario-chain-head-set-root-mismatch))]
+     {:valid? (empty? errors) :errors errors
+      :run-id (get-in finalization [:run :run-id])
+      :scenario-id (get-in finalization [:subject :scenario-id])
+      :execution-id (:execution/id finalization)})))

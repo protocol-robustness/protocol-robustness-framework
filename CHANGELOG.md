@@ -2,6 +2,104 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Force-authorisation custody benchmark moved from SEW pack to PRF core:** Canonical definition at `benchmarks/packs/prf-core/force-authorisation-custody-v1.edn` with ID `:benchmark/force-authorisation-custody-v1`. SEW pack retains a registry-level alias. Suite-provider metadata (`:benchmark/suite-provider`) identifies SEW as implementation provider. (`benchmarks/packs/prf-core/force-authorisation-custody-v1.edn`, `benchmarks/packs/prf-core/registry.edn`)
+
+- **Protocol-independent force-authorisation validation:** `verify-authorisation-usable`, `verify-authorisation-lifecycle-consistency`, `force-authorisation-scope-hash`, `scope-hash-mismatch?` moved from SEW `accounting.clj` to `src/resolver_sim/assurance/force_authorisation.clj`. Zero SEW dependencies. (`src/resolver_sim/assurance/force_authorisation.clj`)
+
+- **Generic force-authorisation concept vocabulary and claims:** `data/concepts/security/force_authorisation.edn` provides 9 vocabulary terms, 3 roles, 5 failure modes, 5 metrics. `data/claims/force_authorisation_claims.edn` provides 5 protocol-independent claim definitions (scope-enforced, single-use, expiry-enforced, evidence-linkage, custody-isolation). (`data/concepts/security/force_authorisation.edn`, `data/claims/force_authorisation_claims.edn`)
+
+- **Generic `TemporalDeadlines` protocol:** Replaced bespoke `settlement-deadline-reached?` and `appeal-window-closed?` methods with `(deadline-for model world deadline-kind subject context)`. Supports `:evidence-submission`, `:settlement`, `:appeal`, `:earliest-execution` deadline kinds with configurable boundary policies (`:before`, `:at-or-after`). (`src/resolver_sim/protocols/protocol.clj`, `src/resolver_sim/contract_model/replay/temporal.clj`)
+
+- **Benchmark validator supports `:alias` status:** `benchmarks_validate.clj` now accepts `:alias` as a valid benchmark status and skips file/claim validation for alias entries. Fixes validation failure when SEW registry contained an alias reference. (`scripts/benchmarks_validate.clj`)
+
+- **`scenario_safety.clj` syntax fix:** Fixed unmatched delimiter in `classify-safety` function that blocked the CLI benchmark runner. (`src/resolver_sim/commands/scenario_safety.clj`)
+
+- **Held-custody closed-form validation moved to PRF core:** `held-custody-closed-form-checks`, `replay-held-adjustment-state`, `replay-held-adjustments`, `build-held-custody-artifact`, `rebuild-held-custody-artifacts`, `final-held-summary` moved from `protocols_src/.../sew/accounting.clj` to `src/resolver_sim/assurance/custody.clj`. All protocol-independent, accept data maps, return validation results. (`src/resolver_sim/assurance/custody.clj`)
+
+- **Model-based benchmark-content registry:** Two-hash registry entry with mandatory `model-root`, 12-component `content-root` derivation (research-question, model-root, incentive-model-root, adversary-model-root, parameter-domain-root, generator-root, case-selection-policy-root, fixed-regression-case-root, claims-root, falsifier-root, evaluation-policy-root, evidence-contract-root), and status/root validation for five component states (`:modelled`, `:not-modelled`, `:not-applicable`, `:externally-defined`, `:deferred` with required `:reason-code` and `:expected-version`). (`src/resolver_sim/benchmark/content_registry_entry.clj`)
+
+- **`benchmark-outcome.v1` manifest and comparison predicates:** `build-manifest`, `exact-replication-scope?` (checks content-root, model-root, model-instance-root, plan-root, parameter-domain-root, sampling-policy-root, realised-parameter-set-root, generated-case-set-root, evaluation-policy-root, schema-version), `sampling-comparison-scope?`, `related-model-scope?`, `classify-outcome-compatibility`, `validate-manifest`, `pre-application-checks`, `cross-artifact-roots-consistent?`. (`src/resolver_sim/benchmark/outcome_manifest.clj`)
+
+- **`benchmark-review-round.v1`:** Frozen three-member cell with controlled-purpose vocabulary (`:model-admission`, `:model-replication`, `:model-challenge`, `:model-revision`, `:sampling-report`, `:force-authorisation`) and creation-vs-finalisation requirement separation. (`src/resolver_sim/benchmark/review_round.clj`)
+
+- **`researcher-run-report.v1`:** Signed run report with cross-researcher comparable outcome-hash (excludes researcher identity), 9-field execution identity embedding, outcome-manifest-hash cross-validation, `verify-against-manifest`, `validate-report`, `pre-sign-checks`. (`src/resolver_sim/benchmark/researcher_run_report.clj`)
+
+- **`researcher-position.v1`:** 13-dimension model-component-level assessment (`:reproduction`, `:model-state`, `:model-transitions`, `:model-authority`, `:model-adversary`, `:model-parameters`, `:model-cases`, `:incentives-participants`, `:incentives-strategies`, `:incentives-coalitions`, `:evidence`, `:claims`, `:publication`), component-targeted targets, absent-statuses (`:not-reviewed`, `:insufficient-information`, `:not-applicable`). (`src/resolver_sim/benchmark/researcher_position.clj`)
+
+- **`three-member-research-certificate.v1`:** Whole-outcome grouping (never synthetic field-wise majority), six member groups (`:supporting`, `:qualifying`, `:dissenting`, `:absent`, `:insufficient-information`, `:not-reviewed`, `:not-applicable`), replication-type classification (`:exact-replication`, `:independent-sampling`, `:model-corroboration`, `:incompatible-scope`), per-dimension-consensus with member detail, `pre-certificate-checks`. (`src/resolver_sim/benchmark/review/three_member_certificate.clj`)
+
+- **`research-force-authorisation.v1`:** Policy/instance split, 2-of-3 threshold with dissent preservation, member validation, `build-authorisation`, `policy-valid?`. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
+
+- **Partial-fill benchmark evidence pack:** Six-level application evidence ladder (`:allocation-calculated`, `:application-claimed`, `:accounting-emitted`, `:state-written-back`, `:continuity-consumed`, `:outcome-committed`), `derive-state-write-back` from existing artifacts (no yield code modification), `collect-application-refs`, `collect-propagation-refs`, `semantic-commitments`, `derive-continuity-evidence`, `evaluate-operational`, `evaluate-incentives`, `normalise-decision-outcome`. (`src/resolver_sim/benchmark/packs/partial_fill/evidence.clj`, `src/resolver_sim/benchmark/packs/partial_fill/outcome.clj`)
+
+- **181 benchmark-layer tests:** 9 test namespaces covering registry entry, review round, outcome manifest, run report, position, certificate, force-authorisation, partial-fill evidence, cross-artifact integration, and SEW pre-application. All passing with 331 assertions. (`test/resolver_sim/benchmark/`)
+
+### Fixed
+
+- **`:deferred` component status made strict:** Now requires `:reason-code` and `:expected-version`, prohibits non-nil root. Added `:provisional` status (requires root). Status/root validation enforced in both builder and standalone `validate-entry`. (`src/resolver_sim/benchmark/content_registry_entry.clj`)
+
+- **`exact-replication-scope?` missing model-root check:** Added `:benchmark/model-root` equality — previously a different model-root with the same content-root silently classified as exact replication. (`src/resolver_sim/benchmark/outcome_manifest.clj`)
+
+- **`compatible-outcomes?` renamed to `classify-outcome-compatibility`:** Returns one of four keywords. Boolean wrapper retained as `compatible-outcomes?`. (`src/resolver_sim/benchmark/outcome_manifest.clj`)
+
+- **`validate-report` hash check no longer requires signature:** Hash consistency is verified whenever `:researcher-run-report/hash` is present, regardless of signature presence. (`src/resolver_sim/benchmark/researcher_run_report.clj`)
+
+- **Code quality cleanup:** Removed 7 unused require aliases, 5 unused let bindings, 1 dead conditional branch; added 4 missing `^:const` annotations and 20 missing docstrings; fixed 3 indentation misalignments. (`src/resolver_sim/benchmark/`)
+
+- **Hash domain tags extended:** 10 new domain tags for benchmark artifacts (`:benchmark-semantic-content`, `:benchmark-registry-entry`, `:benchmark-outcome`, `:review-round-identity`, `:researcher-run-report`, `:researcher-position`, `:three-member-certificate`, `:evidence-collection`, `:state-projection`). (`src/resolver_sim/hash/canonical.clj`)
+
+- **Yield-aware bb backstop:** `bb backstop` now runs yield unit tests and yield JSON scenarios before the CLI review gate, making backstop yield-aware by default. Three yield commands registered in the command registry at `:default` backstop tier for `bb cli` discoverability. (`bb.edn`, `resources/prf/commands/registry.edn`)
+
+- **Yield readiness guard on settlement execution:** `execute-pending-settlement` now blocks with `:yield-position-unsettled` when the escrow's yield position has unrealized/realized yield but `last-accrual-time` is behind the current block time, preventing finalization while yield state is stale. (`protocols_src/resolver_sim/protocols/sew/resolution.clj`)
+
+- **`settlement-yield-boundary` invariant checks accrual staleness:** Extended to flag workflows where settlement yield claims exist but the associated yield position's `last-accrual-time` trails `block-time`, hardening the post-settlement invariant. (`protocols_src/resolver_sim/protocols/sew/invariants.clj`)
+
+- **`:yield-position-unsettled` guard error code:** Added to `sew-guard-error-codes` so the economic model correctly classifies it as an invalid guard condition. (`protocols_src/resolver_sim/protocols/sew.clj`)
+
+### Fixed
+
+- **Duplicate `allowed-fixture-namespaces` removed from `sim/fixtures.clj`:** Private def centralised to single source in `io/fixtures.clj`. Both `fixture-ref?` and `compose-suite` map branch now reference `io-fix/allowed-fixture-namespaces`. (`src/resolver_sim/io/fixtures.clj`, `src/resolver_sim/sim/fixtures.clj`)
+
+- **`normalize-scenario` applied to non-trace fixtures:** Scoped to trace data only — now only calls `normalize-scenario` when the loaded fixture has an `:events` key, preventing walk-based string→keyword corruption of protocol/state/actor fixture values. (`src/resolver_sim/sim/fixtures.clj`)
+
+- **Redundant `fixture-ref?` branch in `run-suite-from-key`:** Removed dead conditional — `compose-loader` already handles keyword fixture refs internally. (`src/resolver_sim/io/fixtures.clj`)
+
+- **`:expected-outcome :fail` added to theory-falsification traces:** Marked `force-authorisation-custody-v1` traces; reverted from `equilibrium-validation` v9/v10 and `spe-regression` v4/v7/v8 after confirming they produce `:pass` (comments suffice). (`data/fixtures/suites/equilibrium-validation.edn`, `data/fixtures/suites/spe-regression.edn`)
+
+- **Orphaned fixture files removed:** Deleted 96 unreferenced trace files, 10 orphaned protocol fixtures, and 1 orphaned token fixture — files that existed on disk but were referenced by no fixture suite. (`data/fixtures/traces/`, `data/fixtures/protocol/`, `data/fixtures/tokens/`)
+
+- **`:reconciliation/:allocation-applied?` hardcoded to `true`:** Changed from constant `true` to dynamic check matching `:all-allocations-applied` semantics. (`src/resolver_sim/yield/partial_fill.clj`)
+
+- **Index-monotone invariant misses new/removed indices:** Expanded `indices-changed` to iterate over the union of `before` and `after` index sets, detecting newly added and removed indices. `index-monotone-ok?` now returns `false` on removed indices and `true` on newly appearing indices. (`src/resolver_sim/yield/invariants_transition.clj`)
+
+- **Nested `defn` causes unbound fn at runtime:** `check-pro-rata-propagation-complete` was nested inside `check-pro-rata-accounting-reconciles`'s let body, leaving the var unbound until the enclosing function was called. Extracted to top-level `defn`. (`src/resolver_sim/yield/invariants.clj`)
+
+- **`pass?` arity bug in checks map:** Missing closing paren after the first `pass?` argument set caused all subsequent check entries to be consumed as additional args. (`src/resolver_sim/yield/invariants.clj`)
+
+- **`check-token-key-consistency` paths position:** `paths` vector was inside the `fn` body (second return value) instead of being the second argument to `mapcat`, causing `vec` arity errors. (`src/resolver_sim/yield/invariants.clj`)
+
+- **Missing invariant IDs in default-runtime set:** Added `:yield/shortfall-detected`, `:yield/token-key-consistency`, `:yield/aggregate-shortfall-cap` to `default-runtime-invariant-ids` to match registered `check-fns`. (`src/resolver_sim/yield/invariant_catalog.clj`)
+
+- **`verify-canonical-integrity` missing `:checks` key on file-missing path:** Failure branch returned `{:valid? false :reason :missing-assurance-artifact}` without `:checks`, producing `nil` in the outer checks map. Added `:checks {"assurance-files-readable" false}`. (`src/resolver_sim/scenario/verify.clj`)
+
+- **Sub-check key type inconsistency:** `sub-checks` used keyword keys while outer `checks` used strings, risking silent mismatch on merge. Changed to string keys. (`src/resolver_sim/scenario/verify.clj`)
+
+- **Compose-suite identity-key? namespace mismatch:** Identity-key check was nested inside the fixture-namespace branch, so keys like `:state/id` (singular ns) never reached it. Elevated to independent check. (`src/resolver_sim/sim/fixtures.clj`)
+
+- **Fixture namespace singular/plural mismatch:** Added singular fixture namespace forms to `allowed-fixture-namespaces` and updated `fixture-key->path` to map singular identity-key namespaces to plural directory names (`:state/id` → `data/fixtures/states/id.edn`). (`src/resolver_sim/io/fixtures.clj`)
+
+- **Missing `inv-trans` require in test:** `invariants_test.clj` used `inv-trans/check-all-transitions` without importing the namespace. (`test/resolver_sim/yield/invariants_test.clj`)
+
+### Added (2026-07-26)
+
+- **Force-authorisation policy artifact:** New reusable `force-authorisation-policy.v1` artifact defining membership, threshold, scope and lifecycle rules for force-authorisation across policy families. Referenced by hash from verdict-policy `supersession_policy` and other policy-family artifacts. Includes `build`, `validate`, `verify-artifact`, default `research-policy-update-v1` policy, and a self-committing `policy_sha256` computed via `PRF_FORCE_AUTHORISATION_POLICY_V1` domain hash. (`src/resolver_sim/run/force_authorisation_policy.clj`)
+
+- **Verdict-policy supersession with force-authorisation governance:** Verdict-policy artifacts can now carry an optional `supersession_policy` field that governs how the policy may be superseded. The field commits to an `authorization_required` level (`research-force-authorisation` or `governance-only`), an `allowed_change_classes` vector, and a hash-bound `force_authorisation_policy_hash`. The `supersede` function enforces the predecessor's supersession contract: it computes change classes from a structural diff (not caller-supplied), rejects disallowed change classes, verifies the force-authorisation policy artifact matches the committed hash, validates the researcher authorisation instance (k-of-n threshold, scope binding), and records `authorization_instance_hash`, `authorization_provenance_hash`, and `force_authorisation_policy_hash` in the successor's `supersession` record. Simple supersede without a `supersession_policy` continues to work unchanged. (`src/resolver_sim/run/verdict_policy.clj`, `src/resolver_sim/benchmark/researcher_force_authorisation.clj`, `src/resolver_sim/assurance/force_authorisation.clj`)
+
+- **`verify!` diagnostics:** Replaced the monolithic 9-condition `and` chain in `verdict-policy/verify!` with individual `check` calls that collect descriptive error messages. Each failing condition reports what was expected vs received. Input validation expanded to report per-entry index and specific failure (path escapes root, file not found, sha256 mismatch). (`src/resolver_sim/run/verdict_policy.clj`)
+
 ### Added (2026-07-19)
 
 - **Immutable fraud-incident provenance for group slashing:** Added `fraud-incident.v1` declarations and typed `fraud-incident-ref.v1` bindings for Sew fraud-group slash proposals. Declarations are immutable, canonically hashed, governance-dispatched records of the alleged common event; proposals now fail closed for missing, incompatible, or hash-mismatched references. The exact reference propagates through the pending slash, pro-rata allocation input, allocation artifact, and targeted slash evidence without making incident membership an authorization decision. `DR-PR-002-fraud-group-prorata-shortfall` now declares and binds its incident before proposing the `100 + 300` capped allocation with `200` unmet obligation; it is included in the dispute-resolution suite. Added negative coverage for unknown references, hash mismatch, duplicate declarations, and mutation/rebind attempts. Future incident-authorized liability is explicitly reserved for a versioned option-3 policy. (`protocols_src/resolver_sim/protocols/sew/{resolution.clj,sew.clj}`, `scenarios/edn/DR-PR-002-fraud-group-prorata-shortfall.edn`, `src/resolver_sim/scenario/suites.clj`, `protocols_src/test/resolver_sim/protocols/sew/slashing_test.clj`, `docs/architecture/FRAUD_INCIDENT_LIABILITY_VERSIONING.md`)

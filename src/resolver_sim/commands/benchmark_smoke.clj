@@ -41,7 +41,7 @@
                      scenario-ids
                      (count scenario-ids))))
                 (:benchmarks pack-data)))))
-       (:packs registry))))))
+         (:packs registry))))))
 
 (def ^:private smoke-output-root "results/benchmark-smoke")
 
@@ -97,20 +97,20 @@
       (println)
       (let [passed (count (filter #(= :completed (:smoke-status %)) results))
             failed (count (filter #(#{:exception :parse-error :rejected}
-                                     (:smoke-status %))
+                                    (:smoke-status %))
                                   results))
             skipped (count (filter #(= :skipped (:smoke-status %)) results))]
         (printf "Passed: %d  Failed: %d  Skipped: %d\n" passed failed skipped)
         (when (pos? failed)
           (println "\nFailed benchmarks:")
           (doseq [r (filter #(#{:exception :parse-error :rejected}
-                                (:smoke-status %))
+                              (:smoke-status %))
                             results)]
             (printf "  - %s (%s)\n" (:id r) (:smoke-status r))))
         (println)
         {:exit-code (if (zero? failed) 0 1)
          :message (str "Smoke matrix: " (count results) " benchmarks, "
-                        passed " passed, " failed " failed, " skipped " skipped")}))))
+                       passed " passed, " failed " failed, " skipped " skipped")}))))
 
 (defn -main [& args]
   (let [opts (loop [xs args m {:all? false :seed nil}]

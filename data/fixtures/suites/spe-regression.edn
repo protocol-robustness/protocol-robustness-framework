@@ -11,14 +11,14 @@
  :traces [:traces/spe-reg-v1-bounded-spe-pass-honest-resolver
           :traces/spe-reg-v2-inconclusive-no-dispute
           :traces/spe-reg-v3-mixed-node-pass
-          ;; Negative case — purpose :theory-falsification; expected to produce :fail
-          :traces/spe-reg-v4-fail-slashed-resolver-bounded
+           ;; Negative case — purpose :theory-falsification; expected to produce :fail
+           :traces/spe-reg-v4-fail-slashed-resolver-bounded
           :traces/spe-reg-v5-both-concepts-pass
           ;; Phase K: backward-induction mode — same two-node honest trace, new concept
           :traces/spe-reg-v6-backward-induction-two-node
-          ;; Gap D: reputation-spe — stake top-up masks slash from bounded-spe (pass),
-          ;; resolver-reputation-spe detects via resolver-slash-total (fail)
-          :traces/spe-reg-v7-reputation-slash-fail
-          ;; Gap D profiles: profile-matrix on same trace; :reputation/none=pass (no penalty →
-          ;; regret=0), conservative and baseline=fail (any non-zero penalty deters)
-          :traces/spe-reg-v8-profile-matrix]}
+           ;; Gap D: reputation-spe — stake top-up masks slash from bounded-spe (pass),
+           ;; resolver-reputation-spe detects via resolver-slash-total (fail)
+           :traces/spe-reg-v7-reputation-slash-fail
+           ;; Gap D profiles: profile-matrix on same trace; :reputation/none=pass (no penalty →
+           ;; regret=0), conservative and baseline=fail (any non-zero penalty deters)
+           :traces/spe-reg-v8-profile-matrix]}

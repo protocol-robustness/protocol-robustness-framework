@@ -12,7 +12,6 @@
      • directory location strings for fixtures, scenarios, results"
   (:require [resolver-sim.io.artifacts :as arts]))
 
-
 ;; ── Filename aliases for canonical artifacts (semantics in io.artifacts) ──
 
 (def completion           (arts/artifact-file :run/completion))
@@ -20,7 +19,6 @@
 (def artifacts-validation (arts/artifact-file :artifacts/validation))
 (def run-package-index    (arts/artifact-file :run/package-index))
 (def sensitivity-report   (arts/artifact-file :sensitivity/report))
-
 
 ;; ── Non-semantic path conventions ──────────────────────────────────────
 ;; Mutable run state, locks, extensions, directories, test resources.

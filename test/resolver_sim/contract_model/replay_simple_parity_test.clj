@@ -199,9 +199,9 @@
 (deftest normalize-simple-result-keys
   (let [raw {:outcome :pass :scenario-id "test" :events-processed 0 :trace [] :metrics {}}
         result (replay/normalize-simple-result raw dummy/protocol
-                                                [{:field :schema-version :value "1.0" :reason :simple-replay-default}]
-                                                {:profile :simple :engine :canonical-loop}
-                                                "my-run")]
+                                               [{:field :schema-version :value "1.0" :reason :simple-replay-default}]
+                                               {:profile :simple :engine :canonical-loop}
+                                               "my-run")]
     (is (= :simple (:replay-profile result)))
     (is (= "dummy" (:protocol-id result)))
     (is (= {:profile :simple :engine :canonical-loop} (:execution result)))
@@ -225,20 +225,20 @@
 
 (deftest simple-replay-prohibited-flags-are-rejected
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
-        #"cannot override enforced profile flags"
-        (adapter/extract-simple-opts {:flags {:evidence-mode :all
-                                               :strict-validation? true}}
-                                     :test))))
+                        #"cannot override enforced profile flags"
+                        (adapter/extract-simple-opts {:flags {:evidence-mode :all
+                                                              :strict-validation? true}}
+                                                     :test))))
 
 (deftest simple-replay-rejects-unknown-top-level-options
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
-        #"unsupported options"
-        (adapter/extract-simple-opts {:minimal false} :test))))
+                        #"unsupported options"
+                        (adapter/extract-simple-opts {:minimal false} :test))))
 
 (deftest simple-replay-rejects-top-level-evidence-mode
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
-        #"Simple replay does not support"
-        (adapter/extract-simple-opts {:evidence-mode :all} :test))))
+                        #"Simple replay does not support"
+                        (adapter/extract-simple-opts {:evidence-mode :all} :test))))
 
 (deftest simple-replay-no-evidence-with-evidence-module
   (let [scenario {:scenario-id "dummy-evidence-test" :schema-version "1.0"
@@ -255,7 +255,7 @@
 ;; ===========================================================================
 
 (deftest parity-sew-basic-escrow-release
-  (let [scenario (io-scenarios/load-scenario-file "resource:scenarios/edn/S-DR-001-basic-release-ruling.edn")
+  (let [scenario (io-scenarios/load-scenario-file "scenarios/edn/S-DR-001-basic-release-ruling.edn")
         protocol (preg/get-protocol "sew-v1")
         simple-result (replay/simple-replay protocol scenario)
         events-result (replay/replay-events protocol scenario {:minimal true})
@@ -266,7 +266,7 @@
           "S-DR-001 basic release passes under simple-replay"))))
 
 (deftest parity-sew-expected-error-scenario
-  (let [scenario (io-scenarios/load-scenario-file "resource:scenarios/edn/S-DR-003-duplicate-dispute-rejected.edn")
+  (let [scenario (io-scenarios/load-scenario-file "scenarios/edn/S-DR-003-duplicate-dispute-rejected.edn")
         protocol (preg/get-protocol "sew-v1")
         simple-result (replay/simple-replay protocol scenario)
         events-result (replay/replay-events protocol scenario {:minimal true})
@@ -277,7 +277,7 @@
           "S-DR-003 passes (expected errors matched)"))))
 
 (deftest parity-sew-rich-scenario
-  (let [scenario (io-scenarios/load-scenario-file "resource:scenarios/edn/S-DR-030-biased-resolver-appealed.edn")
+  (let [scenario (io-scenarios/load-scenario-file "scenarios/edn/S-DR-030-biased-resolver-appealed.edn")
         protocol (preg/get-protocol "sew-v1")
         simple-result (replay/simple-replay protocol scenario)
         events-result (replay/replay-events protocol scenario {:minimal true})

@@ -78,11 +78,11 @@ input snapshots and execution plan
 | `S-NC-001-freeze-active-dispute-negative-control.edn` | Intentional semantic-failure control: a successful slash transition leaves a frozen resolver assigned to an active dispute, violating a protocol invariant. |
 | `Y06_multi-party-pro-rata-shortfall.edn` | Atomic shared-pool constrained allocation with deterministic pro-rata handling. |
 | `DR-N-002-reversal-slash-appeal-rejected.edn` | Appeal/slashing adversarial path for focused manual review. |
-| `sew/sew-force-authorisation-custody-v1` | Multi-execution benchmark with conservation and assurance finalization. |
+| `force-authorisation-custody-v1` | Multi-execution benchmark with conservation and assurance finalization. |
 
 ### Force-authorisation custody benchmark scope
 
-`sew/sew-force-authorisation-custody-v1` resolves its benchmark definition and
+`force-authorisation-custody-v1` resolves its benchmark definition and
 runs two deterministic Sew executions: a force-authorisation basic path and an
 expired-authorisation path. Its evidence evaluates the exercised
 custody/conservation-oriented invariants and benchmark assurance, then finalizes

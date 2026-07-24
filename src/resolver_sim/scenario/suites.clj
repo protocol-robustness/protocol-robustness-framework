@@ -265,11 +265,19 @@
                                     suite would contain protocol-agnostic replay/evidence scenarios."
                                   :kind         :file-path-suite
                                   :ci-tier      :coverage}
+   :suite/force-authorisation-custody-v1
+   {:scenario-ids force-authorisation-scenario-ids
+    :protocol-id "sew-v1"
+    :title "Force-authorisation custody benchmark suite"
+    :description "Force-authorisation grant, execution, expiry, and custody-ledger scenarios.
+     Evaluated using the Sew protocol implementation."
+    :kind :file-path-suite
+    :ci-tier :coverage}
    :suite/sew-force-authorisation-custody-v1
    {:scenario-ids force-authorisation-scenario-ids
     :protocol-id "sew-v1"
-    :title "Sew force-authorisation and custody benchmark suite"
-    :description "Force-authorisation grant, execution, expiry, and custody-ledger scenarios."
+    :title "Sew force-authorisation and custody benchmark suite (deprecated alias)"
+    :description "Alias for :suite/force-authorisation-custody-v1."
     :kind :file-path-suite
     :ci-tier :coverage}
    :suite/reference-validation-v1 {:scenario-ids reference-validation-scenario-ids

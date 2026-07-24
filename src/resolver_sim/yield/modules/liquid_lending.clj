@@ -135,10 +135,10 @@
                  (partial-fill/calculate-fulfillment Long/MAX_VALUE position)))))
 
 (defn- source-liquidity-balance [world token]
-   (or (get-in world [:total-held token])
-       (get-in world [:yield/held-balances token])
-       (get-in world [:yield/held-balances (name token)])
-       0))
+  (or (get-in world [:total-held token])
+      (get-in world [:yield/held-balances token])
+      (get-in world [:yield/held-balances (name token)])
+      0))
 
 ;; ---------------------------------------------------------------------------
 ;; deposit
@@ -286,7 +286,7 @@
                                  :token token
                                  :position-id owner-id
                                  :now now
-                                 :dt dt})]))) ]
+                                 :dt dt})])))]
         (reduce (fn [next-world [_ decision]]
                   (accrual/apply-accrual-decision-with-attribution
                    next-world
@@ -571,24 +571,24 @@
     (assoc base propagation-content-hash-field content-hash)))
 
 (defn- validate-base-propagation-binding! [propagation]
-   (let [base (:application/base-propagation propagation)]
-     (when-not (map? base)
-       (fail! "Application extension is missing its validated propagation base"
-              :missing-base-propagation))
-     (let [core-fields [:propagation/id
-                        :calculation-ref
-                        :outcome-ref
-                        :propagation-policy
-                        :propagation
-                        :participants
-                        :summary
-                        :residual
-                        :accounting-entry-set-hash
-                        :module/id
-                        :allocation/invocation-context
-                        :propagation/hash]]
-       (when-not (= (select-keys propagation core-fields)
-                    (select-keys base core-fields))
+  (let [base (:application/base-propagation propagation)]
+    (when-not (map? base)
+      (fail! "Application extension is missing its validated propagation base"
+             :missing-base-propagation))
+    (let [core-fields [:propagation/id
+                       :calculation-ref
+                       :outcome-ref
+                       :propagation-policy
+                       :propagation
+                       :participants
+                       :summary
+                       :residual
+                       :accounting-entry-set-hash
+                       :module/id
+                       :allocation/invocation-context
+                       :propagation/hash]]
+      (when-not (= (select-keys propagation core-fields)
+                   (select-keys base core-fields))
         (fail! "Application extension changes the validated propagation core"
                :application-extension-core-mismatch)))))
 
@@ -922,9 +922,9 @@
                       :position/type :deferred-withdrawal
                       :position/token token
                       :position/participant-id participant-id
-                       :position/root-obligation-id
-                       (or (:position/root-obligation-id current-deferred)
-                           obligation-id)
+                      :position/root-obligation-id
+                      (or (:position/root-obligation-id current-deferred)
+                          obligation-id)
                       :position/parent-id
                       (or (:position/id current-deferred)
                           (:position-id current-commitment))
@@ -936,14 +936,14 @@
                       :position/created-order application-order
                       :position/created-event-time event-time
                       :position/round round
-                       :position/original-priority
-                       (or (:position/original-priority current-deferred)
-                           original-priority)
-                       :position/original-priority-source
-                       (if current-deferred :inherited-from-prior-lineage :from-precondition)
-                       :position/original-obligation
-                       (or (:position/original-obligation current-deferred)
-                           (:eligible-obligation participant))
+                      :position/original-priority
+                      (or (:position/original-priority current-deferred)
+                          original-priority)
+                      :position/original-priority-source
+                      (if current-deferred :inherited-from-prior-lineage :from-precondition)
+                      :position/original-obligation
+                      (or (:position/original-obligation current-deferred)
+                          (:eligible-obligation participant))
                       :position/current-amount deferred
                       :position/cumulative-fulfilled
                       (+ (long (:cumulative-fulfilled position 0)) fulfilled)
@@ -971,15 +971,15 @@
                         :haircut-amount 0})
                      updated-position
                      (cond->
-                       (assoc position
-                              :status (if (pos? deferred)
-                                        :unwinding
-                                        :withdrawn)
-                              :shortfall shortfall
-                              :partial-fill-affected? (pos? deferred)
-                              :cumulative-fulfilled
-                              (+ (long (:cumulative-fulfilled position 0))
-                                 fulfilled))
+                      (assoc position
+                             :status (if (pos? deferred)
+                                       :unwinding
+                                       :withdrawn)
+                             :shortfall shortfall
+                             :partial-fill-affected? (pos? deferred)
+                             :cumulative-fulfilled
+                             (+ (long (:cumulative-fulfilled position 0))
+                                fulfilled))
                        closed-prior
                        (update :deferred-position-history
                                record-closed-deferred-position
@@ -998,46 +998,46 @@
                                updated-position))))
              world
              participants)
-             application-base
-             {:schema-version "pro-rata-propagation-application.v3"
-              :propagation-id propagation-id
-              :propagation/reference
-              {:propagation/id propagation-id
-               :propagation/hash (:propagation/hash propagation)
-               :propagation/content-hash
-               (get propagation propagation-content-hash-field)}
-              :propagation-content-hash
-              (get propagation propagation-content-hash-field)
-              :calculation-id (:calculation-ref propagation)
-              :outcome-hash (:outcome-ref propagation)
-              :policy-hash (get-in propagation
-                                   [:propagation-policy :policy/hash])
-              :application-key application-key
-              :allocation/invocation-context
-              (:allocation/invocation-context propagation)
-              :application-order application-order
-              :time-claims
-              {:event-time event-time
-               :captured-at nil
-               :signed-at nil
-               :timestamped-at nil
-               :signature-status :unsigned
-               :claim-note :protocol-time-is-not-proof-of-signing-time}
-              :accounting-entry-set-hash
-              (:accounting-entry-set-hash propagation)
-               :source-account
+            application-base
+            {:schema-version "pro-rata-propagation-application.v3"
+             :propagation-id propagation-id
+             :propagation/reference
+             {:propagation/id propagation-id
+              :propagation/hash (:propagation/hash propagation)
+              :propagation/content-hash
+              (get propagation propagation-content-hash-field)}
+             :propagation-content-hash
+             (get propagation propagation-content-hash-field)
+             :calculation-id (:calculation-ref propagation)
+             :outcome-hash (:outcome-ref propagation)
+             :policy-hash (get-in propagation
+                                  [:propagation-policy :policy/hash])
+             :application-key application-key
+             :allocation/invocation-context
+             (:allocation/invocation-context propagation)
+             :application-order application-order
+             :time-claims
+             {:event-time event-time
+              :captured-at nil
+              :signed-at nil
+              :timestamped-at nil
+              :signature-status :unsigned
+              :claim-note :protocol-time-is-not-proof-of-signing-time}
+             :accounting-entry-set-hash
+             (:accounting-entry-set-hash propagation)
+             :source-account
                ;; Accounting intent record, not a state-mutation log.
                ;; The enclosing protocol custody path adjusts :total-held;
                ;; :before/:after here document the expected balance transition
                ;; for downstream reconciliation.
-               {:account :shared-liquidity
-                :token token
-                :before source-before
-                :delta (- allocated)
-                :after (- source-before allocated)}
-              :participants
-              (mapv
-               (fn [participant]
+             {:account :shared-liquidity
+              :token token
+              :before source-before
+              :delta (- allocated)
+              :after (- source-before allocated)}
+             :participants
+             (mapv
+              (fn [participant]
                 (let [participant-id (:participant-id participant)
                       before (long (get-in world
                                            [:yield/withdrawn

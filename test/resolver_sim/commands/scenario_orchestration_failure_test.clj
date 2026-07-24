@@ -129,8 +129,8 @@
           overrides (-> (successful-overrides)
                         (dissoc :scan-sensitivity)
                         (assoc :extract-artifacts (fn [_ _]
-                                                   (spit (io/file root "secret.txt") "api_key=must-not-export")
-                                                   {})))]
+                                                    (spit (io/file root "secret.txt") "api_key=must-not-export")
+                                                    {})))]
       (try
         (let [result (orchestration/run-scenario! c overrides)]
           (is (= expected-status (:command/status result)))

@@ -226,4 +226,12 @@
    :concept/file  "data/concepts/framework/configuration.edn"
    :concept/name  "Configuration"
    :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}]}
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :security/force-authorisation
+   :concept/type  :security
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/security/force_authorisation.edn"
+   :concept/name  "Force-authorisation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}]}

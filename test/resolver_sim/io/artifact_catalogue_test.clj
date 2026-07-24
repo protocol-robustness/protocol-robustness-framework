@@ -10,16 +10,13 @@
             [clojure.test :refer [deftest is]]
             [resolver-sim.io.artifacts :as arts]))
 
-
 (defn- load-evidence-config
   []
   (-> (io/resource "config/evidence.json") slurp (json/read-str :key-fn keyword)))
 
-
 (def ^:private code-artifact-ids
   "Canonical artifact IDs that SHOULD appear in config/evidence.json."
   #{:run/completion :run/package-index :artifacts/registry :artifacts/validation :sensitivity/report})
-
 
 (deftest code-artifacts-have-expected-structure
   (doseq [id (keys arts/artifacts)]
@@ -32,7 +29,6 @@
           (str "artifact " id " has boolean :review-surface?"))
       (when (= :canonical (:durability a))
         (is (string? (:schema a)) (str "canonical artifact " id " has a :schema string"))))))
-
 
 (deftest code-artifacts-appear-in-evidence-config
   (let [cfg (load-evidence-config)
@@ -47,7 +43,6 @@
               (str "evidence config has exactly one entry for " code-id))
           (is (false? "not found") ; will fail with message
               (str code-id " (\"" code-file "\") is missing from config/evidence.json")))))))
-
 
 (deftest no-evidence-config-silently-redefines-code-artifact
   ;; Every canonical artifact entry in config/evidence.json whose :file matches

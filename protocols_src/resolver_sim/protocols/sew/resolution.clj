@@ -780,6 +780,21 @@
                     :appeal-deadline (:appeal-deadline pending)
                     :workflow-id workflow-id)
 
+        ;; Yield readiness guard: block settlement if yield position has
+        ;; unrealized yield but last-accrual-time is behind current block time.
+        ;; This prevents finalizing a settlement while yield state is stale.
+        (let [owner-id (t/escrow-yield-owner-id workflow-id)
+              pos (get-in world [:yield/positions owner-id])]
+          (and pos
+               (pos? (+ (:unrealized-yield pos 0) (:realized-yield pos 0)))
+               (< (or (:last-accrual-time pos) 0) now-ts)))
+        (guard-fail :yield-position-unsettled
+                    :workflow-id workflow-id
+                    :block-time now-ts
+                    :last-accrual-time (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :last-accrual-time])
+                    :unrealized-yield (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :unrealized-yield])
+                    :realized-yield (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :realized-yield]))
+
         :else
         (let [;; Read any force-authorisation provenance stored on the resolution
               ;; record so it flows through to the escrow settlement held adjustment.

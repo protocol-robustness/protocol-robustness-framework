@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/cancellation-equilibrium-validation,
+ :suite-id :suites/all-invariants,
  :trace-id "s17-ieo-dispute-no-resolver-timeout",
  :final-state-hash
  "d59cac0ff75defccdf8488c3d968df2080819ed793131839e412d9f8a5f49389",

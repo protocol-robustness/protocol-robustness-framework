@@ -70,13 +70,13 @@
   (let [[a registry] (signed-fixture)]
     (is (:valid? (sig/verify-attestation-signature a registry)))
     (is (= :malformed-signature
-               (:reason (sig/verify-attestation-signature
-                         (assoc a :attestation/claim-result :rejected) registry))))))
+           (:reason (sig/verify-attestation-signature
+                     (assoc a :attestation/claim-result :rejected) registry))))))
 
 (deftest invalid-ed25519-signature-is-rejected
   (let [[a registry] (signed-fixture)
         tampered (assoc-in a [:attestation/signature :signature-bytes]
-                            (apply str (repeat 128 "0")))
+                           (apply str (repeat 128 "0")))
         result (sig/verify-attestation-signature tampered registry)]
     (is (false? (:valid? result)))
     (is (= :invalid-signature (:reason result)))))

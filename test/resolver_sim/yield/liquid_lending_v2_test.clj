@@ -17,7 +17,7 @@
   {:yield/indices {:test-mod {"USDC" 1}}
    :yield/rates   {:test-mod {"USDC" 0.05}}
    :yield/risk    {:test-mod {"USDC" {:liquidity-mode :available
-                                       :loss-mode :none}}}
+                                      :loss-mode :none}}}
    :yield/held-balances {"USDC" 1000000}
    :yield/module-status {:test-mod :active}
    :block-time 1000
@@ -50,36 +50,36 @@
                                                :effective-caps {"alice" 1.5}})))))
 
 (defn- shared-withdrawal-world
-   [owners available]
-   (-> (reduce (fn [world owner]
-                 (ll/deposit world test-mod {:owner/id owner :amount 100 :token "USDC"}))
-               test-world
-               (sort owners))
-       (assoc-in [:total-held :USDC] available)))
+  [owners available]
+  (-> (reduce (fn [world owner]
+                (ll/deposit world test-mod {:owner/id owner :amount 100 :token "USDC"}))
+              test-world
+              (sort owners))
+      (assoc-in [:total-held :USDC] available)))
 
 (defn- shared-decision
-   [owners available opts]
-   (let [world (shared-withdrawal-world owners available)
-         result (ll/withdraw-shared world test-mod
-                                    (merge {:owner-ids owners
-                                            :token "USDC"
-                                            :allocation-mode :pro-rata}
-                                           opts))]
-     (first (vals (:yield/partial-fill-decisions result)))))
+  [owners available opts]
+  (let [world (shared-withdrawal-world owners available)
+        result (ll/withdraw-shared world test-mod
+                                   (merge {:owner-ids owners
+                                           :token "USDC"
+                                           :allocation-mode :pro-rata}
+                                          opts))]
+    (first (vals (:yield/partial-fill-decisions result)))))
 
 (defn- propagation-from
-   [world]
-   (->> (:yield/pro-rata-propagations world)
-        (sort-by :propagation/id)
-        last
-        val))
+  [world]
+  (->> (:yield/pro-rata-propagations world)
+       (sort-by :propagation/id)
+       last
+       val))
 
 (defn- application-from
-   [world]
-   (->> (:yield/applied-pro-rata-propagations world)
-        (sort-by :propagation-id)
-        last
-        val))
+  [world]
+  (->> (:yield/applied-pro-rata-propagations world)
+       (sort-by :propagation-id)
+       last
+       val))
 
 (deftest shared-withdrawal-effective-caps-are-bounded-and-deterministic
   (testing "a zero effective cap permits no allocation for that owner"
@@ -112,75 +112,75 @@
       (is (= (:decision/hash forward) (:decision/hash reversed))))))
 
 (deftest shared-withdrawal-accounting-acceptance-cases
-   (testing "total shortfall produces no financial movement"
-     (let [world (-> (shared-withdrawal-world ["alice" "bob"] 0)
-                     (assoc-in [:yield/held-balances "USDC"] 0))
-           result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
-                                                       :token "USDC"
-                                                       :allocation-mode :pro-rata})
-           propagation (propagation-from result)
-           application (application-from result)]
-       (is (= 0 (get-in propagation [:summary :allocated])))
-       (is (= 200 (get-in propagation [:summary :deferred])))
-       (is (= 0 (get-in application [:source-account :delta])))
-       (is (empty? (filter #(= :credit (:entry/type %)) (:accounting-entries propagation))))
-       (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
-   (testing "effective caps retain residual in the shared source account"
-     (let [world (shared-withdrawal-world ["alice" "bob"] 150)
-           result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
-                                                       :token "USDC"
-                                                       :allocation-mode :pro-rata
-                                                       :effective-caps {"alice" 20 "bob" 100}})
-           propagation (propagation-from result)
-           application (application-from result)]
-       (is (= 120 (get-in propagation [:summary :allocated])))
-       (is (= 30 (get-in propagation [:summary :unallocated-residual])))
-       (is (= -120 (get-in application [:source-account :delta])))
-       (is (= 30 (get-in application [:source-account :after])))
-       (is (= :remain-in-shared-liquidity (get-in application [:residual :destination])))
-
-       (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
-(testing "largest remainder persists exact 4/3/3 participant evidence"
-      (let [world (-> (reduce (fn [w owner]
-                                (ll/deposit w test-mod {:owner/id owner :amount 10 :token "USDC"}))
-                              (assoc test-world :yield/held-balances {"USDC" 10})
-                              ["alice" "bob" "carol"])
-                      (assoc :total-held {:USDC 10}))
-           result (ll/withdraw-shared world test-mod {:owner-ids ["carol" "bob" "alice"]
-                                                       :token "USDC"
-                                                       :allocation-mode :pro-rata})
-           propagation (propagation-from result)
-           credits (filter #(= :credit (:entry/type %)) (:accounting-entries propagation))]
-       (is (= {"alice" 4 "bob" 3 "carol" 3}
-              (into {} (map (juxt :participant-id :fulfilled) (:participants propagation)))))
-       (is (= {"alice" 4 "bob" 3 "carol" 3}
-              (into {} (map (juxt :participant-id :delta) credits))))
-       (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
-   (testing "reapplying a committed propagation is a no-op"
-     (let [world (shared-withdrawal-world ["alice" "bob"] 100)
-           applied-world (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
-                                                              :token "USDC"
-                                                              :allocation-mode :pro-rata})
-           propagation (propagation-from applied-world)
-           replay (ll/apply-pro-rata-propagation applied-world propagation)]
-       (is (= :already-applied (:status replay)))
-       (is (= applied-world (:world replay))))))
-
-(deftest shared-withdrawal-v2-propagation-binds-decision-and-allocation
-   (let [world (shared-withdrawal-world ["alice" "bob"] 100)
-         result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+  (testing "total shortfall produces no financial movement"
+    (let [world (-> (shared-withdrawal-world ["alice" "bob"] 0)
+                    (assoc-in [:yield/held-balances "USDC"] 0))
+          result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
                                                      :token "USDC"
                                                      :allocation-mode :pro-rata})
-         propagation (propagation-from result)
-         decision (get-in result [:yield/partial-fill-decisions (:calculation-ref propagation)])
+          propagation (propagation-from result)
+          application (application-from result)]
+      (is (= 0 (get-in propagation [:summary :allocated])))
+      (is (= 200 (get-in propagation [:summary :deferred])))
+      (is (= 0 (get-in application [:source-account :delta])))
+      (is (empty? (filter #(= :credit (:entry/type %)) (:accounting-entries propagation))))
+      (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
+  (testing "effective caps retain residual in the shared source account"
+    (let [world (shared-withdrawal-world ["alice" "bob"] 150)
+          result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+                                                     :token "USDC"
+                                                     :allocation-mode :pro-rata
+                                                     :effective-caps {"alice" 20 "bob" 100}})
+          propagation (propagation-from result)
+          application (application-from result)]
+      (is (= 120 (get-in propagation [:summary :allocated])))
+      (is (= 30 (get-in propagation [:summary :unallocated-residual])))
+      (is (= -120 (get-in application [:source-account :delta])))
+      (is (= 30 (get-in application [:source-account :after])))
+      (is (= :remain-in-shared-liquidity (get-in application [:residual :destination])))
+
+      (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
+  (testing "largest remainder persists exact 4/3/3 participant evidence"
+    (let [world (-> (reduce (fn [w owner]
+                              (ll/deposit w test-mod {:owner/id owner :amount 10 :token "USDC"}))
+                            (assoc test-world :yield/held-balances {"USDC" 10})
+                            ["alice" "bob" "carol"])
+                    (assoc :total-held {:USDC 10}))
+          result (ll/withdraw-shared world test-mod {:owner-ids ["carol" "bob" "alice"]
+                                                     :token "USDC"
+                                                     :allocation-mode :pro-rata})
+          propagation (propagation-from result)
+          credits (filter #(= :credit (:entry/type %)) (:accounting-entries propagation))]
+      (is (= {"alice" 4 "bob" 3 "carol" 3}
+             (into {} (map (juxt :participant-id :fulfilled) (:participants propagation)))))
+      (is (= {"alice" 4 "bob" 3 "carol" 3}
+             (into {} (map (juxt :participant-id :delta) credits))))
+      (is (:holds? (inv/check-pro-rata-accounting-reconciles result)))))
+  (testing "reapplying a committed propagation is a no-op"
+    (let [world (shared-withdrawal-world ["alice" "bob"] 100)
+          applied-world (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+                                                            :token "USDC"
+                                                            :allocation-mode :pro-rata})
+          propagation (propagation-from applied-world)
+          replay (ll/apply-pro-rata-propagation applied-world propagation)]
+      (is (= :already-applied (:status replay)))
+      (is (= applied-world (:world replay))))))
+
+(deftest shared-withdrawal-v2-propagation-binds-decision-and-allocation
+  (let [world (shared-withdrawal-world ["alice" "bob"] 100)
+        result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
+                                                   :token "USDC"
+                                                   :allocation-mode :pro-rata})
+        propagation (propagation-from result)
+        decision (get-in result [:yield/partial-fill-decisions (:calculation-ref propagation)])
         reference (:allocation/reference propagation)
         mechanism-evidence (get-in decision [:evidence :allocation-mechanism-evidence])]
     (is (= "pro-rata-propagation.v2" (:schema-version propagation)))
     (is (true? (:valid? (partial-fill/validate-pro-rata-propagation propagation))))
-(is (some #{:propagation-hash-mismatch}
-               (:policy-errors
-                (partial-fill/validate-pro-rata-propagation
-                 (assoc-in propagation [:application/base-propagation :participants 0 :fulfilled] 1)))))
+    (is (some #{:propagation-hash-mismatch}
+              (:policy-errors
+               (partial-fill/validate-pro-rata-propagation
+                (assoc-in propagation [:application/base-propagation :participants 0 :fulfilled] 1)))))
     (is (= "pro-rata-mechanism-evidence.v1" (:schema-version mechanism-evidence)))
     (is (= (get-in mechanism-evidence [:mechanism/result :allocation/hash])
            (get-in reference [:mechanism-evidence :allocation/hash])))
@@ -277,40 +277,40 @@
           "Bigger deposit should earn more yield"))))
 
 (deftest withdraw-full-liquidity
-   (testing "Full withdrawal with adequate liquidity"
-     (let [w (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})
-           w (ll/accrue w test-mod {:token "USDC" :dt 31536000})
-           w (assoc-in w [:total-held :USDC] 20000)
-           w (ll/withdraw w test-mod {:owner/id "user1"})
-           pos (get-in w [:yield/positions "user1"])]
-       (is (= :withdrawn (:status pos)))
-       (is (zero? (:unrealized-yield pos 0)) "unrealized yield zeroed on withdraw"))))
+  (testing "Full withdrawal with adequate liquidity"
+    (let [w (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})
+          w (ll/accrue w test-mod {:token "USDC" :dt 31536000})
+          w (assoc-in w [:total-held :USDC] 20000)
+          w (ll/withdraw w test-mod {:owner/id "user1"})
+          pos (get-in w [:yield/positions "user1"])]
+      (is (= :withdrawn (:status pos)))
+      (is (zero? (:unrealized-yield pos 0)) "unrealized yield zeroed on withdraw"))))
 
 (deftest shortfall-calls-partial-fill
-   (testing "Withdrawal with shortfall calls partial-fill"
-     (let [w (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})
-           w (ll/accrue w test-mod {:token "USDC" :dt 31536000})
+  (testing "Withdrawal with shortfall calls partial-fill"
+    (let [w (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})
+          w (ll/accrue w test-mod {:token "USDC" :dt 31536000})
            ;; restrict liquidity
-           w (assoc-in w [:total-held :USDC] 5000)
-           w (ll/withdraw w test-mod {:owner/id "user1"})
-           pos (get-in w [:yield/positions "user1"])
-           decisions (vals (:yield/partial-fill-decisions w))
-           artifact (first decisions)]
-       (is (:partial-fill-affected? pos))
-       (is (= 1 (count decisions)))
-       (is (= :yield/partial-fill-decision (:artifact/kind artifact)))
-       (is (= "user1" (:position/id artifact)))
-       (is (= :partial-fill (:settlement-mode artifact)))
-       (is (string? (:decision/hash artifact)))
-       (is (map? (:evidence artifact))))))
+          w (assoc-in w [:total-held :USDC] 5000)
+          w (ll/withdraw w test-mod {:owner/id "user1"})
+          pos (get-in w [:yield/positions "user1"])
+          decisions (vals (:yield/partial-fill-decisions w))
+          artifact (first decisions)]
+      (is (:partial-fill-affected? pos))
+      (is (= 1 (count decisions)))
+      (is (= :yield/partial-fill-decision (:artifact/kind artifact)))
+      (is (= "user1" (:position/id artifact)))
+      (is (= :partial-fill (:settlement-mode artifact)))
+      (is (string? (:decision/hash artifact)))
+      (is (map? (:evidence artifact))))))
 
 (deftest full-withdraw-does-not-fabricate-partial-fill-artifact
-   (testing "Full withdrawal does not emit a partial-fill decision artifact"
-     (let [w (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})
-           w (ll/accrue w test-mod {:token "USDC" :dt 31536000})
-           w (assoc-in w [:total-held :USDC] 20000)
-           w (ll/withdraw w test-mod {:owner/id "user1"})]
-       (is (empty? (:yield/partial-fill-decisions w {}))))))
+  (testing "Full withdrawal does not emit a partial-fill decision artifact"
+    (let [w (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})
+          w (ll/accrue w test-mod {:token "USDC" :dt 31536000})
+          w (assoc-in w [:total-held :USDC] 20000)
+          w (ll/withdraw w test-mod {:owner/id "user1"})]
+      (is (empty? (:yield/partial-fill-decisions w {}))))))
 
 (deftest apply-partial-fill-with-attribution-sets-ctx
   (testing "apply-partial-fill-with-attribution sets settlement context"
@@ -402,12 +402,12 @@
           "Reclaimed amount should be 0 when below threshold"))))
 
 (deftest test-partial-liquidity-split-ratios-in-withdraw
-   (testing "Withdraw with separate yield/principal availability ratios under partial-liquidity"
-     (let [world {:yield/indices {:test-mod {"USDC" 1.0}}
-                  :yield/rates {:test-mod {"USDC" 0.10}}
-                  :yield/risk {:test-mod {"USDC" {:failure-modes #{:partial-liquidity}
-                                                  :shortfall {:yield-available-ratio 0.5
-                                                              :principal-available-ratio 1.0}}}}
+  (testing "Withdraw with separate yield/principal availability ratios under partial-liquidity"
+    (let [world {:yield/indices {:test-mod {"USDC" 1.0}}
+                 :yield/rates {:test-mod {"USDC" 0.10}}
+                 :yield/risk {:test-mod {"USDC" {:failure-modes #{:partial-liquidity}
+                                                 :shortfall {:yield-available-ratio 0.5
+                                                             :principal-available-ratio 1.0}}}}
                  :total-held {:USDC 15000}
                  :run/id "test-run"
                  :execution/id "test-execution"
@@ -415,12 +415,12 @@
                  :yield/positions {"user1" {:owner/id "user1" :module/id :test-mod :token "USDC"
                                             :principal 10000 :shares 10000 :entry-index 1.0
                                             :status :active :unrealized-yield 0 :realized-yield 0}}}
-         accrued (ll/accrue world test-mod {:token "USDC" :dt 31536000})
-         result (ll/withdraw accrued test-mod {:owner/id "user1"})
-         pos (get-in result [:yield/positions "user1"])]
-       (is (some #{:withdrawn :unwinding} [(:status pos)])
-           "Position should be withdrawn or unwinding after withdraw")
-       (is (>= (:realized-yield pos 0) 0)
-           "Realized yield should be non-negative")
-       (is (zero? (:unrealized-yield pos 0))
-           "Unrealized yield should be zeroed on withdraw"))))
+          accrued (ll/accrue world test-mod {:token "USDC" :dt 31536000})
+          result (ll/withdraw accrued test-mod {:owner/id "user1"})
+          pos (get-in result [:yield/positions "user1"])]
+      (is (some #{:withdrawn :unwinding} [(:status pos)])
+          "Position should be withdrawn or unwinding after withdraw")
+      (is (>= (:realized-yield pos 0) 0)
+          "Realized yield should be non-negative")
+      (is (zero? (:unrealized-yield pos 0))
+          "Unrealized yield should be zeroed on withdraw"))))

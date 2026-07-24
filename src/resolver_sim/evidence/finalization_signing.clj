@@ -2,18 +2,18 @@
   "Protected-runtime signing and externally pinned trust evaluation for
    run-evidence-finalization signatures. Private keys never(ns resolver-sim.evidence.finalization-signing) enter bundles."
   (:require [buddy.core.codecs :as codecs]
-              [clojure.data.json :as json]
-              [clojure.edn :as edn]
+            [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [resolver-sim.evidence.finalization-signature :as envelope]
-                        [resolver-sim.evidence.timestamping :as timestamping])
+            [resolver-sim.evidence.timestamping :as timestamping])
   (:import [java.nio.file Files StandardCopyOption AtomicMoveNotSupportedException]
-             [java.io StringReader]
-             [java.security KeyFactory]
-             [org.bouncycastle.tsp TimeStampResponse]
-             [org.bouncycastle.cert X509CertificateHolder]
-             [org.bouncycastle.cms.jcajce JcaSimpleSignerInfoVerifierBuilder]
-             [org.bouncycastle.openssl PEMParser]
+           [java.io StringReader]
+           [java.security KeyFactory]
+           [org.bouncycastle.tsp TimeStampResponse]
+           [org.bouncycastle.cert X509CertificateHolder]
+           [org.bouncycastle.cms.jcajce JcaSimpleSignerInfoVerifierBuilder]
+           [org.bouncycastle.openssl PEMParser]
            [java.security.spec PKCS8EncodedKeySpec X509EncodedKeySpec]
            [java.util Base64]))
 
@@ -71,7 +71,7 @@
 (defn- public-key [hex]
   (.generatePublic (KeyFactory/getInstance "Ed25519")
                    (X509EncodedKeySpec. (byte-array (concat x509-ed25519-prefix
-                                                              (codecs/hex->bytes hex))))))
+                                                            (codecs/hex->bytes hex))))))
 
 (declare evaluate-envelopes)
 
@@ -135,9 +135,9 @@
       (nil? authority) {:status :requirement/present-untrusted
                         :reason :timestamp/unknown-authority}
       (not= :active (:status authority)) {:status :requirement/present-untrusted
-                                           :reason :timestamp/inactive-authority}
+                                          :reason :timestamp/inactive-authority}
       (not (string? (:certificate-pem authority))) {:status :requirement/present-untrusted
-                                                     :reason :timestamp/missing-pinned-certificate}
+                                                    :reason :timestamp/missing-pinned-certificate}
       (or (nil? (:receipt-path receipt)) (nil? (:signature-hash receipt)))
       {:status :requirement/present-invalid :reason :timestamp/missing-receipt-material}
       :else
@@ -155,7 +155,7 @@
    later extend this representation without weakening current verification."
   [{:keys [receipt-path signature-hash authority]}]
   (try
-    (let [response (TimeStampResponse. (Files/readAllBytes (.toPath (io/file receipt-path))) )
+    (let [response (TimeStampResponse. (Files/readAllBytes (.toPath (io/file receipt-path))))
           token (.getTimeStampToken response)
           info (.getTimeStampInfo token)
           expected (.digest (java.security.MessageDigest/getInstance "SHA-256")
@@ -261,4 +261,4 @@
      :required-count minimum
      :signatures evaluated
      :reasons (cond-> [] (not satisfied?) (conj {:code :signature/threshold-not-met
-                                                   :required minimum :observed (count trusted-ids)}))}))
+                                                 :required minimum :observed (count trusted-ids)}))}))

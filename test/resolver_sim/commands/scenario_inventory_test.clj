@@ -76,7 +76,7 @@
       (write! root "inputs/scenarios/381ef2fc98be-fixture.edn" content)
       (let [registry (inventory/build! c)
             entry (first (filter #(= (str "input.scenario." expected-hash)
-                                      (:id %))
+                                     (:id %))
                                  (:artifacts registry)))]
         (is (= (str "input.scenario." expected-hash) (:id entry)))
         (is (= "input.scenario" (:kind entry)))

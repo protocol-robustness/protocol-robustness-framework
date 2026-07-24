@@ -252,4 +252,28 @@
     :claim/property-types #{:fairness :safety}
     :claim/concepts #{:allocation/redistribution-fairness}
     :claim/invariants []
-    :claim/evaluator :claim/pool-boundary-respected}]}
+    :claim/evaluator :claim/pool-boundary-respected}
+
+   {:claim/id :force-authorisation-exact-scope-single-use
+    :claim/title "Force authorisation exact scope single use"
+    :claim/description "A forced settlement must consume only its exact grant-time scope."
+    :claim/property-types #{:safety}
+    :claim/concepts #{:security/force-authorisation}
+    :claim/invariants []
+    :claim/evaluator :force-authorisation-exact-scope-single-use}
+
+   {:claim/id :held-custody-position-isolation
+    :claim/title "Held custody position isolation"
+    :claim/description "One workflow or account must not spend another position's custody."
+    :claim/property-types #{:safety}
+    :claim/concepts #{:security/force-authorisation}
+    :claim/invariants []
+    :claim/evaluator :held-custody-position-isolation}
+
+   {:claim/id :forensic-authorisation-custody-linkage
+    :claim/title "Forensic authorisation custody linkage"
+    :claim/description "Forensic evidence must link grant, consumption, and custody movement."
+    :claim/property-types #{:integrity}
+    :claim/concepts #{:forensic/evidence-chain :security/force-authorisation}
+    :claim/invariants []
+    :claim/evaluator :forensic-authorisation-custody-linkage}]}

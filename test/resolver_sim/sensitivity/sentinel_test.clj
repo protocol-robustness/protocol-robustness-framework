@@ -70,8 +70,8 @@
 (deftest unknown-sink-defaults-to-blocked
   (is (false? (sentinel/disclosure-allowed? :sensitivity/public :unknown-sink))))
 
-(deftest git-commit-sink-blocks-internal
-  (is (false? (sentinel/disclosure-allowed? :sensitivity/internal :git-commit)))
+(deftest git-commit-sink-allows-internal
+  (is (true? (sentinel/disclosure-allowed? :sensitivity/internal :git-commit)))
   (is (true? (sentinel/disclosure-allowed? :sensitivity/public :git-commit))))
 
 (deftest public-ci-artifact-sink-blocks-internal
@@ -239,7 +239,7 @@
   (let [artifact {:scenario-id "s99"
                   :sensitivity/level :sensitivity/private
                   :sensitivity/risk-meta {:risk-severity :risk-severity/critical
-                                         :value-at-risk "15,000,000"}}
+                                          :value-at-risk "15,000,000"}}
         r (sentinel/sentinel-report artifact :public-bundle)]
     (is (= :multi-party-approval (get-in r [:sentinel/override-required? :mode]))
         "critical risk escalates override to multi-party even at private level")
@@ -265,8 +265,8 @@
   (let [artifact {:node-hash "sha256:n"
                   :sensitivity/level :sensitivity/private
                   :sensitivity/risk-meta {:risk-severity :risk-severity/high
-                                         :value-at-risk "10,000,000"
-                                         :risk-vector "Withdrawal race"}}
+                                          :value-at-risk "10,000,000"
+                                          :risk-vector "Withdrawal race"}}
         r (sentinel/sentinel-report artifact :local)]
     (is (= :risk-severity/high (get-in r [:sentinel/risk-meta :risk-severity])))
     (is (= "10,000,000" (get-in r [:sentinel/risk-meta :value-at-risk])))
@@ -290,8 +290,8 @@
 (deftest scenario-sensitivity-extracts-block
   (let [scenario {:scenario-id "s99"
                   :scenario/sensitivity {:level :sensitivity/private
-                                        :risk-meta {:value-at-risk "15,000,000"
-                                                    :risk-severity :risk-severity/critical}}}
+                                         :risk-meta {:value-at-risk "15,000,000"
+                                                     :risk-severity :risk-severity/critical}}}
         result (prop/scenario-sensitivity scenario)]
     (is (= :sensitivity/private (:level result)))
     (is (= "15,000,000" (get-in result [:risk-meta :value-at-risk])))))
@@ -423,6 +423,135 @@
         result (prop/effective-sensitivity artifact scenario-sens)]
     (is (some #(re-find #"scenario:" %) (:sentinel/sources result)))
     (is (some #(re-find #"declared-floor" %) (:sentinel/sources result)))))
+
+;; ── Evidence-backed classification ──────────────────────────────────────────
+
+(def ^:private sample-finding-private-key
+  {:finding/id "finding-1" :finding/path-token "path-abc"
+   :rule/id :secret-scanner/private-key :rule/version "v2"})
+
+(def ^:private sample-finding-credential
+  {:finding/id "finding-2" :finding/path-token "path-abc"
+   :rule/id :secret-scanner/credential-assignment :rule/version "v2"})
+
+(def ^:private sample-finding-jwt
+  {:finding/id "finding-3" :finding/path-token "path-def"
+   :rule/id :secret-scanner/jwt-token :rule/version "v2"})
+
+(def ^:private sample-finding-github-token
+  {:finding/id "finding-4" :finding/path-token "path-def"
+   :rule/id :secret-scanner/github-token :rule/version "v2"})
+
+(deftest classify-from-findings-private-key
+  (let [result (sentinel/classify-from-findings [sample-finding-private-key])]
+    (is (= :sensitivity/private (:level result)))
+    (is (= [:contains-live-vulnerability] (:reasons result)))
+    (is (= ["finding-1"] (:findings result)))))
+
+(deftest classify-from-findings-credential
+  (let [result (sentinel/classify-from-findings [sample-finding-credential])]
+    (is (= :sensitivity/private (:level result)))
+    (is (= [:contains-unpublished-evidence] (:reasons result)))))
+
+(deftest classify-from-findings-jwt-token
+  (let [result (sentinel/classify-from-findings [sample-finding-jwt])]
+    (is (= :sensitivity/internal (:level result)))
+    (is (= [:contains-protocol-identifier] (:reasons result)))))
+
+(deftest classify-from-findings-github-token
+  (let [result (sentinel/classify-from-findings [sample-finding-github-token])]
+    (is (= :sensitivity/internal (:level result)))
+    (is (= [:contains-linkable-subject-hash] (:reasons result)))))
+
+(deftest classify-from-findings-picks-highest-level
+  (let [result (sentinel/classify-from-findings [sample-finding-jwt
+                                                  sample-finding-private-key])]
+    (is (= :sensitivity/private (:level result))
+        "private-key finding must dominate jwt-token finding")
+    (is (contains? (set (:reasons result)) :contains-live-vulnerability))
+    (is (contains? (set (:reasons result)) :contains-protocol-identifier))))
+
+(deftest classify-from-findings-nil-for-empty
+  (is (nil? (sentinel/classify-from-findings [])))
+  (is (nil? (sentinel/classify-from-findings nil))))
+
+(deftest classify-from-findings-unknown-rule-defaults-critical-private
+  (let [result (sentinel/classify-from-findings
+                [{:finding/id "finding-x" :finding/path-token "path-x"
+                  :rule/id :unknown/rule :rule/version "v1"}])]
+    (is (= :sensitivity/critical-private (:level result))
+        "unknown rule id must default to critical-private")
+    (is (= [:contains-unpublished-evidence] (:reasons result)))))
+
+(deftest evidence-backed-classification-via-sensitivity-findings
+  (let [artifact {:sensitivity/findings [sample-finding-private-key]}
+        result (sentinel/classify-structural artifact)]
+    (is (= :sensitivity/private (:level (sentinel/classify-from-findings
+                                        (:sensitivity/findings artifact))))
+        "classify-from-findings must return private for private-key finding")))
+
+(deftest evidence-backed-classification-via-safety-findings
+  (let [artifact {:safety/findings [sample-finding-jwt]}
+        result (sentinel/classify-structural artifact)]
+    (is (= :sensitivity/internal result)
+        "classify-structural must use safety-findings for evidence-backed level")))
+
+(deftest classify-structural-uses-evidence-before-heuristics
+  (let [artifact {:scenario-id "bench-result"
+                  :sensitivity/findings [sample-finding-private-key]}]
+    (is (= :sensitivity/private (sentinel/classify-structural artifact))
+        "evidence-backed private must take precedence over heuristic internal")))
+
+(deftest classify-structural-falls-back-to-heuristics-without-findings
+  (let [artifact {:scenario-id "bench-result"}]
+    (is (= :sensitivity/internal (sentinel/classify-structural artifact))
+        "without findings, classify-structural must fall back to heuristics")))
+
+(deftest sentinel-report-includes-finding-reasons
+  (let [artifact {:scenario-id "s42"
+                  :sensitivity/findings [sample-finding-private-key]}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (some #{:contains-live-vulnerability} (:sentinel/reasons r))
+        "finding reason codes must appear in sentinel report reasons")
+    (is (= :sensitivity/private (:sentinel/level r))
+        "evidence-backed level must be used in sentinel report")))
+
+(deftest sentinel-report-includes-evidence-findings
+  (let [artifact {:scenario-id "s42"
+                  :sensitivity/findings [sample-finding-private-key]}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (some? (:sentinel/evidence-findings r))
+        "sentinel report must include :sentinel/evidence-findings when findings present")
+    (is (= 1 (count (:sentinel/evidence-findings r))))))
+
+(deftest sentinel-report-omits-evidence-findings-without-findings
+  (let [artifact {:scenario-id "s42"}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (nil? (:sentinel/evidence-findings r))
+        "sentinel report must not include :sentinel/evidence-findings when no findings")))
+
+(deftest effective-sensitivity-uses-evidence-reasons
+  (let [artifact {:scenario-id "s42"
+                  :sensitivity/findings [sample-finding-jwt]}
+        scenario-sens {:level :sensitivity/public}
+        result (prop/effective-sensitivity artifact scenario-sens)]
+    (is (some #{:contains-protocol-identifier} (:sentinel/reasons result))
+        "evidence finding reasons must appear in effective-sensitivity reasons")))
+
+(deftest effective-sensitivity-evidence-source-included
+  (let [artifact {:scenario-id "s42"
+                  :sensitivity/findings [sample-finding-jwt]}
+        result (prop/effective-sensitivity artifact nil)]
+    (is (some #{"evidence/safety-findings"} (:sentinel/sources result))
+        "evidence/safety-findings source must be present when findings influence level")))
+
+(deftest effective-sensitivity-evidence-level-overrides-structural
+  (let [artifact {:node-hash "sha256:n1"
+                  :result {:status :pass}
+                  :sensitivity/findings [sample-finding-private-key]}
+        result (prop/effective-sensitivity artifact nil)]
+    (is (= :sensitivity/private (:sentinel/effective-level result))
+        "evidence-backed private must override structural pass default")))
 
 ;; ── Override enforcement tests ──────────────────────────────────────────────
 

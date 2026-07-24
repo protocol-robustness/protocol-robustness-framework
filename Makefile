@@ -218,7 +218,12 @@ SEW_UNIT_NS := \
 	resolver-sim.protocols.sew.yield.finalize-parity-test \
 	resolver-sim.protocols.sew.yield.policy-test \
 	resolver-sim.protocols.sew.yield-reorg-race-test \
-	resolver-sim.protocols.sew.yield-solvency-test
+	resolver-sim.protocols.sew.yield-solvency-test \
+	resolver-sim.assurance.force-authorisation-portability-test \
+	resolver-sim.benchmark.game-theory-validation-test \
+	resolver-sim.benchmark.sew-pre-application-test \
+	resolver-sim.protocols.sew.slashing-test \
+	resolver-sim.protocols.sew.evidence.slashing-test
 
 # AOT is not viable for this codebase (filesystem path-length limits on
 # deeply nested closures, and a missing SimulationAdapter dependency).

@@ -9,8 +9,8 @@
             [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.io.paths :as paths]
-                        [resolver-sim.run.verdict-policy :as verdict-policy]
-                        [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
+            [resolver-sim.run.verdict-policy :as verdict-policy]
+            [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.yield.partial-fill :as partial-fill]))
 
 (defn- read-json [file]
@@ -142,7 +142,7 @@
                                         (= (:fraud-incident-ref slash) (:fraud_incident_ref projection))
                                         (= (get-in slash [:allocation :allocations]) (:execution_rows projection))
                                         (= (:amount slash) (+ (get-in projection [:totals :allocated])
-                                                               (get-in projection [:totals :allocation_unmet])))
+                                                              (get-in projection [:totals :allocation_unmet])))
                                         (= (get-in projection [:totals :uncollected])
                                            (+ (get-in projection [:totals :stayed])
                                               (get-in projection [:totals :unpaid])))
@@ -160,7 +160,7 @@
   (let [files (->> (file-seq (io/file root "scenarios"))
                    (filter #(.isFile %))
                    (filter #(and (= "evidence-nodes" (.getName (.getParentFile %))
-                                 (.endsWith (.getName %) ".edn"))))
+                                    (.endsWith (.getName %) ".edn"))))
                    vec)
         loaded (mapv (fn [file]
                        (try {:file file :node (edn/read-string (slurp file))}
@@ -192,28 +192,28 @@
         finalization-file (io/file root "evidence/finalizations/run/evidence-finalization.json")
         content-registry-file (io/file root "evidence/content-registry.json")]
     (if-not (every? #(.isFile %) [integrity-file deferred-file finalization-file content-registry-file])
-      {:valid? false :reason :missing-assurance-artifact}
+      {:valid? false :reason :missing-assurance-artifact
+       :checks {"assurance-files-readable" false}}
       (let [integrity (read-json integrity-file)
             deferred (read-json deferred-file)
-            sub-checks {:schema_version (= "canonical-integrity.v1" (:schema_version integrity))
-                        :assurance_kind (= "unsigned-canonical-integrity" (:assurance_kind integrity))
-                        :status (= "passed" (:status integrity))
-                        :run_id (= (:run_id completion) (:run_id integrity))
-                        :run_finalization_match (= (sha-ref finalization-file) (get-in integrity [:run_finalization :sha256]))
-                        :content_registry_match (= (sha-ref content-registry-file) (get-in integrity [:evidence_content_registry :sha256]))
-                        :run_finalization_verified (true? (get-in integrity [:checks :run_finalization_verified]))
-                        :pre_assurance_registry_valid (true? (get-in integrity [:checks :pre_assurance_registry_valid]))
-                        :operator_identity_excluded (false? (get-in integrity [:scope :operator_identity]))
-                        :runtime_isolation_excluded (false? (get-in integrity [:scope :runtime_isolation]))
-                        :forensic_schema_version (= "forensic-claims-status.v1" (:schema_version deferred))
-                        :forensic_status (= "deferred" (:status deferred))
-                        :forensic_reason_code (= "unsigned-forensic-signing-not-configured" (:reason_code deferred))
-                        :forensic_integrity_ref (= "manifest/canonical-integrity.json" (:canonical_integrity_ref deferred))}]
+            sub-checks {"schema-version" (= "canonical-integrity.v1" (:schema_version integrity))
+                        "assurance-kind" (= "unsigned-canonical-integrity" (:assurance_kind integrity))
+                        "status" (= "passed" (:status integrity))
+                        "run-id" (= (:run_id completion) (:run_id integrity))
+                        "run-finalization-match" (= (sha-ref finalization-file) (get-in integrity [:run_finalization :sha256]))
+                        "content-registry-match" (= (sha-ref content-registry-file) (get-in integrity [:evidence_content_registry :sha256]))
+                        "run-finalization-verified" (true? (get-in integrity [:checks :run_finalization_verified]))
+                        "pre-assurance-registry-valid" (true? (get-in integrity [:checks :pre_assurance_registry_valid]))
+                        "operator-identity-excluded" (false? (get-in integrity [:scope :operator_identity]))
+                        "runtime-isolation-excluded" (false? (get-in integrity [:scope :runtime_isolation]))
+                        "forensic-schema-version" (= "forensic-claims-status.v1" (:schema_version deferred))
+                        "forensic-status" (= "deferred" (:status deferred))
+                        "forensic-reason-code" (= "unsigned-forensic-signing-not-configured" (:reason_code deferred))
+                        "forensic-integrity-ref" (= "manifest/canonical-integrity.json" (:canonical_integrity_ref deferred))}]
         {:valid? (every? true? (vals sub-checks))
          :checks sub-checks
          :integrity integrity
          :deferred deferred}))))
-
 
 (defn verify! [run-root]
   (try
@@ -224,8 +224,8 @@
           run-finalization-file (io/file root "evidence/finalizations/run/evidence-finalization.json")
           canonical-integrity-file (io/file root "manifest/canonical-integrity.json")
           forensic-claims-status-file (io/file root "manifest/forensic-claims-status.json")
-                    verdict-policy-file (io/file root "manifest/verdict-policy.json")]
-                (when-not (every? #(.isFile %) [completion-file registry-file validation-file run-finalization-file canonical-integrity-file forensic-claims-status-file verdict-policy-file])
+          verdict-policy-file (io/file root "manifest/verdict-policy.json")]
+      (when-not (every? #(.isFile %) [completion-file registry-file validation-file run-finalization-file canonical-integrity-file forensic-claims-status-file verdict-policy-file])
         (throw (ex-info "Scenario terminal artifact is missing" {:run-root run-root})))
       (let [completion (read-json completion-file)
             registry (read-json registry-file)
@@ -251,10 +251,10 @@
             declared-event-hashes (set (get-in run-finalization [:evidence :declared-evidence-hashes]))
             registry-paths (set (map :path (:artifacts registry)))
             canonical-integrity-verification (verify-canonical-integrity root completion)
-                        verdict-policy-verification (verdict-policy/verify! root (json/read-str (slurp verdict-policy-file)) "scenario" (:run_id completion))
-                        partial-fill-verification (verify-partial-fill-artifacts root)
-                        fraud-group-slash-verification (verify-fraud-group-slash-artifacts root)
-                        pro-rata-mechanism-node-verification (verify-pro-rata-mechanism-nodes root event-records)
+            verdict-policy-verification (verdict-policy/verify! root (json/read-str (slurp verdict-policy-file)) "scenario" (:run_id completion))
+            partial-fill-verification (verify-partial-fill-artifacts root)
+            fraud-group-slash-verification (verify-fraud-group-slash-artifacts root)
+            pro-rata-mechanism-node-verification (verify-pro-rata-mechanism-nodes root event-records)
             relative-run-finalization "evidence/finalizations/run/evidence-finalization.json"
             diagnostic-file (io/file root "manifest/diagnostic-summary.json")
             relative-scenario-finalizations
@@ -267,23 +267,23 @@
                     "scenario-finalizations-present" (boolean (seq scenario-files))
                     "scenario-finalizations-structural" (every? :valid? (map finalization/validate-finalization scenario-finalizations))
                     "scenario-chains-recalculated" (every? (fn [{:keys [result declared-head]}]
-                                                              (and (= :verified (:chain/status result))
-                                                                   (= declared-head
-                                                                      (finalization/sha256-ref (:chain/head-hash result)))))
-                                                            chain-results)
+                                                             (and (= :verified (:chain/status result))
+                                                                  (= declared-head
+                                                                     (finalization/sha256-ref (:chain/head-hash result)))))
+                                                           chain-results)
                     "scenario-finalization-set" (= scenario-hashes declared-scenario-hashes)
                     "event-evidence-set" (= event-hashes declared-event-hashes)
                     "finalizations-registered" (every? registry-paths
-                                                     (conj relative-scenario-finalizations relative-run-finalization))
+                                                       (conj relative-scenario-finalizations relative-run-finalization))
                     "diagnostic-summary" (and (.isFile diagnostic-file)
-                                                (contains? registry-paths "manifest/diagnostic-summary.json"))
+                                              (contains? registry-paths "manifest/diagnostic-summary.json"))
                     "canonical-integrity" (:valid? canonical-integrity-verification)
-                                        "canonical-integrity-checks" (:checks canonical-integrity-verification)
-                                        "verdict-policy" (:valid? verdict-policy-verification)
-                                        "assurance-artifacts-registered" (every? registry-paths
-                                                                                  #{"manifest/canonical-integrity.json"
-                                                                                    "manifest/forensic-claims-status.json"
-                                                                                    "manifest/verdict-policy.json"})
+                    "canonical-integrity-checks" (:checks canonical-integrity-verification)
+                    "verdict-policy" (:valid? verdict-policy-verification)
+                    "assurance-artifacts-registered" (every? registry-paths
+                                                             #{"manifest/canonical-integrity.json"
+                                                               "manifest/forensic-claims-status.json"
+                                                               "manifest/verdict-policy.json"})
                     "partial-fill-artifacts" (:valid? partial-fill-verification)
                     "fraud-group-slash-artifacts" (:valid? fraud-group-slash-verification)
                     "pro-rata-mechanism-nodes" (:valid? pro-rata-mechanism-node-verification)}]

@@ -7,8 +7,6 @@
            [java.time.format DateTimeFormatter]
            [java.util UUID]))
 
-
-
 (defn- run-id []
   (str "benchmark-"
        (.format (DateTimeFormatter/ofPattern "yyyyMMdd'T'HHmmss'Z'")
@@ -21,15 +19,15 @@
                    :project-root project-root :sensitivity-profile :public})
         root (:run/root envelope)]
     (merge envelope
-     {:benchmark/id benchmark-id
-     :benchmark/root (.resolve root "benchmark")
-     :benchmark/definition-file (.resolve root "benchmark/definition.edn")
-     :benchmark/evidence-file (.resolve root "benchmark/evidence/evidence.edn")
-     :benchmark/conclusion-file (.resolve root "benchmark/conclusion.json")
-     :benchmark/summary-file (.resolve root "benchmark/summary.json")
-     :benchmark/index-file (.resolve root "benchmark/index.edn")
-     :benchmark/plan-file (.resolve root "benchmark/execution-plan.edn")
-     :benchmark/executions-dir (.resolve root "benchmark/executions")})))
+           {:benchmark/id benchmark-id
+            :benchmark/root (.resolve root "benchmark")
+            :benchmark/definition-file (.resolve root "benchmark/definition.edn")
+            :benchmark/evidence-file (.resolve root "benchmark/evidence/evidence.edn")
+            :benchmark/conclusion-file (.resolve root "benchmark/conclusion.json")
+            :benchmark/summary-file (.resolve root "benchmark/summary.json")
+            :benchmark/index-file (.resolve root "benchmark/index.edn")
+            :benchmark/plan-file (.resolve root "benchmark/execution-plan.edn")
+            :benchmark/executions-dir (.resolve root "benchmark/executions")})))
 
 (defn initialize! [context]
   (doseq [path [(:run/root context) (:manifest/dir context)

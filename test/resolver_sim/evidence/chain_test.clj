@@ -1,7 +1,7 @@
 (ns resolver-sim.evidence.chain-test
   (:require [clojure.data.json :as json]
-              [clojure.java.io :as io]
-              [clojure.test :refer [deftest is]]
+            [clojure.java.io :as io]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.benchmark.signing :as signing]

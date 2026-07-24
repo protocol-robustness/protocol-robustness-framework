@@ -17,7 +17,7 @@
       (spit (io/file dir "payload.json") "payload")
       (write-json! (io/file dir "manifest/artifacts.json")
                    {:root_dir "." :artifacts [{:id "payload" :path "payload.json" :sha256 "old" :bytes 0 :dependencies []}
-                                                {:id "manifest" :path "manifest/artifacts.json" :sha256 "old" :bytes 0 :dependencies []}]})
+                                              {:id "manifest" :path "manifest/artifacts.json" :sha256 "old" :bytes 0 :dependencies []}]})
       ;; The registry cannot inventory itself; replace its entry with a normal file.
       (write-json! (io/file dir "manifest/artifacts.json")
                    {:root_dir "." :artifacts [{:id "payload" :path "payload.json" :sha256 "old" :bytes 0 :dependencies []}]})
@@ -30,8 +30,8 @@
 
 (deftest finalization-rejects-duplicate-and-missing-artifacts-without-mutating-registry
   (doseq [artifacts [[{:id "missing" :path "missing.json"}]
-                      [{:id "duplicate" :path "payload.json"}
-                       {:id "duplicate" :path "payload.json"}]]]
+                     [{:id "duplicate" :path "payload.json"}
+                      {:id "duplicate" :path "payload.json"}]]]
     (let [dir (root)
           registry-file (io/file dir "manifest/artifacts.json")]
       (try

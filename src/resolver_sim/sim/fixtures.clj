@@ -24,6 +24,7 @@
             [resolver-sim.stochastic.rng :as rng]
             [resolver-sim.protocols.sew.invariant-scenarios :as sew-scenarios]
             [resolver-sim.governance.rules :as gov-rules]
+            [resolver-sim.io.fixtures :as io-fix]
             [clojure.pprint :as pp]))
 
 (defn- result->checks
@@ -54,9 +55,6 @@
 ;; Fixture Loading
 ;; ---------------------------------------------------------------------------
 
-(def ^:private allowed-fixture-namespaces
-  #{"protocol" "states" "actors" "authority" "tokens" "thresholds" "suites" "traces"})
-
 (defn normalize-scenario
   "Delegate to `resolver-sim.scenario.normalize/normalize-scenario`."
   [x]
@@ -64,7 +62,7 @@
 
 (defn- fixture-ref? [x]
   (and (keyword? x) (namespace x)
-       (contains? allowed-fixture-namespaces (namespace x))))
+       (contains? io-fix/allowed-fixture-namespaces (namespace x))))
 
 (defn compose-suite
   "Recursively compose a fixture suite by resolving fixture references.
@@ -75,23 +73,23 @@
      (fixture-ref? x)
      (if (contains? seen x)
        (throw (ex-info "Circular fixture reference" {:key x :seen seen}))
-       ;; Normalize JSON-loaded fixtures to fix type mismatches
-       (let [loaded (load-fixture-fn x)
-             normalized (normalize-scenario loaded)]
+        ;; Normalize JSON-loaded trace fixtures to fix type mismatches
+        (let [loaded (load-fixture-fn x)
+              normalized (if (:events loaded)
+                           (normalize-scenario loaded)
+                           loaded)]
          (compose-suite normalized load-fixture-fn (conj seen x))))
 
-     (map? x)
+      (map? x)
      (reduce-kv (fn [m k v]
-                  (let [ns-str (when (keyword? k) (namespace k))]
-                    (when (and ns-str
-                               (not (contains? #{nil "suite" "protocol" "state" "authority"
-                                                 "threshold" "actor" "token" "minimize"} ns-str)))
-                      (throw (ex-info "Unrecognized fixture namespace keyword"
-                                      {:key k :namespace ns-str})))
-                    (assoc m k (if (contains? #{:suite/id :protocol/id :state/id :authority/id :threshold/id :actor/id :token/id :protocol-params-ref} k)
-                                 v
-                                 (compose-suite v load-fixture-fn seen)))))
-                {} x)
+                   (let [ns-str (when (keyword? k) (namespace k))
+                          fixture-ns (and ns-str (contains? io-fix/allowed-fixture-namespaces ns-str))
+                          identity-keys #{:suite/id :protocol/id :state/id :authority/id :threshold/id :actor/id :token/id :protocol-params-ref}]
+                     (if (or (and ns-str (not fixture-ns))
+                             (contains? identity-keys k))
+                       (assoc m k v)
+                       (assoc m k (compose-suite v load-fixture-fn seen)))))
+                 {} x)
 
      (vector? x)
      (mapv #(compose-suite % load-fixture-fn seen) x)

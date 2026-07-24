@@ -1,4 +1,4 @@
-{"description":"Generated trace: ",
+{"description":"Generated trace: s05-pending-settlement-execute",
  "fee_bps":150,
  "schema_version":"2",
  "resolutions":
@@ -157,4 +157,4 @@
  "step_count":5,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s05-pending-settlement-execute"}

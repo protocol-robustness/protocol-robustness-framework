@@ -5,8 +5,8 @@
    Table output via `scenario.report/print-report`; legacy fixture detail via
    `sim.reporter` when `:report-format :fixture`."
   (:require [clojure.edn :as edn]
-              [clojure.data.json :as json]
-              [clojure.java.io :as io]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.evidence.forensic-populate :as fp]
@@ -177,25 +177,25 @@
   [scenario]
   (let [metadata-extra (scenario-metadata-extra scenario)
         metadata {:scenario/assumptions      (or (:scenario/assumptions scenario)
-                                                  (:assumptions scenario)
-                                                  (get-in scenario [:theory :assumptions]))
-                   :scenario/model-scope      (or (:scenario/model-scope scenario)
-                                                  (:model-scope scenario))
-                   :scenario/expected-outcome (or (:scenario/expected-outcome scenario)
-                                                  (:expected-outcome scenario))
-                   :scenario/claim-intents    (normalize-claim-intents
-                                               (or (:scenario/claim-intents scenario)
-                                                   (:claim-intents scenario)
-                                                   (some-> scenario :theory :claim-id vector)))
-                   :scenario/evidence-profile (normalize-profile
-                                               (or (:scenario/evidence-profile scenario)
-                                                   (:evidence-profile scenario)))
-                   :scenario/output-profile   (normalize-profile
-                                               (or (:scenario/output-profile scenario)
-                                                   (:output-profile scenario)))
-                   :scenario/output-overrides (or (:scenario/output-overrides scenario)
-                                                  (:output-overrides scenario))
-                   :scenario/sensitivity      (:scenario/sensitivity scenario)}
+                                                 (:assumptions scenario)
+                                                 (get-in scenario [:theory :assumptions]))
+                  :scenario/model-scope      (or (:scenario/model-scope scenario)
+                                                 (:model-scope scenario))
+                  :scenario/expected-outcome (or (:scenario/expected-outcome scenario)
+                                                 (:expected-outcome scenario))
+                  :scenario/claim-intents    (normalize-claim-intents
+                                              (or (:scenario/claim-intents scenario)
+                                                  (:claim-intents scenario)
+                                                  (some-> scenario :theory :claim-id vector)))
+                  :scenario/evidence-profile (normalize-profile
+                                              (or (:scenario/evidence-profile scenario)
+                                                  (:evidence-profile scenario)))
+                  :scenario/output-profile   (normalize-profile
+                                              (or (:scenario/output-profile scenario)
+                                                  (:output-profile scenario)))
+                  :scenario/output-overrides (or (:scenario/output-overrides scenario)
+                                                 (:output-overrides scenario))
+                  :scenario/sensitivity      (:scenario/sensitivity scenario)}
         metadata* (cond-> metadata
                     (seq metadata-extra)
                     (assoc :scenario/metadata-extra metadata-extra))]
@@ -283,30 +283,30 @@
     scenario
     (let [fixture-dir (io/file "scenarios" "edn")]
       (or
-        (let [prefix-lc (str/lower-case scenario)
-              matches (->> (file-seq fixture-dir)
-                           (filter #(and (.isFile %)
-                                         (str/ends-with? (.getName %) ".edn")))
-                           (filter #(str/starts-with? (str/lower-case (.getName %))
-                                                      prefix-lc))
-                           (map #(.getPath %))
-                           (vec))]
-          (case (count matches)
-            0 nil
-            1 (first matches)
-            (throw (ex-info (str "Ambiguous prefix \"" scenario "\" matches "
-                                 (count matches) " scenarios")
-                            {:prefix scenario :matches matches}))))
-        (some (fn [file]
-                (when (and (.isFile file)
-                           (str/ends-with? (.getName file) ".edn"))
-                  (try
-                    (let [path (.getPath file)
-                          fixture (io-sc/load-scenario-file path)]
-                      (when (= scenario (:scenario-id fixture)) path))
-                    (catch Exception _ nil))))
-              (file-seq fixture-dir))
-        scenario))))
+       (let [prefix-lc (str/lower-case scenario)
+             matches (->> (file-seq fixture-dir)
+                          (filter #(and (.isFile %)
+                                        (str/ends-with? (.getName %) ".edn")))
+                          (filter #(str/starts-with? (str/lower-case (.getName %))
+                                                     prefix-lc))
+                          (map #(.getPath %))
+                          (vec))]
+         (case (count matches)
+           0 nil
+           1 (first matches)
+           (throw (ex-info (str "Ambiguous prefix \"" scenario "\" matches "
+                                (count matches) " scenarios")
+                           {:prefix scenario :matches matches}))))
+       (some (fn [file]
+               (when (and (.isFile file)
+                          (str/ends-with? (.getName file) ".edn"))
+                 (try
+                   (let [path (.getPath file)
+                         fixture (io-sc/load-scenario-file path)]
+                     (when (= scenario (:scenario-id fixture)) path))
+                   (catch Exception _ nil))))
+             (file-seq fixture-dir))
+       scenario))))
 
 (defn resolve-path-run-request
   "Prepare a normalized request envelope for one or more file-backed scenarios.
@@ -385,18 +385,18 @@
             (fn [results]
               (mapv (fn [result]
                       (if-let [entry (get entry-by-id (:scenario-id result))]
-                          (assoc result
-                                 :scenario-hash (hc/hash-with-intent {:hash/intent :scenario}
-                                                                                                      (hashable-scenario-value (:scenario entry)))
-                                 :scenario-path (:scenario-path entry)
-                                 :dispatcher-id (:dispatcher-id entry)
-                                 :scenario-metadata (:scenario-metadata entry)
-                                 :scenario-input-hash (:scenario/source-hash entry)
-                                 :runner {:backend (:runner/backend request)
-                                          :protocol-id (:protocol entry)
-                                          :dispatcher-id (:dispatcher-id entry)
-                                          :runner-selection (:runner-selection request)}
-                                 :execution/raw (:replay-result result))
+                        (assoc result
+                               :scenario-hash (hc/hash-with-intent {:hash/intent :scenario}
+                                                                   (hashable-scenario-value (:scenario entry)))
+                               :scenario-path (:scenario-path entry)
+                               :dispatcher-id (:dispatcher-id entry)
+                               :scenario-metadata (:scenario-metadata entry)
+                               :scenario-input-hash (:scenario/source-hash entry)
+                               :runner {:backend (:runner/backend request)
+                                        :protocol-id (:protocol entry)
+                                        :dispatcher-id (:dispatcher-id entry)
+                                        :runner-selection (:runner-selection request)}
+                               :execution/raw (:replay-result result))
                         result))
                     results)))))
 
@@ -425,7 +425,7 @@
               :summary summary*
               :diagnostics {:elapsed-ms (:elapsed-ms summary* 0)
                             :suite-id (:suite-id summary*)}}
-        run-sensitivity (assoc :sensitivity/run-level run-sensitivity))}))
+       run-sensitivity (assoc :sensitivity/run-level run-sensitivity))}))
 
 (defn- sew-replay-fn []
   (replay-fn-for-protocol "sew-v1"))
@@ -761,15 +761,15 @@
 (defn- determine-canonicality
   "Determine whether a run is canonical and the non-canonical reason code."
   [dispatch opts runner-selection source-provenance]
-    (let [selection-mode (:mode runner-selection)
-          canonical? (and (nil? (:scenario dispatch))
-                          (nil? (:fixture-suite dispatch))
-                          (nil? (or (:scenario-filter dispatch) (:scenario-filter opts)))
-                          (not (:parallel? opts))
-                          (not (:source/dirty? source-provenance))
-                          (not= :dev (:mode dispatch))
-                          (= :pinned selection-mode)
-                          (keyword? (:runner-id runner-selection)))
+  (let [selection-mode (:mode runner-selection)
+        canonical? (and (nil? (:scenario dispatch))
+                        (nil? (:fixture-suite dispatch))
+                        (nil? (or (:scenario-filter dispatch) (:scenario-filter opts)))
+                        (not (:parallel? opts))
+                        (not (:source/dirty? source-provenance))
+                        (not= :dev (:mode dispatch))
+                        (= :pinned selection-mode)
+                        (keyword? (:runner-id runner-selection)))
         non-canonical-reason (cond
                                (:scenario dispatch) {:code :single-scenario-selected
                                                      :details "Single scenario selected; not a full suite run"}
@@ -780,13 +780,13 @@
                                (= :capability-match selection-mode) {:code :capability-match-runner
                                                                      :details "Capability-matched runner; non-deterministic selection"}
                                (or (:scenario-filter dispatch) (:scenario-filter opts)) {:code :scenario-filtering
-                                                            :details "Scenario filtering applied"}
+                                                                                         :details "Scenario filtering applied"}
                                (:parallel? opts) {:code :parallel-execution
                                                   :details "Parallel execution does not have a canonical evidence ordering"}
                                (:source/dirty? source-provenance) {:code :dirty-source
-                                                             :details "Source tree is dirty"}
+                                                                   :details "Source tree is dirty"}
                                (not (keyword? (:runner-id runner-selection))) {:code :unidentified-runner
-                                                                                :details "Pinned runner identity is required"}
+                                                                               :details "Pinned runner identity is required"}
                                (= :quorum selection-mode) {:code :quorum-not-yet-canonical
                                                            :details "Quorum mode selected; not yet canonical"}
                                :else nil)]
@@ -1066,7 +1066,7 @@
                  :run/id run-id
                  :scenario/path scenario-path
                  :protocol/id protocol-id
-                                  :evidence/root evidence-root
+                 :evidence/root evidence-root
                  :tsa/configured? (boolean tsa-url)
                  :tsa/url tsa-url
                  :signature/configured? (boolean (System/getenv "PRF_SIGNING_KEY"))
@@ -1117,150 +1117,150 @@
   (let [dispatch (update dispatch :scenario resolve-scenario-reference)]
     (validate-dispatch! dispatch)
     (let [protocol-id (resolve-protocol-id dispatch)
-        source-provenance (prov/source-provenance)]
-    (if (:dry-run? dispatch)
-      (run-dry dispatch opts protocol-id)
-      (let [runner-selection (or (:runner-selection dispatch) default-runner-selection)
-            {:keys [canonical? non-canonical-reason]}
-            (determine-canonicality dispatch opts runner-selection source-provenance)
-            tsa-url (System/getenv "PRF_TSA_URL")]
-        (when (and (not canonical?) non-canonical-reason)
-          (log/warn! :non-canonical-run
-                     {:reason non-canonical-reason
-                      :message "Run is non-canonical; bundle will be marked accordingly"}))
-        (when tsa-url
-          (log-event :info :tsa-url :tsa-url tsa-url))
+          source-provenance (prov/source-provenance)]
+      (if (:dry-run? dispatch)
+        (run-dry dispatch opts protocol-id)
+        (let [runner-selection (or (:runner-selection dispatch) default-runner-selection)
+              {:keys [canonical? non-canonical-reason]}
+              (determine-canonicality dispatch opts runner-selection source-provenance)
+              tsa-url (System/getenv "PRF_TSA_URL")]
+          (when (and (not canonical?) non-canonical-reason)
+            (log/warn! :non-canonical-run
+                       {:reason non-canonical-reason
+                        :message "Run is non-canonical; bundle will be marked accordingly"}))
+          (when tsa-url
+            (log-event :info :tsa-url :tsa-url tsa-url))
 
     ;; Pre-run commitment (best-effort, lazy-loaded forensic namespaces)
-        (let [suite-key (:suite dispatch)
-              run-id (or (:run-id dispatch) (str "run-" (java.time.Instant/now)))
-              structured? (boolean (:run-root dispatch))
+          (let [suite-key (:suite dispatch)
+                run-id (or (:run-id dispatch) (str "run-" (java.time.Instant/now)))
+                structured? (boolean (:run-root dispatch))
               ;; The Python forensic runner supplies PRF_ARTIFACT_DIR for an
               ;; isolated per-run artifact tree. Treat that as a finalizing
               ;; evidence run even when it does not use the structured-run
               ;; directory layout.
-              forensic-artifact-dir (System/getenv "PRF_ARTIFACT_DIR")
-              finalize-evidence? (boolean (or structured? forensic-artifact-dir))
-              artifact-dir (or (:artifact-dir dispatch) (:output-dir dispatch)
-                               forensic-artifact-dir
-                               (str "results/runs/" run-id))
-              execution-dir (:execution-dir dispatch)
-              _ (when (and structured? (nil? execution-dir))
-                  (throw (ex-info "Structured runs require :execution-dir"
-                                  {:dispatch (select-keys dispatch [:run-root :scenario-root :artifact-dir])})))
-              _ (try
-                  (let [prc (requiring-resolve 'resolver-sim.forensic.pre-run-commitment/build-commitment)
-                        pwrite (requiring-resolve 'resolver-sim.forensic.pre-run-commitment/write-commitment!)
-                        ctx {:suite-key suite-key :run-id run-id}
-                        commitment (prc ctx)
-                        written (if structured?
-                                  (pwrite commitment execution-dir)
-                                  (pwrite commitment))]
-                    (log-event :info :pre-commitment :hash (:hash written))
+                forensic-artifact-dir (System/getenv "PRF_ARTIFACT_DIR")
+                finalize-evidence? (boolean (or structured? forensic-artifact-dir))
+                artifact-dir (or (:artifact-dir dispatch) (:output-dir dispatch)
+                                 forensic-artifact-dir
+                                 (str "results/runs/" run-id))
+                execution-dir (:execution-dir dispatch)
+                _ (when (and structured? (nil? execution-dir))
+                    (throw (ex-info "Structured runs require :execution-dir"
+                                    {:dispatch (select-keys dispatch [:run-root :scenario-root :artifact-dir])})))
+                _ (try
+                    (let [prc (requiring-resolve 'resolver-sim.forensic.pre-run-commitment/build-commitment)
+                          pwrite (requiring-resolve 'resolver-sim.forensic.pre-run-commitment/write-commitment!)
+                          ctx {:suite-key suite-key :run-id run-id}
+                          commitment (prc ctx)
+                          written (if structured?
+                                    (pwrite commitment execution-dir)
+                                    (pwrite commitment))]
+                      (log-event :info :pre-commitment :hash (:hash written))
                 ;; Sign if key available
-                    (when (or (System/getenv "PRF_SIGNING_KEY")
-                              (.exists (java.io.File. "signing-key.pem")))
-                      (let [fsign (requiring-resolve 'resolver-sim.forensic.signing/sign-and-write!)]
-                        (fsign (:path written) commitment)
-                        (log-event :info :pre-commitment-signed))))
-                  (catch Exception e
-                    (log-event :warn :pre-commitment-failed :error (.getMessage e))))]
+                      (when (or (System/getenv "PRF_SIGNING_KEY")
+                                (.exists (java.io.File. "signing-key.pem")))
+                        (let [fsign (requiring-resolve 'resolver-sim.forensic.signing/sign-and-write!)]
+                          (fsign (:path written) commitment)
+                          (log-event :info :pre-commitment-signed))))
+                    (catch Exception e
+                      (log-event :warn :pre-commitment-failed :error (.getMessage e))))]
 
         ;; P1b: Top-level try/catch — ensure structured output even on crash
-          (try
-            (ev-node/with-fresh-registry
-              (chain/with-fresh-registry
-                (chain/with-fresh-chain-cursor
-                  (binding [ts/*tsa-url* (or tsa-url ts/*tsa-url*)
-                            *finalize-evidence?* finalize-evidence?
-                            evcfg/*artifact-dir* artifact-dir]
-                    (let [exec-spec (-> (build-execution-node-spec
-                                         dispatch opts runner-selection
-                                         canonical? non-canonical-reason protocol-id
-                                         source-provenance)
-                                        (assoc :extensions-fn
-                                               (fn [thunk-result]
-                                                 (let [summary (:summary thunk-result)
-                                                       results (:results summary)
-                                                       fixture-refs (->> results
-                                                                         (map :fixture-refs)
-                                                                         (remove nil?)
-                                                                         (apply concat)
-                                                                         seq)]
-                                                   (when fixture-refs
-                                                     {:fixture/refs (vec fixture-refs)})))))
-                          result (ev-node/with-execution-node+
-                                   exec-spec
-                                   (fn []
-                                     (execute-dispatch! dispatch opts protocol-id
-                                                        runner-selection)))
-                          thunk-result (:result result)
-                          execution-node (:execution-node result)
-                          thunk-error (:error result)
-                          _ (if thunk-error
-                              (throw thunk-error)
-                              (let [report-exit-code
-                                    (dispatch-report-exit-code (:dispatch-key thunk-result)
-                                                               (:summary thunk-result)
-                                                               opts
-                                                               protocol-id)
-                                    dispatch-exit-code (:exit-code thunk-result)]
-                                (when (and report-exit-code dispatch-exit-code
-                                           (not= report-exit-code dispatch-exit-code))
-                                  (log/warn! :exit-code-mismatch
-                                             {:report-exit-code report-exit-code
-                                              :dispatch-exit-code dispatch-exit-code
-                                              :dispatch dispatch}))))
-                          bundle-root (:bundle-root thunk-result)
-                          _ (when (nil? bundle-root)
-                              (throw (ex-info "run-and-report: nil bundle-root from execute-dispatch!"
-                                              {:dispatch dispatch})))
+            (try
+              (ev-node/with-fresh-registry
+                (chain/with-fresh-registry
+                  (chain/with-fresh-chain-cursor
+                    (binding [ts/*tsa-url* (or tsa-url ts/*tsa-url*)
+                              *finalize-evidence?* finalize-evidence?
+                              evcfg/*artifact-dir* artifact-dir]
+                      (let [exec-spec (-> (build-execution-node-spec
+                                           dispatch opts runner-selection
+                                           canonical? non-canonical-reason protocol-id
+                                           source-provenance)
+                                          (assoc :extensions-fn
+                                                 (fn [thunk-result]
+                                                   (let [summary (:summary thunk-result)
+                                                         results (:results summary)
+                                                         fixture-refs (->> results
+                                                                           (map :fixture-refs)
+                                                                           (remove nil?)
+                                                                           (apply concat)
+                                                                           seq)]
+                                                     (when fixture-refs
+                                                       {:fixture/refs (vec fixture-refs)})))))
+                            result (ev-node/with-execution-node+
+                                     exec-spec
+                                     (fn []
+                                       (execute-dispatch! dispatch opts protocol-id
+                                                          runner-selection)))
+                            thunk-result (:result result)
+                            execution-node (:execution-node result)
+                            thunk-error (:error result)
+                            _ (if thunk-error
+                                (throw thunk-error)
+                                (let [report-exit-code
+                                      (dispatch-report-exit-code (:dispatch-key thunk-result)
+                                                                 (:summary thunk-result)
+                                                                 opts
+                                                                 protocol-id)
+                                      dispatch-exit-code (:exit-code thunk-result)]
+                                  (when (and report-exit-code dispatch-exit-code
+                                             (not= report-exit-code dispatch-exit-code))
+                                    (log/warn! :exit-code-mismatch
+                                               {:report-exit-code report-exit-code
+                                                :dispatch-exit-code dispatch-exit-code
+                                                :dispatch dispatch}))))
+                            bundle-root (:bundle-root thunk-result)
+                            _ (when (nil? bundle-root)
+                                (throw (ex-info "run-and-report: nil bundle-root from execute-dispatch!"
+                                                {:dispatch dispatch})))
                           ;; A bundle root is immutable once :bundle/hash is assigned.
                           ;; Keep execution-node references and replay internals in their
                           ;; own artifacts; never publish raw worlds, traces, or metrics here.
-                          enriched-root bundle-root
-                          raw-results (or (get-in thunk-result [:run-result :results])
-                                          (get-in thunk-result [:summary :results]))
+                            enriched-root bundle-root
+                            raw-results (or (get-in thunk-result [:run-result :results])
+                                            (get-in thunk-result [:summary :results]))
                           ;; The canonical scenario-JAR slug is the artifact ID.
                           ;; Persist only the v2 finalization's public metadata and
                           ;; digest commitments beneath the supplied forensic root.
-                          _ (when (and structured? (not= :scenario (:dispatch-key thunk-result)))
-                              (throw (ex-info "Structured suite finalization is not implemented; refusing unsafe publication"
-                                              {:dispatch-key (:dispatch-key thunk-result)})))
-                          _ (when structured?
-                              (let [write-finalization!
-                                    (requiring-resolve 'resolver-sim.evidence.finalization/write-scenario-finalization!)
-                                    scenario-result (first raw-results)
+                            _ (when (and structured? (not= :scenario (:dispatch-key thunk-result)))
+                                (throw (ex-info "Structured suite finalization is not implemented; refusing unsafe publication"
+                                                {:dispatch-key (:dispatch-key thunk-result)})))
+                            _ (when structured?
+                                (let [write-finalization!
+                                      (requiring-resolve 'resolver-sim.evidence.finalization/write-scenario-finalization!)
+                                      scenario-result (first raw-results)
                                     ;; Source bytes were snapshotted while resolving the request;
                                     ;; do not reopen a logical scenario reference during finalization.
-                                    scenario-input-hash (get-in thunk-result [:run-request :entries 0 :scenario/source-hash])
-                                    _ (when-not scenario-input-hash
-                                        (throw (ex-info "Structured finalization requires a snapshotted scenario source hash" {})))
-                                    written (write-finalization!
-                                             {:forensic-dir artifact-dir
-                                              :scenario-artifact-id (:scenario-slug dispatch)
-                                              :scenario-id (:scenario-id scenario-result)
-                                              :scenario-input-hash scenario-input-hash
-                                              :run-id run-id
-                                              :execution-id (:execution-id dispatch)
-                                              :run-input-hash scenario-input-hash
+                                      scenario-input-hash (get-in thunk-result [:run-request :entries 0 :scenario/source-hash])
+                                      _ (when-not scenario-input-hash
+                                          (throw (ex-info "Structured finalization requires a snapshotted scenario source hash" {})))
+                                      written (write-finalization!
+                                               {:forensic-dir artifact-dir
+                                                :scenario-artifact-id (:scenario-slug dispatch)
+                                                :scenario-id (:scenario-id scenario-result)
+                                                :scenario-input-hash scenario-input-hash
+                                                :run-id run-id
+                                                :execution-id (:execution-id dispatch)
+                                                :run-input-hash scenario-input-hash
                                               ;; Semantic failure is a completed execution with a fail verdict.
-                                              :execution-status "completed"
-                                                                                            :execution-outcome (or (some-> (:outcome scenario-result) name)
-                                                                                                                   "unknown")
-                                              :policy {:allow-empty-targeted-evidence? false}})]
-                                (log-event :info :scenario-finalization-written
-                                           :path (:path written))))]
+                                                :execution-status "completed"
+                                                :execution-outcome (or (some-> (:outcome scenario-result) name)
+                                                                       "unknown")
+                                                :policy {:allow-empty-targeted-evidence? false}})]
+                                  (log-event :info :scenario-finalization-written
+                                             :path (:path written))))]
                       ;; Structured scenario bundles publish their authoritative
                       ;; registry and completion record in the outer lifecycle.
                       ;; Do not emit registry/cursor forensic claims here: at this
                       ;; point they are pre-finalization observations and would be
                       ;; misleadingly recorded as semantic failures.
-                      (if structured?
-                        (log-event :info :forensic-claims-deferred
-                                   :reason :awaiting-run-finalization)
-                        (populate-forensic-claims!))
-                      (write-run-links! run-id dispatch protocol-id tsa-url canonical?)
+                        (if structured?
+                          (log-event :info :forensic-claims-deferred
+                                     :reason :awaiting-run-finalization)
+                          (populate-forensic-claims!))
+                        (write-run-links! run-id dispatch protocol-id tsa-url canonical?)
 
                       ;; Emit a post-hoc evidence commitment root node that anchors
                       ;; the execution DAG to the evidence chain.
@@ -1268,135 +1268,135 @@
                       ;; parent-hashes references the execution node; bootstrap-roots
                       ;; references the evidence-chain cursor hash.
                       ;; Runners and selectors will later point at this node.
-                      (try
-                        (let [evidence-root (chain/evidence-root-hash)
-                              exec-hash (:node-hash execution-node)
-                              exec-status (get-in execution-node [:result :status])
-                              bundle-root-hash (some-> execution-node
-                                                       :policy-output :visible :outputs :bundle/root-hash)]
-                          (when (and evidence-root exec-hash)
-                            (ev-node/emit-execution-node!
-                             {:execution-id :evidence/commitment-root
-                              :policy-id :evidence-policy/computed
-                              :parent-hashes [(str "sha256:" exec-hash)]
-                              :bootstrap-roots [(str "evidence-chain:sha256:" evidence-root)]
-                              :status :pass
-                              :inputs {:execution/node-hash (str "sha256:" exec-hash)
-                                       :evidence/chain-cursor-hash (str "sha256:" evidence-root)}
-                              :outputs {:bundle/root-hash (when bundle-root-hash
-                                                            (str "sha256:" bundle-root-hash))
-                                        :execution/status exec-status}})))
-                        (catch Exception e
-                          (log-event :warn :commitment-root-node-failed
-                                     :error (.getMessage e))))
+                        (try
+                          (let [evidence-root (chain/evidence-root-hash)
+                                exec-hash (:node-hash execution-node)
+                                exec-status (get-in execution-node [:result :status])
+                                bundle-root-hash (some-> execution-node
+                                                         :policy-output :visible :outputs :bundle/root-hash)]
+                            (when (and evidence-root exec-hash)
+                              (ev-node/emit-execution-node!
+                               {:execution-id :evidence/commitment-root
+                                :policy-id :evidence-policy/computed
+                                :parent-hashes [(str "sha256:" exec-hash)]
+                                :bootstrap-roots [(str "evidence-chain:sha256:" evidence-root)]
+                                :status :pass
+                                :inputs {:execution/node-hash (str "sha256:" exec-hash)
+                                         :evidence/chain-cursor-hash (str "sha256:" evidence-root)}
+                                :outputs {:bundle/root-hash (when bundle-root-hash
+                                                              (str "sha256:" bundle-root-hash))
+                                          :execution/status exec-status}})))
+                          (catch Exception e
+                            (log-event :warn :commitment-root-node-failed
+                                       :error (.getMessage e))))
 
             ;; Execution DAG (best-effort, lazy-loaded)
-                      (try
-                        (let [dag-build (requiring-resolve 'resolver-sim.forensic.execution-dag/build-dag)
-                              dag-write (requiring-resolve 'resolver-sim.forensic.execution-dag/write-dag!)
-                              dag-make-node (requiring-resolve 'resolver-sim.forensic.execution-dag/make-plan-node)
-                              scenario-id (:scenario-id dispatch)
-                              execution-id (:execution-id dispatch)
+                        (try
+                          (let [dag-build (requiring-resolve 'resolver-sim.forensic.execution-dag/build-dag)
+                                dag-write (requiring-resolve 'resolver-sim.forensic.execution-dag/write-dag!)
+                                dag-make-node (requiring-resolve 'resolver-sim.forensic.execution-dag/make-plan-node)
+                                scenario-id (:scenario-id dispatch)
+                                execution-id (:execution-id dispatch)
                               ;; Direct inner runs may omit identities and retain
                               ;; best-effort DAG behavior. Canonical orchestration
                               ;; supplies the explicit identity contract.
-                              nodes (if scenario-id
-                                      [(dag-make-node {:id (str "node:" scenario-id)
-                                                      :type :scenario-run
-                                                      :input-hashes {:scenario/source-hash (:scenario/source-hash dispatch)}})]
-                                      [])
-                              dag (dag-build nodes [] {:run-id run-id
-                                                       :scenario-id scenario-id
-                                                       :execution-id execution-id})]
-                          (if structured?
-                            (dag-write dag run-id execution-dir)
-                            (dag-write dag run-id))
-                          (log-event :info :dag-write :node-count (:dag/node-count dag)))
-                        (catch Exception e
-                          (log-event :warn :dag-write-failed :error (.getMessage e))))
+                                nodes (if scenario-id
+                                        [(dag-make-node {:id (str "node:" scenario-id)
+                                                         :type :scenario-run
+                                                         :input-hashes {:scenario/source-hash (:scenario/source-hash dispatch)}})]
+                                        [])
+                                dag (dag-build nodes [] {:run-id run-id
+                                                         :scenario-id scenario-id
+                                                         :execution-id execution-id})]
+                            (if structured?
+                              (dag-write dag run-id execution-dir)
+                              (dag-write dag run-id))
+                            (log-event :info :dag-write :node-count (:dag/node-count dag)))
+                          (catch Exception e
+                            (log-event :warn :dag-write-failed :error (.getMessage e))))
 
                       ;; Write run-enrichment.json for manifest enrichment in consolidated path
-                      (when-let [manifest-dir (:manifest-dir dispatch)]
-                        (try
-                          (let [evidence-root (chain/evidence-root-hash)
-                                exec-hash (some-> execution-node :node-hash)
-                                bundle-root-hash (some-> execution-node
-                                                         :policy-output :visible :outputs :bundle/root-hash)
-                                dag-path (if structured?
-                                           (str (io/file execution-dir "execution-dag.json"))
-                                           (str "results/runs/" run-id "/execution-dag.json"))
-                                dag-root-hash (try
-                                                (-> (json/read-str (slurp dag-path) :key-fn keyword)
-                                                    :dag/root-hash)
-                                                (catch Exception _ nil))
-                                pre-commit-path (if structured?
-                                                  (str (io/file execution-dir "pre-run-commitment.json"))
-                                                  (str "results/runs/" run-id "/pre-run-commitment.json"))
-                                pre-commit (try
-                                             (json/read-str (slurp pre-commit-path) :key-fn keyword)
-                                             (catch Exception _ nil))
-                                env (get-in enriched-root [:run/environment] {})
-                                source-data (or (:source pre-commit) source-provenance)
-                                enrichment
-                                {"execution"
-                                 {"chain-root-ref" (when evidence-root
-                                                    (str "evidence-chain:sha256:" evidence-root))
-                                 "execution-node-ref" (when exec-hash
-                                                        (str "evidence-node:sha256:" exec-hash))
-                                 "dag-root-ref" (when dag-root-hash
-                                                  (str "dag:sha256:" dag-root-hash))
-                                 "dag-path" (when structured?
-                                              (str "scenarios/" (:scenario-slug dispatch)
-                                                   "/execution/execution-dag.json"))
-                                 "pre-run-commitment-path" (when structured?
-                                                             (str "scenarios/" (:scenario-slug dispatch)
-                                                                  "/execution/pre-run-commitment.json"))}
-                                 "implementation"
-                                 {"source-ref" (:hash source-data)
-                                  "source-commit" (:commit source-data)
-                                  "source-dirty?" (boolean (:dirty? source-data))
-                                  "deps-ref" (some-> pre-commit :deps :root-hash)
-                                  "config-ref" (:config-hash pre-commit)}
-                                 "configuration"
-                                 {"evidence-config-ref" (:config-hash pre-commit)
-                                  "contract-version" "evidence-contract.v1"
-                                  "hashing-version" "domain-hash.v1"}
-                                 "environment"
-                                 {"clojure-version" (:clojure/version env)
-                                  "java-version" (:java/version env)
-                                  "os-name" (:os/name env)}}
-                                enrichment-path (str manifest-dir "/run-enrichment.json")]
-                            (io/make-parents enrichment-path)
-                            (spit enrichment-path (json/write-str enrichment {:indent true}))
-                            (log-event :info :run-enrichment-written :path enrichment-path))
-                          (catch Exception e
-                            (log-event :warn :run-enrichment-failed :error (.getMessage e)))))
+                        (when-let [manifest-dir (:manifest-dir dispatch)]
+                          (try
+                            (let [evidence-root (chain/evidence-root-hash)
+                                  exec-hash (some-> execution-node :node-hash)
+                                  bundle-root-hash (some-> execution-node
+                                                           :policy-output :visible :outputs :bundle/root-hash)
+                                  dag-path (if structured?
+                                             (str (io/file execution-dir "execution-dag.json"))
+                                             (str "results/runs/" run-id "/execution-dag.json"))
+                                  dag-root-hash (try
+                                                  (-> (json/read-str (slurp dag-path) :key-fn keyword)
+                                                      :dag/root-hash)
+                                                  (catch Exception _ nil))
+                                  pre-commit-path (if structured?
+                                                    (str (io/file execution-dir "pre-run-commitment.json"))
+                                                    (str "results/runs/" run-id "/pre-run-commitment.json"))
+                                  pre-commit (try
+                                               (json/read-str (slurp pre-commit-path) :key-fn keyword)
+                                               (catch Exception _ nil))
+                                  env (get-in enriched-root [:run/environment] {})
+                                  source-data (or (:source pre-commit) source-provenance)
+                                  enrichment
+                                  {"execution"
+                                   {"chain-root-ref" (when evidence-root
+                                                       (str "evidence-chain:sha256:" evidence-root))
+                                    "execution-node-ref" (when exec-hash
+                                                           (str "evidence-node:sha256:" exec-hash))
+                                    "dag-root-ref" (when dag-root-hash
+                                                     (str "dag:sha256:" dag-root-hash))
+                                    "dag-path" (when structured?
+                                                 (str "scenarios/" (:scenario-slug dispatch)
+                                                      "/execution/execution-dag.json"))
+                                    "pre-run-commitment-path" (when structured?
+                                                                (str "scenarios/" (:scenario-slug dispatch)
+                                                                     "/execution/pre-run-commitment.json"))}
+                                   "implementation"
+                                   {"source-ref" (:hash source-data)
+                                    "source-commit" (:commit source-data)
+                                    "source-dirty?" (boolean (:dirty? source-data))
+                                    "deps-ref" (some-> pre-commit :deps :root-hash)
+                                    "config-ref" (:config-hash pre-commit)}
+                                   "configuration"
+                                   {"evidence-config-ref" (:config-hash pre-commit)
+                                    "contract-version" "evidence-contract.v1"
+                                    "hashing-version" "domain-hash.v1"}
+                                   "environment"
+                                   {"clojure-version" (:clojure/version env)
+                                    "java-version" (:java/version env)
+                                    "os-name" (:os/name env)}}
+                                  enrichment-path (str manifest-dir "/run-enrichment.json")]
+                              (io/make-parents enrichment-path)
+                              (spit enrichment-path (json/write-str enrichment {:indent true}))
+                              (log-event :info :run-enrichment-written :path enrichment-path))
+                            (catch Exception e
+                              (log-event :warn :run-enrichment-failed :error (.getMessage e)))))
 
-                      (let [output-path (or (:output-file dispatch)
-                                            (when (:output-dir dispatch)
-                                              (str (:output-dir dispatch) "/replay-output.json")))]
-                        (when output-path
-                          (io/make-parents output-path)
-                          (write-result-json output-path enriched-root)))
+                        (let [output-path (or (:output-file dispatch)
+                                              (when (:output-dir dispatch)
+                                                (str (:output-dir dispatch) "/replay-output.json")))]
+                          (when output-path
+                            (io/make-parents output-path)
+                            (write-result-json output-path enriched-root)))
                       ;; The outer orchestrator consumes this transient result to
                       ;; build derived projections. It is not persisted as part of
                       ;; the immutable bundle root or package boundary.
-                      {:exit-code (:exit-code thunk-result)
-                       :run-result (:run-result thunk-result)
-                       :bundle-root enriched-root
-                       :execution-node execution-node})))))
+                        {:exit-code (:exit-code thunk-result)
+                         :run-result (:run-result thunk-result)
+                         :bundle-root enriched-root
+                         :execution-node execution-node})))))
           ;; Top-level catch: produce minimal output on complete failure
-            (catch Exception t
-              (log-event :error :run-failed :error (.getMessage t) :exception (str (class t)))
+              (catch Exception t
+                (log-event :error :run-failed :error (.getMessage t) :exception (str (class t)))
               ;; Never rewrite a scenario finalization from this recovery path:
               ;; publication errors occur after a completed chain may already exist.
-              (let [minimal-root (build-minimal-error-root dispatch protocol-id source-provenance t)
-                    err-path (or (:output-file dispatch)
-                                 (when (:output-dir dispatch)
-                                   (str (:output-dir dispatch) "/replay-output.json")))]
-                (when err-path
-                  (io/make-parents err-path)
-                  (write-result-json err-path minimal-root))
-                {:exit-code 1
-                 :bundle-root minimal-root
-                 :execution-node nil})))))))))
+                (let [minimal-root (build-minimal-error-root dispatch protocol-id source-provenance t)
+                      err-path (or (:output-file dispatch)
+                                   (when (:output-dir dispatch)
+                                     (str (:output-dir dispatch) "/replay-output.json")))]
+                  (when err-path
+                    (io/make-parents err-path)
+                    (write-result-json err-path minimal-root))
+                  {:exit-code 1
+                   :bundle-root minimal-root
+                   :execution-node nil})))))))))

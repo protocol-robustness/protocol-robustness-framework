@@ -6,24 +6,24 @@
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.io.scenarios :as io-scenarios]
-                        [resolver-sim.commands.scenario-manifest :as manifest]
-                                    [resolver-sim.commands.scenario-safety :as safety]
-                                                [resolver-sim.commands.scenario-extraction :as extraction]
-                                                                                                            [resolver-sim.commands.scenario-diagnostics :as diagnostics]
-                                                                                                            [resolver-sim.commands.scenario-inventory :as inventory]
-                                                                                                                                     [resolver-sim.evidence.chain :as chain]
-                                                                                                                                     [resolver-sim.evidence.finalization :as finalization]
-                                                                                                                                                                                                                                                                         [resolver-sim.evidence.finalization-signing :as finalization-signing]
-                                                                                                                                                                                                                                                                         [resolver-sim.sensitivity.sentinel :as sentinel]
-                                                                                                                                                                                                                                                                         [resolver-sim.sensitivity.propagation :as prop]
-                                                                                                                                                                                                                                                                         [resolver-sim.evidence.attestation-bundle :as ab]
-                                                                                                                                                                                                                                                                         [resolver-sim.run.runner-finalization :as runner-finalization]
-                                                                                                                                                                                                                                                                         [resolver-sim.run.package-index :as package-index]
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  [resolver-sim.run.verdict-policy :as verdict-policy]
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           [resolver-sim.forensic.source-hash :as source-hash]
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      [resolver-sim.run.distribution-provenance :as distribution]
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      [resolver-sim.validation.integration.artifact-registry :as artifact-registry]))
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
+            [resolver-sim.commands.scenario-manifest :as manifest]
+            [resolver-sim.commands.scenario-safety :as safety]
+            [resolver-sim.commands.scenario-extraction :as extraction]
+            [resolver-sim.commands.scenario-diagnostics :as diagnostics]
+            [resolver-sim.commands.scenario-inventory :as inventory]
+            [resolver-sim.evidence.chain :as chain]
+            [resolver-sim.evidence.finalization :as finalization]
+            [resolver-sim.evidence.finalization-signing :as finalization-signing]
+            [resolver-sim.sensitivity.sentinel :as sentinel]
+            [resolver-sim.sensitivity.propagation :as prop]
+            [resolver-sim.evidence.attestation-bundle :as ab]
+            [resolver-sim.run.runner-finalization :as runner-finalization]
+            [resolver-sim.run.package-index :as package-index]
+            [resolver-sim.run.verdict-policy :as verdict-policy]
+            [resolver-sim.forensic.source-hash :as source-hash]
+            [resolver-sim.run.distribution-provenance :as distribution]
+            [resolver-sim.validation.integration.artifact-registry :as artifact-registry]))
+(def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
 (defn- p [x] (str x))
 (defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
 (defn- layout! [c] (doseq [x [(:run/root c) (:manifest/dir c) (:scenario/root c) (:execution/dir c) (:forensic/dir c) (:summaries/dir c)]] (.mkdirs (io/file (p x)))) (spit (io/file (p (:run/root c)) paths/run-state) (pr-str {:run/id (:run/id c) :state :running})) c)
@@ -42,9 +42,9 @@
         result ((requiring-resolve 'resolver-sim.io.scenario-runner/run-and-report)
                 {:scenario (:input/snapshot provenance) :run-id (:run/id c) :run-root (p (:run/root c))
                  :scenario-id scenario-id :execution-id execution-id
-                                  :scenario/source-hash (str "sha256:" (:input/sha256 provenance))
-                                  :scenario/input-snapshot-relative (:input/snapshot-relative provenance)
-                                  :scenario-slug (:scenario/slug c) :scenario-root (p (:scenario/root c)) :execution-dir (p (:execution/dir c)) :artifact-dir (p (:forensic/dir c)) :summary-dir (p (:summaries/dir c)) :manifest-dir (p (:manifest/dir c)) :output-file (p (:replay/file c))} {:report-format (:report-format c)})]
+                 :scenario/source-hash (str "sha256:" (:input/sha256 provenance))
+                 :scenario/input-snapshot-relative (:input/snapshot-relative provenance)
+                 :scenario-slug (:scenario/slug c) :scenario-root (p (:scenario/root c)) :execution-dir (p (:execution/dir c)) :artifact-dir (p (:forensic/dir c)) :summary-dir (p (:summaries/dir c)) :manifest-dir (p (:manifest/dir c)) :output-file (p (:replay/file c))} {:report-format (:report-format c)})]
     (assoc result :input/provenance provenance :scenario/id scenario-id :execution/id execution-id)))
 (defn- process! [phase command] (checked phase command (apply shell/sh command)))
 (defn default-write-manifest! [c e] (manifest/write! c e))
@@ -144,27 +144,27 @@
                         (io/file (p (:execution/dir c)) "runner-finalization.json")
                         runner-artifact)]
     (let [written (finalization/write-run-finalization!
-     {:finalization-path output-path
-           :reconciliation-report-path reconciliation-report-path
-           :scenario-finalization-files scenario-finalizations
-      :require-execution-identities? true
-      :evidence-files evidence-files
-      :evidence-node-files evidence-node-files
-      :registry-path content-registry-path
-      :run {:run-id (:run/id c)
-            :run-input-hash (finalization/sha256-ref (chain/compute-file-sha256 input-path))}
-      :execution {:status run-status
-                        :terminality (if (pos? aborted-count) "open" "closed")
-                        :scenario-count (count scenario-finalizations)
-                        :completed-scenario-count completed-count
-                        :failed-scenario-count failed-count
-                        :aborted-scenario-count aborted-count}
-      :bindings {:runner-finalization
-                 {:artifact-id "execution/runner-finalization.json"
-                  :hash (str "sha256:" (:runner-finalization/hash runner-artifact))
-                  :runner-id (:runner-id runner-selection)
-                  :runtime-kind :runner-local}}
-      :policy {:profile-id (or (:profile/id (:signing/config c)) "inspection.v1")}})
+                   {:finalization-path output-path
+                    :reconciliation-report-path reconciliation-report-path
+                    :scenario-finalization-files scenario-finalizations
+                    :require-execution-identities? true
+                    :evidence-files evidence-files
+                    :evidence-node-files evidence-node-files
+                    :registry-path content-registry-path
+                    :run {:run-id (:run/id c)
+                          :run-input-hash (finalization/sha256-ref (chain/compute-file-sha256 input-path))}
+                    :execution {:status run-status
+                                :terminality (if (pos? aborted-count) "open" "closed")
+                                :scenario-count (count scenario-finalizations)
+                                :completed-scenario-count completed-count
+                                :failed-scenario-count failed-count
+                                :aborted-scenario-count aborted-count}
+                    :bindings {:runner-finalization
+                               {:artifact-id "execution/runner-finalization.json"
+                                :hash (str "sha256:" (:runner-finalization/hash runner-artifact))
+                                :runner-id (:runner-id runner-selection)
+                                :runtime-kind :runner-local}}
+                    :policy {:profile-id (or (:profile/id (:signing/config c)) "inspection.v1")}})
           signing-config (:signing/config c)
           forensic? (= :forensic-release.v1 (:profile/id signing-config))]
       (cond
@@ -178,7 +178,7 @@
                 trusted (finalization-signing/load-trusted-registry! (:verification signing-config))
                 policy {:signer-role (get-in signing-config [:signing :signer-role])
                         :threshold {:minimum (or (get-in signing-config [:verification :minimum-trusted-signatures])
-                                                  (get-in signing-config [:signing :threshold]) 1)}}
+                                                 (get-in signing-config [:signing :threshold]) 1)}}
                 signed (finalization-signing/sign-persisted-finalization!
                         {:finalization-path (:path written)
                          :signatures-dir (io/file (p (:run/root c)) "evidence" "finalizations" "run" "signatures")
@@ -361,29 +361,29 @@
         input-file (io/file root input)
         bundle-root (:bundle-root execution)
         registry-snapshot (:registry/snapshot bundle-root)
-artifact (verdict-policy/build
-                   {:run-id (:run/id c)
-                    :run-type "scenario"
-                    :policy-id "canonical-scenario-verdict.v1"
-                    :version-id "verdict-policy.v1"
-                    :semantic-outcome (if (zero? (:exit-code execution)) "pass" "fail")
-                    :inputs [{"logical_id" "scenario-input-snapshot"
-                              "path" input
-                              "sha256" (verdict-policy/sha-ref input-file)}]
-                    :registries {"evidence_policy_hash" (str (or (:evidence-policy-hash registry-snapshot) "unavailable"))
-                                 "claim_definition_registry_hash" (str (or (:claim-definition-registry-hash registry-snapshot) "unavailable"))
-                                 "evaluator_registry" "scenario-invariant-evaluator.v1"}
-                    :semantic-environment {"protocol_id" (str (or (:protocol execution) "unknown"))
-                                           "runner_id" (str (or (get-in bundle-root [:run/request :runner-selection :runner-id]) "runner/local"))
-                                           "execution_id" (:execution/id execution)
-                                           "deterministic_time_source" "simulation"}
-                                                              :evaluator-implementation (let [source (source-hash/source-hash)]
-                                                                                          {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
-                                                                                           "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
-                                                                                           "source_roots" (vec (or (:source/included-roots source) (:source/hash-roots source) []))
-                                                                                           "evaluator_id" "scenario-invariant-evaluator.v1"})
-                                                                                                              :distribution-provenance (distribution/distribution-identity)})]
-                                                                                                                 (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
+        artifact (verdict-policy/build
+                  {:run-id (:run/id c)
+                   :run-type "scenario"
+                   :policy-id "canonical-scenario-verdict.v1"
+                   :version-id "verdict-policy.v1"
+                   :semantic-outcome (if (zero? (:exit-code execution)) "pass" "fail")
+                   :inputs [{"logical_id" "scenario-input-snapshot"
+                             "path" input
+                             "sha256" (verdict-policy/sha-ref input-file)}]
+                   :registries {"evidence_policy_hash" (str (or (:evidence-policy-hash registry-snapshot) "unavailable"))
+                                "claim_definition_registry_hash" (str (or (:claim-definition-registry-hash registry-snapshot) "unavailable"))
+                                "evaluator_registry" "scenario-invariant-evaluator.v1"}
+                   :semantic-environment {"protocol_id" (str (or (:protocol execution) "unknown"))
+                                          "runner_id" (str (or (get-in bundle-root [:run/request :runner-selection :runner-id]) "runner/local"))
+                                          "execution_id" (:execution/id execution)
+                                          "deterministic_time_source" "simulation"}
+                   :evaluator-implementation (let [source (source-hash/source-hash)]
+                                               {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
+                                                "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
+                                                "source_roots" (vec (or (:source/included-roots source) (:source/hash-roots source) []))
+                                                "evaluator_id" "scenario-invariant-evaluator.v1"})
+                   :distribution-provenance (distribution/distribution-identity)})]
+    (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
 
 (defn default-write-package-index!
   [c execution]
@@ -400,31 +400,31 @@ artifact (verdict-policy/build
                         {:code :package/required-artifact-unavailable
                          :artifact-id :execution-dag
                          :path dag-relative})))
-    (package-index/write!
-     (io/file root "manifest" "run-package-index.json")
-     {:run-id (:run/id c)
-     :scenario-id (:scenario/id execution)
-     :execution-id (:execution/id execution)
-     :run-type :single-scenario
-     :bundle-root-hash (get-in execution [:bundle-root :bundle/hash])
-     :input-snapshot (ref (get-in execution [:input/provenance :input/snapshot-relative]))
-     :scenario-finalization (ref (str "scenarios/" (:scenario/slug c) "/forensic/finalizations/scenarios/" (:scenario/slug c) "/evidence-finalization.json"))
-     :runner-finalization (ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json"))
-      :run-finalization (ref "evidence/finalizations/run/evidence-finalization.json")
-      :canonical-assurance (ref "manifest/canonical-integrity.json")
-            :verdict-policy (ref "manifest/verdict-policy.json")
-            :artifact-registry (ref paths/artifacts-suffix)
-      :registry-validation (ref "manifest/artifact-registry-validation.json")
-      :execution-dag (ref (str "scenarios/" (:scenario/slug c) "/execution/execution-dag.json"))
-      :pro-rata-mechanism-nodes (when (.isFile (io/file root "manifest/pro-rata-mechanism-nodes.json"))
-                                  (ref "manifest/pro-rata-mechanism-nodes.json"))}))))
+      (package-index/write!
+       (io/file root "manifest" "run-package-index.json")
+       {:run-id (:run/id c)
+        :scenario-id (:scenario/id execution)
+        :execution-id (:execution/id execution)
+        :run-type :single-scenario
+        :bundle-root-hash (get-in execution [:bundle-root :bundle/hash])
+        :input-snapshot (ref (get-in execution [:input/provenance :input/snapshot-relative]))
+        :scenario-finalization (ref (str "scenarios/" (:scenario/slug c) "/forensic/finalizations/scenarios/" (:scenario/slug c) "/evidence-finalization.json"))
+        :runner-finalization (ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json"))
+        :run-finalization (ref "evidence/finalizations/run/evidence-finalization.json")
+        :canonical-assurance (ref "manifest/canonical-integrity.json")
+        :verdict-policy (ref "manifest/verdict-policy.json")
+        :artifact-registry (ref paths/artifacts-suffix)
+        :registry-validation (ref "manifest/artifact-registry-validation.json")
+        :execution-dag (ref (str "scenarios/" (:scenario/slug c) "/execution/execution-dag.json"))
+        :pro-rata-mechanism-nodes (when (.isFile (io/file root "manifest/pro-rata-mechanism-nodes.json"))
+                                    (ref "manifest/pro-rata-mechanism-nodes.json"))}))))
 (defn default-write-diagnostic! [c execution] (diagnostics/write! c execution))
 (defn default-write-pro-rata-mechanism-index! [c _]
   (let [root (io/file (p (:run/root c)))
         nodes (->> (file-seq (io/file root "scenarios"))
                    (filter #(.isFile %))
                    (filter #(and (= "evidence-nodes" (.getName (.getParentFile %))
-                                 (.endsWith (.getName %) ".edn"))))
+                                    (.endsWith (.getName %) ".edn"))))
                    (keep (fn [file]
                            (try
                              (let [node (read-string (slurp file))]
@@ -494,16 +494,16 @@ artifact (verdict-policy/build
        (layout! context)
        (let [phase-fns (merge defaults overrides)
              records (atom [])
-              run-phase (fn [phase execution]
-                          (try
-                            (let [result (if (#{:check-runtime :execute} phase)
-                                           ((phase-fns phase) context)
-                                           ((phase-fns phase) context execution))]
-                              (swap! records conj {:phase phase :status :completed})
-                              result)
-                            (catch Throwable error
-                              (swap! records conj {:phase phase :status :failed :error (.getMessage error)})
-                              (throw error))))]
+             run-phase (fn [phase execution]
+                         (try
+                           (let [result (if (#{:check-runtime :execute} phase)
+                                          ((phase-fns phase) context)
+                                          ((phase-fns phase) context execution))]
+                             (swap! records conj {:phase phase :status :completed})
+                             result)
+                           (catch Throwable error
+                             (swap! records conj {:phase phase :status :failed :error (.getMessage error)})
+                             (throw error))))]
          (try
            (run-phase :check-runtime nil)
            (let [execution (assoc (run-phase :execute nil) :duration-ms 0)]

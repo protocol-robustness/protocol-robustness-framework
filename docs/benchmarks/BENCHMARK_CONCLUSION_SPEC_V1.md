@@ -31,7 +31,7 @@ safety claim.
   "schema_version": "benchmark-conclusion.v1",
   "run_id": "benchmark-...",
   "benchmark": {
-    "id": "benchmark/sew-force-authorisation-custody-v1",
+    "id": "benchmark/force-authorisation-custody-v1",
     "status": "experimental",
     "manifest_source": "resource:benchmarks/packs/sew/..."
   },

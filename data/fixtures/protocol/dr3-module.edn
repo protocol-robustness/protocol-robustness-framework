@@ -1,5 +1,0 @@
-{:protocol/id :protocol/dr3-module
- :resolver-fee-bps 150
- :resolution-module "0xresolver"
- :appeal-window-duration 0
- :max-dispute-duration 2592000}

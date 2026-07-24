@@ -57,14 +57,17 @@
     resolver-sim.protocols.sew.yield.policy-test
     resolver-sim.protocols.sew.yield-reorg-race-test
     resolver-sim.protocols.sew.yield-solvency-test
+    resolver-sim.assurance.force-authorisation-portability-test
     resolver-sim.benchmark.game-theory-validation-test
+    resolver-sim.benchmark.sew-pre-application-test
     resolver-sim.protocols.sew.slashing-test
     resolver-sim.protocols.sew.evidence.slashing-test])
 
 ;; ── Slow scenario test namespaces (full replay, evidence chain assertions) ──
 
 (def scenario-test-namespaces
-  '[resolver-sim.protocols.sew.adversarial-test
+  '[resolver-sim.contract-model.replay-batch-sew-test
+    resolver-sim.protocols.sew.adversarial-test
     resolver-sim.protocols.sew.dispute-resolution-coverage-test
     resolver-sim.protocols.sew.evidence.slashing-test
     resolver-sim.protocols.sew.financial.finality-hardening-test

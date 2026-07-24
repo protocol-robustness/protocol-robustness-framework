@@ -11,7 +11,7 @@
            [java.math BigInteger]))
 
 (def ^:private formats #{:summary :failures :standard :verbose :audit})
-(def ^:private options [[nil "--run-root DIR"] [nil "--output-dir DIR"] [nil "--scenario-output-dir DIR"] [nil "--save-output DIR"] [nil "--report-format FORMAT" :parse-fn keyword] [nil "--sensitivity-profile PROFILE" :parse-fn keyword] ["-v" "--verbose"] ["-f" "--failures"] ["-s" "--summary"] ["-a" "--audit"]])
+(def ^:private options [[nil "--run-root DIR"] [nil "--suite-root DIR"] [nil "--output-dir DIR"] [nil "--scenario-output-dir DIR"] [nil "--save-output DIR"] [nil "--report-format FORMAT" :parse-fn keyword] [nil "--sensitivity-profile PROFILE" :parse-fn keyword] ["-v" "--verbose"] ["-f" "--failures"] ["-s" "--summary"] ["-a" "--audit"]])
 (defn- count-opt [args opt] (count (filter #(or (= % opt) (str/starts-with? % (str opt "="))) args)))
 (defn parse-request [args]
   (let [{:keys [options arguments errors summary]} (cli/parse-opts args options)
@@ -27,8 +27,8 @@
                (and (seq chosen) (not (formats (first chosen)))) (conj (str "Unsupported report format: " (name (first chosen))))
                (and (:sensitivity-profile options) (not (#{:public :internal} (:sensitivity-profile options)))) (conj "Sensitivity profile must be public or internal"))]
     (if (seq errs) {:ok? false :errors errs :summary summary}
-      {:ok? true :request {:scenario/ref (first arguments) :scenario/refs arguments :run/root (or (:run-root options) (:output-dir options) (:scenario-output-dir options)) :report-format (or (first chosen) :standard) :sensitivity/profile (or (:sensitivity-profile options) :public)}
-       :warnings (cond-> [] (:output-dir options) (conj "--output-dir is deprecated; use --run-root") (:scenario-output-dir options) (conj "--scenario-output-dir is deprecated; use --run-root"))})))
+        {:ok? true :request {:scenario/ref (first arguments) :scenario/refs arguments :run/root (or (:run-root options) (:output-dir options) (:scenario-output-dir options)) :suite/root (:suite-root options) :report-format (or (first chosen) :standard) :sensitivity/profile (or (:sensitivity-profile options) :public)}
+         :warnings (cond-> [] (:output-dir options) (conj "--output-dir is deprecated; use --run-root") (:scenario-output-dir options) (conj "--scenario-output-dir is deprecated; use --run-root"))})))
 (defn- hash-prefix [s] (let [d (MessageDigest/getInstance "SHA-256")] (.update d (.getBytes (str s) "UTF-8")) (subs (format "%064x" (BigInteger. 1 (.digest d))) 0 12)))
 (defn scenario-slug [ref] (let [base (-> ref (str/replace #"^.*/" "") (str/replace #"\.(edn|json)$" "") (str/replace #"[^A-Za-z0-9._-]+" "-") (str/replace #"(^-+|-+$)" ""))] (str (if (str/blank? base) "scenario" base) "-" (hash-prefix ref))))
 (defn generate-run-id ([] (generate-run-id (Instant/now) (UUID/randomUUID))) ([instant uuid] (str "run-" (.format (DateTimeFormatter/ofPattern "yyyyMMdd'T'HHmmss'Z'") (.atZone instant ZoneOffset/UTC)) "-" (subs (str uuid) 0 12))))

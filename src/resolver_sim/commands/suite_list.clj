@@ -9,12 +9,12 @@
       (do (println "No suites registered")
           {:exit-code 0 :message "No suites"})
       (let [display (mapv (fn [s]
-                             {:suite/key (:suite/key s)
-                              :suite/type (:suite/type s)
-                              :suite/protocols (first (:suite/protocols s))
-                              :suite/scenario-count (:suite/scenario-count s)
-                              :suite/title (:suite/title s)})
-                           summaries)]
+                            {:suite/key (:suite/key s)
+                             :suite/type (:suite/type s)
+                             :suite/protocols (first (:suite/protocols s))
+                             :suite/scenario-count (:suite/scenario-count s)
+                             :suite/title (:suite/title s)})
+                          summaries)]
         (if json?
           (do (require 'clojure.data.json)
               (println ((resolve 'clojure.data.json/write-str) {:suites display} :indent true)))

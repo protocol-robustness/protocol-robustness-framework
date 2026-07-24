@@ -85,7 +85,7 @@ echo "External CWD: $CWD_DIR"
   java -jar "$SEW_JAR_PATH" \
     verify-scenario --run-root "$SCENARIO_ROOT"
   java -jar "$SEW_JAR_PATH" \
-    run-benchmark sew/sew-force-authorisation-custody-v1 \
+    run-benchmark force-authorisation-custody-v1 \
     --run-root "$BENCHMARK_ROOT"
   java -jar "$SEW_JAR_PATH" \
     verify-benchmark --run-root "$BENCHMARK_ROOT"

@@ -69,7 +69,7 @@
 
 (deftest projects-active-and-cleaned-up-reversal-slashes
   (let [world {:previous-decisions {0 {0 {:resolver "0xl0" :is-release true}
-                                      1 {:resolver "0xl1" :is-release false}}}
+                                       1 {:resolver "0xl1" :is-release false}}}
                :dispute-levels {0 1}
                :pending-fraud-slashes {0
                                        {:slash/id 0

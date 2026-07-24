@@ -36,48 +36,51 @@
  "Evaluate redistribution fairness: whether surplus cascades correctly
   between priority levels, deferred claims are treated fairly across
   epochs, and pool boundaries are respected during shortages."
- :benchmark/concepts        [:allocation/redistribution-fairness
-                             :allocation/pro-rata-fairness
-                             :allocation/partial-fill
-                             :allocation/shortfall
-                             :allocation/deferred-claim
-                             :allocation/slash-obligation
-                             :consensus/evidence
-                             :consensus/finality
-                             :consensus/legitimacy
-                             :verifiable-assurance/forensic-confidence]
+:benchmark/concepts        [:allocation/redistribution-fairness
+                              :allocation/pro-rata-fairness
+                              :allocation/partial-fill
+                              :allocation/shortfall
+                              :allocation/deferred-claim
+                              :allocation/slash-obligation
+                              :allocation/inter-temporal-bridge
+                              :allocation/cross-level-cascade
+                              :allocation/cross-pool-boundary
+                              :consensus/evidence
+                              :consensus/finality
+                              :consensus/legitimacy
+                              :verifiable-assurance/forensic-confidence]
  :benchmark/scenarios
  [{:scenario/id "S82_shortfall-recovery-cycle"
    :scenario/description "Deferred yield claim from prior epoch is recovered from current surplus; tests epoch-bridge fairness"
-   :dimension   :inter-temporal-bridge
+   :dimension   :allocation/inter-temporal-bridge
    :claim       :evidence-root-present}
   {:scenario/id "S103_negative-yield-shortfall-cascade"
    :scenario/description "Negative yield triggers shortfall that cascades across yield positions; tests cross-level cascade"
-   :dimension   :cross-level-cascade
+   :dimension   :allocation/cross-level-cascade
    :claim       :evidence-root-present}
   {:scenario/id "S105_policy-response-cascade"
    :scenario/description "Policy response triggers surplus cascade across priority levels after a shortfall event"
-   :dimension   :cross-level-cascade
+   :dimension   :allocation/cross-level-cascade
    :claim       :evidence-root-present}
   {:scenario/id "S108_senior-coverage-consumed-by-slash"
    :scenario/description "Senior coverage consumed by resolver slashing triggers surplus cascade to junior priority level"
-   :dimension   :cross-level-cascade
+   :dimension   :allocation/cross-level-cascade
    :claim       :evidence-root-present}
   {:scenario/id "S114_multi-escrow-pool-shortage"
    :scenario/description "Shortage across multiple escrow pools tests pool-boundary enforcement and segregation"
-   :dimension   :cross-pool-boundary
+   :dimension   :allocation/cross-pool-boundary
    :claim       :evidence-root-present}
   {:scenario/id "S-DR-043-payout-shortfall-deferred"
    :scenario/description "Payout shortfall produces deferred remainder; tests inter-temporal deferred claim recording"
-   :dimension   :inter-temporal-bridge
+   :dimension   :allocation/inter-temporal-bridge
    :claim       :evidence-root-present}
   {:scenario/id "S110_multi-junior-coverage"
    :scenario/description "Multiple junior positions interact with senior coverage; tests cross-level cascade when senior is exhausted"
-   :dimension   :cross-level-cascade
+   :dimension   :allocation/cross-level-cascade
    :claim       :evidence-root-present}
   {:scenario/id "Y04_vault-recovery-claim-deferred"
    :scenario/description "Vault deferred claim recovery across vault cycles; tests epoch-bridge fairness"
-   :dimension   :inter-temporal-bridge
+   :dimension   :allocation/inter-temporal-bridge
    :claim       :evidence-root-present}]
  :benchmark/deferred-scenario-claims #{}
  :benchmark/claims

@@ -28,12 +28,12 @@
 (deftest publish-ipfs-handles-a-missing-cli
   (testing "A missing IPFS executable does not crash the benchmark CLI"
     (with-redefs [shell/sh (fn [& _]
-                              (throw (java.io.IOException.
-                                      "Cannot run program \"ipfs\": error=2")))]
+                             (throw (java.io.IOException.
+                                     "Cannot run program \"ipfs\": error=2")))]
       (is (nil? (sharing/publish-ipfs "bundle.tar.gz"))))))
 
 (deftest publish-ipfs-handles-cli-failures
   (testing "IPFS command failures do not create a publication result"
     (with-redefs [shell/sh (fn [& _]
-                              {:exit 1 :out "" :err "daemon is not running\n"})]
+                             {:exit 1 :out "" :err "daemon is not running\n"})]
       (is (nil? (sharing/publish-ipfs "bundle.tar.gz"))))))

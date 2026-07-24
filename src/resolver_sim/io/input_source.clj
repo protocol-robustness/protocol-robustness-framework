@@ -6,8 +6,6 @@
   (:import [java.security MessageDigest]
            [java.math BigInteger]))
 
-
-
 (defn source
   "Resolve `ref` without coercing classpath resources to filesystem paths.
    Supports classpath:, legacy resource:, file:, and bare filesystem paths."

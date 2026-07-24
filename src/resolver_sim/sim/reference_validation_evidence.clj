@@ -96,33 +96,33 @@
    check-transition on every successful step). Returns a summary map."
   [replay-result evidence-ids & {:keys [world-invariant-ids check-all-fn]
                                  :or {world-invariant-ids nil
-                                                                       check-all-fn nil}}]
-                                   (let [world-invariant-ids (or world-invariant-ids (sew-world-invariant-ids))
-                                         check-all-fn (or check-all-fn sew-check-all) ]
+                                      check-all-fn nil}}]
+  (let [world-invariant-ids (or world-invariant-ids (sew-world-invariant-ids))
+        check-all-fn (or check-all-fn sew-check-all)]
     (let [outcome (:outcome replay-result)]
-    (when-not (= :pass outcome)
-      (throw (ex-info "replay did not pass; cannot verify evidence invariants"
-                      {:outcome outcome
-                       :halt-reason (:halt-reason replay-result)
-                       :scenario-id (:scenario-id replay-result)})))
-    (when-let [unmapped (seq (unmapped-evidence-ids evidence-ids))]
-      (throw (ex-info "unmapped reference-validation evidence invariant IDs"
-                      {:unmapped (vec unmapped)})))
-    (let [required   (canonical-ids-for-evidence evidence-ids)
-          world      (:world replay-result)
-          _          (when (nil? world)
-                       (throw (ex-info "replay pass result missing :world"
-                                       {:scenario-id (:scenario-id replay-result)})))
-          world-req  (set/intersection required world-invariant-ids)
-          check      (check-all-fn world)
-          failures   (for [id world-req
-                           :let [r (get-in check [:results id])]
-                           :when (not (:holds? r))]
-                       {:invariant-id id :violations (:violations r)})]
-      (when (seq failures)
-        (throw (ex-info "evidence-mapped world invariants failed on final world"
-                        {:failures failures
-                         :evidence-ids evidence-ids})))
+      (when-not (= :pass outcome)
+        (throw (ex-info "replay did not pass; cannot verify evidence invariants"
+                        {:outcome outcome
+                         :halt-reason (:halt-reason replay-result)
+                         :scenario-id (:scenario-id replay-result)})))
+      (when-let [unmapped (seq (unmapped-evidence-ids evidence-ids))]
+        (throw (ex-info "unmapped reference-validation evidence invariant IDs"
+                        {:unmapped (vec unmapped)})))
+      (let [required   (canonical-ids-for-evidence evidence-ids)
+            world      (:world replay-result)
+            _          (when (nil? world)
+                         (throw (ex-info "replay pass result missing :world"
+                                         {:scenario-id (:scenario-id replay-result)})))
+            world-req  (set/intersection required world-invariant-ids)
+            check      (check-all-fn world)
+            failures   (for [id world-req
+                             :let [r (get-in check [:results id])]
+                             :when (not (:holds? r))]
+                         {:invariant-id id :violations (:violations r)})]
+        (when (seq failures)
+          (throw (ex-info "evidence-mapped world invariants failed on final world"
+                          {:failures failures
+                           :evidence-ids evidence-ids})))
         {:evidence-ids evidence-ids
          :canonical-verified (vec (sort required))
          :world-checked (vec (sort world-req))}))))

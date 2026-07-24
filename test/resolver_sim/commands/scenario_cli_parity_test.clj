@@ -44,15 +44,15 @@
      :input input
      :input-artifacts (mapv #(select-keys % [:id :kind :path :sha256 :bytes]) input-artifacts)
      :all-relative? (every? (fn [path]
-                               (let [p (java.nio.file.Paths/get path (make-array String 0))]
-                                 (and (not (.isAbsolute p))
-                                      (not (some #{".."} (iterator-seq (.iterator p)))))))
-                             paths)
+                              (let [p (java.nio.file.Paths/get path (make-array String 0))]
+                                (and (not (.isAbsolute p))
+                                     (not (some #{".."} (iterator-seq (.iterator p)))))))
+                            paths)
      :excluded? (boolean (some #{"manifest/artifacts.json"
                                  "manifest/artifact-registry-validation.json"
                                  "completion.json"
                                  ".run-state"}
-                              paths))
+                               paths))
      :scenario-dir? (boolean scenario-dir)}))
 
 (deftest bb-and-jar-dispatch-produce-equivalent-completed-bundles

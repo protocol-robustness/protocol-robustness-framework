@@ -2,7 +2,7 @@
   "End-to-end containment tests for the structured bb scenario runner.
 
    These intentionally invoke bb rather than calling the runner directly: path
-   ownership is an orchestration contract." 
+   ownership is an orchestration contract."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
@@ -68,18 +68,18 @@
     (is (every? #(root-relative? root (:path %)) entries))
     (is (every? #(not (re-find #"(^|/)(results|prf-runs|prf-artifacts|target/run)(/|$)" (:path %))) entries))
     (is (every? #(or (str/starts-with? % "forensic.")
-                         (str/starts-with? % "evidence.")
-                         (str/starts-with? % "input.")
-                         (contains? #{"execution.replay-output"
-                                   "execution.dag"
-                                   "execution.pre-run-commitment"
-                                   "manifest.run-enrichment"
-                                   "manifest.run"
-                                   "manifest.summary"
-                                   "manifest.claimable-classification"
-                                   "manifest.sensitivity-report"
-                                   "manifest.diagnostic-summary"
-                                   "summaries.trace"
+                     (str/starts-with? % "evidence.")
+                     (str/starts-with? % "input.")
+                     (contains? #{"execution.replay-output"
+                                  "execution.dag"
+                                  "execution.pre-run-commitment"
+                                  "manifest.run-enrichment"
+                                  "manifest.run"
+                                  "manifest.summary"
+                                  "manifest.claimable-classification"
+                                  "manifest.sensitivity-report"
+                                  "manifest.diagnostic-summary"
+                                  "summaries.trace"
                                   "summaries.metrics"
                                   "summaries.claimable"
                                   "summaries.mechanisms"

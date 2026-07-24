@@ -18,7 +18,7 @@
 (defn- write-index! [root artifacts]
   (let [path (io/file root "manifest/run-package-index.json")]
     (package-index/write! path {:run-id "run-1" :scenario-id "scenario-1" :execution-id "execution:run-1"
-                                    :run-type :single-scenario :bundle-root-hash "bundle" :artifacts artifacts})
+                                :run-type :single-scenario :bundle-root-hash "bundle" :artifacts artifacts})
     (spit (io/file root "completion.json")
           (clojure.data.json/write-str
            {"schema_version" "run-completion.v1"
@@ -136,8 +136,8 @@
     (is (= :single-scenario (:run/type restored)))
     (is (= (:run-package/hash logical) (:run-package/hash restored)))
     (is (= :benchmark (:run/type
-                        (package-index/wire->package-index
-                         (assoc wire :run/type "benchmark")))))))
+                       (package-index/wire->package-index
+                        (assoc wire :run/type "benchmark")))))))
 
 (deftest package-index-build-retains-the-pre-package-registry-commitments
   (let [index (package-index/build {:run-id "run-1"

@@ -70,8 +70,8 @@
                           (let [context (scenario-run/build-run-context (:request parsed) {:project-root "."})
                                 result (orchestration/run-scenario! context)]
                             (println (str "  " (name (:command/status result))
-                                         "/" (name (:scenario/outcome result))
-                                         " → " (:run/root result))))))))
+                                          "/" (name (:scenario/outcome result))
+                                          " → " (:run/root result))))))))
                   {:exit-code 0 :message (str "Ran " (count selected) " scenario(s)")})))
           {:exit-code 0 :message "Cancelled"})))))
 

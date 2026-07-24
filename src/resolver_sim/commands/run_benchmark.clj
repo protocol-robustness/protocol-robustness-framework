@@ -16,12 +16,12 @@
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.paths :as paths]
-                        [resolver-sim.run.runner-finalization :as runner-finalization]
-                                                [resolver-sim.run.package-index :as package-index]
-                                                                                                [resolver-sim.run.verdict-policy :as verdict-policy]
-                                                                                                                                                [resolver-sim.forensic.source-hash :as source-hash]
-                                                                                                                                                                                                [resolver-sim.run.distribution-provenance :as distribution]
-                                                                                                                                                                                                [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
+            [resolver-sim.run.runner-finalization :as runner-finalization]
+            [resolver-sim.run.package-index :as package-index]
+            [resolver-sim.run.verdict-policy :as verdict-policy]
+            [resolver-sim.forensic.source-hash :as source-hash]
+            [resolver-sim.run.distribution-provenance :as distribution]
+            [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (declare sha-ref)
@@ -44,8 +44,8 @@
     "benchmark/finalization.json"
     "benchmark/assertions/canonical-integrity.json"
     "benchmark/assertions/forensic-claims-status.json"
-        "manifest/verdict-policy.json"
-        paths/artifacts-suffix
+    "manifest/verdict-policy.json"
+    paths/artifacts-suffix
     paths/artifacts-validation
     paths/run-package-index
     paths/completion paths/run-state paths/run-lock})
@@ -126,8 +126,7 @@
         value {"schema_version" "canonical-integrity.v1"
                "assurance_kind" "unsigned-canonical-integrity"
                "run_id" (:run/id context)
-               "benchmark_id" (str (:benchmark/id context)
-               )
+               "benchmark_id" (str (:benchmark/id context))
                "status" "passed"
                "scope" {"content_integrity" true "evidence_reconciliation" true
                         "operator_identity" false "runtime_isolation" false}
@@ -184,27 +183,27 @@
 (defn- write-verdict-policy! [context evidence conclusion]
   (let [root (io/file (str (:run/root context)))
         assurance (json/read-str (slurp (io/file root "benchmark/assertions/benchmark-assurance.json")))
-artifact (verdict-policy/build
-                   {:run-id (:run/id context)
-                    :run-type "benchmark"
-                    :policy-id "canonical-benchmark-verdict.v1"
-                    :version-id "verdict-policy.v1"
-                    :semantic-outcome (get conclusion "outcome")
-                    :inputs (get assurance "input_set")
-                    :registries {"evidence_policy_hash" "benchmark-evidence-policy.v1"
-                                 "claim_definition_registry_hash" "benchmark-claim-registry.v1"
-                                 "evaluator_registry" "resolver-sim.benchmark.claims/evaluator-registry.v1"}
-                    :semantic-environment {"protocol_id" "benchmark"
-                                           "runner_id" "runner/local-clojure"
-                                           "benchmark_id" (str (:benchmark/id context))
-                                           "execution_plan_sha256" (verdict-policy/sha-ref (io/file root "benchmark/execution-plan.edn"))}
-                                                              :evaluator-implementation (let [source (source-hash/source-hash)]
-                                                                                          {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
-                                                                                           "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
-                                                                                           "source_roots" (vec (or (:source/included-roots source) []))
-                                                                                           "evaluator_id" "resolver-sim.benchmark.claims/evaluator-registry.v1"})
-                                                                                                              :distribution-provenance (distribution/distribution-identity)})]
-                                                                                                                 (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
+        artifact (verdict-policy/build
+                  {:run-id (:run/id context)
+                   :run-type "benchmark"
+                   :policy-id "canonical-benchmark-verdict.v1"
+                   :version-id "verdict-policy.v1"
+                   :semantic-outcome (get conclusion "outcome")
+                   :inputs (get assurance "input_set")
+                   :registries {"evidence_policy_hash" "benchmark-evidence-policy.v1"
+                                "claim_definition_registry_hash" "benchmark-claim-registry.v1"
+                                "evaluator_registry" "resolver-sim.benchmark.claims/evaluator-registry.v1"}
+                   :semantic-environment {"protocol_id" "benchmark"
+                                          "runner_id" "runner/local-clojure"
+                                          "benchmark_id" (str (:benchmark/id context))
+                                          "execution_plan_sha256" (verdict-policy/sha-ref (io/file root "benchmark/execution-plan.edn"))}
+                   :evaluator-implementation (let [source (source-hash/source-hash)]
+                                               {"source_tree_hash" (str (or (:source/hash source) "unavailable"))
+                                                "source_tree_hash_algorithm" (str (or (:source/hash-algorithm source) source-hash/source-tree-hash-algorithm))
+                                                "source_roots" (vec (or (:source/included-roots source) []))
+                                                "evaluator_id" "resolver-sim.benchmark.claims/evaluator-registry.v1"})
+                   :distribution-provenance (distribution/distribution-identity)})]
+    (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
 
 (defn- write-package-index! [context]
   (let [root (io/file (str (:run/root context)))
@@ -227,8 +226,8 @@ artifact (verdict-policy/build
                   :benchmark-finalization (ref "benchmark/finalization.json")
                   :benchmark-assurance (ref "benchmark/assertions/benchmark-assurance.json")
                   :canonical-integrity (ref "benchmark/assertions/canonical-integrity.json")
-                                    :verdict-policy (ref "manifest/verdict-policy.json")
-                                    :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}})))
+                  :verdict-policy (ref "manifest/verdict-policy.json")
+                  :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
@@ -382,9 +381,16 @@ artifact (verdict-policy/build
 (defn- write-summary! [context evidence conclusion]
   (let [target (io/file (str (:benchmark/summary-file context)))
         temp (io/file (str (.getPath target) ".tmp"))
+        bm-def (get evidence :benchmark {})
+        suite-provider (get bm-def :benchmark/suite-provider)
         value {"schema_version" "benchmark-summary.v1"
                "run_id" (:run/id context)
                "benchmark_id" (str (get-in evidence [:benchmark :benchmark/id]))
+               "benchmark_owner" "prf-core"
+               "suite_provider" (when suite-provider
+                                  (str (:provider/id suite-provider)))
+               "suite_id" (when suite-provider
+                            (str (:suite/id suite-provider)))
                "conclusion" (select-keys conclusion ["outcome" "reason"])
                "metrics" (:metrics evidence)
                "execution_count" (count (:results evidence))
@@ -409,35 +415,34 @@ artifact (verdict-policy/build
                                  context
                                  (merge
                                   {:execute (fn [_]
-                                             (let [result (invoke! benchmark-id {:output (str (:benchmark/evidence-file context))
-                                                                                 :key key
-                                                                                 :scenario-output-dir (str (:benchmark/executions-dir context))
-                                                                                 :benchmark-index-path (str (:benchmark/index-file context))
-                                                                                 :execution-plan-path (str (:benchmark/plan-file context))})]
-                                               (when-not (:evidence result)
-                                                 (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
-                                                                 {:benchmark benchmark-id :exit-code (:exit-code result)})))
-                                               result))
-                                  :finalize-runner (fn [_ result] (finalize-runner! context result))
-                                  :write-manifest (fn [_ result] (write-run-manifest! context (:evidence result)))
-                                  :snapshot-definition (fn [_ result] (snapshot-definition! context (:evidence result)))
-                                  :write-conclusion (fn [_ result]
-                                                                                        (write-conservation! context (:evidence result))
-                                                                                        (reset! benchmark-conclusion (conclusion/write! context (:evidence result))))
-                                  :write-summary (fn [_ result]
-                                                                                     (write-assurance! context (:evidence result) @benchmark-conclusion)
-                                                                                     (write-summary! context (:evidence result) @benchmark-conclusion))
-                                  :scan-sensitivity (fn [_ _] (scan-sensitivity! context))
-                                  :write-content-registry (fn [_ _] (write-content-registry! context))
-                                  :write-finalization (fn [_ _] (write-finalization! context @benchmark-conclusion))
-                                  :write-canonical-assurance (fn [_ _] (write-canonical-assurance! context))
-                                                                    :write-verdict-policy (fn [_ result] (write-verdict-policy! context (:evidence result) @benchmark-conclusion))
-                                                                    :write-package-index (fn [_ _] (write-package-index! context))
-                                  :build-inventory (fn [_ _] (inventory/build! context))
-                                  :finalize-registry (fn [_ _] (registry/finalize! (:run/root context)))
-                                  :validate-registry (fn [_ _] (validate-registry! context))
-                                  :complete (fn [_ _] (complete-canonical-benchmark-run-root! context @benchmark-conclusion))
-                                  } overrides))]
+                                              (let [result (invoke! benchmark-id {:output (str (:benchmark/evidence-file context))
+                                                                                  :key key
+                                                                                  :scenario-output-dir (str (:benchmark/executions-dir context))
+                                                                                  :benchmark-index-path (str (:benchmark/index-file context))
+                                                                                  :execution-plan-path (str (:benchmark/plan-file context))})]
+                                                (when-not (:evidence result)
+                                                  (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
+                                                                  {:benchmark benchmark-id :exit-code (:exit-code result)})))
+                                                result))
+                                   :finalize-runner (fn [_ result] (finalize-runner! context result))
+                                   :write-manifest (fn [_ result] (write-run-manifest! context (:evidence result)))
+                                   :snapshot-definition (fn [_ result] (snapshot-definition! context (:evidence result)))
+                                   :write-conclusion (fn [_ result]
+                                                       (write-conservation! context (:evidence result))
+                                                       (reset! benchmark-conclusion (conclusion/write! context (:evidence result))))
+                                   :write-summary (fn [_ result]
+                                                    (write-assurance! context (:evidence result) @benchmark-conclusion)
+                                                    (write-summary! context (:evidence result) @benchmark-conclusion))
+                                   :scan-sensitivity (fn [_ _] (scan-sensitivity! context))
+                                   :write-content-registry (fn [_ _] (write-content-registry! context))
+                                   :write-finalization (fn [_ _] (write-finalization! context @benchmark-conclusion))
+                                   :write-canonical-assurance (fn [_ _] (write-canonical-assurance! context))
+                                   :write-verdict-policy (fn [_ result] (write-verdict-policy! context (:evidence result) @benchmark-conclusion))
+                                   :write-package-index (fn [_ _] (write-package-index! context))
+                                   :build-inventory (fn [_ _] (inventory/build! context))
+                                   :finalize-registry (fn [_ _] (registry/finalize! (:run/root context)))
+                                   :validate-registry (fn [_ _] (validate-registry! context))
+                                   :complete (fn [_ _] (complete-canonical-benchmark-run-root! context @benchmark-conclusion))} overrides))]
         {:exit-code (or (:exit-code execution) 1) :run/id (:run/id context) :run/root (str (:run/root context))})
       (finally (lifecycle/release-run-lock! lock)))))
 

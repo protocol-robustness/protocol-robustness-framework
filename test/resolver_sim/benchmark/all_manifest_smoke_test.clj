@@ -106,8 +106,8 @@
    :protocol/sew benchmarks.  PRF-core benchmarks require a separate adapter
    or protocol-agnostic lifecycle and are not exercised here.
    Each entry is [manifest-path expected-id expected-executions]."
-  [["benchmarks/packs/sew/force-authorisation-custody-v1.edn"
-    :benchmark/sew-force-authorisation-custody-v1
+  [["benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"
+    :benchmark/force-authorisation-custody-v1
     2]])
 
 (deftest bounded-representative-execution
@@ -121,7 +121,7 @@
                            "/benchmark-smoke-" (name expected-id) "-"
                            (System/currentTimeMillis))
               evidence (runner/run-benchmark manifest-path
-                                          (runner/->SewAdapter out-dir) {})]
+                                             (runner/->SewAdapter out-dir) {})]
           (is (contains? evidence :benchmark) ":benchmark key present")
           (is (contains? evidence :results) ":results key present")
           (is (contains? evidence :metrics) ":metrics key present")

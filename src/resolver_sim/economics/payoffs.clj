@@ -62,7 +62,7 @@
    accept :on-progress directly so callers can use logs, channels, or UIs."
   [progress-atom]
   (fn [event]
-  (swap! progress-atom merge event)))
+    (swap! progress-atom merge event)))
 
 (defn- report-pro-rata-progress!
   [observer event]
@@ -222,26 +222,26 @@
       (throw (ex-info "Projection artifact hash mismatch"
                       {:expected expected-hash
                        :actual (:projection-hash artifact)})))
-  (let [intent (require-registered :intent-id
-                                   (get-in artifact [:intent :id])
-                                   (registered-intent (get-in artifact [:intent :id])))
-        projection-definition (require-registered :projection-definition-id
-                                                   (:projection-definition-id artifact)
-                                                   (registered-projection-definition (:projection-definition-id artifact)))]
-    (when-not (= (:canonical-hash intent) (get-in artifact [:intent :intent-hash]))
-      (throw (ex-info "Projection artifact intent hash mismatch" {})))
-    (when-not (= (:canonical-hash projection-definition) (:projection-definition-hash artifact))
-      (throw (ex-info "Projection artifact definition hash mismatch" {})))
-    (when-not (= (:concept-hash projection-definition) (:projection-concept-hash artifact))
-      (throw (ex-info "Projection artifact definition concept hash mismatch" {})))
-    (doseq [claim-ref (:claims artifact)]
-      (let [claim (require-registered :claim-id (:claim-id claim-ref)
-                                      (registered-claim (:claim-id claim-ref)))]
-        (when-not (= (:canonical-hash claim) (:claim-definition-hash claim-ref))
-          (throw (ex-info "Projection artifact claim hash mismatch" {:claim-id (:claim-id claim-ref)})))
-        (when-not (= (:concept-hash claim) (:claim-definition-concept-hash claim-ref))
-          (throw (ex-info "Projection artifact claim concept hash mismatch" {:claim-id (:claim-id claim-ref)})))))
-    artifact)))
+    (let [intent (require-registered :intent-id
+                                     (get-in artifact [:intent :id])
+                                     (registered-intent (get-in artifact [:intent :id])))
+          projection-definition (require-registered :projection-definition-id
+                                                    (:projection-definition-id artifact)
+                                                    (registered-projection-definition (:projection-definition-id artifact)))]
+      (when-not (= (:canonical-hash intent) (get-in artifact [:intent :intent-hash]))
+        (throw (ex-info "Projection artifact intent hash mismatch" {})))
+      (when-not (= (:canonical-hash projection-definition) (:projection-definition-hash artifact))
+        (throw (ex-info "Projection artifact definition hash mismatch" {})))
+      (when-not (= (:concept-hash projection-definition) (:projection-concept-hash artifact))
+        (throw (ex-info "Projection artifact definition concept hash mismatch" {})))
+      (doseq [claim-ref (:claims artifact)]
+        (let [claim (require-registered :claim-id (:claim-id claim-ref)
+                                        (registered-claim (:claim-id claim-ref)))]
+          (when-not (= (:canonical-hash claim) (:claim-definition-hash claim-ref))
+            (throw (ex-info "Projection artifact claim hash mismatch" {:claim-id (:claim-id claim-ref)})))
+          (when-not (= (:concept-hash claim) (:claim-definition-concept-hash claim-ref))
+            (throw (ex-info "Projection artifact claim concept hash mismatch" {:claim-id (:claim-id claim-ref)})))))
+      artifact)))
 
 (defn allocate-from-projection
   "Allocate only from a validated projection artifact and its committed policy.
@@ -488,13 +488,13 @@
                                         :redistribution-pass pass-num})
             (let [allocated-by-id (into {} (map (juxt :id :allocated) (vals acc-base-map)))
                   pass-result (allocate-pro-rata {:amount remaining-excess
-                                                   :items uncapped-items
-                                                   :id-fn id-fn :weight-fn weight-fn
-                                                   :cap-fn (residual-cap-fn id-fn cap-fn allocated-by-id)
-                                                   :rounding rounding
-                                                   :remainder-policy :unallocated
-                                                   :ordering-policy ordering-policy
-                                                   :on-progress progress-observer})
+                                                  :items uncapped-items
+                                                  :id-fn id-fn :weight-fn weight-fn
+                                                  :cap-fn (residual-cap-fn id-fn cap-fn allocated-by-id)
+                                                  :rounding rounding
+                                                  :remainder-policy :unallocated
+                                                  :ordering-policy ordering-policy
+                                                  :on-progress progress-observer})
                   merged (merge-into-base acc-base-map (:allocations pass-result))
                   ;; Only allocations from this pass can become newly capped.
                   ;; Earlier capped participants are excluded from uncapped-items.
@@ -514,35 +514,35 @@
                                :allocated-amount (:total-allocated pass-result)
                                :remaining-amount (+ (:total-unmet pass-result) (:remainder pass-result))}
                   pass-records (conj pass-records pass-record)]
-            (if (empty? newly-capped)
-              (let [total-allocated (reduce +' 0 (map :allocated merged))]
-                {:allocations (allocations-in-input-order items id-fn merged)
-                 :total-requested amount
-                 :total-allocated total-allocated
-                 :total-unmet (:total-unmet pass-result)
-                 :remainder (:remainder pass-result)
-                 :policy (:policy base-result)
-                 :redistribution {:passes (vec pass-records)
-                                  :total-passes (inc pass-num)}})
-              (let [next-excess (+ (:total-unmet pass-result) (:remainder pass-result))
-                    all-capped all-capped-ids
-                    next-uncapped (remove (fn [item] (contains? all-capped (id-fn item))) items)]
-                (if (or (zero? next-excess) (empty? next-uncapped))
-                  (let [total-allocated (reduce +' 0 (map :allocated merged))]
-                    {:allocations (allocations-in-input-order items id-fn merged)
-                     :total-requested amount
-                     :total-allocated total-allocated
-                     :total-unmet 0
-                     :remainder next-excess
-                     :policy (:policy base-result)
-                     :redistribution {:passes (vec pass-records)
-                                      :total-passes (inc pass-num)}})
-                  (recur next-excess
-                         next-uncapped
-                         (into {} (map (fn [a] [(:id a) a]) merged))
-                         all-capped
-                         (inc pass-num)
-                         pass-records)))))))))))
+              (if (empty? newly-capped)
+                (let [total-allocated (reduce +' 0 (map :allocated merged))]
+                  {:allocations (allocations-in-input-order items id-fn merged)
+                   :total-requested amount
+                   :total-allocated total-allocated
+                   :total-unmet (:total-unmet pass-result)
+                   :remainder (:remainder pass-result)
+                   :policy (:policy base-result)
+                   :redistribution {:passes (vec pass-records)
+                                    :total-passes (inc pass-num)}})
+                (let [next-excess (+ (:total-unmet pass-result) (:remainder pass-result))
+                      all-capped all-capped-ids
+                      next-uncapped (remove (fn [item] (contains? all-capped (id-fn item))) items)]
+                  (if (or (zero? next-excess) (empty? next-uncapped))
+                    (let [total-allocated (reduce +' 0 (map :allocated merged))]
+                      {:allocations (allocations-in-input-order items id-fn merged)
+                       :total-requested amount
+                       :total-allocated total-allocated
+                       :total-unmet 0
+                       :remainder next-excess
+                       :policy (:policy base-result)
+                       :redistribution {:passes (vec pass-records)
+                                        :total-passes (inc pass-num)}})
+                    (recur next-excess
+                           next-uncapped
+                           (into {} (map (fn [a] [(:id a) a]) merged))
+                           all-capped
+                           (inc pass-num)
+                           pass-records)))))))))))
 
 (defn allocate-pro-rata-with-redistribution
   "Allocate with cap redistribution using an active-set algorithm.
@@ -625,7 +625,7 @@
                                                 :weight (non-negative-integer (weight-fn item))
                                                 :cap (cap-of item)}]) capped)))
                        (conj passes (assoc pass :committed-by-cap committed-amount
-                                                :available-after-caps (- remaining committed-amount)))))
+                                           :available-after-caps (- remaining committed-amount)))))
               (let [final-result (allocate-pro-rata
                                   {:amount remaining :items active :id-fn id-fn
                                    :weight-fn weight-fn :cap-fn cap-fn :rounding rounding
@@ -641,8 +641,8 @@
                  :remainder (:remainder final-result)
                  :policy (:policy final-result)
                  :redistribution {:passes (conj passes (assoc pass
-                                                                 :committed-by-cap 0
-                                                                 :available-after-caps remaining))
+                                                              :committed-by-cap 0
+                                                              :available-after-caps remaining))
                                   :total-passes (inc round-index)
                                   :residual-reason (if (pos? (:remainder final-result))
                                                      (if (= rounding :floor) :floor-rounding :unallocated)
@@ -656,9 +656,9 @@
                             (:total-unmet allocation)
                             (:remainder allocation)))
         bounds? (every? (fn [{:keys [allocated cap]}]
-                           (and (not (neg? allocated))
-                                (or (nil? cap) (<= allocated cap))))
-                         allocations)
+                          (and (not (neg? allocated))
+                               (or (nil? cap) (<= allocated cap))))
+                        allocations)
         complete? (= (count items) (count allocations))]
     [{:check :allocation-conservation :status (if conservation? :passed :failed)}
      {:check :allocation-bounds :status (if bounds? :passed :failed)}
@@ -714,25 +714,25 @@
                          :cap-treatment :unallocated
                          :tie-break :input-order}
                         policy)]
-    (when unknown-policy-fields
-      (throw (ex-info "Canonical pro-rata policy contains unsupported fields"
-                      {:fields (vec unknown-policy-fields)})))
-    (when-not (= :weighted-pro-rata (:algorithm policy))
-      (throw (ex-info "Unsupported canonical pro-rata algorithm" {:algorithm (:algorithm policy)})))
-    (when-not (#{:unallocated :redistribute} (:cap-treatment policy))
-      (throw (ex-info "Unsupported canonical cap treatment" {:cap-treatment (:cap-treatment policy)})))
-    (when-not (#{:floor :floor-with-largest-remainder} (:rounding policy))
-      (throw (ex-info "Unsupported canonical rounding policy" {:rounding (:rounding policy)})))
-    (when-not (= :input-order (:tie-break policy))
-      (throw (ex-info "Unsupported canonical tie-break policy" {:tie-break (:tie-break policy)})))
-    {:allocation/id (:allocation/id request)
-     :use-case use-case
-     :unit unit
-     :amount amount
-     :participants participants
-     :policy policy
-     :source (or source {})
-     :metadata (or metadata {})})))
+      (when unknown-policy-fields
+        (throw (ex-info "Canonical pro-rata policy contains unsupported fields"
+                        {:fields (vec unknown-policy-fields)})))
+      (when-not (= :weighted-pro-rata (:algorithm policy))
+        (throw (ex-info "Unsupported canonical pro-rata algorithm" {:algorithm (:algorithm policy)})))
+      (when-not (#{:unallocated :redistribute} (:cap-treatment policy))
+        (throw (ex-info "Unsupported canonical cap treatment" {:cap-treatment (:cap-treatment policy)})))
+      (when-not (#{:floor :floor-with-largest-remainder} (:rounding policy))
+        (throw (ex-info "Unsupported canonical rounding policy" {:rounding (:rounding policy)})))
+      (when-not (= :input-order (:tie-break policy))
+        (throw (ex-info "Unsupported canonical tie-break policy" {:tie-break (:tie-break policy)})))
+      {:allocation/id (:allocation/id request)
+       :use-case use-case
+       :unit unit
+       :amount amount
+       :participants participants
+       :policy policy
+       :source (or source {})
+       :metadata (or metadata {})})))
 
 (defn evaluate-pro-rata-allocation
   "Evaluate a normalized, data-only pro-rata request without persistence.
@@ -757,10 +757,10 @@
                             :unit unit}
         projection-source (merge source {:allocation/id id :use-case use-case :unit unit :policy policy})
         projection (build-projection-artifact allocation-request
-                                             {:source projection-source :metadata metadata})
+                                              {:source projection-source :metadata metadata})
         allocation (allocate-from-projection projection
-                                            {:progress-atom progress-atom
-                                             :on-progress on-progress})
+                                             {:progress-atom progress-atom
+                                              :on-progress on-progress})
         replay (allocate-from-projection projection)
         checks (conj (allocation-validation-checks participants allocation)
                      {:check :deterministic-replay

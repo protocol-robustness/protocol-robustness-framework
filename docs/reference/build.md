@@ -31,7 +31,7 @@ java -jar prf-runner-sew-0.1.0-uber.jar benchmark list
 
 # Run a packaged benchmark into an exact fresh bundle root
 java -jar prf-runner-sew-0.1.0-uber.jar \
-  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  run-benchmark force-authorisation-custody-v1 \
   --run-root ./runs/benchmark
 
 # Run an external scenario input into an exact fresh bundle root
@@ -47,15 +47,20 @@ Use explicit external inputs where supported, always with a distinct
 
 ## Resource path scheme
 
-All internal defaults use `resource:` URIs for embedded classpath data:
+Classpath resource paths used for JAR portability:
 
 - `resource:benchmarks/registry.edn` — benchmark pack registry
 - `resource:benchmarks/scoring/*.edn` — scoring rule definitions
 - `resource:benchmarks/concepts/*.edn` — benchmark-local concepts
 - `resource:data/concepts/registry.edn` — global concept registry
-- `resource:scenarios/edn/` — executable scenario files
 - `resource:suites/reference-validation-v1/manifest.edn` — reference validation suite
 - `resource:config/evidence.json` — evidence chain configuration
+
+The scenario directory `*scenario-dir*` defaults to `scenarios/edn` (bare
+filesystem path). The `scenarios/` directory is included in `:paths` and in
+the JAR build (`scripts/build.clj`), so the same set of files serves both
+development and packaged use — no separate `resources/scenarios/` copy
+is needed.
 
 External paths use `file:` prefix or bare filesystem paths. The resolution
 order for bare paths is: filesystem first, classpath second.

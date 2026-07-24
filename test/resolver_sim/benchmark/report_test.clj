@@ -55,17 +55,17 @@
 
 (deftest benchmark-conclusion-requires-passing-claims
   (let [pass-conclusion (rpt/build-conclusion {:total 1 :passed 1}
-                                               [{:claim/id :claim/funds-conserved :claim/outcome :pass}]
-                                               "evidence-hash"
-                                               "run-hash")
+                                              [{:claim/id :claim/funds-conserved :claim/outcome :pass}]
+                                              "evidence-hash"
+                                              "run-hash")
         incomplete-conclusion (rpt/build-conclusion {:total 1 :passed 1}
-                                                     [{:claim/id :claim/funds-conserved :claim/outcome :not-exercised}]
-                                                     "evidence-hash"
-                                                     nil)
+                                                    [{:claim/id :claim/funds-conserved :claim/outcome :not-exercised}]
+                                                    "evidence-hash"
+                                                    nil)
         failure-conclusion (rpt/build-conclusion {:total 1 :passed 1}
-                                                  [{:claim/id :claim/funds-conserved :claim/outcome :fail}]
-                                                  "evidence-hash"
-                                                  nil)]
+                                                 [{:claim/id :claim/funds-conserved :claim/outcome :fail}]
+                                                 "evidence-hash"
+                                                 nil)]
     (is (= :pass (:outcome pass-conclusion)))
     (is (= "evidence-hash" (:evidence/hash pass-conclusion)))
     (is (= :incomplete (:outcome incomplete-conclusion)))

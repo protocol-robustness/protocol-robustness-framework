@@ -102,7 +102,7 @@
 
    Returns the bundle manifest map."
   [{:keys [attestations claim-results evidence-nodes registries sensitivity-report
-            sensitivity-provenance options]
+           sensitivity-provenance options]
     :or {attestations [] claim-results [] evidence-nodes []}}]
   (let [bundle-dir (or (:bundle-dir options) default-bundle-dir)
         _ (.mkdirs (io/file bundle-dir "attestations"))
@@ -184,20 +184,20 @@
                        :bundle/entrypoints entrypoints
                        :bundle/objects (vec (concat att-entries claim-entries node-entries))
                        :bundle/registries registry-snapshot
-         :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
-                                        :sentinel/report-hash (:report-hash sensitivity-report)
-                                        :sensitivity-report/ref
-                                        {:schema "sensitivity-report.v2"
-                                         :semantic-hash (:report/semantic-hash sensitivity-report)
-                                         :sha256 (:report-byte-hash sensitivity-report)
-                                         :byte-length (:report-byte-length sensitivity-report)
-                                         :path (str bundle-dir "/reports/sensitivity-report.json")}}
-                                sensitivity-provenance
-                                (assoc :sentinel/provenance sensitivity-provenance))
+                       :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
+                                                    :sentinel/report-hash (:report-hash sensitivity-report)
+                                                    :sensitivity-report/ref
+                                                    {:schema "sensitivity-report.v2"
+                                                     :semantic-hash (:report/semantic-hash sensitivity-report)
+                                                     :sha256 (:report-byte-hash sensitivity-report)
+                                                     :byte-length (:report-byte-length sensitivity-report)
+                                                     :path (str bundle-dir "/reports/sensitivity-report.json")}}
+                                             sensitivity-provenance
+                                             (assoc :sentinel/provenance sensitivity-provenance))
                        :bundle/verification-profile {:integrity? true
                                                                             ;; Only an explicitly sign-capable producer may require signatures.
-                                                                            :signature? (boolean (:signature? options))
-                                                                            :registry-backed? true
+                                                     :signature? (boolean (:signature? options))
+                                                     :registry-backed? true
                                                      :subject-content-included? (boolean (seq claim-results))
                                                      :quorum? false}}
 
@@ -232,8 +232,8 @@
   (let [objects (:bundle/objects bundle [])
         results (mapv (fn [obj]
                         (let [obj-path (:object/path obj)
-                                                      recorded-hash (:object/hash obj)
-                                                      file (when obj-path (contained-path bundle obj-path))]
+                              recorded-hash (:object/hash obj)
+                              file (when obj-path (contained-path bundle obj-path))]
                           (cond (nil? obj-path)
                                 {:object/hash recorded-hash
                                  :check/status :warning
@@ -281,7 +281,7 @@
                             :else
                             (try
                               (let [content (edn/read-string (slurp (require-contained-path bundle path)))
-                                                                  integrity-result (integrity/verify-attestation-integrity content)]
+                                    integrity-result (integrity/verify-attestation-integrity content)]
                                 {:attestation/id (:object/hash obj)
                                  :check/status (if (:valid? integrity-result) :pass :fail)
                                  :errors (:errors integrity-result)})
@@ -320,23 +320,23 @@
     (cond
       (nil? declared) {:check/id :attestor-registry-trusted :check/status :fail :reason :registry-missing}
       (nil? file) {:check/id :attestor-registry-trusted
-                    :check/status (if opts :fail :warning)
-                    :reason :registry-path-invalid}
+                   :check/status (if opts :fail :warning)
+                   :reason :registry-path-invalid}
       (not (.isFile file)) {:check/id :attestor-registry-trusted
-                             :check/status (if opts :fail :warning)
-                             :reason :registry-file-missing}
+                            :check/status (if opts :fail :warning)
+                            :reason :registry-file-missing}
       :else
       (try
         (let [snapshot (edn/read-string (slurp file))
               computed (hc/hash-with-intent {:hash/intent :registry}
-                                             (canonical-registry-snapshot snapshot))
+                                            (canonical-registry-snapshot snapshot))
               integrity? (= expected computed)
               trusted-hashes (:trusted-attestor-registry-hashes opts)
               trusted-registry (:trusted-attestor-registry opts)
               trusted-registry-hash (when trusted-registry
                                       (hc/hash-with-intent {:hash/intent :registry}
-                                                                                                  (canonical-registry-snapshot trusted-registry)))
-                                                                                                                trusted? (or (contains? trusted-hashes computed)
+                                                           (canonical-registry-snapshot trusted-registry)))
+              trusted? (or (contains? trusted-hashes computed)
                            (contains? trusted-hashes (str "sha256:" computed))
                            (= computed trusted-registry-hash))]
           (cond
@@ -363,11 +363,11 @@
                                 sig (:attestation/signature content)]
                             (cond
                               (nil? sig) {:attestation/id (:object/hash obj)
-                                                                        :check/status (if signatures-required? :fail :warning)
-                                                                        :reason :unsigned}
-                                                            (nil? trusted-registry) {:attestation/id (:object/hash obj)
-                                                                                     :check/status (if signatures-required? :fail :warning)
-                                                                                     :reason :no-trusted-registry}
+                                          :check/status (if signatures-required? :fail :warning)
+                                          :reason :unsigned}
+                              (nil? trusted-registry) {:attestation/id (:object/hash obj)
+                                                       :check/status (if signatures-required? :fail :warning)
+                                                       :reason :no-trusted-registry}
                               :else (let [result (signature/verify-attestation-signature content trusted-registry policy)]
                                       {:attestation/id (:object/hash obj)
                                        :check/status (if (:valid? result) :pass :fail)
@@ -380,7 +380,7 @@
         signed (count (filter #(= :pass (:check/status %)) results))
         unsigned (count (filter #(= :warning (:check/status %)) results))
         failed? (and (or trusted-registry signatures-required?)
-                             (some #(#{:fail :error} (:check/status %)) results))]
+                     (some #(#{:fail :error} (:check/status %)) results))]
     {:check/id :attestation-signature-valid
      :check/status (cond failed? :fail (zero? unsigned) :pass :else :warning)
      :detail {:signed signed :unsigned unsigned}
@@ -392,8 +392,8 @@
         att-objects (filter #(= :attestation-record (:object/kind %)) objects)
         results (mapv (fn [obj]
                         (try
-                          (let [content (edn/read-string (slurp (require-contained-path bundle (:object/path obj))) )
-                                                          attestor-id (:attestation/attestor-id content)]
+                          (let [content (edn/read-string (slurp (require-contained-path bundle (:object/path obj))))
+                                attestor-id (:attestation/attestor-id content)]
                             {:attestation/id (:object/hash obj)
                              :attestor-id attestor-id
                              :check/status :pass
@@ -415,8 +415,8 @@
         att-objects (filter #(= :attestation-record (:object/kind %)) objects)
         results (mapv (fn [obj]
                         (try
-                          (let [content (edn/read-string (slurp (require-contained-path bundle (:object/path obj))) )
-                                                          claim-id (:attestation/claim-id content)]
+                          (let [content (edn/read-string (slurp (require-contained-path bundle (:object/path obj))))
+                                claim-id (:attestation/claim-id content)]
                             {:attestation/id (:object/hash obj)
                              :claim-id claim-id
                              :check/status (if claim-id :pass :warning)
@@ -564,42 +564,42 @@
       :summary {...}}"
   ([bundle] (verify-attestation-bundle bundle nil))
   ([bundle opts]
-  (let [registry-check (check-attestor-registry-trust bundle opts)
-        trusted-registry (when (= :pass (:check/status registry-check)) (:registry registry-check))
-        signatures-required? (true? (get-in bundle [:bundle/verification-profile :signature?]))
-        checks [(check-version bundle)
-                (check-root-hash bundle)
-                (check-object-integrity bundle)
-                (check-attestation-integrity bundle)
-                registry-check
-                (check-attestation-signatures bundle trusted-registry opts signatures-required?)
-                (check-registry-references bundle)
-                (check-claim-definition-references bundle)
-                (check-subject-availability bundle)
-                (check-sensitivity-sentinel bundle)]
-        failures (filter #(= :fail (:check/status %)) checks)
-        blocked (filter #(= :blocked (:check/status %)) checks)
-        policy-constrained (filter #(= :policy-constrained (:check/status %)) checks)
-        sens-warnings (filter #(and (= :warning (:check/status %))
-                                    (= :sensitivity-sentinel-approved (:check/id %)))
-                              checks)
-        other-warnings (filter #(and (= :warning (:check/status %))
-                                     (not= :sensitivity-sentinel-approved (:check/id %)))
+   (let [registry-check (check-attestor-registry-trust bundle opts)
+         trusted-registry (when (= :pass (:check/status registry-check)) (:registry registry-check))
+         signatures-required? (true? (get-in bundle [:bundle/verification-profile :signature?]))
+         checks [(check-version bundle)
+                 (check-root-hash bundle)
+                 (check-object-integrity bundle)
+                 (check-attestation-integrity bundle)
+                 registry-check
+                 (check-attestation-signatures bundle trusted-registry opts signatures-required?)
+                 (check-registry-references bundle)
+                 (check-claim-definition-references bundle)
+                 (check-subject-availability bundle)
+                 (check-sensitivity-sentinel bundle)]
+         failures (filter #(= :fail (:check/status %)) checks)
+         blocked (filter #(= :blocked (:check/status %)) checks)
+         policy-constrained (filter #(= :policy-constrained (:check/status %)) checks)
+         sens-warnings (filter #(and (= :warning (:check/status %))
+                                     (= :sensitivity-sentinel-approved (:check/id %)))
                                checks)
-        all-pass? (and (empty? failures) (empty? blocked) (empty? policy-constrained))
-        status (cond
-                 (seq failures) :invalid
-                 (seq blocked) :blocked-by-sensitivity-policy
-                 (seq policy-constrained) :internal-retention
-                 (seq sens-warnings) :unverified-sensitivity
-                 (and (empty? other-warnings) all-pass?) :fully-verified
-                 (some #(= :warning (:check/status %))
-                       (filter #(= :subject-content-available (:check/id %)) checks))
-                 :partially-verified
-                 :else :hash-linked)]
-    {:valid? (and (empty? failures) (empty? blocked) (empty? policy-constrained))
-     :bundle/status status
-     :checks checks
+         other-warnings (filter #(and (= :warning (:check/status %))
+                                      (not= :sensitivity-sentinel-approved (:check/id %)))
+                                checks)
+         all-pass? (and (empty? failures) (empty? blocked) (empty? policy-constrained))
+         status (cond
+                  (seq failures) :invalid
+                  (seq blocked) :blocked-by-sensitivity-policy
+                  (seq policy-constrained) :internal-retention
+                  (seq sens-warnings) :unverified-sensitivity
+                  (and (empty? other-warnings) all-pass?) :fully-verified
+                  (some #(= :warning (:check/status %))
+                        (filter #(= :subject-content-available (:check/id %)) checks))
+                  :partially-verified
+                  :else :hash-linked)]
+     {:valid? (and (empty? failures) (empty? blocked) (empty? policy-constrained))
+      :bundle/status status
+      :checks checks
       :summary {:total-checks (count checks)
                 :pass (count (filter #(= :pass (:check/status %)) checks))
                 :warning (count (filter #(= :warning (:check/status %)) checks))
@@ -627,34 +627,34 @@
    (throw (ex-info "write-attestation-bundle! requires an explicit trusted bundle root"
                    {:hint "Pass trusted-bundle-root as the third argument"})))
   ([bundle objects-map trusted-bundle-root]
-  (let [bundle-dir (.getCanonicalPath (io/file trusted-bundle-root))
-        bundle (assoc bundle runtime-root-key bundle-dir)
-        _ (.mkdirs (io/file bundle-dir))
+   (let [bundle-dir (.getCanonicalPath (io/file trusted-bundle-root))
+         bundle (assoc bundle runtime-root-key bundle-dir)
+         _ (.mkdirs (io/file bundle-dir))
         ;; Write attestations
-        _ (doseq [a (:attestations objects-map [])]
-            (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
-              (spit path (pr-str a))))
+         _ (doseq [a (:attestations objects-map [])]
+             (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
+               (spit path (pr-str a))))
         ;; Write claim results
-        _ (doseq [c (:claim-results objects-map [])]
-            (let [h (or (:claim-result-hash c) (compute-object-hash c))
-                  path (object-path bundle-dir "claims" h)]
-              (spit path (pr-str c))))
+         _ (doseq [c (:claim-results objects-map [])]
+             (let [h (or (:claim-result-hash c) (compute-object-hash c))
+                   path (object-path bundle-dir "claims" h)]
+               (spit path (pr-str c))))
         ;; Write evidence nodes
-        _ (doseq [n (:evidence-nodes objects-map [])]
-            (let [path (object-path bundle-dir "evidence-nodes" (:node-hash n))]
-              (spit path (pr-str n))))
+         _ (doseq [n (:evidence-nodes objects-map [])]
+             (let [path (object-path bundle-dir "evidence-nodes" (:node-hash n))]
+               (spit path (pr-str n))))
         ;; Write registries
-        _ (doseq [[reg-kind reg-map] (:bundle/registries bundle)]
-            (spit (require-contained-path bundle (:registry/path reg-map))
-                  (pr-str (get objects-map reg-kind))))
+         _ (doseq [[reg-kind reg-map] (:bundle/registries bundle)]
+             (spit (require-contained-path bundle (:registry/path reg-map))
+                   (pr-str (get objects-map reg-kind))))
         ;; Write sensitivity report
-        _ (when-let [report-path (get-in bundle [:bundle/sensitivity :sentinel/path])]
-            (spit (require-contained-path bundle report-path)
-                  (pr-str (:sensitivity-report objects-map))))
+         _ (when-let [report-path (get-in bundle [:bundle/sensitivity :sentinel/path])]
+             (spit (require-contained-path bundle report-path)
+                   (pr-str (:sensitivity-report objects-map))))
         ;; Write manifest without runtime-only trust context.
-        manifest-path (io/file bundle-dir "manifest.edn")]
-    (spit manifest-path (pr-str (dissoc bundle runtime-root-key)))
-    (str (io/file bundle-dir ".written")))))
+         manifest-path (io/file bundle-dir "manifest.edn")]
+     (spit manifest-path (pr-str (dissoc bundle runtime-root-key)))
+     (str (io/file bundle-dir ".written")))))
 
 (defn read-attestation-bundle
   "Read an attestation bundle from disk.

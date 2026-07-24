@@ -1,10 +1,10 @@
 (ns resolver-sim.evidence.finalization-signature-test
   (:require [buddy.core.codecs :as codecs]
-              [clojure.java.io :as io]
-              [clojure.test :refer [deftest is]]
-              [resolver-sim.evidence.finalization-signature :as signature]
-              [resolver-sim.evidence.finalization-signing :as signing])
-    (:import [java.security KeyPairGenerator]))
+            [clojure.java.io :as io]
+            [clojure.test :refer [deftest is]]
+            [resolver-sim.evidence.finalization-signature :as signature]
+            [resolver-sim.evidence.finalization-signing :as signing])
+  (:import [java.security KeyPairGenerator]))
 
 (def payload-hash "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
@@ -24,8 +24,8 @@
         encoded (.getEncoded (.getPublic pair))
         public-hex (codecs/bytes->hex (java.util.Arrays/copyOfRange encoded (- (alength encoded) 32) (alength encoded)))
         dir (str (.toFile (java.nio.file.Files/createTempDirectory
-                            "finalization-signature"
-                            (make-array java.nio.file.attribute.FileAttribute 0))))
+                           "finalization-signature"
+                           (make-array java.nio.file.attribute.FileAttribute 0))))
         finalization-file (io/file dir "evidence-finalization.json")
         _ (spit finalization-file "{\"schema-version\":\"evidence-finalization.v2\"}")
         signer (signing/->FileSigner "release-2026-01" (.getPrivate pair))
@@ -49,14 +49,14 @@
     (is (:valid? (:verification result)))
     (is (= 1 (get-in result [:verification :trusted-valid-count])))
     (is (false? (:valid? (signing/evaluate-envelopes
-                           [(:envelope result)]
-                           {:keys []}
-                           {:signer-role :release-authority :threshold {:minimum 1}}))))
+                          [(:envelope result)]
+                          {:keys []}
+                          {:signer-role :release-authority :threshold {:minimum 1}}))))
     (is (false? (:valid? (signing/evaluate-envelopes
-                           [(:envelope result)]
-                           (assoc-in trusted [:keys 0 :roles] #{:operator})
-                           {:signer-role :release-authority :threshold {:minimum 1}}))))
+                          [(:envelope result)]
+                          (assoc-in trusted [:keys 0 :roles] #{:operator})
+                          {:signer-role :release-authority :threshold {:minimum 1}}))))
     (is (false? (:valid? (signing/evaluate-envelopes
-                           [(:envelope result) (:envelope result)]
-                           trusted
-                           {:signer-role :release-authority :threshold {:minimum 2}}))))))
+                          [(:envelope result) (:envelope result)]
+                          trusted
+                          {:signer-role :release-authority :threshold {:minimum 2}}))))))

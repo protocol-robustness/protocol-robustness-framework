@@ -48,8 +48,8 @@
 (defn- minimal-evidence []
   {:exit-code 0
    :evidence
-   {:run/manifest {:benchmark/manifest-source "resource:benchmarks/packs/sew/manifests/force-authorisation-custody.edn"}
-    :benchmark {:benchmark/id "benchmark/sew-force-authorisation-custody-v1"
+   {:run/manifest {:benchmark/manifest-source "resource:benchmarks/packs/prf-core/manifests/force-authorisation-custody.edn"}
+    :benchmark {:benchmark/id "benchmark/force-authorisation-custody-v1"
                 :benchmark/status :experimental
                 :benchmark/claims #{:claim/funds-conserved}
                 :benchmark/required-claims #{:claim/funds-conserved}}
@@ -71,7 +71,7 @@
           (json/write-str {:evidence "stub"}))
     {:run/root (.toPath r)
      :run/id "test-benchmark-atomic"
-     :benchmark/id "benchmark/sew-force-authorisation-custody-v1"
+     :benchmark/id "benchmark/force-authorisation-custody-v1"
      :benchmark/definition-file (io/file r "benchmark/definition.edn")
      :benchmark/plan-file (io/file r "benchmark/execution-plan.edn")
      :benchmark/evidence-file (io/file r "benchmark/evidence/evidence.edn")

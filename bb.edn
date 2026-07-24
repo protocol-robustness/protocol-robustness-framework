@@ -454,24 +454,28 @@ Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
   test:contracts {:doc "Run canonical cross-layer contract target (proto/service/wire compatibility)"
                   :task (shell "./scripts/test.sh contracts")}
 
-  test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
+test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                    :task (shell "./scripts/test.sh invariants")}
 
-  test:dispute-resolution {:doc "Run dispute resolution coverage scenarios (S-DR-*)"
+   test:dispute-resolution {:doc "Run dispute resolution coverage scenarios (S-DR-*)"
                             :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "dispute-resolution")}
 
-  test:suites {:doc "Run canonical fixture suites target (serial)"
-               :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "suites")}
+   test:suites {:doc "Run canonical fixture suites target (serial)"
+                :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "suites")}
 
-  test:suites:parallel
-  {:doc "Run canonical fixture suites in parallel (default 4 workers, set PARALLEL_WORKERS to tune)"
-   :task (shell "env" "PARALLEL_WORKERS=4" "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "suites")}
+   test:reference-validation
+   {:doc "Run reference validation suite v1 (full run + verify)"
+    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "reference-validation")}
 
-  test:fast
-  {:doc "Run core regression targets; excludes explicit slow targets such as monte-carlo and long-horizon"
-   :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "fast")}
+   test:suites:parallel
+   {:doc "Run canonical fixture suites in parallel (default 4 workers, set PARALLEL_WORKERS to tune)"
+    :task (shell "env" "PARALLEL_WORKERS=4" "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "suites")}
 
-  test:slow
+   test:fast
+   {:doc "Run core regression targets; excludes explicit slow targets such as monte-carlo and long-horizon"
+    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "fast")}
+
+   test:slow
   {:doc "Run slow tests only (monte-carlo, long-horizon, etc.)"
    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "slow")}
 
@@ -981,8 +985,14 @@ Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
             (apply clojure "-M:runner/sew" "-m" "resolver-sim.minimal-runner" final-args))}
 
    backstop
-   {:doc "Run the default registered review gate (delegates to CLI)."
-    :task (clojure "-M:cli/sew" "backstop")}
+   {:doc "Yield-aware review gate: run yield tests + CLI backstop."
+    :task (do
+            (println "▶ backstop: yield unit tests")
+            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield")
+            (println "▶ backstop: yield scenarios")
+            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield-scenarios")
+            (println "▶ backstop: CLI default gate")
+            (clojure "-M:cli/sew" "backstop"))}
 
    backstop:fast
    {:doc "Run the fast registered edit-loop review gate (delegates to CLI)."
@@ -1248,11 +1258,9 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
    :task (shell "gpg" "--detach-sign" "--armor"
           "target/prf-runner-sew-0.1.0-uber.jar")}
 
-  sign
-  {:doc "Sign both supported distributions."
-   :depends [sign:prf sign:sew]}
+sign
+   {:doc "Sign both supported distributions."
+    :depends [sign:prf sign:sew]}
 
-  monitor
-  {:doc "Start JMX monitoring system"
-   :task (shell "clojure -M:test -m resolver-sim.monitoring")}
-}}
+   monitor {:doc "Start JMX monitoring system"
+            :task (shell "clojure -M:test -m resolver-sim.monitoring")}}}

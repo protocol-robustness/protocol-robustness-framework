@@ -99,7 +99,7 @@
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
                  :sensitivity-report {:decision :allowed
-                                       :report-hash "sha256:report"}})]
+                                      :report-hash "sha256:report"}})]
     (is (= :allowed (get-in bundle [:bundle/sensitivity :sentinel/decision])))))
 
 (deftest bundle-with-claim-results
@@ -126,7 +126,7 @@
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
                  :sensitivity-report {:decision :allowed
-                                       :report-hash "sha256:r"}})
+                                      :report-hash "sha256:r"}})
         tampered (assoc bundle :bundle/version "wrong-version")
         result (ab/verify-attestation-bundle tampered)]
     (is (false? (:valid? result)))
@@ -141,7 +141,7 @@
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
                  :sensitivity-report {:decision :allowed
-                                       :report-hash "sha256:r"}})
+                                      :report-hash "sha256:r"}})
         tampered (assoc bundle :bundle/root-hash "tampered")
         result (ab/verify-attestation-bundle tampered)]
     (is (false? (:valid? result)))
@@ -155,7 +155,7 @@
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
                  :sensitivity-report {:decision :blocked
-                                       :report-hash "sha256:blocked"}})
+                                      :report-hash "sha256:blocked"}})
         result (ab/verify-attestation-bundle bundle)]
     (is (= :blocked-by-sensitivity-policy (:bundle/status result)))
     (is (false? (:valid? result)))))
@@ -168,7 +168,7 @@
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
                  :sensitivity-report {:decision :allowed
-                                       :report-hash "sha256:ok"}})
+                                      :report-hash "sha256:ok"}})
         result (ab/verify-attestation-bundle bundle)]
     (is (map? (:summary result)))
     (is (number? (get-in result [:summary :total-checks])))))
@@ -197,9 +197,9 @@
                         :registries {:attestors registries/attestor-registry
                                      :claim-definitions registries/claim-definition-registry
                                      :hash-intents hc/hash-intents}
-                         :sensitivity-report {:decision :allowed
-                                              :report-hash "sha256:r"}})
-                       :bundle/version "bad")
+                        :sensitivity-report {:decision :allowed
+                                             :report-hash "sha256:r"}})
+                      :bundle/version "bad")
         result (ab/verify-attestation-bundle bundle)]
     (is (= :invalid (:bundle/status result)))))
 
@@ -225,7 +225,7 @@
                               :claim-definitions registries/claim-definition-registry
                               :hash-intents hc/hash-intents}
                  :sensitivity-report {:decision :allowed
-                                       :report-hash "sha256:r"}
+                                      :report-hash "sha256:r"}
                  :options {:bundle-dir tmp-dir}})]
     (ab/write-attestation-bundle! bundle {:attestations [a]} tmp-dir)
     (let [read-back (ab/read-attestation-bundle tmp-dir)]
@@ -270,7 +270,7 @@
       (is (some #(= :untrusted-registry (:reason %)) (:checks untrusted)))
       (is (some #(= :pass (:check/status %))
                 (filter #(= :attestor-registry-trusted (:check/id %)) (:checks trusted))))
-    (io/delete-file (io/file tmp-dir) true))))
+      (io/delete-file (io/file tmp-dir) true))))
 
 (deftest write-requires-explicit-trusted-root-and-rejects-escaping-paths
   (let [tmp-dir (str (System/getProperty "java.io.tmpdir") "/ab-test-" (java.util.UUID/randomUUID))

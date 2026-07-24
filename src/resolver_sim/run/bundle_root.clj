@@ -260,20 +260,24 @@
         ;; provenance — full provenance lives in the persisted sensitivity
         ;; report which downstream consumers reference by hash).
         base (cond-> base
-                run-sensitivity
-                (assoc :bundle/sensitivity
-                       {:sentinel/run-level (:level run-sensitivity)
-                        :sentinel/risk-meta (:risk-meta run-sensitivity)
-                        :sentinel/scenario-count (count results)
-                        :sentinel/sensitive-scenario-count
-                        (count (filter (fn [r]
-                                         (let [s (get-in r [:scenario-metadata :scenario/sensitivity])]
-                                           (and s (not= :sensitivity/public (:level s)))))
-                                       results))
-                        :sentinel/report-reference
-                        {:schema "sensitivity-report-reference"
-                         :format "sensitivity-report.v2"
-                         :path paths/sensitivity-report}}))
+               run-sensitivity
+               (assoc :bundle/sensitivity
+                      {:sentinel/run-level (:level run-sensitivity)
+                       :sentinel/risk-meta (:risk-meta run-sensitivity)
+                       :sentinel/risk-meta-hash (when-let [rm (:risk-meta run-sensitivity)]
+                                                  (hc/hash-with-intent
+                                                   {:hash/intent :evidence-record}
+                                                   rm))
+                       :sentinel/scenario-count (count results)
+                       :sentinel/sensitive-scenario-count
+                       (count (filter (fn [r]
+                                        (let [s (get-in r [:scenario-metadata :scenario/sensitivity])]
+                                          (and s (not= :sensitivity/public (:level s)))))
+                                      results))
+                       :sentinel/report-reference
+                       {:schema "sensitivity-report-reference"
+                        :format "sensitivity-report.v2"
+                        :path paths/sensitivity-report}}))
         bundle-hash (hc/hash-with-intent {:hash/intent :bundle-root} base)]
     (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash)))
 

@@ -39,11 +39,11 @@
       (do (println "No benchmarks found in registry")
           {:exit-code 0 :message "No benchmarks"})
       (let [display (mapv (fn [b]
-                             {:id (:id b)
-                              :status (:status b)
-                              :claims (:claims b)
-                              :description (:description b)})
-                           benchmarks)]
+                            {:id (:id b)
+                             :status (:status b)
+                             :claims (:claims b)
+                             :description (:description b)})
+                          benchmarks)]
         (if json?
           (do (require 'clojure.data.json)
               (println ((resolve 'clojure.data.json/write-str) {:benchmarks display} :indent true)))

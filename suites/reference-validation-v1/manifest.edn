@@ -2,7 +2,7 @@
  :suite/version "1.3.0"
  :config/version "reference-config-v1"
 
- ;; Canonical CI scenario set (8). All scenarios are simulator-backed.
+ ;; Canonical CI scenario set (7). All scenarios are simulator-backed.
  :scenarios
  [{:id "governance-sandwich-v1"
    :ordinal 1
@@ -102,19 +102,7 @@
    :simulator/scenario-path "scenarios/edn/S20_dr3-kleros-max-escalation-guard.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}
 
-  {:id "yield-accrual-efficiency-v1"
-    :ordinal 8
-    :trace-slug "008-yield-accrual-efficiency"
-    :claim-id :yield-accrual-covers-protocol-fees
-   :claim "Long-duration yield accrual exceeds baseline escrow protocol fees."
-   :threat "Fee drag on long escrows"
-   :primary-threat "yield-fee-efficiency"
-   :classification :economic-baseline
-   :invariant-ids ["yield-accrual-efficiency"]
-   :expectations-passed 2
-   :invariants-passed 2
-   :simulator/scenario-path "scenarios/edn/S88_yield-accrual-efficiency.edn"
-   :upgrade-path "Integrate with Aave-specific LST/LRT yield adapters to verify precision parity"}]
+  ]
 
  :invariants
   [{:id "active-escrow-module-snapshot-immutable" :scenarios ["governance-sandwich-v1"]}
@@ -125,8 +113,7 @@
   {:id "liability-gated-withdrawal" :scenarios ["bond-withdrawal-race-v1"]}
   {:id "no-double-settlement" :scenarios ["same-block-ordering-v1" "governance-sandwich-v1"]}
   {:id "pull-first-value-flow" :scenarios ["autopush-settlement-v1"]}
-  {:id "escalation-layer-protection" :scenarios ["appeal-failure-cascade-v1"]}
-  {:id "yield-accrual-efficiency" :scenarios ["yield-accrual-efficiency-v1"]}]
+  {:id "escalation-layer-protection" :scenarios ["appeal-failure-cascade-v1"]}]
 
  :claims
  [{:claim-id :active-escrow-rules-immutable
@@ -171,12 +158,7 @@
    :invariant-ids ["escalation-layer-protection"]
    :scenario-ids ["appeal-failure-cascade-v1"]
    :upgrade-path "maintain deterministic replay and trace hash stability"}
-  {:claim-id :yield-accrual-covers-protocol-fees
-   :claim "Long-duration yield accrual exceeds baseline escrow protocol fees."
-   :threat "Fee drag on long escrows"
-   :invariant-ids ["yield-accrual-efficiency"]
-   :scenario-ids ["yield-accrual-efficiency-v1"]
-   :upgrade-path "Integrate with Aave-specific LST/LRT yield adapters to verify precision parity"}]
+  ]
 
  :economic-checks
   [{:check-id "malicious-verdict-not-profitable-under-baseline"

@@ -99,7 +99,7 @@
      :graph/edges edges
      :graph/summary (assoc summary :root-hash root-hash)
      :artifact/hash root-hash
-          :artifact/generated-at (or (:generated-at metadata) (str (java.time.Instant/now)))}))
+     :artifact/generated-at (or (:generated-at metadata) (str (java.time.Instant/now)))}))
 
 ;; ── SVG rendering ────────────────────────────────────────────────────────────
 

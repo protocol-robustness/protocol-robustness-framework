@@ -28,7 +28,7 @@
     :scenario-path "scenarios/edn/s01.edn" :scenario-hash "hash-s01"}
    {:scenario-id "s99"
     :scenario-metadata {:scenario/sensitivity {:level :sensitivity/private
-                                                :risk-meta {:value-at-risk "15M"}}}
+                                               :risk-meta {:value-at-risk "15M"}}}
     :scenario-input-hash "abc123"
     :scenario-path "scenarios/edn/s99.edn"
     :scenario-hash "hash-s99"}])
@@ -85,6 +85,49 @@
       (is (= "scenarios/edn/s99.edn" (:declaration/source-path dp)))
       (is (= "abc123" (:declaration/source-bytes-hash dp)))
       (is (= "hash-s99" (:declaration/source-content-hash dp))))))
+
+(defn- sample-safety-result-with-findings
+  []
+  {:profile :internal :decision :internal-retention
+   :findings [{:finding/id "finding-1"
+               :finding/path-token "path-0c6dbcd9865e"
+               :rule/id :secret-scanner/private-key
+               :rule/version "v2"
+               :match/value-commitment "abc123"}
+              {:finding/id "finding-2"
+               :finding/path-token "path-0c6dbcd9865e"
+               :rule/id :secret-scanner/jwt-token
+               :rule/version "v2"
+               :match/value-commitment "def456"}]})
+
+(deftest build-report-with-findings-includes-structural-derivations
+  (let [report (report/build-sensitivity-report
+                (sample-safety-result-with-findings)
+                (sample-run-sensitivity)
+                (sample-scenarios)
+                (context))
+        s99-entry (second (:scenarios report))]
+    (is (= "s99" (:id s99-entry)))
+    (is (some? (:structural-derivation s99-entry))
+        "scenario with matched findings must include structural-derivation")
+    (is (= "private" (get-in s99-entry [:structural-derivation :structural/classification-level]))
+        "private-key finding must classify as private")
+    (is (= 2 (count (get-in s99-entry [:structural-derivation :structural/reasons])))
+        "both findings must produce reason entries")
+    (is (some? (get-in s99-entry [:structural-derivation :evidence/findings]))
+        "structural-derivation must include :evidence/findings")
+    (is (= 2 (count (get-in s99-entry [:structural-derivation :evidence/findings])))
+        "both findings must be present in evidence/findings")))
+
+(deftest build-report-no-findings-no-structural-derivation
+  (let [report (report/build-sensitivity-report
+                (sample-safety-result)
+                (sample-run-sensitivity)
+                (sample-scenarios)
+                (context))
+        s01-entry (first (:scenarios report))]
+    (is (nil? (:structural-derivation s01-entry))
+        "scenario without matched findings must not include structural-derivation")))
 
 (deftest build-report-hash-stable
   (let [ctx (context)

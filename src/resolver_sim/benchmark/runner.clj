@@ -180,13 +180,13 @@
   [protocol world]
   (case protocol
     "sew-v1" (let [canonical-ids @(requiring-resolve 'resolver-sim.protocols.sew.invariants/canonical-ids)
-                    check-all (requiring-resolve 'resolver-sim.protocols.sew.invariants/check-all)]
-                {:ids (sort canonical-ids)
-                 :results (:results (check-all world))})
+                   check-all (requiring-resolve 'resolver-sim.protocols.sew.invariants/check-all)]
+               {:ids (sort canonical-ids)
+                :results (:results (check-all world))})
     "yield-v1" (let [catalog @(requiring-resolve 'resolver-sim.yield.invariant-catalog/catalog)
-                      run-invariants (requiring-resolve 'resolver-sim.yield.invariants/run-invariants)
-                      ids (sort (keys catalog))]
-                  {:ids ids :results (run-invariants world ids)})
+                     run-invariants (requiring-resolve 'resolver-sim.yield.invariants/run-invariants)
+                     ids (sort (keys catalog))]
+                 {:ids ids :results (run-invariants world ids)})
     {:ids [] :results {}}))
 
 (defn- execute-scenario
@@ -217,10 +217,10 @@
                           (run-replay))
                         (run-replay))
         entry (scenario-runner/run-scenario scenario
-                {:replay-fn (fn [_] replay-result)
-                 :source :benchmark
-                 :evaluate-theory? (:evaluate-theory?
-                                    (scenario-runner/runner-opts-for-scenario scenario))})
+                                            {:replay-fn (fn [_] replay-result)
+                                             :source :benchmark
+                                             :evaluate-theory? (:evaluate-theory?
+                                                                (scenario-runner/runner-opts-for-scenario scenario))})
         execution-package (write-execution-package! output-dir scenario-source scenario replay-result)
         public-id (benchmark-public-scenario-id suite-kw path)
         scenario-evidence (hc/hash-with-intent

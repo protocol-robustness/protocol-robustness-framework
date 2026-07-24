@@ -323,7 +323,8 @@
   [world]
   (if-not (get-in world [:params :held-adjustments/complete?])
     {:holds? true :violations []}
-    (let [checks (acct/held-custody-closed-form-checks (vals (:held-artifacts world {})))
+    (let [checks ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
+                  (vals (:held-artifacts world {})))
           failed (vec (remove #(= :pass (:status %)) checks))]
       {:holds? (empty? failed)
        :violations failed})))
@@ -817,7 +818,7 @@
         (let [{replayed-total-held :total-held
                replayed-positions :held/positions
                replayed-index :held-ledger/index}
-              (acct/replay-held-adjustment-state adjustments)
+              ((requiring-resolve 'resolver-sim.assurance.custody/replay-held-adjustment-state) adjustments)
               actual-index (get world :held-ledger/index {})
               actual-total-held (:total-held world {})
               actual-positions (:held/positions world {})]
@@ -848,7 +849,7 @@
   [world]
   (let [adjustments (:held-adjustments world [])
         actual-artifacts (:held-artifacts world {})
-        expected-artifacts (acct/rebuild-held-custody-artifacts adjustments)]
+        expected-artifacts ((requiring-resolve 'resolver-sim.assurance.custody/rebuild-held-custody-artifacts) adjustments)]
     (if (= expected-artifacts actual-artifacts)
       {:holds? true :violations nil}
       {:holds? false
@@ -1112,15 +1113,31 @@
     {:holds? (empty? violations) :violations (vec violations)}))
 
 (defn settlement-yield-boundary?
-  "True when settlement yield claims do not exceed available yield position capacity."
+  "True when settlement yield claims do not exceed available yield position capacity
+   and yield positions are not stale (last-accrual-time behind block-time)."
   [world]
-  (let [violations
+  (let [now-ts (time-ctx/block-ts world)
+        capacity-violations
         (for [[wf domain-map] (get-in world [:claimable-v2] {})
               :let [claims (reduce + 0 (vals (get domain-map :settlement/yield {})))
                     max-yield (workflow-max-yield world wf)]
               :when (> claims max-yield)]
-          {:workflow-id wf :claims claims :max max-yield})]
-    {:holds? (empty? violations) :violations (vec violations)}))
+          {:workflow-id wf :claims claims :max max-yield})
+        stale-violations
+        (for [[wf domain-map] (get-in world [:claimable-v2] {})
+              :let [owner-id (t/escrow-yield-owner-id wf)
+                    pos (get-in world [:yield/positions owner-id])
+                    claims (reduce + 0 (vals (get domain-map :settlement/yield {})))]
+              :when (and pos
+                         (pos? claims)
+                         (< (or (:last-accrual-time pos) 0) now-ts))]
+          {:workflow-id wf
+           :type :accrual-stale
+           :last-accrual-time (:last-accrual-time pos)
+           :block-time now-ts
+           :claims claims})
+        all-violations (into (vec capacity-violations) stale-violations)]
+    {:holds? (empty? all-violations) :violations all-violations}))
 
 (defn workflow-max-fees
   "Maximum fees claimable for a workflow — shared with claimable-classification rows."

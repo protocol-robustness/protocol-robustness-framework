@@ -40,16 +40,16 @@
                                  :subject #(get-in % [:params :workflow-id])
                                  :on-expired :appeal-window-expired}
    "challenge_resolution"       {:kind :appeal :boundary :before
-                                  :subject #(get-in % [:params :workflow-id])
-                                  :on-expired :appeal-window-expired}
+                                 :subject #(get-in % [:params :workflow-id])
+                                 :on-expired :appeal-window-expired}
    "execute_fraud_slash"        {:kind :earliest-execution :boundary :at-or-after
-                                  :subject #(or (get-in % [:params :slash-id])
-                                                (get-in % [:params :workflow-id]))
-                                  :on-expired :timelock-not-expired}
+                                 :subject #(or (get-in % [:params :slash-id])
+                                               (get-in % [:params :workflow-id]))
+                                 :on-expired :timelock-not-expired}
    "execute_fraud_group_slash"  {:kind :earliest-execution :boundary :at-or-after
-                                  :subject #(or (get-in % [:params :slash-id])
-                                                (get-in % [:params :workflow-id]))
-                                  :on-expired :timelock-not-expired}})
+                                 :subject #(or (get-in % [:params :slash-id])
+                                               (get-in % [:params :workflow-id]))
+                                 :on-expired :timelock-not-expired}})
 
 (def ^:private temporal-rules
   [{:id :missing-event-time

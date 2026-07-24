@@ -1,7 +1,7 @@
 {:concepts/version 1
  :concepts/description
  "Benchmark concept for the protocol-value-conservation-v1 domain.
-
+  
   This concept describes the protocol value conservation and allocation
   dimension evaluated by benchmarks in the protocol-value-conservation
   domain. It maps to the reusable framework conservation concept, but
@@ -29,7 +29,10 @@
     :allocation/partial-fill
     :allocation/pro-rata-fairness
     :allocation/deferred-claim
-    :allocation/slash-obligation]
+    :allocation/slash-obligation
+    :allocation/inter-temporal-bridge
+    :allocation/cross-level-cascade
+    :allocation/cross-pool-boundary]
    :concept/maps-to
    {:benchmark-domain :domain/protocol-value-conservation
     :framework-concepts [:concept/conservation]
@@ -97,4 +100,98 @@
     The canonical reusable definition lives in
     data/concepts/framework/conservation.edn. This file explains how that
     concept is operationalised by benchmarks grouped under the
-    protocol-value-conservation domain."}]}
+    protocol-value-conservation domain."}
+
+  {:concept/id :allocation/inter-temporal-bridge
+   :concept/title "Inter-temporal bridge"
+   :concept/summary
+   "Deferred claim recovery across epochs; tests epoch-bridge fairness."
+   :concept/stakeholder-language
+   "Deferred claims should be recoverable in subsequent epochs according to protocol rules, without loss of value or unfair advantage to any party."
+   :concept/why-it-matters
+   "Cross-epoch claim recovery is critical for long-duration escrows and yield accrual. If deferred claims are lost or misallocated during epoch transitions, the protocol fails to deliver on its commitment to users."
+   :concept/protocols [:protocol/prf]
+   :concept/actions [:action/defer-claim :action/recover-claim]
+   :concept/out-of-scope []
+   :concept/roles [:role/claimant :role/resolver]
+   :concept/entities [:entity/escrow :entity/claim]
+   :concept/assumptions []
+   :concept/failure-modes [:failure/deferred-claim-lost
+                            :failure/deferred-claim-misallocated
+                            :failure/epoch-mismatch]
+   :concept/outcomes [:outcome/claim-recovered :outcome/claim-lost]
+   :concept/stakeholder-question
+   "Are deferred claims treated fairly across epoch boundaries?"
+   :concept/maps-to
+   {:benchmark-domain :domain/protocol-value-conservation
+    :scenarios ["S82_shortfall-recovery-cycle"
+                "S103_negative-yield-shortfall-cascade"
+                "S105_policy-response-cascade"
+                "S108_senior-coverage-consumed-by-slash"
+                "S110_multi-junior-coverage"
+                "S114_multi-escrow-pool-shortage"
+                "S-DR-043-payout-shortfall-deferred"
+                "Y04_vault-recovery-claim-deferred"
+                "Y04_vault-recovery-claim-deferred"]
+    :claims [:claim/evidence-root-present]
+    :evidence [:evidence/claimable-classification
+               :evidence/allocation-result]}}
+
+  {:concept/id :allocation/cross-level-cascade
+   :concept/title "Cross-level cascade"
+   :concept/summary
+   "Surplus flows between priority levels; tests cross-level cascade."
+   :concept/stakeholder-language
+   "When a higher-priority level is exhausted, surplus should correctly cascade to lower-priority levels according to protocol rules."
+   :concept/why-it-matters
+   "Incorrect cascade behavior can lead to value leakage, unfair distribution, or protocol insolvency. Proper cascade ensures all value is correctly allocated across priority levels."
+   :concept/protocols [:protocol/prf]
+   :concept/actions [:action/settle :action/cascade]
+   :concept/out-of-scope []
+   :concept/roles [:role/claimant :role/resolver]
+   :concept/entities [:entity/position :entity/shortfall]
+   :concept/assumptions []
+   :concept/failure-modes [:failure/cascade-to-wrong-level
+                            :failure/cascade-value-lost
+                            :failure/cascade-double-count]
+   :concept/outcomes [:outcome/cascade-correct :outcome/cascade-failure]
+   :concept/stakeholder-question
+   "Does surplus cascade correctly between priority levels?"
+   :concept/maps-to
+   {:benchmark-domain :domain/protocol-value-conservation
+    :scenarios ["S103_negative-yield-shortfall-cascade"
+                "S105_policy-response-cascade"
+                "S108_senior-coverage-consumed-by-slash"
+                "S110_multi-junior-coverage"]
+    :claims [:claim/evidence-root-present]
+    :evidence [:evidence/claimable-classification
+               :evidence/allocation-result]}}
+
+  {:concept/id :allocation/cross-pool-boundary
+   :concept/title "Cross-pool boundary"
+   :concept/summary
+   "Pool segregation during shortage; tests cross-pool boundary enforcement."
+   :concept/stakeholder-language
+   "During shortage conditions, pools must remain segregated to prevent cross-pool value transfer that violates protocol rules."
+   :concept/why-it-matters
+   "Pool boundaries are fundamental to risk isolation. If pools are not properly segregated during shortage, users' funds may be at risk and the protocol's risk model breaks down."
+   :concept/protocols [:protocol/prf]
+   :concept/actions [:action/settle :action/withdraw :action/shortfall]
+   :concept/out-of-scope []
+   :concept/roles [:role/claimant :role/resolver]
+   :concept/entities [:entity/pool :entity/escrow]
+   :concept/assumptions []
+   :concept/failure-modes [:failure/pool-boundary-breach
+                            :failure/cross-pool-transfer
+                            :failure/pool-segregation-failure]
+   :concept/outcomes [:outcome/boundary-respected :outcome/boundary-breached]
+   :concept/stakeholder-question
+   "Are pool boundaries respected during shortage conditions?"
+   :concept/maps-to
+   {:benchmark-domain :domain/protocol-value-conservation
+    :scenarios ["S114_multi-escrow-pool-shortage"]
+    :claims [:claim/evidence-root-present]
+     :evidence [:evidence/claimable-classification
+                :evidence/allocation-result]}
+  }
+]}

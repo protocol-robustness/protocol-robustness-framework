@@ -42,7 +42,7 @@ java -jar target/prf-runner-sew-0.1.0-uber.jar benchmark list
 
 # Run a benchmark into one fresh, authoritative bundle root
 java -jar target/prf-runner-sew-0.1.0-uber.jar \
-  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  run-benchmark force-authorisation-custody-v1 \
   --run-root ./runs/force-authorisation
 
 # Run an external benchmark input when it is supported by the installed corpus

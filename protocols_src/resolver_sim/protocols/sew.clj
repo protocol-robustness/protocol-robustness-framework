@@ -1470,7 +1470,8 @@
 
 (def ^:private sew-guard-error-codes
   ;; Precondition guard rejections
-  #{:no-resolution-to-appeal
+  #{:yield-position-unsettled
+    :no-resolution-to-appeal
     :appeal-window-expired
     :appeal-window-not-expired
     :escalation-not-allowed

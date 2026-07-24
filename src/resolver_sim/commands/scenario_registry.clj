@@ -8,9 +8,9 @@
            [java.math BigInteger]))
 
 (def ^:private excluded #{paths/artifacts-suffix
-                           "manifest/artifact-registry-validation.json"
-                           paths/artifacts-validation
-                           paths/completion paths/run-state paths/run-lock})
+                          "manifest/artifact-registry-validation.json"
+                          paths/artifacts-validation
+                          paths/completion paths/run-state paths/run-lock})
 
 (defn- sha256 [file]
   (let [digest (MessageDigest/getInstance "SHA-256")]
@@ -63,5 +63,5 @@
     (spit temp (json/write-str final))
     (Files/move (.toPath temp) (.toPath registry-file)
                 (into-array java.nio.file.StandardCopyOption [java.nio.file.StandardCopyOption/REPLACE_EXISTING
-                                                               java.nio.file.StandardCopyOption/ATOMIC_MOVE]))
+                                                              java.nio.file.StandardCopyOption/ATOMIC_MOVE]))
     final))

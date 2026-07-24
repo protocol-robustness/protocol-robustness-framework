@@ -12,9 +12,10 @@
      (canonical-bytes value)               — byte-array of typed encoding
      (hash-bytes bytes)                    — raw SHA-256 digest (32 bytes)
      (domain-hash domain-tag value)        — SHA-256(domain_tag || canonical_bytes), returns hex"
-  (:import [java.security MessageDigest]
-           [java.io ByteArrayOutputStream]
-           [java.math BigInteger BigDecimal]))
+(:import [java.security MessageDigest]
+            [java.io ByteArrayOutputStream]
+            [java.math BigInteger BigDecimal])
+  (:require [clojure.edn :as edn]))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Type Tags (per Binary Encoding ABI)
@@ -88,7 +89,16 @@
    :action             "ACTION_V1"
    :action-at          "ACTION_AT_V1"
    :pro-rata-allocation-result "PRO_RATA_ALLOCATION_RESULT_V1"
-   :stability-snapshot "STABILITY_SNAPSHOT_V1"})
+   :stability-snapshot "STABILITY_SNAPSHOT_V1"
+   :benchmark-semantic-content "BENCHMARK_SEMANTIC_CONTENT_V1"
+   :benchmark-registry-entry "BENCHMARK_REGISTRY_ENTRY_V1"
+   :benchmark-outcome "BENCHMARK_OUTCOME_V1"
+   :review-round-identity "REVIEW_ROUND_IDENTITY_V1"
+   :researcher-run-report "RESEARCHER_RUN_REPORT_V1"
+   :researcher-position "RESEARCHER_POSITION_V1"
+   :three-member-certificate "THREE_MEMBER_CERTIFICATE_V1"
+   :evidence-collection "EVIDENCE_COLLECTION_V1"
+   :state-projection "STATE_PROJECTION_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -244,46 +254,46 @@
 ;; ──────────────────────────────────────────────────────────────────────────────
 
 (defn canonical-bytes
-   "Produce the canonical typed binary encoding of a value.
+  "Produce the canonical typed binary encoding of a value.
     Returns a byte-array per CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI."
-   [v]
-   (cond
-     (nil? v)
-     (ba-of tag-null)
+  [v]
+  (cond
+    (nil? v)
+    (ba-of tag-null)
 
-     (instance? Boolean v)
-     (ba-of (if v tag-bool-true tag-bool-false))
+    (instance? Boolean v)
+    (ba-of (if v tag-bool-true tag-bool-false))
 
      ;; Only integer types have a canonical representation.  Do not use
      ;; number? here: coercing floating-point values or ratios to long silently
      ;; aliases distinct semantic values (for example, 1 and 1.9).
-     (or (instance? Long v)
-         (instance? Integer v)
-         (instance? Short v)
-         (instance? Byte v)
-         (instance? clojure.lang.BigInt v)
-         (instance? BigInteger v))
-     (let [bi (coerce-integer v)
-           zv (zigzag bi)
-           vu (encode-varuint zv)]
-       (ba-concat (ba-of tag-int) vu))
+    (or (instance? Long v)
+        (instance? Integer v)
+        (instance? Short v)
+        (instance? Byte v)
+        (instance? clojure.lang.BigInt v)
+        (instance? BigInteger v))
+    (let [bi (coerce-integer v)
+          zv (zigzag bi)
+          vu (encode-varuint zv)]
+      (ba-concat (ba-of tag-int) vu))
 
-     (instance? String v)
-     (let [bs (utf8-bytes v)
-           len (encode-varuint (count bs))]
-       (ba-concat (ba-of tag-string) len bs))
+    (instance? String v)
+    (let [bs (utf8-bytes v)
+          len (encode-varuint (count bs))]
+      (ba-concat (ba-of tag-string) len bs))
 
-      (instance? clojure.lang.Keyword v)
-      (let [s (keyword-string v)
-            bs (utf8-bytes s)
-            len (encode-varuint (count bs))]
-        (ba-concat (ba-of tag-keyword) len bs))
+    (instance? clojure.lang.Keyword v)
+    (let [s (keyword-string v)
+          bs (utf8-bytes s)
+          len (encode-varuint (count bs))]
+      (ba-concat (ba-of tag-keyword) len bs))
 
-      (instance? java.math.BigDecimal v)
-      (let [double-bytes (canonical-bytes (double v))]
-        double-bytes)
+    (instance? java.math.BigDecimal v)
+    (let [double-bytes (canonical-bytes (double v))]
+      double-bytes)
 
-     (instance? clojure.lang.IPersistentVector v)
+    (instance? clojure.lang.IPersistentVector v)
     (let [count-enc (encode-varuint (count v))
           elements (map canonical-bytes v)]
       (apply ba-concat (ba-of tag-array) count-enc elements))
@@ -438,17 +448,17 @@
                   {:type :float64 :value-str (format "%.17g" (float x))})
                ;; Ratio → exact tagged representation. Converting through double
                ;; would alias distinct rational values in a commitment.
-               (instance? clojure.lang.Ratio x)
-               (do (when flattened-fields-atom
-                     (swap! flattened-fields-atom conj
-                            {:path path
-                             :type :ratio
-                             :value (str (numerator x) "/" (denominator x))
-                             :contract :ratio-tagged-representation}))
-                   {:type :ratio
-                    :value-str (format "%.17g" (double x))
-                    :numerator (numerator x)
-                    :denominator (denominator x)})
+              (instance? clojure.lang.Ratio x)
+              (do (when flattened-fields-atom
+                    (swap! flattened-fields-atom conj
+                           {:path path
+                            :type :ratio
+                            :value (str (numerator x) "/" (denominator x))
+                            :contract :ratio-tagged-representation}))
+                  {:type :ratio
+                   :value-str (format "%.17g" (double x))
+                   :numerator (numerator x)
+                   :denominator (denominator x)})
               ;; BigDecimal → tagged float64 representation
               (instance? java.math.BigDecimal x)
               (do (when flattened-fields-atom
@@ -564,7 +574,7 @@
                               :type :keyword
                               :value (name v)
                               :contract :keyword→string}))
-                  (name v))
+                    (name v))
                 (ratio? v)
                 (do (when flattened-fields-atom
                       (swap! flattened-fields-atom conj
@@ -572,9 +582,9 @@
                               :type :ratio
                               :value (str (numerator v) "/" (denominator v))
                               :contract :ratio→tagged-map}))
-                  {"$type" "ratio"
-                   "$numerator" (numerator v)
-                   "$denominator" (denominator v)})
+                    {"$type" "ratio"
+                     "$numerator" (numerator v)
+                     "$denominator" (denominator v)})
                 (instance? Double v)
                 (do (when flattened-fields-atom
                       (swap! flattened-fields-atom conj
@@ -582,8 +592,8 @@
                               :type :float64
                               :value (double v)
                               :contract :double→tagged-hex}))
-                  {"$type" "float64"
-                   "$hex" (Double/toHexString v)})
+                    {"$type" "float64"
+                     "$hex" (Double/toHexString v)})
                 (instance? Float v)
                 (do (when flattened-fields-atom
                       (swap! flattened-fields-atom conj
@@ -591,8 +601,8 @@
                               :type :float32
                               :value (float v)
                               :contract :float→tagged-hex}))
-                  {"$type" "float32"
-                   "$hex" (Float/toHexString v)})
+                    {"$type" "float32"
+                     "$hex" (Float/toHexString v)})
                 (instance? clojure.lang.IPersistentMap v)
                 (into (sorted-map) (map (fn [[k v]] [(walk k (conj path [:key k])) (walk v (conj path [:value k]))]) v))
                 (instance? clojure.lang.IPersistentVector v)
@@ -601,6 +611,33 @@
                 (mapv (fn [x i] (walk x (conj path [:sequential i]))) v (range))
                 :else v))]
       (walk data []))))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Read string with canonical hashing and flattening provenance
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(defn read-string
+  "Read an EDN string and produce a canonical hash with flattening provenance.
+
+    Returns {:value parsed-value
+             :hash hex-string
+             :projection/flattened-fields [<flattening-events>]}.
+
+    The :projection/flattened-fields metadata records every type transformation
+    performed during the :evidence-content projection (keyword→string,
+    ratio→tagged-map, double→tagged-hex, float→tagged-hex). This enables
+    cross-language canonical hashing verification via check-projection-diff.
+
+    Usage:
+      (hc/read-string \"{:id 1 :name \\\"test\\\"}\")"
+  [s]
+  (let [value (edn/read-string s)
+        flattened-fields (atom [])
+        projected (project-for-content-hash value flattened-fields)
+        hash-hex (domain-hash :evidence-content projected)]
+    {:value value
+     :hash hash-hex
+     :projection/flattened-fields (vec @flattened-fields)}))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Intent Registry Contract
@@ -1640,16 +1677,16 @@
 
    See hash-intents for all supported intents with their scope
    and exclusion contracts."
-[{:keys [hash/intent]} value]
-   (let [{:intent/keys [projection-fn domain-tag]} (resolve-intent intent)
-         flattened-fields (atom [])
-         projected (if (or (= projection-fn project-world-to-structure-view)
-                           (= projection-fn project-for-content-hash))
-                     (projection-fn value intent flattened-fields)
-                     (projection-fn value intent))]
-     (when *validate-intent-constraints*
-       (validate-intent-constraints! intent value))
-     (domain-hash domain-tag
-                  (if (= projection-fn project-world-to-structure-view)
-                    (dissoc projected :projection/flattened-fields)
-                    projected))))
+  [{:keys [hash/intent]} value]
+  (let [{:intent/keys [projection-fn domain-tag]} (resolve-intent intent)
+        flattened-fields (atom [])
+        projected (if (or (= projection-fn project-world-to-structure-view)
+                          (= projection-fn project-for-content-hash))
+                    (projection-fn value intent flattened-fields)
+                    (projection-fn value intent))]
+    (when *validate-intent-constraints*
+      (validate-intent-constraints! intent value))
+    (domain-hash domain-tag
+                 (if (= projection-fn project-world-to-structure-view)
+                   (dissoc projected :projection/flattened-fields)
+                   projected))))

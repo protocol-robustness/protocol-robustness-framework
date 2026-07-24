@@ -21,11 +21,11 @@
    "manifest/run-enrichment.json" {:id "manifest.run-enrichment" :kind "run-enrichment" :schema "run-enrichment.v1" :importance "CORE"}
    "manifest/canonical-integrity.json" {:id "manifest.canonical-integrity" :kind "canonical-integrity" :schema "canonical-integrity.v1" :importance "CORE"}
    "manifest/forensic-claims-status.json" {:id "manifest.forensic-claims-status" :kind "forensic-claims-status" :schema "forensic-claims-status.v1" :importance "CORE"}
-      "manifest/verdict-policy.json" {:id "manifest.verdict-policy" :kind "verdict-policy" :schema "verdict-policy.v1" :importance "CORE"}
+   "manifest/verdict-policy.json" {:id "manifest.verdict-policy" :kind "verdict-policy" :schema "verdict-policy.v1" :importance "CORE"}
 
-         "manifest/diagnostic-summary.json" {:id "manifest.diagnostic-summary" :kind "scenario.diagnostic-summary" :schema "scenario-diagnostic-summary.v1" :importance "CORE"}
-         "manifest/pro-rata-mechanism-nodes.json" {:id "manifest.pro-rata-mechanism-nodes" :kind "mechanism.pro-rata-nodes" :schema "pro-rata-mechanism-nodes.v1" :importance "CORE"}
-       paths/sensitivity-report {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v2" :importance "CORE"}
+   "manifest/diagnostic-summary.json" {:id "manifest.diagnostic-summary" :kind "scenario.diagnostic-summary" :schema "scenario-diagnostic-summary.v1" :importance "CORE"}
+   "manifest/pro-rata-mechanism-nodes.json" {:id "manifest.pro-rata-mechanism-nodes" :kind "mechanism.pro-rata-nodes" :schema "pro-rata-mechanism-nodes.v1" :importance "CORE"}
+   paths/sensitivity-report {:id "manifest.sensitivity-report" :kind "sensitivity-report" :schema "sensitivity-report.v2" :importance "CORE"}
    "execution/replay-output.json" {:id "execution.replay-output" :kind "raw.replay" :schema "bundle-root.v1" :importance "DIAGNOSTIC"}
    "execution/execution-dag.json" {:id "execution.dag" :kind "execution.dag" :schema "execution-dag.v1" :importance "CORE"}
    "execution/pre-run-commitment.json" {:id "execution.pre-run-commitment" :kind "pre-run-commitment" :schema "pre-run-commitment.v1" :importance "CORE"}

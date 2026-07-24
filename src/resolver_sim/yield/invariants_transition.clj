@@ -16,15 +16,20 @@
                 1.0))))
 
 (defn- indices-changed
-  "[[module-id token] ...] for token indices that differ between worlds."
+  "[[module-id token] ...] for token indices that differ between worlds.
+   Detects changed, newly added, and removed indices."
   [world-before world-after]
   (let [before (:yield/indices world-before {})
-        after  (:yield/indices world-after {})]
-    (for [[mid tokens] after
-          [tok _new-v] tokens
-          :let [old-v (get-in before [mid tok] (get-in before [mid (name tok)]))
-                new-v (get-in after [mid tok] (get-in after [mid (name tok)]))]
-          :when (and (some? old-v) (some? new-v) (not= (double old-v) (double new-v)))]
+        after  (:yield/indices world-after {})
+        mids   (set (concat (keys before) (keys after)))]
+    (for [mid mids
+          :let [b-toks (get before mid {})
+                a-toks (get after mid {})
+                toks   (set (concat (keys b-toks) (keys a-toks)))]
+          tok toks
+          :let [old-v (or (get b-toks tok) (get b-toks (name tok)) 1.0)
+                new-v (or (get a-toks tok) (get a-toks (name tok)) 1.0)]
+          :when (not= (double old-v) (double new-v))]
       [mid tok])))
 
 (defn- negative-yield-active? [world module-id token]
@@ -35,11 +40,15 @@
     (contains? (risk/normalize-failure-modes (:failure-modes risk)) :negative-yield)))
 
 (defn index-monotone-ok?
-  "Positive APY ⇒ index non-decreasing; :negative-yield mode ⇒ non-increasing."
+  "Positive APY ⇒ index non-decreasing; :negative-yield mode ⇒ non-increasing.
+   Returns false if an existing index is removed (new nil).
+   Returns true if a new index appears (old nil) — initialization is allowed."
   [old-index new-index negative-yield?]
-  (if negative-yield?
-    (<= (double new-index) (double old-index))
-    (>= (double new-index) (double old-index))))
+  (cond
+    (nil? new-index) false
+    (nil? old-index) true
+    negative-yield?  (<= (double new-index) (double old-index))
+    :else            (>= (double new-index) (double old-index))))
 
 (defn check-index-monotone-transition
   [world-before world-after]

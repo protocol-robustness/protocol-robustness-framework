@@ -172,9 +172,9 @@
   :assumptions      ["force-authorisation record and held ledger are persisted atomically"
                      "governance identity is correctly configured"
                      "registered transition and world invariants are run"]
-  :validated-by     ["protocols_src/test/resolver_sim/protocols/sew/force_authorisation_test.clj"
-                     "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
-                     "benchmarks/packs/sew/force-authorisation-custody-v1.edn"]
+   :validated-by     ["protocols_src/test/resolver_sim/protocols/sew/force_authorisation_test.clj"
+                      "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+                      "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
   :falsified-if     "A trace produces a forced held adjustment with a reused authorization ID or a scope differing from its persisted grant."
   :confidence       :trace-bounded
   :status           :not-falsified
@@ -186,8 +186,8 @@
   :assumptions      ["all custody mutations use add-held or sub-held"
                      "reason-derived position scope is complete"
                      "registered transition and world invariants are run"]
-  :validated-by     ["protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
-                     "benchmarks/packs/sew/force-authorisation-custody-v1.edn"]
+   :validated-by     ["protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+                      "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
   :falsified-if     "A successful trace creates a negative position, account, or workflow custody balance, or spends workflow A custody as workflow B."
   :confidence       :trace-bounded
   :status           :not-falsified
@@ -199,9 +199,9 @@
   :assumptions      ["bundle root and witness are retained"
                      "forensic validate is run against the bundle and event evidence"
                      "bundle signature/key verification is performed separately"]
-  :validated-by     ["test/forensic_python/test_validate.py"
-                     "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
-                     "benchmarks/packs/sew/force-authorisation-custody-v1.edn"]
+   :validated-by     ["test/forensic_python/test_validate.py"
+                      "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+                      "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
   :falsified-if     "forensic:validate accepts a missing witness, orphan consumption, invalid scope linkage, or evidence/state disagreement."
   :confidence       :trace-bounded
   :status           :not-falsified

@@ -42,7 +42,13 @@
     :benchmark/status-updated "2026-06-30"}
 
    {:benchmark/id :benchmark/prf-redistribution-fairness-v0
-    :benchmark/domain :domain/protocol-value-conservation
-    :benchmark/file "redistribution-fairness-v0.edn"
-    :benchmark/status :experimental
-    :benchmark/status-updated "2026-07-13"}]}
+     :benchmark/domain :domain/protocol-value-conservation
+     :benchmark/file "redistribution-fairness-v0.edn"
+     :benchmark/status :experimental
+     :benchmark/status-updated "2026-07-13"}
+
+   {:benchmark/id :benchmark/force-authorisation-custody-v1
+     :benchmark/domain :domain/protocol-value-conservation
+     :benchmark/file "force-authorisation-custody-v1.edn"
+     :benchmark/status :experimental
+     :benchmark/status-updated "2026-07-12"}]}

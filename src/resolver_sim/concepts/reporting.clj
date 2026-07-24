@@ -46,9 +46,9 @@
                :concept/out-of-scope (:concept/out-of-scope c)
                :concept/known-gaps (:concept/known-gaps c)
                :concept/evidence (:concept/evidence c)
-                              :concept/not-claimed (not-claimed c)
-                              :concept/mappings (select-keys c [:concept/roles :concept/entities
-                                                :concept/actions :concept/outcomes])}))
+               :concept/not-claimed (not-claimed c)
+               :concept/mappings (select-keys c [:concept/roles :concept/entities
+                                                 :concept/actions :concept/outcomes])}))
           concepts)
     :risk-annotations
     (let [all-failure-modes (mapcat :concept/failure-modes concepts)]

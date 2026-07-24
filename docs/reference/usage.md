@@ -79,7 +79,7 @@ Use a benchmark for a canonical multi-scenario evidence bundle:
 
 ```bash
 java -jar target/prf-runner-sew-0.1.0-uber.jar \
-  run-benchmark sew/sew-force-authorisation-custody-v1 \
+  run-benchmark force-authorisation-custody-v1 \
   --run-root /tmp/prf-benchmark
 ```
 

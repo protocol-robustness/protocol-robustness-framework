@@ -58,10 +58,10 @@
                                      "risk" {"id" (mget risk :id)} "value" {"asset" (mget value :asset) "amount" amount "amount_encoding" encoding}
                                      "scope" {"kind" scope-kind "id" scope-id}
                                      "calculation" {"method" "field-read" "source_ref" source-ref "selector" (selector-wire selector)}
-                                                                          "validation" {"status" "pass"
-                                                                                        "checks" ["timestamp-resolves" "event-coordinate-matches"
-                                                                                                  "selector-scope-matches" "valid-amount"]}
-                                                                          "derived_from" provenance})))))))))
+                                     "validation" {"status" "pass"
+                                                   "checks" ["timestamp-resolves" "event-coordinate-matches"
+                                                             "selector-scope-matches" "valid-amount"]}
+                                     "derived_from" provenance})))))))))
 (defn value-at-risk-timeline
   "Derived reviewer table for an opted-in observation. It is intentionally not a
    second authoritative observation contract: each row is a post-event reading

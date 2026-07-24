@@ -6,6 +6,7 @@
             [resolver-sim.protocols.sew.lifecycle  :as lc]
             [resolver-sim.protocols.sew.accounting :as ac]
             [resolver-sim.protocols.sew.invariants :as inv]
+            [resolver-sim.assurance.custody        :as custody]
             [resolver-sim.hash.canonical          :as hash]))
 
 (def usdc :0xUSDC)
@@ -185,7 +186,7 @@
                                         :reason :escrow-settlement-released
                                         :extra {:held/workflow-id 0
                                                 :owner/address bob}}))
-        replayed-state (ac/replay-held-adjustment-state (:held-adjustments world))]
+        replayed-state (custody/replay-held-adjustment-state (:held-adjustments world))]
     (is (= (:held-ledger/index world) (:held-ledger/index replayed-state)))
     (is (= (:total-held world) (:total-held replayed-state)))
     (is (= (:held/positions world) (:held/positions replayed-state)))
@@ -206,7 +207,7 @@
                                         :reason :escrow-settlement-released
                                         :extra {:held/workflow-id 0
                                                 :owner/address bob}}))
-        checks (ac/held-custody-closed-form-checks (vals (:held-artifacts world)))]
+        checks (custody/held-custody-closed-form-checks (vals (:held-artifacts world)))]
     (is (= [:held-custody/hash-integrity
             :held-custody/local-delta
             :held-custody/non-negative-after

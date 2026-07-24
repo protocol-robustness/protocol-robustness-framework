@@ -19,7 +19,7 @@
    "metrics" {"escrow-unrealized" 0 "escrow-realized" 100 "claimable" 0}
    "world" {"total-fees" {"USDC" 2}}
    "trace" [{"seq" 0 "time" 1 "agent" "buyer" "action" "create_escrow" "result" "ok"}
-              {"seq" 1 "time" 2 "agent" "resolver" "action" "release_escrow" "result" "ok"}]})
+            {"seq" 1 "time" 2 "agent" "resolver" "action" "release_escrow" "result" "ok"}]})
 
 (def ^:private failed-replay
   {"scenario-id" "parity-rejected"
@@ -37,8 +37,8 @@
    "source" {"scenario-id" "parity-yield"}
    "metrics" {"claimable" 25 "available-ratio" 0.75}
    "world" {"claimable-v2" {"w1" {"settlement/principal" {"buyer" 25}}}
-             "yield/positions" {"p1" {"deferred-yield" 5 "status" "unwinding"}}
-             "total-fees" {"USDC" 2}}
+            "yield/positions" {"p1" {"deferred-yield" 5 "status" "unwinding"}}
+            "total-fees" {"USDC" 2}}
    "trace" [{"seq" 0 "time" 5 "agent" "resolver" "action" "release_claimable" "result" "ok"}]})
 
 (defn- compare-trace-projection! [fixture]

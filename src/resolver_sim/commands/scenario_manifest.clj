@@ -64,9 +64,9 @@
      "declared_protected_amount" {"basis" "sum of persisted create_escrow event amounts"
                                   "by_unit" declared}
      "custody" {"before" {"basis" "declared protected amount; not an initial world-balance snapshot"
-                            "by_unit" declared}
+                          "by_unit" declared}
                 "after" {"basis" "terminal replay world total-held"
-                           "by_unit" terminal-held}}
+                         "by_unit" terminal-held}}
      "exposure" {"expected_loss" {"status" "not-declared-by-scenario"}
                  "observed_loss" {"status" "not-derived"
                                   "note" "Terminal held custody is not, by itself, a loss measure."}}
@@ -96,8 +96,8 @@
                                 snapshot replay
                                 (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
         value-at-risk-validation (value-at-risk/validate-persisted
-                                           value-at-risk snapshot replay (:input/provenance execution)
-                                           (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
+                                  value-at-risk snapshot replay (:input/provenance execution)
+                                  (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
         _ (when (and (not= "not-declared" (get value-at-risk "status"))
                      (not= "pass" (get value-at-risk-validation "status")))
             (throw (ex-info "Declared value-at-risk observation failed validation"
@@ -107,14 +107,14 @@
                  "run" {"id" (:run/id context) "overall_status" status
                         "outcome" {"status" status "exit_code" (:exit-code execution) "duration_ms" (:duration-ms execution 0)}}
                  "value_at_risk" value-at-risk
-                                  "value_at_risk_timeline_ref" "manifest/value-at-risk-timeline.json"
-                                  "value_at_risk_overview" (value-at-risk-summary execution)}
+                 "value_at_risk_timeline_ref" "manifest/value-at-risk-timeline.json"
+                 "value_at_risk_overview" (value-at-risk-summary execution)}
         claimable {"schema_version" "claimable-classification.v2" "run_id" (:run/id context)}]
     (atomic-json! (io/file dir "run.json") run)
     (atomic-json! (io/file dir "summary.json") summary)
     (atomic-json! (io/file dir "value-at-risk.json") value-at-risk)
-        (atomic-json! (io/file dir "value-at-risk-timeline.json") value-at-risk-timeline)
-        (atomic-json! (io/file dir "claimable-classification.json") claimable)
+    (atomic-json! (io/file dir "value-at-risk-timeline.json") value-at-risk-timeline)
+    (atomic-json! (io/file dir "claimable-classification.json") claimable)
     {:run run :summary summary :claimable claimable}))
 
 (defn write-classification! [manifest-dir classification]

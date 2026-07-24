@@ -29,21 +29,21 @@
   ([payload-hash key-id private-key]
    (build-envelope payload-hash key-id private-key nil))
   ([payload-hash key-id private-key subject]
-  (when-not (re-matches sha256-ref-pattern payload-hash)
-    (throw (ex-info "Expected typed SHA-256 payload hash" {:payload-hash payload-hash})))
-  (let [signer (Signature/getInstance "Ed25519")]
-    (.initSign signer ^PrivateKey private-key)
-    (.update signer (signing-bytes payload-hash))
-    {:schema-version schema-version
-     :payload (merge {:schema-version "evidence-finalization.v2"
-                      :payload-type payload-type
-                      :payload-hash payload-hash
-                      :subject {:kind "run-evidence-finalization.v1"
-                                :hash payload-hash}}
-                     (when subject {:subject subject}))
-     :signature {:algorithm "Ed25519"
-                 :key-id key-id
-                 :value (codecs/bytes->hex (.sign signer))}})))
+   (when-not (re-matches sha256-ref-pattern payload-hash)
+     (throw (ex-info "Expected typed SHA-256 payload hash" {:payload-hash payload-hash})))
+   (let [signer (Signature/getInstance "Ed25519")]
+     (.initSign signer ^PrivateKey private-key)
+     (.update signer (signing-bytes payload-hash))
+     {:schema-version schema-version
+      :payload (merge {:schema-version "evidence-finalization.v2"
+                       :payload-type payload-type
+                       :payload-hash payload-hash
+                       :subject {:kind "run-evidence-finalization.v1"
+                                 :hash payload-hash}}
+                      (when subject {:subject subject}))
+      :signature {:algorithm "Ed25519"
+                  :key-id key-id
+                  :value (codecs/bytes->hex (.sign signer))}})))
 
 (defn verify-envelope [envelope public-key]
   (let [shape (validate-envelope envelope)]
@@ -76,9 +76,9 @@
   ([path payload-hash key-id private-key]
    (write-envelope! path payload-hash key-id private-key nil))
   ([path payload-hash key-id private-key subject]
-  (let [envelope (build-envelope payload-hash key-id private-key subject)
-        validation (validate-envelope envelope)]
-    (when-not (:valid? validation)
-      (throw (ex-info "Generated finalization signature envelope is invalid" validation)))
-    {:path (atomic-write! path (json/write-str envelope {:indent true}))
-     :envelope envelope})))
+   (let [envelope (build-envelope payload-hash key-id private-key subject)
+         validation (validate-envelope envelope)]
+     (when-not (:valid? validation)
+       (throw (ex-info "Generated finalization signature envelope is invalid" validation)))
+     {:path (atomic-write! path (json/write-str envelope {:indent true}))
+      :envelope envelope})))

@@ -6,9 +6,9 @@
             [resolver-sim.benchmark.conservation :as conservation]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.paths :as paths]
-                        [resolver-sim.hash.canonical :as canonical]
-                                                [resolver-sim.run.package-index :as package-index]
-                                                [resolver-sim.run.verdict-policy :as verdict-policy]))
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.run.package-index :as package-index]
+            [resolver-sim.run.verdict-policy :as verdict-policy]))
 
 (defn- read-json [file] (json/read-str (slurp file)))
 (defn- sha-ref [file] (str "sha256:" (lifecycle/sha256-file file)))
@@ -146,8 +146,8 @@
           content-registry-file (io/file root "benchmark/evidence/content-registry.json")
           canonical-integrity-file (io/file root "benchmark/assertions/canonical-integrity.json")
           forensic-status-file (io/file root "benchmark/assertions/forensic-claims-status.json")
-                    verdict-policy-file (io/file root "manifest/verdict-policy.json")]
-                (when-not (every? #(.isFile %) [completion-file finalization-file assurance-file conservation-file registry-file validation-file content-registry-file canonical-integrity-file forensic-status-file verdict-policy-file])
+          verdict-policy-file (io/file root "manifest/verdict-policy.json")]
+      (when-not (every? #(.isFile %) [completion-file finalization-file assurance-file conservation-file registry-file validation-file content-registry-file canonical-integrity-file forensic-status-file verdict-policy-file])
         (throw (ex-info "Benchmark terminal artifact is missing" {:run-root run-root})))
       (let [completion (read-json completion-file)
             finalization (read-json finalization-file)
@@ -157,9 +157,9 @@
             content-registry (try (read-json content-registry-file) (catch Exception _ nil))
             canonical-integrity (read-json canonical-integrity-file)
             forensic-status (read-json forensic-status-file)
-                        verdict-policy-artifact (read-json verdict-policy-file)
-                        verdict-policy-verification (verdict-policy/verify! root verdict-policy-artifact "benchmark" (get completion "run_id"))
-                        package-context (package-index/resolve-completion-context run-root)
+            verdict-policy-artifact (read-json verdict-policy-file)
+            verdict-policy-verification (verdict-policy/verify! root verdict-policy-artifact "benchmark" (get completion "run_id"))
+            package-context (package-index/resolve-completion-context run-root)
             package-closure (when (get-in package-context [:completion-report :valid?])
                               (package-index/validate-benchmark-package-closure
                                run-root (:completion package-context) (get-in package-context [:package-index :index])))
@@ -176,7 +176,7 @@
                         "input_set_root" (get assurance "input_set_root")}
             expected-final-ref (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
             checks {"completion-first-package-index" (and (get-in package-context [:completion-report :valid?])
-                                                            (:valid? package-closure))
+                                                          (:valid? package-closure))
                     "completion-finalization-hash" (= (get completion "finalization_sha256") (sha-ref finalization-file))
                     "completion-lifecycle" (= "completed" (get completion "lifecycle_status"))
                     "completion-semantic-outcome" (= (get completion "semantic_status") (get-in assurance ["conclusion" "outcome"]))
@@ -198,16 +198,16 @@
                                                      (:ids-match? recalculated-conservation)
                                                      (:hashes-valid? recalculated-conservation))
                     "canonical-integrity" (and (= "canonical-integrity.v1" (get canonical-integrity "schema_version"))
-                                                 (= "passed" (get canonical-integrity "status"))
-                                                 (= (sha-ref finalization-file) (get-in canonical-integrity ["benchmark_finalization" "sha256"]))
-                                                 (= (sha-ref assurance-file) (get-in canonical-integrity ["benchmark_assurance" "sha256"]))
-                                                 (= (sha-ref conservation-file) (get-in canonical-integrity ["conservation" "sha256"]))
-                                                 (= (sha-ref content-registry-file) (get-in canonical-integrity ["evidence_content_registry" "sha256"])))
+                                               (= "passed" (get canonical-integrity "status"))
+                                               (= (sha-ref finalization-file) (get-in canonical-integrity ["benchmark_finalization" "sha256"]))
+                                               (= (sha-ref assurance-file) (get-in canonical-integrity ["benchmark_assurance" "sha256"]))
+                                               (= (sha-ref conservation-file) (get-in canonical-integrity ["conservation" "sha256"]))
+                                               (= (sha-ref content-registry-file) (get-in canonical-integrity ["evidence_content_registry" "sha256"])))
                     "forensic-status-deferred" (and (= "forensic-claims-status.v1" (get forensic-status "schema_version"))
-                                                                          (= "deferred" (get forensic-status "status"))
-                                                                          (= "unsigned-forensic-signing-not-configured" (get forensic-status "reason_code")))
-                                        "verdict-policy" (:valid? verdict-policy-verification)
-                                        "final-ref" (and (= expected-final-ref (get finalization "final_ref"))
+                                                    (= "deferred" (get forensic-status "status"))
+                                                    (= "unsigned-forensic-signing-not-configured" (get forensic-status "reason_code")))
+                    "verdict-policy" (:valid? verdict-policy-verification)
+                    "final-ref" (and (= expected-final-ref (get finalization "final_ref"))
                                      (= expected-final-ref (get completion "final_ref")))}]
         {"schema_version" "benchmark-verification.v1"
          "status" (if (every? true? (vals checks)) "passed" "failed")

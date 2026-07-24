@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/cancellation-equilibrium-validation,
+ :suite-id :suites/all-invariants,
  :trace-id "s06-mutual-cancel",
  :final-state-hash
  "25cd85212a4774d32e7cb31dd299df3556b1932d8610766922f052d43aa3dcc2",

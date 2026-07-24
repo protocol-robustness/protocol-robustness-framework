@@ -49,7 +49,7 @@
         reconcile #(#'runner/reconcile-execution-plan! plan %)]
     (testing "matching plan and results reconcile"
       (is (true? (reconcile [(result "sha256:one" "exec-0001-one")
-                             (result "sha256:two" "exec-0002-two")]))) )
+                             (result "sha256:two" "exec-0002-two")]))))
     (testing "missing planned execution is rejected"
       (is (thrown-with-msg? clojure.lang.ExceptionInfo
                             #"reconciliation failed"

@@ -202,7 +202,7 @@
                           {:claim-id "forensic-grade"
                            :category "composite"
                            :confidence (if all-pass? "high" "low")
-                                                      :status (if all-pass? "pass" "fail")
+                           :status (if all-pass? "pass" "fail")
                            :evidence-refs (vec (mapv (fn [cr]
                                                        {:ref/kind "claim-result"
                                                         :ref/hash (:hash cr)
@@ -212,12 +212,12 @@
                                                      @claim-results))
                            :description "All forensic-grade acceptance criteria pass"
                            :failure-detail (when-not all-pass?
-                                                                        (if (seq criteria)
-                                                                          (str "Failed criteria: "
-                                                                               (str/join ", "
-                                                                                         (map (comp name :criterion)
-                                                                                              (remove :pass criteria))))
-                                                                          "No forensic acceptance criteria were evaluated"))})]
+                                             (if (seq criteria)
+                                               (str "Failed criteria: "
+                                                    (str/join ", "
+                                                              (map (comp name :criterion)
+                                                                   (remove :pass criteria))))
+                                               "No forensic acceptance criteria were evaluated"))})]
         (swap! claim-results conj composite-cr))
       ;; Write self-attestations for each claim result
       (let [all-results @claim-results

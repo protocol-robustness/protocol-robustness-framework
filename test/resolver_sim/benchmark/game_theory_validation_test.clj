@@ -53,21 +53,21 @@
                       :title "Resolver stake shortfall"
                       :purpose "liquidity-stress"
                       :threat-tags ["stake" "liquidity" "blocking"]}
-        evidence {:results [{:file "resource:scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
-                             :simulator/scenario-path "resource:scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
                              :outcome :pass
                              :halt-reason nil
                              :scenario/evidence-root (apply str (repeat 64 "a"))
                              :partial-fill-decisions [valid-partial-fill-decision]
                              :invariant-results [{:id :inv/a :result :pass}]}
-                            {:file "resource:scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
-                             :simulator/scenario-path "resource:scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                            {:file "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :simulator/scenario-path "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
                              :outcome :pass
                              :halt-reason nil
                              :scenario/evidence-root (apply str (repeat 64 "b"))
                              :invariant-results [{:id :inv/b :result :pass}]}
-                            {:file "resource:scenarios/edn/S104_resolver-stake-shortfall.edn"
-                             :simulator/scenario-path "resource:scenarios/edn/S104_resolver-stake-shortfall.edn"
+                            {:file "scenarios/edn/S104_resolver-stake-shortfall.edn"
+                             :simulator/scenario-path "scenarios/edn/S104_resolver-stake-shortfall.edn"
                              :outcome :fail
                              :halt-reason :invariant-violation
                              :scenario/evidence-root (apply str (repeat 64 "c"))
@@ -77,15 +77,15 @@
                       resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
                       resolver-sim.scenario.suites/suite-paths
                       (fn [_]
-                        ["resource:scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
-                         "resource:scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
-                         "resource:scenarios/edn/S104_resolver-stake-shortfall.edn"])
+                        ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                         "scenarios/edn/S104_resolver-stake-shortfall.edn"])
                       resolver-sim.io.scenarios/load-scenario-file
                       (fn [path]
                         (case path
-                          "resource:scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
-                          "resource:scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
-                          "resource:scenarios/edn/S104_resolver-stake-shortfall.edn" scenario-104
+                          "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
+                          "scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
+                          "scenarios/edn/S104_resolver-stake-shortfall.edn" scenario-104
                           (throw (ex-info "unexpected scenario path" {:path path}))))]
           (sut/run-strategic-claim-validation :out-dir out-dir))
         level-verdicts (into {}

@@ -10,7 +10,8 @@
   (:require [clojure.string :as str]))
 
 (def ^:private core-protocol-symbol-registry
-  {"yield-v1" 'resolver-sim.protocols.yield/protocol
+  {"sew-v1"   'resolver-sim.protocols.sew/protocol
+   "yield-v1" 'resolver-sim.protocols.yield/protocol
    "dummy"    'resolver-sim.protocols.dummy/protocol})
 
 (defonce ^:private extension-protocol-symbol-registry

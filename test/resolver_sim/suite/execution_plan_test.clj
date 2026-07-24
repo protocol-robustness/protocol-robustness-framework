@@ -20,8 +20,8 @@
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
                         #"duplicate execution IDs"
                         (plan/validate-plan! (conj entries (assoc (second entries)
-                                                               :execution/directory "exec-0003-cccccccccccccccc")))))
+                                                                  :execution/directory "exec-0003-cccccccccccccccc")))))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
                         #"directory collisions"
                         (plan/validate-plan! (conj entries {:execution/id "sha256:three"
-                                                           :execution/directory (:execution/directory (second entries))})))))
+                                                            :execution/directory (:execution/directory (second entries))})))))

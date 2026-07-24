@@ -25,7 +25,7 @@
    to write to the protected keys.  Each entry is a string like
    'namespace/fn-name' matching the canonical ns/fn form."
   '#{resolver-sim.protocols.sew.accounting/update-ledger-index
-     resolver-sim.protocols.sew.accounting/replay-held-adjustment-state
+     resolver-sim.assurance.custody/replay-held-adjustment-state
      resolver-sim.protocols.sew.registry/register-stake
      resolver-sim.protocols.sew.registry/withdraw-stake
      resolver-sim.protocols.sew.registry/slash-resolver-stake

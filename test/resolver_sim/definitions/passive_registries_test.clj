@@ -429,7 +429,7 @@
                         :valid-from "2026-01-01T00:00:00Z"}
                        {:key-id "key-2026" :algorithm :ed25519 :public-key-encoding :hex
                         :public-key (apply str (repeat 64 "b")) :status :retired
-                        :valid-from "2025-01-01T00:00:00Z"}]} )
+                        :valid-from "2025-01-01T00:00:00Z"}]})
         errors (run-attestor-validation :test-registry [entry])]
     (is (some #(= :entry/duplicate-attestor-key-id (:error %)) errors))))
 
