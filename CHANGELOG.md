@@ -70,6 +70,12 @@
 
 - **Orphaned fixture files removed:** Deleted 96 unreferenced trace files, 10 orphaned protocol fixtures, and 1 orphaned token fixture — files that existed on disk but were referenced by no fixture suite. (`data/fixtures/traces/`, `data/fixtures/protocol/`, `data/fixtures/tokens/`)
 
+- **Y03/Y04 vault scenario expectation bugs:** `focus-deferred` in Y03 expected 1000 but actual is 500 (50% shortfall on 1000 deposit). `total-reclaimed` in Y04 expected 1000 but actual is 500 (only deferred half reclaimed). Fixed both. (`scenarios/edn/Y03_vault-risk-override-schedule-shadowing.edn`, `scenarios/edn/Y04_vault-recovery-claim-deferred.edn`)
+
+- **Missing Y08-Y13 in yield-provider code suite:** Registered `Y08_optimal-strategy-load-stress` through `Y13_all-caps-residual-liquidity` in `yield-provider-scenario-ids`, extending the suite from 7 to 13 scenarios. All pass. (`src/resolver_sim/scenario/suites.clj`)
+
+- **Empty yield invariants stub filled:** Implemented `yield-position-consistency?`, `yield-exposure-ok?`, and `realized-non-negative?` predicates — the three Sew-specific yield invariants that previously had only integration coverage. (`protocols_src/resolver_sim/protocols/sew/invariants/yield.clj`)
+
 - **`:reconciliation/:allocation-applied?` hardcoded to `true`:** Changed from constant `true` to dynamic check matching `:all-allocations-applied` semantics. (`src/resolver_sim/yield/partial_fill.clj`)
 
 - **Index-monotone invariant misses new/removed indices:** Expanded `indices-changed` to iterate over the union of `before` and `after` index sets, detecting newly added and removed indices. `index-monotone-ok?` now returns `false` on removed indices and `true` on newly appearing indices. (`src/resolver_sim/yield/invariants_transition.clj`)

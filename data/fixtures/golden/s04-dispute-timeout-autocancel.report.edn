@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/all-invariants,
+ :suite-id :suites/cancellation-equilibrium-validation,
  :trace-id "s04-dispute-timeout-autocancel",
  :final-state-hash
  "17c519ce7b8ad04b57cac047dc8c3ecd135fc81e48c87f7ecdd670867b904bc2",

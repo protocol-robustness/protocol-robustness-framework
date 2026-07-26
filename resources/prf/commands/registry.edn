@@ -196,6 +196,20 @@
     :command/outputs []
     :command/description "Interactively select and run scenarios from a numbered menu."}
 
+   {:command/id :scenario-run-search
+    :command/path ["scenario" "run-search"]
+    :command/title "Run scenarios by search"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--search" :type :string :doc "Text to match against scenario paths and contents"}
+                      {:name "--report-format" :type :string :doc "report format: summary, failures, standard, verbose, or audit"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Find scenarios matching text and run each in an isolated run root."}
+
    {:command/id :scenario-compare
     :command/path ["scenario" "compare"]
     :command/title "Compare two scenarios"
@@ -627,4 +641,62 @@
     :command/jar-availability :external
     :command/runtime :bb
     :command/bb-task "test:sew-yield-scenarios"
-    :command/description "Run Sew escrow + yield integration JSON scenarios."}]}
+    :command/description "Run Sew escrow + yield integration JSON scenarios."}
+
+   {:command/id :test-dr3-coverage
+    :command/path ["test" "dr3-coverage"]
+    :command/title "Run DR3 critical suite"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :manual
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:dr3-coverage"
+    :command/description "Run DR3 critical suite + release-mapping drift checks."}
+
+   {:command/id :test-long-horizon
+    :command/path ["test" "long-horizon"]
+    :command/title "Run long horizon scenarios"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :manual
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:long-horizon"
+    :command/description "Run extended horizon scenarios (100/200/500/1000 epochs)."}
+
+   {:command/id :notebook-focus
+    :command/path ["notebook" "focus"]
+    :command/title "Focus notebook on a run"
+    :command/category :notebook
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-id" :type :string :doc "Run ID to focus on" :required true}]
+    :command/outputs []
+    :command/description "Pin the notebook to a specific run-id."}
+
+   {:command/id :notebook-latest
+    :command/path ["notebook" "latest"]
+    :command/title "Reset notebook to latest run"
+    :command/category :notebook
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/description "Reset the notebook to always show the latest run."}
+
+   {:command/id :notebook-runs
+    :command/path ["notebook" "runs"]
+    :command/title "List available runs"
+    :command/category :notebook
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/description "List all available run-ids."}]}

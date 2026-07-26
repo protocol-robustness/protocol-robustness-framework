@@ -110,6 +110,9 @@ workspaces/private-discovery-template/export/
 .cursor/rules/codacy.mdc
 .github/instructions/codacy.instructions.md
 
+# Locks
+.test-artifact.lock
+
 # Temporarily ignored
 send-to-ef
 notes

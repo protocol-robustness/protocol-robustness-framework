@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/all-invariants,
+ :suite-id :suites/cancellation-equilibrium-validation,
  :trace-id "s22-status-leak-agree-cancel-over-dispute",
  :final-state-hash
  "13775909768fc3c5075ddf2886cd5f2e4e3bc9ba4a84e9a72d6130920b7cdc2b",

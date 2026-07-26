@@ -49,7 +49,13 @@
             "scenarios/edn/Y04_vault-recovery-claim-deferred.edn"
             "scenarios/edn/Y05_auto-generated-shortfall.edn"
             "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn"
-            "scenarios/edn/Y07_adversarial-shortfall-exploit.edn"]
+            "scenarios/edn/Y07_adversarial-shortfall-exploit.edn"
+            "scenarios/edn/Y08_optimal-strategy-load-stress.edn"
+            "scenarios/edn/Y09_shared-pool-zero-liquidity-pro-rata.edn"
+            "scenarios/edn/Y10_shared-pool-largest-remainder-pro-rata.edn"
+            "scenarios/edn/Y11_cap-constrained-pro-rata-redistribution.edn"
+            "scenarios/edn/Y12_cascading-cap-redistribution.edn"
+            "scenarios/edn/Y13_all-caps-residual-liquidity.edn"]
            paths))
     (is (every? #(str/starts-with? % "scenarios/edn/Y") paths))
     (is (not-any? #(str/includes? % "resource:scenarios/yield/") paths))

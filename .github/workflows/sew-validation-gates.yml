@@ -84,6 +84,9 @@ jobs:
           echo "=== Running monte-carlo ==="
           ./scripts/test.sh monte-carlo || true
 
+          echo "=== Running dr3-coverage ==="
+          ./scripts/test.sh dr3-coverage || true
+
           FAILURES=0
           [ $BACKSTOP_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))
           [ $UNIT_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))

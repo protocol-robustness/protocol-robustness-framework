@@ -55,7 +55,13 @@
    "Y04_vault-recovery-claim-deferred"
    "Y05_auto-generated-shortfall"
    "Y06_multi-party-pro-rata-shortfall"
-   "Y07_adversarial-shortfall-exploit"])
+   "Y07_adversarial-shortfall-exploit"
+   "Y08_optimal-strategy-load-stress"
+   "Y09_shared-pool-zero-liquidity-pro-rata"
+   "Y10_shared-pool-largest-remainder-pro-rata"
+   "Y11_cap-constrained-pro-rata-redistribution"
+   "Y12_cascading-cap-redistribution"
+   "Y13_all-caps-residual-liquidity"])
 
 (def ^:private dispute-resolution-scenario-ids
   ["S-DR-001-basic-release-ruling"

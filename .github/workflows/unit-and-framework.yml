@@ -44,6 +44,9 @@ jobs:
       - name: Evidence-chain validation gate
         run: bb test:evidence
 
+      - name: Notebook namespace validation
+        run: bb test:notebooks
+
       - name: Validate public claim bindings
         run: |
           bb public-claims:generate

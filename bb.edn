@@ -23,45 +23,8 @@ Example: bb cli scenario list --search yield"
         :task (apply clojure "-M:with-sew" "-m" "resolver-sim.cli.main" *command-line-args*)}
 
  run:scenario:search
- {:doc "Ad-hoc scenario search using one isolated structured run per match.
-Usage: bb run:scenario:search <text> [--report-format <summary|failures|standard|verbose|audit> | -v | -f | -s | -a]
-      An explicit --run-root is not supported because each match owns a separate bundle."
-  :task (let [args (vec *command-line-args*)
-              selector (first args)
-              scenario-args (vec (rest args))]
-          (when-not (seq selector)
-            (throw (ex-info "Missing selector. Usage: bb run:scenario:search <text>" {})))
-          (when (some #{"--run-root" "--output-dir" "--scenario-output-dir" "--save-output"} scenario-args)
-            (throw (ex-info "Scenario search creates one generated run root per match; run individual scenarios to choose --run-root" {})))
-          (let [selector-lc (clojure.string/lower-case selector)
-                scenarios (->> (file-seq (clojure.java.io/file "scenarios"))
-                               (filter (fn [file] (.isFile file)))
-                               (map (fn [file] (.getPath file)))
-                               (filter (fn [path] (or (clojure.string/ends-with? path ".json")
-                                                      (clojure.string/ends-with? path ".edn"))))
-                               (filter (fn [path]
-                                         (clojure.string/includes?
-                                          (str (clojure.string/lower-case path) "\n"
-                                               (clojure.string/lower-case (slurp path)))
-                                          selector-lc)))
-                               sort
-                               vec)
-                results (mapv (fn [scenario]
-                                (println (str "Running " scenario))
-                                (try
-                                  (apply clojure {:dir "." :extra-deps {}}
-                                         (concat ["-M:with-sew" "-m" "resolver-sim.commands.scenario" scenario]
-                                                 scenario-args))
-                                  {:scenario scenario :exit 0}
-                                  (catch clojure.lang.ExceptionInfo e
-                                    {:scenario scenario :exit (or (:exit (ex-data e)) 1)})))
-                              scenarios)
-                failed (filterv (fn [result] (not (zero? (:exit result)))) results)]
-            (when (empty? scenarios)
-              (throw (ex-info (str "No scenarios matched selector: " selector) {})))
-            (when (seq failed)
-              (println (str (count failed) " scenario(s) failed: " (mapv :scenario failed)))
-              (System/exit 1))))}
+ {:doc "Find scenarios matching text and run each in an isolated run root."
+  :task (apply clojure "-M:cli/sew" "scenario" "run-search" *command-line-args*)}
 
  artifacts:refresh
   {:doc "Refresh results/test-artifacts and golden reports by running all canonical fixture suites in :save mode.
@@ -76,27 +39,6 @@ Usage: bb run:scenario:search <text> [--report-format <summary|failures|standard
          Touches notebooks/report.clj afterward so a running Clerk server re-evaluates the report notebook.
          See also: scripts/scenarios/regenerate_goldens.clj, deps.edn :regenerate-goldens alias."
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:regenerate-goldens:with-sew")}
-
-  evidence:build
-   {:doc "[LEGACY] Run a single scenario into the canonical self-contained evidence bundle.
-Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
-       --output-file is no longer supported; use the bundle replay output under scenarios/<slug>/execution/."
-   :task (let [args (vec *command-line-args*)
-               scenario-index (.indexOf args "--scenario")
-               raw-scenario (when (<= 0 scenario-index) (nth args (inc scenario-index) nil))
-               scenario (get {"kleros/preemptive-escalation-rejected-l0"
-                              "scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn"
-                              "kleros/escalation-race"
-                              "scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn"}
-                             raw-scenario raw-scenario)
-               remainder (vec (concat (subvec args 0 (max 0 scenario-index))
-                                      (subvec args (min (count args) (+ scenario-index 2)))))]
-           (when-not scenario
-             (throw (ex-info "Missing --scenario value. Usage: bb evidence:build --scenario <scenario-path>" {})))
-           (when (some #{"--output-file"} remainder)
-             (throw (ex-info "--output-file is not supported; use --run-root and the canonical replay output" {})))
-           (apply clojure {:dir "." :extra-deps {}}
-                  (concat ["-M:with-sew" "-m" "resolver-sim.commands.scenario" scenario] remainder)))}
 
   evidence:sign
   {:doc "Sign the focused or latest run manifest after ensuring artifact registry exists. Usage: bb evidence:sign <path-to-private-key>"
@@ -184,10 +126,6 @@ Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
                  "resolver-sim.evidence.revocation-test"
                  "resolver-sim.evidence.commitment-root-test")}
 
-   test:sew
-   {:doc "Run Sew protocol unit tests with noop capture (single JVM)"
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.run-sew-tests" "unit")}
-
    test:unit
    {:doc "Run all unit tests (framework + Sew) with noop capture (single JVM)"
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.run-sew-tests" "unit")}
@@ -259,30 +197,9 @@ Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
                   "-e" "(require (quote resolver-sim.definitions.solidity-shadow-registry))
                         (println (resolver-sim.definitions.solidity-shadow-registry/format-shadow-report))")}
 
-  run:scenario:suite
-  {:doc "Legacy/internal suite runner; not a canonical evidence-bundle command. Use run-scenario --run-root for canonical scenario evidence. Usage: bb run:scenario:suite <suite-key>"
-   :task (let [suite-key (first *command-line-args*)]
-           (when-not (seq suite-key)
-             (throw (ex-info "Missing suite key. Usage: bb run:scenario:suite <suite-key>" {})))
-            (apply clojure {:dir "." :extra-deps {}}
-                   "-M:run:with-sew" "--invariants" "--suite" suite-key
-                   (rest *command-line-args*)))}
-
   run:scenario:suites
-  {:doc "List registered scenario path suites. Usage: bb run:scenario:suites [--format edn|json]"
-   :task (let [args (vec *command-line-args*)
-               format-idx (.indexOf args "--format")
-               format-val (when (<= 0 format-idx) (nth args (inc format-idx) "table"))]
-           (case format-val
-             "edn" (clojure {:dir "." :extra-deps {}}
-                            "-M:with-sew" "-e"
-                            "(require '[resolver-sim.io.scenario-runner :as sr]) (println (pr-str {:suites (sr/known-suite-summaries)}))")
-             "json" (clojure {:dir "." :extra-deps {}}
-                             "-M:with-sew" "-e"
-                             "(require '[resolver-sim.io.scenario-runner :as sr] '[resolver-sim.io.serialization :as ser]) (println (ser/serialize-artifact {:suites (sr/known-suite-summaries)} {:pretty? true}))")
-             (clojure {:dir "." :extra-deps {}}
-                      "-M:with-sew" "-e"
-                      "(require '[clojure.pprint :as pp] '[resolver-sim.io.scenario-runner :as sr]) (pp/print-table [:suite/key :suite/type :suite/protocols :suite/scenario-count :suite/title] (sr/known-suite-summaries))")))}
+  {:doc "Compatibility alias for suite:list."
+   :task (run 'suite:list)}
 
   test:generators {:doc "Run canonical generator/property regression target"
                    :task (shell "./scripts/test.sh generators")}
@@ -314,6 +231,14 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
    test:slow
   {:doc "Run slow tests only (monte-carlo, long-horizon, etc.)"
    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "slow")}
+
+   test:dr3-coverage
+   {:doc "Run DR3 critical suite + release-mapping drift checks."
+    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "dr3-coverage")}
+
+   test:long-horizon
+   {:doc "Run extended horizon scenarios (100/200/500/1000 epochs)."
+    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "long-horizon")}
 
   test:ci
   {:doc "CI-optimized test suite (fast tests + monte-carlo, < 2 minutes total)"
@@ -411,21 +336,8 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
          These keys must only be mutated through canonical accounting paths."
    :task (shell "clojure" "-M:test" "-m" "scripts.scenarios.check-direct-writes")}
 
-  validate {:doc "Structural validation pipeline: lint + notebook namespace check"
-            :task (let [ok? (fn [ok?-label ok?-f]
-                              (print (str "▶ " ok?-label "... "))
-                              (flush)
-                              (let [ok (try (ok?-f) true (catch Exception _ false))]
-                                (println (if ok "PASS" "FAIL"))
-                                ok))
-                          lint-ok (ok? "Lint (src:test)" (fn [] (shell "clj" "-M:lint/core")))
-                          nb-ok   (ok? "Notebook namespace check" (fn [] (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:with-sew" "-e" "(require (quote [resolver-sim.notebook-support.checks]) (quote [notebooks.report])) (System/exit 0)")))
-                         all-nb-ok (ok? "All notebooks load" (fn [] (shell "bb" "test:notebooks")))
-                         speds-ok (ok? "SPEDS tests" (fn [] (shell "bb" "test:speds")))]
-                     (if (and lint-ok nb-ok all-nb-ok speds-ok)
-                      (println "VALIDATION PASSED")
-                      (do (println "VALIDATION FAILED")
-                          (System/exit 1))))}
+  validate {:doc "Structural validation pipeline: lint + notebook + SPEDS."
+            :task (clojure "-M:cli/sew" "validate")}
 
    scenario:run
    {:doc "Compatibility alias for `run:scenario`. Accepts multiple refs."
@@ -453,7 +365,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                    :task (apply clojure "-M:with-sew" "-m" "resolver-sim.cli.main" "benchmark" "smoke" *command-line-args*)}
 
   scenario:run:search
-  {:doc "Ad-hoc: run scenarios by text search.  Replaces `scenario:run:family`."
+  {:doc "Ad-hoc: run scenarios by text search."
    :task (apply shell "bb" "run:scenario:search" *command-line-args*)}
 
   scenarios:validate
@@ -499,11 +411,6 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
           :task (clojure {:dir "."}
                          "-M:with-sew" "-e"
                          "(require '[resolver-sim.scenario.coverage :as cov] '[resolver-sim.sim.reporter :as r]) (r/print-coverage (cov/coverage-report))")}
-
-  report:release-gate {:doc "Print transition/guard coverage + unhit transition backlog"
-                       :task (clojure {:dir "."}
-                                      "-M:with-sew" "-e"
-                                      "(require '[resolver-sim.scenario.coverage :as cov] '[resolver-sim.sim.reporter :as r]) (r/print-coverage (cov/coverage-report))")}
 
   report:dir {:doc "Print scenario coverage report for a directory. Usage: bb report:dir data/fixtures/traces"
               :task (clojure {:dir "."}
@@ -681,12 +588,6 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
          the authoritative definition in types.clj or the structural transition graph."
    :task (shell "bash" "scripts/validate/lint-terminal-states.sh")}
 
-  check {:doc "check"
-         :task (do
-                 (run 'lint:terminal-states)
-                 (shell "clj -M:lint")
-                 (shell "clj -M:eastwood"))}
-
   db:setup {:doc "Truncate XTDB and seed with sample telemetry"
             :task (do
                     (clojure "-M" "-e" "(require 'resolver-sim.db.store 'resolver-sim.db.xtdb) (resolver-sim.db.store/truncate! (resolver-sim.db.xtdb/->datasource))")
@@ -718,30 +619,16 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
            :task (shell "docker compose ps xtdb")}
 
   notebook:focus
-  {:doc "Focus the provenance notebook on a specific run-id. Usage: bb notebook:focus <run-id>"
-   :task (let [run-id (first *command-line-args*)]
-           (when-not (seq run-id)
-             (throw (ex-info "Usage: bb notebook:focus <run-id>" {})))
-           (clojure.java.io/make-parents "results/.notebook-focus")
-           (spit "results/.notebook-focus" run-id)
-           (println "Notebook focused on run:" run-id)
-           (println "Reload the Clerk notebook to see this run."))}
+  {:doc "Focus the provenance notebook on a specific run-id."
+   :task (apply clojure "-M:cli/sew" "notebook" "focus" *command-line-args*)}
 
   notebook:latest
   {:doc "Reset the provenance notebook to always show the latest run."
-   :task (let [f (java.io.File. "results/.notebook-focus")]
-           (if (.delete f)
-             (println "Notebook reset to latest run.")
-             (println "Already showing latest run (no focus file found).")))}
+   :task (clojure "-M:cli/sew" "notebook" "latest")}
 
   notebook:runs
   {:doc "List all available run-ids for use with notebook:focus."
-   :task (let [root (java.io.File. "results/runs")]
-           (if (.exists root)
-             (doseq [d (sort (.listFiles root))]
-               (when (.isDirectory d)
-                 (println (.getName d))))
-             (println "No runs found. Run bb run:scenario <scenario> first.")))}
+   :task (clojure "-M:cli/sew" "notebook" "runs")}
 
   manifest:sign
   {:doc "Sign the focused (or latest) run manifest with Ed25519. Usage: bb manifest:sign [key-path]"
@@ -810,36 +697,29 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
             (apply clojure "-M:runner/sew" "-m" "resolver-sim.minimal-runner" final-args))}
 
    backstop
-   {:doc "Yield-aware review gate: run yield tests + CLI backstop."
-    :task (do
-            (println "▶ backstop: yield unit tests")
-            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield")
-            (println "▶ backstop: yield scenarios")
-            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield-scenarios")
-            (println "▶ backstop: CLI default gate")
-            (clojure "-M:cli/sew" "backstop"))}
+   {:doc "Yield-aware review gate: yield tests, scenarios, and CLI backstop."
+    :task
+    (do
+      (println "▶ backstop: yield unit tests")
+      (shell "scripts/with-test-artifact-lock.sh"
+             "./scripts/test.sh"
+             "yield")
+
+      (println "▶ backstop: yield scenarios")
+      (shell "scripts/with-test-artifact-lock.sh"
+             "./scripts/test.sh"
+             "yield-scenarios")
+
+      (println "▶ backstop: CLI default gate")
+      (clojure "-M:cli/sew" "backstop"))}
 
    backstop:fast
-   {:doc "Run the fast registered edit-loop review gate (delegates to CLI)."
-    :task (clojure "-M:cli/sew" "backstop" "--fast")}
+   {:doc "Run the fast registered edit-loop review gate."
+    :task (clojure "-M:cli/sew" "backstop" "fast")}
 
    backstop:full
-   {:doc "Extended review gate: yield + CLI default + notebooks + forensic-python + community + portability."
-    :task (do
-            (println "▶ backstop: yield unit tests")
-            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield")
-            (println "▶ backstop: yield scenarios")
-            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield-scenarios")
-            (println "▶ backstop: CLI default gate")
-            (clojure "-M:cli/sew" "backstop")
-            (println "▶ backstop: notebooks")
-            (shell "scripts/with-test-artifact-lock.sh" "bb" "test:notebooks")
-            (println "▶ backstop: forensic Python")
-            (shell "scripts/with-test-artifact-lock.sh" "bb" "test:forensic-python")
-            (println "▶ backstop: community tests")
-            (shell "scripts/with-test-artifact-lock.sh" "bb" "test:community")
-            (println "▶ backstop: portability smoke test")
-            (shell "scripts/with-test-artifact-lock.sh" "bash" "scripts/portability-smoke-test.sh"))}
+   {:doc "Extended review gate: yield + CLI + notebooks + forensic + community + portability."
+    :task (shell "./scripts/review/backstop.sh" "full")}
 
    commands:validate
    {:doc "Validate the registered review-gate command surface (delegates to CLI)."
@@ -898,59 +778,11 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
 
   workspace:list
   {:doc "List available workspaces with descriptions."
-   :task (let [ws-dir (java.io.File. "workspaces")]
-           (if-not (.exists ws-dir)
-             (println "No workspaces directory found.")
-             (let [entries (sort (filter (fn [x] (.isDirectory x)) (.listFiles ws-dir)))]
-               (println "Available workspaces:")
-               (println "---------------------")
-               (doseq [f entries]
-                 (let [readme (java.io.File. f "README.md")
-                       deps   (java.io.File. f "deps.edn")
-                       desc   (when (.exists readme)
-                                (try (let [lines (clojure.string/split-lines (slurp readme))]
-                                       (first (remove empty? lines)))
-                                     (catch Exception _ "")))
-                       has-deps (when (.exists deps) " deps.edn ✓")]
-                   (println (str "  " (.getName f))
-                            (str "  " (or has-deps ""))
-                            (str "  " (or desc "")))))
-               (println)
-               (println "External archives:")
-               (println "  ~/prf-runs/<run-id>/     Forensic run output")
-               (println "  ~/prf-private/<id>/      Private discovery workspace"))))}
+   :task (clojure "-M" "-m" "scripts.workspaces" "list")}
 
   workspace:doctor
   {:doc "Validate workspace structure. Checks README, deps.edn, and path resolution."
-   :task (let [ws-dir (java.io.File. "workspaces")]
-           (if-not (.exists ws-dir)
-             (println "No workspaces directory found.")
-             (let [entries (sort (filter (fn [x] (.isDirectory x)) (.listFiles ws-dir)))]
-               (doseq [ws entries]
-                 (let [name (.getName ws)
-                       readme (java.io.File. ws "README.md")
-                       deps-file (java.io.File. ws "deps.edn")]
-                   (println (str "▶ " name))
-                   (let [readme-ok (and (.exists readme) (> (.length readme) 0))
-                         msg (if readme-ok "README.md ✓" "README.md MISSING or empty")]
-                     (println (str "  " msg)))
-                   (if (.exists deps-file)
-                     (try
-                       (let [deps (slurp deps-file)]
-                         (println "  deps.edn ✓")
-                         (let [path-pattern (re-pattern "\"\\.\\./\\.\\./[^\"]+\"")]
-                           (doseq [line (clojure.string/split-lines deps)]
-                             (when-let [m (re-find path-pattern line)]
-                               (let [path (subs m 1 (dec (count m)))
-                                     abs (java.io.File. (.getParent deps-file) path)]
-                                 (if (.exists abs)
-                                   (println (str "    path " path " ✓"))
-                                   (println (str "    path " path " NOT FOUND"))))))))
-                       (catch Exception e
-                         (println (str "  deps.edn ERROR: " (.getMessage e)))))
-                     (println "  no deps.edn"))
-                   (println)))
-                (println "Doctor complete."))))}
+   :task (clojure "-M" "-m" "scripts.workspaces" "doctor")}
 
   forensic:preflight
   {:doc "Run forensic preflight checks. Usage: bb forensic:preflight --run-request <path> [options]"

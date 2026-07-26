@@ -33,6 +33,7 @@
    :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
    :scenario-compare 'resolver-sim.commands.scenario-compare/compare-scenarios
    :scenario-pick 'resolver-sim.commands.scenario-pick/pick-scenarios
+   :scenario-run-search 'resolver-sim.commands.scenario-run-search/run
    :benchmark-list 'resolver-sim.commands.benchmark-list/list-benchmarks
    :benchmark-validate 'resolver-sim.commands.benchmark/validate
    :benchmark-validate-jar 'resolver-sim.commands.benchmark-validate-jar/validate-jar
@@ -57,12 +58,16 @@
    :community-task-verify 'resolver-sim.commands.community/task-verify
    :community-task-report 'resolver-sim.commands.community/task-report
    :community-graph-export 'resolver-sim.commands.community/graph-export
-   :community-mailbox-clear 'resolver-sim.commands.community/mailbox-clear})
+   :community-mailbox-clear 'resolver-sim.commands.community/mailbox-clear
+   :notebook-focus 'resolver-sim.commands.notebook-focus/focus
+   :notebook-latest 'resolver-sim.commands.notebook-focus/latest
+   :notebook-runs 'resolver-sim.commands.notebook-focus/runs})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
     :run-scenario :run-invariants :run-benchmark :run-simulation
-    :scenario-list :scenario-compare :scenario-pick :benchmark-list :suite-list})
+    :scenario-list :scenario-compare :scenario-pick :scenario-run-search
+    :benchmark-list :suite-list})
 
 (defn sew-capable?
   "True when this distribution contains the Sew protocol implementation."
