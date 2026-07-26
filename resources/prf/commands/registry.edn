@@ -277,6 +277,19 @@
     :command/outputs []
     :command/description "Verify a completed canonical run package for completeness and integrity."}
 
+   {:command/id :assure-package
+    :command/path ["assure-package"]
+    :command/title "Evaluate package assurance"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-root" :type :string :doc "Run package directory to evaluate" :required true}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs ["<run-root>/package-assurance.json"]
+    :command/description "Evaluate whether a verified canonical run package satisfies release/assurance policy."}
+
    {:command/id :run-invariants
     :command/path ["run-invariants"]
     :command/title "Run invariant suite"

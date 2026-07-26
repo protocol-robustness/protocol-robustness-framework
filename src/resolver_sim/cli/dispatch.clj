@@ -63,13 +63,14 @@
    :notebook-latest 'resolver-sim.commands.notebook-focus/latest
    :notebook-runs 'resolver-sim.commands.notebook-focus/runs
    :invariants-run 'resolver-sim.commands.invariants-run/run
-   :verify-run 'resolver-sim.commands.verify-run/run})
+   :verify-run 'resolver-sim.commands.verify-run/run
+   :assure-package 'resolver-sim.commands.assure-package/run})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
     :run-scenario :run-invariants :run-benchmark :run-simulation
     :scenario-list :scenario-compare :scenario-pick :scenario-run-search
-    :benchmark-list :suite-list :invariants-run :verify-run})
+    :benchmark-list :suite-list :invariants-run :verify-run :assure-package})
 
 (defn sew-capable?
   "True when this distribution contains the Sew protocol implementation."

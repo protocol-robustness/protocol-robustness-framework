@@ -56,6 +56,14 @@ if [ "$MODE" = "full" ]; then
     FAILED=$((FAILED + 1))
   fi
 
+  echo "▶ backstop: package assurance"
+  if clojure -M:cli/sew assure-package --run-root "$RUN_ROOT"; then
+    echo "  ✓ package assurance passed"
+  else
+    echo "  ✗ package assurance failed"
+    FAILED=$((FAILED + 1))
+  fi
+
   # Also run the additional full-gate checks
   run "notebooks"          bb test:notebooks
   run "forensic Python"    bb test:forensic-python
