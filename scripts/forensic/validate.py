@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
-"""Forensic run pre-validation: force-authorisation lifecycle consistency.
+"""Forensic bundle protocol-semantic validation dispatcher.
 
-Reads a forensic run directory or bundle root JSON.
-Checks:
-  1. If force-authorisation evidence events exist, the bundle root must
-     contain :protocol/state-hashes with force-authorisations/hash and
-     force-authorisations/consumed-hash.
-  2. If :protocol/state-hashes is present, the hash structure must be
-     non-empty and well-formed.
-  3. Evidence lifecycle consistency: grant events must precede execute
-     events for each auth-id; no double-execute of the same auth-id.
+Reads a forensic run bundle root and dispatches to a registered protocol
+validator based on the declared ``:protocol`` descriptor.
+
+A bundle declares its protocol identity (e.g. ``{"id": "sew", "version": "1"}``)
+at the bundle root level, outside of ``:protocol/state``.  The verifier selects
+the appropriate semantic validator.
+
+Outcomes:
+
+- ``pass`` — the protocol validator found semantically valid evidence
+- ``fail`` — the protocol validator found invalid lifecycle/state transitions
+- ``not-verified`` — legacy (no descriptor) or no validator registered
+- ``error`` — the bundle could not be read or the validator crashed
+
+``not-verified`` means the verifier has no semantic validator for the declared
+protocol; it does not mean the bundle is correct.  Verification policies
+(``--require-protocol-semantics`` in ``verify.py``) may upgrade ``not-verified``
+to a required failure.
+
+A **malformed** protocol descriptor (present but invalid shape) is treated as
+a failure, not as ``not-verified`` — it is not the same as a legacy absence.
 
 Usage:
     python3 scripts/forensic/validate.py <bundle-root.json> [--run-dir <dir>]
@@ -18,19 +30,31 @@ Usage:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
+import traceback
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from . import validate_sew
+
 SCHEMA_VERSION = "forensic-validate.v1"
 
-FORCE_AUTH_REASONS = {
-    "force-authorisation-granted",
-    "force-authorisation-revoked",
-    "force-authorisation-executed",
+# Registered protocol validators: (id, version) → entry-point function.
+# The entry point receives (bundle_root_path: Path, run_dir: Path | None)
+# and returns a validated report dict with keys:
+#   <ns>/status  — "pass" | "fail" | "error"
+#   <ns>/checks — list[dict] each with "check", "status", "message"
+#   <ns>/summary — dict with passed/failed/warned/skipped counts
+#   <ns>/force-auth-evidence-count — int
+ProtocolValidator = Callable[[Path, Path | None], dict[str, Any]]
+
+VALIDATORS: dict[tuple[str, str], ProtocolValidator] = {
+    ("sew", "1"): validate_sew.validate_protocol_bundle,
 }
+
+VALID_PATTERN = r"^[a-z][a-z0-9]*$"
 
 
 def load_json(path: Path) -> dict | None:
@@ -40,383 +64,256 @@ def load_json(path: Path) -> dict | None:
         return None
 
 
-def find_evidence_files(
-    run_dir: Path,
-) -> list[dict]:
-    """Scan run_dir recursively for event-evidence JSON files containing
-    force-authorisation evidence types."""
-    results: list[dict] = []
-    ev_dir = run_dir / "event-evidence"
-    if not ev_dir.is_dir():
-        return results
-    for f in sorted(ev_dir.iterdir()):
-        if not f.name.endswith(".json"):
-            continue
-        ev = load_json(f)
-        if ev is None:
-            continue
-        etype = ev.get("evidence/type") or ev.get(":evidence/type") or ""
-        rtype = ev.get("evidence/reason") or ev.get(":evidence/reason") or ""
-        key = str(etype or rtype)
-        if key in FORCE_AUTH_REASONS:
-            results.append({
-                "file": str(f),
-                "type": key,
-                "auth-id": (ev.get("force-auth/auth-id")
-                            or ev.get(":force-auth/auth-id")),
-                "seq": ev.get("event/seq") or ev.get(":event/seq") or 0,
-            })
-    return results
+def _validate_descriptor_shape(pd: Any) -> dict | None:
+    """Validate and return a normalised protocol descriptor, or None if
+    the descriptor is absent entirely (legacy bundle).
 
-
-def validate_bundle_root(
-    bundle: dict,
-) -> list[dict]:
-    """Validate the :protocol/state-hashes section of a bundle root.
-
-    Returns a list of check dicts, each with:
-      check/key, check/status ("pass"|"fail"|"skip"), check/message
+    Returns a ``{"descriptor": ..., "errors": [...]}`` dict when malformed.
     """
-    checks: list[dict] = []
-    proto = bundle.get("protocol/state-hashes") or bundle.get(":protocol/state-hashes")
+    if pd is None:
+        return None
 
-    if proto is None:
-        checks.append({
-            "check/key": "protocol-state-hashes-present",
-            "check/status": "skip",
-            "check/message": ":protocol/state-hashes not present in bundle root",
+    if not isinstance(pd, dict):
+        return None  # absent — not a dict at all
+
+    pid = pd.get("id")
+    pv = pd.get("version")
+
+    # Both must be present
+    if pid is None and pv is None:
+        return None  # completely empty protocol map → treat as absent
+
+    errors: list[str] = []
+
+    if not isinstance(pid, str) or not pid:
+        errors.append("protocol.id must be a non-empty string")
+    elif not __import__("re").match(VALID_PATTERN, pid):
+        errors.append(f"protocol.id '{pid}' does not match expected pattern "
+                       f"(lowercase alphanumeric, no hyphens)")
+
+    if not isinstance(pv, str) or not pv:
+        errors.append("protocol.version must be a non-empty string")
+
+    if errors:
+        return {"descriptor": {"id": pid, "version": pv}, "errors": errors}
+
+    return {"descriptor": {"id": pid, "version": pv}, "errors": []}
+
+
+def read_protocol_descriptor(bundle: dict) -> dict | None:
+    """Extract and validate the ``:protocol`` descriptor from a bundle root.
+
+    Returns ``None`` for legacy bundles without a protocol descriptor.
+    Returns a dict with ``"descriptor"`` and ``"errors"`` keys when the
+    descriptor is present but malformed.
+    """
+    pd = bundle.get("protocol")
+    return _validate_descriptor_shape(pd)
+
+
+def _validate_validator_result(result: Any, protocol: dict) -> list[dict]:
+    """Validate that a protocol validator returned the expected shape.
+
+    Returns a list of diagnostic check dicts.  If the result is malformed
+    the checks include a hard failure.
+    """
+    issues: list[dict] = []
+
+    if not isinstance(result, dict):
+        return [{
+            "check": "protocol-validator-result",
+            "status": "fail",
+            "message": f"Validator for {protocol['id']} v{protocol['version']} "
+                       f"returned {type(result).__name__}, expected dict",
+        }]
+
+    # Check that the report has at least one recognised namespace key
+    ns_keys = [k for k in result if "/" in k]
+    if not ns_keys:
+        issues.append({
+            "check": "protocol-validator-result",
+            "status": "fail",
+            "message": f"Validator for {protocol['id']} v{protocol['version']} "
+                       f"returned result with no namespace-qualified keys",
         })
-        return checks
 
-    checks.append({
-        "check/key": "protocol-state-hashes-present",
-        "check/status": "pass",
-        "check/message": ":protocol/state-hashes present",
-    })
+    status = result.get("sew/status") or result.get("validate/status") or "error"
+    if status not in ("pass", "fail", "error", "not-verified"):
+        issues.append({
+            "check": "protocol-validator-status",
+            "status": "fail",
+            "message": f"Validator returned unrecognised status '{status}'",
+        })
 
-    fa_hash = proto.get("force-authorisations/hash") or proto.get(":force-authorisations/hash")
-    fa_consumed_hash = (
-        proto.get("force-authorisations/consumed-hash")
-        or proto.get(":force-authorisations/consumed-hash")
-    )
-
-    if fa_hash:
-        checks.append({
-            "check/key": "force-authorisations-hash-well-formed",
-            "check/status": "pass" if isinstance(fa_hash, str) and len(fa_hash) > 0 else "fail",
-            "check/message": f"force-authorisations/hash: {fa_hash[:16] if fa_hash else 'empty'}...",
+    checks = result.get("sew/checks") or result.get("validate/checks") or []
+    if not isinstance(checks, list):
+        issues.append({
+            "check": "protocol-validator-checks",
+            "status": "fail",
+            "message": "Validator returned non-list checks",
         })
     else:
-        checks.append({
-            "check/key": "force-authorisations-hash-well-formed",
-            "check/status": "fail",
-            "check/message": "force-authorisations/hash is missing or empty",
-        })
-
-    if fa_consumed_hash:
-        checks.append({
-            "check/key": "force-authorisations-consumed-hash-well-formed",
-            "check/status": "pass" if isinstance(fa_consumed_hash, str) and len(fa_consumed_hash) > 0 else "fail",
-            "check/message": f"force-authorisations/consumed-hash: {fa_consumed_hash[:16] if fa_consumed_hash else 'empty'}...",
-        })
-    else:
-        checks.append({
-            "check/key": "force-authorisations-consumed-hash-well-formed",
-            "check/status": "fail",
-            "check/message": "force-authorisations/consumed-hash is missing or empty",
-        })
-
-    return checks
-
-
-def _field(mapping: dict[str, Any], name: str, default: Any = None) -> Any:
-    """Read a JSON or EDN-keyword-normalized field."""
-    return mapping.get(name, mapping.get(f":{name}", default))
-
-
-def canonical_protocol_state_hash(state: dict) -> str:
-    """Cross-language SHA-256 commitment for the JSON-native state witness."""
-    encoded = json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-def _scoped_protocol_state(state: dict) -> list[tuple[str, dict, dict, list]]:
-    """Normalize legacy flat and v2 scenario-keyed protocol-state witnesses."""
-    records = _field(state, "force-authorisations", {}) or {}
-    consumed = _field(state, "force-authorisations/consumed", {}) or {}
-    adjustments = _field(state, "held-adjustments", None)
-    is_flat = (not records
-               or all(isinstance(record, dict) and _field(record, "authorization/id")
-                      for record in records.values()))
-    if is_flat:
-        return [("legacy", records, consumed, adjustments or [])]
-
-    scoped_adjustments = adjustments if isinstance(adjustments, dict) else {}
-    scenario_ids = set(records) | set(consumed) | set(scoped_adjustments)
-    return [(str(scenario_id), records.get(scenario_id, {}) or {},
-             consumed.get(scenario_id, {}) or {}, scoped_adjustments.get(scenario_id, []) or [])
-            for scenario_id in sorted(scenario_ids)]
-
-
-def validate_protocol_state(bundle: dict, require_witness: bool = False) -> list[dict]:
-    """Verify the exported force-authorisation state witness semantically.
-
-    The witness is committed by :protocol/state-hashes in the bundle root. This
-    check deliberately validates relationships rather than treating a non-empty
-    hash string as proof of a valid authorization lifecycle.
-    """
-    state = _field(bundle, "protocol/state")
-    if state is None:
-        return [{"check/key": "protocol-state-witness-present",
-                 "check/status": "fail" if require_witness else "skip",
-                 "check/message": "protocol/state witness is missing"}]
-
-    witness_hash = _field(bundle, "protocol/state-witness-hash")
-    hash_violations: list[dict] = []
-    if require_witness and not witness_hash:
-        hash_violations.append({"type": "missing-state-witness-hash"})
-    elif witness_hash and witness_hash != canonical_protocol_state_hash(state):
-        hash_violations.append({"type": "state-witness-hash-mismatch",
-                                "expected": canonical_protocol_state_hash(state),
-                                "actual": witness_hash})
-
-    violations: list[dict] = list(hash_violations)
-    valid_statuses = {"active", "consumed", "revoked", ":active", ":consumed", ":revoked"}
-    for scenario_id, records, consumed, adjustments in _scoped_protocol_state(state):
-        adjustments_by_id = {_field(a, "held-adjustment/id"): a for a in adjustments}
-        adjustments_by_auth: dict[str, list[dict]] = {}
-        for adjustment in adjustments:
-            provenance = _field(adjustment, "authorization/provenance", {}) or {}
-            auth_id = _field(provenance, "authorization/id")
-            if auth_id:
-                adjustments_by_auth.setdefault(auth_id, []).append(adjustment)
-        for auth_id, record in records.items():
-            status = _field(record, "authorization/status")
-            is_consumed = bool(_field(record, "consumed?", False))
-            scope = _field(record, "authorization/scope")
-            scope_hash = _field(record, "authorization/scope-hash")
-            linked = adjustments_by_auth.get(auth_id, [])
-            entry = consumed.get(auth_id)
-            if (_field(record, "authorization/id") != auth_id
-                    or status not in valid_statuses
-                    or not scope
-                    or not scope_hash):
-                violations.append({"scenario/id": scenario_id, "authorization/id": auth_id, "type": "invalid-record"})
+        for i, c in enumerate(checks):
+            if not isinstance(c, dict):
+                issues.append({
+                    "check": f"protocol-validator-check-{i}",
+                    "status": "fail",
+                    "message": f"Check {i} is {type(c).__name__}, expected dict",
+                })
                 continue
-            if status in {"active", ":active"} and (is_consumed or entry is not None):
-                violations.append({"scenario/id": scenario_id, "authorization/id": auth_id, "type": "active-record-consumed"})
-            if status in {"consumed", ":consumed"}:
-                adjustment_id = _field(entry or {}, "held-adjustment/id")
-                if (not is_consumed or entry is None or len(linked) != 1
-                        or adjustment_id not in adjustments_by_id
-                        or _field(_field(linked[0], "authorization/provenance", {}) or {},
-                                  "authorization/scope-hash") != scope_hash):
-                    violations.append({"scenario/id": scenario_id,
-                                       "authorization/id": auth_id,
-                                       "type": "invalid-consumption-link",
-                                       "linked-adjustments": len(linked)})
-
-        for auth_id, entry in consumed.items():
-            record = records.get(auth_id)
-            if (record is None
-                    or _field(record, "authorization/status") not in {"consumed", ":consumed"}
-                    or _field(entry, "held-adjustment/id") not in adjustments_by_id):
-                violations.append({"scenario/id": scenario_id,
-                                   "authorization/id": auth_id,
-                                   "type": "orphan-consumption"})
-
-    return [{"check/key": "force-authorisation-state-witness-consistent",
-             "check/status": "pass" if not violations else "fail",
-             "check/message": "authorization, consumption, and held-adjustment links verified"
-                              if not violations else "protocol state witness has lifecycle violations",
-             "check/details": violations}]
-
-
-def validate_evidence_lifecycle(
-    events: list[dict],
-) -> list[dict]:
-    """Validate force-authorisation lifecycle from evidence events.
-
-    Checks:
-      - Every execute has a preceding grant for the same auth-id.
-      - No auth-id is executed twice.
-      - Revoked auth-ids are not executed (already caught by
-        protocol guards, but evidence-level check adds transparency).
-    """
-    checks: list[dict] = []
-    if not events:
-        return checks
-
-    grants: dict[str, int] = {}
-    executes: dict[str, list[int]] = {}
-    revokes: dict[str, int] = {}
-
-    for ev in events:
-        aid = ev.get("auth-id")
-        if not aid:
-            continue
-        seq = ev.get("seq", 0)
-        t = ev.get("type", "")
-        if t == "force-authorisation-granted":
-            grants[aid] = seq
-        elif t == "force-authorisation-revoked":
-            revokes[aid] = seq
-        elif t == "force-authorisation-executed":
-            executes.setdefault(aid, []).append(seq)
-
-    for aid, exec_seqs in executes.items():
-        grant_seq = grants.get(aid)
-        if grant_seq is None:
-            checks.append({
-                "check/key": f"execute-without-grant-{aid[:20]}",
-                "check/status": "fail",
-                "check/message": f"auth-id {aid} has execute event but no matching grant",
-            })
-            continue
-
-        if len(exec_seqs) > 1:
-            checks.append({
-                "check/key": f"double-execute-{aid[:20]}",
-                "check/status": "fail",
-                "check/message": f"auth-id {aid} executed {len(exec_seqs)} times",
-            })
-            continue
-
-        exec_seq = exec_seqs[0]
-        if exec_seq < grant_seq:
-            checks.append({
-                "check/key": f"execute-before-grant-{aid[:20]}",
-                "check/status": "fail",
-                "check/message": f"auth-id {aid} executed at seq {exec_seq} before grant at seq {grant_seq}",
-            })
-            continue
-
-        if aid in revokes:
-            revoke_seq = revokes[aid]
-            if exec_seq > revoke_seq:
-                checks.append({
-                    "check/key": f"revoke-before-execute-{aid[:20]}",
-                    "check/status": "fail",
-                    "check/message": f"auth-id {aid} revoked at seq {revoke_seq} but executed at "
-                    f"seq {exec_seq} — protocol should prevent this",
+            if "check" not in c:
+                issues.append({
+                    "check": f"protocol-validator-check-{i}",
+                    "status": "fail",
+                    "message": f"Check {i} is missing 'check' field",
+                })
+            if c.get("status") not in ("pass", "fail", "warn", "skip", "not-verified"):
+                issues.append({
+                    "check": f"protocol-validator-check-{i}",
+                    "status": "fail",
+                    "message": f"Check {i} has unrecognised status '{c.get('status')}'",
                 })
 
-    for aid, grant_seq in grants.items():
-        if aid not in executes:
-            checks.append({
-                "check/key": f"grant-without-execute-{aid[:20]}",
-                "check/status": "warn",
-                "check/message": f"auth-id {aid} was granted but never executed",
-            })
-
-    return checks
+    return issues
 
 
-def validate_evidence_against_protocol_state(bundle: dict, events: list[dict]) -> list[dict]:
-    """Cross-check force-authorisation evidence against the committed witness."""
-    if not events:
-        return []
-    state = _field(bundle, "protocol/state", {}) or {}
-    scoped = _scoped_protocol_state(state)
-    violations: list[dict] = []
-    for event in events:
-        auth_id = event.get("auth-id")
-        if not auth_id:
-            violations.append({"type": "evidence-missing-auth-id", "event": event.get("file")})
-            continue
-        matches = [(scenario_id, records.get(auth_id), consumed)
-                   for scenario_id, records, consumed, _ in scoped
-                   if auth_id in records]
-        scenario_id, record, consumed = matches[0] if len(matches) == 1 else (None, None, {})
-        event_type = event.get("type", "")
-        if len(matches) > 1:
-            violations.append({"authorization/id": auth_id,
-                               "type": "ambiguous-evidence-state-record",
-                               "event/type": event_type})
-        elif record is None:
-            violations.append({"authorization/id": auth_id,
-                               "type": "evidence-without-state-record",
-                               "event/type": event_type})
-        elif event_type == "force-authorisation-executed":
-            if (_field(record, "authorization/status") not in {"consumed", ":consumed"}
-                    or auth_id not in consumed):
-                violations.append({"scenario/id": scenario_id,
-                                   "authorization/id": auth_id,
-                                   "type": "execute-evidence-state-mismatch"})
-        elif event_type == "force-authorisation-revoked":
-            if _field(record, "authorization/status") not in {"revoked", ":revoked"}:
-                violations.append({"scenario/id": scenario_id,
-                                   "authorization/id": auth_id,
-                                   "type": "revoke-evidence-state-mismatch"})
-    return [{"check/key": "force-authorisation-evidence-state-consistent",
-             "check/status": "pass" if not violations else "fail",
-             "check/message": "force-authorisation evidence agrees with protocol-state witness"
-                              if not violations else "evidence and protocol-state witness disagree",
-             "check/details": violations}]
-
-
-def run_pre_checks(
+def validate_protocol_bundle(
     bundle_root_path: Path,
     run_dir: Path | None = None,
 ) -> dict:
-    """Run all pre-checks and return a validation report."""
+    """Run protocol-semantic validation by dispatching to the registered validator.
+
+    Returns a report with a uniform top-level shape.
+    """
     bundle = load_json(bundle_root_path)
     if bundle is None:
         return {
             "validate/schema-version": SCHEMA_VERSION,
             "validate/status": "error",
             "validate/errors": [f"Cannot read bundle root: {bundle_root_path}"],
+            "validate/protocol": None,
+            "validate/protocol-dispatched": False,
+            "validate/checks": [],
+            "validate/summary": {"passed": 0, "failed": 0, "warned": 0, "skipped": 0},
+            "validate/evidence-count": 0,
         }
 
-    checks: list[dict] = []
+    raw = read_protocol_descriptor(bundle)
 
-    # Step 1: scan evidence events in run directory
-    events: list[dict] = []
-    if run_dir and run_dir.is_dir():
-        events = find_evidence_files(run_dir)
+    # Absent protocol descriptor — legacy bundle, no inference
+    if raw is None:
+        return {
+            "validate/schema-version": SCHEMA_VERSION,
+            "validate/status": "not-verified",
+            "validate/protocol": None,
+            "validate/protocol-dispatched": False,
+            "validate/checks": [{
+                "check": "protocol-identity",
+                "status": "not-verified",
+                "message": "Bundle does not declare a protocol identity — "
+                           "legacy bundle without protocol-semantic verification",
+            }],
+            "validate/summary": {
+                "passed": 0, "failed": 0, "warned": 0, "skipped": 0, "not-verified": 1,
+            },
+            "validate/evidence-count": 0,
+        }
 
-    force_auth_used = len(events) > 0
+    # Malformed protocol descriptor — present but invalid shape
+    # This is NOT a legacy fallback; malformed is a failure
+    if raw.get("errors"):
+        errors = raw["errors"]
+        return {
+            "validate/schema-version": SCHEMA_VERSION,
+            "validate/status": "fail",
+            "validate/protocol": raw.get("descriptor"),
+            "validate/protocol-dispatched": False,
+            "validate/checks": [{
+                "check": "protocol-identity-malformed",
+                "status": "fail",
+                "message": "Malformed protocol descriptor: " + "; ".join(errors),
+                "errors": errors,
+            }],
+            "validate/summary": {
+                "passed": 0, "failed": 1, "warned": 0, "skipped": 0,
+            },
+            "validate/evidence-count": 0,
+        }
 
-    # Step 2: validate bundle root protocol/state-hashes
-    bundle_checks = validate_bundle_root(bundle)
-    checks.extend(bundle_checks)
+    protocol = raw["descriptor"]
+    key = (protocol["id"], protocol["version"])
+    validator = VALIDATORS.get(key)
 
-    # Step 3: force-auth evidence found but no protocol/state-hashes → fail
-    proto_present = any(c["check/key"] == "protocol-state-hashes-present"
-                        and c["check/status"] == "pass" for c in bundle_checks)
-    if force_auth_used and not proto_present:
-        checks.append({
-            "check/key": "force-auth-evidence-without-state-hashes",
-            "check/status": "fail",
-            "check/message": f"Found {len(events)} force-authorisation evidence events but "
-            "bundle root has no :protocol/state-hashes",
-        })
+    # Unknown protocol — no validator registered
+    if validator is None:
+        return {
+            "validate/schema-version": SCHEMA_VERSION,
+            "validate/status": "not-verified",
+            "validate/protocol": protocol,
+            "validate/protocol-dispatched": True,
+            "validate/checks": [{
+                "check": "protocol-lifecycle",
+                "status": "not-verified",
+                "message": f"No validator registered for protocol {protocol['id']} "
+                           f"version {protocol['version']}",
+                "protocol_id": protocol["id"],
+                "protocol_version": protocol["version"],
+            }],
+            "validate/summary": {
+                "passed": 0, "failed": 0, "warned": 0, "skipped": 0, "not-verified": 1,
+            },
+            "validate/evidence-count": 0,
+        }
 
-    # Step 4: verify the committed state witness and evidence lifecycle.
-    checks.extend(validate_protocol_state(bundle, require_witness=force_auth_used))
-    lifecycle_checks = validate_evidence_lifecycle(events)
-    checks.extend(lifecycle_checks)
-    checks.extend(validate_evidence_against_protocol_state(bundle, events))
+    # Dispatch — with exception safety
+    try:
+        result = validator(bundle_root_path, run_dir)
+    except Exception as exc:
+        tb = traceback.format_exc()
+        return {
+            "validate/schema-version": SCHEMA_VERSION,
+            "validate/status": "error",
+            "validate/protocol": protocol,
+            "validate/protocol-dispatched": True,
+            "validate/checks": [{
+                "check": "protocol-validator-execution",
+                "status": "fail",
+                "message": f"Validator for {protocol['id']} v{protocol['version']} "
+                           f"raised {type(exc).__name__}: {exc}",
+                "traceback": tb,
+            }],
+            "validate/summary": {
+                "passed": 0, "failed": 1, "warned": 0, "skipped": 0,
+            },
+            "validate/evidence-count": 0,
+        }
 
-    # Summary
-    passed = sum(1 for c in checks if c["check/status"] == "pass")
-    failed = sum(1 for c in checks if c["check/status"] == "fail")
-    warned = sum(1 for c in checks if c["check/status"] == "warn")
-    skipped = sum(1 for c in checks if c["check/status"] == "skip")
+    # Validate the result shape
+    shape_issues = _validate_validator_result(result, protocol)
+    if shape_issues:
+        return {
+            "validate/schema-version": SCHEMA_VERSION,
+            "validate/status": "error",
+            "validate/protocol": protocol,
+            "validate/protocol-dispatched": True,
+            "validate/checks": shape_issues,
+            "validate/summary": {
+                "passed": 0, "failed": len(shape_issues), "warned": 0, "skipped": 0,
+            },
+            "validate/evidence-count": 0,
+        }
 
-    status = "pass" if failed == 0 else "fail"
-
+    # Normalise: wrap the protocol-specific result into a generic report
+    status = result.get("sew/status") or "error"
     return {
         "validate/schema-version": SCHEMA_VERSION,
         "validate/status": status,
-        "validate/checks": checks,
-        "validate/summary": {
-            "passed": passed,
-            "failed": failed,
-            "warned": warned,
-            "skipped": skipped,
-        },
-        "validate/force-auth-evidence-count": len(events),
+        "validate/protocol": protocol,
+        "validate/protocol-dispatched": True,
+        "validate/checks": result.get("sew/checks", []),
+        "validate/summary": result.get("sew/summary",
+                                        {"passed": 0, "failed": 0, "warned": 0, "skipped": 0}),
+        "validate/evidence-count": result.get("sew/force-auth-evidence-count", 0),
     }
 
 
@@ -424,7 +321,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Pre-validation for forensic bundle root integrity"
+        description="Forensic bundle protocol-semantic validation dispatcher"
     )
     parser.add_argument("input", help="Path to bundle root JSON or run directory")
     parser.add_argument(
@@ -432,28 +329,43 @@ def main():
         default=None,
         help="Path to forensic run directory (for evidence scanning)",
     )
+    parser.add_argument(
+        "--list-validators",
+        action="store_true",
+        help="List registered protocol validators and exit",
+    )
     args = parser.parse_args()
+
+    if args.list_validators:
+        if not VALIDATORS:
+            print("No protocol validators registered.")
+            sys.exit(0)
+        print("Registered protocol validators:")
+        for (pid, pv), fn in sorted(VALIDATORS.items()):
+            print(f"  {pid} version {pv} → {fn.__module__}.{fn.__name__}")
+        sys.exit(0)
 
     input_path = Path(args.input).expanduser().resolve()
 
     if input_path.is_dir():
-        # Input is a run directory — find the bundle root inside
-        bundle_path = input_path / "clojure-bundle-root.json"
+        bundle_path = input_path / "run-bundle-root.json"
+        if not bundle_path.exists():
+            bundle_path = input_path / "clojure-bundle-root.json"
         if not bundle_path.exists():
             print(json.dumps({
                 "validate/schema-version": SCHEMA_VERSION,
                 "validate/status": "error",
-                "validate/errors": [f"clojure-bundle-root.json not found in {input_path}"],
+                "validate/errors": [f"No bundle root JSON found in {input_path}"],
             }, indent=2))
             sys.exit(1)
-        report = run_pre_checks(bundle_path, run_dir=input_path)
+        report = validate_protocol_bundle(bundle_path, run_dir=input_path)
     else:
-        # Input is a bundle root JSON file
         run_dir = Path(args.run_dir).expanduser().resolve() if args.run_dir else None
-        report = run_pre_checks(input_path, run_dir=run_dir)
+        report = validate_protocol_bundle(input_path, run_dir=run_dir)
 
     print(json.dumps(report, indent=2))
-    sys.exit(0 if report.get("validate/status") == "pass" else 1)
+    status = report.get("validate/status", "error")
+    sys.exit(0 if status == "pass" else 1)
 
 
 if __name__ == "__main__":

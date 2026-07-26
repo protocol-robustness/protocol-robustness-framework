@@ -20,6 +20,14 @@
   #{:model-admission :model-replication :model-challenge
     :model-revision :sampling-report :force-authorisation})
 
+(def ^:const review-statuses
+  "Controlled vocabulary for review-round status."
+  #{:open :closed :superseded})
+
+(def ^:const member-roles
+  "Controlled vocabulary for researcher roles in a review round."
+  #{:model-steward :independent-reproducer :adversarial-reviewer})
+
 ;; ── Purpose requirement definitions ──────────────────────────────────────
 
 (def ^:private purpose-requirements
@@ -153,10 +161,23 @@
            review-round/policy-root
            review-round/status]
     :as ctx}]
-  (let [purpose (or purpose :model-admission)]
+  (let [purpose (or purpose :model-admission)
+        st (or status :open)]
     (when-not (contains? review-purposes purpose)
       (throw (ex-info (str "Invalid review-round purpose: " purpose)
                       {:purpose purpose :allowed review-purposes})))
+    (when-not (contains? review-statuses st)
+      (throw (ex-info (str "Invalid review-round status: " st)
+                      {:status st :allowed review-statuses})))
+    (when-not (and (seq members) (= 3 (count members)))
+      (throw (ex-info "Review-round requires exactly three members"
+                      {:member-count (count members)})))
+    (when (nil? membership-frozen-at)
+      (throw (ex-info "Review-round requires :membership-frozen-at" {})))
+    (doseq [m members]
+      (when-not (contains? member-roles (:role m))
+        (throw (ex-info (str "Invalid member role: " (:role m))
+                        {:member m :allowed member-roles}))))
     (let [reqs (check-creation-requirements purpose ctx)]
       (when-not (:valid? reqs)
         (throw (ex-info (str "Review-round creation requirements not met: " (:errors reqs))
@@ -200,14 +221,16 @@
   (:review-round/purpose round))
 
 (defn round-valid?
+  "Quick structural check for a review round."
   [round]
   (and (= schema-version (:schema-version round))
        (some? (:review-round/id round))
        (some? (:benchmark/content-root round))
        (contains? review-purposes (:review-round/purpose round))
+       (contains? review-statuses (:review-round/status round :open))
        (= 3 (count (:review-round/members round)))
        (every? :researcher/id (:review-round/members round))
-       (every? :role (:review-round/members round))))
+       (every? (fn [m] (contains? member-roles (:role m))) (:review-round/members round))))
 
 (defn validate-round
   "Standalone validator for a loaded review round.
@@ -231,14 +254,21 @@
       (let [reqs (check-creation-requirements purpose round)]
         (when-not (:valid? reqs)
           (doseq [e (:errors reqs)] (swap! errors conj e)))))
+    (let [st (:review-round/status round :open)]
+      (when-not (contains? review-statuses st)
+        (swap! errors conj (str "invalid status: " st))))
     (let [members (:review-round/members round)]
       (when-not (= 3 (count members))
         (swap! errors conj (str "expected 3 members, got " (count members))))
       (doseq [m members]
         (when-not (:researcher/id m)
           (swap! errors conj "member missing :researcher/id"))
-        (when-not (:role m)
-          (swap! errors conj "member missing :role"))))
+        (when-not (contains? member-roles (:role m))
+          (swap! errors conj (str "invalid role: " (:role m) " in member")))))
+    (let [purpose (:review-round/purpose round)
+          fin-reqs (check-finalisation-requirements purpose round)]
+      (when-not (:valid? fin-reqs)
+        (doseq [e (:errors fin-reqs)] (swap! errors conj (str "finalisation: " e)))))
     {:valid? (empty? @errors) :errors @errors}))
 
 (defn member-role

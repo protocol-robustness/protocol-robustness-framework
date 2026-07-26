@@ -25,6 +25,7 @@
             [resolver-sim.evidence.node :as node]
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.hash.canonical :as hc]
             [scripts.test-state :as ts]))
 
 (defn- default-jobs
@@ -74,11 +75,12 @@
                                    (node/with-fresh-registry
                                      (ar/with-fresh-registry*
                                       (fn []
-                                        (binding [evcfg/*artifact-dir* ns-artifact-dir
-                                                  chain/*allow-dirty* true
-                                                  cap/*capture-event-evidence!* (if noop-capture?
-                                                                                  noop-capture
-                                                                                  cap/*capture-event-evidence!*)]
+                                         (binding [evcfg/*artifact-dir* ns-artifact-dir
+                                                   chain/*allow-dirty* true
+                                                   cap/*capture-event-evidence!* (if noop-capture?
+                                                                                   noop-capture
+                                                                                   cap/*capture-event-evidence!*)
+                                                   hc/*validate-intent-constraints* true]
                                           (let [r (try (t/run-tests sym)
                                                        (catch Throwable t
                                                          (when (instance? InterruptedException t)

@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""
+trace-solidity-verify — Read-only cross-repository trace verification.
+
+Checks every constraint declared in the trace-solidity-manifest.edn:
+  - Source trace file exists
+  - Source SHA-256 matches manifest
+  - Destination trace file exists
+  - Source and destination content match (via SHA-256)
+  - CDRS version is supported ("0.2")
+  - No undeclared trace files in sew-protocol test/foundry/traces/
+  - No stale manifest entries with missing :source-sha256 for non-scenario entries
+
+Usage:
+  ./scripts/trace-solidity-verify [--sew-repo <path>] [--manifest <path>]
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import os
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+
+def parse_edn_entries(path: Path) -> list[dict[str, Any]]:
+    """Parse the EDN manifest and extract all entry maps."""
+    raw = path.read_text("utf-8")
+
+    entries = []
+    # Find all blocks that look like entry maps: starting with {:id ...
+    # We use a bracket-depth counter to handle nested maps
+    i = 0
+    while i < len(raw):
+        # Scan for the start of an entry: "{:id"
+        idx = raw.find("{:id", i)
+        if idx == -1:
+            break
+
+        # Check it's preceded by whitespace or [ to confirm it's an entry start
+        if idx > 0 and raw[idx - 1] not in " \t\n\r[(":
+            i = idx + 4
+            continue
+
+        # Find matching closing brace
+        depth = 0
+        j = idx
+        while j < len(raw):
+            if raw[j] == "{":
+                depth += 1
+            elif raw[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+
+        block = raw[idx : j + 1]
+
+        # Extract fields
+        entry = {}
+        for m in re.finditer(r':([\w-]+)\s+"((?:[^"\\]|\\.)*)"', block):
+            entry[m.group(1)] = m.group(2)
+
+        if entry:
+            entries.append(entry)
+
+        i = j + 1
+
+    return entries
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _is_trace_json(path: Path) -> bool:
+    """Heuristic: a trace fixture is a .json file under test/foundry/traces/
+    that contains trace-like fields (escrow_state, steps, or cdrs_version)."""
+    if path.suffix != ".json":
+        return False
+    if "schema" in path.parts:
+        return False
+    if path.name == "manifest.json" and "regression" in path.parts:
+        return False
+    if path.name == "package.json" or path.name == "project.json":
+        return False
+    if path.name == "slither.config.json":
+        return False
+    if path.name == "seeds.json" and "halmos" in path.parts:
+        return False
+    # Quick content check to filter out non-trace JSON
+    try:
+        content = path.read_bytes()[:2000]
+        text = content.decode("utf-8", errors="replace")
+        return "escrow_state" in text or '"steps"' in text or "cdrs_version" in text
+    except Exception:
+        return False
+
+
+def collect_trace_fixtures(sew_root: Path) -> set[Path]:
+    """Collect all trace fixture .json files in the sew-protocol repo
+    under test/foundry/traces/, excluding build artifacts."""
+    traces_dir = sew_root / "test/foundry/traces"
+    if not traces_dir.is_dir():
+        return set()
+
+    files = set()
+    for f in traces_dir.rglob("*.json"):
+        rel = f.relative_to(sew_root)
+        if _is_trace_json(f):
+            files.add(rel)
+    return files
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Verify cross-repository trace integrity"
+    )
+    parser.add_argument(
+        "--sew-repo",
+        default=None,
+        help="Path to sew-protocol Solidity repo (default: SEW_SOLIDITY_PATH env or manifest default)",
+    )
+    parser.add_argument(
+        "--manifest",
+        default="etc/trace-solidity-manifest.edn",
+        help="Path to the trace manifest (default: etc/trace-solidity-manifest.edn)",
+    )
+    args = parser.parse_args()
+
+    script_dir = Path(__file__).resolve().parent
+    repo_root = script_dir.parent
+
+    manifest_path = (repo_root / args.manifest).resolve()
+    if not manifest_path.exists():
+        print(f"FAIL: Manifest not found at {manifest_path}")
+        sys.exit(1)
+
+    # Read manifest default sew path
+    raw_manifest = manifest_path.read_text("utf-8")
+    m = re.search(r':sew-repo-root\s+"([^"]+)"', raw_manifest)
+    default_sew = m.group(1) if m else "../sew-protocol"
+
+    sew_repo_str = args.sew_repo or os.environ.get("SEW_SOLIDITY_PATH") or default_sew
+    sew_repo = Path(sew_repo_str).resolve()
+    if not sew_repo.is_dir():
+        print(f"FAIL: sew-protocol repo not found at {sew_repo}")
+        print(f"  Set --sew-repo or SEW_SOLIDITY_PATH environment variable")
+        sys.exit(1)
+
+    entries = parse_edn_entries(manifest_path)
+
+    print(f"Clojure repo: {repo_root}")
+    print(f"Sew repo:     {sew_repo}")
+    print(f"Manifest:     {manifest_path}")
+    print(f"Entries:      {len(entries)}")
+    print()
+
+    total = 0
+    passed = 0
+    failed = 0
+    warnings = 0
+
+    # Collect declared destinations
+    declared_dests: set[str] = set()
+
+    for entry in entries:
+        total += 1
+        entry_id = entry.get("id", f"entry-{total}")
+        source = entry.get("source")
+        scenario = entry.get("scenario")
+        dest = entry.get("destination")
+        cdrs_ver = entry.get("cdrs-version")
+        source_sha_manifest = entry.get("source-sha256")
+
+        if dest:
+            declared_dests.add(dest)
+
+        entry_ok = True
+        issues: list[str] = []
+
+        # 1. CDRS version
+        if cdrs_ver is None:
+            issues.append("missing :cdrs-version")
+            entry_ok = False
+        elif cdrs_ver != "0.2":
+            issues.append(f"unsupported cdrs-version: {cdrs_ver!r} (only '0.2' supported)")
+            entry_ok = False
+
+        # 2. Source exists
+        if source is None:
+            issues.append("missing :source")
+            entry_ok = False
+        else:
+            source_path = (repo_root / source).resolve()
+            if not source_path.exists():
+                if scenario:
+                    issues.append(f"source not found (can be regenerated from: {scenario})")
+                else:
+                    issues.append(f"source not found: {source}")
+                entry_ok = False
+            else:
+                # 3. Source SHA-256 matches manifest (if recorded)
+                if source_sha_manifest:
+                    actual = sha256_file(source_path)
+                    if actual != source_sha_manifest:
+                        issues.append(
+                            f"source SHA-256 mismatch:\n"
+                            f"    manifest: {source_sha_manifest}\n"
+                            f"    actual:   {actual}"
+                        )
+                        entry_ok = False
+
+        # 4. Destination exists
+        if dest is None:
+            issues.append("missing :destination")
+            entry_ok = False
+        else:
+            dest_path = (sew_repo / dest).resolve()
+            if not dest_path.exists():
+                issues.append(f"destination not found: {dest}")
+                entry_ok = False
+
+        # 5. Source and destination content match
+        if source and dest:
+            source_path = (repo_root / source).resolve()
+            dest_path = (sew_repo / dest).resolve()
+            if source_path.exists() and dest_path.exists():
+                src_sha = sha256_file(source_path)
+                dst_sha = sha256_file(dest_path)
+                if src_sha != dst_sha:
+                    issues.append(
+                        f"source/destination content mismatch:\n"
+                        f"    source sha256:      {src_sha}\n"
+                        f"    destination sha256: {dst_sha}"
+                    )
+                    entry_ok = False
+
+        # 6. Non-scenario entries must have source-sha256
+        if not scenario and source_sha_manifest is None and source:
+            issues.append("non-scenario entry without :source-sha256 — run sync to populate")
+            entry_ok = False
+
+        if entry_ok:
+            passed += 1
+            print(f"  [PASS] {entry_id}")
+        else:
+            failed += 1
+            print(f"  [FAIL] {entry_id}")
+            for issue in issues:
+                print(f"         {issue}")
+
+    # Check for undeclared trace files
+    print()
+    print("--- Undeclared fixture check ---")
+
+    existing = collect_trace_fixtures(sew_repo)
+    declared = {Path(d) for d in declared_dests}
+    undeclared = existing - declared
+
+    if undeclared:
+        for f in sorted(str(p) for p in undeclared):
+            print(f"  [WARN] Undeclared fixture: {f}")
+            warnings += 1
+    else:
+        print("  [PASS] No undeclared fixtures")
+
+    print()
+    print(f"Passed: {passed}/{total}")
+    if warnings > 0:
+        print(f"Warnings: {warnings}")
+    if failed > 0:
+        print(f"FAILED: {failed}/{total}")
+        sys.exit(1)
+    else:
+        print("All checks passed.")
+
+
+if __name__ == "__main__":
+    main()

@@ -314,9 +314,13 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                              "--scenario-a" s1 "--scenario-b" s2 "--out-dir" od))}
 
   sim:diff {:doc "Compare scenario replay at baseline git commit vs HEAD. Usage: bb sim:diff --baseline <sha> --scenario <path>"
-            :task (apply shell "./scripts/scenarios/sim_diff.sh" *command-line-args*)}
+             :task (apply shell "./scripts/scenarios/sim_diff.sh" *command-line-args*)}
 
+  trace:solidity:sync {:doc "Copy/generate CDRS traces from Clojure repo to sew-protocol Solidity repo. Usage: bb trace:solidity:sync [--sew-repo <path>]"
+                        :task (apply shell "python3" "./scripts/trace-solidity-sync.py" *command-line-args*)}
 
+  trace:solidity:verify {:doc "Read-only verification of cross-repo trace integrity. Fails on missing source, missing dest, hash mismatch, undeclared fixtures, or unsupported CDRS version. Usage: bb trace:solidity:verify [--sew-repo <path>]"
+                          :task (apply shell "./scripts/trace-solidity-verify" *command-line-args*)}
 
   lint {:doc "Lint source and test code with clj-kondo (excludes notebooks/archive/)"
         :task (shell "clj -M:lint/core")}
@@ -600,6 +604,10 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
   {:doc "Run forensic Python unit tests in parallel via pytest-xdist (-n auto)"
    :task (shell "python3" "-m" "pytest" "-n" "auto" "test/forensic_python/" "-v")}
 
+  test:forensic-validate
+  {:doc "Run force-authorisation lifecycle validation unit tests"
+   :task (shell "python3" "-m" "pytest" "test/forensic_python/test_validate.py" "-v")}
+
   test:integration {:doc "Run DB integration tests"
                     :task (clojure "-M:test" "-e" "(require 'clojure.test 'resolver-sim.db.telemetry-integration-test) (clojure.test/run-tests 'resolver-sim.db.telemetry-integration-test)")}
 
@@ -646,6 +654,10 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
    :task (do
            (println "Opening: http://localhost:7777/notebooks/security_validation")
            (shell "bash" "-c" "xdg-open http://localhost:7777/notebooks/security_validation 2>/dev/null || open http://localhost:7777/notebooks/security_validation 2>/dev/null || echo 'Navigate to: http://localhost:7777/notebooks/security_validation'"))}
+
+  notebook:validate-registry
+  {:doc "Validate data/notebooks.edn: all paths resolve, no duplicate IDs, no archived entries."
+   :task (shell "clojure" "-M" "-m" "scripts.validate-notebook-registry")}
 
   notebook:inspect
   {:doc "Inspect the return shape of a function. Calls the function with optional EDN args
@@ -796,7 +808,8 @@ Env:   PRF_SOURCE_ROOTS, PRF_RUNS_ROOT, PRF_ARTIFACT_DIR, PRF_CODE_HASH_ALGORITH
    :task (apply shell "bash" "scripts/forensic/run.sh" *command-line-args*)}
 
   forensic:verify
-  {:doc "Verify a forensic run bundle. Usage: bb forensic:verify <run-dir>"
+  {:doc "Verify a forensic run bundle.
+         Usage: bb forensic:verify <run-dir> [--expected-protocol <id/ver>] [--require-protocol-semantics]"
    :task (apply shell "python3" "scripts/forensic/verify.py" *command-line-args*)}
 
   forensic:export
@@ -812,9 +825,12 @@ Env:   PRF_SOURCE_ROOTS, PRF_RUNS_ROOT, PRF_ARTIFACT_DIR, PRF_CODE_HASH_ALGORITH
    :task (apply shell "python3" "scripts/forensic/reproduce.py" *command-line-args*)}
 
    forensic:validate
-   {:doc "Pre-validate a forensic run bundle: force-authorisation lifecycle checks.
+   {:doc "Run protocol-semantic validation dispatcher on a forensic run bundle.
+          Reads the :protocol descriptor from the bundle root and dispatches
+          to the registered protocol validator (e.g. validate_sew for sew-v1).
  Usage: bb forensic:validate <run-dir>
-        bb forensic:validate <bundle-root.json> [--run-dir <dir>]"
+        bb forensic:validate <bundle-root.json> [--run-dir <dir>]
+        bb forensic:validate --list-validators"
     :task (apply shell "python3" "scripts/forensic/validate.py" *command-line-args*)}
 
    forensic:self-test

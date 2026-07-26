@@ -2,7 +2,8 @@
   "Sew-specific economic adapters.
 
    This namespace maps Sew protocol state and policy into generic economics
-   functions. Generic resolver-sim.economics namespaces must not depend on Sew.
+   functions. Pure arithmetic is delegated to resolver-sim.economics.calculations
+   in PRF core. Generic resolver-sim.economics namespaces must not depend on Sew.
 
    Architecture note:
    Projection artifact creation is owned by the evidence/projection layer.
@@ -11,6 +12,7 @@
    wrappers unless/until the projection artifact API is explicitly promoted
    to the primary execution path."
   (:require [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.economics.calculations :as core-econ]
             [resolver-sim.pro-rata.allocation :as pro-rata]
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
@@ -30,14 +32,14 @@
                   :alpha-bps          3000}})
 
 (defn calculate-escrow-fee
-  "Calculate the Sew escrow creation fee."
+  "Calculate the escrow creation fee (delegates to core)."
   [amount fee-bps]
-  (payoffs/calculate-bps-amount amount fee-bps))
+  (core-econ/calculate-bps-amount amount fee-bps))
 
 (defn calculate-appeal-bond-fee
-  "Calculate the Sew protocol fee deducted from an appeal bond."
+  "Calculate the protocol fee deducted from an appeal bond (delegates to core)."
   [amount fee-bps]
-  (payoffs/calculate-net-after-bps-fee amount fee-bps))
+  (core-econ/calculate-bps-fee amount fee-bps))
 
 (defn calculate-challenge-bond-amount
   "Calculate the required Sew challenge bond amount.
@@ -71,11 +73,9 @@
     :else 0))
 
 (defn calculate-bounty
-  "Calculate the Sew challenge bounty from a slash amount."
+  "Calculate the challenge bounty from a slash amount (delegates to core)."
   [slash-amount bounty-bps]
-  (if (pos? bounty-bps)
-    (payoffs/calculate-bps-amount slash-amount bounty-bps)
-    0))
+  (core-econ/calculate-bounty slash-amount bounty-bps))
 
 (defn calculate-slashing-distribution
   "Calculate Sew distribution for slashed funds with optional governance overrides."
@@ -94,20 +94,20 @@
       :retained retained})))
 
 (defn calculate-slash-amount-from-basis
-  "Calculate a Sew slash amount from slashable stake and bps."
+  "Calculate a slash amount from slashable stake and bps (delegates to core)."
   [slashable-stake slash-bps]
-  (payoffs/calculate-bps-amount slashable-stake slash-bps))
+  (core-econ/calculate-slash-amount slashable-stake slash-bps))
 
 (defn calculate-reversal-slash
-  "Calculate a Sew stake-basis reversal slash."
+  "Calculate a stake-basis reversal slash (delegates to core)."
   [slashable-stake slash-bps]
-  (calculate-slash-amount-from-basis slashable-stake slash-bps))
+  (core-econ/calculate-slash-amount slashable-stake slash-bps))
 
 (defn calculate-escrow-cap
-  "Compute the maximum escrow amount a Sew resolver can handle from stake."
-  ([stake] (calculate-escrow-cap stake 1.0))
+  "Compute the maximum escrow amount from stake (delegates to core)."
+  ([stake] (core-econ/calculate-capacity-limit stake))
   ([stake multiplier]
-   (payoffs/calculate-capacity-limit stake multiplier)))
+   (core-econ/calculate-capacity-limit stake multiplier)))
 
 (defn calculate-sew-slash-allocation
   "Allocate a Sew slash amount across liable parties.

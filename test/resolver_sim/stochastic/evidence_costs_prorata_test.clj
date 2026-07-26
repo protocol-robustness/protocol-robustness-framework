@@ -16,6 +16,10 @@
      G4 — Completeness: every resolver-id appears in the result map
      G5 — Determinism:  same inputs → same output (no hidden RNG)"
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.test.check :as tc]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
+            [resolver-sim.properties.harness :as pbh]
             [resolver-sim.stochastic.evidence-costs :as ec]))
 
 ;; ---------------------------------------------------------------------------
@@ -232,3 +236,50 @@
           effort-b (/ 100.0 small-d)]
       (is (< (Math/abs (- effort-a effort-b)) 0.2)
           "effort-per-dispute is nearly equal — market equilibrium preserved"))))
+
+;; ---------------------------------------------------------------------------
+;; Generative G1–G5 coverage
+;; ---------------------------------------------------------------------------
+
+(defn- valid-prorata-input-gen
+  "Generate {:resolver-ids ids :budgets budget-map :dispute-count n}
+   with unique IDs, budgets in [0, 500], and disputes in [0, 1000].
+   Uses integer budgets converted to doubles to avoid NaN edges in
+   test.check gen/double*."
+  []
+  (gen/bind
+    (gen/tuple
+      (gen/choose 1 20)        ;; resolver count
+      (gen/choose 0 1000))     ;; dispute count
+    (fn [[n dispute-count]]
+      (let [ids (mapv #(keyword (str "r-" %)) (range n))]
+        (gen/fmap
+          (fn [budget-vals]
+            {:resolver-ids ids
+             :budgets (zipmap ids (map double budget-vals))
+             :dispute-count dispute-count})
+          (gen/vector (gen/choose 0 500) n))))))
+
+(deftest prorata-satisfies-all-guarantees
+  "Generative verification of formal guarantees G1–G5 across random valid inputs.
+   Covers edge cases (zero disputes, zero budgets, all-zero budgets, overload)
+   through generator ranges rather than individual examples."
+  (let [prop (prop/for-all [{:keys [resolver-ids budgets dispute-count]}
+                            (valid-prorata-input-gen)]
+                (let [alloc (ec/prorata-dispute-load resolver-ids budgets dispute-count)
+                      total-budget (reduce + (vals budgets))
+                      same (ec/prorata-dispute-load resolver-ids budgets dispute-count)]
+                  (and
+                    ;; G1 — Conservation
+                    (= dispute-count (reduce + 0 (vals alloc)))
+                    ;; G2 — Quota rule (skip when total-budget = 0 — fallback uniform)
+                    (or (zero? total-budget)
+                        (check-quota-rule alloc budgets total-budget dispute-count))
+                    ;; G3 — Non-negative
+                    (every? #(>= % 0) (vals alloc))
+                    ;; G4 — Completeness: every resolver-id appears in the result
+                    (= (set resolver-ids) (set (keys alloc)))
+                    ;; G5 — Determinism
+                    (= alloc same))))
+        res (tc/quick-check (pbh/trial-count pbh/review-trials) prop)]
+    (is (:pass? res) (pbh/report-failure res))))

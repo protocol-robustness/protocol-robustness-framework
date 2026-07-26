@@ -61,6 +61,16 @@
         overlapping (clojure.set/intersection valid-approvals valid-dissents)
         effective-approvals (clojure.set/difference valid-approvals overlapping)
         approval-count (count effective-approvals)
+        _ (doseq [a approvals]
+            (when-not (:researcher/id a)
+              (throw (ex-info "Force-authorisation approval missing :researcher/id" {})))
+            (when-not (:signed-content-hash a)
+              (throw (ex-info "Force-authorisation approval missing :signed-content-hash" {}))))
+        _ (doseq [d dissents]
+            (when-not (:researcher/id d)
+              (throw (ex-info "Force-authorisation dissent missing :researcher/id" {})))
+            (when-not (:reason d)
+              (throw (ex-info "Force-authorisation dissent missing :reason" {}))))
         status (cond
                  (>= approval-count threshold)
                  (if (seq valid-dissents)

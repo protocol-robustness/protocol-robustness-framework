@@ -1,93 +1,45 @@
 (ns resolver-sim.protocols.sew.trace-metadata
-  "Typed metadata for simulation traces.
+  "SEW protocol trace metadata — classifiers and mappings.
 
-   Defines the canonical type vocabulary for the Protocol Robustness Framework.
-   Every actor, adversary, transition, effect, invariant, scenario, outcome,
-   and resolution has a stable keyword type drawn from one of the sets below.
+   Generic vocabulary (actor types, transition categories, resolution values,
+   etc.) lives in resolver-sim.trace-metadata.  This namespace contains:
 
-   Design principles:
-   1. Keep enums stable — treat them as API.
-   2. Prefer composition over explosion — 10 types + traits beats 50 types.
-   3. Align with protocol semantics — every type maps to something in the
-      contracts, the simulation, and the trace.
-   4. Make types queryable — 'show all liveness failures with bribery.'
-
-   Structure:
-   - Section A: vocabulary sets (stable keyword enums)
-   - Section B: classifier functions (derive type from data)
-   - Section C: resolution semantics (full resolution map from world state)"
-  (:require [resolver-sim.protocols.sew.types :as t]
+   - Compatibility aliases for vocabulary sets that were previously here
+   - SEW-specific action and invariant mappings
+   - Classifier functions that map SEW world state into PRF vocabulary"
+  (:require [resolver-sim.trace-metadata :as core]
+            [resolver-sim.protocols.sew.types :as t]
             [clojure.string :as str]))
 
 ;; ===========================================================================
-;; A. Vocabulary Sets
+;; A. Vocabulary — compatibility aliases (delegate to core)
 ;; ===========================================================================
+;;
+;; These were historically defined directly in this namespace.  They are now
+;; maintained in resolver-sim.trace-metadata and re-exported here for
+;; backward compatibility.  New consumers should require the core namespace
+;; directly.
+
+(def actor-types                     core/actor-types)
+(def actor-roles                     core/actor-roles)
+(def adversary-types                 core/adversary-types)
+(def adversary-traits                core/adversary-traits)
+(def transition-types                core/transition-types)
+(def effect-types                    core/effect-types)
+(def scenario-types                  core/scenario-types)
+(def outcome-types                   core/outcome-types)
+(def resolution-quality-values       core/resolution-quality-values)
+(def resolution-finality-values      core/resolution-finality-values)
+(def resolution-timing-values        core/resolution-timing-values)
+(def resolution-participation-values core/resolution-participation-values)
+(def resolution-escalation-values    core/resolution-escalation-values)
+(def resolution-economic-values      core/resolution-economic-values)
+(def resolution-failure-values       core/resolution-failure-values)
+(def resolution-integrity-values     core/resolution-integrity-values)
+(def invariant-category-types        core/invariant-category-types)
 
 ;; ---------------------------------------------------------------------------
-;; A1. Actor taxonomy
-;; RESERVED — no production callers. Intended for per-agent trace annotation
-;; (e.g. adding :actor/type and :actor/role to each trace-entry agent field).
-;; Wire-up point: enrich the :agent map in process-step's trace entry build.
-;; ---------------------------------------------------------------------------
-
-(def actor-types
-  "Structural roles an agent can occupy in the protocol.
-   Type is structural (what the agent IS), role is behavioural (how it acts)."
-  #{:sender        ; escrow depositor
-    :recipient     ; escrow beneficiary
-    :resolver      ; dispute arbitrator
-    :appealer      ; party challenging a resolver decision
-    :challenger    ; party escalating a pending settlement
-    :governance    ; protocol governance / admin
-    :oracle        ; external truth source (Kleros, etc.)
-    :keeper        ; automated bot executing time-locked actions
-    :observer})    ; passive participant, no direct state effects
-
-(def actor-roles
-  "Behavioural roles — how an actor participates, independent of its type.
-   A :resolver can be :honest or :malicious; same structural type, different role."
-  #{:honest         ; follows the protocol as designed
-    :rational       ; deviates if profitable, cooperative otherwise
-    :malicious      ; actively adversarial, willing to take losses to harm others
-    :lazy           ; under-participates (does not act on deadlines)
-    :coordinated    ; acts in concert with other actors
-    :sybil})        ; operates multiple identities to amplify attack surface
-
-;; ---------------------------------------------------------------------------
-;; A2. Adversary taxonomy
-;; RESERVED — no production callers. Intended for adversary scenario tagging
-;; (classify-adversary below infers type/traits from scenario-id or explicit
-;; annotation). Wire-up point: add :adversary/type + :adversary/traits to
-;; replay results for adversarial scenarios via classify-adversary.
-;; ---------------------------------------------------------------------------
-
-(def adversary-types
-  "Strategy classes for adversarial actors.
-   Each class has a distinct objective and attack surface."
-  #{:profit-maximizer    ; exploits protocol mechanics for direct monetary gain
-    :forking-strategist  ; manufactures dispute forks to exhaust or confuse resolvers
-    :griefer             ; maximises harm to counterparties without profit motive
-    :liveness-attacker   ; prevents protocol progress (deadlocks, delays, censorship)
-    :colluder            ; coordinates across multiple identities or resolver rings
-    :briber              ; offers side-payments to influence resolver decisions
-    :censor              ; blocks or front-runs specific transactions
-    :delay-attacker      ; exploits timeouts and deadline arithmetic
-    :information-attacker}) ; withholds or fabricates evidence to skew decisions
-
-(def adversary-traits
-  "Composable modifier traits that qualify an adversary strategy.
-   Multiple traits can apply simultaneously."
-  #{:multi-step          ; attack requires ≥ 2 coordinated protocol steps
-    :cross-epoch         ; spans multiple protocol epochs or governance cycles
-    :capital-efficient   ; achieves objective with minimal capital at risk
-    :high-capital        ; requires large stake or bond to execute
-    :stealthy            ; avoids detection by staying within protocol limits
-    :adaptive            ; responds to protocol state changes mid-attack
-    :reactive            ; triggered by counterparty actions (not pre-planned)
-    :coordinated})       ; requires cooperation between ≥ 2 distinct actors
-
-;; ---------------------------------------------------------------------------
-;; A3. Transition taxonomy
+;; A3. SEW-specific strategic actions
 ;; ---------------------------------------------------------------------------
 
 (def strategic-actions
@@ -96,49 +48,13 @@
   #{"create-escrow" "raise-dispute" "escalate-dispute" "execute-resolution"
     "sender-cancel" "recipient-cancel"})
 
-(def transition-types
-  "Semantic categories for protocol state transitions."
-  #{:creation        ; new object instantiation (escrow, bond, stake)
-    :state-change    ; escrow or dispute state mutation
-    :economic        ; fund movement (release, refund, slash, fee)
-    :resolution      ; dispute resolution proposal or execution
-    :escalation      ; dispute level increase (challenge, escalate)
-    :timeout         ; time-triggered automated action
-    :governance      ; admin / governance action
-    :oracle          ; external oracle input
-    :maintenance})   ; keeper or batch maintenance (automate-timed-actions)
-
 ;; ---------------------------------------------------------------------------
-;; A4. Effect taxonomy
-;; ---------------------------------------------------------------------------
-
-(def effect-types
-  "Economic effect classifications — what changes in the protocol's accounting."
-  #{:lock-funds       ; add to total-held
-    :release-funds    ; move from total-held → total-released
-    :refund           ; move from total-held → total-refunded
-    :collect-fee      ; move from total-held → total-fees
-    :slash            ; remove from resolver stake
-    :distribute-slash ; move slashed stake to insurance / protocol / burn
-    :restore-stake    ; return stake after successful appeal
-    :burn             ; permanently remove from circulation
-    :mint             ; create new tokens
-    :transfer         ; move between parties without protocol accounting change
-    :no-effect})      ; action succeeds but no accounting change (e.g. revert)
-
-;; ---------------------------------------------------------------------------
-;; A5. Invariant taxonomy
-;; RESERVED — no production callers. Intended for test coverage analysis:
-;; group invariant failures by category (e.g. how many :accounting vs
-;; :safety invariants failed in a sweep). Wire-up point: enrich
-;; :invariant-results in accum-metrics output or the fixture runner report.
+;; A5. SEW invariant-ID-to-category mapping
 ;; ---------------------------------------------------------------------------
 
 (def invariant-categories
-  "Mapping of invariant keyword → semantic category.
-   Categories: :accounting :state-machine :economic :liveness :safety :governance
-
-   Must cover every ID in `protocols.sew.invariants/canonical-ids`."
+  "Mapping of SEW invariant keyword → PRF invariant category.
+   Every value must be a member of core/invariant-category-types."
   {:solvency                          :accounting
    :fees-non-negative                 :accounting
    :held-non-negative                 :accounting
@@ -155,11 +71,11 @@
    :claimable-classification          :accounting
    :single-resolution-payout-consistent :accounting
    :held-delta-accounted              :accounting
-    :withdrawn-monotonic               :accounting
-    :released-monotonic                :accounting
-    :fee-payouts-sum-equals-total-fees-withdrawn :accounting
-    :fee-payouts-monotonic             :accounting
-    :all-status-combinations-valid     :state-machine
+   :withdrawn-monotonic               :accounting
+   :released-monotonic                :accounting
+   :fee-payouts-sum-equals-total-fees-withdrawn :accounting
+   :fee-payouts-monotonic             :accounting
+   :all-status-combinations-valid     :state-machine
    :persisted-escrow-state-valid      :state-machine
    :escrow-state-in-graph             :state-machine
    :escrow-dispute-metadata-consistent :state-machine
@@ -195,116 +111,11 @@
    :yield-position-consistency        :accounting
    :yield-exposure                    :accounting})
 
-;; ---------------------------------------------------------------------------
-;; A6. Scenario taxonomy
-;; RESERVED — no production callers. Domain for classify-scenario (below).
-;; Wire-up point: add :scenario/type to the fixture runner report or replay
-;; result once classify-scenario is called in sim/fixtures.clj.
-;; ---------------------------------------------------------------------------
-
-(def scenario-types
-  "High-level scenario categories for simulation organization and filtering."
-  #{:baseline        ; standard happy-path and common protocol flows
-    :edge-case       ; boundary conditions, permission checks, state guards
-    :adversarial     ; scenarios driven by an adversarial strategy
-    :stress          ; high-volume, depletion, or invariant saturation tests
-    :parameter-sweep ; varying a parameter across a range
-    :multi-epoch     ; scenarios spanning multiple epochs
-    :governance-change}) ; protocol upgrade or governance intervention
-
-;; ---------------------------------------------------------------------------
-;; A7. Outcome taxonomy
-;; RESERVED — no production callers. Domain for classify-outcome (below).
-;; Wire-up point: add :outcome/type to the replay result map once
-;; classify-outcome is called in replay-with-protocol or the fixture runner.
-;; ---------------------------------------------------------------------------
-
-(def outcome-types
-  "What happened at the end of a scenario or trace."
-  #{:normal-completion  ; protocol executed as designed
-    :profit-extraction  ; adversary successfully extracted value
-    :loss               ; honest party suffered unexpected loss
-    :liveness-failure   ; protocol progress was blocked
-    :invariant-failure  ; a safety invariant was violated
-    :cascade-failure    ; multiple compounding failures
-    :partial-recovery   ; failure occurred but protocol partially recovered
-    :expected-violation}) ; invariant violation that is the intended test outcome
-
-;; ---------------------------------------------------------------------------
-;; A8. Resolution taxonomy
-;; RESERVED — no production callers. Domain for classify-resolution (Section
-;; C3 below). Wire-up point: replace resolution-semantics in trace_export.clj
-;; once the Forge trace schema is updated to accept namespaced keyword values
-;; instead of the legacy CDRS string maps.
-;; ---------------------------------------------------------------------------
-
-(def resolution-quality-values
-  "How correct or reliable the resolution outcome was."
-  #{:correct          ; matches ground truth
-    :incorrect        ; diverges from ground truth (successful attack)
-    :contested        ; disputed by at least one party
-    :unverified       ; no oracle or appeal to confirm correctness
-    :low-confidence   ; decision quality model gives < 0.5 score
-    :high-confidence}) ; decision quality model gives ≥ 0.8 score
-
-(def resolution-finality-values
-  "The finality state of the resolution."
-  #{:final            ; irreversible, settlement executed
-    :appealable       ; within the appeal window, not yet challenged
-    :under-appeal     ; active challenge in progress
-    :reopened         ; previously final, re-opened by governance
-    :stalled})        ; no progress possible without external intervention
-
-(def resolution-timing-values
-  "When and how the resolution was triggered."
-  #{:instant             ; settled in the same block as decision
-    :within-deadline     ; settled before the appeal or pending deadline
-    :delayed             ; settled after expected deadline
-    :timeout-triggered   ; triggered automatically by keeper after timeout
-    :deadline-breached}) ; deadline passed with no keeper action
-
-(def resolution-participation-values
-  "How many eligible parties participated in the resolution."
-  #{:full-participation       ; all parties responded
-    :partial-participation    ; at least one party responded
-    :no-participation         ; neither party engaged (timeout)
-    :asymmetric-participation}) ; only one side responded
-
-(def resolution-escalation-values
-  "How many escalation rounds occurred."
-  #{:none           ; resolved at level 0 (initial resolver)
-    :single-step    ; one challenge / escalation
-    :multi-step     ; two escalations
-    :max-escalation ; reached the protocol's maximum level
-    :recursive})    ; escalation chain looped or was attempted beyond max
-
-(def resolution-economic-values
-  "Economic character of the resolution outcome."
-  #{:profitable         ; at least one party gained relative to no-dispute
-    :loss-making        ; at least one party lost relative to escrow amount
-    :break-even         ; parties recover approximately their escrow contributions
-    :capital-locked     ; funds unable to be released (liveness failure)
-    :capital-efficient  ; resolved with minimal bond / stake expenditure
-    :over-slashed       ; resolver lost more stake than warranted
-    :under-slashed})    ; resolver escaped proportionate penalty
-
-(def resolution-failure-values
-  "Class of resolution failure, if any."
-  #{:none                  ; resolution succeeded
-    :liveness-failure      ; dispute was not resolved within deadline
-    :deadlock              ; no party can act to break the stalemate
-    :infinite-appeal-loop  ; appeals were cycled without convergence
-    :inconsistent-state    ; world state diverged from expected
-    :partial-execution     ; resolution partially applied
-    :economic-exploit})    ; resolution succeeded but adversary extracted value
-
-(def resolution-integrity-values
-  "Accounting integrity of the resolution."
-  #{:fully-reconciled    ; all accounting balances match expected
-    :accounting-mismatch ; held/released/refunded do not sum correctly
-    :missing-effects     ; some expected accounting effects did not apply
-    :double-counted      ; effects were applied more than once
-    :leakage})           ; value exited the protocol without accounting entry
+;; Assert that every mapped category is a valid PRF category
+(let [bad (remove (set core/invariant-category-types) (vals invariant-categories))]
+  (when (seq bad)
+    (throw (ex-info (str "invariant-categories contains unrecognized categories: " bad)
+                    {:bad-categories bad}))))
 
 ;; ===========================================================================
 ;; B. Classifier Functions
@@ -312,16 +123,10 @@
 
 ;; ---------------------------------------------------------------------------
 ;; B1. Actor classifiers
-;; RESERVED — no production callers. Intended for per-agent trace annotation.
-;; Wire-up point: enrich :agent map in process-step trace entry to include
-;; :actor/type and :actor/role derived from these classifiers.
 ;; ---------------------------------------------------------------------------
 
 (defn classify-actor-type
-  "Infer the structural :actor/type keyword from an agent map.
-   Agent maps have :role 'resolver' | 'governance' | 'keeper' | ...
-   Structural type is derived from the declared role, defaulting to :observer.
-   Falls back to :type for backward compatibility."
+  "Infer the structural :actor/type keyword from an agent map."
   [agent-map]
   (let [role (or (:role agent-map) (:type agent-map) "observer")]
     (case role
@@ -330,16 +135,13 @@
       "keeper"     :keeper
       "oracle"     :oracle
       "challenger" :challenger
-      (do
-        (println "WARNING: Unrecognized actor role:" role)
-        :observer))))
+      :observer)))
 
 (defn classify-actor-role
-  "Derive the behavioural :actor/role keyword from an agent map.
-   Declared :strategy or :behavior field is the primary signal.
-   Falls back to :role or :type for backward compatibility."
+  "Derive the behavioural :actor/role keyword from an agent map."
   [agent-map]
-  (case (or (:strategy agent-map) (:behavior agent-map) (:role agent-map) (:type agent-map) "honest")
+  (case (or (:strategy agent-map) (:behavior agent-map)
+            (:role agent-map) (:type agent-map) "honest")
     "honest"      :honest
     "rational"    :rational
     "malicious"   :malicious
@@ -350,19 +152,13 @@
 
 ;; ---------------------------------------------------------------------------
 ;; B2. Adversary classifier
-;; RESERVED — no production callers. Intended for adversary scenario tagging.
-;; Wire-up point: add :adversary map to replay result in replay-with-protocol,
-;; or call in sim/fixtures.clj fixture runner to annotate adversarial suites.
 ;; ---------------------------------------------------------------------------
 
-(defn- sid-contains-segment?
-  [sid segment]
-  (some #{segment} (str/split sid #"-")))
+(defn- sid-contains-segment? [sid segment]
+  (boolean (re-find (re-pattern (str "(?<=-|^)" segment "(?=-|$)")) sid)))
 
 (defn classify-adversary
-  "Return an adversary classification map from a scenario map.
-   Looks for :adversary/type and :adversary/traits on the scenario, or
-   infers from the scenario-id string as a fallback."
+  "Return an adversary classification map from a scenario map."
   [scenario]
   (let [explicit-type   (:adversary/type scenario)
         explicit-traits (or (:adversary/traits scenario) #{})
@@ -370,7 +166,6 @@
     (if explicit-type
       {:adversary/type   explicit-type
        :adversary/traits explicit-traits}
-      ;; Fallback: infer from scenario-id segments
       (cond
         (sid-contains-segment? sid "profit-maximizer")
         {:adversary/type   :profit-maximizer
@@ -388,8 +183,7 @@
 ;; ---------------------------------------------------------------------------
 
 (def transition-type-map
-  "Data-driven mapping from action name to transition type keyword.
-   Keys use kebab-case (after canonical-action normalization)."
+  "Data-driven mapping from SEW action name to PRF :transition/type keyword."
   {"create-escrow"               :transition/creation
    "register-stake"              :transition/creation
    "set-resolver-capacity"       :transition/creation
@@ -403,19 +197,19 @@
    "execute-resolution"          :transition/resolution
    "execute-pending-settlement"  :transition/resolution
    "propose-fraud-slash"         :transition/governance
-   "appeal-slash"               :transition/governance
-   "resolve-appeal"             :transition/governance
-   "execute-fraud-slash"        :transition/economic
-   "distribute-slash"           :transition/economic
-   "release"                    :transition/economic
-   "sender-cancel"              :transition/state-change
-   "recipient-cancel"           :transition/state-change
-   "automate-timed-actions"     :transition/maintenance
-   "auto-cancel-disputed"       :transition/timeout})
+   "appeal-slash"                :transition/governance
+   "resolve-appeal"              :transition/governance
+   "execute-fraud-slash"         :transition/economic
+   "distribute-slash"            :transition/economic
+   "release"                     :transition/economic
+   "sender-cancel"               :transition/state-change
+   "recipient-cancel"            :transition/state-change
+   "automate-timed-actions"      :transition/maintenance
+   "auto-cancel-disputed"        :transition/timeout})
 
 (defn transition-type
-  "Map a protocol action string to its :transition/type keyword.
-   Accepts both kebab-case (create-escrow) and snake_case (create_escrow).
+  "Map a SEW action string to its :transition/type keyword.
+   Accepts kebab-case (create-escrow) and snake_case (create_escrow).
    Returns :transition/unknown for unrecognized actions."
   [action]
   (get transition-type-map action
@@ -424,39 +218,34 @@
 
 ;; ---------------------------------------------------------------------------
 ;; B4. Scenario classifier
-;; Active — called from io/trace_export.clj to populate fixture :metadata block.
 ;; ---------------------------------------------------------------------------
 
 (defn classify-scenario
-  "Derive the :scenario/type keyword for a scenario map.
-   Uses explicit :scenario/type if present; otherwise infers from scenario-id
-   and agent composition."
+  "Derive the :scenario/type keyword for a SEW scenario map."
   [scenario]
   (or (:scenario/type scenario)
       (let [sid (or (:scenario-id scenario) "")]
         (cond
-          (.contains sid "profit-maximizer") :adversarial
-          (.contains sid "forking-strategist") :adversarial
-          (.contains sid "ring-attack")        :adversarial
-          (.contains sid "depletion-cascade")  :stress
-          (.contains sid "dr3-bond")           :stress
-          (.contains sid "dr3-senior")         :stress
-          (.contains sid "dr3-freeze")         :stress
-          (.contains sid "dr3-reversal")       :stress
-          (.contains sid "edge-case")          :edge-case
-          (.contains sid "rejected")           :edge-case
-          (.contains sid "unauthorized")       :edge-case
-          (.contains sid "blocked")            :edge-case
-          :else                                :baseline))))
+          (.contains sid "profit-maximizer")    :adversarial
+          (.contains sid "forking-strategist")  :adversarial
+          (.contains sid "ring-attack")         :adversarial
+          (.contains sid "depletion-cascade")   :stress
+          (.contains sid "dr3-bond")            :stress
+          (.contains sid "dr3-senior")          :stress
+          (.contains sid "dr3-freeze")          :stress
+          (.contains sid "dr3-reversal")        :stress
+          (.contains sid "edge-case")           :edge-case
+          (.contains sid "rejected")            :edge-case
+          (.contains sid "unauthorized")        :edge-case
+          (.contains sid "blocked")             :edge-case
+          :else                                 :baseline))))
 
 ;; ---------------------------------------------------------------------------
 ;; B6. Outcome classifier
-;; Active — called from io/trace_export.clj to populate fixture :metadata block.
 ;; ---------------------------------------------------------------------------
 
 (defn classify-outcome
-  "Derive the :outcome/type keyword from a replay result map.
-   Cross-references outcome, halt-reason, metrics, and expected-fail?."
+  "Derive the :outcome/type keyword from a SEW replay result map."
   [result scenario]
   (let [outcome    (:outcome result)
         halt       (:halt-reason result)
@@ -475,7 +264,7 @@
 ;; ===========================================================================
 
 ;; ---------------------------------------------------------------------------
-;; C1. Legacy helpers (retained for backwards compatibility)
+;; C1. Legacy helpers
 ;; ---------------------------------------------------------------------------
 
 (def resolution-path-map
@@ -484,16 +273,15 @@
    "auto-cancel-disputed"        :resolution/timeout})
 
 (defn resolution-path
-  "Map an action name to its resolution path type.
-   Accepts both kebab-case and snake_case. Returns :resolution/none by default."
+  "Map an action name to its resolution path type."
   [action]
   (get resolution-path-map action
        (get resolution-path-map (str/replace action "_" "-")
             :resolution/none)))
 
-;; RESERVED — no production callers. Superseded by classify-resolution (C3)
-;; which returns the full resolution taxonomy. Retained as vocabulary reference.
-(defn resolution-outcome [world workflow-id]
+(defn resolution-outcome
+  "Legacy — returns a :resolution/* keyword for a workflow in the given world."
+  [world workflow-id]
   (let [state (t/escrow-state world workflow-id)]
     (case state
       :released :resolution/release
@@ -502,16 +290,18 @@
       :resolution/pending)))
 
 ;; ---------------------------------------------------------------------------
-;; C2. CDRS v0.1 canonical buckets (legacy — retained for compatibility)
+;; C2. CDRS v0.1 canonical buckets (legacy)
 ;; ---------------------------------------------------------------------------
 
 (defn- clean-id [id]
   (if (string? id)
-    (try (Integer/parseInt (clojure.string/replace id #"^wf" ""))
+    (try (Integer/parseInt (str/replace id #"^wf" ""))
          (catch Exception _ id))
     id))
 
-(defn state-bucket [world workflow-id]
+(defn state-bucket
+  "Map a workflow's world state to a CDRS v0.1 bucket string."
+  [world workflow-id]
   (let [id      (clean-id workflow-id)
         state   (or (get-in world [:escrow-transfers id :escrow-state])
                     (get-in world [:live-states id])
@@ -549,22 +339,11 @@
 
 ;; ---------------------------------------------------------------------------
 ;; C3. Full resolution taxonomy classifier
-;; RESERVED — no production callers. Supersedes resolution-semantics (C2,
-;; called from io/trace_export.clj) but returns keyword-namespaced values
-;; (e.g. :resolution/outcome :released) where resolution-semantics returns
-;; CDRS string maps (e.g. {:outcome "RELEASE" ...}).
-;; Wire-up point: replace resolution-semantics in trace_export.clj:180 once
-;; the Forge trace schema is updated to accept namespaced keyword values.
 ;; ---------------------------------------------------------------------------
 
 (defn classify-resolution
   "Return a fully-typed resolution map for a workflow in the given world.
-
-   Derives all resolution/* taxonomy values from current world state.
-   The result is a keyword-keyed map with entries from the resolution-*-values
-   sets defined in Section A8.
-
-   This supersedes resolution-semantics for new analysis code."
+   All :resolution/* values are members of the core resolution-*-values sets."
   [world workflow-id]
   (let [id       (clean-id workflow-id)
         state    (or (get-in world [:escrow-transfers id :escrow-state])
@@ -616,10 +395,11 @@
 
 ;; ---------------------------------------------------------------------------
 ;; C4. Issue / failure classifier
-;; Active — called from io/trace_score.clj:81 to set :issue/type on scored results.
 ;; ---------------------------------------------------------------------------
 
-(defn classify-issue [result]
+(defn classify-issue
+  "Classify a replay result into an :issue/* keyword."
+  [result]
   (let [metrics        (:metrics result {})
         liveness-fail? (pos? (get-in result [:score-components :liveness-failure] 0))
         invariant-fail? (pos? (:invariant-violations metrics 0))]

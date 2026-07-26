@@ -102,7 +102,7 @@
            (detection/detect-probabilistic-violations params :malicious false 1.0))))))
 
 (deftest oracle-fixture-static-always-detect-forces-detection
-  (testing ":static-always-detect forces fraud/timeout/L1 detection when thresholds > 0"
+  (testing ":static-always-detect forces fraud/timeout detection; L1 is skipped when fraud fires (mutually exclusive, see detect-probabilistic-violations)"
     (let [params {:rng (rng/make-rng 3)
                   :oracle-fixture {:mode :static-always-detect}
                   :fraud-detection-probability 0.25
@@ -110,7 +110,8 @@
           out (detection/detect-probabilistic-violations params :malicious false 0.25)]
       (is (true? (:fraud-detected? out)))
       (is (true? (:timeout-detected? out)))
-      (is (true? (:l1-slashed? out))))))
+      (is (false? (:l1-slashed? out))
+          "L1 detection is skipped when fraud is already detected — mutually exclusive per detect-probabilistic-violations lines 606-609"))))
 
 (deftest oracle-fixture-static-no-slash-suppresses-l2
   (testing ":static-no-slash suppresses L2 backstop detection"

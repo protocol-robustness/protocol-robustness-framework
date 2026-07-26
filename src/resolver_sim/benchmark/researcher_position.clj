@@ -79,10 +79,13 @@
     (when (seq extra)
       (throw (ex-info "Unknown position dimensions"
                       {:unknown extra :known known-dimensions})))
-    (let [normalised-dims
-          (reduce-kv
-           (fn [m dim {:keys [status targets rationale qualifications]}]
-             (if (valid-dimension-status? dim status)
+      (let [normalised-dims
+            (reduce-kv
+             (fn [m dim {:keys [status targets rationale qualifications]}]
+               (when-not (valid-dimension-status? dim status)
+                 (throw (ex-info (str "Invalid status for dimension " dim ": " status)
+                                 {:dimension dim :status status
+                                  :allowed (get dimension-statuses dim)})))
                (assoc m dim
                       (cond-> {:status status}
                         (seq targets) (assoc :targets
@@ -92,16 +95,14 @@
                                                       :component-hash (:component-hash t)})
                                                    targets))
                         rationale (assoc :rationale rationale)
-                        (seq qualifications) (assoc :qualifications (vec qualifications))))
-               (assoc m dim {:status :not-reviewed
-                             :rationale (str "invalid status for dimension: " status)})))
-           {}
-           dimensions)
-          base {:schema-version schema-version
-                :benchmark/content-root content-root
-                :researcher/id id
-                :position/outcome-hash outcome-hash
-                :position/dimensions normalised-dims}
+                        (seq qualifications) (assoc :qualifications (vec qualifications)))))
+             {}
+             dimensions)
+            base {:schema-version schema-version
+                  :benchmark/content-root content-root
+                  :researcher/id id
+                  :position/outcome-hash outcome-hash
+                  :position/dimensions normalised-dims}
           position-hash (hc/domain-hash :researcher-position base)]
       (assoc base :position/hash (str "sha256:" position-hash)))))
 

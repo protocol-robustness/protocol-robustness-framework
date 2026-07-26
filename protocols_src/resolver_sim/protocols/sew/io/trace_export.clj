@@ -312,7 +312,7 @@
                                      :accepted      accepted?
                                      :state_changed accepted?)
                         (not accepted?) (assoc :rejection_reason
-                                               (name (:error entry :unknown))))
+                                               (name (or (:error entry) :unknown))))
         replay-event  (or raw-evt {:params {}})
         idem-kw       (get-in entry [:extra :idempotency])
         attributes    (cond-> {:action action :seq seq-n}

@@ -54,6 +54,22 @@ jobs:
       - name: Notebook namespace validation
         run: bb test:notebooks
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: "test/forensic_python/requirements.txt"
+
+      - name: Install Python test dependencies
+        run: pip install -r test/forensic_python/requirements.txt
+
+      - name: Run forensic Python tests (unit + golden bundle compatibility)
+        run: bb test:forensic-python
+
+      - name: Run forensic force-authorisation lifecycle validation tests
+        run: bb test:forensic-validate
+
       - name: Validate public claim bindings
         run: |
           bb public-claims:generate

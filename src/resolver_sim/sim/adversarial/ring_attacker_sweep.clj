@@ -40,7 +40,7 @@
 
    Returns the standard multi-epoch result map annotated with ring metadata."
   [ring-size params]
-  (let [seed     (+ (:seed params 42) (* ring-size 13))
+  (let [seed     (+ (:seed params 42) (* ring-size 1000000007))
         d-rng    (rng/make-rng seed)
         adj-p    (ring-adjusted-params params ring-size)
         n-epochs (:n-epochs params 100)

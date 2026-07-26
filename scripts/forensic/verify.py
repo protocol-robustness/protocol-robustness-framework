@@ -11,6 +11,7 @@ Usage:
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import subprocess
@@ -18,6 +19,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from nacl.signing import VerifyKey
+from nacl.exceptions import BadSignatureError
 
 # Bundle root keys excluded from self-referential hash computation
 _SIGN_EXCLUDE_KEYS = {"bundle/id", "bundle/hash",
@@ -30,6 +34,79 @@ if str(_project_root) not in sys.path:
 
 
 SCHEMA_VERSION = "forensic-verify.v1"
+
+# Ed25519 OID in SPKI format prefix
+_ED25519_SPKI_PREFIX = bytes.fromhex("302a300506032b6570032100")
+
+# ── Public key loading ─────────────────────────────────────────────────────
+
+
+def _load_ed25519_public_key_bytes(path: str | Path) -> bytes:
+    """Read an Ed25519 public key file and return the raw 32-byte key.
+
+    Supports three formats:
+      - SSH public key  (``ssh-ed25519 AAAA...``)
+      - PEM SPKI        (``-----BEGIN PUBLIC KEY-----``)
+      - Raw hex         (64 hex characters, no prefix)
+    """
+    text = Path(path).expanduser().read_text().strip()
+
+    # SSH public key format: "ssh-ed25519 <base64> [comment]"
+    if text.startswith("ssh-ed25519") or text.startswith("ssh-ed25519 "):
+        parts = text.split()
+        if len(parts) < 2:
+            raise ValueError("Malformed SSH public key: missing base64 body")
+        raw = base64.b64decode(parts[1])
+        # SSH wire: 4-byte algo-len, algo, 4-byte key-len, key
+        offset = 4 + _ssh_read_len(raw, 0)
+        key_len = _ssh_read_len(raw, offset)
+        return raw[offset + 4:offset + 4 + key_len]
+
+    # PEM SPKI format (PKCS#8 / SubjectPublicKeyInfo)
+    if text.startswith("-----BEGIN"):
+        lines = text.splitlines()
+        pem_b64 = "".join(
+            l for l in lines
+            if not l.startswith("-----") and not l.startswith("---")
+        )
+        der = base64.b64decode(pem_b64)
+        # Strip the SPKI prefix to get the raw 32-byte key
+        if der.startswith(_ED25519_SPKI_PREFIX):
+            return der[len(_ED25519_SPKI_PREFIX):]
+        raise ValueError("PEM key is not Ed25519 SPKI format")
+
+    # Raw hex (e.g. for test fixtures)
+    if len(text) == 64 and all(c in "0123456789abcdefABCDEF" for c in text):
+        return bytes.fromhex(text)
+
+    raise ValueError(
+        f"Unsupported public key format at {path} "
+        "(expected SSH, PEM, or raw hex)"
+    )
+
+
+def _ssh_read_len(data: bytes, offset: int) -> int:
+    return int.from_bytes(data[offset:offset + 4], "big")
+
+
+def verify_ed25519_native(bundle_hash: str, signature_hex: str,
+                          public_key_path: str | Path) -> bool:
+    """Verify an Ed25519 signature using native Python (PyNaCl).
+
+    The signed message is the UTF-8 bytes of the bundle hash string,
+    matching ``(codecs/str->bytes hash)`` in the Clojure implementation.
+    """
+    try:
+        msg = bundle_hash.encode("utf-8")
+        sig = bytes.fromhex(signature_hex)
+        pub_bytes = _load_ed25519_public_key_bytes(public_key_path)
+        verify_key = VerifyKey(pub_bytes)
+        verify_key.verify(msg, sig)
+        return True
+    except BadSignatureError:
+        return False
+    except Exception:
+        return False
 
 
 # ── Verification model ─────────────────────────────────────────────────────
@@ -302,37 +379,22 @@ def check_bundle_root_hash(run_dir: Path) -> VerifyCheck:
                        severity="warning")
 
 
-def check_bundle_signature(run_dir: Path,
-                           public_key_path: str | None = None) -> VerifyCheck:
-    """Verify Ed25519 signature on bundle root hash.
-    Requires --public-key to verify; without it the check is skipped."""
-    path = run_dir / "run-bundle-root.json"
-    data = _load_json(path)
-    if not data:
-        return VerifyCheck(key="bundle-signature", status="skip",
-                           message="Cannot verify signature: bundle root not parseable",
-                           severity="warning")
+def _native_or_fallback(bundle_hash: str, sig: str,
+                        pk_path: Path, kid: str | None) -> tuple[bool, str]:
+    """Verify Ed25519 signature using native Python, with Clojure comparison.
 
-    sig = data.get("bundle/signature")
-    kid = data.get("bundle/signing-key-id")
-    bundle_hash = data.get("bundle/hash")
+    Native verification handles SSH, PEM, and raw-hex public key formats.
+    Clojure verification handles SSH and PEM only.  When native succeeds
+    and Clojure is available, the result is cross-checked.  Disagreement
+    (one says valid, the other invalid) is reported as a failure because
+    it indicates an implementation or encoding mismatch.
 
-    if not sig or not bundle_hash:
-        return VerifyCheck(key="bundle-signature", status="info",
-                           message="Bundle is not signed (no signature field)",
-                           severity="info")
+    Returns (valid, detail_message).
+    """
+    native_ok = verify_ed25519_native(bundle_hash, sig, pk_path)
 
-    if not public_key_path:
-        return VerifyCheck(key="bundle-signature", status="info",
-                           message=f"Bundle signed with key '{kid}' but no --public-key provided to verify",
-                           severity="info")
-
-    pk_path = Path(public_key_path).expanduser()
-    if not pk_path.exists():
-        return VerifyCheck(key="bundle-signature", status="fail",
-                           message=f"Public key not found at {pk_path}",
-                           severity="required")
-
+    clojure_ok: bool | None = None
+    clojure_error: str | None = None
     try:
         clj_code = (
             f"(require '[resolver-sim.benchmark.signing :as s]) "
@@ -341,19 +403,83 @@ def check_bundle_signature(run_dir: Path,
         r = subprocess.run(
             ["clojure", "-M:with-sew", "-e", clj_code],
             capture_output=True, text=True, timeout=60)
-        valid = r.stdout.strip() == "true"
-        if valid:
-            key_label = kid or public_key_path
-            return VerifyCheck(key="bundle-signature", status="pass",
-                               message=f"Ed25519 signature valid (key: {key_label})",
-                               severity="warning")
-        return VerifyCheck(key="bundle-signature", status="fail",
-                           message=f"Ed25519 signature INVALID (key: {kid or public_key_path})",
-                           severity="required")
+        stdout_clean = r.stdout.strip()
+        if stdout_clean == "true":
+            clojure_ok = True
+        elif stdout_clean == "false":
+            clojure_ok = False
+        else:
+            # Clojure crashed or produced unexpected output
+            clojure_ok = None
+            clojure_error = (r.stderr or stdout_clean)[:200]
+    except FileNotFoundError:
+        clojure_ok = None  # Clojure CLI not installed
     except Exception as e:
+        clojure_ok = None
+        clojure_error = str(e)[:200]
+
+    key_label = kid or str(pk_path)
+
+    # Native-only (no Clojure available)
+    if clojure_ok is None:
+        if native_ok:
+            return (True, f"Ed25519 signature valid (native Python, key: {key_label})")
+        return (False, f"Ed25519 signature INVALID (native Python, key: {key_label})")
+
+    # Both ran — check for agreement
+    if native_ok and clojure_ok:
+        return (True, f"Ed25519 signature valid (native + Clojure agree, key: {key_label})")
+    if not native_ok and not clojure_ok:
+        return (False, f"Ed25519 signature INVALID (native + Clojure agree, key: {key_label})")
+    if native_ok and not clojure_ok:
+        note = f" (Clojure error: {clojure_error})" if clojure_error else ""
+        return (False, f"CLOJURE DISAGREES with native verification{note} (key: {key_label})")
+    # not native_ok and clojure_ok
+    note = " (key format may be unsupported by native parser)" if clojure_error is None else ""
+    return (False, f"NATIVE DISAGREES with Clojure verification{note} (key: {key_label})")
+
+
+def check_bundle_signature(run_dir: Path,
+                           public_key_path: str | None = None) -> VerifyCheck:
+    """Verify Ed25519 signature on bundle root hash.
+
+    Uses native Python (PyNaCl) Ed25519 verification by default.  When the
+    Clojure runtime is available the result is cross-checked and a warning
+    is emitted on disagreement.  Requires ``--public-key`` to verify;
+    without it the check is skipped with informational status.
+    """
+    path = run_dir / "run-bundle-root.json"
+    data = _load_json(path)
+    if not data:
+        return VerifyCheck(key="bundle-signature", status="skip",
+                            message="Cannot verify signature: bundle root not parseable",
+                            severity="warning")
+
+    sig = data.get("bundle/signature")
+    kid = data.get("bundle/signing-key-id")
+    bundle_hash = data.get("bundle/hash")
+
+    if not sig or not bundle_hash:
+        return VerifyCheck(key="bundle-signature", status="info",
+                            message="Bundle is not signed (no signature field)",
+                            severity="info")
+
+    if not public_key_path:
+        return VerifyCheck(key="bundle-signature", status="info",
+                            message=f"Bundle signed with key '{kid}' but no --public-key provided to verify",
+                            severity="info")
+
+    pk_path = Path(public_key_path).expanduser()
+    if not pk_path.exists():
         return VerifyCheck(key="bundle-signature", status="fail",
-                           message=f"Signature verification error: {e}",
-                           severity="required")
+                            message=f"Public key not found at {pk_path}",
+                            severity="required")
+
+    valid, detail = _native_or_fallback(bundle_hash, sig, pk_path, kid)
+    status = "pass" if valid else "fail"
+    severity = "warning" if valid else "required"
+    return VerifyCheck(key="bundle-signature", status=status,
+                        message=detail, severity=severity)
 
 
 def check_results_summary(run_dir: Path) -> VerifyCheck:
@@ -755,10 +881,135 @@ def check_no_extra_dirs(run_dir: Path) -> VerifyCheck:
                        severity="info")
 
 
+# ── Protocol-semantic validation ────────────────────────────────────────
+
+def check_protocol_semantics(
+    run_dir: Path,
+    expected_protocol: tuple[str, str] | None = None,
+    require_semantics: bool = False,
+) -> list[VerifyCheck]:
+    """Dispatch protocol-semantic validation based on the bundle's declared
+    protocol identity.
+
+    Parameters
+    ----------
+    expected_protocol :
+        ``(id, version)`` the bundle is expected to declare.  When set, the
+        bundle's ``:protocol`` descriptor is cross-checked against this
+        expectation and a mismatch is a hard failure.
+    require_semantics :
+        When ``True``, a ``not-verified`` dispatch result is upgraded to a
+        hard failure — the bundle was expected to receive semantic
+        verification but did not.
+    """
+    from scripts.forensic.validate import validate_protocol_bundle
+
+    bundle_root_path = run_dir / "run-bundle-root.json"
+    if not bundle_root_path.exists():
+        return [VerifyCheck(
+            key="protocol-semantics",
+            status="skip",
+            message="No run-bundle-root.json found — cannot run protocol-semantic validation",
+            severity="info",
+        )]
+
+    report = validate_protocol_bundle(bundle_root_path, run_dir=run_dir)
+    report_status = report.get("validate/status", "error")
+    protocol = report.get("validate/protocol")
+    checks = report.get("validate/checks", [])
+    evidence_count = report.get("validate/evidence-count", 0)
+
+    results: list[VerifyCheck] = []
+
+    pid = protocol["id"] if protocol else None
+    pv = protocol["version"] if protocol else None
+
+    # Cross-check against expected protocol identity.
+    # This runs even when the bundle declares no protocol — mismatch is a failure.
+    if expected_protocol is not None:
+        exp_id, exp_ver = expected_protocol
+        if protocol is None:
+            results.append(VerifyCheck(
+                key="protocol-identity-match",
+                status="fail",
+                message=f"Protocol identity mismatch: bundle declares none, "
+                        f"expected {exp_id} v{exp_ver}",
+                severity="required",
+            ))
+        elif pid != exp_id or pv != exp_ver:
+            results.append(VerifyCheck(
+                key="protocol-identity-match",
+                status="fail",
+                message=f"Protocol identity mismatch: bundle declares {pid} v{pv}, "
+                        f"expected {exp_id} v{exp_ver}",
+                severity="required",
+            ))
+
+    # The dispatcher already emits protocol-identity checks.
+    # We only add a summary-level error when the dispatcher errored.
+    if report_status == "error":
+        results.append(VerifyCheck(
+            key="protocol-semantics-error",
+            status="fail",
+            message=f"Protocol-semantic validation error: {report.get('validate/errors', ['unknown'])}",
+            severity="required",
+        ))
+
+    # Map individual check results
+    for vc in checks:
+        status = vc.get("status", "skip")
+        raw_key = vc.get("check", "unknown")
+        message = vc.get("message", "")
+
+        if status == "fail":
+            severity = "required"
+        elif status == "warn":
+            severity = "warning"
+        else:
+            severity = "info"
+
+        results.append(VerifyCheck(
+            key=raw_key,
+            status=status,
+            message=message,
+            severity=severity,
+        ))
+
+    # Summary
+    if report_status == "not-verified" and require_semantics:
+        summary_status = "fail"
+    elif report_status == "not-verified":
+        summary_status = "not-verified"
+    else:
+        summary_status = "pass" if report_status == "pass" else (
+            "fail" if report_status == "fail" else report_status
+        )
+
+    summary_message = (
+        f"Protocol: {pid or 'none'} v{pv or '—'}, "
+        f"evidence events: {evidence_count}, "
+        f"status={report_status}"
+    )
+    if require_semantics and report_status == "not-verified":
+        summary_message += ", REQUIRED but not available"
+
+    summary_check = VerifyCheck(
+        key="protocol-semantics-summary",
+        status=summary_status,
+        message=summary_message,
+        severity="required" if summary_status == "fail" else "info",
+    )
+    results.append(summary_check)
+
+    return results
+
+
 # ── Main verification ─────────────────────────────────────────────────────
 
 def verify_run(run_dir: str | Path,
-               public_key_path: str | None = None) -> VerifyReport:
+               public_key_path: str | None = None,
+               expected_protocol: tuple[str, str] | None = None,
+               require_protocol_semantics: bool = False) -> VerifyReport:
     run_dir = Path(run_dir).expanduser().resolve()
 
     if not run_dir.exists():
@@ -810,6 +1061,13 @@ def verify_run(run_dir: str | Path,
     # Anchor content validation
     results.append(check_anchor_content(run_dir))
 
+    # Protocol-semantic validation (dispatched by declared protocol identity)
+    results.extend(check_protocol_semantics(
+        run_dir,
+        expected_protocol=expected_protocol,
+        require_semantics=require_protocol_semantics,
+    ))
+
     # Aggregate
     check_dicts = [r.to_dict() for r in results]
     required_fails = sum(1 for r in results
@@ -850,9 +1108,26 @@ def main():
                         help="Path to Ed25519 public key for signature verification")
     parser.add_argument("--output", "-o",
                         help="Write verification report to file")
+    parser.add_argument("--expected-protocol",
+                        help="Expected protocol identity, e.g. 'sew/1'. "
+                             "Cross-checked against the bundle's :protocol descriptor.")
+    parser.add_argument("--require-protocol-semantics",
+                        action="store_true",
+                        help="Fail if protocol-semantic verification is not available "
+                             "(no validator for declared protocol, or legacy bundle).")
     args = parser.parse_args()
 
-    report = verify_run(args.run_dir, public_key_path=args.public_key)
+    expected_protocol = None
+    if args.expected_protocol:
+        parts = args.expected_protocol.split("/", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            parser.error("--expected-protocol must be in format '<id>/<version>', e.g. 'sew/1'")
+        expected_protocol = (parts[0], parts[1])
+
+    report = verify_run(args.run_dir,
+                        public_key_path=args.public_key,
+                        expected_protocol=expected_protocol,
+                        require_protocol_semantics=args.require_protocol_semantics)
 
     output = json.dumps(report.to_dict(), indent=2)
     if args.output:

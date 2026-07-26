@@ -140,43 +140,38 @@
 (defn- load-vector [id]
   (let [path (str "resources/test-vectors/canonical-hash-v1/" id ".json")
         file (clojure.java.io/file path)]
-    (when (.exists file)
-      (json/read-str (slurp file) :key-fn keyword))))
+    (if (.exists file)
+      (json/read-str (slurp file) :key-fn keyword)
+      (throw (ex-info (str "Missing conformance test vector — run scripts/generate-test-vectors to create: " path)
+                      {:path path :test-vector-id id})))))
 
 (deftest test-conformance-null
   (let [v (load-vector "null")]
-    (when v
-      (is (= (:hash_hex v) (hc/domain-hash :evidence-record nil))))))
+    (is (= (:hash_hex v) (hc/domain-hash :evidence-record nil)))))
 
 (deftest test-conformance-true
   (let [v (load-vector "true")]
-    (when v
-      (is (= (:hash_hex v) (hc/domain-hash :evidence-record true))))))
+    (is (= (:hash_hex v) (hc/domain-hash :evidence-record true)))))
 
 (deftest test-conformance-false
   (let [v (load-vector "false")]
-    (when v
-      (is (= (:hash_hex v) (hc/domain-hash :evidence-record false))))))
+    (is (= (:hash_hex v) (hc/domain-hash :evidence-record false)))))
 
 (deftest test-conformance-keyword-active
   (let [v (load-vector "keyword-active")]
-    (when v
-      (is (= (:hash_hex v) (hc/domain-hash :evidence-record :active))))))
+    (is (= (:hash_hex v) (hc/domain-hash :evidence-record :active)))))
 
 (deftest test-conformance-string-active
   (let [v (load-vector "string-active")]
-    (when v
-      (is (= (:hash_hex v) (hc/domain-hash :evidence-record "active"))))))
+    (is (= (:hash_hex v) (hc/domain-hash :evidence-record "active")))))
 
 (deftest test-conformance-int-123
   (let [v (load-vector "int-123")]
-    (when v
-      (is (= (:hash_hex v) (hc/domain-hash :evidence-record 123))))))
+    (is (= (:hash_hex v) (hc/domain-hash :evidence-record 123)))))
 
 (deftest test-conformance-map-a-1
   (let [v (load-vector "map-a-1")]
-    (when v
-      (is (= (:hash_hex v) (hc/domain-hash :evidence-record {:a 1}))))))
+    (is (= (:hash_hex v) (hc/domain-hash :evidence-record {:a 1})))))
 
 (deftest test-projected-value-passes-validation
   (let [input {:a 1 :b "hello" :c [1 2 3]}

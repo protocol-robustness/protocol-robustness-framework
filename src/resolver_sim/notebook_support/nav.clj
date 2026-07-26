@@ -84,15 +84,17 @@
 
 (def ^:private nav-links
   "Ordered quick-nav links shown in every notebook's top bar."
-  [{:label "Hub"        :path "notebooks/index.clj"             :icon "🏠"}
-   {:label "Evidence"   :path "notebooks/report.clj"            :icon "🛡️"}
-   {:label "Provenance" :path "notebooks/protocol_provenance.clj" :icon "📋"}
-   {:label "Invariants" :path "notebooks/invariant_failures.clj" :icon "🔍"}
-   {:label "Workbench"  :path "notebooks/workbench_v2.clj"      :icon "🔧"}
-   {:label "Atlas"      :path "notebooks/atlas_artifact.clj"    :icon "📊"}
-   {:label "Demos"      :path "notebooks/demo_adversarial_escalation.clj" :icon "🎬"}
-   {:label "Yield Demo" :path "notebooks/yield_provider_demo.clj"        :icon "💧"}
-   {:label "SPE Tree"   :path "notebooks/subgame_counterfactual_workbench.clj" :icon "🌳"}])
+  [{:label "Hub"        :path "notebooks/index.clj"                          :icon "🏠"}
+   {:label "Evidence"   :path "notebooks/report.clj"                         :icon "🛡️"}
+   {:label "Provenance" :path "notebooks/protocol_provenance.clj"            :icon "📋"}
+   {:label "Invariants" :path "notebooks/invariant_failures.clj"             :icon "🔍"}
+   {:label "Workbench"  :path "notebooks/workbench_v2.clj"                   :icon "🔧"}
+   {:label "Security"   :path "notebooks/security_validation.clj"            :icon "🛡️"}
+   {:label "Pro-Rata"   :path "notebooks/pro_rata_allocation_result.clj"     :icon "📐"}
+   {:label "Not Admitted":path "notebooks/not_admitted.clj"                  :icon "⛔"}
+   {:label "Yield Scenarios":path "notebooks/yield_scenarios_workbench.clj"  :icon "📈"}
+   {:label "Yield Shortfall":path "notebooks/yield_shortfall_partial_withdrawal_fills.clj" :icon "💧"}
+   {:label "Demos"      :path "notebooks/demo_adversarial_escalation.clj"    :icon "🎬"}])
 
 (defn top-nav-bar
   "Compact navigation strip for the top of any notebook.

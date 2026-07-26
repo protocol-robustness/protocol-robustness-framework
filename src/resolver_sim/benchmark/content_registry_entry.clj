@@ -13,7 +13,8 @@
      {:status :not-modelled :root nil}
      {:status :not-applicable :root nil}
      {:status :externally-defined :root \"sha256:...\"}
-     {:status :deferred :root nil}   — with optional :rationale
+     {:status :deferred :root nil}   — with :reason-code and :expected-version
+     {:status :provisional :root \"sha256:...\"}
    
    Status/root validation rules:
      :modelled            root must be non-nil string
@@ -312,9 +313,15 @@
         (swap! errors conj (str "content-root mismatch: declared "
                                 (:benchmark/content-root entry)
                                 " computed " computed-root))))
-    (when (and (:benchmark/registry-entry-hash entry)
-               (nil? (:benchmark/content-root entry)))
-      (swap! warnings conj "registry-entry-hash present without content-root"))
+    (let [reg-hash (:benchmark/registry-entry-hash entry)]
+      (when reg-hash
+        (when (nil? (:benchmark/content-root entry))
+          (swap! warnings conj "registry-entry-hash present without content-root"))
+        (let [registry-record (dissoc entry :benchmark/registry-entry-hash)
+              computed (str "sha256:" (hc/domain-hash :benchmark-registry-entry registry-record))]
+          (when-not (= computed reg-hash)
+            (swap! errors conj (str "registry-entry-hash mismatch: declared "
+                                    reg-hash " computed " computed))))))
     {:valid? (empty? @errors)
      :errors @errors
      :warnings @warnings}))

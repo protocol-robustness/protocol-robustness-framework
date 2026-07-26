@@ -23,7 +23,8 @@
             [resolver-sim.protocols.sew.resolution :as res]
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.protocols.sew.snapshot :as snap]
-            [resolver-sim.protocols.sew.snapshot-presets :as presets]))
+            [resolver-sim.protocols.sew.snapshot-presets :as presets]
+            [resolver-sim.time.context :as time-ctx]))
 
 ;; ---------------------------------------------------------------------------
 ;; E1: Evidence Deadline Enforcement
@@ -257,7 +258,7 @@
                                        snap)
         w1           (assoc-in (:world cr) [:escrow-transfers 0 :dispute-resolver] "0xresolver")
         rd           (lc/raise-dispute w1 0 "buyer")
-        w2           (assoc (:world rd) :block-time (+ t0 dt))
+        w2           (time-ctx/advance-time (:world rd) {:seconds dt})
         w-before     w2
         rr           (res/execute-resolution w2 0 "0xresolver" true "0xe5" nil)
         ok?          (:ok rr)

@@ -221,6 +221,17 @@
                                            (:protocol/force-authorisations-consumed result))
         proto-held-adjustments (hash-sorted-map :held-adjustments
                                                 (:protocol/held-adjustments result))
+        proto-id (:protocol/default-id request)
+        proto-descriptor (when proto-id
+                           (let [pid (if (keyword? proto-id) (name proto-id) (str proto-id))
+                                 valid-pattern #"^[a-z][a-z0-9]*-v[1-9][0-9]*$"]
+                             (when-not (re-matches valid-pattern pid)
+                               (throw (ex-info "Malformed protocol/default-id — expected format '<name>-v<N>'"
+                                               {:protocol/default-id proto-id
+                                                :valid-format "<name>-v<N>"})))
+                             (let [version-idx (clojure.string/last-index-of pid "-v")]
+                               {:id (subs pid 0 version-idx)
+                                :version (subs pid (+ version-idx 2))})))
         proto-hashes (cond-> {}
                        proto-fa (assoc :force-authorisations/hash proto-fa)
                        proto-fa-consumed (assoc :force-authorisations/consumed-hash proto-fa-consumed)
@@ -251,9 +262,10 @@
               :overview/hash overview-h
               :overview overview}
         base (cond-> base
+               proto-descriptor (assoc :protocol proto-descriptor)
                (seq proto-hashes) (assoc :protocol/state-hashes proto-hashes)
                (seq proto-witness) (assoc :protocol/state proto-witness
-                                          :protocol/state-witness-hash proto-witness-hash))
+                                           :protocol/state-witness-hash proto-witness-hash))
         ;; Every emitted bundle field is included in the content-addressed preimage.
         ;; Downstream lifecycle objects must reference this bundle; they must not enrich it.
         ;; Lightweight sensitivity summary (no independently constructed

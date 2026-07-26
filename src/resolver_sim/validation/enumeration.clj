@@ -4,7 +4,8 @@
    Provides scope definitions, state generators, and stratified sampling
    strategies for enumerating bounded parameter spaces.  Designed to be
    usable across different mechanisms (partial-fill, dispute timing,
-   bond parameters) via a common interface.")
+   bond parameters) via a common interface."
+  (:import [java.util SplittableRandom]))
 
 ;; ---------------------------------------------------------------------------
 ;; Enumeration scope
@@ -130,10 +131,11 @@
                :liquidity lq}))
 
       :random
-      (take max-states
-            (repeatedly (fn []
-                          (let [cc (+ cc-lo (rand-int (inc (- cc-hi cc-lo))))]
-                            {:claims (repeatedly cc #(+ rq-lo (rand-int (inc (- rq-hi rq-lo)))))
-                             :claim-count cc
-                             :request-sum 0  ;; computed by caller if needed
-                             :liquidity (+ lq-lo (rand-int (inc (- lq-hi lq-lo))))})))))))
+      (let [rng (SplittableRandom. (or (:seed scope) 42))]
+        (take max-states
+              (repeatedly (fn []
+                            (let [cc (+ cc-lo (.nextInt rng (inc (- cc-hi cc-lo))))]
+                              {:claims (repeatedly cc #(+ rq-lo (.nextInt rng (inc (- rq-hi rq-lo)))))
+                               :claim-count cc
+                               :request-sum 0  ;; computed by caller if needed
+                               :liquidity (+ lq-lo (.nextInt rng (inc (- lq-hi lq-lo))))}))))))))

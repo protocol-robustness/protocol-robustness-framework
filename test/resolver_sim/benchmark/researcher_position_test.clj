@@ -73,15 +73,15 @@
                           :outcome-hash "sha256:outcome"
                           :dimensions {:nonexistent {:status :ok}}}))))
 
-(deftest invalid-dimension-status-falls-back
-  (let [pos (rp/build-position
-             {:benchmark/content-root "sha256:content"
-              :researcher/id "researcher-c"
-              :outcome-hash "sha256:outcome"
-              :dimensions
-              {:reproduction {:status :not-a-real-status}
-               :publication {:status :publish}}})]
-    (is (= :not-reviewed (rp/dimension-status pos :reproduction)))))
+(deftest invalid-dimension-status-throws
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Invalid status"
+        (rp/build-position
+         {:benchmark/content-root "sha256:content"
+          :researcher/id "researcher-c"
+          :outcome-hash "sha256:outcome"
+          :dimensions
+          {:reproduction {:status :not-a-real-status}
+           :publication {:status :publish}}}))))
 
 (deftest absent-semantics
   (is (rp/absent? :not-reviewed))

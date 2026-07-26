@@ -80,9 +80,9 @@
                         (rr/build-review-round
                          {:benchmark/content-root "sha256:c"
                           :review-round/purpose :invalid
-                          :review-round/members [{:researcher/id "a" :role :steward}
-                                                 {:researcher/id "b" :role :rep}
-                                                 {:researcher/id "c" :role :adv}]
+                          :review-round/members [{:researcher/id "a" :role :model-steward}
+                                                 {:researcher/id "b" :role :independent-reproducer}
+                                                 {:researcher/id "c" :role :adversarial-reviewer}]
                           :review-round/membership-frozen-at "..."
                           :review-round/policy-root "sha256:p"}))))
 
@@ -91,9 +91,9 @@
                         (rr/build-review-round
                          {:benchmark/content-root "sha256:c"
                           :review-round/purpose :model-admission
-                          :review-round/members [{:researcher/id "a" :role :steward}
-                                                 {:researcher/id "b" :role :rep}
-                                                 {:researcher/id "c" :role :adv}]
+                          :review-round/members [{:researcher/id "a" :role :model-steward}
+                                                 {:researcher/id "b" :role :independent-reproducer}
+                                                 {:researcher/id "c" :role :adversarial-reviewer}]
                           :review-round/membership-frozen-at "..."}))))
 
 (deftest pre-condition-position-unknown-dimension
@@ -106,9 +106,9 @@
 
 (deftest pre-condition-force-auth-invalid-approvals
   (let [round {:benchmark/content-root "sha256:c" :review-round/id "rr:t"
-               :review-round/members [{:researcher/id "a" :role :steward}
-                                      {:researcher/id "b" :role :rep}
-                                      {:researcher/id "c" :role :adv}]}
+               :review-round/members [{:researcher/id "a" :role :model-steward}
+                                      {:researcher/id "b" :role :independent-reproducer}
+                                      {:researcher/id "c" :role :adversarial-reviewer}]}
         result (rfa/build-authorisation
                 {:review-round round
                  :target-case-hash "sha256:tgt"
@@ -149,28 +149,26 @@
     (is (:pre-sign-valid? result))))
 
 (deftest cross-artifact-roots-consistent
-  (let [entry {:benchmark/content-root "sha256:content" :benchmark/model-root "sha256:model"}
+  (let [entry {:benchmark/content-root "sha256:content" :benchmark/model-root "sha256:model"
+               :benchmark/evaluation-policy-root "sha256:eval-policy"}
         manifest (manifest)]
     (is (:consistent? (om/cross-artifact-roots-consistent? entry manifest)))))
 
 (deftest cross-artifact-roots-inconsistent-content
-  (let [entry {:benchmark/content-root "sha256:content-a" :benchmark/model-root "sha256:model"}
+  (let [entry {:benchmark/content-root "sha256:content-a" :benchmark/model-root "sha256:model"
+               :benchmark/evaluation-policy-root "sha256:eval-policy"}
         manifest (manifest)
         result (om/cross-artifact-roots-consistent? entry manifest)]
     (is (not (:consistent? result)))
     (is (some #(= :benchmark/content-root (:field %)) (:mismatches result)))))
 
 (deftest cross-artifact-roots-inconsistent-model
-  (let [entry {:benchmark/content-root "sha256:content" :benchmark/model-root "sha256:model-a"}
+  (let [entry {:benchmark/content-root "sha256:content" :benchmark/model-root "sha256:model-a"
+               :benchmark/evaluation-policy-root "sha256:eval-policy"}
         manifest (manifest)
         result (om/cross-artifact-roots-consistent? entry manifest)]
     (is (not (:consistent? result)))
     (is (some #(= :benchmark/model-root (:field %)) (:mismatches result)))))
-
-(deftest cross-artifact-roots-consistent
-  (let [entry {:benchmark/content-root "sha256:content" :benchmark/model-root "sha256:model"}
-        manifest (manifest)]
-    (is (:consistent? (om/cross-artifact-roots-consistent? entry manifest)))))
 
 (deftest cross-artifact-roots-inconsistent-content
   (let [entry {:benchmark/content-root "sha256:content-a" :benchmark/model-root "sha256:model"}
@@ -188,9 +186,9 @@
 
 (deftest pre-condition-force-auth-non-member-approval-ignored
   (let [round {:benchmark/content-root "sha256:c" :review-round/id "rr:t"
-               :review-round/members [{:researcher/id "a" :role :steward}
-                                      {:researcher/id "b" :role :rep}
-                                      {:researcher/id "c" :role :adv}]}
+               :review-round/members [{:researcher/id "a" :role :model-steward}
+                                      {:researcher/id "b" :role :independent-reproducer}
+                                      {:researcher/id "c" :role :adversarial-reviewer}]}
         result (rfa/build-authorisation
                 {:review-round round
                  :target-case-hash "sha256:tgt"

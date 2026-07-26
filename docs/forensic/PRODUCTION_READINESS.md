@@ -31,12 +31,22 @@ Identifies gaps, stubbed features, and priorities for closing.
 | Directory existence checks | ✅ | 4 required + 1 optional |
 | Bundle root structural validation | ✅ | Schema version, required keys |
 | Self-referential hash recomputation | ✅ | Bundle root + overview |
-| Ed25519 signature verification | ✅ | With `--public-key` |
+| Ed25519 signature verification (native Python) | ✅ | Native Python PyNaCl + Clojure comparison cross-check |
 | Preflight report validation | ✅ | Status check |
+| **Cross-language golden-bundle test** | ✅ | Committed fixture + CI gate verifies Python→Clojure compatibility |
 | **Content validation of `clojure-bundle-root.json`** | ❌ | Not validated by verify.py — listed as optional file only |
 | **Content validation of `evidence-dag-inventory.json`** | ❌ | Completely invisible to verify.py |
-| **Validation of `claims/`, `attestations/`, `anchors/` content** | ❌ | Directories exist but content never checked |
-| **Evidence DAG file format/structure validation** | ❌ | `check_evidence_dag` counts files, doesn't parse |
+| **Validation of `claims/` content** | ✅ | Self-referential hash, schema version, status — Phase C |
+| **Validation of `attestations/` content** | ✅ | Self-referential hash, schema version, claim-result — Phase C |
+| **Validation of `anchors/` content** | ✅ | Schema version, type-specific checks — Phase C |
+| **Evidence DAG structure validation (with inventory)** | ✅ | Cycle detection, root resolution, edge consistency |
+| **Evidence DAG validation (without inventory)** | ◐ | File-count-only fallback; no EDN parsing in verify.py |
+| **Protocol identity committed cryptographically** | ✅ | `:protocol` descriptor in bundle root, included in self-hash |
+| **Protocol-semantic validation dispatcher** | ✅ | `validate.py` dispatches by `:protocol` id/version |
+| **Sew protocol validator** | ✅ | `validate_sew.py` — force-auth lifecycle, state witness, evidence cross-check |
+| **Unknown/missing protocol handling** | ✅ | Reported as `not-verified` — no heuristic inference |
+| **Sew golden bundle test** | ✅ | Committed fixture + CI gate |
+| **Protocol dispatch CI gate** | ✅ | `bb test:forensic-validate` in unit-and-framework.yml |
 
 ## Execution & Isolation
 

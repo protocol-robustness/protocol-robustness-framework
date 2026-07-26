@@ -103,8 +103,18 @@
                    :execution/realised-parameter-set-root :execution/generated-case-set-root]]
       (when-not (some? (get report field))
         (swap! errors conj (str "missing " field " (required for replication key)"))))
-    (when-not (some? (get-in report [:runner :runner/id]))
-      (swap! errors conj "missing runner identity"))
+    (let [runner (:runner report)]
+      (when-not (some? (:runner/id runner))
+        (swap! errors conj "missing runner/id"))
+      (when (and (some? (:runner/id runner))
+                 (not (some? (:source-tree-hash runner))))
+        (swap! errors conj "missing runner source-tree-hash"))
+      (when (and (some? (:runner/id runner))
+                 (not (some? (:distribution-hash runner))))
+        (swap! errors conj "missing runner distribution-hash"))
+      (when (and (some? (:runner/id runner))
+                 (not (some? (:environment-hash runner))))
+        (swap! errors conj "missing runner environment-hash")))
     {:pre-sign-valid? (empty? @errors) :errors @errors}))
 
 (defn sign-report!
@@ -120,16 +130,20 @@
     (if-not (:pre-sign-valid? pre-checks)
       {:ok false :errors (:errors pre-checks)
        :stage :pre-sign-validation}
-      (let [preimage (signature-preimage report)
-            report-hash (hc/domain-hash :researcher-run-report preimage)
-            signature (signing/sign-hash report-hash private-key-path password)]
-        {:ok true
-         :report (assoc report
-                        :researcher-run-report/hash (str "sha256:" report-hash)
-                        :researcher/signature
-                        {:algorithm :ed25519
-                         :value signature
-                         :signed-at (str (java.time.Instant/now))})}))))
+      (try
+        (let [preimage (signature-preimage report)
+              report-hash (hc/domain-hash :researcher-run-report preimage)
+              signature (signing/sign-hash report-hash private-key-path password)]
+          {:ok true
+           :report (assoc report
+                          :researcher-run-report/hash (str "sha256:" report-hash)
+                          :researcher/signature
+                          {:algorithm :ed25519
+                           :value signature
+                           :signed-at (str (java.time.Instant/now))})})
+        (catch Exception e
+          {:ok false :errors [(str "signing failed: " (.getMessage e))]
+           :stage :signing-error})))))
 
 ;; ── Verification ──────────────────────────────────────────────────────────
 
@@ -220,8 +234,9 @@
         (if-not (= (str "sha256:" expected-hash) actual-hash)
           {:valid? false :reason "report hash mismatch"}
           (try
-            (let [valid? (signing/verify-signature
-                          actual-hash
+            (let [stripped (clojure.string/replace actual-hash #"^sha256:" "")
+                  valid? (signing/verify-signature
+                          stripped
                           (:value signature)
                           public-key-path)]
               {:valid? valid?

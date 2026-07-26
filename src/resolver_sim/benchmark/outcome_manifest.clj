@@ -17,6 +17,10 @@
 
 (def ^:const schema-version "benchmark-outcome.v1")
 
+(def ^:const execution-statuses
+  "Controlled vocabulary for execution/status."
+  #{:completed :partial :failed})
+
 (defn build-manifest
   "Build a canonical benchmark outcome manifest.
    
@@ -54,7 +58,7 @@
               :benchmark/content-root content-root
               :benchmark/model-root model-root
               :benchmark/evaluation-policy-root evaluation-policy-root
-              :execution/status (or status :completed)
+              :execution/status status
               :execution/model-instance-root model-instance-root
               :execution/plan-root plan-root
               :execution/parameter-domain-root parameter-domain-root
@@ -76,6 +80,7 @@
   (:benchmark-outcome/hash manifest))
 
 (defn manifest-valid?
+  "Structural validity check for a benchmark outcome manifest."
   [manifest]
   (and (= schema-version (:schema-version manifest))
        (some? (:benchmark/content-root manifest))
@@ -173,10 +178,15 @@
       (swap! errors conj "missing :benchmark/evaluation-policy-root (required for scoring)"))
     (when-not (some? (:execution/parameter-domain-root manifest))
       (swap! errors conj "missing :execution/parameter-domain-root"))
+    (when-not (some? (:execution/sampling-policy-root manifest))
+      (swap! errors conj "missing :execution/sampling-policy-root"))
     (when-not (some? (:execution/generated-case-set-root manifest))
       (swap! errors conj "missing :execution/generated-case-set-root"))
-    (when-not (some? (:execution/status manifest))
-      (swap! errors conj "missing :execution/status"))
+    (let [exec-st (:execution/status manifest)]
+      (when-not exec-st
+        (swap! errors conj "missing :execution/status"))
+      (when (and exec-st (not (contains? execution-statuses exec-st)))
+        (swap! errors conj (str "invalid execution/status: " exec-st))))
     {:pre-application-valid? (empty? @errors) :errors @errors}))
 
 (defn cross-artifact-roots-consistent?
@@ -184,9 +194,10 @@
    agree on content-root and model-root.
    
    Returns {:consistent? bool :mismatches [{:field field :entry-value v :manifest-value v}]}."
-  [registry-entry outcome-manifest]
+   [registry-entry outcome-manifest]
   (let [pairs [[:benchmark/content-root :benchmark/content-root]
-               [:benchmark/model-root :benchmark/model-root]]
+               [:benchmark/model-root :benchmark/model-root]
+               [:benchmark/evaluation-policy-root :benchmark/evaluation-policy-root]]
         mismatches (vec (keep (fn [[entry-key manifest-key]]
                                 (let [ev (get registry-entry entry-key)
                                       mv (get outcome-manifest manifest-key)]

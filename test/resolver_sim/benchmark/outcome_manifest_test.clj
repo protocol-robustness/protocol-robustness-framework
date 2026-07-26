@@ -6,6 +6,7 @@
   {:benchmark/content-root "sha256:content"
    :benchmark/model-root "sha256:model"
    :benchmark/evaluation-policy-root "sha256:eval"
+   :execution/status :completed
    :results/operational {:conservation :pass}})
 
 (deftest build-manifest-minimal

@@ -172,7 +172,8 @@
   {:main-opts ["-m" "resolver-sim.io.diff-runner"]}
 
   :trace-export
-  {:main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
+  {:extra-paths ["protocols_src"]
+   :main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
 
   :reference-validation
   {:extra-paths ["protocols_src" "protocols_src/test"]

@@ -28,16 +28,18 @@
   (.nextDouble rng))
 
 (defn roll-double
-  "Sample uniform double in [0, 1).
+  "Sample uniform double in [0, 1) using the given RNG.
 
-   Uses SplittableRandom when provided; otherwise falls back to (rand).
-   Prefer passing an explicit rng for reproducible sweeps."
+   Requires an explicit rng argument — no-arg fallback to (rand) was
+   removed for determinism. All callers must pass a seeded SplittableRandom."
   (^double []
-   (rand))
+   (throw (ex-info "roll-double requires an explicit rng argument — call (roll-double rng) instead"
+                   {:function `roll-double})))
   (^double [rng]
    (if rng
      (next-double rng)
-     (rand))))
+     (throw (ex-info "roll-double rng argument is nil — pass a valid seeded SplittableRandom"
+                     {:function `roll-double :rng rng})))))
 
 (defn next-int
   "Generate next int [0, bound) from RNG."

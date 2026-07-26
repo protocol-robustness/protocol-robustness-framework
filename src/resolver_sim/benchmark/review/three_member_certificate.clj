@@ -29,6 +29,11 @@
 
 (def ^:const schema-version "three-member-research-certificate.v1")
 
+;; Absent-statuses definition imported from researcher-position.
+;; Must remain in sync with resolver-sim.benchmark.researcher-position/absent-statuses.
+(def ^:private absent-statuses
+  #{:not-reviewed :insufficient-information :not-applicable})
+
 ;; ── Outcome grouping ──────────────────────────────────────────────────────
 
 (defn group-outcomes
@@ -234,10 +239,17 @@
 ;; ── Certificate builder ───────────────────────────────────────────────────
 
 (defn build-certificate
-  "Build a three-member research certificate."
+  "Build a three-member research certificate.
+   Runs pre-certificate-checks before building — throws on invalid input."
   [{:keys [review-round reports positions force-authorisations disagreements]
     :or {force-authorisations [] disagreements []}}]
-  (let [outcome-groups (group-outcomes reports)
+  (let [pre-checks (pre-certificate-checks {:review-round review-round
+                                             :reports reports
+                                             :positions positions})]
+    (when-not (:pre-certificate-valid? pre-checks)
+      (throw (ex-info "Certificate pre-conditions not met"
+                      {:errors (:errors pre-checks)})))
+    (let [outcome-groups (group-outcomes reports)
         exec-status (execution-status outcome-groups)
         rep-type (replication-type reports)
         model-dims [:model-state :model-transitions :model-authority
@@ -264,9 +276,13 @@
              {} other-dims)
      :member-positions
      (mapv (fn [pos]
-             (let [report (first (filter #(= (:researcher/id %)
-                                             (:researcher/id pos))
-                                         reports))]
+             (let [report (some #(when (= (:researcher/id %)
+                                         (:researcher/id pos))
+                                   %)
+                                reports)]
+               (when-not report
+                 (throw (ex-info "No matching report found for position"
+                                 {:researcher/id (:researcher/id pos)})))
                {:researcher/id (:researcher/id pos)
                 :position/hash (:position/hash pos)
                 :outcome-hash (:position/outcome-hash pos)
@@ -274,7 +290,7 @@
            positions)
      :force-authorisations (vec force-authorisations)
      :unresolved-disagreements (vec disagreements)
-     :certificate/hash nil}))
+      :certificate/hash nil})))
 
 (defn finalise-certificate!
   "Compute the certificate hash and return the finalised certificate."

@@ -39,22 +39,26 @@
     :supersede-entry :mark-contested :no-change})
 
 (defn valid-category?
+  "True when category is in the controlled challenge-categories vocabulary."
   [cat]
   (contains? challenge-categories cat))
 
 (defn valid-challenge-status?
+  "True when status is in the controlled challenge-statuses vocabulary."
   [st]
   (contains? challenge-statuses st))
 
 (defn valid-status-transition?
+  "True when transitioning from `from` to `to` is allowed."
   [from to]
   (contains? (get status-transitions from #{}) to))
 
 (defn valid-resolution?
+  "True when resolution is in the controlled resolution-options vocabulary."
   [res]
   (contains? resolution-options res))
 
-(defn normalize-changelog-ref
+(defn normalise-changelog-ref
   "Build a minimal target reference for a changelog entry.
    Uses file path, line range, and a content hash of the targeted
    lines as a stable identity mechanism."
@@ -101,7 +105,8 @@
     (when (and proposed-resolution (not (valid-resolution? proposed-resolution)))
       (throw (ex-info (str "Invalid proposed resolution: " proposed-resolution)
                       {:resolution proposed-resolution :allowed resolution-options})))
-    (let [semantic-base
+    (let [effective-created-at (or created-at (str (java.time.Instant/now)))
+          semantic-base
           {:schema-version schema-version
            :challenge/target target
            :challenge/category category
@@ -110,7 +115,7 @@
            :challenge/proposed-resolution proposed-resolution
            :challenge/proposed-wording proposed-wording
            :challenge/proposed-by proposed-by
-           :challenge/created-at (or created-at (str (java.time.Instant/now)))}
+           :challenge/created-at effective-created-at}
           challenge-hash (str "sha256:"
                               (hc/domain-hash :changelog-challenge semantic-base))
           challenge-id (str "challenge:" (subs challenge-hash (count "sha256:")))]
@@ -124,7 +129,7 @@
        :challenge/proposed-resolution proposed-resolution
        :challenge/proposed-wording proposed-wording
        :challenge/proposed-by proposed-by
-       :challenge/created-at (or created-at (str (java.time.Instant/now)))
+       :challenge/created-at effective-created-at
        :challenge/supersedes supersedes
        :challenge/hash challenge-hash})))
 
@@ -159,7 +164,23 @@
     (let [res (:challenge/proposed-resolution challenge)]
       (when (and res (not (valid-resolution? res)))
         (swap! errors conj (str "invalid proposed-resolution: " res))))
-    (when (and (:challenge/hash challenge)
-               (not (str/starts-with? (:challenge/hash challenge) "sha256:")))
-      (swap! errors conj "challenge/hash does not start with sha256:"))
+    (let [hash-field (:challenge/hash challenge)]
+      (when hash-field
+        (when-not (str/starts-with? hash-field "sha256:")
+          (swap! errors conj "challenge/hash does not start with sha256:"))
+        (let [semantic-base
+              {:schema-version schema-version
+               :challenge/target (:challenge/target challenge)
+               :challenge/category (:challenge/category challenge)
+               :challenge/assertion (:challenge/assertion challenge)
+               :challenge/evidence (:challenge/evidence challenge)
+               :challenge/proposed-resolution (:challenge/proposed-resolution challenge)
+               :challenge/proposed-wording (:challenge/proposed-wording challenge)
+               :challenge/proposed-by (:challenge/proposed-by challenge)
+               :challenge/created-at (:challenge/created-at challenge)}
+              computed (str "sha256:"
+                            (hc/domain-hash :changelog-challenge semantic-base))]
+          (when-not (= computed hash-field)
+            (swap! errors conj (str "challenge/hash mismatch: declared "
+                                    hash-field " computed " computed))))))
     {:valid? (empty? @errors) :errors @errors :warnings @warnings}))

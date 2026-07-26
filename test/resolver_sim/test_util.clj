@@ -14,6 +14,7 @@
             [resolver-sim.evidence.capture :as cap]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.chain :as chain]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.util.attribution :as attr]))
 
 (defn noop-capture
@@ -57,7 +58,8 @@
   (let [dir (temp-dir)]
     (binding [cap/*capture-event-evidence!* noop-capture
               evcfg/*artifact-dir* dir
-              chain/*allow-dirty* true]
+              chain/*allow-dirty* true
+              hc/*validate-intent-constraints* true]
       (try
         (f)
         (finally
@@ -73,7 +75,8 @@
   [f]
   (let [dir (temp-dir)]
     (binding [evcfg/*artifact-dir* dir
-              chain/*allow-dirty* true]
+              chain/*allow-dirty* true
+              hc/*validate-intent-constraints* true]
       (try
         (f)
         (finally

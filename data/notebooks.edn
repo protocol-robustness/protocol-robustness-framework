@@ -71,18 +71,7 @@
    :threats        [:replay-divergence :escalation-abuse]
    :tags           ["invariants" "failures" "scenarios" "state-machine"]}
 
-  {:id             :atlas-artifact
-   :path           "notebooks/atlas_artifact.clj"
-   :title          "Atlas of Protocol Robustness"
-   :summary        "Comprehensive multi-dimensional robustness map across all simulation phases and threat categories."
-   :categories     [:security-validation :evidence-artifacts]
-   :audience       [:auditor :grant-reviewer]
-   :status         :verified
-   :risk           :high
-   :protocol-areas [:all]
-   :tags           ["robustness" "atlas" "comprehensive" "phases"]}
-
-  {:id             :benchmark-protocol-robustness
+   {:id             :benchmark-protocol-robustness
    :path           "notebooks/benchmark_protocol_robustness.clj"
    :title          "Protocol Robustness — Benchmark Report"
    :summary        "PRF benchmark report across resolver accountability, liveness, fund safety, and evidence integrity. Per-dimension scoring, evidence traceability, and reproducibility."
@@ -93,31 +82,7 @@
    :protocol-areas [:benchmark]
    :tags           ["benchmark" "protocol-robustness" "prf" "evidence" "reproducibility"]}
 
-  {:id             :dispute-artifact
-   :path           "notebooks/dispute_artifact.clj"
-   :title          "Dispute Resolution — Technical Validation"
-   :summary        "Validation story for the dispute resolution module: state machine correctness, resolver incentives, escalation paths."
-   :categories     [:security-validation :evidence-artifacts]
-   :audience       [:auditor :researcher]
-   :status         :verified
-   :risk           :high
-   :protocol-areas [:dispute-resolution :state-machine]
-   :threats        [:escalation-abuse :resolver-cartelization]
-   :tags           ["dispute" "resolution" "state-machine" "escalation"]}
-
-  {:id             :collusion-artifact
-   :path           "notebooks/collusion_artifact.clj"
-   :title          "Collusion & Cartel Dynamics — Validation"
-   :summary        "Adversarial validation of resolver collusion and multi-epoch cartel formation. Bounds on exploitability."
-   :categories     [:adversarial :security-validation]
-   :audience       [:researcher :auditor]
-   :status         :verified
-   :risk           :high
-   :protocol-areas [:dispute-resolution :bonding]
-   :threats        [:resolver-cartelization :governance-capture]
-   :tags           ["collusion" "cartel" "multi-epoch" "adversarial"]}
-
-  {:id             :game-theory-artifact
+   {:id             :game-theory-artifact
    :path           "notebooks/game_theory_artifact.clj"
    :title          "Game Theory — Validation Story"
    :summary        "Game-theoretic analysis: Nash equilibria, dominant strategies, incentive alignment under adversarial conditions."
@@ -129,19 +94,7 @@
    :threats        [:economic-extraction :resolver-cartelization]
    :tags           ["game-theory" "nash" "equilibrium" "incentives"]}
 
-  {:id             :economic-artifact
-   :path           "notebooks/economic_artifact.clj"
-   :title          "Economic Model — Validation Story"
-   :summary        "Economic parameter validation: fee arithmetic, bond sizing, profit/loss under adversarial and honest strategies."
-   :categories     [:economic-analysis :evidence-artifacts]
-   :audience       [:researcher :grant-reviewer]
-   :status         :verified
-   :risk           :medium
-   :protocol-areas [:fee-model :bonding :accounting]
-   :threats        [:economic-extraction]
-   :tags           ["economics" "fees" "bonds" "profit"]}
-
-  {:id             :equilibrium-artifact
+   {:id             :equilibrium-artifact
    :path           "notebooks/equilibrium_artifact.clj"
    :title          "Equilibrium Analysis — Validation Story"
    :summary        "Protocol equilibrium stability under parameter variation. Identifies destabilising parameter combinations."
@@ -165,29 +118,7 @@
    :threats        [:escalation-abuse :griefing :economic-extraction]
    :tags           ["hardening" "security" "attack-surface" "mitigations"]}
 
-  {:id             :theory-falsification-artifact
-   :path           "notebooks/theory_falsification_artifact.clj"
-   :title          "Theory Falsification"
-   :summary        "Formal theory falsification: which claims survived adversarial testing and which were falsified."
-   :categories     [:security-validation :evidence-artifacts]
-   :audience       [:researcher :grant-reviewer]
-   :status         :verified
-   :risk           :medium
-   :protocol-areas [:all]
-   :tags           ["theory" "falsification" "claims" "CDRS"]}
-
-  {:id             :golden-artifact
-   :path           "notebooks/golden_artifact.clj"
-   :title          "Golden Baseline — Validation Story"
-   :summary        "Canonical baseline validation across SPEDS v1.1 scenarios. Reference benchmark for regression detection."
-   :categories     [:replay-determinism :evidence-artifacts]
-   :audience       [:researcher :auditor]
-   :status         :verified
-   :risk           :medium
-   :protocol-areas [:escrow :dispute-resolution]
-   :tags           ["golden" "baseline" "SPEDS" "regression" "determinism"]}
-
-  {:id             :withdrawal-observatory
+   {:id             :withdrawal-observatory
    :path           "notebooks/withdrawal_observatory.clj"
    :title          "Withdrawal & Claimable Balance Observatory"
    :summary        "Observable safety of withdrawal and claimable balance calculations under concurrent and adversarial conditions."
@@ -266,29 +197,7 @@
    :protocol-areas [:yield]
    :tags           ["workbench" "yield" "shortfall" "demo" "scenarios"]}
 
-  {:id             :workbench-production
-   :path           "notebooks/workbench_production.clj"
-   :title          "Production Evidence Workbench"
-   :summary        "Curated production-quality evidence view. Filtered for grant reviewers and external audiences."
-   :categories     [:tooling :evidence-artifacts]
-   :audience       [:grant-reviewer :auditor]
-   :status         :verified
-   :risk           :medium
-   :protocol-areas [:all]
-   :tags           ["workbench" "production" "curated" "grant"]}
-
-  {:id             :workbench
-   :path           "notebooks/workbench.clj"
-   :title          "Adversarial Validation Workbench"
-   :summary        "Development workbench for adversarial simulation analysis. May contain in-progress work."
-   :categories     [:tooling]
-   :audience       [:researcher :developer]
-   :status         :draft
-   :risk           :low
-   :protocol-areas [:all]
-   :tags           ["workbench" "development" "adversarial"]}
-
-  {:id             :demo-adversarial-escalation
+   {:id             :demo-adversarial-escalation
    :path           "notebooks/demo_adversarial_escalation.clj"
    :title          "Demo 1 — Adversarial Dispute Escalation"
    :summary        "Walkthrough demo: adversarial agent escalates dispute to extract value. Shows protocol defence mechanisms."
@@ -347,28 +256,6 @@
     :protocol-areas []
     :tags           ["components" "UI" "gallery" "SPEDS" "reference"]}
 
-   {:id             :yield-provider-demo
-    :path           "notebooks/yield_provider_demo.clj"
-    :title          "Yield Provider Demo"
-    :summary        "Interactive demo of 5 yield presets: deposit, accrue, and inspect position state under baseline, shortfall, negative-yield, oracle-stale, and withdrawal-queue failure modes."
-    :categories     [:demos :yield-liquidity]
-    :audience       [:grant-reviewer :researcher :developer]
-    :status         :experimental
-    :risk           :low
-    :protocol-areas [:yield]
-    :tags           ["demo" "yield" "presets" "failure-modes" "accrual"]}
-
-   {:id             :subgame-counterfactual-workbench
-    :path           "notebooks/subgame_counterfactual_workbench.clj"
-    :title          "SPE Tree Expansion Workbench"
-    :summary        "Workbench for exploring expand-strategic-tree: fork replay at decision nodes, compare alternative utilities, and inspect the deviation surface for SPE analysis."
-    :categories     [:experimental :replay-determinism]
-    :audience       [:researcher]
-    :status         :experimental
-    :risk           :medium
-    :protocol-areas [:dispute-resolution :game-theory]
-    :tags           ["SPE" "subgame" "counterfactual" "tree" "workbench" "experimental"]}
-
    {:id             :appeal-analysis
     :path           "notebooks/appeal_analysis.clj"
     :title          "Appeal Subsystem Analysis"
@@ -379,4 +266,130 @@
     :risk           :medium
     :protocol-areas [:dispute-resolution :bonding :accounting]
     :threats        [:escalation-abuse :economic-extraction]
-    :tags           ["appeal" "analysis" "bonds" "escalation" "grant" "invariants"]}]}
+    :tags           ["appeal" "analysis" "bonds" "escalation" "grant" "invariants"]}
+
+  {:id             :appealed-escrow-walkthrough
+   :path           "notebooks/appealed_escrow_walkthrough.clj"
+   :title          "Appealed Escrow Walkthrough"
+   :summary        "Step-by-step walkthrough of a third-party challenge: escrow lifecycle, dispute escalation, appeal bond custody, and protocol enforcement deadlines."
+   :categories     [:demos :governance]
+   :audience       [:grant-reviewer :researcher]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:dispute-resolution :bonding]
+   :threats        [:escalation-abuse]
+   :tags           ["appeal" "bond" "walkthrough" "escalation" "deadline"]}
+
+  {:id             :pro-rata-allocation-result
+   :path           "notebooks/pro_rata_allocation_result.clj"
+   :title          "Pro-Rata Allocation Result Artifact"
+   :summary        "Live artifact trail from slashing through verification: projection, allocation, mechanism evidence envelope, evaluation API, and evidence record."
+   :categories     [:evidence-artifacts :economic-analysis]
+   :audience       [:researcher :auditor]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:bonding :accounting]
+   :tags           ["pro-rata" "allocation" "artifact" "evidence" "verification"]}
+
+  {:id             :ef-demo-dispute-refund
+   :path           "notebooks/ef_demo_dispute_refund.clj"
+   :title          "EF Demo — Protocol State Transition with Evidence"
+   :summary        "End-to-end protocol replay: escrow → dispute → resolution (refund). Content-addressed evidence capture, canonical hashing, and deterministic replay."
+   :categories     [:demos :replay-determinism]
+   :audience       [:grant-reviewer :researcher]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:escrow :dispute-resolution]
+   :tags           ["demo" "EF" "evidence" "state-transition" "replay"]}
+
+  {:id             :ef-demo-pro-rata-allocation
+   :path           "notebooks/ef_demo_pro_rata_allocation.clj"
+   :title          "EF Demo — Pro-Rata Allocation with Evidence DAG"
+   :summary        "Pro-rata allocation computation, content-addressed attestations, DAG-structured evidence nodes with typed references, and attestation resolution."
+   :categories     [:demos :evidence-artifacts]
+   :audience       [:grant-reviewer :researcher]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:bonding :accounting]
+   :tags           ["demo" "EF" "pro-rata" "attestation" "DAG" "resolution"]}
+
+  {:id             :not-governance
+   :path           "notebooks/not_governance.clj"
+   :title          "Protocol Robustness Quickstart"
+   :summary        "From dispute lifecycle to evidence bundle: happy-path lifecycle, malicious resolver, slashing distribution, pro-rata allocation, strategy comparison, detection sweeps, and invariant checks."
+   :categories     [:demos :security-validation]
+   :audience       [:grant-reviewer :researcher]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:dispute-resolution :bonding :invariants]
+   :threats        [:resolver-cartelization :economic-extraction]
+   :tags           ["quickstart" "dispute" "slash" "allocation" "invariants"]}
+
+  {:id             :not-admitted
+   :path           "notebooks/not_admitted.clj"
+   :title          "Not Admitted — Evidence Chain & Invariant Verification"
+   :summary        "Evidence chain ordering, verification, and yield invariant admission: chain links, order invariance, propagation completeness, and accounting reconciliation."
+   :categories     [:evidence-artifacts :yield-liquidity]
+   :audience       [:researcher :auditor]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:evidence :yield]
+   :tags           ["chain" "admission" "ordering" "invariants" "pro-rata"]}
+
+  {:id             :evaluate-pro-rata-allocation
+   :path           "notebooks/evaluate_pro_rata_allocation.clj"
+   :title          "Pro-Rata Evaluation API"
+   :summary        "Self-contained evaluation pipeline: canonical request, content-addressed result, hash verification, tamper detection, and artifact construction."
+   :categories     [:evidence-artifacts :economic-analysis]
+   :audience       [:researcher]
+   :status         :verified
+   :risk           :low
+   :protocol-areas [:bonding :accounting]
+   :tags           ["pro-rata" "evaluation" "API" "hash" "determinism"]}
+
+  {:id             :partial-liquidity-recovery
+   :path           "notebooks/partial_liquidity_recovery_deferred_claim.clj"
+   :title          "Partial Liquidity Recovery — Deferred Claim"
+   :summary        "Yield module partial liquidity recovery and deferred-claim settlement walkthrough using the real partial-fill engine."
+   :categories     [:yield-liquidity :demos]
+   :audience       [:researcher :grant-reviewer]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:yield :accounting]
+   :threats        [:liquidity-shortfall]
+   :tags           ["yield" "liquidity" "recovery" "deferred" "partial-fill"]}
+
+  {:id             :yield-shortfall-partial-withdrawal-fills
+   :path           "notebooks/yield_shortfall_partial_withdrawal_fills.clj"
+   :title          "Yield Shortfall — Partial Withdrawal Fills"
+   :summary        "Yield module liquidity shortfall walkthrough: what happens when deposits exceed available liquidity, with proportional partial-fill settlement."
+   :categories     [:yield-liquidity :demos]
+   :audience       [:researcher :grant-reviewer]
+   :status         :verified
+   :risk           :medium
+   :protocol-areas [:yield :accounting]
+   :threats        [:liquidity-shortfall]
+   :tags           ["yield" "shortfall" "withdrawal" "partial-fill" "liquidity"]}
+
+  {:id             :yield-demo
+   :path           "notebooks/yield_demo.clj"
+   :title          "Yield Shortfall Handling Demo"
+   :summary        "Data-driven general yield demonstration: deposit, accrue, shortfall, and withdrawal using the data-driven yield engine with external market schedules."
+   :categories     [:yield-liquidity :demos]
+   :audience       [:grant-reviewer :researcher]
+   :status         :verified
+   :risk           :low
+   :protocol-areas [:yield]
+   :threats        [:liquidity-shortfall]
+   :tags           ["yield" "shortfall" "demo" "data-driven" "general-yield"]}
+
+  {:id             :evidence-graph-viewer
+   :path           "notebooks/evidence_graph_viewer.clj"
+   :title          "Evidence Graph Viewer"
+   :summary        "Interactive D3 force-directed evidence graph: load graph evidence artifacts and inspect node relationships, typed references, and attestation chains."
+   :categories     [:tooling :evidence-artifacts]
+   :audience       [:researcher :auditor]
+   :status         :verified
+   :risk           :low
+   :protocol-areas [:evidence]
+   :tags           ["graph" "D3" "evidence" "visualization" "attestation"]}]}

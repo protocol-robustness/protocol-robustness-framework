@@ -9,15 +9,6 @@
 (def canonical-benchmark-path
   "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn")
 
-(def sew-alias-path
-  "benchmarks/packs/sew/force-authorisation-custody-v1.edn")
-
-(def sew-registry-path
-  "benchmarks/packs/sew/registry.edn")
-
-(defn- edn-read [path]
-  (edn/read-string (slurp path)))
-
 (def prf-registry-path
   "benchmarks/packs/prf-core/registry.edn")
 
@@ -42,14 +33,9 @@
     (is (some? (:benchmark/subject-kind defn))
         "Subject-kind must be present")))
 
-(deftest sew-alias-resolves-to-canonical
-  (let [alias-defn (edn-read sew-alias-path)]
-    (is (= :benchmark/sew-force-authorisation-custody-v1 (:benchmark/id alias-defn))
-        "Alias ID must match old identifier")
-    (is (= :benchmark/force-authorisation-custody-v1 (:benchmark/alias-of alias-defn))
-        "Alias must resolve to canonical PRF ID")
-    (is (= :alias (:benchmark/status alias-defn))
-        "Alias status must be :alias")))
+(deftest alias-file-was-removed
+  (is (not (.exists (java.io.File. "benchmarks/packs/sew/force-authorisation-custody-v1.edn")))
+      "Old Sew alias file should have been removed; canonical is in prf-core pack only"))
 
 (deftest registry-has-no-duplicate-canonical
   (let [prf-reg (edn-read prf-registry-path)]

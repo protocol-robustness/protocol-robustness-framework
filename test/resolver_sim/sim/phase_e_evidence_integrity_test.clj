@@ -1,6 +1,6 @@
 (ns resolver-sim.sim.phase-e-evidence-integrity-test
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.sim.phase-e-evidence-integrity :as phase-e]))
+            [resolver-sim.research.sew.analytic.phase-e-evidence-integrity :as phase-e]))
 
 (deftest e5-yield-accrual-during-dispute-sweep
   (testing "Simulator-backed dispute yield accrual sweep"

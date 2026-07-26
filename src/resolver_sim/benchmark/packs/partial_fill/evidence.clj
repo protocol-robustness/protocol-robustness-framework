@@ -99,7 +99,7 @@
              :propagation/content-hash (:propagation/content-hash prop)
              :calculation-ref (:calculation-ref prop)
              :outcome-ref (:outcome-ref prop)})
-          props)))
+          (sort-by (comp :propagation/hash val) props))))
 
 ;; ── Semantic commitments root ─────────────────────────────────────────────
 
@@ -129,11 +129,11 @@
         state-write-back-evidence
         (assoc :state-write-back-root
                (hc/domain-hash :evidence-collection
-                               state-write-back-evidence))
+                               (vec (sort-by :participant/id state-write-back-evidence))))
         continuity-evidence
         (assoc :continuity-root
                (hc/domain-hash :evidence-collection
-                               continuity-evidence))))))
+                               (vec (sort-by :participant/id continuity-evidence))))))))
 
 ;; ── Continuity evidence ───────────────────────────────────────────────────
 

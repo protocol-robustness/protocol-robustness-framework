@@ -90,8 +90,8 @@
     (is (some #(re-find #"target" %) (:errors result)))))
 
 (deftest normalize-changelog-ref-produces-stable-hash
-  (let [a (cc/normalize-changelog-ref "CHANGELOG.md" 21 22)
-        b (cc/normalize-changelog-ref "CHANGELOG.md" 21 22)]
+  (let [a (cc/normalise-changelog-ref "CHANGELOG.md" 21 22)
+        b (cc/normalise-changelog-ref "CHANGELOG.md" 21 22)]
     (is (= a b) "same file + lines → same target hash")
     (is (re-matches #"sha256:[0-9a-f]{64}" (:changelog-entry-hash a))
         "target hash should be a valid sha256")))

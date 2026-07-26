@@ -56,9 +56,12 @@ Fixture suites can now declare mixed `:traces` entry shapes:
 
 This avoids false failures for intentional rejection/negative-path traces in equivalence gates.
 
-## 🔴 Required: End-to-End Trace Equivalence Verification (Model + Solidity)
+## 🔴 Required: Trace Equivalence Verification (Model + Solidity, manifest-scoped)
 
-This is a **mandatory release check** for equivalence claims.
+This is a **mandatory release check** for equivalence claims on the
+manifest-selected trace subset. See `etc/trace-solidity-manifest.edn`
+for the current scope (18 traces across 3 suites) and
+`docs/review/EF_REVIEW_GUIDE.md` for the review procedure.
 
 Run **both** layers:
 
@@ -87,7 +90,8 @@ forge test --match-contract TraceEquivalenceTest --match-test test_trace_create_
 - Clojure equivalence suites validate simulator/model semantics and gate fixture quality.
 - `TraceEquivalenceTest` replays fixture traces on live EVM contracts and asserts per-step projection equivalence.
 
-You should not claim full trace equivalence unless **both commands pass**.
+You should not claim trace equivalence for the manifest-selected subset unless
+**both commands pass**.
 
 ### Machine-readable CI artifacts
 
@@ -128,7 +132,20 @@ The report includes:
 - terminal-state count differences
 - a single headline line you can paste into research notes
 
+### Cross-repository trace sync (Clojure simulation → Solidity)
 
+CDRS v0.2 traces selected for Solidity equivalence are managed through
+a manifest-bound workflow. See `etc/trace-solidity-manifest.edn` for
+the canonical trace list and `docs/review/EF_REVIEW_GUIDE.md` for the
+review procedure.
+
+```bash
+# Export selected traces to sew-protocol
+bb trace:solidity:sync --sew-repo ../sew-protocol
+
+# Verify integrity (read-only gate)
+bb trace:solidity:verify --sew-repo ../sew-protocol
+```
 
 ### Transition/guard coverage release gate
 
