@@ -46,6 +46,13 @@ jobs:
           chmod +x /tmp/install-bb.sh
           sudo /tmp/install-bb.sh
 
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
       - name: Run canonical suite
         run: |
           set +e
@@ -172,6 +179,13 @@ jobs:
           chmod +x /tmp/install-clojure.sh
           sudo /tmp/install-clojure.sh
 
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
       - name: Run transition/guard coverage gate
         env:
           MAX_UNHIT_TRANSITIONS: "4"
@@ -204,6 +218,13 @@ jobs:
           curl -fsSL https://download.clojure.org/install/linux-install-1.11.1.1413.sh -o /tmp/install-clojure.sh
           chmod +x /tmp/install-clojure.sh
           sudo /tmp/install-clojure.sh
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
 
       - name: Run equivalence comparison gates
         run: ./scripts/test.sh equivalence-new

@@ -8,8 +8,16 @@
    evidence without changing the protocol interface.
 
    The implementation is now in contract-model.replay.execution to maintain
-   correct dependency layering (contract-model must not depend on sim)."
-  (:require [resolver-sim.contract-model.replay.execution :as execution]))
+   correct dependency layering (contract-model must not depend on sim).
+
+   WARNING: This is a backward-compatibility forwarding shim.
+   New code should use resolver-sim.contract-model.replay.execution directly."
+  (:require [resolver-sim.contract-model.replay.execution :as execution]
+            [clojure.tools.logging :as log]))
+
+(log/warn! :sim-dispatcher-deprecated
+  "resolver-sim.sim.dispatcher is a forwarding shim. "
+  "Call resolver-sim.contract-model.replay.execution directly.")
 
 (defn apply-action-with-evidence
   "Dispatch an action through the protocol layer and emit a content-hashed

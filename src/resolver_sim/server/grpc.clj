@@ -187,7 +187,6 @@
          (catch Throwable t
            (let [msg (str "Internal Simulation Error: " (.getMessage t))]
              (log/error! "grpc/internal-error" {:error (.getMessage t)})
-             (println (str "[grpc] " msg))
              (st/print-stack-trace t)
              (.onError observer
                        (-> Status/INTERNAL
@@ -263,7 +262,7 @@
                      (.start))]
          (reset! server srv)
          (log/info! "grpc/listening" {:port port})
-         (println (str "[grpc] SimulationEngine listening on port " port))
+
          srv)))))
 
 (defn port
@@ -277,7 +276,7 @@
   (when-let [srv @server]
     (.shutdown srv)
     (reset! server nil)
-    (println "[grpc] Server stopped.")))
+    (log/info! :grpc-stopped {})))
 
 (defn await-termination
   "Block until the server shuts down. Useful for CLI entry points."

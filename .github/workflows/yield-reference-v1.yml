@@ -26,6 +26,13 @@ jobs:
           chmod +x /tmp/install-clojure.sh
           sudo /tmp/install-clojure.sh
 
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
       - name: Clean previous artifacts
         run: rm -rf suites/yield-reference-v1/actual
 

@@ -14,7 +14,6 @@
             [resolver-sim.protocols.sew.accounting :as acct]
             [resolver-sim.protocols.sew.economics  :as sew-econ]
             [resolver-sim.util.attribution         :as attr]
-            [resolver-sim.util.math                :as math]
             [resolver-sim.evidence.capture         :as cap]))
 
 (declare get-stake)
@@ -179,7 +178,7 @@
    (slash-resolver-stake world resolver-addr amount challenger bounty-bps workflow-id false))
   ([world resolver-addr amount challenger bounty-bps workflow-id skip-sub-held?]
    (let [current (get-stake world resolver-addr)
-         actual  (math/to-canonical (min (double current) (double amount)))
+          actual  (bigint (min (double current) (double amount)))
          token   (if workflow-id
                    (keyword (or (:token (t/get-transfer world workflow-id)) "USDC"))
                    :USDC)

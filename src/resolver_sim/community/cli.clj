@@ -13,6 +13,7 @@
             [resolver-sim.evidence.node :as ev-node]
             [resolver-sim.benchmark.runner :as runner]
             [resolver-sim.graph.export :as gex]
+            [resolver-sim.logging :as log]
             [resolver-sim.vcs :as vcs]
             [resolver-sim.hash.canonical :as hc]))
 
@@ -258,15 +259,15 @@
               benchmark-id (get-in (first announce-msgs) [:body :benchmark/id])
               manifest-path (or (resolve-benchmark-manifest benchmark-id)
                                 "benchmarks/packs/prf-core/deterministic-replay-v1.edn")
-              _ (println (str "Manifest: " manifest-path))
-              _ (println (str "Executing task: " task-ref))
+              _ (log/info! :task-manifest {:path manifest-path})
+              _ (log/info! :task-executing {:task-ref task-ref})
               evidence (try
                          (runner/run-benchmark manifest-path)
                          (catch Exception e
-                           (println "Execution failed:" (.getMessage e))
+                           (log/error! :task-execution-failed {:error (.getMessage e)})
                            nil))]
           (if-not evidence
-            (do (println "ERROR: Benchmark execution produced no evidence. Aborting.")
+            (do (log/error! :task-no-evidence {:message "Benchmark execution produced no evidence. Aborting."})
                 {:exit-code 1})
             (let [passed? (= (get-in evidence [:metrics :passed])
                              (get-in evidence [:metrics :total]))
@@ -349,7 +350,7 @@
       (binding [mailbox/*mailbox-dir* mailbox-dir
                 chain/*allow-dirty* (:allow-dirty opts)]
         (let [original-att (att/resolve-attestation dir original-att-ref)
-              _ (println (str "Reproducing task: " task-ref))
+              _ (log/info! :task-reproducing {:task-ref task-ref})
               announce-msgs (filter #(= :TASK_ANNOUNCEMENT (:message/type %))
                                     (mailbox/messages-for-task task-ref))
               benchmark-id (get-in (first announce-msgs) [:body :benchmark/id])
@@ -358,10 +359,10 @@
               evidence (try
                          (runner/run-benchmark manifest-path)
                          (catch Exception e
-                           (println "Reproduction failed:" (.getMessage e))
+                           (log/error! :task-reproduction-failed {:error (.getMessage e)})
                            nil))]
           (if-not evidence
-            (do (println "ERROR: Reproduction benchmark produced no evidence. Aborting.")
+            (do (log/error! :task-reproduction-no-evidence {:message "Reproduction benchmark produced no evidence. Aborting."})
                 {:exit-code 1})
             (let [passed? (= (get-in evidence [:metrics :passed])
                              (get-in evidence [:metrics :total]))

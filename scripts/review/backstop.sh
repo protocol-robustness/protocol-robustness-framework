@@ -37,7 +37,7 @@ fi
 
 # Full gate: authoritative canonical evidence run
 if [ "$MODE" = "full" ]; then
-  RUN_ROOT="${PRF_INVARIANTS_RUN_ROOT:-artf/runs/invariants/$(date -u +%Y%m%dT%H%M%SZ)}"
+  RUN_ROOT="${PRF_INVARIANTS_RUN_ROOT:-results/test-artifacts/runs/invariants/$(date -u +%Y%m%dT%H%M%SZ)}"
 
   echo "▶ backstop: canonical invariants run"
   echo "  run-root: $RUN_ROOT"

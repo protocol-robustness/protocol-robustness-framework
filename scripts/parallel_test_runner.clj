@@ -24,7 +24,8 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.node :as node]
             [resolver-sim.evidence.attestation-registry :as ar]
-            [resolver-sim.evidence.config :as evcfg]))
+            [resolver-sim.evidence.config :as evcfg]
+            [scripts.test-state :as ts]))
 
 (defn- default-jobs
   []
@@ -130,5 +131,11 @@
         (cleanup! tmp-root)
         (catch Exception e
           (println "WARN: artifact cleanup failed:" (.getMessage e)))))
+    ;; Persist test state for bb test:failed
+    (let [failed-syms (mapv :sym (filter #(or (pos? (:fail (:result %)))
+                                              (pos? (:error (:result %))))
+                                        results))]
+      (ts/write-state! {:command *command-line-args*
+                        :failed-nses failed-syms}))
     (when failed?
       (System/exit 1))))

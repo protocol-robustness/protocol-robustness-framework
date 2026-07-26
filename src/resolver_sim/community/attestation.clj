@@ -1,5 +1,6 @@
 (ns resolver-sim.community.attestation
-  (:require [resolver-sim.hash.canonical :as hc]
+  (:require [clojure.edn :as edn]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.community.task :as task]
             [clojure.java.io :as io]))
@@ -180,7 +181,7 @@
                hash-or-ref)
         f (io/file dir "community-attestations" (str "att-" (subs hash 0 12) ".edn"))]
     (when (.exists f)
-      (try (read-string (slurp f))
+      (try (edn/read-string (slurp f))
            (catch Exception _ nil)))))
 
 (defn- validate-attestation-shape

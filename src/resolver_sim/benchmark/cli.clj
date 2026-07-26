@@ -10,6 +10,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.evidence.timestamping :as ts]
             [resolver-sim.io.resource-path :as rp]
+            [resolver-sim.logging :as log]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.cli :refer [parse-opts]]
@@ -51,7 +52,7 @@
                  :coverage-status (:benchmark/coverage-status manifest)
                  :manifest bench-path}))
             (:benchmarks pack-reg)))
-    (do (println "Pack registry not found:" pack-reg-path) [])))
+    (do (log/warn! :pack-registry-not-found {:path pack-reg-path}) [])))
 
 (def ^:private default-benchmark-manifest
   "resource:benchmarks/packs/sew/escrow-dispute-v1.edn")
@@ -70,7 +71,7 @@
                (load-pack-benchmarks (:pack/id pack)
                                      (rp/pack-registry-path (:pack/registry pack))))
              (:packs registry))}
-    (do (println "benchmarks/registry.edn not found, falling back to BENCHMARKS.edn")
+    (do (log/warn! :registry-edn-not-found {:message "Falling back to BENCHMARKS.edn"})
         (when-let [legacy (try (rp/edn-read "benchmarks/BENCHMARKS.edn")
                                (catch Exception _ nil))]
           {:benchmarks legacy}))))
@@ -167,7 +168,7 @@
   (try
     (registry/record-entry entry)
     (catch Exception e
-      (println "Warning: benchmark history write failed:" (.getMessage e)))))
+      (log/warn! :history-write-failed {:error (.getMessage e)}))))
 
 ;; ── Exit codes ──────────────────────────────────────────────────────────────────
 
@@ -204,7 +205,7 @@
                         :else (throw (ex-info "Unknown benchmark ID or manifest path"
                                               {:benchmark benchmark-id-or-path
                                                :available (mapv :id (:benchmarks index))})))
-        _ (println "Running benchmark:" manifest-path)]
+        _ (log/info! :benchmark-running {:manifest manifest-path})]
     (try
       (let [run-benchmark (requiring-resolve 'resolver-sim.benchmark.runner/run-benchmark)
             default-adapter (requiring-resolve 'resolver-sim.benchmark.runner/default-adapter)
@@ -231,7 +232,7 @@
          :output-path output-path
          :passed? passed?})
       (catch Exception e
-        (println "Benchmark execution failed:" (.getMessage e))
+        (log/error! :benchmark-execution-failed {:error (.getMessage e)})
         {:exit-code 1 :evidence nil :output-path nil :passed? false}))))
 
 ;; ── CLI dispatch — subcommands ─────────────────────────────────────────────────

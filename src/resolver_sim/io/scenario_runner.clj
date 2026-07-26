@@ -297,15 +297,19 @@
            (throw (ex-info (str "Ambiguous prefix \"" scenario "\" matches "
                                 (count matches) " scenarios")
                            {:prefix scenario :matches matches}))))
-       (some (fn [file]
-               (when (and (.isFile file)
-                          (str/ends-with? (.getName file) ".edn"))
-                 (try
-                   (let [path (.getPath file)
-                         fixture (io-sc/load-scenario-file path)]
-                     (when (= scenario (:scenario-id fixture)) path))
-                   (catch Exception _ nil))))
-             (file-seq fixture-dir))
+          (some (fn [file]
+                (when (and (.isFile file)
+                           (str/ends-with? (.getName file) ".edn"))
+                  (try
+                    (let [path (.getPath file)
+                          fixture (io-sc/load-scenario-file path)]
+                      (when (= scenario (:scenario-id fixture)) path))
+                    (catch Exception e
+                      (log-event :warn :scenario-id-resolve-error
+                                 :file (.getPath file)
+                                 :error (.getMessage e))
+                      nil))))
+              (file-seq fixture-dir))
        scenario))))
 
 (defn resolve-path-run-request
@@ -529,7 +533,7 @@
   (let [{request :scenario-run/request :as envelope}
         (resolve-path-run-request paths opts)
         _ (doseq [{:keys [scenario-id protocol]} (:entries request)]
-            (println (str "[run:scenario] " scenario-id " protocol " protocol)))
+            (log/info! :scenario-run-start {:scenario-id scenario-id :protocol protocol}))
         summary (execute-path-run-request envelope opts)
         normalized (normalize-run-result request summary)]
     (assoc (:summary (:scenario-run/result normalized))
@@ -581,7 +585,7 @@
     (instance? clojure.lang.Ratio v) (double v)
     :else (if (or (nil? v) (instance? Boolean v) (instance? java.lang.Number v) (string? v) (vector? v) (map? v) (list? v))
             v
-            (do (println "WARN: json-safe-value converting unsupported type:" (type v) "value:" (pr-str v))
+            (do (log/warn! :json-safe-value-fallback {:type (str (type v)) :value (pr-str v)})
                 (str v)))))
 
 (defn write-result-json
@@ -1328,13 +1332,21 @@
                                   dag-root-hash (try
                                                   (-> (json/read-str (slurp dag-path) :key-fn keyword)
                                                       :dag/root-hash)
-                                                  (catch Exception _ nil))
+                                                  (catch Exception e
+                                                    (log-event :warn :dag-root-hash-read-failed
+                                                               :path dag-path
+                                                               :error (.getMessage e))
+                                                    nil))
                                   pre-commit-path (if structured?
                                                     (str (io/file execution-dir "pre-run-commitment.json"))
                                                     (str "results/runs/" run-id "/pre-run-commitment.json"))
                                   pre-commit (try
                                                (json/read-str (slurp pre-commit-path) :key-fn keyword)
-                                               (catch Exception _ nil))
+                                               (catch Exception e
+                                                 (log-event :warn :pre-commit-read-failed
+                                                            :path pre-commit-path
+                                                            :error (.getMessage e))
+                                                 nil))
                                   env (get-in enriched-root [:run/environment] {})
                                   source-data (or (:source pre-commit) source-provenance)
                                   enrichment

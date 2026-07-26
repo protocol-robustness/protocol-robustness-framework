@@ -747,7 +747,7 @@
       ;; Enforce dirty policy
         (when is-dirty
           (if allow-dirty?
-            (println "WARN: Dirty working copy — including dirty-diff-hash in cursor-data")
+            (log/warn! :dirty-working-copy {:message "Including dirty-diff-hash in cursor-data"})
             (throw (ex-info "Dirty working copy - use :allow-dirty? true to override"
                             {:dirty? true
                              :hint "Re-run with --allow-dirty to include dirty-diff-hash in cursor-data"}))))
@@ -775,8 +775,9 @@
                                  :cursor/signed-hash (:cursor/hash signed)}))]
           (.mkdirs (io/file out-dir))
           (spit f (json/write-str artifact :key-fn preserve-ns-key :indent true))
-          (println (str "Wrote chain-cursor-final.json: seq " (:cursor/final-seq snapshot)
-                        (when signed " [signed]")))
+          (log/info! :chain-cursor-written {:file "chain-cursor-final.json"
+                                             :seq (:cursor/final-seq snapshot)
+                                             :signed? (boolean signed)})
           (register-additional-artifact!
            (index-artifact-entry :chain-cursor-final "chain-cursor-final.json"
                                  "chain-cursor-final.v1" "DIAGNOSTIC"))
@@ -911,7 +912,7 @@
                             (or (:error chain-integrity)
                                 (pr-str (:violations chain-integrity))))))]
     (doseq [e errors]
-      (println (str "EVIDENCE RECONCILIATION ERROR: " e)))
+      (log/error! :evidence-reconciliation-error {:error e}))
     (when (and throw-on-error (seq errors))
       (throw (ex-info "Evidence reconciliation failed"
                       {:errors errors
@@ -1030,7 +1031,7 @@
                         :signature (:signature sig-map)
                         :chain-final true}]
           (spit env-path (json/write-str envelope {:indent true})))
-        (println "Signed registry hash:" (:hash sig-map))
+        (log/info! :registry-signed {:registry-hash (:hash sig-map)})
         {:signature sig-map
          :signature-path sig-path
          :envelope-path env-path}))))

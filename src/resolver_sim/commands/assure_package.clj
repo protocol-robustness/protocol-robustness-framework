@@ -96,14 +96,14 @@
               (println (str "  ✗ " (name k) ": " (:reason v "failed")))))
           {:exit-code (if check-failed? 1 0)
            :message (str "Assurance: " (:assurance/status assurance))
-           :assurance assurance}))))
+           :assurance assurance})))))
 
-  (defn -main
-    [& args]
-    (let [run-root (some (fn [[flag val]] (when (= flag "--run-root") val))
-                         (partition 2 args))]
-      (if-not run-root
-        (do (println "Usage: clojure -M -m resolver-sim.commands.assure-package --run-root DIR")
-            (System/exit 2))
-        (let [result (run {:run-root run-root})]
-          (System/exit (:exit-code result 1)))))))
+(defn -main
+  [& args]
+  (let [run-root (some (fn [[flag val]] (when (= flag "--run-root") val))
+                       (partition 2 args))]
+    (if-not run-root
+      (do (println "Usage: clojure -M -m resolver-sim.commands.assure-package --run-root DIR")
+          (System/exit 2))
+      (let [result (run {:run-root run-root})]
+        (System/exit (:exit-code result 1))))))

@@ -34,7 +34,7 @@ Do not place private keys, credentials, signing material, access tokens, or othe
 
 ## Development setup
 
-Follow [`docs/quickstart/QUICKSTART.md`](docs/quickstart/QUICKSTART.md) for required tooling and initial setup.
+Follow [`docs/quickstart/README.md`](docs/quickstart/README.md) for required tooling and initial setup.
 
 The normal contributor interfaces are Babashka tasks and the canonical test runner:
 

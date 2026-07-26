@@ -8,12 +8,18 @@
   (delay
     (or (when-let [path (System/getenv "PRF_EVIDENCE_CONFIG_PATH")]
           (try (-> (io/file path) slurp (json/read-str :key-fn keyword))
-               (catch Exception _ nil)))
+               (catch Exception e
+                 (.println *err* (str "CONFIG-FAILURE: PRF_EVIDENCE_CONFIG_PATH=" path " — " (.getMessage e)))
+                 nil)))
         (when-let [r (io/resource "config/evidence.json")]
           (try (-> r slurp (json/read-str :key-fn keyword))
-               (catch Exception _ nil)))
+               (catch Exception e
+                 (.println *err* (str "CONFIG-FAILURE: resource config/evidence.json — " (.getMessage e)))
+                 nil)))
         (try (-> "config/evidence.json" io/file slurp (json/read-str :key-fn keyword))
-             (catch Exception _ nil)))))
+             (catch Exception e
+               (.println *err* (str "CONFIG-FAILURE: config/evidence.json — " (.getMessage e)))
+               nil)))))
 
 (defn get-config
   "Return the full evidence config map, reading from disk on first call."

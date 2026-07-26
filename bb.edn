@@ -451,7 +451,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                       (println "5) See all available tasks:")
                       (println "   bb tasks")
                       (println "")
-                      (println "Docs: docs/README.md  |  docs/quickstart/QUICKSTART.md"))}
+                      (println "Docs: docs/README.md  |  docs/quickstart/README.md"))}
 
    notebook {:doc "Start Clerk notebook server (or reuse existing) at http://localhost:7777/notebooks/report"
              :task (shell "bash" "-lc" "if ss -ltn '( sport = :7777 )' | grep -q 7777; then echo 'Notebook server already running at http://localhost:7777/notebooks/report'; else clojure -M:with-sew -m notebooks.serve; fi")}
@@ -755,11 +755,11 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
 
   repl:light
   {:doc "Start light dev REPL (framework + protocols)"
-   :task (shell "clojure -M:dev/base:with-sew")}
+   :task (shell "clojure -M:dev/full:with-sew")}
 
   repl:check
   {:doc "Check that dev REPL namespaces compile"
-   :task (shell "clojure -M:dev/base:with-sew -e \"(require 'user) (user/ready)\"")}
+   :task (shell "clojure -M:dev/full:with-sew -e \"(require 'user) (user/ready)\"")}
 
   repl:test
   {:doc "Run tests via dev test helper"
@@ -918,6 +918,18 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
   test:portability:sew
   {:doc "Build (if needed) and smoke-test the unified Sew JAR from an external CWD."
    :task (shell "bash" "scripts/portability-smoke-test.sh")}
+
+  test:failed
+  {:doc "Rerun test namespaces that failed during the last completed test run."
+   :task (clojure "-M:test" "-m" "scripts.test-smart" "failed")}
+
+  test:changed
+  {:doc "Run tests directly associated with files changed from the chosen Git base."
+   :task (apply clojure "-M:test" "-m" "scripts.test-smart" "changed" *command-line-args*)}
+
+  test:smart
+  {:doc "Prefer previous failures; otherwise run changed-file tests."
+   :task (apply clojure "-M:test" "-m" "scripts.test-smart" "smart" *command-line-args*)}
 
   sign:prf
   {:doc "GPG-sign prf.jar for distribution."

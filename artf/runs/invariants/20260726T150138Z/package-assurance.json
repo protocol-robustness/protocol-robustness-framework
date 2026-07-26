@@ -1,1 +1,0 @@
-{"artifact-kind":"package-assurance","version":1,"timestamp":"2026-07-26T15:02:15.000755211Z","subject":{"status":null,"kind":null,"plan-hash":null,"plan-kind":"invariant-registry-suite"},"checks":{"package-verification":{"status":"failed","passed":0},"all-scenarios-passed":{"status":"failed","expected":0,"passed":0},"no-skipped-scenarios":{"status":"failed"}},"status":"failed"}

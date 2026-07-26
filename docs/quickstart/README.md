@@ -35,8 +35,6 @@ clojure -M:with-sew
 clojure -M:test:with-sew
 ```
 
-`workspaces/with-sew/` provides the same full-stack view without requiring the alias. See `workspaces/MAP.md`.
-
 ## First successful run
 
 Build the Sew distribution, then execute one scenario into a fresh exact bundle root:

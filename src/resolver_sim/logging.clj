@@ -14,12 +14,14 @@
 (defn- now-ts []
   (try
     (.toString (java.time.Instant/now))
-    (catch Throwable _ "unknown")))
+    (catch Throwable e
+      (str "unknown (" (.getMessage e) ")"))))
 
 (defn- default-logger [event]
   (try
     (prn event)
-    (catch Throwable _ nil)))
+    (catch Throwable e
+      (.println *err* (str "LOGGER-FAILURE in default-logger: " (.getMessage e))))))
 
 (def ^:dynamic *logger* default-logger)
 
@@ -35,9 +37,12 @@
       (if (fn? logger)
         (try
           (logger event)
-          (catch Throwable _ (default-logger event)))
+          (catch Throwable e
+            (.println *err* (str "LOGGER-FAILURE in logger fn: " (.getMessage e)))
+            (default-logger event)))
         (default-logger event)))
-    (catch Throwable _ nil))
+    (catch Throwable e
+      (.println *err* (str "LOGGER-FAILURE in emit!: " (.getMessage e)))))
   nil)
 
 (defn log!
@@ -54,7 +59,8 @@
                           :message (str (or message ""))}
                    (seq ctx) (assoc :context ctx))]
        (emit! event))
-     (catch Throwable _ nil))))
+     (catch Throwable e
+       (.println *err* (str "LOGGER-FAILURE in log!: " (.getMessage e)))))))
 
 (defn trace!
   ([message] (log! :trace message))

@@ -8,7 +8,7 @@ Primary project framing and status live in the root `../README.md`.
 |---|---|
 | System overview (narrative) | `SYSTEM_OVERVIEW.md` |
 | System overview (technical / architecture) | `architecture/ARCHITECTURE.md` |
-| Set up and run locally | `quickstart/QUICKSTART.md` |
+| Set up and run locally | `quickstart/README.md` |
 | Run validation suite | `testing/RUNNING_TESTS.md` |
 | Understand adapter / framework boundaries | `architecture/framework-boundaries.md` |
 | Scenario index and protocol properties | `scenarios.md` |
@@ -210,7 +210,7 @@ Primary project framing and status live in the root `../README.md`.
 
 | Document | Description |
 |---|---|
-| `quickstart/QUICKSTART.md` | Setup and first run |
+| `quickstart/README.md` | Setup and first run |
 | `reference/usage.md` | CLI, Babashka task, and test-runner reference |
 | `reference/build.md` | Build guide |
 | `reference/REPL_GUIDE.md` | REPL usage guide |

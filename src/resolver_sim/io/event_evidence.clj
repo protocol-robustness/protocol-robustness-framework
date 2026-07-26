@@ -253,9 +253,9 @@
      (verify-write! e f)
      (record-serialize-latency! serialize-start)
      (record-capture-latency! capture-start)
-     (println "Captured event evidence:" (:evidence/type e) "hash:" (:evidence/hash e))
-     (chain/register-evidence! (normalize-for-chain e))
-     e))
+      (log/info! :evidence-captured {:type (:evidence/type e) :hash (:evidence/hash e)})
+      (chain/register-evidence! (normalize-for-chain e))
+      e))
   ([evidence]
    (let [capture-start (System/nanoTime)]
      (when (map? evidence)
@@ -275,7 +275,7 @@
          (verify-write! evidence f)
          (record-serialize-latency! serialize-start)
          (record-capture-latency! capture-start)
-         (println "Captured event evidence:" (:evidence/type evidence) "hash:" (:evidence/hash evidence))
+         (log/info! :evidence-captured {:type (:evidence/type evidence) :hash (:evidence/hash evidence)})
          (chain/register-evidence! (normalize-for-chain evidence))
          evidence)))))
 
@@ -432,7 +432,7 @@
         f (io/file out-dir "evidence-links.json")]
     (.mkdirs (io/file out-dir))
     (spit f (json/write-str idx {:key-fn qualified-key :indent true}))
-    (println "Wrote evidence links index:" (.getPath f))
+    (log/info! :evidence-links-written {:path (.getPath f)})
     (chain/register-additional-artifact!
      (chain/index-artifact-entry :evidence-links "evidence-links.json"
                                  "evidence-links-index.v1" "DIAGNOSTIC"))
@@ -447,7 +447,7 @@
         f (io/file out-dir "evidence-links.json")]
     (.mkdirs (io/file out-dir))
     (spit f (json/write-str idx {:key-fn qualified-key :indent true}))
-    (println "Wrote evidence links index:" (.getPath f))
+    (log/info! :evidence-links-written {:path (.getPath f)})
     (chain/register-additional-artifact!
      (chain/index-artifact-entry :evidence-links "evidence-links.json"
                                  "evidence-index.v1" "DIAGNOSTIC"))
@@ -699,7 +699,7 @@
                                        :evidence-hash (:evidence/hash data)}))}]
       (spit (io/file output-dir "manifest.json")
             (json/write-str manifest {:key-fn qualified-key :indent true})))
-    (println "Exported" (count matched) "evidence artifacts to" output-dir)
+    (log/info! :evidence-bundle-exported {:count (count matched) :dir output-dir})
     output-dir))
 
 (defn linked-evidence-group
@@ -955,7 +955,7 @@
         f (io/file out-dir "evidence-mechanisms.json")]
     (.mkdirs (io/file out-dir))
     (spit f (json/write-str (sort-by key idx) {:key-fn qualified-key :indent true}))
-    (println "Wrote mechanism index:" (.getPath f))
+    (log/info! :mechanism-index-written {:path (.getPath f)})
     (chain/register-additional-artifact!
      (chain/index-artifact-entry :evidence-mechanisms "evidence-mechanisms.json"
                                  "evidence-index.v1" "DIAGNOSTIC"))
@@ -1129,7 +1129,7 @@
         f (io/file out-dir "evidence-coverage-report.json")]
     (.mkdirs (io/file out-dir))
     (spit f (json/write-str report {:key-fn qualified-key :indent true}))
-    (println "Wrote evidence coverage report:" (.getPath f))
+    (log/info! :coverage-report-written {:path (.getPath f)})
     (chain/register-additional-artifact!
      (chain/index-artifact-entry :evidence-coverage-report "evidence-coverage-report.json"
                                  "evidence-index.v1" "DIAGNOSTIC"))

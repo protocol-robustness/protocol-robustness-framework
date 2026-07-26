@@ -28,7 +28,6 @@
             [resolver-sim.util.attribution             :as attr]
             [resolver-sim.util.attributed-monad        :as am]
             [resolver-sim.util.state-monad             :as monad]
-            [resolver-sim.util.math                    :as math]
             [resolver-sim.time.context                 :as time-ctx]
             [resolver-sim.evidence.capture            :as cap]))
 
@@ -955,7 +954,7 @@
         world-finalized (finalize world workflow-id :refunded)
         world-slashed   (if has-resolver?
                           (let [current (reg/get-stake world-finalized resolver)
-                                actual  (math/to-canonical (min (double current) (double slash-amt)))
+                                actual  (bigint (min (double current) (double slash-amt)))
                                 world'  (-> world-finalized
                                             (update-in [:resolver-stakes resolver] (fnil - 0) actual)
                                             (acct/distribute-slashed-funds actual nil 0 workflow-id)

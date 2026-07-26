@@ -1,0 +1,17 @@
+.git/
+.gitattributes
+.gitignore
+
+results/
+target/
+send-to-ef/
+outputs/
+.cpcache/
+.pytest_cache/
+.calva/
+.clj-kondo/
+.lsp/
+
+*.log
+*.tmp
+.DS_Store

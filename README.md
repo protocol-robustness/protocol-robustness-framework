@@ -10,9 +10,6 @@ under `protocols_src/` and are added via the `:with-sew` alias:
     clojure -M:with-sew            # full-stack REPL
     clojure -M:test:with-sew       # run all tests (framework + Sew)
 
-The `workspaces/with-sew/` directory provides the same full-stack view
-without the alias.  See `workspaces/MAP.md` for details.
-
 ## Build & Run
 
 Build the two supported standalone distributions. No Clojure CLI is needed at
@@ -125,7 +122,6 @@ This repository is split between the protocol-agnostic Protocol Robustness Frame
 - `docs/` — Documentation, including specs under `docs/specs/`.
 - `resources/test-vectors/` — Canonical conformance vectors.
 - `results/` — Generated local run outputs (not source).
-- `workspaces/` — Curated developer views and templates.
 - `integration/` — Integration-specific projections (e.g. Cartesi).
 - `fixtures/` — Reusable test and demo inputs.
 - `notebooks/` — User-facing Clerk notebooks.
@@ -223,7 +219,7 @@ Stronger claims require broader scenario coverage, deviation evidence, formal an
 * `docs/scenarios.md` — scenario index and protocol properties
 * `docs/testing/` — validation coverage and status
 * `docs/overview/CAPABILITY_STATUS.md` — current capability, coverage, parity, and limitation matrix
-* `docs/quickstart/QUICKSTART.md` — setup and first run
+* `docs/quickstart/README.md` — setup and first run
 * `docs/reference/usage.md` — CLI, Babashka task, and test-runner reference
 * `docs/evidence/RESEARCHER_EVIDENCE_PACK.md` — ≤15-minute reproducibility pack for external reviewers
 * `schemas/README.md` — machine-readable schema catalog

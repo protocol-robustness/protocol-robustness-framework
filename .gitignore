@@ -4,6 +4,7 @@
 .cpcache
 .clj-kondo/.cache
 .prc
+.prf/
 
 # Generated simulation output (canonical root)
 results/
@@ -57,7 +58,6 @@ notebook.log
 # AI tools
 .kilo
 .cursor
-.calva
 .claude
 .clojure-mcp
 .gemini
@@ -112,6 +112,13 @@ workspaces/private-discovery-template/export/
 
 # Locks
 .test-artifact.lock
+
+# Generated outputs
+outputs/
+
+# Archived notebooks and docs
+notebooks/archive/
+docs/archive/
 
 # Temporarily ignored
 send-to-ef

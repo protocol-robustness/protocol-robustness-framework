@@ -36,4 +36,5 @@ if ! flock -n "${LOCK_FILE}" true 2>/dev/null; then
   echo " Remove with: rm -f ${LOCK_FILE}"
 fi
 
-exec flock "${LOCK_FILE}" "$@"
+# Acquire lock with a 5-minute timeout to prevent indefinite hangs
+exec flock -w 300 "${LOCK_FILE}" "$@"

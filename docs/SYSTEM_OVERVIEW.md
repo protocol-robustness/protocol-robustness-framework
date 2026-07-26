@@ -458,7 +458,7 @@ These controls are tested in focused yield failure tests and are replay/scenario
 | Framework / adapter / Sew / research boundaries | `docs/architecture/framework-boundaries.md`                                |
 | Reusable adapter design notes                   | `docs/overview/REUSABLE_COMPONENTS.md`                        |
 | Use-of-funds accounting contract                | `docs/overview/USE_OF_FUNDS.md`                               |
-| End-user and CLI workflows                      | `docs/quickstart/QUICKSTART.md`, `docs/usage.md`              |
+| End-user and CLI workflows                      | `docs/quickstart/README.md`, `docs/usage.md`              |
 | Test suite reference                            | `docs/testing/TEST_SUITE.md`, `docs/testing/RUNNING_TESTS.md` |
 | Evidence and reproducibility                    | `docs/evidence/RESEARCHER_EVIDENCE_PACK.md`                   |
 

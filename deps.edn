@@ -32,19 +32,6 @@
    :with-sew
    {:extra-paths ["protocols_src" "protocols_src/test"]}
 
-  :dev/base
-  {:extra-paths ["dev" "test" "notebooks"]
-   :extra-deps {nrepl/nrepl             {:mvn/version "1.3.1"}
-                cider/cider-nrepl       {:mvn/version "0.57.0"}
-                djblue/portal            {:mvn/version "0.59.1"}
-                clj-kondo/clj-kondo      {:mvn/version "2026.04.15"}
-                org.clojure/tools.namespace {:mvn/version "1.5.0"}
-                mvxcvi/puget                {:mvn/version "1.3.4"}
-                fipp/fipp                   {:mvn/version "0.6.27"}
-                org.clojure/tools.trace     {:mvn/version "0.7.11"}
-                org.clojure/data.json       {:mvn/version "2.5.1"}}
-   :main-opts ["-m" "nrepl.cmdline" "--bind" "localhost" "--port" "7888" "--middleware" "[cider.nrepl/cider-middleware]"]}
-
 ;; Terminal-first REPL.
    ;; Best for up-arrow history, ctrl-r, multiline input, colours, completion.
   :dev/rebel
@@ -120,13 +107,13 @@
     :ns-default build}
 
   :lint
-  {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2025.04.07"}}
+  {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
    :main-opts ["-m" "clj-kondo.main"
                 "--lint" "src:notebooks:test:dev"
                 "--fail-level" "error"]}
 
   :lint/core
-  {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2025.04.07"}}
+  {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
    :main-opts ["-m" "clj-kondo.main"
                 "--lint" "src:test"
                 "--fail-level" "error"]}

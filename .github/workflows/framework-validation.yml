@@ -29,6 +29,13 @@ jobs:
           chmod +x /tmp/install-bb.sh
           sudo /tmp/install-bb.sh
 
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
       - name: Fast structural gate (commands-validate, fmt-check, lint)
         run: bb backstop:fast
 

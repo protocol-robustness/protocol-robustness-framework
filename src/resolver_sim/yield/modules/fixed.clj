@@ -48,15 +48,17 @@
                       (+ old-index (/ (* apy dt) time-ctx/seconds-per-year)))
           world-after-index (assoc-in world [:yield/indices mid token] new-index)
           world' (reduce (fn [w [oid pos]]
-                           (if (and (= (:module/id pos) mid)
+            (if (and (= (:module/id pos) mid)
                                     (= (normalize-token (:token pos)) (normalize-token token))
                                     (= (:status pos) :active))
-                             (let [old-yield (:unrealized-yield pos 0)
-                                   updated   (acct/update-position-yield world pos new-index)
-                                   yield-delta (- (:unrealized-yield updated 0) old-yield)]
-                               (-> w
-                                   (assoc-in [:yield/positions oid] updated)
-                                   (update-in [:total-yield-generated token] (fnil + 0) yield-delta)))
+                              (let [old-yield (:unrealized-yield pos 0)
+                                    now       (time-ctx/block-ts world)
+                                    updated   (acct/update-position-yield world pos new-index)
+                                    updated'  (assoc updated :last-accrual-time now)
+                                    yield-delta (- (:unrealized-yield updated 0) old-yield)]
+                                (-> w
+                                    (assoc-in [:yield/positions oid] updated')
+                                    (update-in [:total-yield-generated token] (fnil + 0) yield-delta)))
                              w))
                          world-after-index
                          (:yield/positions world))]

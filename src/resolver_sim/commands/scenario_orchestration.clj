@@ -1,5 +1,5 @@
 (ns resolver-sim.commands.scenario-orchestration
-  (:require [clojure.data.json :as json] [clojure.java.io :as io] [clojure.java.shell :as shell]
+  (:require [clojure.data.json :as json] [clojure.edn :as edn] [clojure.java.io :as io] [clojure.java.shell :as shell]
             [clojure.walk :as walk]
             [resolver-sim.commands.scenario-registry :as registry]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
@@ -252,7 +252,7 @@
                                        (catch Exception _ nil)))
                                 evidence-files))
         evidence-nodes (vec (keep (fn [f]
-                                    (try (let [data (read-string (slurp f))]
+                                     (try (let [data (edn/read-string (slurp f))]
                                            (when (:node-hash data) data))
                                          (catch Exception _ nil)))
                                   evidence-node-files))
@@ -427,7 +427,7 @@
                                     (.endsWith (.getName %) ".edn"))))
                    (keep (fn [file]
                            (try
-                             (let [node (read-string (slurp file))]
+                              (let [node (edn/read-string (slurp file))]
                                (when (= "pro-rata-mechanism-node.v1"
                                         (get-in node [:extensions :mechanism/node-schema-version]))
                                  {:path (str (.relativize (.toPath root) (.toPath file)))

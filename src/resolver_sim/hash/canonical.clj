@@ -99,7 +99,9 @@
    :researcher-position "RESEARCHER_POSITION_V1"
    :three-member-certificate "THREE_MEMBER_CERTIFICATE_V1"
    :evidence-collection "EVIDENCE_COLLECTION_V1"
-   :state-projection "STATE_PROJECTION_V1"})
+   :state-projection "STATE_PROJECTION_V1"
+   :research-framework-change-proposal "RESEARCH_FRAMEWORK_CHANGE_PROPOSAL_V1"
+   :changelog-challenge "CHANGELOG_CHALLENGE_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

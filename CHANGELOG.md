@@ -76,6 +76,8 @@
 
 - **Empty yield invariants stub filled:** Implemented `yield-position-consistency?`, `yield-exposure-ok?`, and `realized-non-negative?` predicates — the three Sew-specific yield invariants that previously had only integration coverage. (`protocols_src/resolver_sim/protocols/sew/invariants/yield.clj`)
 
+- **S83/S88 yield scenario failures fixed:** `:settlement-yield-boundary` invariant and `:yield-position-unsettled` guard fired because `fixed-accrue` never set `last-accrual-time` on yield positions. Added `(assoc :last-accrual-time now)` to `fixed-accrue`. S83 also needed `trigger-accrue` at same timestamp as `execute_pending_settlement` to satisfy the staleness guard. (`src/resolver_sim/yield/modules/fixed.clj`, `scenarios/edn/S83_yield-accrual-reorg-race.edn`, `scenarios/edn/S88_yield-accrual-efficiency.edn`)
+
 - **`:reconciliation/:allocation-applied?` hardcoded to `true`:** Changed from constant `true` to dynamic check matching `:all-allocations-applied` semantics. (`src/resolver_sim/yield/partial_fill.clj`)
 
 - **Index-monotone invariant misses new/removed indices:** Expanded `indices-changed` to iterate over the union of `before` and `after` index sets, detecting newly added and removed indices. `index-monotone-ok?` now returns `false` on removed indices and `true` on newly appearing indices. (`src/resolver_sim/yield/invariants_transition.clj`)
