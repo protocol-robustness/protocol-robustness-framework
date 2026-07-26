@@ -443,7 +443,7 @@
                             rag (:rag verdict)
                             kind (:status-kind verdict)
                             reason (:reason verdict)
-                            domain (if (yield? t) "Yield" "SEW")
+                            domain (if (yield? t) "Yield" "Sew")
                             failure-class (views/classify-validation-failure t golden kind)
                             tags (if (seq (:threat-tags t))
                                    (str/join ", " (map name (:threat-tags t)))

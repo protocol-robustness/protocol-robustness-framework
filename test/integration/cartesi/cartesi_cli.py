@@ -136,7 +136,7 @@ def get_notices():
         print(f"[!] Error fetching notices: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description="SEW Cartesi CLI")
+    parser = argparse.ArgumentParser(description="Sew Cartesi CLI")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Send command

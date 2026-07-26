@@ -1,7 +1,7 @@
 {
   "$schema" : "https://json-schema.org/draft/2020-12/schema",
   "$id" : "https://sew-protocol/schemas/scenario-v1.json",
-  "title" : "SEW Adversarial Simulation Scenario",
+  "title" : "Sew Adversarial Simulation Scenario",
   "description" : "Versioned, deterministic scenario format shared between the Python generator and the Clojure replay engine. Version 1.0.",
   "type" : "object",
   "required" : [ "schema_version", "scenario_id", "seed", "agents", "events" ],

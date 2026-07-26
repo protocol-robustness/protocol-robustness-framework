@@ -47,17 +47,17 @@ service SimulationEngine {
 
 service AdvisoryService {
   // Return action templates for an actor given the current world state.
-  // (SEW: suggests create_escrow, raise_dispute, execute_resolution, etc.)
+  // (Sew: suggests create_escrow, raise_dispute, execute_resolution, etc.)
   rpc SuggestActions          (SuggestActionsRequest)    returns (SuggestActionsResponse);
 
-  // Return read-only risk/economic signals (SEW: stakes, slashes, held totals).
+  // Return read-only risk/economic signals (Sew: stakes, slashes, held totals).
   rpc SessionSignals          (SessionSignalsRequest)    returns (SessionSignalsResponse);
 
-  // Return a realised payoff projection for an actor (SEW: stake + claimable - slashed).
+  // Return a realised payoff projection for an actor (Sew: stake + claimable - slashed).
   rpc EvaluatePayoff          (EvaluatePayoffRequest)    returns (EvaluatePayoffResponse);
 
   // Evaluate an objective-oriented score for adversarial strategy search
-  // (SEW default objective: resolver_fraud_profit).
+  // (Sew default objective: resolver_fraud_profit).
   rpc EvaluateAttackObjective (EvaluateAttackRequest)    returns (EvaluateAttackResponse);
 }
 
@@ -69,7 +69,7 @@ message StartRequest {
   string         session_id         = 1;
   repeated Agent agents             = 2;
   // protocol_params is an open map of protocol-specific configuration.
-  // For SEW: {resolver_fee_bps: 50, appeal_window_duration: 0, ...}
+  // For Sew: {resolver_fee_bps: 50, appeal_window_duration: 0, ...}
   // For other protocols: any keys accepted by their build-execution-context.
   google.protobuf.Struct protocol_params = 3;
   int64          initial_block_time = 4;  // block timestamp for world0
@@ -103,7 +103,7 @@ message Event {
   int64  time   = 2;  // absolute block timestamp
   string agent  = 3;  // agent id (must be in session's agent list)
   // action is an open string dispatched by the protocol's dispatch-action method.
-  // For SEW: "create_escrow", "raise_dispute", "execute_resolution", etc.
+  // For Sew: "create_escrow", "raise_dispute", "execute_resolution", etc.
   // For other protocols: any action string their dispatch-action accepts.
   string action = 4;
   // params is an open map; fields vary by action and protocol.
@@ -243,7 +243,7 @@ message EvaluatePayoffResponse {
 message EvaluateAttackRequest {
   string session_id = 1;
   string actor_id   = 2;
-  // Protocol-specific objective label (e.g. "resolver_fraud_profit" for SEW).
+  // Protocol-specific objective label (e.g. "resolver_fraud_profit" for Sew).
   string objective  = 3;
 }
 

@@ -25,7 +25,7 @@ The intent registry provides:
 
 The intent registry does not define protocol-specific business logic.
 
-It should not know about SEW escrows, resolver slashing, yield modules, dispute flows, stablecoin ratings, or any other protocol-specific concept except through generic, registered intent domains.
+It should not know about Sew escrows, resolver slashing, yield modules, dispute flows, stablecoin ratings, or any other protocol-specific concept except through generic, registered intent domains.
 
 Protocol-specific integrations may register additional intents, but they must do so through the same validation contract as framework intents.
 

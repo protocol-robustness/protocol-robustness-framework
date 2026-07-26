@@ -14,7 +14,7 @@
   - Readability: when explicit let-threading of state obscures intent.
 
   **When NOT to use:**
-  - World-state changes in SEW, yield, financial finality, replay, or slashing.
+  - World-state changes in Sew, yield, financial finality, replay, or slashing.
   - Any code where auditability of state transitions is critical.
   - Hiding important mutations — prefer explicit threading in protocol logic.
 

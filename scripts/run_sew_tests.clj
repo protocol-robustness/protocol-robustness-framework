@@ -1,5 +1,5 @@
 (ns scripts.run-sew-tests
-  "Run SEW protocol tests in a single JVM.
+  "Run Sew protocol tests in a single JVM.
 
    Usage:
      clojure -M:test:with-sew -m scripts.run-sew-tests [group]
@@ -117,7 +117,7 @@
         total-elapsed (apply + (map :elapsed results))
         outcome (if (pos? (+ total-fail total-error)) "FAIL" "PASS")]
     (println)
-    (println "┌─ SEW test batch summary ───────────────────────────────────────┐")
+    (println "┌─ Sew test batch summary ───────────────────────────────────────┐")
     (println (format "│  %4d tests, %4d assertions, %d failures, %d errors  │"
                      total-tests total-pass total-fail total-error))
     (println (format "│  elapsed: %.2fs                                      │" total-elapsed))
@@ -136,7 +136,7 @@
     (case group
       "unit"
       (let [syms unit-test-namespaces]
-        (println "Loading" (count syms) "SEW unit test namespaces...")
+        (println "Loading" (count syms) "Sew unit test namespaces...")
         (load-all! syms)
         (println "Running" (count syms) "namespaces with noop evidence capture...")
         (let [result (run-group "unit" syms tu/with-isolated-evidence)]
@@ -153,7 +153,7 @@
       "all"
       (let [unit-syms unit-test-namespaces
             scn-syms  scenario-test-namespaces]
-        (println "Loading" (+ (count unit-syms) (count scn-syms)) "SEW test namespaces...")
+        (println "Loading" (+ (count unit-syms) (count scn-syms)) "Sew test namespaces...")
         (load-all! unit-syms)
         (load-all! scn-syms)
         (println "Running unit tests (noop capture)...")

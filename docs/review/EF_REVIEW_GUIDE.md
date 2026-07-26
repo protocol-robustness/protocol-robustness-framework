@@ -90,7 +90,7 @@ and verifies the resulting package.
 
 This is trace-bounded benchmark evidence only. It is **not** a general proof of
 custody solvency, deployed Solidity verification, signer/operator assurance,
-consensus among independent runners, operational SEW pro-rata slashing, or a
+consensus among independent runners, operational Sew pro-rata slashing, or a
 pro-rata evidence artifact. The benchmark deliberately does not exercise the
 pro-rata allocation, shared-withdrawal propagation, or mechanism-evidence paths.
 

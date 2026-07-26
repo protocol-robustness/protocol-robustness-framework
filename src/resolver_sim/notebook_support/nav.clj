@@ -104,7 +104,7 @@
                   :flexWrap "wrap" :marginBottom "16px"
                   :borderRadius "6px" :fontFamily "monospace"}}
     [:span {:style {:color "#94a3b8" :fontSize "0.75em" :marginRight "8px" :fontWeight "700"}}
-     "SEW RESEARCH"]
+     "PRF RESEARCH"]
     (for [{:keys [label path icon]} nav-links]
       (let [active? (= path current-path)
             href    (notebook-url path)]

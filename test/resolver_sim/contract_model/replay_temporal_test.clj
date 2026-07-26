@@ -128,9 +128,9 @@
       (is (= 2000 (get-in step [:trace-entry :time-after :block-ts]))))))
 
 (deftest sew-appeal-window-rule-triggers-via-replay
-  (testing "SEW temporal rule rejects execute_pending_settlement before appeal deadline"
+  (testing "Sew temporal rule rejects execute_pending_settlement before appeal deadline"
     (let [scenario {:scenario-id "sew-appeal-window-rule"
-                    :id "S-Temporal-SEW-Appeal-Window"
+                    :id "S-Temporal-Sew-Appeal-Window"
                     :schema-version "1.1"
                     :scenario-author "@test"
                     :title "Sew appeal window temporal rule"
@@ -165,7 +165,7 @@
 (deftest temporal-rule-metadata-propagates-to-trace-artifact
   (testing "exported trace artifact preserves temporal rule id on rejected step"
     (let [scenario {:scenario-id "sew-appeal-window-artifact"
-                    :id "S-Temporal-SEW-Appeal-Artifact"
+                    :id "S-Temporal-Sew-Appeal-Artifact"
                     :schema-version "1.1"
                     :scenario-author "@test"
                     :title "Sew appeal window artifact propagation"

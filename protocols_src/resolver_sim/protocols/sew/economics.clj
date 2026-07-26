@@ -1,8 +1,8 @@
 (ns resolver-sim.protocols.sew.economics
   "Sew-specific economic adapters.
 
-   This namespace maps SEW protocol state and policy into generic economics
-   functions. Generic resolver-sim.economics namespaces must not depend on SEW.
+   This namespace maps Sew protocol state and policy into generic economics
+   functions. Generic resolver-sim.economics namespaces must not depend on Sew.
 
    Architecture note:
    Projection artifact creation is owned by the evidence/projection layer.
@@ -15,7 +15,7 @@
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
 (def ECONOMIC-POLICIES
-  "Recommended SEW parameter bands for governance.
+  "Recommended Sew parameter bands for governance.
    Conservative: launch-ready, fully/mostly bond-backed.
    Balanced: growth phase, partially bond-backed.
    Aggressive: research/testing."
@@ -30,17 +30,17 @@
                   :alpha-bps          3000}})
 
 (defn calculate-escrow-fee
-  "Calculate the SEW escrow creation fee."
+  "Calculate the Sew escrow creation fee."
   [amount fee-bps]
   (payoffs/calculate-bps-amount amount fee-bps))
 
 (defn calculate-appeal-bond-fee
-  "Calculate the SEW protocol fee deducted from an appeal bond."
+  "Calculate the Sew protocol fee deducted from an appeal bond."
   [amount fee-bps]
   (payoffs/calculate-net-after-bps-fee amount fee-bps))
 
 (defn calculate-challenge-bond-amount
-  "Calculate the required SEW challenge bond amount.
+  "Calculate the required Sew challenge bond amount.
 
    Priority:
    1. :challenge-bond-bps > 0 => bps of amount-after-fee
@@ -71,14 +71,14 @@
     :else 0))
 
 (defn calculate-bounty
-  "Calculate the SEW challenge bounty from a slash amount."
+  "Calculate the Sew challenge bounty from a slash amount."
   [slash-amount bounty-bps]
   (if (pos? bounty-bps)
     (payoffs/calculate-bps-amount slash-amount bounty-bps)
     0))
 
 (defn calculate-slashing-distribution
-  "Calculate SEW distribution for slashed funds with optional governance overrides."
+  "Calculate Sew distribution for slashed funds with optional governance overrides."
   ([amount bounty]
    (calculate-slashing-distribution amount bounty nil))
   ([amount bounty {:keys [insurance-cut-bps protocol-retained-bps]
@@ -112,7 +112,7 @@
 (defn calculate-sew-slash-allocation
   "Allocate a Sew slash amount across liable parties.
 
-   SEW defaults:
+   Sew defaults:
    - weight/basis: :slashable-stake
    - cap: :available-slashable
    - unmet policy: :record-only
@@ -181,7 +181,7 @@
          :total-basis total-basis
          :recovered-total (:allocated-total generic)
          :unmet-total (reduce + 0 (map :unmet allocations))
-         ;; Presentation order remains SEW's supplied liable-party order. The
+         ;; Presentation order remains Sew's supplied liable-party order. The
          ;; complete canonical mechanism witness is retained separately.
          :mechanism/evidence mechanism-evidence
          :mechanism/evidence-reference (pro-rata-evidence/evidence-reference mechanism-evidence)

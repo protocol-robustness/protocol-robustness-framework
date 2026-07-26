@@ -40,7 +40,7 @@
    Uses Long/parseLong for exact integer parsing — avoids Double/parseDouble
    which loses precision for uint256-scale values (> 2^53).
    Logs a warning on unparseable input — 0 return is ambiguous but safe
-   (0 is a valid workflow-id in the SEW domain)."
+   (0 is a valid workflow-id in the Sew domain)."
   [x]
   (cond
     (number? x) (long x)

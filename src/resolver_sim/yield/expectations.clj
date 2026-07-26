@@ -43,7 +43,7 @@
   [world]
   (let [transfers (:escrow-transfers world)
         positions (:yield/positions world)
-        ;; Check for SEW escrows if they exist
+        ;; Check for Sew escrows if they exist
         escrows-done? (if (seq transfers)
                         (let [terminal-states #{:none :released :refunded :resolved}]
                           (every? #(contains? terminal-states (:escrow-state (val %))) transfers))

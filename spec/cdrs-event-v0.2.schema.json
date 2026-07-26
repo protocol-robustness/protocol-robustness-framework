@@ -72,7 +72,7 @@
         },
         "state_changed" : {
           "type" : "boolean",
-          "description" : "Whether the world state changed. Equal to accepted for all SEW actions."
+          "description" : "Whether the world state changed. Equal to accepted for all Sew actions."
         },
         "reverted" : {
           "type" : "boolean",

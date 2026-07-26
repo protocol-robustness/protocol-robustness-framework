@@ -281,7 +281,7 @@ core-deps-str (pr-str
     (flush)))
 
 (defn aot-sew
-  "AOT-compile SEW protocol source dirs only (protocols_src, then src)
+  "AOT-compile Sew protocol source dirs only (protocols_src, then src)
    for faster test startup.  Writes .class files to target/classes.
    
    Uses separate passes so a failure in src (deeper deps) doesn't
@@ -293,7 +293,7 @@ core-deps-str (pr-str
                                   :aliases [:test :with-sew]})
         class-dir "target/classes"]
     (.mkdirs (java.io.File. class-dir))
-    (println "\n=== AOT compile SEW protocol sources ===")
+    (println "\n=== AOT compile Sew protocol sources ===")
     (doseq [src-dir ["protocols_src" "src"]]
       (let [d (java.io.File. src-dir)]
         (when (.exists d)

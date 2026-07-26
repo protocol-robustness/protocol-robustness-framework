@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.config
-  "Centralized configuration for SEW protocol parameters.
+  "Centralized configuration for Sew protocol parameters.
 
    All hardcoded numerical parameters should be defined here
    rather than duplicated across source, simulation, and test files."

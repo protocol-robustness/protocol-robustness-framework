@@ -5,12 +5,12 @@
    as plain data. Returns validation result maps.
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
-     - resolver-sim.protocols.sew       (SEW protocol adapter)
-     - any form under protocols_src/    (SEW-only source path)
-     - benchmarks/packs/sew/            (SEW benchmark pack)
+     - resolver-sim.protocols.sew       (Sew protocol adapter)
+     - any form under protocols_src/    (Sew-only source path)
+     - benchmarks/packs/sew/            (Sew benchmark pack)
 
    Protocol-independence is enforced by having zero :require entries for
-   SEW namespaces. All dependencies are core Clojure or resolver-sim.core.
+   Sew namespaces. All dependencies are core Clojure or resolver-sim.core.
    The portability test in test/resolver_sim/assurance/ verifies this.")
 
 (def force-authorisation-scope-domain
@@ -35,7 +35,7 @@
 
 ;; ── Normalization ──────────────────────────────────────────────────────────
 ;; Force-authorisation data may arrive from JSON (string keys), from
-;; test fixtures (keyword keys), or from the SEW protocol (namespaced
+;; test fixtures (keyword keys), or from the Sew protocol (namespaced
 ;; keywords). These normalization functions coerce to canonical form.
 
 (defn- coerce-long
@@ -170,7 +170,7 @@
 
    This is the protocol-independent extraction of
    protocols_src/.../accounting.clj's ensure-force-authorisation-usable!,
-   refactored to accept data maps instead of reading from a SEW world."
+   refactored to accept data maps instead of reading from a Sew world."
   [record consumption-registry scope-map now-ts]
   (let [errors (cond-> []
                  (nil? record)

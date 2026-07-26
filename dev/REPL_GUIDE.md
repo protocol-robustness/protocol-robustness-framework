@@ -618,7 +618,7 @@ If you see `Syntax error compiling at (resolver_sim/monitoring/dashboard.clj:1:1
  :ordering-policy :input-order}            ; or :weight-desc
 ```
 
-### SEW Slash Input
+### Sew Slash Input
 ```clojure
 {:slash-amount Number
  :liable-parties [{:id Keyword

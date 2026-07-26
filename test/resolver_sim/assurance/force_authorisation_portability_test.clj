@@ -27,7 +27,7 @@
     (is (not (fa-ev/valid-scope? (dissoc valid-scope :token))))
     (is (not (fa-ev/valid-scope? (dissoc valid-scope :amount)))))
 
-  (testing "Authorisation usable check works on data maps (not SEW world)"
+  (testing "Authorisation usable check works on data maps (not Sew world)"
     (let [record {:authorization/status :active
                   :authorization/id "fa-0"
                   :authorization/scope-hash (fa/force-authorisation-scope-hash valid-scope)

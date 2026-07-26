@@ -52,7 +52,7 @@
 
    Protocols must implement DisputeProtocol (build-execution-context).
 
-   One-arg and two-arg arities default to SEW for backward compatibility.
+   One-arg and two-arg arities default to Sew for backward compatibility.
    Prefer the three-arg arity: (build-context protocol agents params)."
   ([agents params]
    (build-context (preg/get-protocol "sew-v1") agents params))

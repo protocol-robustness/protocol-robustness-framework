@@ -162,7 +162,7 @@
                                      [(second (:row/id row)) (:allocated row)])
                                    (:rows mechanism)))
         by-presentation (into {} (map (juxt :id :paid) (:allocations presentation)))]
-    ;; Mechanism order is canonical, while the public SEW presentation retains
+    ;; Mechanism order is canonical, while the public Sew presentation retains
     ;; the supplied liable-party order.
     (is (= [[:sew-slash-row :resolver-a]
             [:sew-slash-row :resolver-b]

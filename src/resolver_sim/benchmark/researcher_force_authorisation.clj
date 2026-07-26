@@ -8,7 +8,7 @@
      - A particular authorisation is a review-round artifact that references
        the model policy and supplies the target, approvals and dissents.
    
-   This does NOT call the SEW protocol force-authorisation — it is a
+   This does NOT call the Sew protocol force-authorisation — it is a
    package-level abstraction at the research benchmark layer."
   (:require [clojure.set]))
 

@@ -20,7 +20,7 @@
 (defn compute-yield-metrics
   "Extract numeric yield metrics from the final trace snapshot.
 
-   Supports either :workflow-id (legacy SEW) or :owner-id (general).
+   Supports either :workflow-id (legacy Sew) or :owner-id (general).
    All amounts are integer base units."
   [result & {:keys [workflow-id owner-id]}]
   (let [trace      (:trace result)

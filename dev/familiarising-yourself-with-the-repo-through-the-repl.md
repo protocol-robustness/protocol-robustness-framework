@@ -65,12 +65,12 @@ To view interesting metrics on test run times:
 (sort-by :duration test-times)
 ```
 
-### SEW Protocol References
+### Sew Protocol References
 
-To find references to the SEW protocol:
+To find references to the Sew protocol:
 
 ```clojure
-;; Search for SEW protocol references
+;; Search for Sew protocol references
 (require '[resolver-sim.protocol.sew :as sew-protocol])
 (sew-protocol/find-sew-references)
 ```

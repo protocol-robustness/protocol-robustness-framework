@@ -56,7 +56,7 @@
       (is (= #{"buyer" "seller" "resolver"} (set (keys (:agent-index ctx))))))))
 
 (deftest build-context-dispatches-to-given-protocol
-  (testing "3-arg arity dispatches to the given protocol, not SEW"
+  (testing "3-arg arity dispatches to the given protocol, not Sew"
     (let [sew-ctx   (replay/build-context sew-protocol agents params)
           dummy-ctx (replay/build-context dummy-protocol agents params)
           yield-ctx (replay/build-context yield-protocol agents params)]

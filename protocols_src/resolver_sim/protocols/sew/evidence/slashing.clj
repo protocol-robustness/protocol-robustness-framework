@@ -62,7 +62,7 @@ tunneling."
    from basis and total basis by an evaluator when needed."
   [result]
   (-> result
-      ;; Legacy projection claims compare SEW presentation facts only. The
+      ;; Legacy projection claims compare Sew presentation facts only. The
       ;; complete generic witness is referenced by the domain result but is
       ;; deliberately validated through mechanism evidence, not reconstructed
       ;; by projection artifacts.
@@ -107,7 +107,7 @@ tunneling."
      :claims/evaluation-context true}))
 
 (defn legacy-projection-claim-ids
-  "Claim IDs that can be evaluated from the legacy SEW projection evidence.
+  "Claim IDs that can be evaluated from the legacy Sew projection evidence.
    Witness-backed claims run only against mechanism-result evidence."
   []
   (vec (remove #{:pro-rata/cap-respecting

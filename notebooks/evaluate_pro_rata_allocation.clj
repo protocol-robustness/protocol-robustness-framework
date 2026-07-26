@@ -2,7 +2,7 @@
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.evaluate-pro-rata-allocation
   "Pro-Rata Evaluation API — self-contained allocation with content-addressed verification.
-   No SEW protocol dependency. Pure evaluation pipeline."
+   No Sew protocol dependency. Pure evaluation pipeline."
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.economics.payoffs :as payoffs]

@@ -263,7 +263,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:with-sew" "-m" "scripts.test-notebooks")}
 
    test:quick-sew
-   {:doc "Fast SEW confidence check in a single JVM with noop capture.
+   {:doc "Fast Sew confidence check in a single JVM with noop capture.
           Consolidates framework + dispute-resolution + evidence into one
           parallel-runner call.  Replaces 3 separate JVMs (~42s saved)."
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m"

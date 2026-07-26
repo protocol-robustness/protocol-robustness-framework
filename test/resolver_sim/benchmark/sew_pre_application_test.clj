@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.sew-pre-application-test
-  "Pre-application tests at the SEW protocol / benchmark boundary.
+  "Pre-application tests at the Sew protocol / benchmark boundary.
    
    Verifies that the benchmark runner checks preconditions before
    dispatching scenarios to the Sew replay engine. These tests
@@ -436,7 +436,7 @@
 
 (deftest protocol-pre-conditions-sew-known
   (let [adapter (protocols/get-protocol "sew-v1")]
-    (is (some? adapter) "SEW protocol adapter should be available")))
+    (is (some? adapter) "Sew protocol adapter should be available")))
 
 (deftest protocol-pre-conditions-reject-unknown-protocol
   (let [adapter (protocols/get-protocol "unknown-v99")]

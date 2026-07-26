@@ -19,7 +19,7 @@ generic allocation
 ```
 
 This document describes the allocation-bound shared-withdrawal contract used by
-new canonical evidence. It also records the distinct, presentation-only SEW
+new canonical evidence. It also records the distinct, presentation-only Sew
 pro-rata slash adapter boundary.
 
 ## Mechanism request and result
@@ -206,7 +206,7 @@ application validates committed state change
 accounting validates financial implementation of committed propagation policy
 ```
 
-## SEW pro-rata slash adapter
+## Sew pro-rata slash adapter
 
 Sew slash allocation consumes the same public allocation API:
 
@@ -214,19 +214,19 @@ Sew slash allocation consumes the same public allocation API:
 liable parties
 → generic canonical mechanism rows
 → pro-rata allocation result/envelope
-→ historical SEW presentation allocation
+→ historical Sew presentation allocation
 ```
 
-Canonical mechanism row order can differ from SEW's historical liable-party
+Canonical mechanism row order can differ from Sew's historical liable-party
 presentation order. The adapter preserves resolver-to-allocation ownership while
 retaining the complete envelope/reference.
 
-Legacy SEW projection artifacts and claims remain projection-scoped. They do not
+Legacy Sew projection artifacts and claims remain projection-scoped. They do not
 prove the complete mechanism witness properties unless that witness envelope is
 present. In particular, do not infer cap, quota, canonical remainder, or
 round-trace validation from legacy projection evidence alone.
 
-SEW currently demonstrates deterministic pro-rata slash allocation and evidence
+Sew currently demonstrates deterministic pro-rata slash allocation and evidence
 translation. It does **not** implement authoritative Sew slash propagation,
 stake debits, slash destination credits, unmet slash lifecycle state, or
 state mutation.

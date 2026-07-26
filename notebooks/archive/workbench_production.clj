@@ -74,5 +74,5 @@
     
     ;; 2. Footer
     [:div {:style {:marginTop "80px" :paddingTop "40px" :borderTop "1px solid #004D59" :display "flex" :justifyContent "space-between" :fontSize "11px" :color "#004D59" :fontWeight 800}}
-     [:div "© 2026 SEW PROTOCOL FOUNDATION"]
+     [:div "© 2026 Sew PROTOCOL FOUNDATION"]
      [:div (str "EVIDENCE_BUNDLE: " (or (:run_id summary) (:run-id config/protocol-defaults)))]]]))

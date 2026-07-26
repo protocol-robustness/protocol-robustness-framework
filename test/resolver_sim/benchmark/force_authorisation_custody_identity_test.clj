@@ -1,7 +1,7 @@
 (ns resolver-sim.benchmark.force-authorisation-custody-identity-test
   "Canonical benchmark identity regression tests.
    Verifies that every persisted definition and registry artifact uses the
-   PRF-owned benchmark identity, not the legacy SEW-pack identity."
+   PRF-owned benchmark identity, not the legacy Sew-pack identity."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]))

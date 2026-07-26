@@ -181,7 +181,7 @@ db-setup: xtdb
 	bb db:setup
 
 # ---------------------------------------------------------------------------
-# SEW test runners (quick wins — single JVM, noop evidence capture)
+# Sew test runners (quick wins — single JVM, noop evidence capture)
 # ---------------------------------------------------------------------------
 
 SEW_NS := resolver-sim.protocols.sew

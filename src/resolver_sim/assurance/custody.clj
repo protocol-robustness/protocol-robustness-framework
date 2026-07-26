@@ -1,7 +1,7 @@
 (ns resolver-sim.assurance.custody
   "Protocol-independent closed-form validation for held-custody artifacts.
 
-   Accepts artifact maps, returns check results. No SEW world-state dependency.
+   Accepts artifact maps, returns check results. No Sew world-state dependency.
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
      - resolver-sim.protocols.sew

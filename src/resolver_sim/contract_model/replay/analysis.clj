@@ -67,7 +67,7 @@
 
 (defn- merge-metrics-for-profile
   [result scenario flags]
-  (case (:metrics-profile flags :sew-integrated)  ; Default is SEW-integrated
+  (case (:metrics-profile flags :sew-integrated)  ; Default is Sew-integrated
     :base result
     :yield-provider (-> result
                         (yield-metrics/merge-yield-metrics)

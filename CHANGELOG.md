@@ -4,9 +4,9 @@
 
 ### Added
 
-- **Force-authorisation custody benchmark moved from SEW pack to PRF core:** Canonical definition at `benchmarks/packs/prf-core/force-authorisation-custody-v1.edn` with ID `:benchmark/force-authorisation-custody-v1`. SEW pack retains a registry-level alias. Suite-provider metadata (`:benchmark/suite-provider`) identifies Sew as implementation provider. (`benchmarks/packs/prf-core/force-authorisation-custody-v1.edn`, `benchmarks/packs/prf-core/registry.edn`)
+- **Force-authorisation custody benchmark moved from Sew pack to PRF core:** Canonical definition at `benchmarks/packs/prf-core/force-authorisation-custody-v1.edn` with ID `:benchmark/force-authorisation-custody-v1`. Sew pack retains a registry-level alias. Suite-provider metadata (`:benchmark/suite-provider`) identifies Sew as implementation provider. (`benchmarks/packs/prf-core/force-authorisation-custody-v1.edn`, `benchmarks/packs/prf-core/registry.edn`)
 
-- **Protocol-independent force-authorisation validation:** `verify-authorisation-usable`, `verify-authorisation-lifecycle-consistency`, `force-authorisation-scope-hash`, `scope-hash-mismatch?` moved from SEW `accounting.clj` to `src/resolver_sim/assurance/force_authorisation.clj`. Zero SEW dependencies. (`src/resolver_sim/assurance/force_authorisation.clj`)
+- **Protocol-independent force-authorisation validation:** `verify-authorisation-usable`, `verify-authorisation-lifecycle-consistency`, `force-authorisation-scope-hash`, `scope-hash-mismatch?` moved from Sew `accounting.clj` to `src/resolver_sim/assurance/force_authorisation.clj`. Zero Sew dependencies. (`src/resolver_sim/assurance/force_authorisation.clj`)
 
 - **Generic force-authorisation concept vocabulary and claims:** `data/concepts/security/force_authorisation.edn` provides 9 vocabulary terms, 3 roles, 5 failure modes, 5 metrics. `data/claims/force_authorisation_claims.edn` provides 5 protocol-independent claim definitions (scope-enforced, single-use, expiry-enforced, evidence-linkage, custody-isolation). (`data/concepts/security/force_authorisation.edn`, `data/claims/force_authorisation_claims.edn`)
 
@@ -34,7 +34,7 @@
 
 - **Partial-fill benchmark evidence pack:** Six-level application evidence ladder (`:allocation-calculated`, `:application-claimed`, `:accounting-emitted`, `:state-written-back`, `:continuity-consumed`, `:outcome-committed`), `derive-state-write-back` from existing artifacts (no yield code modification), `collect-application-refs`, `collect-propagation-refs`, `semantic-commitments`, `derive-continuity-evidence`, `evaluate-operational`, `evaluate-incentives`, `normalise-decision-outcome`. (`src/resolver_sim/benchmark/packs/partial_fill/evidence.clj`, `src/resolver_sim/benchmark/packs/partial_fill/outcome.clj`)
 
-- **181 benchmark-layer tests:** 9 test namespaces covering registry entry, review round, outcome manifest, run report, position, certificate, force-authorisation, partial-fill evidence, cross-artifact integration, and SEW pre-application. All passing with 331 assertions. (`test/resolver_sim/benchmark/`)
+- **181 benchmark-layer tests:** 9 test namespaces covering registry entry, review round, outcome manifest, run report, position, certificate, force-authorisation, partial-fill evidence, cross-artifact integration, and Sew pre-application. All passing with 331 assertions. (`test/resolver_sim/benchmark/`)
 
 ### Fixed
 
@@ -898,7 +898,7 @@ runtime mechanism selection or a mechanism registry.
 - **`bb run:scenario:suite` now loads `protocols_src/`:** Changed `-M:run` to `-M:run:with-sew` — all registered suites (`dispute-resolution-scenarios`, `sew-yield-scenarios`, `yield-provider-scenarios`) require Sew protocol namespaces.
 
 ### Added (2026-06-26)
-- **Generic stake ledger:** Added `resolver-sim.stake.ledger` — entity-ID-generic stake ledger with bond, slash, release, top-up operations, `with-fresh-ledger` test isolation, evidence capture via `attr/with-attribution`, and batch `apply-stake-actions`. Reusable by both SEW protocol and attestor accountability system. 22 tests.
+- **Generic stake ledger:** Added `resolver-sim.stake.ledger` — entity-ID-generic stake ledger with bond, slash, release, top-up operations, `with-fresh-ledger` test isolation, evidence capture via `attr/with-attribution`, and batch `apply-stake-actions`. Reusable by both Sew protocol and attestor accountability system. 22 tests.
 - **Attestor Accountability V1 — Violation case management, decision engine, stake ledger integration:** Added `resolver-sim.evidence.attestor-accountability` implementing ATTESTOR_ACCOUNTABILITY_SPEC_V1. Three-layer model: 6 objective slashable violation definitions with required evidence/checks, violation case management (open, attach evidence, 5-state status machine), deterministic check pipeline (8 checks including attestation-integrity, registry-at-time, same-scope-conflict), decision engine with 5 outcomes (exonerate, suspend-only, suspend-and-slash, slash-only, finalize-retirement), and finalization that applies decisions to the stake ledger and attestor registry. 16 tests.
 - **Attestor state extensions for accountability:** Extended `known-attestor-statuses` in `passive_registries.clj` with `:candidate`, `:suspended`, `:slashed` to support attestor lifecycle states.
 - **Attestor registry validation for new states:** Attestor delegate and key-history status validation now accepts `:candidate`, `:suspended`, `:slashed` in addition to `:active`, `:revoked`, `:retired`.

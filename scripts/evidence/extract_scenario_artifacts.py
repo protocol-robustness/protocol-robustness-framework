@@ -207,7 +207,7 @@ def extract_metrics(replay: dict, replay_path: pathlib.Path) -> dict:
 def _workflow_token_map(world: dict) -> dict:
     """Infer settlement token by workflow from custody records.
 
-    Generic SEW claimables are keyed by workflow and recipient, while token is
+    Generic Sew claimables are keyed by workflow and recipient, while token is
     recorded in the corresponding held-custody adjustment or claimable-v2
     settlement domain. This joins those normalized state projections without
     guessing a token from an amount.
@@ -229,7 +229,7 @@ def _extract_claimable_from_world(world: dict) -> list:
     workflow_tokens = _workflow_token_map(world)
     claimable_v2 = world.get("claimable-v2", {})
 
-    # Generic SEW claimables: workflow -> recipient -> amount.
+    # Generic Sew claimables: workflow -> recipient -> amount.
     claimable = world.get("claimable", {})
     if isinstance(claimable, dict):
         for workflow_id, recipients in claimable.items():
