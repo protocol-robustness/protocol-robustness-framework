@@ -157,6 +157,28 @@ A related-claims grant contains an authorized set of member scope hashes. Each s
 
 The force-authorisation lifecycle invariant checks persisted grants, consumption entries, and held-adjustment linkage. The related-claims scope invariant additionally checks relationship existence, activity, hash consistency, and membership bounds.
 
+## Custody at settlement deadline
+
+When a pending settlement reaches its appeal deadline, `execute_pending_settlement` triggers terminal custody finalization:
+
+1. `resolution.clj:execute-pending-settlement` calls `lifecycle.clj:finalize` with `:released` or `:refunded`
+2. `finalize` records the terminal held adjustment via `accounting.clj:adjust-held`
+3. This appends the adjustment, builds the custody artifact, and updates the ledger index
+4. The resulting adjustments, artifacts, ledger views, and total-held are preserved in world state
+
+After execution, the custody state is verifiable through existing PRF-core primitives:
+
+| Step | Core function | What it produces |
+|---|---|---|
+| Replay | `assurance/custody/replay-held-adjustment-state` | Reconstructed ledger from adjustments |
+| Summary | `assurance/custody/final-held-summary` | Token/workflow totals |
+| Artifacts | `assurance/custody/rebuild-held-custody-artifacts` | Content-addressed artifact map |
+| Verification | `assurance/custody/held-custody-closed-form-checks` | Hash, delta, non-negative, predecessor, sequence checks |
+
+When the settlement uses force-authorisation, `assurance/force_authorisation/verify-authorisation-usable` validates the authorisation scope against the resulting custody movement, and `evidence/force_authorisation/valid-envelope?` verifies evidence ordering.
+
+See `SEW_CUSTODY_EXPOSURE_V1.md` in the EF review packet for the complete evidence profile and reviewable claims.
+
 ## Evidence and review boundaries
 
 Held custody artifacts are content-addressed and chain to the preceding artifact hash. Force-authorised held adjustments preserve authorization provenance needed to relate the custody movement to its grant.

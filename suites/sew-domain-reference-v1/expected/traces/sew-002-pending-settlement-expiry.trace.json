@@ -1,5 +1,7 @@
-{"description":"Generated trace: ",
+{"description":
+ "Generated trace: s57-pending-settlement-expiry-boundary-1s",
  "fee_bps":150,
+ "max_dispute_duration":2592000,
  "schema_version":"2",
  "resolutions":
  {"wf0":
@@ -176,7 +178,10 @@
    "within_settlement_window":true,
    "pending_delay_seconds":60}},
  "trace_kind":["dispute-resolution", "pending-settlement"],
+ "terminal_projection_hash":
+ "a20f32e0bdf481503ef3803dd0a89f2d50f574707351a784a0b1f2a29a637210",
+ "appeal_window_duration":60,
  "step_count":6,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s57-pending-settlement-expiry-boundary-1s"}

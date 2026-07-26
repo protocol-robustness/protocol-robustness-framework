@@ -66,11 +66,49 @@ The `not-verified` status can be upgraded to a hard failure through verification
 
 These flags are available on ``bb forensic:verify``. For the Sew forensic pipeline, ``--require-protocol-semantics`` is expected to be the default in production profiles.
 
+#### Policy-precedence table
+
+| Bundle state | Default | ``--require-protocol-semantics`` | ``--expected-protocol`` (mismatch) | Both flags |
+|---|---|---|---|---|
+| Valid, supported, validator passes | pass | pass | depends on identity match | identity match + pass |
+| Valid, supported, validator fails | fail | fail | identity match + fail | identity match + fail |
+| Valid, supported, validator errors | fail | fail | identity match + fail | identity match + fail |
+| Valid, unknown protocol | not-verified | **fail** | identity match still not-verified * | fail (require upgrades) |
+| Descriptor absent (legacy) | not-verified | **fail** | identity mismatch **fail** | fail |
+| Descriptor malformed | fail | fail | identity mismatch **fail** | fail |
+| Expected-protocol mismatch | fail | fail | identity mismatch **fail** | fail |
+
+\* ``--expected-protocol`` matching an unknown protocol does **not** auto-upgrade the result to ``pass``. The identity cross-check passes but version remains ``not-verified`` because no validator is registered. ``--require-protocol-semantics`` is needed to upgrade to fail.
+
+### Protocol identity grammar
+
+The protocol descriptor follows a strict canonical grammar:
+
+```
+<name>-v<N>
+  where:
+    <name> = [a-z][a-z0-9]*    # lowercase, single token, no hyphens/underscores
+    <N>    = [1-9][0-9]*       # positive integer, no leading zero, string-encoded
+```
+
+Examples: ``sew-v1``, ``yield-v1``, ``yield-v2``.
+
+This grammar deliberately excludes hyphens in the name segment to avoid ambiguous splitting when parsing ``<name>-v<N>``. Compound protocol identifiers (e.g. ``partial-fill-v1``) would require a different delimiter convention. The version is always emitted as a string by the Clojure producer, never as an integer, so that cross-language consumers compare by string equality (``"1" == "1"``, not ``1 == "1"``).
+
 ### Protocol identity is cryptographically committed
 
 The `:protocol` descriptor is included in the bundle root's self-referential hash computation (it is not in the ``_SIGN_EXCLUDE_KEYS`` set). Modifying the protocol identity after finalization breaks the bundle hash and (when present) the Ed25519 signature, providing cryptographic integrity for the dispatch decision.
 
-However, the protocol descriptor is **self-declared** by the bundle producer. A validly signed bundle could declare an unknown protocol and thereby avoid Sew semantic checks. The hash proves the identity declaration was not tampered after finalization; it does not prove that the declared identity is the expected one. Use ``--expected-protocol`` to supply an independently committed expectation.
+The trustworthy verification sequence is:
+
+1. Verify bundle root commitment and Ed25519 signature (structural integrity)
+2. Read the committed `:protocol` descriptor
+3. Compare with `--expected-protocol` (if supplied) — detects identity mismatch
+4. Dispatch to the registered protocol-semantic validator
+
+**Step 3 (`--expected-protocol`) does not authenticate the declaration.** It establishes agreement between an external verifier expectation and the bundle's self-declared identity. A validly signed bundle could declare an unknown protocol and thereby avoid Sew semantic checks. The hash proves the identity declaration was not tampered after finalization; it does not prove that the declared identity is the expected one. Use ``--expected-protocol`` to supply an independently committed expectation (from the run plan, benchmark definition, or verification profile).
+
+**`--expected-protocol` matching does not imply that a validator exists.** If the bundle declares ``unknown-protocol/1`` and `--expected-protocol unknown-protocol/1` is supplied, the identity cross-check passes but the semantic result remains ``not-verified`` — no validator is registered for that protocol.
 
 ### Sew protocol validator (`validate_sew.py`)
 
@@ -91,13 +129,29 @@ The Sew validator runs as part of the standard `bb forensic:verify` pipeline via
 
 The dispatcher validates that a registered protocol validator returns a well-formed report:
 
+**Top-level contract**
+
+Protocol-specific report fields are protocol-qualified (e.g. ``sew/status``, ``sew/checks``). The dispatcher owns generic aggregate fields (``validate/schema-version``, ``validate/status``, ``validate/protocol``) and exit-code interpretation. Individual check records use the dispatcher-standard fields:
+
+```json
+{
+  "check": "identifier-string",
+  "status": "pass|fail|warn|skip|not-verified",
+  "message": "human-readable",
+  "details": []  // optional structured violations
+}
+```
+
+**Enforcement**
+
 | Condition | Behaviour |
 |---|---|
 | Validator returns a non-dict | Error — not silently upgraded to `not-verified` |
-| Validator returns missing namespace-qualified keys | Error |
+| Validator returns report with no protocol-qualified keys (e.g. no ``sew/`` or ``validate/`` prefix) | Error |
 | Validator returns unrecognised status | Error |
 | Validator raises an exception | Error — the exception is not mistaken for unavailable assurance |
-| Validator returns malformed individual check entries | Per-check error reported |
+| Validator returns check entry with missing ``check`` field | Per-check error reported |
+| Validator returns check entry with unrecognised status | Per-check error reported |
 
 These checks prevent implementation defects from being misclassified as `not-verified` (unavailable assurance).
 

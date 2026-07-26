@@ -101,3 +101,81 @@
   (is (rp/valid-dimension-status? :publication :do-not-publish))
   (is (not (rp/valid-dimension-status? :model-authority :omitted)))
   (is (not (rp/valid-dimension-status? :reproduction :adequate))))
+
+;; ── Theorem/conclusion targeting ──────────────────────────────────────────
+
+(deftest build-position-with-theorem-targets
+  (let [pos (rp/build-position
+             {:benchmark/content-root "sha256:content"
+              :researcher/id "researcher-a"
+              :outcome-hash "sha256:outcome"
+              :dimensions {:publication {:status :publish}}
+              :position/targets
+              [{:kind :theorem
+                :id :theorem/incentive-compatibility
+                :hash "sha256:th1"
+                :status :qualified
+                :rationale "Supported for unilateral, not for coalition."}
+               {:kind :theorem
+                :id :theorem/quota-bounded
+                :hash "sha256:th2"
+                :status :reproduced}]})]
+    (is (rp/position-valid? pos))
+    (is (some? (:position/hash pos)))
+    (let [targets (rp/position-targets pos)]
+      (is (= 2 (count targets)))
+      (is (= :theorem (get-in (first targets) [:kind])))
+      (is (= :theorem/incentive-compatibility (get-in (first targets) [:id]))))
+    (is (= :qualified (rp/target-status pos :theorem :theorem/incentive-compatibility)))
+    (is (= :reproduced (rp/target-status pos :theorem :theorem/quota-bounded)))))
+
+(deftest build-position-with-conclusion-targets
+  (let [pos (rp/build-position
+             {:benchmark/content-root "sha256:content"
+              :researcher/id "researcher-a"
+              :outcome-hash "sha256:outcome"
+              :dimensions {:publication {:status :publish}}
+              :position/targets
+              [{:kind :conclusion
+                :id :conclusion/partial-fill-correctness
+                :hash "sha256:c1"
+                :status :supported}]})]
+    (is (rp/position-valid? pos))
+    (is (= :supported (rp/target-status pos :conclusion :conclusion/partial-fill-correctness)))))
+
+(deftest build-position-rejects-invalid-target-kind
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Invalid target kind"
+        (rp/build-position
+         {:benchmark/content-root "sha256:content"
+          :researcher/id "researcher-a"
+          :outcome-hash "sha256:outcome"
+          :dimensions {:publication {:status :publish}}
+          :position/targets
+          [{:kind :bogus :id :x :hash "sha256:x" :status :reproduced}]}))))
+
+(deftest build-position-rejects-invalid-target-status
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Invalid target status"
+        (rp/build-position
+         {:benchmark/content-root "sha256:content"
+          :researcher/id "researcher-a"
+          :outcome-hash "sha256:outcome"
+          :dimensions {:publication {:status :publish}}
+          :position/targets
+          [{:kind :theorem :id :t :hash "sha256:t" :status :bogus}]}))))
+
+(deftest find-target-returns-nil-for-nonexistent
+  (let [pos (rp/build-position
+             {:benchmark/content-root "sha256:content"
+              :researcher/id "researcher-a"
+              :outcome-hash "sha256:outcome"
+              :dimensions {:publication {:status :publish}}})]
+    (is (nil? (rp/find-target pos :theorem :nonexistent)))
+    (is (nil? (rp/target-status pos :theorem :nonexistent)))))
+
+(deftest position-without-targets-returns-empty
+  (let [pos (rp/build-position
+             {:benchmark/content-root "sha256:content"
+              :researcher/id "researcher-a"
+              :outcome-hash "sha256:outcome"
+              :dimensions {:publication {:status :publish}}})]
+    (is (empty? (rp/position-targets pos)))))

@@ -23,13 +23,15 @@ if [ -e "$OUTPUT_DIR" ] && [ -n "$(find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 -p
   exit 2
 fi
 
-mkdir -p "$OUTPUT_DIR"/{bin,docs,inputs/scenarios,inputs/benchmarks,inputs/test-vectors/pro-rata,evidence,diagnostics}
+mkdir -p "$OUTPUT_DIR"/{bin,docs/specs,inputs/scenarios,inputs/benchmarks,inputs/test-vectors/pro-rata,evidence,diagnostics}
 cp "$JAR" "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar"
 cp "$PROJECT_DIR/scripts/verify-ef-review-packet.sh" "$OUTPUT_DIR/bin/verify-review-packet.sh"
 chmod +x "$OUTPUT_DIR/bin/verify-review-packet.sh"
 cp "$PROJECT_DIR/docs/review/EF_REVIEW_GUIDE.md" "$OUTPUT_DIR/docs/REVIEW_GUIDE.md"
 cp "$PROJECT_DIR/docs/review/SCENARIO_REVIEW_HIGHLIGHTS.md" "$OUTPUT_DIR/docs/SCENARIO_REVIEW_HIGHLIGHTS.md"
 cp "$PROJECT_DIR/docs/benchmarks/BENCHMARK_ASSURANCE_SPEC_V1.md" "$OUTPUT_DIR/docs/BENCHMARK_ASSURANCE_SPEC_V1.md"
+cp "$PROJECT_DIR/docs/specs/SEW_CUSTODY_EXPOSURE_V1.md" \
+   "$OUTPUT_DIR/docs/specs/SEW_CUSTODY_EXPOSURE_V1.md"
 
 for scenario in \
   S-DR-001-basic-release-ruling.edn \
@@ -104,6 +106,7 @@ JAR_SHA256="$(sha256sum "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" | awk '{
 REJECTED_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn" | awk '{print $1}')"
 PRO_RATA_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn" | awk '{print $1}')"
 FAILURE_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn" | awk '{print $1}')"
+CUSTODY_EXPOSURE_SPEC_SHA256="$(sha256sum "$OUTPUT_DIR/docs/specs/SEW_CUSTODY_EXPOSURE_V1.md" | awk '{print $1}')"
 BENCHMARK_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/benchmarks/force-authorisation-custody-v1.edn" | awk '{print $1}')"
 PRO_RATA_INSUFFICIENT_VECTOR_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json" | awk '{print $1}')"
 PRO_RATA_DUST_VECTOR_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json" | awk '{print $1}')"
@@ -116,6 +119,15 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
     "sha256": "sha256:$JAR_SHA256"
   },
   "provenance_ref": "PROVENANCE.txt",
+  "evidence_profiles": [
+    {
+      "id": "sew-custody-exposure.v1",
+      "path": "docs/specs/SEW_CUSTODY_EXPOSURE_V1.md",
+      "sha256": "sha256:$CUSTODY_EXPOSURE_SPEC_SHA256",
+      "role": "custody-at-settlement-deadline evidence profile",
+      "instantiated_by": "benchmark-force-authorisation"
+    }
+  ],
   "reference_vectors": [
     {
       "path": "inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json",
@@ -180,6 +192,7 @@ EOF
     inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn \
     inputs/scenarios/S-DR-001-basic-release-ruling.edn \
     inputs/benchmarks/force-authorisation-custody-v1.edn \
+    docs/specs/SEW_CUSTODY_EXPOSURE_V1.md \
     inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json \
     inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json \
     docs/REVIEW_GUIDE.md \

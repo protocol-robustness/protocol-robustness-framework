@@ -35,3 +35,55 @@
     (let [ns-requires (keys (ns-imports 'resolver-sim.economics.calculations))]
       (is (not-any? #(re-find #"protocols\.sew" (str %)) ns-requires))
       (is (not-any? #(re-find #"sew" (str %)) ns-requires)))))
+
+;; ── distribute-slashing-amount ────────────────────────────────────────────
+
+(deftest distribute-basic
+  (let [result (calc/distribute-slashing-amount 1000 {:bounty 0 :insurance-cut-bps 5000 :protocol-retained-bps 3000})]
+    (is (= {:insurance 500 :protocol 300 :retained 200} result))))
+
+(deftest distribute-with-bounty
+  (let [result (calc/distribute-slashing-amount 1000 {:bounty 100 :insurance-cut-bps 5000 :protocol-retained-bps 3000})]
+    (is (= {:insurance 450 :protocol 250 :retained 200} result))))
+
+(deftest distribute-zero-amount
+  (let [result (calc/distribute-slashing-amount 0 {:bounty 0 :insurance-cut-bps 5000 :protocol-retained-bps 3000})]
+    (is (= {:insurance 0 :protocol 0 :retained 0} result))))
+
+(deftest distribute-max-bps
+  (let [result (calc/distribute-slashing-amount 1000 {:bounty 0 :insurance-cut-bps 10000 :protocol-retained-bps 0})]
+    (is (= {:insurance 1000 :protocol 0 :retained 0} result))))
+
+(deftest distribute-invalid-negative-amount
+  (is (thrown? AssertionError (calc/distribute-slashing-amount -100 {:bounty 0 :insurance-cut-bps 5000 :protocol-retained-bps 3000}))))
+
+(deftest distribute-invalid-negative-bounty
+  (is (thrown? AssertionError (calc/distribute-slashing-amount 1000 {:bounty -1 :insurance-cut-bps 5000 :protocol-retained-bps 3000}))))
+
+(deftest distribute-invalid-negative-bps
+  (is (thrown? AssertionError (calc/distribute-slashing-amount 1000 {:bounty 0 :insurance-cut-bps -500 :protocol-retained-bps 3000}))))
+
+(deftest distribute-invalid-bps-over-10000
+  (is (thrown? AssertionError (calc/distribute-slashing-amount 1000 {:bounty 0 :insurance-cut-bps 15000 :protocol-retained-bps 3000}))))
+
+(deftest distribute-exceeds-max-total-bps
+  (is (thrown? AssertionError (calc/distribute-slashing-amount 1000 {:bounty 0 :insurance-cut-bps 8000 :protocol-retained-bps 3000}))
+      "insurance-cut-bps + protocol-retained-bps must not exceed 10000"))
+
+(deftest distribute-conservation
+  (let [result (calc/distribute-slashing-amount 10000 {:bounty 200 :insurance-cut-bps 4000 :protocol-retained-bps 3000})
+        total (+ (:insurance result) (:protocol result) (:retained result))
+        bounty-redistributed (* 2 (quot 200 2))]
+    (is (= total (- 10000 bounty-redistributed)) "insurance+protocol+retained = amount - redistributed bounty")))
+
+(deftest sew-equivalence
+  (testing "core function with Sew default parameters matches Sew implementation output"
+    (let [sew-output {:insurance 500 :protocol 300 :retained 200}
+          core-output (calc/distribute-slashing-amount 1000 {:bounty 0 :insurance-cut-bps 5000 :protocol-retained-bps 3000})]
+      (is (= sew-output core-output)))
+    (let [sew-output {:insurance 450 :protocol 250 :retained 200}
+          core-output (calc/distribute-slashing-amount 1000 {:bounty 100 :insurance-cut-bps 5000 :protocol-retained-bps 3000})]
+      (is (= sew-output core-output)))
+    (let [sew-output {:insurance 0 :protocol 0 :retained 0}
+          core-output (calc/distribute-slashing-amount 0 {:bounty 0 :insurance-cut-bps 5000 :protocol-retained-bps 3000})]
+      (is (= sew-output core-output)))))

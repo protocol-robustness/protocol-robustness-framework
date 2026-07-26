@@ -1,5 +1,7 @@
-{"description":"Generated trace: ",
+{"description":
+ "Generated trace: s65-escalation-supersedes-old-pending-then-old-path-attempt",
  "fee_bps":0,
+ "max_dispute_duration":600,
  "schema_version":"2",
  "resolutions":
  {"wf0":
@@ -207,7 +209,11 @@
    "pending_delay_seconds":245}},
  "trace_kind":
  ["dispute-resolution", "escalation", "pending-settlement"],
+ "terminal_projection_hash":
+ "e11f45b498aea148cff026f3370f4bee9c726cd11acaf235b82616ea40db1954",
+ "appeal_window_duration":120,
  "step_count":7,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":
+ "s65-escalation-supersedes-old-pending-then-old-path-attempt"}

@@ -1,6 +1,7 @@
 {"description":
  "Generated trace: s25-profit-maximizer-slash-lifecycle",
  "fee_bps":150,
+ "max_dispute_duration":600,
  "schema_version":"2",
  "resolutions":
  {"wf0":
@@ -223,6 +224,9 @@
  "trace_kind":
  ["dispute-resolution", "pending-settlement", "authorization",
   "adversarial"],
+ "terminal_projection_hash":
+ "b569e23eab5bab811eb2530f17b07896bae10ecb9cb91d7a564d284686ff7710",
+ "appeal_window_duration":120,
  "step_count":8,
  "metadata":
  {"scenario_class":"adversarial", "outcome_type":"normal-completion"},

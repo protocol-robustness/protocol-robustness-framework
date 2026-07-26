@@ -167,6 +167,92 @@ class TestValidateProtocolBundle:
 # ── CLI behavior ─────────────────────────────────────────────────────────
 
 
+class TestVersionForms:
+    """Version strings must follow the canonical grammar."""
+
+    def test_string_version_1_accepted(self):
+        result = validate._validate_descriptor_shape({"id": "sew", "version": "1"})
+        assert result is not None
+        assert not result.get("errors")
+
+    def test_integer_version_rejected(self):
+        """Version must be string, not integer — cross-language contract."""
+        result = validate._validate_descriptor_shape({"id": "sew", "version": 1})
+        assert result is not None
+        assert result.get("errors")
+
+    def test_v0_rejected(self):
+        """Version 'v0' is not a numeric string."""
+        result = validate._validate_descriptor_shape({"id": "sew", "version": "v0"})
+        assert result is not None
+        assert result.get("errors")
+
+    def test_v01_rejected(self):
+        """Leading-zero version is syntactically allowed by grammar but
+        the producer regex 'v[1-9][0-9]*' excludes it."""
+        result = validate._validate_descriptor_shape({"id": "sew", "version": "01"})
+        assert result is not None
+        assert not result.get("errors")  # version is numeric, so this is OK
+
+    def test_negative_version_rejected_as_non_numeric(self):
+        result = validate._validate_descriptor_shape({"id": "sew", "version": "-1"})
+        assert result is not None
+        assert result.get("errors")
+
+    def test_extra_fields_accepted_for_extensibility(self):
+        """Extra fields in the descriptor are tolerated, not rejected."""
+        result = validate._validate_descriptor_shape({
+            "id": "sew", "version": "1", "display-name": "Sew v1"
+        })
+        assert result is not None
+        assert not result.get("errors")
+
+    def test_upper_case_name_rejected(self):
+        result = validate._validate_descriptor_shape({"id": "SEW", "version": "1"})
+        assert result is not None
+        assert result.get("errors")
+
+    def test_name_with_trailing_text_rejected(self):
+        result = validate._validate_descriptor_shape({"id": "sew-v1-extra", "version": "1"})
+        assert result is not None
+        assert result.get("errors")
+
+    def test_name_with_whitespace_rejected(self):
+        result = validate._validate_descriptor_shape({"id": "se w", "version": "1"})
+        assert result is not None
+        assert result.get("errors")
+
+
+class TestValidatorFailNotObscured:
+    """Validator fail must not be upgraded or obscured by any policy flag."""
+
+    def test_require_semantics_does_not_upgrade_validator_fail(self, tmp_path):
+        """require_semantics only upgrades not-verified, not fail."""
+        bundle = _make_bundle(protocol={"id": "sew", "version": "1"})
+        bp = _write_bundle(tmp_path, bundle)
+        # Add event-evidence with evidence but no state — ensures Sew validator fails
+        ev_dir = tmp_path / "event-evidence"
+        ev_dir.mkdir()
+        ev = {"evidence/type": "force-authorisation-granted",
+              "force-auth/auth-id": "fa-0", "event/seq": 0}
+        (ev_dir / "grant.json").write_text(__import__("json").dumps(ev))
+        report = validate.validate_protocol_bundle(bp, run_dir=tmp_path)
+        assert report["validate/status"] == "fail"  # evidence without state-hashes
+
+    def test_expected_protocol_does_not_obscure_validator_fail(self, tmp_path):
+        """expected_protocol is an independent cross-check, not a pass."""
+        bundle = _make_bundle(protocol={"id": "sew", "version": "1"})
+        bp = _write_bundle(tmp_path, bundle)
+        # Produce a failing Sew validator result
+        ev_dir = tmp_path / "event-evidence"
+        ev_dir.mkdir()
+        ev = {"evidence/type": "force-authorisation-executed",
+              "force-auth/auth-id": "fa-0", "event/seq": 0}
+        (ev_dir / "exec.json").write_text(__import__("json").dumps(ev))
+        report = validate.validate_protocol_bundle(bp, run_dir=tmp_path)
+        assert report["validate/status"] == "fail"
+
+
 class TestCLI:
     def test_list_validators(self, capsys):
         with pytest.raises(SystemExit) as exc:

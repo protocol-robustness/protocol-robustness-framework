@@ -37,3 +37,33 @@
   ([stake] (calculate-capacity-limit stake 1.0))
   ([stake multiplier]
    (payoffs/calculate-capacity-limit stake multiplier)))
+
+(defn distribute-slashing-amount
+  "Distribute slashed amount into insurance, protocol, and retained shares.
+   All parameters explicit — no hidden policy defaults.
+   
+   Args:
+     amount — non-negative slashed total
+     opts   — map requiring :bounty, :insurance-cut-bps, :protocol-retained-bps
+   
+   Validates:
+     - amount >= 0, bounty >= 0
+     - insurance-cut-bps, protocol-retained-bps in [0, 10000]
+     - insurance-cut-bps + protocol-retained-bps <= 10000
+   
+   Returns {:insurance <int> :protocol <int> :retained <int>}
+   Guarantees: insurance + protocol + retained = amount (before bounty redistribution)"
+  [amount {:keys [bounty insurance-cut-bps protocol-retained-bps]}]
+  {:pre [(and (number? amount) (not (neg? amount)))
+         (and (number? bounty) (not (neg? bounty)))
+         (integer? insurance-cut-bps) (<= 0 insurance-cut-bps 10000)
+         (integer? protocol-retained-bps) (<= 0 protocol-retained-bps 10000)
+         (<= (+ insurance-cut-bps protocol-retained-bps) 10000)]}
+  (let [insurance (payoffs/calculate-bps-amount amount insurance-cut-bps)
+        protocol  (payoffs/calculate-bps-amount amount protocol-retained-bps)
+        retained  (- amount insurance protocol)
+        bounty-from-insurance (quot bounty 2)
+        bounty-from-protocol (- bounty bounty-from-insurance)]
+    {:insurance (- insurance bounty-from-insurance)
+     :protocol  (- protocol bounty-from-protocol)
+     :retained  retained}))

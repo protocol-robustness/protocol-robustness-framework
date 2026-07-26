@@ -12,9 +12,62 @@
   - :destination    — path relative to :sew-repo-root
   - :cdrs-version   — trace format version (must be \"0.2\")
   - :review-scenario — identifier from EF_REVIEW_GUIDE.md if applicable
-  - :purpose        — human-readable note"
+  - :purpose        — human-readable note
+  - :solidity-test? — true if a Forge test method exists in
+    TraceEquivalenceTest.sol (false means the trace uses actions beyond
+    the basic vault harness: yield-ops, evidence-module, slashing-module,
+    register-stake, or has appeal-window-duration=0 divergence)
+
+ :notes
+ {:stake-actions
+  "register_stake and withdraw_stake are handled as no-ops in the Forge
+   harness because stake is pre-established during setUp().  This is valid
+   for traces that do not depend on stake state changing during replay.
+   No stake lifecycle equivalence is asserted.  Traces requiring dynamic
+   stake modification remain excluded."
+
+  :pre-existing-fixtures
+  "14 fixtures in test/foundry/traces/ are pre-existing and not part of the
+   manifest-bound equivalence set.  They are reported as warnings by
+   bb trace:solidity:verify and must not be counted toward the verified
+   trace count.  Classification: legacy-golden-v0.1 (4), legacy-v2-baseline
+   (3), negative-adversarial (7)."}
 
  :sew-repo-root "../sew-protocol"
+ :solidity-coverage
+ {:test-count 21
+  :pass-count 21
+  :manifest-total 18
+  :solidity-tested 10
+  :pre-existing-fixtures
+  [{:path "test/foundry/traces/trace_create_release.json" :class :legacy-golden-v0.1}
+   {:path "test/foundry/traces/trace_create_dispute_release.json" :class :legacy-golden-v0.1}
+   {:path "test/foundry/traces/trace_create_dispute_cancel.json" :class :legacy-golden-v0.1}
+   {:path "test/foundry/traces/trace_phase_z_liveness.json" :class :legacy-adversarial-v0.1}
+   {:path "test/foundry/traces/v2/s01.json" :class :legacy-v2-baseline}
+   {:path "test/foundry/traces/v2/s02.json" :class :legacy-v2-baseline}
+   {:path "test/foundry/traces/v2/s05.json" :class :legacy-v2-baseline}
+   {:path "test/foundry/traces/v2/negative/n01.json" :class :negative-adversarial}
+   {:path "test/foundry/traces/v2/negative/n02.json" :class :negative-adversarial}
+   {:path "test/foundry/traces/v2/negative/n03.json" :class :negative-adversarial}
+   {:path "test/foundry/traces/v2/negative/n04.json" :class :negative-adversarial}
+   {:path "test/foundry/traces/v2/negative/n05.json" :class :negative-adversarial}
+   {:path "test/foundry/traces/v2/negative/n06.json" :class :negative-adversarial}
+   {:path "test/foundry/traces/v2/negative/n07.json" :class :negative-adversarial}]
+  :excluded
+  [{:id "review-s-dr-084" :reason "requires submit_evidence on EvidenceModuleV1"}
+   {:id "review-nc-001" :reason "requires register_stake / slashing module"}
+   {:id "review-dr-n-002" :reason "requires register_stake / slashing module"}
+   {:id "review-y06" :reason "yield-only actions (YieldOps)"}
+   {:id "sew-001" :reason "appeal-window-duration=0 divergence (sim finalizes, Solidity creates pending)"}
+   {:id "sew-002" :reason "keeper-driven expiry flow incompatible with vault harness"}
+   {:id "sew-004" :reason "appeal-window-duration=0 divergence"}
+   {:id "sew-005" :reason "escalation requires DecentralizedResolutionModule"}
+   {:id "ref-001" :reason "governance-sandwich pattern incomplete in test harness"}
+   {:id "ref-002" :reason "requires propose_fraud_slash on slashing module"}
+   {:id "ref-003" :reason "multi-address role dispatch incomplete"}
+   {:id "ref-004" :reason "requires register_stake"}
+   {:id "ref-005" :reason "appeal-window-duration=0 divergence"}]}
 
  :traces
  [
@@ -23,83 +76,95 @@
   ;; ═══════════════════════════════════════════════════════════════════
   {:id "sew-001-same-block-dual-resolution"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-001-same-block-dual-resolution.trace.json"
-   :source-sha256 "3845472797288dfa3c3e449bce2b139b01ca21f1dd254c96509054aef90d00b5"
+   :source-sha256 "ee623f1c6327d7dc1582b5c85f60c017f9f4d948261adab30493c622b977c4eb"
+   :scenario "scenarios/edn/S56_same-block-dual-resolution-order-invariant.edn"
    :destination "test/foundry/traces/v2/sew-001.json"
    :cdrs-version "0.2"
    :purpose "Same-block dual resolution order invariant"}
   {:id "sew-002-pending-settlement-expiry"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-002-pending-settlement-expiry.trace.json"
-   :source-sha256 "6fb38c1f03ffdbe6e5b5714a24bdbef00bbbb07625646c155f257e44e7282c53"
+   :source-sha256 "531ad2c6a40413349d2165fe773516e55259468f5310c0128ee311874044e261"
+   :scenario "scenarios/edn/S57_pending-settlement-expiry-boundary-1s.edn"
    :destination "test/foundry/traces/v2/sew-002.json"
    :cdrs-version "0.2"
    :purpose "Pending settlement expiry boundary"}
   {:id "sew-003-escalation-after-terminal"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-003-escalation-after-terminal.trace.json"
-   :source-sha256 "c2385ffaffc8435c48797ee768ea3138ae1b97a456651b0473afcd5f3ca863e7"
+   :source-sha256 "2d92505bc7da060b1501cfe4f220195f1ee81473610efc9b534b760dbeb34ac2"
+   :scenario "scenarios/edn/S58_escalation-after-terminal-hard-reject.edn"
    :destination "test/foundry/traces/v2/sew-003.json"
    :cdrs-version "0.2"
    :purpose "Escalation after terminal state rejected"}
   {:id "sew-004-force-refund-illegal-release"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-004-force-refund-illegal-release.trace.json"
-   :source-sha256 "dc957ae042ed56face058f0b50018d7cc2eedd58dfc880d016f4ff75ac3f07e3"
+   :source-sha256 "313f9e3bc4da1c16c557f3401d9a5567a5ab64d340ac702f63e87a40cda88100"
+   :scenario "scenarios/edn/S64_force-refund-then-illegal-release-attempt.edn"
    :destination "test/foundry/traces/v2/sew-004.json"
    :cdrs-version "0.2"
    :purpose "Force refund prevents illegal release"}
   {:id "sew-005-escalation-supersedes-pending"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-005-escalation-supersedes-pending.trace.json"
-   :source-sha256 "aa3fc524d927a92ef791414d98917408c61f0bb531077e81e7e393bbe293ecb2"
-   :destination "test/foundry/traces/v2/sew-005.json"
-   :cdrs-version "0.2"
-   :purpose "Escalation supersedes pending settlement"}
-
-  ;; ═══════════════════════════════════════════════════════════════════
+   :source-sha256 "5ec8314b5766d78f527225fa71a6e540f522dcc739b896434106464bca21add4"
+    :scenario "scenarios/edn/S65_escalation-supersedes-old-pending-then-old-path-attempt.edn"
+    :destination "test/foundry/traces/v2/sew-005.json"
+    :cdrs-version "0.2"
+    :purpose "Escalation supersedes pending settlement"}
+   ;; ═══════════════════════════════════════════════════════════════════
   ;; Reference validation — adversarial / CI review traces
   ;; ═══════════════════════════════════════════════════════════════════
   {:id "ref-001-governance-sandwich"
    :source "suites/reference-validation-v1/expected/traces/001-governance-sandwich.trace.json"
-   :source-sha256 "c263dae8a45537ec9185f3891f462e68beec684475d691e5a81821e3bce6d7c8"
+   :source-sha256 "c9b5f9c628d7b9b4c360d0458039f8c866b0e8e7cc5823f003ab27bd0cb6062b"
+   :scenario "scenarios/edn/S61_governance-snapshot-mid-dispute-immutability.edn"
    :destination "test/foundry/traces/v2/ref-001.json"
    :cdrs-version "0.2"
    :purpose "Governance sandwich attack — escrow settings immutable after creation"}
   {:id "ref-002-malicious-resolver-verdict"
    :source "suites/reference-validation-v1/expected/traces/002-malicious-resolver-verdict.trace.json"
-   :source-sha256 "fb045474f67b51ce0c702d339ce086da87937e0d31ae0c3820be1651077f0ee4"
+   :source-sha256 "79bf8fd514d2176b132daad7637ca6ff97d8803811fc728fa93fa49272ec7d08"
+   :scenario "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
    :destination "test/foundry/traces/v2/ref-002.json"
    :cdrs-version "0.2"
    :purpose "Malicious resolver verdict bounded by economics"}
   {:id "ref-003-dispute-flooding"
    :source "suites/reference-validation-v1/expected/traces/003-dispute-flooding.trace.json"
-   :source-sha256 "4d6d3f40e83218f166181d40cb3c12131b3b44f71c0601aea5782027ff63107e"
+   :source-sha256 "f2997311a7b17289d0a6d8289350cff9624f92410d97afaceb0b24a9bbb20772"
+   :scenario "scenarios/edn/S62_resolver-throughput-exhaustion.edn"
    :destination "test/foundry/traces/v2/ref-003.json"
    :cdrs-version "0.2"
    :purpose "Dispute flooding adversarial scenario"}
   {:id "ref-004-bond-withdrawal-race"
    :source "suites/reference-validation-v1/expected/traces/004-bond-withdrawal-race.trace.json"
-   :source-sha256 "45a2db10d3946406cf12ce026f84c9869af60d0b2aa869c28f1744865a37a914"
+   :source-sha256 "29ac4aa2e5e328087cab7c068394c50eb9d0171ece31a6db526c09794eef7e8f"
+   :scenario "scenarios/edn/S60_partial-withdraw-then-slash-ordering.edn"
    :destination "test/foundry/traces/v2/ref-004.json"
    :cdrs-version "0.2"
    :purpose "Bond withdrawal race condition"}
   {:id "ref-005-same-block-ordering"
    :source "suites/reference-validation-v1/expected/traces/005-same-block-ordering.trace.json"
-   :source-sha256 "fd4e630f964feefed0ba404848a6d3176a7a029bb797861a1e6f644917425291"
+   :source-sha256 "ee623f1c6327d7dc1582b5c85f60c017f9f4d948261adab30493c622b977c4eb"
+   :scenario "scenarios/edn/S56_same-block-dual-resolution-order-invariant.edn"
    :destination "test/foundry/traces/v2/ref-005.json"
    :cdrs-version "0.2"
    :purpose "Same-block ordering between create and dispute"}
   {:id "ref-006-autopush-settlement"
    :source "suites/reference-validation-v1/expected/traces/006-autopush-settlement.trace.json"
-   :source-sha256 "47f232839bb058ba225af9e58a3ecb723c38408534c2827dd49cd82a560022a3"
+   :source-sha256 "cf903d3d61d9d60e66cd318eaaeed299eaa8b99c93d550805c98a220cb8c7c2c"
+   :scenario "scenarios/edn/S05_pending-settlement-execute.edn"
    :destination "test/foundry/traces/v2/ref-006.json"
    :cdrs-version "0.2"
    :purpose "Autopush settlement after keeper"}
   {:id "ref-007-appeal-failure-cascade"
    :source "suites/reference-validation-v1/expected/traces/007-appeal-failure-cascade.trace.json"
-   :source-sha256 "9249f97bc885ce8312482f8658a19856ab5f43cd9c8bc2f8d7346240fd05de44"
+   :source-sha256 "ed36b4d901eb7a3c3c04d360945595c19b75396447e42a4f4474327709ba23e3"
+   :scenario "scenarios/edn/S20_dr3-kleros-max-escalation-guard.edn"
    :destination "test/foundry/traces/v2/ref-007.json"
    :cdrs-version "0.2"
    :purpose "Appeal failure cascade"}
   {:id "ref-008-yield-accrual-efficiency"
    :source "suites/reference-validation-v1/expected/traces/008-yield-accrual-efficiency.trace.json"
-   :source-sha256 "d55ba9d4624626525e11a5c7201d2b0c73d7ef1425378aa6b81c03f231cf5b85"
+   :source-sha256 "3b843aedeca7ba053eb7795edd5fbb60c11622c17413bd2cd1842bbbd6a2574d"
+   :scenario "scenarios/edn/S88_yield-accrual-efficiency.edn"
    :destination "test/foundry/traces/v2/ref-008.json"
    :cdrs-version "0.2"
    :purpose "Yield accrual efficiency and protocol fee tracking"}
@@ -111,7 +176,7 @@
   ;; ═══════════════════════════════════════════════════════════════════
   {:id "review-s-dr-001-basic-release-ruling"
    :source "suites/ef-review-v1/expected/traces/review-s-dr-001.trace.json"
-   :source-sha256 "e2054fa45c7456e70a67204b32b535943ee7ffa3c3fd05b504bcaecbeec5b0fd"
+   :source-sha256 "f7711e609163a8ea0b31c3086a660a0a3fd1d40434972a3837133893a680c389"
    :scenario "scenarios/edn/S-DR-001-basic-release-ruling.edn"
    :destination "test/foundry/traces/v2/review-s-dr-001.json"
    :cdrs-version "0.2"
@@ -119,7 +184,7 @@
    :purpose "EF review: straightforward successful lifecycle"}
   {:id "review-s-dr-084-evidence-after-settlement-rejected"
    :source "suites/ef-review-v1/expected/traces/review-s-dr-084.trace.json"
-   :source-sha256 "947a7fafcc201b9b2f47d859653474e01fbb3354390f8cd04bdcb431ba19e8ab"
+   :source-sha256 "67f4baed0a791ed128baff49f127d7554c49d7f47a8dbfad1e597fdcce895919"
    :scenario "scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn"
    :destination "test/foundry/traces/v2/review-s-dr-084.json"
    :cdrs-version "0.2"
@@ -127,7 +192,7 @@
    :purpose "EF review: safe rejected-interaction control"}
   {:id "review-nc-001-freeze-active-dispute"
    :source "suites/ef-review-v1/expected/traces/review-nc-001.trace.json"
-   :source-sha256 "f6f63596236da89547921d4e7717b849ff3f843231b04e14cadce44e5e0a8524"
+   :source-sha256 "58b70ed86450fc8f475f4dac2a801768241e5b53949d7d3d162b996af491872a"
    :scenario "scenarios/edn/S-NC-001-freeze-active-dispute-negative-control.edn"
    :destination "test/foundry/traces/v2/review-nc-001.json"
    :cdrs-version "0.2"
@@ -135,7 +200,7 @@
    :purpose "EF review: intentional semantic-failure negative control"}
   {:id "review-y06-pro-rata-shortfall"
    :source "suites/ef-review-v1/expected/traces/review-y06.trace.json"
-   :source-sha256 "2fb81621fbd4ba01c20b53e6d3ad91b0af5a7412fdd79c532b360c4e55b48431"
+   :source-sha256 "99b533979d487de5b50b336d2a758f25de86deb10d49c64ff8c8f310bd34f156"
    :scenario "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn"
    :destination "test/foundry/traces/v2/review-y06.json"
    :cdrs-version "0.2"
@@ -143,10 +208,26 @@
    :purpose "EF review: multi-party pro-rata shortfall allocation"}
   {:id "review-dr-n-002-appeal-rejected"
    :source "suites/ef-review-v1/expected/traces/review-dr-n-002.trace.json"
-   :source-sha256 "308faa54372b14d752c29e2233a08bea20d8d1a4a93ea23088473f06687c3800"
+   :source-sha256 "925f895c8a900aec53c2826fe2304ba360a3ed8adb9d46b8ec90517beb9f3caa"
    :scenario "scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn"
    :destination "test/foundry/traces/v2/review-dr-n-002.json"
    :cdrs-version "0.2"
    :review-scenario "DR-N-002-reversal-slash-appeal-rejected.edn"
-   :purpose "EF review: reversal slash appeal rejected adversarial path"}
-  ]}
+    :purpose "EF review: reversal slash appeal rejected adversarial path"}
+
+  ;; ═══════════════════════════════════════════════════════════════════
+  ;; EF review benchmarks — multi-execution packs
+  ;; ═══════════════════════════════════════════════════════════════════
+  ]
+ 
+ :benchmarks
+ [{:id "force-authorisation-custody-v1"
+   :kind :benchmark
+   :source "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"
+   :source-sha256 "b2434100cf1d9e5e97bdcb9ede494fc36580f903540f5c85da6676cb9a1015c7"
+   :review-scenario "force-authorisation-custody-v1"
+   :purpose "EF review: multi-execution conservation and assurance finalization"
+   :notes "Benchmark runs multiple scenario executions under a shared evidence
+           policy and conservation projection.  Solidity equivalence requires
+           replaying each constituent scenario through TraceEquivalenceTest.
+           No single CDRS trace — the benchmark is a bundle of results."}]}

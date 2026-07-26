@@ -41,6 +41,13 @@
     :kind :sensitivity-report
     :schema "sensitivity-report.v2"
     :durability :canonical
+    :review-surface? true}
+
+   :procedure/execution-witness
+   {:file "manifest/execution-witness.json"
+    :kind :execution-witness
+    :schema "procedure-execution-witness.v1"
+    :durability :canonical
     :review-surface? true}})
 
 (def noncanonical-artifacts

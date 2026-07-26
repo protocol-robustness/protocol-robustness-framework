@@ -360,6 +360,18 @@
       (assoc :owner/address owner-address))))
 
 (defn- update-ledger-index
+  ;; Live Sew world-state mutation corresponding to the pure custody
+  ;; reconstruction in resolver-sim.assurance.custody.
+  ;;
+  ;; Kept protocol-local because it currently operates on the complete Sew world
+  ;; and because custody projection authority and live-transition validation have
+  ;; not yet been standardised as a protocol-independent contract.
+  ;;
+  ;; Post-review: extract the shared single-adjustment step (apply-held-adjustment)
+  ;; so that replay reuses the same transition as the live path. See
+  ;; replay-held-adjustment-state in assurance/custody.clj for the equivalent
+  ;; pure function. The existing test `held-custody-closed-form-checks-pass-on-valid-artifacts`
+  ;; in accounting_test.clj characterises the current equivalence guarantee.
   [world adjustment]
   (let [{direction :held/direction
          token :token

@@ -31,6 +31,12 @@ def parse_edn_entries(path: Path) -> list[dict[str, Any]]:
     raw = path.read_text("utf-8")
 
     entries = []
+    # Extract only the block between :traces and the closing ]
+    traces_start = raw.find(":traces\n [")
+    if traces_start == -1:
+        traces_start = raw.find(":traces\r\n [")
+    if traces_start == -1:
+        return entries
     # Find all blocks that look like entry maps: starting with {:id ...
     # We use a bracket-depth counter to handle nested maps
     i = 0
@@ -64,7 +70,10 @@ def parse_edn_entries(path: Path) -> list[dict[str, Any]]:
         for m in re.finditer(r':([\w-]+)\s+"((?:[^"\\]|\\.)*)"', block):
             entry[m.group(1)] = m.group(2)
 
-        if entry:
+        # Only include entries with :source or :scenario (filters out excluded-list entries),
+        # and skip benchmark entries (they are multi-execution packs, not CDRS traces).
+        source_val = entry.get("source") or ""
+        if entry and ("source" in entry or "scenario" in entry) and not source_val.endswith(".edn"):
             entries.append(entry)
 
         i = j + 1
@@ -269,14 +278,30 @@ def main() -> None:
         print("  [PASS] No undeclared fixtures")
 
     print()
-    print(f"Passed: {passed}/{total}")
-    if warnings > 0:
-        print(f"Warnings: {warnings}")
+    print("=" * 60)
+    print("VERIFICATION REPORT")
+    print("=" * 60)
+    print(f"  Manifest path:      {manifest_path}")
+    print(f"  Clojure repo:       {repo_root}")
+    print(f"  Solidity repo:      {sew_repo}")
+    print(f"  Manifest traces:    {total}")
+    print(f"  Passed:             {passed}")
+    print(f"  Failed:             {failed}")
+    print(f"  Warnings:           {warnings}")
+    print(f"  Verification:       {'VERIFIED' if failed == 0 else 'FAILED'}")
+    print(f"  Equivalence scope:  {'Full' if failed == 0 and warnings == 0 else 'Partial — see warnings/exclusions'}")
+    print(f"  Solidity tests:     Run 'forge test --match-contract TraceEquivalenceTest -vvv'")
+    print(f"                        in the Solidity repo for execution-level results.")
+    print()
+
     if failed > 0:
-        print(f"FAILED: {failed}/{total}")
+        print("FAILED: fix issues above before proceeding.")
         sys.exit(1)
+    elif warnings > 0:
+        print("PASSED WITH WARNINGS — undeclared fixtures are pre-existing traces not in the manifest.")
+        print("Review warnings and add to manifest if they should be tracked.")
     else:
-        print("All checks passed.")
+        print("FULLY VERIFIED — all manifest traces match their Solidity fixtures.")
 
 
 if __name__ == "__main__":

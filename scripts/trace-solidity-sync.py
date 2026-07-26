@@ -45,8 +45,10 @@ def parse_edn_entries(path: Path) -> list[dict[str, Any]]:
         entry = {}
         for m in re.finditer(r':([\w-]+)\s+"((?:[^"\\]|\\.)*)"', block):
             entry[m.group(1)] = m.group(2)
-        if entry:
-            entries.append(entry)
+        if entry and ("source" in entry or "scenario" in entry):
+            source_val = entry.get("source") or ""
+            if not source_val.endswith(".edn"):
+                entries.append(entry)
         i = j + 1
     return entries
 

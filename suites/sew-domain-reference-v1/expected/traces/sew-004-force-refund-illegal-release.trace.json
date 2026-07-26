@@ -1,5 +1,7 @@
-{"description":"Generated trace: ",
+{"description":
+ "Generated trace: s64-force-refund-then-illegal-release-attempt",
  "fee_bps":0,
+ "max_dispute_duration":300,
  "schema_version":"2",
  "resolutions":
  {"wf0":
@@ -127,7 +129,10 @@
   "timing":
   {"auto_cancel_triggered":false, "within_resolution_window":true}},
  "trace_kind":["dispute-resolution", "authorization"],
+ "terminal_projection_hash":
+ "d4c31e7b01b48c4e49b428caa6826b6bd792727c4dddf8881ad28ecee636df06",
+ "appeal_window_duration":0,
  "step_count":4,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s64-force-refund-then-illegal-release-attempt"}

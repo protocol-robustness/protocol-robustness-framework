@@ -30,6 +30,22 @@ run-benchmark <benchmark-id> --run-root <fresh-root>
 verify-benchmark --run-root <completed-root>
 ```
 
+## Ownership boundary
+
+This packet evaluates **one protocol implementation** (Sew) against **PRF-core
+concepts**. The canonical benchmark definition, claims, concept vocabulary, and
+assurance validators live in PRF core. Sew supplies the scenario suite and
+protocol adapter that exercise those concepts.
+
+The generated benchmark output records this split:
+
+| Field | Source | Value in this packet |
+|---|---|---|
+| `benchmark_owner` | `benchmark/summary.json` | `prf-core` |
+| `suite_provider` | `benchmark/summary.json` | `protocol/sew` |
+| `:benchmark/id` | benchmark definition | `:benchmark/force-authorisation-custody-v1` |
+| `:benchmark/suite-provider` | benchmark definition | `{:provider/id :protocol/sew :suite/id :suite/sew-force-authorisation-custody-v1}` |
+
 ## Architecture and evidence path
 
 ```mermaid
@@ -82,11 +98,22 @@ input snapshots and execution plan
 
 ### Force-authorisation custody benchmark scope
 
-`force-authorisation-custody-v1` resolves its benchmark definition and
-runs two deterministic Sew executions: a force-authorisation basic path and an
-expired-authorisation path. Its evidence evaluates the exercised
-custody/conservation-oriented invariants and benchmark assurance, then finalizes
-and verifies the resulting package.
+`force-authorisation-custody-v1` is a **PRF-core benchmark** evaluated using the
+**Sew protocol implementation**. The benchmark definition, 5 generic
+force-authorisation claims (`:force-authorisation/scope-enforced`,
+`:force-authorisation/single-use`, `:force-authorisation/expiry-enforced`,
+`:force-authorisation/evidence-linkage`, `:force-authorisation/custody-isolation`),
+and concept vocabulary (`data/concepts/security/force_authorisation.edn`) are
+owned by PRF core. Sew supplies the scenario suite
+(`:suite/sew-force-authorisation-custody-v1`) and protocol adapter.
+
+The benchmark resolves its definition and runs two deterministic Sew executions:
+a force-authorisation basic path and an expired-authorisation path. Its evidence
+evaluates the exercised custody/conservation-oriented invariants and benchmark
+assurance, then finalizes and verifies the resulting package.
+
+This split is recorded in the benchmark's `:benchmark/suite-provider` metadata
+and exposed in `benchmark/summary.json` as `suite_provider: "protocol/sew"`.
 
 This is trace-bounded benchmark evidence only. It is **not** a general proof of
 custody solvency, deployed Solidity verification, signer/operator assurance,

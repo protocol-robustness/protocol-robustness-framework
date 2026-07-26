@@ -1,9 +1,9 @@
 (ns resolver-sim.benchmark.review.three-member-certificate
   "Three-member research certificate.
-   
+
    Aggregates three independently produced researcher run reports and
    positions into a review-round package.
-   
+
    Replication types (in precedence order):
      :exact-replication     — same content-root, model-instance, plan,
                               parameter-domain, sampling-policy,
@@ -13,15 +13,20 @@
      :model-corroboration   — same primary model root, different
                               parameterisations; requires explicit policy
      :incompatible-scope    — insufficient common basis for comparison
-   
+
    Per-dimension consensus classifies member positions into groups:
      supporting-members, qualifying-members, dissenting-members,
      absent-members, insufficient-information-members, not-reviewed-members,
      not-applicable-members
-   
+
    This prevents absent statuses from being incorrectly folded into
    majority disagreement.
-   
+
+   Theorem/conclusion consensus:
+     Researchers submit positions against individual theorem and
+     conclusion hashes. The certificate reports per-theorem and
+     per-conclusion consensus with the same position-group classification.
+
    The certificate preserves both aggregate consensus and member-level
    per-dimension detail so the result is independently recomputable
    from referenced positions."
@@ -192,6 +197,121 @@
              :not-reviewed-members not-reviewed-members
              :not-applicable-members not-applicable-members}))))))
 
+;; ── Theorem/conclusion-level consensus ────────────────────────────────────
+
+(defn- collect-targets
+  "Collect all targets of a given :kind from positions.
+   Returns a map of target-id -> [{:researcher/id :position/hash :status :rationale}]."
+  [positions kind]
+  (let [entries (mapcat (fn [pos]
+                          (keep (fn [t]
+                                  (when (= kind (:kind t))
+                                    {:target/id (:id t)
+                                     :target/hash (:hash t)
+                                     :researcher/id (:researcher/id pos)
+                                     :position/hash (:position/hash pos)
+                                     :status (:status t)
+                                     :rationale (:rationale t)}))
+                                (:position/targets pos [])))
+                        positions)]
+    (group-by :target/id entries)))
+
+(defn per-item-consensus
+  "Compute consensus for one theorem or conclusion across positions.
+   Uses the same position-group classification as per-dimension-consensus.
+
+   Returns {:item/id keyword
+            :item/kind :theorem | :conclusion
+            :status keyword
+            :entries [{:researcher/id :position/hash :status :rationale}]
+            :supporting-members [id...]
+            :qualifying-members [id...]
+            :dissenting-members [id...]
+            :absent-members [id...]  ;; researchers who didn't target this item
+            :not-reviewed-members [id...]
+            :insufficient-information-members [id...]
+            :not-applicable-members [id...]}"
+  [item-id kind entries all-researcher-ids]
+  (let [assessed (filter #(not (or (nil? (:status %))
+                                   (contains? absent-statuses (:status %))))
+                         entries)
+        assessed-statuses (mapv :status assessed)
+        participant-ids (set (map :researcher/id entries))
+        non-participants (remove participant-ids all-researcher-ids)
+        n-assessed (count assessed-statuses)]
+    (if (< n-assessed 1)
+      {:item/id item-id
+       :item/kind kind
+       :status :not-evaluable
+       :entries entries
+       :supporting-members []
+       :qualifying-members []
+       :dissenting-members []
+       :absent-members (vec non-participants)
+       :not-reviewed-members (mapv :researcher/id
+                                   (filter #(= :not-reviewed (:status %)) entries))
+       :insufficient-information-members (mapv :researcher/id
+                                                (filter #(= :insufficient-information (:status %)) entries))
+       :not-applicable-members (mapv :researcher/id
+                                      (filter #(= :not-applicable (:status %)) entries))}
+      (let [unique-statuses (set assessed-statuses)]
+        (if (= 1 (count unique-statuses))
+          {:item/id item-id
+           :item/kind kind
+           :status :unanimous
+           :entries entries
+           :supporting-members (mapv :researcher/id assessed)
+           :qualifying-members []
+           :dissenting-members []
+           :absent-members (vec non-participants)
+           :not-reviewed-members []
+           :insufficient-information-members []
+           :not-applicable-members []}
+          (let [freqs (frequencies assessed-statuses)
+                sorted (sort-by (comp - val) freqs)
+                [majority-status majority-count] (first sorted)
+                [minority-status _] (second sorted)
+                majority-members (mapv :researcher/id
+                                       (filter #(= (:status %) majority-status) assessed))
+                minority-members (mapv :researcher/id
+                                       (filter #(not= (:status %) majority-status) assessed))]
+            {:item/id item-id
+             :item/kind kind
+             :status (cond
+                       (and (= majority-count 2) (some? minority-status)) :majority-with-dissent
+                       (= majority-count 2) :qualified-majority
+                       :else :contested)
+             :entries entries
+             :supporting-members majority-members
+             :qualifying-members []
+             :dissenting-members minority-members
+             :absent-members (vec non-participants)
+             :not-reviewed-members []
+             :insufficient-information-members []
+             :not-applicable-members []}))))))
+
+(defn per-theorem-consensus
+  "Compute consensus for every theorem targeted across positions."
+  [positions]
+  (let [all-ids (mapv :researcher/id positions)
+        theorems (collect-targets positions :theorem)]
+    (reduce-kv (fn [m theorem-id entries]
+                 (assoc m theorem-id
+                        (per-item-consensus theorem-id :theorem entries all-ids)))
+               {}
+               theorems)))
+
+(defn per-conclusion-consensus
+  "Compute consensus for every conclusion targeted across positions."
+  [positions]
+  (let [all-ids (mapv :researcher/id positions)
+        conclusions (collect-targets positions :conclusion)]
+    (reduce-kv (fn [m conclusion-id entries]
+                 (assoc m conclusion-id
+                        (per-item-consensus conclusion-id :conclusion entries all-ids)))
+               {}
+               conclusions)))
+
 ;; ── Certificate pre-conditions ───────────────────────────────────────────
 
 (defn pre-certificate-checks
@@ -265,15 +385,19 @@
      {:status exec-status
       :replication-type rep-type
       :outcome-groups outcome-groups}
-     :model-consensus
-     (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
-             {} model-dims)
-     :incentive-consensus
-     (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
-             {} incentive-dims)
-     :other-consensus
-     (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
-             {} other-dims)
+    :model-consensus
+      (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+              {} model-dims)
+      :incentive-consensus
+      (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+              {} incentive-dims)
+      :other-consensus
+      (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+              {} other-dims)
+      :theorem-consensus
+      (per-theorem-consensus positions)
+      :conclusion-consensus
+      (per-conclusion-consensus positions)
      :member-positions
      (mapv (fn [pos]
              (let [report (some #(when (= (:researcher/id %)

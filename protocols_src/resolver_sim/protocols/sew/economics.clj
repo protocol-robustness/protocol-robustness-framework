@@ -78,20 +78,16 @@
   (core-econ/calculate-bounty slash-amount bounty-bps))
 
 (defn calculate-slashing-distribution
-  "Calculate Sew distribution for slashed funds with optional governance overrides."
+  "Calculate distribution for slashed funds (delegates to core with Sew defaults)."
   ([amount bounty]
    (calculate-slashing-distribution amount bounty nil))
   ([amount bounty {:keys [insurance-cut-bps protocol-retained-bps]
-                   :or {insurance-cut-bps 5000
-                        protocol-retained-bps 3000}}]
-   (let [insurance (payoffs/calculate-bps-amount amount insurance-cut-bps)
-         protocol (payoffs/calculate-bps-amount amount protocol-retained-bps)
-         retained (- amount insurance protocol)
-         bounty-from-insurance (quot bounty 2)
-         bounty-from-protocol (- bounty bounty-from-insurance)]
-     {:insurance (- insurance bounty-from-insurance)
-      :protocol (- protocol bounty-from-protocol)
-      :retained retained})))
+                    :or {insurance-cut-bps 5000 protocol-retained-bps 3000}}]
+   (core-econ/distribute-slashing-amount
+     amount
+     {:bounty (or bounty 0)
+      :insurance-cut-bps insurance-cut-bps
+      :protocol-retained-bps protocol-retained-bps})))
 
 (defn calculate-slash-amount-from-basis
   "Calculate a slash amount from slashable stake and bps (delegates to core)."

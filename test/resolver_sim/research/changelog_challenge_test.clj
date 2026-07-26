@@ -35,6 +35,21 @@
         result (cc/validate-challenge challenge)]
     (is (:valid? result))))
 
+(deftest valid-category-predicate
+  (is (cc/valid-category? :claim-overstated))
+  (is (cc/valid-category? :factually-incorrect))
+  (is (not (cc/valid-category? :nonexistent))))
+
+(deftest valid-challenge-status-predicate
+  (is (cc/valid-challenge-status? :open))
+  (is (cc/valid-challenge-status? :confirmed))
+  (is (not (cc/valid-challenge-status? :bogus))))
+
+(deftest valid-resolution-predicate
+  (is (cc/valid-resolution? :qualify-entry))
+  (is (cc/valid-resolution? :mark-contested))
+  (is (not (cc/valid-resolution? :nonexistent))))
+
 (deftest original-entry-unchanged
   (let [changelog-path (.getPath (io/file "CHANGELOG.md"))
         before (slurp changelog-path)

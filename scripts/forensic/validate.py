@@ -41,19 +41,40 @@ from . import validate_sew
 
 SCHEMA_VERSION = "forensic-validate.v1"
 
-# Registered protocol validators: (id, version) → entry-point function.
-# The entry point receives (bundle_root_path: Path, run_dir: Path | None)
-# and returns a validated report dict with keys:
-#   <ns>/status  — "pass" | "fail" | "error"
-#   <ns>/checks — list[dict] each with "check", "status", "message"
-#   <ns>/summary — dict with passed/failed/warned/skipped counts
-#   <ns>/force-auth-evidence-count — int
+# Protocol validator contract
+# --------------------------
+# Entry point: validator(bundle_root_path: Path, run_dir: Path | None) -> dict
+#
+# Top-level fields are protocol-qualified, e.g.:
+#   sew/status                  — "pass" | "fail" | "error" | "not-verified"
+#   sew/checks                  — list[dict]
+#   sew/summary                 — dict with passed/failed/warned/skipped counts
+#   sew/force-auth-evidence-count — int
+#
+# Individual check records use the dispatcher-standard fields:
+#   check                       — string identifier (no "check/key" prefix)
+#   status                      — "pass" | "fail" | "warn" | "skip" | "not-verified"
+#   message                     — human-readable string
+#   details (optional)          — list of structured violation records
+#
+# The dispatcher owns generic aggregate fields (validate/schema-version,
+# validate/status, validate/protocol) and exit-code interpretation.
+# Protocol-specific validators should not attempt to set these.
 ProtocolValidator = Callable[[Path, Path | None], dict[str, Any]]
 
 VALIDATORS: dict[tuple[str, str], ProtocolValidator] = {
     ("sew", "1"): validate_sew.validate_protocol_bundle,
 }
 
+# Canonical protocol-name grammar.
+# Deliberately excludes hyphens and underscores from the name segment:
+#   <name> = [a-z][a-z0-9]*   (lowercase, single token, no hyphens/underscores)
+# This avoids ambiguous splitting in "<name>-v<N>" — compound names like
+# "partial-fill-v1" would require a different delimiter convention.
+# See src/resolver_sim/run/bundle_root.clj for the producer-side grammar.
+#
+# The version is always a string, never an integer, so that cross-language
+# consumers compare by string equality ("1" == "1", not 1 == "1").
 VALID_PATTERN = r"^[a-z][a-z0-9]*$"
 
 
@@ -93,6 +114,8 @@ def _validate_descriptor_shape(pd: Any) -> dict | None:
 
     if not isinstance(pv, str) or not pv:
         errors.append("protocol.version must be a non-empty string")
+    elif isinstance(pv, str) and not pv.isdigit():
+        errors.append(f"protocol.version '{pv}' is not a numeric string")
 
     if errors:
         return {"descriptor": {"id": pid, "version": pv}, "errors": errors}

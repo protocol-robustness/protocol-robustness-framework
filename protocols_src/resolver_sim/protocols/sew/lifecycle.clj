@@ -273,13 +273,15 @@
          {:workflow-state (t/escrow-state result workflow-id)
           :total-held (get-in result [:total-held token] 0)}}
        {:finalize/workflow-id workflow-id
-        :finalize/direction direction
-        :finalize/recipient recipient
-        :finalize/settled-amount settled-amt
-        :finalize/sub-held-amount sub-held-amt
-        :finalize/partial-yield? (boolean partial-yield?)
-        :finalize/shortfall? (boolean pos-shortfall)
-        :finalize/resolver (:dispute-resolver et)}
+         :finalize/direction direction
+         :finalize/recipient recipient
+         :finalize/settled-amount settled-amt
+         :finalize/sub-held-amount sub-held-amt
+         :finalize/partial-yield? (boolean partial-yield?)
+         :finalize/shortfall? (boolean pos-shortfall)
+         :finalize/resolver (:dispute-resolver et)
+         :finalize/authorization-id (some-> authorization-provenance :authorization/id)
+         :finalize/authorization-type (some-> authorization-provenance :authorization/type)}
        nil
        {:world-before world
         :world-after result}))

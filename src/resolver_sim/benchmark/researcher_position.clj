@@ -1,16 +1,16 @@
 (ns resolver-sim.benchmark.researcher-position
   "Researcher position: a researcher's assessment of a benchmark model.
-   
+
    The position is decomposed into model-component-level assessments,
    not a single approval or rejection. A researcher may challenge a
    specific model component (e.g. authority rules) while accepting
    others (e.g. state model).
-   
+
    Every dimension supports three absent-statuses:
      not-reviewed            — the researcher did not assess it
      insufficient-information — attempted assessment but evidence was inadequate
      not-applicable          — the dimension does not apply to this benchmark
-   
+
    Component disagreements may reference the exact model element:
      {:dimension :model-authority
       :status :inadequate
@@ -18,7 +18,21 @@
                  :id :position/current-amount-precedence
                  :component-hash \"sha256:...\"}]
       :rationale \"...\"}
-   
+
+   Theorem/conclusion targeting:
+     Researchers may submit positions against individual theorem and
+     conclusion hashes:
+
+     {:position/target
+      {:kind :theorem
+       :id :theorem/incentive-compatibility
+       :hash \"sha256:...\"}
+      :position/status :qualified
+      :position/rationale \"...\"}
+
+     This allows a researcher to reproduce one theorem while challenging
+     another without disputing the entire outcome.
+
    The position is submitted after the researcher has inspected their
    own report, the other two reports, divergences and model coverage.
    It is NOT required to complete a run."
@@ -26,6 +40,20 @@
             [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const schema-version "researcher-position.v1")
+
+(def ^:const target-kinds
+  "Controlled vocabulary for position target kinds.
+   A position may target a theorem, conclusion, or model dimension."
+  #{:theorem :conclusion :dimension})
+
+(def ^:const target-statuses
+  "Controlled vocabulary for theorem/conclusion target statuses.
+   Unlike dimension-level statuses, these reflect researcher consensus
+   on individual theorem or conclusion outcomes."
+  #{:reproduced :unable-to-reproduce :qualified
+    :challenged :supported :not-supported
+    :not-evaluable
+    :not-reviewed :insufficient-information :not-applicable})
 
 (def absent-statuses
   "Status values indicating non-assessment."
@@ -60,7 +88,7 @@
 
 (defn build-position
   "Build a researcher position map with model-component-level assessment.
-   
+
    benchmark/content-root  — the benchmark content root that was evaluated
    researcher/id           — identifying the researcher
    outcome-hash            — the outcome hash from the researcher's run report
@@ -70,9 +98,17 @@
                                                      :component-hash sha256}]
                               :rationale string
                               :qualifications [string]}
-   
+
+   Optional:
+   position/targets        — vector of theorem/conclusion targets:
+                             [{:kind :theorem|:conclusion
+                               :id keyword
+                               :hash sha256
+                               :status keyword
+                               :rationale string}]
+
    Returns the position map."
-  [{:keys [benchmark/content-root researcher/id outcome-hash dimensions]}]
+  [{:keys [benchmark/content-root researcher/id outcome-hash dimensions position/targets]}]
   (let [known-dimensions (set (keys dimension-statuses))
         provided (set (keys dimensions))
         extra (clojure.set/difference provided known-dimensions)]
@@ -98,13 +134,36 @@
                         (seq qualifications) (assoc :qualifications (vec qualifications)))))
              {}
              dimensions)
-            base {:schema-version schema-version
-                  :benchmark/content-root content-root
-                  :researcher/id id
-                  :position/outcome-hash outcome-hash
-                  :position/dimensions normalised-dims}
-          position-hash (hc/domain-hash :researcher-position base)]
-      (assoc base :position/hash (str "sha256:" position-hash)))))
+            normalised-targets
+            (when (seq targets)
+              (mapv (fn [t]
+                      (let [kind (:kind t)
+                            id (:id t)]
+                        (when-not (contains? target-kinds kind)
+                          (throw (ex-info "Invalid target kind"
+                                          {:kind kind :allowed target-kinds})))
+                        (when-not (contains? target-statuses (:status t))
+                          (throw (ex-info "Invalid target status"
+                                          {:status (:status t)
+                                           :allowed target-statuses})))
+                        (when-not (keyword? id)
+                          (throw (ex-info "Target :id must be a keyword"
+                                          {:id id})))
+                        {:kind kind
+                         :id id
+                         :hash (:hash t)
+                         :status (:status t)
+                         :rationale (:rationale t)}))
+                    targets))
+            base (merge {:schema-version schema-version
+                         :benchmark/content-root content-root
+                         :researcher/id id
+                         :position/outcome-hash outcome-hash
+                         :position/dimensions normalised-dims}
+                        (when normalised-targets
+                          {:position/targets normalised-targets}))
+            position-hash (hc/domain-hash :researcher-position base)]
+        (assoc base :position/hash (str "sha256:" position-hash)))))
 
 (defn position-hash
   "Return the content-addressed hash of the position."
@@ -129,3 +188,21 @@
        (some? (:researcher/id position))
        (some? (:position/hash position))
        (some? (:position/outcome-hash position))))
+
+(defn position-targets
+  "Return the theorem/conclusion targets for a position, or empty vector."
+  [position]
+  (:position/targets position []))
+
+(defn find-target
+  "Find a specific target by :kind and :id within a position.
+   Returns the target map or nil."
+  [position kind target-id]
+  (some #(when (and (= kind (:kind %)) (= target-id (:id %))) %)
+        (position-targets position)))
+
+(defn target-status
+  "Return the status keyword for a specific target within a position.
+   Returns nil when the target is not found."
+  [position kind target-id]
+  (:status (find-target position kind target-id)))

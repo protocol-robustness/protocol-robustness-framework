@@ -101,7 +101,17 @@
    :evidence-collection "EVIDENCE_COLLECTION_V1"
    :state-projection "STATE_PROJECTION_V1"
    :research-framework-change-proposal "RESEARCH_FRAMEWORK_CHANGE_PROPOSAL_V1"
-   :changelog-challenge "CHANGELOG_CHALLENGE_V1"})
+   :changelog-challenge "CHANGELOG_CHALLENGE_V1"
+    :research-benchmark-model "RESEARCH_BENCHMARK_MODEL_V1"
+    :research-theorem-outcome "RESEARCH_THEOREM_OUTCOME_V1"
+    :research-conclusion "RESEARCH_CONCLUSION_V1"
+     :research-command "RESEARCH_COMMAND_V1"
+   :trust-sequence-definition "TRUST_SEQUENCE_DEFINITION_V1"
+    :procedure-execution-witness "PROCEDURE_EXECUTION_WITNESS_V1"
+    :research-force-authorisation "RESEARCH_FORCE_AUTHORISATION_V1"
+    :researcher-decision "RESEARCHER_DECISION_V1"
+    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
+    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1434,7 +1444,25 @@
                          bb stability:check."
     :intent/includes    #{:files :paths :contents}
     :intent/excludes    #{:metadata :timestamps :runtime-state}
-    :intent/projection-fn project-stability-snapshot
+     :intent/projection-fn project-stability-snapshot
+     :intent/version     1}
+
+   :trust-sequence-definition
+   {:intent/name        :trust-sequence-definition
+    :intent/domain-tag  "TRUST_SEQUENCE_DEFINITION_V1"
+    :intent/description "Canonical identity of a trust-sequence-definition artifact"
+    :intent/includes    #{:schema-version :id :provider :steps}
+    :intent/excludes    #{:root :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :procedure-execution-witness
+   {:intent/name        :procedure-execution-witness
+    :intent/domain-tag  "PROCEDURE_EXECUTION_WITNESS_V1"
+    :intent/description "Canonical identity of a procedure-execution-witness artifact"
+    :intent/includes    #{:schema-version :id :definition-root :initial-input-root :steps :result-root}
+    :intent/excludes    #{:root :verification :timestamps}
+    :intent/projection-fn project-identity
     :intent/version     1}})
 
 (defn resolve-intent

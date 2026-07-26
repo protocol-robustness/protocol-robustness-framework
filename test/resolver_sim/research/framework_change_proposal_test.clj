@@ -92,6 +92,16 @@
     (is (not (:valid? result)))
     (is (some #(re-find #"research-question" %) (:errors result)))))
 
+(deftest valid-change-class-predicate
+  (is (fcp/valid-change-class? :research-semantic))
+  (is (fcp/valid-change-class? :implementation-only))
+  (is (not (fcp/valid-change-class? :nonexistent-class))))
+
+(deftest valid-proposal-status-predicate
+  (is (fcp/valid-proposal-status? :draft))
+  (is (fcp/valid-proposal-status? :open-for-review))
+  (is (not (fcp/valid-proposal-status? :bogus-status))))
+
 (deftest validate-detects-unknown-change-class
   (let [proposal (fcp/build-proposal (assoc (valid-proposal-params)
                                             :proposal/change-class :research-semantic))

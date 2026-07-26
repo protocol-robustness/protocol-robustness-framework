@@ -192,6 +192,7 @@
   (let [pairs [[:benchmark/content-root :benchmark/content-root]
                [:benchmark/model-root :benchmark/model-root]
                [:benchmark/evaluation-policy-root :benchmark/evaluation-policy-root]
+               [:execution/content-root :benchmark/content-root]
                [:execution/model-instance-root :execution/model-instance-root]
                [:execution/plan-root :execution/plan-root]
                [:execution/parameter-domain-root :execution/parameter-domain-root]

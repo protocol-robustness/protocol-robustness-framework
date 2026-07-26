@@ -9,18 +9,18 @@
 
 (def ^:const schema-version "changelog-challenge.v1")
 
-(def challenge-categories
+(def ^:const challenge-categories
   "Controlled vocabulary for challenge categories."
   #{:factually-incorrect :claim-overstated :scope-omitted
     :evidence-not-committed :implementation-mismatch
     :superseded-understanding :ambiguous-wording})
 
-(def challenge-statuses
+(def ^:const challenge-statuses
   "Controlled vocabulary for challenge lifecycle statuses."
   #{:open :confirmed :confirmed-with-qualification
     :corrected :contested :unresolved :invalid :withdrawn :superseded})
 
-(def ^:private status-transitions
+(def ^:private ^:const status-transitions
   "Allowed status transitions."
   {:open                       #{:confirmed :confirmed-with-qualification
                                  :corrected :contested :unresolved
@@ -33,7 +33,7 @@
    :invalid                    #{:open :superseded}
    :withdrawn                  #{:open :superseded}})
 
-(def resolution-options
+(def ^:const resolution-options
   "Controlled vocabulary for proposed resolution types."
   #{:confirm-entry :qualify-entry :issue-correction-entry
     :supersede-entry :mark-contested :no-change})
@@ -139,10 +139,9 @@
    Checks schema version, controlled vocabularies, required fields,
    target structure, and hash consistency.
    
-   Returns {:valid? bool :errors [string] :warnings [string]}."
+   Returns {:valid? bool :errors [string]}."
   [challenge]
-  (let [errors (atom [])
-        warnings (atom [])]
+  (let [errors (atom [])]
     (when-not (= schema-version (:schema-version challenge))
       (swap! errors conj (str "expected schema-version " schema-version
                               " got " (:schema-version challenge))))
@@ -183,4 +182,4 @@
           (when-not (= computed hash-field)
             (swap! errors conj (str "challenge/hash mismatch: declared "
                                     hash-field " computed " computed))))))
-    {:valid? (empty? @errors) :errors @errors :warnings @warnings}))
+    {:valid? (empty? @errors) :errors @errors}))

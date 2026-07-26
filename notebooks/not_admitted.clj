@@ -6,7 +6,6 @@
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.yield.invariants :as yinv]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
@@ -15,6 +14,23 @@
 
 ;; # Not Admitted
 ;; ## Evidence Chain Ordering, Verification, and Invariant-Based Admission
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- render-checks
+  "Render a clerk/html checks table from an invariant result map."
+  [result]
+  (let [checks (dissoc result :holds? :violations)]
+    [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                   :font-family "monospace" :border-radius "4px"}}
+     [:div "Overall: " [:strong {:style {:color (if (:holds? result) "#22c55e" "#ef4444")}} (if (:holds? result) "PASS" "FAIL")]]
+     (into [:table {:style {:width "100%" :border-collapse "collapse" :font-size "13px" :margin-top "8px"}}]
+           (mapv (fn [[k v]]
+                   (let [v-str (if (keyword? v) (name v) (pr-str v))
+                         pass? (or (= :pass v) (= "pass" v-str))]
+                     [:tr {:key (name k) :style {:border-bottom "1px solid #134e4a"}}
+                      [:td {:style {:padding "4px 8px" :color "#94a3b8"}} (name k)]
+                      [:td {:style {:padding "4px 8px" :color (if pass? "#22c55e" "#ef4444")}} v-str]]))
+                (sort-by first checks)))]))
 
 ;; ---
 ;; ## 1. Evidence Chain Ordering
@@ -72,21 +88,38 @@
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html
  [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px" :font-family "monospace" :border-radius "4px"}}
-  [:div "Content hash (same regardless of position):  " [:strong {:style {:color "#22c55e"}} (str (subs (nth content-hashes 1) 0 16) "...")]]
-  [:div "Link hash at seq 2 (depends on prev):         " [:strong {:style {:color "#7ADDDC"}} (str (subs (:chain-self-hash (nth chain-links 1)) 0 16) "...")]]
-  [:div "Link hash at seq 1 if reordered:              " [:strong {:style {:color "#f59e0b"}} (str (subs (chain/chain-link-hash (nth content-hashes 1) 1 nil) 0 16) "...")]]])
+  (let [dispute-content (nth content-hashes 1)
+        link-at-seq-2 (:chain-self-hash (nth chain-links 1))
+        link-at-seq-1 (chain/chain-link-hash dispute-content 1 nil)]
+    [:div "Content hash (same regardless of position):  " [:strong {:style {:color "#22c55e"}} (str (subs dispute-content 0 16) "...")]]
+    [:div "Link hash at seq 2 (depends on prev):         " [:strong {:style {:color "#7ADDDC"}} (str (subs link-at-seq-2 0 16) "...")]]
+    [:div "Link hash at seq 1 if reordered:              " [:strong {:style {:color "#f59e0b"}} (str (subs link-at-seq-1 0 16) "...")]])])
 
 ;; ---
 ;; ## 3. Chain Spec
 
 ;; A valid chain link (`:evidence-chain-link-v1`) commits to exactly four fields:
-;;
-;; | Field | Description |
-;; |-------|-------------|
-;; | ` :chain/hash-scheme` | Currently `"link-v1"` |
-;; | `:evidence/hash` | The content hash of the evidence record |
-;; | `:evidence/chain-seq` | Monotonically increasing integer |
-;; | `:evidence/chain-prev-hash` | Predecessor's chain-self-hash (nil for seq 1) |
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def spec-link-hash
+  (chain/chain-link-hash (nth content-hashes 0) 1 nil))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :font-family "monospace" :border-radius "4px"}}
+  [:table {:style {:width "100%" :border-collapse "collapse" :font-size "13px"}}
+   [:thead [:tr {:style {:border-bottom "1px solid #134e4a" :color "#94a3b8"}}
+            [:th {:style {:padding "6px 8px" :text-align "left"}} "Field"]
+            [:th {:style {:padding "6px 8px" :text-align "left"}} "Value"]]]
+   [:tbody
+    [:tr [:td {:style {:padding "4px 8px" :color "#c4b5fd"}} ":chain/hash-scheme"] [:td {:style {:padding "4px 8px" :color "#e2e8f0"}} "\"link-v1\""]]
+    [:tr [:td {:style {:padding "4px 8px" :color "#c4b5fd"}} ":evidence/hash"] [:td {:style {:padding "4px 8px" :color "#22c55e" :font-size "11px"}} (nth content-hashes 0)]]
+    [:tr [:td {:style {:padding "4px 8px" :color "#c4b5fd"}} ":evidence/chain-seq"] [:td {:style {:padding "4px 8px" :color "#e2e8f0"}} "1"]]
+    [:tr [:td {:style {:padding "4px 8px" :color "#c4b5fd"}} ":evidence/chain-prev-hash"] [:td {:style {:padding "4px 8px" :color "#e2e8f0"}} nil]]
+    [:tr {:style {:border-top "2px solid #22c55e"}}
+     [:td {:style {:padding "4px 8px" :color "#7ADDDC" :font-weight 700}} "Link hash (result)"]
+     [:td {:style {:padding "4px 8px" :color "#7ADDDC" :font-weight 700}} spec-link-hash]]]]])
 
 ;; The chain cursor tracks `{:seq N :last-hash <prev-self-hash>}` and the
 ;; `verify-scenario-chain` function validates five properties:
@@ -120,7 +153,7 @@
 ;; ---
 ;; ## 5. Chain Verification — Admitted vs Not Admitted
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :show :result :hide}}
 (defn- build-chain-records
   "Convert chain-links to verify-scenario-chain format."
   [links]
@@ -252,20 +285,7 @@
 ;; The invariant returns per-check status and a `:holds?` summary:
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(clerk/html
- (let [r propagation-invariant-result
-       checks (dissoc r :holds? :violations)]
-   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
-                  :font-family "monospace" :border-radius "4px"}}
-    [:div "Overall: " [:strong {:style {:color (if (:holds? r) "#22c55e" "#ef4444")}} (if (:holds? r) "PASS" "FAIL")]]
-    (into [:table {:style {:width "100%" :border-collapse "collapse" :font-size "13px" :margin-top "8px"}}]
-          (mapv (fn [[k v]]
-                  (let [v-str (if (keyword? v) (name v) (pr-str v))
-                        pass? (or (= :pass v) (= "pass" v-str))]
-                    [:tr {:key (name k) :style {:border-bottom "1px solid #134e4a"}}
-                     [:td {:style {:padding "4px 8px" :color "#94a3b8"}} (name k)]
-                     [:td {:style {:padding "4px 8px" :color (if pass? "#22c55e" "#ef4444")}} v-str]]))
-               (sort-by first checks)))]))
+(clerk/html (render-checks propagation-invariant-result))
 
 ;; Now show a failure: entitlement not conserved.
 ;; The participant's fulfilled total no longer matches their eligible obligation:
@@ -299,7 +319,7 @@
 
 ;; Extend the happy world with a matching application record:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- inject-application
   "Add a valid application record matching the propagation."
   [world]
@@ -340,20 +360,7 @@
   (yinv/check-pro-rata-accounting-reconciles (inject-application happy-world)))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(clerk/html
- (let [r accounting-reconcile-result
-       checks (dissoc r :holds? :violations)]
-   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
-                  :font-family "monospace" :border-radius "4px"}}
-    [:div "Overall: " [:strong {:style {:color (if (:holds? r) "#22c55e" "#ef4444")}} (if (:holds? r) "PASS" "FAIL")]]
-    (into [:table {:style {:width "100%" :border-collapse "collapse" :font-size "13px" :margin-top "8px"}}]
-          (mapv (fn [[k v]]
-                  (let [v-str (if (keyword? v) (name v) (pr-str v))
-                        pass? (or (= :pass v) (= "pass" v-str))]
-                    [:tr {:key (name k) :style {:border-bottom "1px solid #134e4a"}}
-                     [:td {:style {:padding "4px 8px" :color "#94a3b8"}} (name k)]
-                     [:td {:style {:padding "4px 8px" :color (if pass? "#22c55e" "#ef4444")}} v-str]]))
-               (sort-by first checks)))]))
+(clerk/html (render-checks accounting-reconcile-result))
 
 ;; Two targeted failures:
 

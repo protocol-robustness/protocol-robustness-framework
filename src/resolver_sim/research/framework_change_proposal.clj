@@ -13,20 +13,20 @@
 
 (def ^:const schema-version "research-framework-change-proposal.v1")
 
-(def change-classes
+(def ^:const change-classes
   "Controlled vocabulary for proposal change classes.
    Only :research-semantic and :assurance-contract use researcher review
    during the pilot. Other classes remain ordinary engineering work."
   #{:research-semantic :assurance-contract :implementation-only
     :editorial :emergency})
 
-(def proposal-statuses
+(def ^:const proposal-statuses
   "Controlled vocabulary for proposal lifecycle statuses."
   #{:draft :open-for-review :research-supported
     :research-supported-with-qualification :research-contested
     :withdrawn :superseded})
 
-(def ^:private status-transitions
+(def ^:private ^:const status-transitions
   "Allowed status transitions."
   {:draft                                                #{:open-for-review :withdrawn :superseded}
    :open-for-review                                      #{:research-supported :research-supported-with-qualification
@@ -136,8 +136,7 @@
    
    Returns {:valid? bool :errors [string]}."
   [proposal]
-  (let [errors (atom [])
-        warnings (atom [])]
+  (let [errors (atom [])]
     (when-not (= schema-version (:schema-version proposal))
       (swap! errors conj (str "expected schema-version " schema-version
                               " got " (:schema-version proposal))))

@@ -347,6 +347,28 @@
       expected-v2 (assoc :expected expected-v2))))
 
 ;; ---------------------------------------------------------------------------
+;; Terminal projection hash — SHA-256 of 6-field projection for Solidity
+;; cross-verification.  Format matches the Solidity side:
+;;   sha256(state|afa|held|fees|psExists|dispLevel)
+;; ---------------------------------------------------------------------------
+
+(defn terminal-projection-hash
+  "Compute SHA-256 of the 6-field projection for Solidity equivalence check.
+   Returns nil when wf-id is nil (no escrow in scenario)."
+  [world wf-id token-sym]
+  (when wf-id
+    (let [state-kw (get-in world [:escrow-transfers wf-id :escrow-state])
+          state    (get escrow-state->int state-kw 0)
+          afa      (get-in world [:escrow-transfers wf-id :amount-after-fee] 0)
+          held     (get-in world [:total-held token-sym] 0)
+          fees     (get-in world [:total-fees token-sym] 0)
+          ps-exists (if (get-in world [:pending-settlements wf-id :exists] false) 1 0)
+          disp-level (get-in world [:dispute-levels wf-id] 0)
+          data     (str state "|" afa "|" held "|" fees "|" ps-exists "|" disp-level)
+          digest   (java.security.MessageDigest/getInstance "SHA-256")]
+      (format "%064x" (java.math.BigInteger. 1 (.digest digest (.getBytes data "UTF-8")))))))
+
+;; ---------------------------------------------------------------------------
 ;; Public: export-trace-fixture
 ;; ---------------------------------------------------------------------------
 
@@ -377,20 +399,24 @@
                     (recur (rest entries) (:projection entry) (conj acc step)))))]
     (let [trace-kind         (compute-trace-kind scenario trace)
           expected-semantics (compute-expected-semantics trace scenario last-world id-alias-map)
-          idem-summary       (idempotency-summary trace)]
+          idem-summary       (idempotency-summary trace)
+          primary-wf-id      (primary-dispute-wf-id id-alias-map last-world)]
       {:cdrs_version      "0.2"
        :schema_version    "2"
        :scenario_id       (:scenario-id result)
        :description       (str "Generated trace: " (:scenario-id result))
        :trace_kind        trace-kind
-       :fee_bps           (get-in scenario [:protocol-params :resolver-fee-bps] 100)
+        :fee_bps           (get-in scenario [:protocol-params :resolver-fee-bps] 100)
+        :appeal_window_duration (get-in scenario [:protocol-params :appeal-window-duration] 0)
+        :max_dispute_duration   (get-in scenario [:protocol-params :max-dispute-duration] 0)
        :metadata          (cond-> {"scenario_class" (kw-val->str-flat (meta/classify-scenario scenario))
                                    "outcome_type"   (kw-val->str-flat (meta/classify-outcome result scenario))}
                             (pos? (:dedupe_step_count idem-summary))
                             (assoc "idempotency" idem-summary))
-       :expected_semantics expected-semantics
-       :step_count        (count steps)
-       :steps             steps
+        :expected_semantics expected-semantics
+        :step_count        (count steps)
+        :terminal_projection_hash (terminal-projection-hash last-world primary-wf-id token-sym)
+        :steps             steps
        ;; Resolution summary for all escrows in the trace
        :resolutions       (into {} (for [[alias id] id-alias-map]
                                      [alias (meta/resolution-semantics last-world id)]))})))

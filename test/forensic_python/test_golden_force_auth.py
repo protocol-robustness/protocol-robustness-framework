@@ -305,6 +305,20 @@ class TestVerificationPolicy:
                                     expected_protocol=("sew", "1"))
         assert report.status == "pass"
 
+    def test_unknown_protocol_matching_expected_stays_not_verified(self, force_auth_bundle: Path, tmp_path: Path):
+        """Bundle declares unknown-protocol/1 and expected matches — still not-verified.
+        --expected-protocol does not imply that a validator exists."""
+        bundle = _copy_bundle(force_auth_bundle, tmp_path)
+        root = _load_json(bundle / "run-bundle-root.json")
+        root["protocol"] = {"id": "unknown", "version": "1"}
+        _write_json(bundle / "run-bundle-root.json", root)
+        report = verify.verify_run(str(bundle), public_key_path=str(PUBKEY),
+                                    expected_protocol=("unknown", "1"))
+        # Not fail — the identity matches. Not pass — no validator. Not-verified.
+        assert "protocol-identity-match" not in [c["check/key"] for c in report.checks]
+        summary = next(c for c in report.checks if c["check/key"] == "protocol-semantics-summary")
+        assert summary["check/status"] == "not-verified"
+
 
 # ── Layer 5: bundle without force auth ────────────────────────────────────
 

@@ -1,5 +1,7 @@
-{"description":"Generated trace: ",
+{"description":
+ "Generated trace: s58-escalation-after-terminal-hard-reject",
  "fee_bps":150,
+ "max_dispute_duration":2592000,
  "schema_version":"2",
  "resolutions":
  {"wf0":
@@ -80,7 +82,10 @@
    "actor":"buyer"}],
  "expected_semantics":{},
  "trace_kind":["lifecycle", "escalation", "authorization"],
+ "terminal_projection_hash":
+ "86806c961046169e53e01ae7a0d0328c1b8a2fb887a50acc742c8696d090f9f1",
+ "appeal_window_duration":0,
  "step_count":3,
  "metadata":
  {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":null}
+ "scenario_id":"s58-escalation-after-terminal-hard-reject"}

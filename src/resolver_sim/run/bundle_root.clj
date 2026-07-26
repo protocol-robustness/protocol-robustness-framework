@@ -221,6 +221,13 @@
                                            (:protocol/force-authorisations-consumed result))
         proto-held-adjustments (hash-sorted-map :held-adjustments
                                                 (:protocol/held-adjustments result))
+        ;; Canonical protocol descriptor.
+        ;; Grammar: <name>-v<N> where <name> = [a-z][a-z0-9]* (lowercase, no hyphens/underscores)
+        ;;          and <N>    = [1-9][0-9]* (positive integer, no leading zero).
+        ;; Examples: "sew-v1", "yield-v1", "yield-v2".
+        ;; Deliberately excludes hyphens in the name to avoid ambiguous splitting.
+        ;; The version is always emitted as a string, never an integer, so that
+        ;; cross-language consumers (Python, etc.) can reliably compare by string equality.
         proto-id (:protocol/default-id request)
         proto-descriptor (when proto-id
                            (let [pid (if (keyword? proto-id) (name proto-id) (str proto-id))
@@ -228,7 +235,8 @@
                              (when-not (re-matches valid-pattern pid)
                                (throw (ex-info "Malformed protocol/default-id — expected format '<name>-v<N>'"
                                                {:protocol/default-id proto-id
-                                                :valid-format "<name>-v<N>"})))
+                                                :valid-format "<name>-v<N>"
+                                                :observed pid})))
                              (let [version-idx (clojure.string/last-index-of pid "-v")]
                                {:id (subs pid 0 version-idx)
                                 :version (subs pid (+ version-idx 2))})))
