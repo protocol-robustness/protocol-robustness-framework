@@ -106,7 +106,13 @@
                 (sample-run-sensitivity)
                 (sample-scenarios)
                 (context))
+        s01-entry (first (:scenarios report))
         s99-entry (second (:scenarios report))]
+    (is (= "s01" (:id s01-entry)))
+    (is (nil? (:structural-derivation s01-entry))
+        "scenario without matching path must not include structural-derivation")
+    (is (= "internal" (:structural-level s01-entry))
+        "scenario without matching findings must use heuristic level, not critical-private")
     (is (= "s99" (:id s99-entry)))
     (is (some? (:structural-derivation s99-entry))
         "scenario with matched findings must include structural-derivation")
@@ -127,7 +133,9 @@
                 (context))
         s01-entry (first (:scenarios report))]
     (is (nil? (:structural-derivation s01-entry))
-        "scenario without matched findings must not include structural-derivation")))
+        "scenario without matched findings must not include structural-derivation")
+    (is (= "internal" (:structural-level s01-entry))
+        "scenario without findings must use heuristic structural level, not critical-private")))
 
 (deftest build-report-hash-stable
   (let [ctx (context)

@@ -158,9 +158,11 @@
         declared-level (:level sens)
         scenario-path (:scenario-path result)
         matched-findings (vec (matching-findings scenario-path findings))
-        ;; Attach matched findings to result for evidence-backed classification
-        result-with-findings (when (seq matched-findings)
-                               (assoc result :sensitivity/findings matched-findings))
+        ;; Attach matched findings to result for evidence-backed classification;
+        ;; fall back to original result when no findings match.
+        result-with-findings (if (seq matched-findings)
+                               (assoc result :sensitivity/findings matched-findings)
+                               result)
         structural (sentinel/classify-structural result-with-findings)
         effective (if (and declared-level
                            (contains? sentinel/level-set declared-level)
@@ -259,9 +261,11 @@
                                          (vec (filter #(= (:finding/path-token %)
                                                           (scenario-path-token scenario-path))
                                                       (:findings context))))
-                      ;; Attach findings to result for evidence-backed classification
-                      result-with-findings (when (seq matched-findings)
-                                             (assoc result :sensitivity/findings matched-findings))
+                       ;; Attach findings to result for evidence-backed classification;
+                       ;; fall back to original result when no findings match.
+                      result-with-findings (if (seq matched-findings)
+                                             (assoc result :sensitivity/findings matched-findings)
+                                             result)
                       s-level (sentinel/classify-structural result-with-findings)
                       effective (if (and declared-level
                                          (sentinel/level>= declared-level s-level))
@@ -357,8 +361,9 @@
                                                                               (vec (filter #(= (:finding/path-token %)
                                                                                                (scenario-path-token scenario-path))
                                                                                            findings)))
-                                                           result-with-findings (when (seq matched-findings)
-                                                                                  (assoc s :sensitivity/findings matched-findings))
+                                                           result-with-findings (if (seq matched-findings)
+                                                                                  (assoc s :sensitivity/findings matched-findings)
+                                                                                  s)
                                                            structural-level (sentinel/classify-structural result-with-findings)]
                                                        {:scenario-id (:scenario-id s)
                                                         :declared-level (when (:level sens) (name (:level sens)))

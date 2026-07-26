@@ -507,6 +507,14 @@
     (is (= :sensitivity/internal (sentinel/classify-structural artifact))
         "without findings, classify-structural must fall back to heuristics")))
 
+(deftest classify-structural-nil-returns-critical-private
+  (is (= :sensitivity/critical-private (sentinel/classify-structural nil))
+      "nil artifact must default to critical-private")
+  (is (= :sensitivity/critical-private (sentinel/classify-structural {}))
+      "empty artifact must default to critical-private")
+  (is (= :sensitivity/internal (sentinel/classify-structural {:scenario-id "s42"}))
+      "artifact with scenario-id must get heuristic internal, proving nil vs artifact differs"))
+
 (deftest sentinel-report-includes-finding-reasons
   (let [artifact {:scenario-id "s42"
                   :sensitivity/findings [sample-finding-private-key]}
