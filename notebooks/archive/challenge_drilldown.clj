@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.archive.challenge-drilldown
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]

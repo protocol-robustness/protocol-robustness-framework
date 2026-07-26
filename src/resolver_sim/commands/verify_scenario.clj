@@ -84,7 +84,7 @@
           passed (= "passed" status)
           checks (get result "checks" {})
           integrity-valid? (true? (get checks "canonical-integrity"))
-          integrity-checks (get checks "canonical-integrity-checks" {})
+          integrity-checks (get result "canonical-integrity-checks" {})
           total (count integrity-checks)
           n-pass (count-passed integrity-checks)]
       (println "Scenario verification:" (if passed "PASSED" "FAILED"))

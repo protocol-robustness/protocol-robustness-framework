@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.yield-demo
   "Yield Shortfall Handling Demo: Data-Driven General Yield.
    Targeted at non-expert readers evaluating the Protocol Robustness Framework."

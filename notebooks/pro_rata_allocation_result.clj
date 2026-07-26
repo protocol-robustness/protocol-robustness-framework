@@ -1,11 +1,13 @@
 (ns notebooks.pro-rata-allocation-result
-  {:nextjournal.clerk/visibility {:code :fold :result :show}}
+  {:nextjournal.clerk/visibility {:code :fold :result :show}
+   :nextjournal.clerk/dark-mode true}
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.types :as types]
             [resolver-sim.economics.payoffs :as payoffs]
-            [resolver-sim.protocols.sew.evidence.slashing :as slashing]))
+            [resolver-sim.protocols.sew.evidence.slashing :as slashing]
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
 ;; # Pro-Rata Allocation Result Artifact
 ;; ## Demo: live artifact trail from slashing through verification
@@ -25,6 +27,12 @@
 ;;    projection frame hash, and allocation result hash.
 ;; 6. The result table shows who received what allocation and what remained unmet.
 ;; 7. The proof panel shows the hashes needed to verify the claim.
+;;
+;; Additional sections demonstrate:
+;; - The mechanism evidence envelope with validation results and
+;;   independent reconstruction checks (section 3b).
+;; - The content-addressed evaluation API that produces a verified
+;;   result package before artifact construction (section 5b).
 
 ;; ## 1. Setup: a slashing event creates a shortfall allocation problem
 
@@ -111,12 +119,65 @@
 ;; Total requested: 300, allocated: 300, unmet: 0, remainder: 0 (the stake
 ;; is sufficient to cover the obligation).
 
+;; ## 3b. Mechanism evidence envelope
+;;
+;; The allocation also produces a hash-committed mechanism evidence envelope
+;; with witness rounds, validation results (cap-respecting, quota-bounded,
+;; round-trace-coherent, residual-valid, canonical-remainder-assignment),
+;; and a compact evidence reference for cross-linking.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def direct-allocation
+  (sew-econ/calculate-sew-slash-allocation allocation-input))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :font-family "monospace" :border-radius "4px"}}
+  [:div "Evidence ref hash: " [:strong {:style {:color "#7ADDDC"}} (get-in direct-allocation [:mechanism/evidence-reference :evidence/hash])]]
+  [:div "Mechanism:         " (pr-str (get-in direct-allocation [:mechanism/evidence-reference :mechanism]))]
+  [:div "Allocation ID:     " (pr-str (get-in direct-allocation [:mechanism/evidence-reference :allocation/id]))]])
+
+;; The mechanism evidence envelope commits the full allocation witness.
+;; `evidence-violations` independently reconstructs the allocation from
+;; the canonical request and compares the full semantic witness.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+  (let [me (:mechanism/evidence direct-allocation)
+        vr (:mechanism/validation-results me)
+        all-pass? (every? :holds? vr)]
+    [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                   :font-family "monospace" :border-radius "4px" :margin-top "12px"}}
+     [:div "Validation: " [:strong {:style {:color (if all-pass? "#22c55e" "#ef4444")}} (if all-pass? "ALL PASSED" "FAILURES DETECTED")]]
+     (into [:table {:style {:width "100%" :border-collapse "collapse" :font-size "13px" :margin-top "8px"}}]
+           (mapv (fn [r]
+                   [:tr {:style {:border-bottom "1px solid #134e4a"}}
+                    [:td {:style {:color "#94a3b8" :padding "4px 8px"}} (name (:claim/id r))]
+                    [:td {:style {:color (if (:holds? r) "#22c55e" "#ef4444") :padding "4px 8px"}} (if (:holds? r) "PASSED" "FAILED")]])
+                vr))]))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ (let [violations (pro-rata-evidence/evidence-violations (:mechanism/evidence direct-allocation))]
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "12px"
+                  :font-family "monospace" :font-size "13px" :border-radius "4px" :margin-top "8px"}}
+    [:div "Reconstruction check: " [:strong {:style {:color (if (seq violations) "#ef4444" "#22c55e")}} (if (seq violations) "VIOLATIONS" "CLEAN")]]
+    (when (seq violations)
+      [:div {:style {:margin-top "8px" :color "#fbbf24"}} (pr-str violations)])]))
+
 ;; ## 4. The allocation result artifact records what was actually allocated
 
 ;; This is the *ex-post* outcome artifact. It captures the actual allocation
 ;; and links it to the projection frame, world state hashes, and the action.
 
 ^{:nextjournal.clerk/visibility {:code :show :result :hide}}
+(def attribution
+  {:ctx/scenario-id "pro-rata-demo"
+   :ctx/run-id "demo-001"
+   :ctx/event-index 1
+   :ctx/event-type :slash/execute})
+
 (def world-before-hash
   (hc/hash-with-intent {:hash/intent :world-structure} world))
 
@@ -149,6 +210,8 @@
     :world-after-hash world-after-hash
     :action-hash action-hash
     :action-hash-at action-hash-at
+    :allocation-input allocation-input
+    :attribution attribution
     :claims []
     :invariant-links []}))
 
@@ -159,7 +222,7 @@
   [:div "Allocation result ID:   " (:allocation-result-id result-artifact)]
   [:div "Artifact kind:          " (pr-str (:artifact-kind result-artifact))]])
 
-;; The allocaiton result hash is a self-hash: it commits to the full artifact
+;; The allocation result hash is a self-hash: it commits to the full artifact
 ;; content (provenance, allocation, claims, invariant links) but excludes its
 ;; own hash field. Adding a shortfall-outcome or changing the allocation would
 ;; produce a different hash.
@@ -186,7 +249,10 @@
     :action-hash action-hash
     :action-hash-at action-hash-at
     :transition-dependencies []
-    :attribution nil}))
+    :attribution attribution}))
+
+;; No claims were submitted in this demo, so claim-count is 0 and holds? is
+;; vacuously true. A real workflow would attach slashing claims to the evidence.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (def evidence (:evidence evidence-result))
@@ -206,6 +272,72 @@
 ;; **reference hash** — it commits the evidence to a specific allocation result
 ;; artifact. Unlike self-hashes, reference hashes are part of the canonical
 ;; content and affect the evidence's identity.
+
+;; ## 5b. Evaluation path — content-addressed evaluation API
+;;
+;; The `evaluate-pro-rata-allocation` function provides a self-contained
+;; evaluation pipeline: it normalizes the request, builds the projection,
+;; allocates, replays for determinism, runs 4 validation checks
+;; (conservation, bounds, completeness, deterministic-replay), and returns
+;; a content-addressed result package whose hash commits to the full
+;; evaluation outcome.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def evaluation-request
+  {:allocation/id :demo-evaluation
+   :use-case :slashing
+   :unit :USDC
+   :amount 300
+   :participants [{:id "0xAlice" :weight 1000 :cap 1000}
+                  {:id "0xBob" :weight 1000 :cap 1000}]
+   :policy {:rounding :floor-with-largest-remainder
+            :tie-break :input-order
+            :algorithm :weighted-pro-rata
+            :cap-treatment :redistribute}
+   :source {:type :slashing-demo}})
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def evaluation
+  (payoffs/evaluate-pro-rata-allocation evaluation-request))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :font-family "monospace" :border-radius "4px"}}
+  [:div "Evaluation hash: " [:strong {:style {:color "#FF9800"}} (get-in evaluation [:result :artifact/hash])]]
+  [:div "Type:            " (pr-str (get-in evaluation [:result :artifact/type]))]
+  [:div "Validation:      " [:strong {:style {:color (if (= :passed (get-in evaluation [:validation :status])) "#22c55e" "#ef4444")}} (name (get-in evaluation [:validation :status]))]]
+  [:div "Checks passed:   " (str (get-in evaluation [:validation :evaluated-check-count]))]])
+
+;; The evaluation result can be piped directly into
+;; `build-pro-rata-allocation-result-artifact` via the `:evaluation` key.
+;; The builder verifies the content-addressed hash and cross-checks the
+;; projection artifact hash against the evaluation's projection.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def result-artifact-via-evaluation
+  (payoffs/build-pro-rata-allocation-result-artifact
+   {:projection-artifact (get-in evaluation [:projection :artifact/value])
+    :evaluation evaluation
+    :allocation-result (:allocation evaluation)
+    :world-before-hash world-before-hash
+    :world-after-hash world-after-hash
+    :action-hash action-hash
+    :action-hash-at action-hash-at
+    :allocation-input allocation-input
+    :attribution attribution}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :font-family "monospace" :border-radius "4px"}}
+  [:div "Artifact hash: " [:strong {:style {:color "#7ADDDC"}} (:allocation-result-hash result-artifact-via-evaluation)]]
+  [:div "Artifact ID:   " (:allocation-result-id result-artifact-via-evaluation)]
+  [:div "Eval hash:     " (get-in result-artifact-via-evaluation [:evaluation-result-hash])]])
+
+;; The artifact produced via the evaluation path is identical to the direct
+;; path — the evaluation step simply adds validated provenance before the
+;; artifact build.
 
 ;; ## 6. Result table — who received what
 

@@ -313,14 +313,14 @@
    finalization records, and verification reports."
   [effective & sources]
   (let [provenance-map (select-keys effective
-                                     [:sentinel/structural-level
-                                      :sentinel/declared-level
-                                      :sentinel/effective-level
-                                      :sentinel/reasons
-                                      :sentinel/risk-meta
-                                      :sentinel/risk-meta-hash
-                                      :sentinel/sources
-                                      :sentinel/structured-sources])
+                                    [:sentinel/structural-level
+                                     :sentinel/declared-level
+                                     :sentinel/effective-level
+                                     :sentinel/reasons
+                                     :sentinel/risk-meta
+                                     :sentinel/risk-meta-hash
+                                     :sentinel/sources
+                                     :sentinel/structured-sources])
         ;; Separate structured maps from plain strings
         [structured extra-strings]
         ((fn [xs]

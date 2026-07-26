@@ -35,6 +35,7 @@
 ;; Always inspect the `status-kind` column before acting on colour alone.
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :fold}}
 (ns notebooks.report
   (:require [nextjournal.clerk :as clerk]

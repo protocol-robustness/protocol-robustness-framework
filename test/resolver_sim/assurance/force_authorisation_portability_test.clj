@@ -217,10 +217,10 @@
 (deftest normalize-force-authorisation-consumption-registry-valid
   (testing "Normalize a consumption registry from keyword keys"
     (let [input {"fa-0" {:consumed-at 500
-                          :consumed-by "0xgov"
-                          :consumed-amount 1000
-                          :consumed-token :USDC
-                          :held-adjustment-id "ha-1"}}
+                         :consumed-by "0xgov"
+                         :consumed-amount 1000
+                         :consumed-token :USDC
+                         :held-adjustment-id "ha-1"}}
           result (fa/normalize-force-authorisation-consumption-registry input)]
       (is (= 1 (count result)))
       (is (= 500 (get-in result ["fa-0" :consumed-at])))
@@ -231,10 +231,10 @@
 (deftest normalize-force-authorisation-consumption-registry-from-json
   (testing "Normalize a consumption registry from JSON-style string keys"
     (let [input {"fa-0" {"consumed-at" "500"
-                          "consumed-by" "0xgov"
-                          "consumed-amount" "1000"
-                          "consumed-token" "USDC"
-                          "held-adjustment-id" "ha-1"}}
+                         "consumed-by" "0xgov"
+                         "consumed-amount" "1000"
+                         "consumed-token" "USDC"
+                         "held-adjustment-id" "ha-1"}}
           result (fa/normalize-force-authorisation-consumption-registry input)]
       (is (= 500 (get-in result ["fa-0" :consumed-at])))
       (is (= "0xgov" (get-in result ["fa-0" :consumed-by])))

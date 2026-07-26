@@ -278,7 +278,6 @@
                     "diagnostic-summary" (and (.isFile diagnostic-file)
                                               (contains? registry-paths "manifest/diagnostic-summary.json"))
                     "canonical-integrity" (:valid? canonical-integrity-verification)
-                    "canonical-integrity-checks" (:checks canonical-integrity-verification)
                     "verdict-policy" (:valid? verdict-policy-verification)
                     "assurance-artifacts-registered" (every? registry-paths
                                                              #{"manifest/canonical-integrity.json"
@@ -290,6 +289,7 @@
         {"schema_version" "scenario-verification.v1"
          "status" (if (every? true? (vals checks)) "passed" "failed")
          "checks" checks
+         "canonical-integrity-checks" (:checks canonical-integrity-verification)
          "run_id" (:run_id completion)}))
     (catch Exception error
       {"schema_version" "scenario-verification.v1"

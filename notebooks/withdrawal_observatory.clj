@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.withdrawal-observatory
   (:require [nextjournal.clerk :as clerk]))
 

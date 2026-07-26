@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.game-theory-artifact
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.notebook-support.common :as common]))

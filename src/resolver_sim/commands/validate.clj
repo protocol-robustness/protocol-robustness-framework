@@ -2,6 +2,15 @@
   "Structural validation: lint, fmt check, notebook checks.
    Port of bb validate.")
 
+(defn- sh
+  [& cmd]
+  (let [proc (apply clojure.java.shell/sh cmd)]
+    (when-not (clojure.string/blank? (:out proc))
+      (println (:out proc)))
+    (when-not (clojure.string/blank? (:err proc))
+      (binding [*out* *err*] (println (:err proc))))
+    (:exit proc)))
+
 (defn run
   "Run the structural validation pipeline."
   [{:keys [strict? json?] :as opts}]
@@ -13,12 +22,20 @@
   "Check code formatting with cljfmt."
   [{:keys [json?] :as opts}]
   (println "Checking formatting...")
-  (println "  (cljfmt integration pending)")
-  {:exit-code 0 :message "Format check passed"})
+  (flush)
+  (let [exit (sh "clojure" "-M:fmt/check")]
+    (if (zero? exit)
+      (do (println "  Format check passed")
+          {:exit-code 0 :message "Format check passed"})
+      {:exit-code 1 :message "Format check failed"})))
 
 (defn lint
   "Lint source and test code with clj-kondo."
   [{:keys [json?] :as opts}]
   (println "Linting source...")
-  (println "  (clj-kondo integration pending)")
-  {:exit-code 0 :message "Lint passed"})
+  (flush)
+  (let [exit (sh "clj" "-M:lint/core")]
+    (if (zero? exit)
+      (do (println "  Lint passed")
+          {:exit-code 0 :message "Lint passed"})
+      {:exit-code 1 :message "Lint failed"})))

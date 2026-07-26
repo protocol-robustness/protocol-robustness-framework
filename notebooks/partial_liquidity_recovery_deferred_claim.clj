@@ -1,5 +1,6 @@
 ^{:nextjournal.clerk/visibility {:code :show :result :show}
-  :nextjournal.clerk/width :full}
+  :nextjournal.clerk/width :full
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.partial-liquidity-recovery-deferred-claim
   "Partial Liquidity Recovery and Deferred-Claim Settlement — a step-by-step demonstration.
 

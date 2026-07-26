@@ -32,6 +32,9 @@ jobs:
           chmod +x /tmp/install-bb.sh
           sudo /tmp/install-bb.sh
 
+      - name: Structural gate (commands, concepts, benchmarks, fmt, lint)
+        run: bb backstop
+
       - name: Run framework unit tests (no Sew protocol)
         run: bb test:framework
 

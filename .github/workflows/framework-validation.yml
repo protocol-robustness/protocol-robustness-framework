@@ -23,5 +23,14 @@ jobs:
           chmod +x /tmp/install-clojure.sh
           sudo /tmp/install-clojure.sh
 
+      - name: Install Babashka
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/babashka/babashka/master/install -o /tmp/install-bb.sh
+          chmod +x /tmp/install-bb.sh
+          sudo /tmp/install-bb.sh
+
+      - name: Fast structural gate (commands-validate, fmt-check, lint)
+        run: bb backstop:fast
+
       - name: Run framework unit tests
         run: ./scripts/test.sh framework

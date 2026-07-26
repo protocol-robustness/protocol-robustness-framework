@@ -4,6 +4,7 @@
 ;; a scenario-registry entry or a canonical benchmark run.
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :hide :result :show}}
 (ns notebooks.appealed-escrow-walkthrough
   (:require [nextjournal.clerk :as clerk]

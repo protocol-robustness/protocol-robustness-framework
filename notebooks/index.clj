@@ -6,6 +6,7 @@
 ;;
 ;; Audience: Auditors, Protocol Researchers, Grant Reviewers, Governance Participants
 
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.index
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.notebook-support.nav :as nav]))

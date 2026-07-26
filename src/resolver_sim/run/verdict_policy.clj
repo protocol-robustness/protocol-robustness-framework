@@ -153,18 +153,18 @@
   [{:keys [run-id run-type policy-id version-id semantic-outcome inputs registries
            semantic-environment evaluator-implementation distribution-provenance]}]
   (build-artifact
-    {"schema_version" schema-version
-     "policy_id" policy-id
-     "run" {"id" run-id "type" run-type}
-     "verdict" {"semantic_outcome" semantic-outcome
-                "mapping" {"pass" "pass" "fail" "fail"}}
-     "registries" registries
-     "evaluator_implementation" evaluator-implementation
-     "distribution_provenance" distribution-provenance
-     "immutable_inputs" (vec (sort-by #(get % "logical_id") inputs))
-     "semantic_environment" semantic-environment
-     "version_id" version-id
-     "policy_family_id" policy-family-id}))
+   {"schema_version" schema-version
+    "policy_id" policy-id
+    "run" {"id" run-id "type" run-type}
+    "verdict" {"semantic_outcome" semantic-outcome
+               "mapping" {"pass" "pass" "fail" "fail"}}
+    "registries" registries
+    "evaluator_implementation" evaluator-implementation
+    "distribution_provenance" distribution-provenance
+    "immutable_inputs" (vec (sort-by #(get % "logical_id") inputs))
+    "semantic_environment" semantic-environment
+    "version_id" version-id
+    "policy_family_id" policy-family-id}))
 
 ;;; ============================================================
 ;;; Internal artifact validation (no file system)
@@ -365,9 +365,9 @@
     (let [base (dissoc existing "policy_sha256" "supersession_policy")
           merged (merge base changes)
           pre-hash (assoc merged
-                         "version_id" new-version
-                         "supersedes_policy_sha256" prev-hash
-                         "supersession_reason" reason)
+                          "version_id" new-version
+                          "supersedes_policy_sha256" prev-hash
+                          "supersession_reason" reason)
           pre-artifact (build-artifact pre-hash)
           successor-policy-hash (get pre-artifact "policy_sha256")
           ss-policy (get existing "supersession_policy")
@@ -415,34 +415,34 @@
                                :predecessor-policy-hash prev-hash
                                :proposed-policy-hash successor-policy-hash
                                :change-classes computed-classes}
-                     instance-hash (str "sha256:" (canonical/domain-hash
-                                                   "PRF_AUTHORISATION_INSTANCE_V1"
-                                                   (dissoc instance :authorisation/approvals :authorisation/dissents)))
-                     updated (assoc pre-hash
-                                  "version_id" new-version
-                                  "supersedes_policy_sha256" prev-hash
-                                  "supersession_reason" reason
-                                  "supersession"
-                                  {"predecessor_policy_sha256" prev-hash
-                                   "change_classes" computed-classes
-                                   "authorization_instance_hash" instance-hash
-                                   "authorization_provenance_hash" (str "sha256:" (canonical/domain-hash
-                                                                                     "PRF_AUTHORISATION_PROVENANCE_V1"
-                                                                                     (or (:provenance auth) {})))
-                                   "force_authorisation_policy_hash" fa-policy-hash})
-                     artifact (build-artifact updated)]
-                   (write! output-path artifact)
-                    artifact))))
+                    instance-hash (str "sha256:" (canonical/domain-hash
+                                                  "PRF_AUTHORISATION_INSTANCE_V1"
+                                                  (dissoc instance :authorisation/approvals :authorisation/dissents)))
+                    updated (assoc pre-hash
+                                   "version_id" new-version
+                                   "supersedes_policy_sha256" prev-hash
+                                   "supersession_reason" reason
+                                   "supersession"
+                                   {"predecessor_policy_sha256" prev-hash
+                                    "change_classes" computed-classes
+                                    "authorization_instance_hash" instance-hash
+                                    "authorization_provenance_hash" (str "sha256:" (canonical/domain-hash
+                                                                                    "PRF_AUTHORISATION_PROVENANCE_V1"
+                                                                                    (or (:provenance auth) {})))
+                                    "force_authorisation_policy_hash" fa-policy-hash})
+                    artifact (build-artifact updated)]
+                (write! output-path artifact)
+                artifact))))
 
           ;; No supersession policy — simple supersede without authorization
-         (let [updated (assoc pre-hash
-                            "version_id" new-version
-                            "supersedes_policy_sha256" prev-hash
-                            "supersession_reason" reason
-                            "supersession"
-                            {"predecessor_policy_sha256" prev-hash
-                             "change_classes" computed-classes
-                             "force_authorisation_policy_hash" nil})
+        (let [updated (assoc pre-hash
+                             "version_id" new-version
+                             "supersedes_policy_sha256" prev-hash
+                             "supersession_reason" reason
+                             "supersession"
+                             {"predecessor_policy_sha256" prev-hash
+                              "change_classes" computed-classes
+                              "force_authorisation_policy_hash" nil})
               artifact (build-artifact updated)]
           (write! output-path artifact)
           artifact)))))
@@ -478,9 +478,9 @@
                              (nil? file) [(str "input[" i "] path escapes root: " (pr-str path))]
                              (not (.isFile file)) [(str "input[" i "] file not found: " path)]
                              (not (= (get entry "sha256") (sha-ref file))) [(str "input[" i "] sha256 mismatch for " path)]
-                              :else []))))
-                       cat)
-                 inputs))
+                             :else []))))
+                      cat)
+                inputs))
         run-errors
         (into []
               cat

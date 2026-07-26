@@ -19,7 +19,7 @@ if str(_scripts_root) not in sys.path:
     sys.path.insert(0, str(_scripts_root))
 
 from forensic import verify
-from tests.forensic_python.conftest import make_minimal_bundle
+from test.forensic_python.conftest import make_minimal_bundle
 
 
 # ── Anchor Population Tests ───────────────────────────────────────────────
@@ -251,7 +251,7 @@ class TestVerifyRunWithAnchor:
         """Full verify_run with rfc3161 anchor and valid token passes."""
         run_dir = make_minimal_bundle(tmp_path)
         # Add claims + attestations for Phase C
-        from tests.forensic_python.conftest import make_claim_file, make_attestation_file
+        from test.forensic_python.conftest import make_claim_file, make_attestation_file
         make_claim_file(run_dir, "c1", "pass")
         make_attestation_file(run_dir, "h1", "verified")
         # Set up rfc3161 anchor
@@ -272,7 +272,7 @@ class TestVerifyRunWithAnchor:
     def test_rfc3161_without_token_in_verify_run_fails(self, tmp_path: Path):
         """Full verify_run with rfc3161 anchor but missing token fails."""
         run_dir = make_minimal_bundle(tmp_path)
-        from tests.forensic_python.conftest import make_claim_file, make_attestation_file
+        from test.forensic_python.conftest import make_claim_file, make_attestation_file
         make_claim_file(run_dir, "c1", "pass")
         make_attestation_file(run_dir, "h1", "verified")
         ac = run_dir / "anchors" / "anchor-cursor.json"

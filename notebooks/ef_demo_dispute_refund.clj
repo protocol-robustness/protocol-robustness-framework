@@ -16,6 +16,7 @@
 ;; - `prf-runs/<latest-run>/` — persisted evidence artifacts (from `bb run:scenario`)
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :fold :result :show}}
 (ns notebooks.ef-demo-dispute-refund
   (:require [nextjournal.clerk :as clerk]

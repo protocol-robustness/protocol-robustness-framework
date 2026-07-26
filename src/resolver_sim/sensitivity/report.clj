@@ -189,7 +189,7 @@
                          display-rm (assoc :declaration/risk-meta-hash
                                            (hc/hash-with-intent
                                             {:hash/intent :evidence-record}
-                                             display-rm)))))
+                                            display-rm)))))
         ;; Result-artifact provenance — sensitivity of the scenario execution
         ;; output artifact.  This is distinct from the scenario's effective
         ;; sensitivity (which classifies the scenario result content).
@@ -318,10 +318,10 @@
         :sentinel/sources display
         :sentinel/structured-sources structured}
      ;; Additional context as structured records
-     {:source/type :run-context
-      :run/id (:run-id context)
-      :profile profile-name
-       :sentinel-version (:sentinel-version context)}))))
+       {:source/type :run-context
+        :run/id (:run-id context)
+        :profile profile-name
+        :sentinel-version (:sentinel-version context)}))))
 
 ;; ── Aggregation derivation ──────────────────────────────────────────────────
 
@@ -484,14 +484,14 @@
               :sensitive-scenario-count sensitive-count
               :scenarios scenario-entries}
         base (cond-> base
-                has-prov? (assoc :run-level (name (:level run-sensitivity))
-                                 :structural-level (name (:structural-level run-sensitivity :sensitivity/internal))
-                                 :risk-meta risk-meta-val)
-                (and has-prov? risk-meta-val) (assoc :risk-meta-hash
-                                                      (hc/hash-with-intent
-                                                       {:hash/intent :evidence-record}
-                                                       risk-meta-val))
-                provenance (assoc :provenance provenance)
+               has-prov? (assoc :run-level (name (:level run-sensitivity))
+                                :structural-level (name (:structural-level run-sensitivity :sensitivity/internal))
+                                :risk-meta risk-meta-val)
+               (and has-prov? risk-meta-val) (assoc :risk-meta-hash
+                                                    (hc/hash-with-intent
+                                                     {:hash/intent :evidence-record}
+                                                     risk-meta-val))
+               provenance (assoc :provenance provenance)
                aggregation-derivation (assoc :aggregation-derivation aggregation-derivation)
                true (assoc :decision-provenance decision-provenance)
                true (assoc :scenario-set-reconciliation scenario-set-reconciliation))

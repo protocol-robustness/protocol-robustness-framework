@@ -28,6 +28,19 @@
    :command/outputs []
    :command/description "Run the fast registered review gate."}
 
+   {:command/id :backstop-full
+    :command/path ["backstop" "full"]
+    :command/title "Full backstop"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :manual
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "backstop:full"
+    :command/options []
+    :command/outputs []
+    :command/description "Run the extended review gate: yield + CLI default + notebooks + forensic-python + community + portability."}
+
   {:command/id :commands-validate
    :command/path ["commands" "validate"]
    :command/title "Validate command registry"
@@ -492,14 +505,14 @@
    :command/bb-task "build:sew"
    :command/description "Build prf-runner-sew uberjar (18 MB, full Sew replay)."}
 
-  {:command/id :build-cli
-   :command/path ["build" "cli"]
-   :command/title "Build CLI uberjar"
-   :command/category :build
-   :command/surface :bb
-   :command/runtime :bb
-   :command/bb-task "build:cli"
-   :command/description "Build prf.jar — unified CLI uberjar."}
+   {:command/id :build-cli
+    :command/path ["build" "cli"]
+    :command/title "Build CLI uberjar"
+    :command/category :build
+    :command/surface :bb
+    :command/runtime :bb
+    :command/bb-task "build:prf"
+    :command/description "Build prf.jar — unified CLI uberjar."}
 
   {:command/id :build-all
    :command/path ["build" "all"]

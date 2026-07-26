@@ -48,10 +48,10 @@
   (let [errors (atom [])]
     ;; Check 1: Scenario loads
     (let [scenario (try
-                    (scen-io/load-scenario-file (input-source/loadable-ref scenario-source))
-                    (catch Exception e
-                      (swap! errors conj (str "scenario load failed: " (.getMessage e)))
-                      nil))]
+                     (scen-io/load-scenario-file (input-source/loadable-ref scenario-source))
+                     (catch Exception e
+                       (swap! errors conj (str "scenario load failed: " (.getMessage e)))
+                       nil))]
       (when scenario
         ;; Check 2: Protocol identifier
         (let [protocol (or (:protocol scenario) "sew-v1")]

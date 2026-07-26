@@ -12,7 +12,8 @@
 ;; 4. Attestation resolution: parse typed ref → registry lookup → hash match → type verify
 ;; 5. A full verifiable evidence chain from protocol action through to resolution
 
-^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.ef-demo-pro-rata-allocation
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]
@@ -22,7 +23,8 @@
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-dag :as adag]
             [resolver-sim.evidence.attestation-registry :as ar]
-            [resolver-sim.evidence.attestation-resolver :as ars]))
+            [resolver-sim.evidence.attestation-resolver :as ars]
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
 ;; ===========================================================================
 ;; 1. Slashing Event — Allocation Problem
@@ -152,6 +154,60 @@
               (:allocations allocation-result))})
 
 ;; ===========================================================================
+;; 3b. Mechanism Evidence Envelope
+;; ===========================================================================
+
+;; The allocation also produces a hash-committed mechanism evidence envelope
+;; with witness rounds, structural validation results, and an independent
+;; reconstruction check. The envelope is what attestations ultimately certify.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def direct-allocation
+  (sew-econ/calculate-sew-slash-allocation allocation-input))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :font-family "monospace" :border-radius "4px"}}
+  [:div "Evidence ref hash: " [:strong {:style {:color "#7ADDDC"}} (get-in direct-allocation [:mechanism/evidence-reference :evidence/hash])]]
+  [:div "Mechanism:         " (pr-str (get-in direct-allocation [:mechanism/evidence-reference :mechanism]))]
+  [:div "Allocation ID:     " (pr-str (get-in direct-allocation [:mechanism/evidence-reference :allocation/id]))]])
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+  (let [me (:mechanism/evidence direct-allocation)
+        vr (:mechanism/validation-results me)
+        all-pass? (every? :holds? vr)]
+    [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                   :font-family "monospace" :border-radius "4px" :margin-top "12px"}}
+     [:div "Validation: " [:strong {:style {:color (if all-pass? "#22c55e" "#ef4444")}} (if all-pass? "ALL PASSED" "FAILURES DETECTED")]]
+     (into [:table {:style {:width "100%" :border-collapse "collapse" :font-size "13px" :margin-top "8px"}}]
+           (mapv (fn [r]
+                   [:tr {:style {:border-bottom "1px solid #134e4a"}}
+                    [:td {:style {:color "#94a3b8" :padding "4px 8px"}} (name (:claim/id r))]
+                    [:td {:style {:color (if (:holds? r) "#22c55e" "#ef4444") :padding "4px 8px"}} (if (:holds? r) "PASSED" "FAILED")]])
+                vr))]))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ (let [violations (pro-rata-evidence/evidence-violations (:mechanism/evidence direct-allocation))]
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "12px"
+                  :font-family "monospace" :font-size "13px" :border-radius "4px" :margin-top "8px"}}
+    [:div "Reconstruction: " [:strong {:style {:color (if (seq violations) "#ef4444" "#22c55e")}} (if (seq violations) "VIOLATIONS" "CLEAN")]]
+    (when (seq violations)
+       [:div {:style {:margin-top "8px" :color "#fbbf24"}} (pr-str violations)])]))
+
+;; The attestations in the next section reference an artifact built from this
+;; same allocation — the mechanism evidence envelope provides the independent
+;; mathematical witness that the attestations certify.
+
+(def attribution
+  {:ctx/scenario-id "ef-pro-rata-allocation"
+   :ctx/run-id "pro-rata-demo-1"
+   :ctx/event-index 1
+   :ctx/event-type :slash/execute})
+
+;; ===========================================================================
 ;; 4. Attestation Creation
 ;; ===========================================================================
 
@@ -196,7 +252,9 @@
     :world-before-hash world-before-hash
     :world-after-hash world-after-hash
     :action-hash action-hash
-    :action-hash-at action-hash-at}))
+    :action-hash-at action-hash-at
+    :allocation-input allocation-input
+    :attribution attribution}))
 
 ;; We define a simple signing function for the demo — in production this
 ;; would be an Ed25519 or ECDSA signature from the validator's key:
@@ -489,10 +547,12 @@
 ;;
 ;;   1. Slash event → allocation input → projection artifact (ex-ante)
 ;;   2. Pro-rata computation → allocation result (ex-post)
-;;   3. Validator attestations → content-addressed attestation records
-;;   4. Typed references → attestation:sha256:<hash> format
-;;   5. DAG nodes → full execution evidence nodes with typed refs
-;;   6. Resolution → registry lookup + hash match + type verify + signature
+;;   3. Mechanism evidence envelope → hash-committed witness with
+;;      structural validation and independent reconstruction check
+;;   4. Validator attestations → content-addressed attestation records
+;;   5. Typed references → attestation:sha256:<hash> format
+;;   6. DAG nodes → full execution evidence nodes with typed refs
+;;   7. Resolution → registry lookup + hash match + type verify + signature
 ;;
 ;; Key design properties:
 ;;

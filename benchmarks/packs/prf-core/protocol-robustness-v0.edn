@@ -43,16 +43,16 @@
                              :concept/conservation
                              :concept/confidence
                              :concept/configuration]
- :benchmark/scenarios
- [{:scenario/id "malicious-resolver-verdict-v1"
-   :dimension   :robustness/resolver-accountability
-   :claim       :malicious-verdict-economically-bounded}
-  {:scenario/id "dispute-flooding-v1"
-   :dimension   :robustness/liveness-under-load
-   :claim       :liveness-under-adversarial-load}
-  {:scenario/id "autopush-settlement-v1"
-   :dimension   :robustness/escrow-fund-safety
-   :claim       :pull-first-settlement-safety}]
+  :benchmark/scenarios
+  [{:scenario/id "S25_profit-maximizer-slash-lifecycle"
+    :dimension   :robustness/resolver-accountability
+    :claim       :malicious-verdict-economically-bounded}
+   {:scenario/id "S62_resolver-throughput-exhaustion"
+    :dimension   :robustness/liveness-under-load
+    :claim       :liveness-under-adversarial-load}
+   {:scenario/id "S05_pending-settlement-execute"
+    :dimension   :robustness/escrow-fund-safety
+    :claim       :pull-first-settlement-safety}]
   :benchmark/claims
   [{:claim/id :evidence-root-present
     :claim/role :primary

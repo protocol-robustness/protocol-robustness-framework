@@ -49,6 +49,11 @@ jobs:
       - name: Run canonical suite
         run: |
           set +e
+          echo "=== Running CLI backstop (structural gate) ==="
+          clojure -M:cli/sew backstop
+          BACKSTOP_EXIT=$?
+          echo "Backstop exit code: $BACKSTOP_EXIT"
+
           echo "=== Running unit tests ==="
           ./scripts/test.sh unit
           UNIT_EXIT=$?
@@ -70,7 +75,6 @@ jobs:
           echo "=== Running contracts ==="
           ./scripts/test.sh contracts || true
 
-
           echo "=== Running coverage ==="
           ./scripts/test.sh coverage || true
 
@@ -81,6 +85,7 @@ jobs:
           ./scripts/test.sh monte-carlo || true
 
           FAILURES=0
+          [ $BACKSTOP_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))
           [ $UNIT_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))
           [ $REF_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))
           echo "Total gating failures: $FAILURES"

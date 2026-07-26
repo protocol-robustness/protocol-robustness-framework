@@ -906,8 +906,8 @@
               :residual {:amount residual
                          :reason (get-in decision [:evidence :residual-reason])
                          :destination (get-in policy [:residual-liquidity :destination])}
-               :reconciliation {:all-allocations-applied (every? #(zero? (:deferred % 0)) participants)
-                                :allocation-applied? (every? #(zero? (:deferred % 0)) participants)
+              :reconciliation {:all-allocations-applied (every? #(zero? (:deferred % 0)) participants)
+                               :allocation-applied? (every? #(zero? (:deferred % 0)) participants)
                                :shortfalls-preserved? true
                                :capacity-reconciled? true :accounting-reconciled? accounting-reconciled?
 

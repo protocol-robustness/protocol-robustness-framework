@@ -645,7 +645,8 @@ run_dr3_coverage() {
   echo "Running DR3 critical suite + release-mapping drift checks..."
 
   # 1) Run the dedicated DR3-critical suite.
-  clojure -M:test:with-sew -e "
+  local tmpfile=$(mktemp /tmp/dr3-coverage-XXXXXX.clj)
+  cat > "$tmpfile" << 'CLOJURE'
 (require '[resolver-sim.sim.fixtures :as f])
 (require '[resolver-sim.io.fixtures :as io-fix])
 (let [r (io-fix/run-suite-from-key :suites/dr3-critical nil nil {})]
@@ -654,11 +655,17 @@ run_dr3_coverage() {
   (when-not (:ok? r)
     (doseq [x (:results r)]
       (when (not= :pass (:outcome x))
-        (println (str "  FAIL: " (:trace-id x) " [" (:outcome x) "]"))))))
-  (when-not (:ok? r) (System/exit 1)))" || return $?
+        (println (str "  FAIL: " (:trace-id x) " [" (:outcome x) "]"))))
+    (System/exit 1)))
+CLOJURE
+  clojure -M:test:with-sew -i "$tmpfile"
+  local dr3_exit=$?
+  rm -f "$tmpfile"
+  if [ $dr3_exit -ne 0 ]; then return $dr3_exit; fi
 
   # 2) Verify DR3 release mapping file references valid traces and suite IDs.
-  clojure -M:test:with-sew -e "
+  local tmpfile=$(mktemp /tmp/dr3-coverage-XXXXXX.clj)
+  cat > "$tmpfile" << 'CLOJURE'
 (require '[clojure.edn :as edn]
          '[clojure.java.io :as io])
 
@@ -683,7 +690,12 @@ run_dr3_coverage() {
     (println "Missing DR3 mapped suites:")
     (doseq [p missing-suites] (println " -" p))
     (System/exit 1))
-  (println "DR3 mapping drift checks passed"))" || return $?
+  (println "DR3 mapping drift checks passed"))
+CLOJURE
+  clojure -M:test:with-sew -i "$tmpfile"
+  local dr3_exit=$?
+  rm -f "$tmpfile"
+  if [ $dr3_exit -ne 0 ]; then return $dr3_exit; fi
 
   return $?
 }
@@ -691,7 +703,8 @@ run_dr3_coverage() {
 run_equivalence_new() {
   require_clojure || return $?
   echo "Running new equivalence comparison suites (auth/race/escalation/accounting + money-path)..."
-  clojure -M:test:with-sew -e "
+  local tmpfile=$(mktemp /tmp/equiv-XXXXXX.clj)
+  cat > "$tmpfile" << 'CLOJURE'
 (require '[resolver-sim.sim.fixtures :as f])
 (require '[resolver-sim.io.fixtures :as io-fix])
 (let [suites [:suites/equivalence-auth-paths
@@ -708,8 +721,12 @@ run_equivalence_new() {
       (doseq [r (:results result)]
         (when (not= :pass (:outcome r))
           (println (str "  FAIL: " (:trace-id r) " [" (:outcome r) "]")))))))
-  (when any-fail (System/exit 1)))"
-
+  (when any-fail (System/exit 1)))
+CLOJURE
+  clojure -M:test:with-sew -i "$tmpfile"
+  local dr3_exit=$?
+  rm -f "$tmpfile"
+  if [ $dr3_exit -ne 0 ]; then return $dr3_exit; fi
 
   return $?
 }

@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.evidence-graph-viewer
   "Interactive evidence graph viewer for Clerk.
    Loads graph evidence artifacts from the focused run and renders

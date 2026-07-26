@@ -1,5 +1,6 @@
 ;; Settings: default-code-visibility = :hide (hidden) or :show (visible)
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.telemetry
   (:require [nextjournal.clerk :as clerk]
             [clojure.set :as set]

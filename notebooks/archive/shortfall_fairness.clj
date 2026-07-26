@@ -1,4 +1,5 @@
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :show :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.archive.shortfall-fairness
   "Interactive notebook: shortfall lifecycle, fairness, and classification.
    Demonstrates Phase 1-5: projection fields, configurable reclaim threshold,

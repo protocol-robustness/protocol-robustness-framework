@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.workbench-production
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.notebook-support.speds.data :as data]

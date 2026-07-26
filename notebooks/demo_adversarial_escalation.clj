@@ -1,7 +1,8 @@
 ;; # Demo 1 — Adversarial Dispute Escalation
 ;; Coordination Failure Under Valid Execution
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.demo-adversarial-escalation
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]

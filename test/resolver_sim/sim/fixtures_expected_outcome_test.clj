@@ -3,7 +3,7 @@
             [resolver-sim.io.fixtures :as fixtures]))
 
 (deftest mixed-trace-entry-shapes-are-supported
-  (let [result (fixtures/run-suite-from-key :suites/equivalence-escalation-boundaries)
+  (let [result (fixtures/run-suite-from-key :suites/equivalence-escalation-boundaries nil nil nil)
         by-id  (into {} (map (juxt :trace-id identity) (:results result)))
         s48    (get by-id "s48-max-escalation-exact-boundary")
         s49    (get by-id "s49-max-escalation-plus-one-rejected")

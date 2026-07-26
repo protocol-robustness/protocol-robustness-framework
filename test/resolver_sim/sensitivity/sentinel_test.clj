@@ -465,7 +465,7 @@
 
 (deftest classify-from-findings-picks-highest-level
   (let [result (sentinel/classify-from-findings [sample-finding-jwt
-                                                  sample-finding-private-key])]
+                                                 sample-finding-private-key])]
     (is (= :sensitivity/private (:level result))
         "private-key finding must dominate jwt-token finding")
     (is (contains? (set (:reasons result)) :contains-live-vulnerability))
@@ -487,7 +487,7 @@
   (let [artifact {:sensitivity/findings [sample-finding-private-key]}
         result (sentinel/classify-structural artifact)]
     (is (= :sensitivity/private (:level (sentinel/classify-from-findings
-                                        (:sensitivity/findings artifact))))
+                                         (:sensitivity/findings artifact))))
         "classify-from-findings must return private for private-key finding")))
 
 (deftest evidence-backed-classification-via-safety-findings

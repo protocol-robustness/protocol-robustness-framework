@@ -43,8 +43,7 @@
     {:outcome :not-exercised
      :claim/id :force-authorisation-exact-scope-single-use
      :detail "No force-authorisation records found"}
-    (let [inv (requiring-resolve 'resolver-sim.assurance.force-authorisation
-                                 'verify-authorisation-lifecycle-consistency)
+    (let [inv (requiring-resolve 'resolver-sim.assurance.force-authorisation/verify-authorisation-lifecycle-consistency)
           result (inv (get world :force-authorisations {})
                       (get world :force-authorisations/consumed {}))]
       (if (:holds? result)

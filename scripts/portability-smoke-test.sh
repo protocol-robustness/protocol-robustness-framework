@@ -76,18 +76,18 @@ echo "External CWD: $CWD_DIR"
     exit 1
   fi
 
-  java -jar "$SEW_JAR_PATH" help > "$TEMP_DIR/sew-help.txt"
+  java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main help > "$TEMP_DIR/sew-help.txt"
   grep -q "run-scenario" "$TEMP_DIR/sew-help.txt"
   grep -q "run-benchmark" "$TEMP_DIR/sew-help.txt"
-  java -jar "$SEW_JAR_PATH" \
+  java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
     run-scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
     --run-root "$SCENARIO_ROOT"
-  java -jar "$SEW_JAR_PATH" \
+  java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
     verify-scenario --run-root "$SCENARIO_ROOT"
-  java -jar "$SEW_JAR_PATH" \
-    run-benchmark force-authorisation-custody-v1 \
+  java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
+    run-benchmark prf-core/force-authorisation-custody-v1 \
     --run-root "$BENCHMARK_ROOT"
-  java -jar "$SEW_JAR_PATH" \
+  java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
     verify-benchmark --run-root "$BENCHMARK_ROOT"
 )
 

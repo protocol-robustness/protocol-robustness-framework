@@ -5,6 +5,7 @@
 ;; See notebooks/appeal_analysis.clj for the canonical feature set.
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :hide :result :show}}
 (ns notebooks.not-appealed
   (:require [nextjournal.clerk :as clerk]

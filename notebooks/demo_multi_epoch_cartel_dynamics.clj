@@ -1,7 +1,8 @@
 ;; # Demo 3 — Multi-Epoch Cartel Dynamics
 ;; Long-Horizon Incentive Stability (screenshot-first)
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.demo-multi-epoch-cartel-dynamics
   (:require [nextjournal.clerk :as clerk]))
 

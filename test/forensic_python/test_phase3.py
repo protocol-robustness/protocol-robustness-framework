@@ -707,7 +707,7 @@ class TestHighValueSpotChecks:
     def test_unsigned_bundle_signing_unaffected(self, tmp_path):
         """bb forensic:consensus --from-dirs still works (Phase 1 compat)."""
         from forensic import consensus
-        from tests.forensic_python.test_consensus import _make_bundle_with_hash
+        from test.forensic_python.test_consensus import _make_bundle_with_hash
         d1 = _make_bundle_with_hash(tmp_path, "abc", "def")
         d2 = _make_bundle_with_hash(tmp_path, "abc", "def")
         manifest = consensus.run_consensus(

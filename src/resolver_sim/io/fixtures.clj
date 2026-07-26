@@ -235,8 +235,8 @@
         traces (mapv (fn [entry]
                        (if (and (map? entry) (contains? entry :trace))
                          (let [trace-ref (:trace entry)
-                              trace (-> (compose-loader trace-ref)
-                                        resolve-protocol-params-ref)]
+                               trace (-> (compose-loader trace-ref)
+                                         resolve-protocol-params-ref)]
                            {:trace trace
                             :expected-outcome (:expected-outcome entry)
                             :expected-halt-reason (:expected-halt-reason entry)})

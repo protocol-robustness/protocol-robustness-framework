@@ -12,9 +12,10 @@
      (canonical-bytes value)               — byte-array of typed encoding
      (hash-bytes bytes)                    — raw SHA-256 digest (32 bytes)
      (domain-hash domain-tag value)        — SHA-256(domain_tag || canonical_bytes), returns hex"
-(:import [java.security MessageDigest]
-            [java.io ByteArrayOutputStream]
-            [java.math BigInteger BigDecimal])
+  (:refer-clojure :exclude [read-string])
+  (:import [java.security MessageDigest]
+           [java.io ByteArrayOutputStream]
+           [java.math BigInteger BigDecimal])
   (:require [clojure.edn :as edn]))
 
 ;; ──────────────────────────────────────────────────────────────────────────────

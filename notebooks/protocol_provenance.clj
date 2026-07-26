@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.protocol-provenance
   "Protocol Provenance — Manifest Management Cockpit.
 

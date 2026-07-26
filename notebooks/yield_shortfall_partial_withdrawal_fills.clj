@@ -1,5 +1,6 @@
 ^{:nextjournal.clerk/visibility {:code :show :result :show}
-  :nextjournal.clerk/width :full}
+  :nextjournal.clerk/width :full
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.yield-shortfall-partial-withdrawal-fills
   "Yield Shortfall with Partial Withdrawal Fills — a step-by-step demonstration.
 
@@ -72,9 +73,9 @@
           ["Yield module" "gen-yield (liquid-lending profile)"]
           ["Initial depositors" "alice, bob, cara"]
           ["Total deposited" "2,250 USDC"]
-          ["Available ratio (after shortfall)" "40%"]
-          ["Withdrawal policy" "waterfall (principal → realized-yield → deferred-yield)"]
-          ["Shortfall model" "liquidity-only, recoverable, defer unfilled"]
+           ["Available ratio (after shortfall)" "40%"]
+           ["Withdrawal policy" "proportional share of pool (principal-only; this demo does not model yield)"]
+           ["Shortfall model" "liquidity-only, recoverable, defer unfilled"]
           ["Model type" "illustrative (uses real calculate-fulfillment)"]]
    :row-keys [:field :value]})
 
@@ -151,7 +152,7 @@
      [:p {:style {:color "#cbd5e1" :fontSize "14px"}}
       "Alice is first in line. The pool has "
       [:strong {:style {:color "#7ADDDC"}} "900 USDC"] " available. "
-      "Under proportional allocation, Alice receives "
+      "Alice holds 1,000 of 2,250 total principal (44.4%), so her proportional share of the 900 pool is 400. Alice receives "
       [:strong {:style {:color "#22c55e"}} (:filled outcome) " USDC"]
       " now, with "
       [:strong {:style {:color "#f59e0b"}} (:deferred outcome) " USDC"]
@@ -189,7 +190,7 @@
      [:p {:style {:color "#cbd5e1" :fontSize "14px"}}
       "Bob is next. The pool has "
       [:strong {:style {:color "#7ADDDC"}} (:available-liquidity before) " USDC"]
-      " remaining. Bob receives "
+      " remaining. Bob holds 750 of 1,250 remaining principal (60%), so his proportional share is 300. Bob receives "
       [:strong {:style {:color "#22c55e"}} (:filled outcome) " USDC"]
       " now, with "
       [:strong {:style {:color "#f59e0b"}} (:deferred outcome) " USDC"]
@@ -225,7 +226,7 @@
      [:h3 {:style {:color "#f8fafc" :marginTop 0}} "Cara requests 500 USDC"]
      [:p {:style {:color "#cbd5e1" :fontSize "14px"}}
       "Cara is last. By now, the pool has been largely consumed. "
-      "She receives "
+      "Cara holds all 500 of the remaining principal (100%), so her proportional share is the entire remaining pool of 200 (but she requested 500). She receives "
       [:strong {:style {:color "#22c55e"}} (:filled outcome) " USDC"]
       " and "
       [:strong {:style {:color "#f59e0b"}} (:deferred outcome) " USDC"]
@@ -279,8 +280,9 @@
 ;; - **Cara:** 500 USDC requested → 200 fulfilled, 300 deferred. Partial fill.
 ;;   Cara arrives last and receives 40% of her request from the diminished pool.
 ;;
-;; **Key insight:** Proportional allocation means each user receives their fair
-;; share of available liquidity based on remaining claims at time of withdrawal.
+;; **Key insight:** Each user receives a proportion of the available pool equal
+;; to their share of the remaining principal at withdrawal time:
+;;   `user-pool-share = pool × user-principal / remaining-total-principal`
 ;; Liquidity shortfall does not mean total loss — deferred amounts are tracked
 ;; on unwinding positions and can be recovered if liquidity returns.
 

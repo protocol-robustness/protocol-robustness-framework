@@ -440,13 +440,13 @@
                                       (level>= level :sensitivity/private))
                       :mode (effective-override-mode level risk-meta)}}
         base-report (cond-> base-report
-                       declared-level (assoc :sentinel/declared-level declared-level)
-                       risk-meta (assoc :sentinel/risk-meta risk-meta
-                                        :sentinel/risk-meta-hash
-                                        (hc/hash-with-intent
-                                         {:hash/intent :evidence-record}
-                                         risk-meta))
-                       (seq (:sensitivity/findings artifact))
+                      declared-level (assoc :sentinel/declared-level declared-level)
+                      risk-meta (assoc :sentinel/risk-meta risk-meta
+                                       :sentinel/risk-meta-hash
+                                       (hc/hash-with-intent
+                                        {:hash/intent :evidence-record}
+                                        risk-meta))
+                      (seq (:sensitivity/findings artifact))
                       (assoc :sentinel/evidence-findings (:sensitivity/findings artifact)))
         report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                          (dissoc base-report

@@ -268,12 +268,18 @@
         (let [runner-path (str "benchmarks/runners/" (name runner) ".edn")]
           (when-not (file-exists? runner-path)
             (swap! errors conj (str "Runner policy file not found: " runner-path " for " bid))))))
-    ;; Concepts referenced in manifest
+    ;; Concepts referenced in manifest — check both benchmark-local and framework registries
     (let [concept-files-list (concept-files)
-          all-concept-ids (set (mapcat (fn [f]
-                                         (let [d (read-edn f)]
-                                           (map :concept/id (:concepts d))))
-                                       concept-files-list))]
+          local-concept-ids (set (mapcat (fn [f]
+                                           (let [d (read-edn f)]
+                                             (map :concept/id (:concepts d))))
+                                         concept-files-list))
+          global-concept-ids (try
+                               (let [load-registry (requiring-resolve 'resolver-sim.concepts.registry/load-registry)
+                                     global-concepts (:concepts (load-registry))]
+                                 (set (map :concept/id global-concepts)))
+                               (catch Exception _ #{}))
+          all-concept-ids (set/union local-concept-ids global-concept-ids)]
       (doseq [cid (:benchmark/concepts manifest)]
         (when-not (contains? all-concept-ids cid)
           (swap! errors conj (str "Unknown concept " cid " referenced from " manifest-path)))))
@@ -290,10 +296,16 @@
             (let [dim (:dimension scenario)]
               (when dim
                 (let [concept-files-list (concept-files)
-                      all-concept-ids (set (mapcat (fn [f]
-                                                     (let [d (read-edn f)]
-                                                       (map :concept/id (:concepts d))))
-                                                   concept-files-list))]
+                      local-concept-ids (set (mapcat (fn [f]
+                                                       (let [d (read-edn f)]
+                                                         (map :concept/id (:concepts d))))
+                                                     concept-files-list))
+                      global-concept-ids (try
+                                           (let [load-registry (requiring-resolve 'resolver-sim.concepts.registry/load-registry)
+                                                 global-concepts (:concepts (load-registry))]
+                                             (set (map :concept/id global-concepts)))
+                                           (catch Exception _ #{}))
+                      all-concept-ids (set/union local-concept-ids global-concept-ids)]
                   (when-not (contains? all-concept-ids dim)
                     (swap! errors conj (str "Unknown scenario dimension " dim " in " manifest-path))))
                 (when-not (contains? (set (:benchmark/concepts manifest)) dim)
@@ -379,25 +391,27 @@
 
 (defn- validate-no-bare-filesystem-paths
   [errors]
-  (doseq [reg-path ["benchmarks/packs/prf-core/registry.edn"
-                    "benchmarks/packs/sew/registry.edn"]]
-    (when-let [pack (read-edn reg-path)]
-      (let [pack-dir (.getParent (io/file reg-path))]
-        (doseq [ref (:benchmarks pack)]
-          (let [manifest-path (str pack-dir "/" (:benchmark/file ref))]
-            (when-let [m (read-edn manifest-path)]
-              ;; Check suite path types
-              (let [suite-key (:benchmark/scenario-suite m)]
-                (when suite-key
-                  (let [paths (suites/suite-paths suite-key)]
-                    (doseq [p paths]
-                      (when (and (string? p)
-                                 (not (str/starts-with? p "resource:"))
-                                 (not (str/starts-with? p "file:"))
-                                 (.exists (io/file p)))
-                        (swap! errors conj (str "Bare filesystem path in suite " suite-key
-                                                " of " (:benchmark/id ref) ": " p
-                                                " — use resource: prefix for JAR portability"))))))))))))))
+  (let [scenario-dir "scenarios/edn"]
+    (doseq [reg-path ["benchmarks/packs/prf-core/registry.edn"
+                      "benchmarks/packs/sew/registry.edn"]]
+      (when-let [pack (read-edn reg-path)]
+        (let [pack-dir (.getParent (io/file reg-path))]
+          (doseq [ref (:benchmarks pack)]
+            (let [manifest-path (str pack-dir "/" (:benchmark/file ref))]
+              (when-let [m (read-edn manifest-path)]
+                ;; Check suite path types
+                (let [suite-key (:benchmark/scenario-suite m)]
+                  (when suite-key
+                    (let [paths (suites/suite-paths suite-key)]
+                      (doseq [p paths]
+                        (when (and (string? p)
+                                   (not (str/starts-with? p "resource:"))
+                                   (not (str/starts-with? p "file:"))
+                                   (not (str/starts-with? p scenario-dir))
+                                   (.exists (io/file p)))
+                          (swap! errors conj (str "Bare filesystem path in suite " suite-key
+                                                  " of " (:benchmark/id ref) ": " p
+                                                  " — use resource: prefix for JAR portability")))))))))))))))
 
 ;; ───────────────────────────────────────────────────────────────────────
 ;; Public API

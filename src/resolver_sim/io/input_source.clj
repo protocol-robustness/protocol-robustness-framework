@@ -39,7 +39,11 @@
        :input/display-name (.getName bare-file)}
 
       :else
-      (throw (ex-info "Input not found" {:input/ref ref})))))
+      (if-let [url (io/resource file-ref)]
+        {:input/type :classpath :input/ref (str "classpath:" file-ref)
+         :input/resource-path file-ref
+         :input/display-name (last (str/split file-ref #"/")) :input/url url}
+        (throw (ex-info "Input not found" {:input/ref ref}))))))
 
 (defn open-stream [input]
   (case (:input/type input)

@@ -24,7 +24,8 @@
 ;; - Live: `resolver-sim.protocols.sew.invariant-runner/run-all` — in-process invariant suite
 
 ;; Settings: default-code-visibility = :hide (hidden) or :show (visible)
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.dispute-resolution
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]

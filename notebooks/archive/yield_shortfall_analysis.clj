@@ -1,4 +1,5 @@
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :show :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.archive.yield-shortfall-analysis
   "General analysis notebook for yield module shortfall resilience.
    

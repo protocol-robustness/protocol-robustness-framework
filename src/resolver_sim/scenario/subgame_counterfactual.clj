@@ -23,7 +23,6 @@
    Phase I — structured counterexample maps for every profitable deviation
    Phase J — off-path coverage reporting"
   (:require [clojure.string :as str]
-            [clojure.string :as str]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.scenario.reputation-profiles :as rep-profiles]))

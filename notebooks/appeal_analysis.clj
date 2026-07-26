@@ -20,6 +20,7 @@
 ;; - Research models (escalation economics, stochastic detection)
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :fold :result :show}}
 (ns notebooks.appeal-analysis
   (:require [clojure.string :as str]

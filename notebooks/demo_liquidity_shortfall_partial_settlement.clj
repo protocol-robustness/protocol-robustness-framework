@@ -1,7 +1,8 @@
 ;; # Demo 2 — Liquidity Shortfall & Partial Settlement
 ;; Yield-Enabled Settlement Under Liquidity Stress (screenshot-first)
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :show}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.demo-liquidity-shortfall-partial-settlement
   (:require [nextjournal.clerk :as clerk]))
 

@@ -57,58 +57,58 @@
 
 (deftest pre-condition-registry-entry-requires-model-root
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"model-root"
-        (cre/build-entry {:benchmark/id :test/bm}))))
+                        (cre/build-entry {:benchmark/id :test/bm}))))
 
 (deftest pre-condition-registry-entry-invalid-component-status
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"requires :reason-code"
-        (cre/build-entry
-         {:benchmark/id :test/bm
-          :benchmark/model-root "sha256:m"
-          :benchmark/generator-root {:status :deferred :root nil}
-          :benchmark/evaluation-policy-root "sha256:e"}))))
+                        (cre/build-entry
+                         {:benchmark/id :test/bm
+                          :benchmark/model-root "sha256:m"
+                          :benchmark/generator-root {:status :deferred :root nil}
+                          :benchmark/evaluation-policy-root "sha256:e"}))))
 
 (deftest pre-condition-registry-entry-content-root-mismatch
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"content-root"
-        (cre/build-entry
-         {:benchmark/id :test/bm
-          :benchmark/model-root "sha256:m"
-          :benchmark/evaluation-policy-root "sha256:e"
-          :benchmark/content-root "sha256:wrong"}))))
+                        (cre/build-entry
+                         {:benchmark/id :test/bm
+                          :benchmark/model-root "sha256:m"
+                          :benchmark/evaluation-policy-root "sha256:e"
+                          :benchmark/content-root "sha256:wrong"}))))
 
 (deftest pre-condition-review-round-invalid-purpose
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"review-round purpose"
-        (rr/build-review-round
-         {:benchmark/content-root "sha256:c"
-          :review-round/purpose :invalid
-          :review-round/members [{:researcher/id "a" :role :steward}
-                                 {:researcher/id "b" :role :rep}
-                                 {:researcher/id "c" :role :adv}]
-          :review-round/membership-frozen-at "..."
-          :review-round/policy-root "sha256:p"}))))
+                        (rr/build-review-round
+                         {:benchmark/content-root "sha256:c"
+                          :review-round/purpose :invalid
+                          :review-round/members [{:researcher/id "a" :role :steward}
+                                                 {:researcher/id "b" :role :rep}
+                                                 {:researcher/id "c" :role :adv}]
+                          :review-round/membership-frozen-at "..."
+                          :review-round/policy-root "sha256:p"}))))
 
 (deftest pre-condition-review-round-missing-creation-inputs
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"creation requirements"
-        (rr/build-review-round
-         {:benchmark/content-root "sha256:c"
-          :review-round/purpose :model-admission
-          :review-round/members [{:researcher/id "a" :role :steward}
-                                 {:researcher/id "b" :role :rep}
-                                 {:researcher/id "c" :role :adv}]
-          :review-round/membership-frozen-at "..."}))))
+                        (rr/build-review-round
+                         {:benchmark/content-root "sha256:c"
+                          :review-round/purpose :model-admission
+                          :review-round/members [{:researcher/id "a" :role :steward}
+                                                 {:researcher/id "b" :role :rep}
+                                                 {:researcher/id "c" :role :adv}]
+                          :review-round/membership-frozen-at "..."}))))
 
 (deftest pre-condition-position-unknown-dimension
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Unknown position dimensions"
-        (rp/build-position
-         {:benchmark/content-root "sha256:c"
-          :researcher/id "a"
-          :outcome-hash "sha256:o"
-          :dimensions {:nonexistent {:status :ok}}}))))
+                        (rp/build-position
+                         {:benchmark/content-root "sha256:c"
+                          :researcher/id "a"
+                          :outcome-hash "sha256:o"
+                          :dimensions {:nonexistent {:status :ok}}}))))
 
 (deftest pre-condition-force-auth-invalid-approvals
   (let [round {:benchmark/content-root "sha256:c" :review-round/id "rr:t"
                :review-round/members [{:researcher/id "a" :role :steward}
-                                       {:researcher/id "b" :role :rep}
-                                       {:researcher/id "c" :role :adv}]}
+                                      {:researcher/id "b" :role :rep}
+                                      {:researcher/id "c" :role :adv}]}
         result (rfa/build-authorisation
                 {:review-round round
                  :target-case-hash "sha256:tgt"
@@ -189,13 +189,13 @@
 (deftest pre-condition-force-auth-non-member-approval-ignored
   (let [round {:benchmark/content-root "sha256:c" :review-round/id "rr:t"
                :review-round/members [{:researcher/id "a" :role :steward}
-                                       {:researcher/id "b" :role :rep}
-                                       {:researcher/id "c" :role :adv}]}
+                                      {:researcher/id "b" :role :rep}
+                                      {:researcher/id "c" :role :adv}]}
         result (rfa/build-authorisation
                 {:review-round round
                  :target-case-hash "sha256:tgt"
                  :approvals [{:researcher/id "a" :signed-content-hash "sha256:s1"}
-                              {:researcher/id "d" :signed-content-hash "sha256:s2"}]
+                             {:researcher/id "d" :signed-content-hash "sha256:s2"}]
                  :dissents []})]
     (is (= :blocked (:status result)) "non-member approval should not count to threshold")))
 
@@ -240,11 +240,11 @@
 (deftest pre-condition-report-missing-content-root
   (let [m (om/build-manifest {:benchmark/content-root nil :benchmark/model-root "sha256:m"})]
     (is (not (rrr/report-valid? (rrr/build-report
-                                  {:outcome-manifest m
-                                   :researcher-id "a"
-                                   :runner-info runner-info
-                                   :evidence-refs evidence-refs
-                                   :run-id "r"}))))))
+                                 {:outcome-manifest m
+                                  :researcher-id "a"
+                                  :runner-info runner-info
+                                  :evidence-refs evidence-refs
+                                  :run-id "r"}))))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; 1. Cross-artifact reconciliation

@@ -74,22 +74,22 @@
      (if (contains? seen x)
        (throw (ex-info "Circular fixture reference" {:key x :seen seen}))
         ;; Normalize JSON-loaded trace fixtures to fix type mismatches
-        (let [loaded (load-fixture-fn x)
-              normalized (if (:events loaded)
-                           (normalize-scenario loaded)
-                           loaded)]
+       (let [loaded (load-fixture-fn x)
+             normalized (if (:events loaded)
+                          (normalize-scenario loaded)
+                          loaded)]
          (compose-suite normalized load-fixture-fn (conj seen x))))
 
-      (map? x)
+     (map? x)
      (reduce-kv (fn [m k v]
-                   (let [ns-str (when (keyword? k) (namespace k))
-                          fixture-ns (and ns-str (contains? io-fix/allowed-fixture-namespaces ns-str))
-                          identity-keys #{:suite/id :protocol/id :state/id :authority/id :threshold/id :actor/id :token/id :protocol-params-ref}]
-                     (if (or (and ns-str (not fixture-ns))
-                             (contains? identity-keys k))
-                       (assoc m k v)
-                       (assoc m k (compose-suite v load-fixture-fn seen)))))
-                 {} x)
+                  (let [ns-str (when (keyword? k) (namespace k))
+                        fixture-ns (and ns-str (contains? io-fix/allowed-fixture-namespaces ns-str))
+                        identity-keys #{:suite/id :protocol/id :state/id :authority/id :threshold/id :actor/id :token/id :protocol-params-ref}]
+                    (if (or (and ns-str (not fixture-ns))
+                            (contains? identity-keys k))
+                      (assoc m k v)
+                      (assoc m k (compose-suite v load-fixture-fn seen)))))
+                {} x)
 
      (vector? x)
      (mapv #(compose-suite % load-fixture-fn seen) x)

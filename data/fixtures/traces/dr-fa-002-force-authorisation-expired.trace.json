@@ -1,18 +1,41 @@
 {
   "schema-version": "1.0",
   "scenario-author": "@protocol-team",
-  "provenance": {"author": "@protocol-team", "created-at": "2026-07-08"},
-  "id": "scenarios/dr-fa-002",
+  "provenance": {
+    "author": "@protocol-team",
+    "created-at": "2026-07-08"
+  },
+  "id": "scenarios/dr-fa-002-force-authorisation-expired",
   "scenario-id": "dr-fa-002-force-authorisation-expired",
   "trace-id": "dr-fa-002-force-authorisation-expired",
   "suite-id": "force-authorisation-custody-v1",
   "initial-block-time": 1000,
   "agents": [
-    {"id": "buyer", "address": "0xbuyer", "strategy": "honest"},
-    {"id": "seller", "address": "0xseller", "strategy": "honest"},
-    {"id": "governance", "address": "0xgovernance", "role": "governance"},
-    {"id": "primary", "address": "0xprimary", "role": "resolver"},
-    {"id": "keeper", "address": "0xkeeper", "role": "keeper"}
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "strategy": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "strategy": "honest"
+    },
+    {
+      "id": "governance",
+      "address": "0xgovernance",
+      "role": "governance"
+    },
+    {
+      "id": "primary",
+      "address": "0xprimary",
+      "role": "resolver"
+    },
+    {
+      "id": "keeper",
+      "address": "0xkeeper",
+      "role": "keeper"
+    }
   ],
   "protocol-params": {
     "resolver-fee-bps": 150,
@@ -21,10 +44,53 @@
     "dispute-resolver": "0xprimary"
   },
   "events": [
-    {"seq": 0, "time": 1000, "agent": "buyer", "action": "create_escrow", "params": {"token": "USDC", "to": "0xseller", "amount": 5000}},
-    {"seq": 1, "time": 1060, "agent": "buyer", "action": "raise_dispute", "params": {"workflow-id": 0}},
-    {"seq": 2, "time": 1100, "agent": "governance", "action": "grant_force_authorization", "params": {"workflow-id": 0, "reason": "manual-override", "duration": 50}},
-    {"seq": 3, "time": 1200, "agent": "keeper", "action": "execute_force_authorized_action", "params": {"workflow-id": 0, "authorization-id": "fa-0", "is-release": true}}
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 5000
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1060,
+      "agent": "buyer",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1100,
+      "agent": "governance",
+      "action": "grant_force_authorization",
+      "params": {
+        "workflow-id": 0,
+        "reason": "manual-override",
+        "duration": 50
+      }
+    },
+    {
+      "seq": 3,
+      "time": 1200,
+      "agent": "keeper",
+      "action": "execute_force_authorized_action",
+      "params": {
+        "workflow-id": 0,
+        "authorization-id": "fa-0",
+        "is-release": true
+      }
+    }
   ],
-  "expected-errors": [{"seq": 3, "error": "force-authorisation-expired"}]
+  "expected-errors": [
+    {
+      "seq": 3,
+      "error": "force-authorisation-expired"
+    }
+  ]
 }

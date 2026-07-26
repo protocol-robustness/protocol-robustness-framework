@@ -5,6 +5,7 @@
 ;; Scenario → Simulation Run → Event Trace → Outcome Metrics → Invariant Evidence
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/no-cache true}
 (ns notebooks.not-governance
@@ -16,10 +17,6 @@
             [resolver-sim.notebook-support.views :as views]
             [resolver-sim.notebook-support.checks :as checks]
             [resolver-sim.io.params :as io-params]))
-
-;; Force dark theme
-^{::clerk/visibility {:code :hide :result :hide}}
-(clerk/html [:style ":root { color-scheme: dark; } .clerk-root { background: #0f172a; color: #e2e8f0; }"])
 
 ;; Shared constants loaded from notebook-local config.
 ;; Edit notebooks/appeal_config.edn to change parameter bands.
@@ -160,7 +157,7 @@
     [:div {:style {:display "grid" :gap "8px" :marginTop "8px"}}
      [:div {:style {:fontSize "14px" :fontWeight 700 :color "#c4b5fd" :marginBottom "4px"}} "What changed"]
      (for [t transitions]
-       [:div {:style {:background "#0f172a" :border "1px solid #134e4a" :borderRadius "6px" :padding "10px 14px" :fontSize "12px"}}
+        [:div {:key (:step t) :style {:background "#0f172a" :border "1px solid #134e4a" :borderRadius "6px" :padding "10px 14px" :fontSize "12px"}}
         [:div {:style {:display "flex" :justifyContent "space-between" :alignItems "center" :marginBottom "4px"}}
          [:span {:style {:fontWeight 700 :color "#f8fafc"}} (name (:action t))]
          [:span {:style {:color "#94a3b8"}} "Step " (:step t)]]
@@ -291,7 +288,7 @@
              [:th {:style {:padding "6px 8px" :textAlign "right"}} "Remaining"]]]
     (into [:tbody]
           (for [a (:allocations prorata-alloc)]
-            [:tr {:style {:borderBottom "1px solid #0f172a"}}
+            [:tr {:key (:id a) :style {:borderBottom "1px solid #0f172a"}}
              [:td {:style {:padding "6px 8px" :color "#c4b5fd"}} (:id a)]
              [:td {:style {:padding "6px 8px" :textAlign "right" :color "#f8fafc"}} (:basis-amount a)]
              [:td {:style {:padding "6px 8px" :textAlign "right" :color "#94a3b8"}} (str (:share a))]
@@ -341,8 +338,8 @@
               [:th {:style {:padding "8px" :textAlign "right"}} "Malicious"]
               [:th {:style {:padding "8px" :textAlign "right" :color "#a78bfa"}} "Delta"]]]
      (into [:tbody]
-           (for [[metric honest malicious delta] rows]
-             [:tr {:style {:borderBottom "1px solid #0f172a"}}
+            (for [[metric honest malicious delta] rows]
+              [:tr {:key metric :style {:borderBottom "1px solid #0f172a"}}
               [:td {:style {:padding "8px" :color "#f8fafc"}} metric]
               [:td {:style {:padding "8px" :textAlign "right" :color "#22c55e"}} (str honest)]
               [:td {:style {:padding "8px" :textAlign "right" :color (if (re-find #"-" (str malicious)) "#ef4444" "#f59e0b")}} (str malicious)]
@@ -382,19 +379,17 @@
      [:thead
       [:tr {:style {:borderBottom "1px solid #134e4a" :color "#94a3b8"}}
        [:th {:style {:padding "8px" :textAlign "left" :width "80px"}} "Detection"]
-       [:th {:style {:padding "8px" :textAlign "center" :color "#7ADDDC"}} "Default (10% bond)"]
-       [:th {:style {:padding "8px" :textAlign "center" :color "#7ADDDC"}} ""]
-       [:th {:style {:padding "8px" :textAlign "center" :color "#f59e0b"}} "Breakeven (210% bond)"]
-       [:th {:style {:padding "8px" :textAlign "center" :color "#f59e0b"}} ""]]
+       [:th {:style {:padding "8px" :textAlign "center" :color "#7ADDDC"} :colSpan 2} "Default (10% bond)"]
+       [:th {:style {:padding "8px" :textAlign "center" :color "#f59e0b"} :colSpan 2} "Breakeven (210% bond)"]]
       [:tr {:style {:borderBottom "2px solid #134e4a" :color "#94a3b8" :fontSize "11px"}}
        [:th]
        [:th {:style {:padding "4px 8px" :textAlign "right"}} "Slash rate"]
        [:th {:style {:padding "4px 8px" :textAlign "right"}} "Escaped harm"]
        [:th {:style {:padding "4px 8px" :textAlign "right"}} "Slash rate"]
        [:th {:style {:padding "4px 8px" :textAlign "right"}} "Escaped harm"]]]
-     (into [:tbody]
-           (for [[d br] (map vector default-r breakeven-r)]
-             [:tr {:style {:borderBottom "1px solid #0f172a"}}
+      (into [:tbody]
+            (for [[d br] (map vector default-r breakeven-r)]
+              [:tr {:key (:detection-prob d) :style {:borderBottom "1px solid #0f172a"}}
               [:td {:style {:padding "8px" :fontWeight 600 :color "#f8fafc"}} (format "%.0f%%" (double (* 100 (:detection-prob d))))]
               [:td {:style {:padding "8px" :textAlign "right" :color (if (pos? (:slash-rate d)) "#f59e0b" "#64748b")}} (format "%.1f%%" (double (* 100 (:slash-rate d))))]
               [:td {:style {:padding "8px" :textAlign "right" :color (if (pos? (:escaped-harm d)) "#f59e0b" "#22c55e")}} (format "%.0f" (double (:escaped-harm d)))]

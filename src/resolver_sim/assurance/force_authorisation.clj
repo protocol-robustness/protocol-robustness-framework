@@ -51,11 +51,11 @@
 (defn- coerce-long-default
   "Like coerce-long but defaults to 0 for nil."
   [v]
- (if (nil? v) 0
-    (cond
-      (number? v) (long v)
-      (string? v) (Long/parseLong v)
-      :else (long v))))
+  (if (nil? v) 0
+      (cond
+        (number? v) (long v)
+        (string? v) (Long/parseLong v)
+        :else (long v))))
 
 (def ^:private scope-keys
   "Canonical keys that a force-authorisation scope map must contain."
@@ -75,7 +75,7 @@
                              (assoc acc k'
                                     (case k'
                                       (:token :authorization/type :held/direction
-                                       :held/account :held/reason)
+                                              :held/account :held/reason)
                                       (if (keyword? v) v (keyword (name v)))
                                       (:amount :held/workflow-id) (coerce-long-default v)
                                       (:authorization/id :owner/address) (name v)
@@ -103,10 +103,10 @@
                                     :authorization/type
                                     (if (keyword? v) v :force-authorisation)
                                     :authorization/scope
-                                     (normalize-force-authorisation-scope v)
-                                     (:workflow-id :starts-at :expires-at
-                                      :created-at :executed-at)
-                                     (coerce-long v)
+                                    (normalize-force-authorisation-scope v)
+                                    (:workflow-id :starts-at :expires-at
+                                                  :created-at :executed-at)
+                                    (coerce-long v)
                                     (:executed-by :nonce) (when v (name v))
                                     v))))
                        {} record)]
@@ -135,14 +135,14 @@
                  (let [m (if (map? v)
                            (reduce-kv (fn [a kk vv]
                                         (let [kk' (if (string? kk) (keyword kk) kk)]
-                                           (assoc a kk'
-                                                  (case kk'
-                                                    :consumed-at (coerce-long-default vv)
-                                                    :consumed-by (name vv)
-                                                     :consumed-amount (coerce-long-default vv)
-                                                     :consumed-token
-                                                     (if (keyword? vv) vv (keyword (name vv)))
-                                                     :held-adjustment-id (name vv)
+                                          (assoc a kk'
+                                                 (case kk'
+                                                   :consumed-at (coerce-long-default vv)
+                                                   :consumed-by (name vv)
+                                                   :consumed-amount (coerce-long-default vv)
+                                                   :consumed-token
+                                                   (if (keyword? vv) vv (keyword (name vv)))
+                                                   :held-adjustment-id (name vv)
                                                    vv))))
                                       {} v)
                            {})]

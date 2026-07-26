@@ -22,6 +22,7 @@
 ;; not red. Missing data is not the same as a failing result.
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :fold}}
 (ns notebooks.benchmark-protocol-robustness
   (:require [nextjournal.clerk :as clerk]

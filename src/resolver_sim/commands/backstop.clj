@@ -54,7 +54,7 @@
         (do (println (str "BACKSTOP " (str/upper-case (name (or tier :default))) " PASSED"))
             {:exit-code 0 :message "backstop passed" :results results})
         (do (println (str "BACKSTOP " (str/upper-case (name (or tier :default))) " FAILED - "
-                            (count failures) " failure(s)"))
+                          (count failures) " failure(s)"))
             {:exit-code 1 :message (str (count failures) " failure(s)")
              :results results :failures failures})))))
 

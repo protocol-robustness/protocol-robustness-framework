@@ -22,27 +22,27 @@
         entry-hash (pf/accounting-entry-set-hash entries)
         policy (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy)
         policy-hash (:policy/hash policy)
-p {:propagation/id "p1" :calculation-ref "c1" :outcome-ref "o1" :token :USDC
-            :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"
-            :propagation-policy (propagation-policy/policy-reference policy)
-            :summary {:available 100 :allocated 60 :unallocated-residual 40}
-            :residual {:destination :remain-in-shared-liquidity}
-            :participants [{:participant-id "alice" :eligible-obligation 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "oa"}}
-                           {:participant-id "bob" :eligible-obligation 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "ob"}}]
-            :accounting-entries entries :accounting-entry-set-hash entry-hash}
-app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
-               :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
-               :calculation-id "c1" :outcome-hash "o1" :policy-hash policy-hash
-               :application-key [:pro-rata-propagation "c1" "o1" policy-hash]
-              :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
-              :accounting-entry-set-hash entry-hash
-              :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
-                          :residual {:token :USDC :available 100 :allocated 60 :amount 40
-                                     :destination :remain-in-shared-liquidity}
-                          :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
-                                         :obligation {:before 40} :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
-                                        {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
-                                         :obligation {:before 20} :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
+        p {:propagation/id "p1" :calculation-ref "c1" :outcome-ref "o1" :token :USDC
+           :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"
+           :propagation-policy (propagation-policy/policy-reference policy)
+           :summary {:available 100 :allocated 60 :unallocated-residual 40}
+           :residual {:destination :remain-in-shared-liquidity}
+           :participants [{:participant-id "alice" :eligible-obligation 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "oa"}}
+                          {:participant-id "bob" :eligible-obligation 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :obligation-after 0 :origin {:obligation-id "ob"}}]
+           :accounting-entries entries :accounting-entry-set-hash entry-hash}
+        app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
+             :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
+             :calculation-id "c1" :outcome-hash "o1" :policy-hash policy-hash
+             :application-key [:pro-rata-propagation "c1" "o1" policy-hash]
+             :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
+             :accounting-entry-set-hash entry-hash
+             :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
+             :residual {:token :USDC :available 100 :allocated 60 :amount 40
+                        :destination :remain-in-shared-liquidity}
+             :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
+                             :obligation {:before 40} :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
+                            {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
+                             :obligation {:before 20} :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
         app (assoc app :application/hash (pf/application-hash app))]
     {:yield/pro-rata-propagations {"p1" p}
      :yield/applied-pro-rata-propagations {"p1" app}
@@ -59,31 +59,31 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
     (is (true? (get-in results [:yield/pro-rata-accounting-reconciles :holds?])))))
 
 (deftest accounting-chain-mutations
-   (let [a {:propagation-id "p1" :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
-            :source-account {:token :USDC :before 100 :after 60}
-            :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 40 :before 0 :after 40}}]}
-         b {:propagation-id "p2" :application-order {:schema-version "pro-rata-application-order.v2" :step 2 :event-id 0}
-            :source-account {:token :USDC :before 60 :after 30}
-            :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 30 :before 40 :after 70}}]}
-         world {:total-held {:USDC 30} :yield/withdrawn {:USDC {"alice" 70}}}]
-     (is (empty? (inv/chain-violations world [a b])))
-     (is (some #(= :source-balance-chain-broken (:reason %))
-               (inv/chain-violations world [a (assoc-in b [:source-account :before] 59)])))
-     (is (some #(= :participant-balance-chain-broken (:reason %))
-               (inv/chain-violations world [a (assoc-in b [:participants 0 :withdrawn :before] 39)])))
-     (is (some #(= :application-order-duplicate (:reason %))
-               (inv/chain-violations world [a (assoc b :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0})])))
-     (is (some #(= :application-order-missing (:reason %))
-               (inv/chain-violations world [a (assoc b :application-order {:step 2})])))))
+  (let [a {:propagation-id "p1" :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
+           :source-account {:token :USDC :before 100 :after 60}
+           :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 40 :before 0 :after 40}}]}
+        b {:propagation-id "p2" :application-order {:schema-version "pro-rata-application-order.v2" :step 2 :event-id 0}
+           :source-account {:token :USDC :before 60 :after 30}
+           :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :delta 30 :before 40 :after 70}}]}
+        world {:total-held {:USDC 30} :yield/withdrawn {:USDC {"alice" 70}}}]
+    (is (empty? (inv/chain-violations world [a b])))
+    (is (some #(= :source-balance-chain-broken (:reason %))
+              (inv/chain-violations world [a (assoc-in b [:source-account :before] 59)])))
+    (is (some #(= :participant-balance-chain-broken (:reason %))
+              (inv/chain-violations world [a (assoc-in b [:participants 0 :withdrawn :before] 39)])))
+    (is (some #(= :application-order-duplicate (:reason %))
+              (inv/chain-violations world [a (assoc b :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0})])))
+    (is (some #(= :application-order-missing (:reason %))
+              (inv/chain-violations world [a (assoc b :application-order {:step 2})])))))
 
 (deftest closure-history-mutations
   (let [prior {:position/id "alice/deferred/1" :position/root-obligation-id "oa" :position/current-amount 20}
-          closed {:position/id "alice/deferred/1" :position/root-obligation-id "oa"
-                  :position/token :USDC :position/participant-id "alice" :position/current-amount 20
+        closed {:position/id "alice/deferred/1" :position/root-obligation-id "oa"
+                :position/token :USDC :position/participant-id "alice" :position/current-amount 20
                 :position/status :closed :position/closed-by-propagation-id "p2"}
         app {:propagation-id "p2" :participants [{:participant-id "alice"
-                                                    :position-before {:token :USDC :deferred-position prior}
-                                                    :position-after {:deferred-position-history {"alice/deferred/1" closed}}}]}]
+                                                  :position-before {:token :USDC :deferred-position prior}
+                                                  :position-after {:deferred-position-history {"alice/deferred/1" closed}}}]}]
     (is (empty? (inv/closed-history-violations [app])))
     (is (some #(= :closed-position-history-missing (:reason %))
               (inv/closed-history-violations [(assoc-in app [:participants 0 :position-after :deferred-position-history] {})])))
@@ -112,7 +112,7 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
            (set (keys (ll/record-closed-deferred-position history b)))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"history conflict"
                           (ll/record-closed-deferred-position history
-                                                               (assoc a :position/current-amount 1))))))
+                                                              (assoc a :position/current-amount 1))))))
 
 (deftest shared-withdrawal-position-classification
   (let [eligible-deferred {:position/type :deferred-withdrawal
@@ -125,7 +125,7 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
     (testing "unwinding position with eligible deferred lineage uses its residual amount"
       (is (= {:classification :eligible-deferred-request :amount/source :deferred-position}
              (ll/classify-shared-withdrawal-position {:status :unwinding
-                                                       :deferred-position eligible-deferred}))))
+                                                      :deferred-position eligible-deferred}))))
     (testing "active base position with stale deferred lineage is contradictory"
       (let [result (ll/classify-shared-withdrawal-position
                     {:status :active
@@ -180,8 +180,8 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
                                 (assoc-in [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :delta] 39)
                                 (assoc-in [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :after] 39))))))
     (is (= :fail (get-in (inv/check-pro-rata-accounting-reconciles
-                           (assoc-in world [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :after] 39))
-                          [:checks :participant-withdrawn-arithmetic])))
+                          (assoc-in world [:yield/applied-pro-rata-propagations "p1" :participants 0 :withdrawn :after] 39))
+                         [:checks :participant-withdrawn-arithmetic])))
     (is (some #(= :application-key-policy-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/applied-pro-rata-propagations "p1" :application-key]
@@ -270,15 +270,15 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
              :residual {:token :USDC :available 100 :allocated 60 :amount 40
                         :destination :remain-in-shared-liquidity}
              :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
-                            :obligation {:before 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :after 0}
-                            :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
-                           {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
-                            :obligation {:before 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :after 0}
-                            :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
+                             :obligation {:before 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :after 0}
+                             :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
+                            {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
+                             :obligation {:before 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :after 0}
+                             :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
         app (assoc app :application/hash (pf/application-hash app)
-                      :application/output {:schema-version "pro-rata-application-output.v1"
-                                           :hash-algorithm "sha256"
-                                           :hash (pf/pro-rata-application-output-hash app p)})]
+                   :application/output {:schema-version "pro-rata-application-output.v1"
+                                        :hash-algorithm "sha256"
+                                        :hash (pf/pro-rata-application-output-hash app p)})]
     [app p]))
 
 (deftest output-hash-generation-stable
@@ -287,13 +287,13 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app p)]
       (is (= hash1 hash2))))
-  
+
   (testing "Output projection is deterministically ordered"
     (let [[app p] (create-test-application-with-output)
           proj1 (pf/pro-rata-application-output-projection app p)
           proj2 (pf/pro-rata-application-output-projection app p)]
       (is (= proj1 proj2))))
-  
+
   (testing "Reordering participants does not change hash"
     (let [[app p] (create-test-application-with-output)
           participants-reversed (assoc app :participants (reverse (:participants app)))
@@ -309,21 +309,21 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
           hash-usdc (pf/pro-rata-application-output-hash app p)
           hash-dai (pf/pro-rata-application-output-hash app-dai p-dai)]
       (is (not= hash-usdc hash-dai))))
-  
+
   (testing "Changing only source token invalidates hash"
     (let [[app p] (create-test-application-with-output)
           app-wrong-token (assoc-in app [:source-account :token] :DAI)
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app-wrong-token p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Changing only one participant credit token invalidates hash"
     (let [[app p] (create-test-application-with-output)
           alice-with-dai (update-in app [:participants 0] assoc-in [:withdrawn :token] :DAI)
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash alice-with-dai p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Changing only one accounting entry token invalidates hash"
     (let [[app p] (create-test-application-with-output)
           entries-wrong-token (assoc (vec (:accounting-entries p)) 1 (assoc (nth (:accounting-entries p) 1) :token :DAI))
@@ -339,42 +339,42 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app-mut p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating source debit invalidates hash"
     (let [[app p] (create-test-application-with-output)
           app-mut (assoc-in app [:source-account :delta] -61)
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app-mut p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating participant credit invalidates hash"
     (let [[app p] (create-test-application-with-output)
           app-mut (assoc-in app [:participants 0 :withdrawn :delta] 41)
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app-mut p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating participant balance-after invalidates hash"
     (let [[app p] (create-test-application-with-output)
           app-mut (assoc-in app [:participants 0 :withdrawn :after] 41)
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app-mut p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating fulfilled amount invalidates hash"
     (let [[app p] (create-test-application-with-output)
           app-mut (assoc-in app [:participants 0 :obligation :fulfilled] 41)
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app-mut p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating deferred amount invalidates hash"
     (let [[app p] (create-test-application-with-output)
           app-mut (assoc-in app [:participants 0 :obligation :deferred] 1)
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app-mut p)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating accounting entry amount invalidates hash"
     (let [[app p] (create-test-application-with-output)
           entries-mut (assoc (vec (:accounting-entries p)) 1 (assoc (nth (:accounting-entries p) 1) :delta 41))
@@ -382,7 +382,7 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app p-mut)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating accounting entry set invalidates hash"
     (let [[app p] (create-test-application-with-output)
           entries-mut (vec (conj (:accounting-entries p) {:entry/type :credit :account :withdrawn :token :USDC :participant-id "carol" :obligation-id "oc" :delta 1}))
@@ -390,7 +390,7 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
           hash1 (pf/pro-rata-application-output-hash app p)
           hash2 (pf/pro-rata-application-output-hash app p-mut)]
       (is (not= hash1 hash2))))
-  
+
   (testing "Mutating participant identity invalidates hash"
     (let [[app p] (create-test-application-with-output)
           app-mut (assoc-in app [:participants 0 :participant-id] "eve")
@@ -402,84 +402,93 @@ app {:schema-version "pro-rata-propagation-application.v3" :propagation-id "p1"
   (testing "Application with valid output hash passes verification"
     (let [world (accounting-world)
           [app p] (create-test-application-with-output)
-          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"] 
-                                     (assoc app :propagation-id "p1"))
+          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"]
+                                      (assoc app :propagation-id "p1"))
           world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
           results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
       (is (true? (:holds? results)))
       (is (= :pass (get-in results [:checks :application-output-schema-valid])))
       (is (= :pass (get-in results [:checks :application-output-hash-valid])))))
-  
+
   (testing "Application without output hash still passes verification (backward compatible)"
     (let [world (accounting-world)
           [app p] (create-test-application-with-output)
           app-no-output (dissoc app :application/output)
-          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"] 
-                                     (assoc app-no-output :propagation-id "p1"))
+          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"]
+                                      (assoc app-no-output :propagation-id "p1"))
           world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
           results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
       (is (true? (:holds? results)))
       (is (= :pass (get-in results [:checks :application-output-hash-valid])))))
-  
+
   (testing "Application with mismatched output hash fails verification"
     (let [world (accounting-world)
           [app p] (create-test-application-with-output)
           app-bad-hash (assoc-in app [:application/output :hash] "sha256:wronghash")
-          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"] 
-                                     (assoc app-bad-hash :propagation-id "p1"))
+          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"]
+                                      (assoc app-bad-hash :propagation-id "p1"))
           world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
           results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
-(is (false? (:holds? results)))
-       (is (= :fail (get-in results [:checks :application-output-hash-valid])))))))
-     (testing "Application with missing output schema fails verification"
-       (let [world (accounting-world)
+      (is (false? (:holds? results)))
+      (is (= :fail (get-in results [:checks :application-output-hash-valid])))))
+
+  (testing "Application with missing output schema fails verification"
+    (let [world (accounting-world)
+          [app p] (create-test-application-with-output)
+          app-no-output (dissoc app :application/output)
+          world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"]
+                                      (assoc app-no-output :propagation-id "p1"))
+          world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
+          results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
+      (is (false? (:holds? results)))
+      (is (= :fail (get-in results [:checks :application-output-schema-valid]))))))
 
 (deftest outcome-preimage-mutation-detected
   (testing "Decision preimage tampering is detected during verification"
-  (let [decision-base {:settlement-mode :partial-fill
-                       :requested {:alice 40 :bob 20}
-                       :filled {:alice 40 :bob 20}
-                       :deferred {:alice 0 :bob 0}
-                       :haircut {}
-                       :policy {:mode :pro-rata}
-                       :evidence {:available-liquidity 100}}
-        position {:owner/id "shared-pool" :position/id "shared-pool" :module/id :mod :token :USDC}
-        decision (pf/decision-artifact position decision-base {:decision-source :test})
-        p {:propagation/id "p1" :calculation-ref (:decision/id decision) :outcome-ref (:decision/hash decision)
-           :token :USDC
-           :participants [{:participant-id "alice" :fulfilled 40 :origin {:obligation-id "oa"}}
-                          {:participant-id "bob" :fulfilled 20 :origin {:obligation-id "ob"}}]
-           :accounting-entries valid-entries
-           :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)}
-        app {:schema-version "pro-rata-propagation-application.v3"
-             :propagation-id "p1"
-             :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
-             :calculation-id (:decision/id decision)
-             :outcome-hash (:decision/hash decision)
-             :application-key [:pro-rata-propagation (:decision/id decision) (:decision/hash decision) (:policy/hash (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy))]
-             :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
-             :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)
-             :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
-             :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
-                             :obligation {:before 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :after 0}
-                             :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
-                            {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
-                             :obligation {:before 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :after 0}
-                             :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
-        app (assoc app :application/hash (pf/application-hash app)
-                      :application/output {:schema-version "pro-rata-application-output.v1"
-                                           :hash-algorithm "sha256"
-                                           :hash (pf/pro-rata-application-output-hash app p)})]
-    (let [world {:yield/partial-fill-decisions {(:decision/id decision) decision}
-                 :yield/pro-rata-propagations {"p1" p}
-                 :yield/applied-pro-rata-propagations {"p1" app}
-                 :total-held {:USDC 40}
-                 :yield/withdrawn {:USDC {"alice" 40 "bob" 20}}
-                 :yield/positions {"alice" {:status :withdrawn :token :USDC}
-                                   "bob" {:status :withdrawn :token :USDC}}}
-          results-valid (inv/check-pro-rata-accounting-reconciles world)
-          world-tampered (assoc-in world [:yield/partial-fill-decisions (:decision/id decision) :decision/preimage] "tampered")
-          results-tampered (inv/check-pro-rata-accounting-reconciles world-tampered)]
-      (is (true? (:holds? results-valid)))
-      (is (false? (:holds? results-tampered)))
-      (is (some #(= :decision-hash-mismatch (:reason %)) (:violations results-tampered))))))
+    (let [decision-base {:settlement-mode :partial-fill
+                         :requested {:alice 40 :bob 20}
+                         :filled {:alice 40 :bob 20}
+                         :deferred {:alice 0 :bob 0}
+                         :haircut {}
+                         :policy {:mode :pro-rata}
+                         :evidence {:available-liquidity 100}}
+          position {:owner/id "shared-pool" :position/id "shared-pool" :module/id :mod :token :USDC}
+          decision (pf/decision-artifact position decision-base {:decision-source :test})
+          p {:propagation/id "p1" :calculation-ref (:decision/id decision) :outcome-ref (:decision/hash decision)
+             :token :USDC
+             :participants [{:participant-id "alice" :fulfilled 40 :origin {:obligation-id "oa"}}
+                            {:participant-id "bob" :fulfilled 20 :origin {:obligation-id "ob"}}]
+             :accounting-entries valid-entries
+             :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)}
+          app {:schema-version "pro-rata-propagation-application.v3"
+               :propagation-id "p1"
+               :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
+               :calculation-id (:decision/id decision)
+               :outcome-hash (:decision/hash decision)
+               :application-key [:pro-rata-propagation (:decision/id decision) (:decision/hash decision) (:policy/hash (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy))]
+               :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
+               :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)
+               :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
+               :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
+                               :obligation {:before 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :after 0}
+                               :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
+                              {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
+                               :obligation {:before 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :after 0}
+                               :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
+          app (assoc app :application/hash (pf/application-hash app)
+                     :application/output {:schema-version "pro-rata-application-output.v1"
+                                          :hash-algorithm "sha256"
+                                          :hash (pf/pro-rata-application-output-hash app p)})]
+      (let [world {:yield/partial-fill-decisions {(:decision/id decision) decision}
+                   :yield/pro-rata-propagations {"p1" p}
+                   :yield/applied-pro-rata-propagations {"p1" app}
+                   :total-held {:USDC 40}
+                   :yield/withdrawn {:USDC {"alice" 40 "bob" 20}}
+                   :yield/positions {"alice" {:status :withdrawn :token :USDC}
+                                     "bob" {:status :withdrawn :token :USDC}}}
+            results-valid (inv/check-pro-rata-accounting-reconciles world)
+            world-tampered (assoc-in world [:yield/partial-fill-decisions (:decision/id decision) :decision/preimage] "tampered")
+            results-tampered (inv/check-pro-rata-accounting-reconciles world-tampered)]
+        (is (true? (:holds? results-valid)))
+        (is (false? (:holds? results-tampered)))
+        (is (some #(= :decision-hash-mismatch (:reason %)) (:violations results-tampered)))))))

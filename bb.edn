@@ -10,16 +10,6 @@
   {:doc "CI acceptance gate for public claim bindings; writes target/claim-binding-report.json."
    :task (shell "clojure" "-M:with-sew" "-m" "scripts.validate-claim-bindings")}
 
-  run:scenario:legacy
-  {:doc "Retired legacy scenario runner. Use bb run:scenario <scenario> --run-root <root>."
-   :task (do
-           (println "run:scenario:legacy has been retired.
-
-Use:
-  bb run:scenario <scenario> --run-root <root>")
-           (System/exit 2))}
-
-
   run:scenario
   {:doc "Run one scenario into a self-contained evidence bundle.
 Usage: bb run:scenario <scenario-id> [--run-root <dir>] [--report-format <summary|failures|standard|verbose|audit> | -v | -f | -s | -a]
@@ -31,91 +21,6 @@ Usage: bb run:scenario <scenario-id> [--run-root <dir>] [--report-format <summar
 Usage: bb cli <command-path> [args]
 Example: bb cli scenario list --search yield"
         :task (apply clojure "-M:with-sew" "-m" "resolver-sim.cli.main" *command-line-args*)}
-
-   run:scenario:search:legacy
-  {:doc "Deprecated legacy ad-hoc scenario search; do not use for new runs.
-Ad-hoc: run scenarios by text search (not a registered grouping, not for CI).
-         Usage: bb run:scenario:search <text>
-         Performs case-insensitive substring match on scenario file path, id, title,
-         purpose, and threat-tags.  Each match runs in a separate subprocess.
-         Results should not be used for canonical CI, benchmark definitions, or
-                  published evidence. Registered-suite execution is currently legacy/internal;
-                  use canonical `run-scenario --run-root` for evidence bundles.
-         Examples: bb run:scenario:search forking-strategist"
-    :task (let [selector (first *command-line-args*)]
-           (when-not (seq selector)
-             (throw (ex-info "Missing selector. Usage: bb run:scenario:search <text>" {})))
-           (let [selector-lc (clojure.string/lower-case selector)
-                 scenarios (->> (file-seq (clojure.java.io/file "scenarios"))
-                                (filter (fn [f] (.isFile f)))
-                                (map (fn [f] (.getPath f)))
-                                (filter (fn [p] (or (clojure.string/ends-with? p ".json")
-                                                    (clojure.string/ends-with? p ".edn"))))
-                                (filter (fn [p]
-                                          (let [hay (str (clojure.string/lower-case p)
-                                                         "\n"
-                                                         (clojure.string/lower-case (slurp p)))]
-                                            (clojure.string/includes? hay selector-lc))))
-                                sort
-                                vec)]
-             (when (empty? scenarios)
-               (throw (ex-info (str "No scenarios matched selector: " selector) {})))
-             (println (str "Matched " (count scenarios) " scenario(s) for selector '" selector "'"))
-             (let [t0      (System/currentTimeMillis)
-                   results (mapv (fn [scenario]
-                                   (println (str "Running " scenario))
-                                   (try
-                                     (let [args (vec *command-line-args*)
-                                           alias-map {"-v" "verbose" "-f" "failures" "-s" "summary" "-a" "audit"}
-                                           level-idx (.indexOf args "--result-display-level")
-                                           level-val (when (<= 0 level-idx) (nth args (inc level-idx) nil))
-                                           alias-idx (some (fn [i] (when (contains? alias-map (nth args i)) i)) (range 0 (count args)))
-                                           alias-val (when alias-idx (get alias-map (nth args alias-idx)))
-                                           chosen (or level-val alias-val)
-cli-args (cond-> ["-M:run:with-sew" "--invariants" "--scenario" scenario]
-                                                      chosen (conj "--result-display-level" chosen))]
-                                        (try
-                                          (apply clojure {:dir "." :extra-deps {}} cli-args)
-                                         {:scenario scenario :exit 0}
-                                         (catch clojure.lang.ExceptionInfo e
-                                           {:scenario scenario :exit (or (:exit (ex-data e)) 1)})))
-                                     (catch clojure.lang.ExceptionInfo e
-                                       {:scenario scenario :exit (or (:exit (ex-data e)) 1)})))
-                                 scenarios)
-                   dur     (- (System/currentTimeMillis) t0)
-                   failed  (filterv (fn [r] (not (zero? (:exit r)))) results)
-                   status  (if (empty? failed) "pass" "fail")]
-               (shell "python3" "scripts/evidence/write_scenario_run_manifest.py"
-                      "--suite"           "scenario-family"
-                      "--scenario"        selector
-                      "--scenario-count"  (str (count scenarios))
-                      "--status"          status
-                      "--duration-ms"     (str dur))
-               ;; validate the emitted artifact registry (additive, slug-filtered)
-               (try
-                 (let [slug "scenario-family"
-                       runs-dir (java.io.File. "results/runs")
-                       dirs (when (.exists runs-dir)
-                              (->> (.listFiles runs-dir)
-                                   (filter (fn [d] (.isDirectory d)))
-                                   (filter (fn [f] (.startsWith (.getName f) slug)))
-                                   (sort-by (fn [x] (.lastModified x)))
-                                   vec))
-                       latest-run (last dirs)
-                       registry-path (when latest-run
-                                       (str (.getPath latest-run) "/test-artifacts.json"))]
-                   (if (and registry-path (.exists (java.io.File. registry-path)))
-                     (do
-                       (println (str "[artifact-registry-validation] Validating " registry-path))
-                       (apply clojure {:dir "." :extra-deps {}}
-                              ["-M" "-m" "resolver-sim.validation.integration.artifact-registry" registry-path]))
-                     (println (str "[artifact-registry-validation] No artifact registry found for slug: " slug))))
-                 (catch Exception e
-                   (println "[artifact-registry-validation] Skipped (operational):" (.getMessage e))))
-               (when-not (empty? failed)
-                (println (str (count failed) " scenario(s) failed: "
-                              (mapv :scenario failed)))
-                (System/exit 1))))) }
 
  run:scenario:search
  {:doc "Ad-hoc scenario search using one isolated structured run per match.
@@ -172,72 +77,6 @@ Usage: bb run:scenario:search <text> [--report-format <summary|failures|standard
          See also: scripts/scenarios/regenerate_goldens.clj, deps.edn :regenerate-goldens alias."
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:regenerate-goldens:with-sew")}
 
-  evidence:build:legacy
-  {:doc "Deprecated legacy evidence builder; do not use for new runs.
-Run a single scenario with invariants and emit evidence artifacts.
-          Output: results/evidence/<slug>.result.json, results/runs/<slug>/, results/test-artifacts/.
-          Does NOT update golden reports (data/fixtures/golden/) or notify Clerk — use `bb regenerate-goldens` for that.
-          Usage: bb evidence:build --scenario <alias|scenario-path> [--output-file <path>]"
-   :task (let [args         (vec *command-line-args*)
-               scenario-idx (.indexOf args "--scenario")
-               output-idx   (.indexOf args "--output-file")
-               raw-scenario (when (<= 0 scenario-idx)
-                              (nth args (inc scenario-idx) nil))
-               scenario-map {"kleros/preemptive-escalation-rejected-l0"
-                             "scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn"
-                              ;; deprecated alias (pre-2026-06 rename)
-                             "kleros/escalation-race"
-                             "scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn"}
-               scenario     (or (get scenario-map raw-scenario) raw-scenario)
-               output-file  (let [given (when (<= 0 output-idx)
-                                          (nth args (inc output-idx) nil))]
-                              (or given
-                                  (let [slug (some-> scenario
-                                                     (clojure.string/replace (re-pattern "^.*/") "")
-                                                     (clojure.string/replace (re-pattern "\\.(json|edn)$") ""))]
-                                    (str "results/evidence/" slug ".result.json"))))]
-           (when-not scenario
-             (throw (ex-info "Missing --scenario value. Usage: bb evidence:build --scenario <alias|scenario-path>" {})))
-           (shell "mkdir -p results/evidence")
-           (let [t0   (System/currentTimeMillis)
-                 exit (try
-                        (clojure {:dir "." :extra-deps {}}
-                                 "-M:run:with-sew" "--invariants" "--scenario" scenario "--output-file" output-file)
-                        0
-                        (catch clojure.lang.ExceptionInfo e
-                          (or (:exit (ex-data e)) 1)))
-                 dur  (- (System/currentTimeMillis) t0)]
-             (shell "python3" "scripts/evidence/write_scenario_run_manifest.py"
-                    "--suite"        "evidence"
-                    "--scenario"     scenario
-                    "--output-file"  output-file
-                    "--status"       (if (zero? exit) "pass" "fail")
-                    "--duration-ms"  (str dur))
-             ;; validate the emitted artifact registry (additive, slug-filtered)
-             (try
-               (let [slug (some-> scenario
-                                  (clojure.string/replace (re-pattern "^.*/") "")
-                                  (clojure.string/replace (re-pattern "\\.(json|edn)$") ""))
-                     runs-dir (java.io.File. "results/runs")
-                     dirs (when (.exists runs-dir)
-                            (->> (.listFiles runs-dir)
-                                 (filter (fn [d] (.isDirectory d)))
-                                 (filter (fn [f] (.startsWith (.getName f) (or slug ""))))
-                                 (sort-by (fn [x] (.lastModified x)))
-                                 vec))
-                     latest-run (last dirs)
-                     registry-path (when latest-run
-                                     (str (.getPath latest-run) "/test-artifacts.json"))]
-                 (if (and registry-path (.exists (java.io.File. registry-path)))
-                   (do
-                     (println (str "[artifact-registry-validation] Validating " registry-path))
-                     (apply clojure {:dir "." :extra-deps {}}
-                            ["-M" "-m" "resolver-sim.validation.integration.artifact-registry" registry-path]))
-                   (println (str "[artifact-registry-validation] No artifact registry found for slug: " slug))))
-               (catch Exception e
-                 (println "[artifact-registry-validation] Skipped (operational):" (.getMessage e))))
-             (when-not (zero? exit) (System/exit exit))))}
-
   evidence:build
    {:doc "[LEGACY] Run a single scenario into the canonical self-contained evidence bundle.
 Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
@@ -272,9 +111,6 @@ Usage: bb evidence:build --scenario <alias|scenario-path> [--run-root <dir>]
                           (try (-> (clojure.java.shell/sh "python3" "-c" "from scripts.evidence_config import EvidenceConfig; print(EvidenceConfig().evidence_bundle_dir)") :out str/trim)
                                (catch Exception _ "results/evidence-bundle")))]
            (clojure {:dir "." :extra-deps {}} "-M" "-m" "resolver-sim.scripts.evidence" "bundle" outdir))}
-  sweep {:doc "Run a parameter sweep"
-         :task (println "Sweep task - run with bb sweep data/params/baseline.edn")}
-
   fixtures:sync {:doc "Sync trace.json + scenarios/edn/*.edn from Clojure invariant scenario source"
                  :task (clojure {:dir "."} "-M:sync-trace-fixtures")}
 
@@ -620,10 +456,6 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
   {:doc "Ad-hoc: run scenarios by text search.  Replaces `scenario:run:family`."
    :task (apply shell "bb" "run:scenario:search" *command-line-args*)}
 
-  scenario:run:family
-  {:doc "DEPRECATED — use `run:scenario:search`."
-   :task (apply shell "bb" "run:scenario:search" *command-line-args*)}
-
   scenarios:validate
   {:doc "Compatibility alias for `scenario-registry:validate`."
    :task (run 'scenario-registry:validate)}
@@ -732,9 +564,6 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
 
   benchmark:run {:doc "Run a benchmark into a canonical run-root bundle. Usage: bb benchmark:run <benchmark-id> --run-root <dir>"
                  :task (apply clojure "-M:with-sew" "-m" "resolver-sim.cli.main" "run-benchmark" *command-line-args*)}
-
-  benchmark:export:legacy {:doc "Legacy export of a standalone benchmark evidence file. Usage: bb benchmark:export:legacy <evidence-path>"
-                           :task (apply clojure "-M:with-sew" "-m" "resolver-sim.benchmark.cli" "--export" *command-line-args*)}
 
   benchmark:reproduce {:doc "Reproduce a benchmark run from evidence bundle. Usage: bb benchmark:reproduce <evidence-path>"
                        :task (apply clojure "-M:with-sew" "-m" "resolver-sim.benchmark.cli" "--reproduce" *command-line-args*)}
@@ -931,6 +760,14 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
            (println "Opening: http://localhost:7777/notebooks/security_validation")
            (shell "bash" "-c" "xdg-open http://localhost:7777/notebooks/security_validation 2>/dev/null || open http://localhost:7777/notebooks/security_validation 2>/dev/null || echo 'Navigate to: http://localhost:7777/notebooks/security_validation'"))}
 
+  notebook:inspect
+  {:doc "Inspect the return shape of a function. Calls the function with optional EDN args
+         and prints the recursive key/value type structure. Use this before writing
+         display code that consumes an unfamiliar return value.
+         Usage: bb notebook:inspect <ns/fn> [edn-args]
+         Example: bb notebook:inspect sew-econ/calculate-sew-slash-allocation {:slash-obligation 300 :liable-parties [{:id \"A\" :slashable-stake 1000 :available-slashable 1000}]}"
+   :task (apply clojure "-M:with-sew" "-m" "scripts.notebook-inspect" *command-line-args*)}
+
   notebook:check
   {:doc "Load notebook namespaces and validate data shapes."
    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:with-sew" "-e" "(require (quote [resolver-sim.notebook-support.checks])) (require (quote [notebooks.report])) (println (str \"Notebook namespaces loaded. Shape checks passed.\"))")}
@@ -950,18 +787,6 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
          Output: demos/<id>/generated/demo-run.json + recordings/*.cast"
    :task (apply clojure {:dir "." :extra-deps {}}
                 "-M" "-m" "resolver-sim.demo.recorder" *command-line-args*)}
-
-   concepts:validate
-   {:doc "Validate concept data: EDN parsing, required fields, registry integrity."
-    :task (clojure "-M" "scripts/concepts_validate.clj")}
-
-   benchmarks:validate
-   {:doc "Validate benchmark pack: parsing, required fields, scenario/concept/scoring references."
-    :task (clojure "-M" "scripts/benchmarks_validate.clj")}
-
-   benchmark:validate
-   {:doc "Compatibility alias for `benchmarks:validate`."
-    :task (run 'benchmarks:validate)}
 
    artifact-registry:validate
    {:doc "Compatibility alias for `validation:artifact-registry`."
@@ -997,6 +822,24 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
    backstop:fast
    {:doc "Run the fast registered edit-loop review gate (delegates to CLI)."
     :task (clojure "-M:cli/sew" "backstop" "--fast")}
+
+   backstop:full
+   {:doc "Extended review gate: yield + CLI default + notebooks + forensic-python + community + portability."
+    :task (do
+            (println "▶ backstop: yield unit tests")
+            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield")
+            (println "▶ backstop: yield scenarios")
+            (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield-scenarios")
+            (println "▶ backstop: CLI default gate")
+            (clojure "-M:cli/sew" "backstop")
+            (println "▶ backstop: notebooks")
+            (shell "scripts/with-test-artifact-lock.sh" "bb" "test:notebooks")
+            (println "▶ backstop: forensic Python")
+            (shell "scripts/with-test-artifact-lock.sh" "bb" "test:forensic-python")
+            (println "▶ backstop: community tests")
+            (shell "scripts/with-test-artifact-lock.sh" "bb" "test:community")
+            (println "▶ backstop: portability smoke test")
+            (shell "scripts/with-test-artifact-lock.sh" "bash" "scripts/portability-smoke-test.sh"))}
 
    commands:validate
    {:doc "Validate the registered review-gate command surface (delegates to CLI)."
@@ -1235,11 +1078,6 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
   build:sew
   {:doc "Build prf-runner-sew uberjar — Sew-enabled distribution."
    :task (clojure "-T:build" "uberjar" ":variant" "sew")}
-
-  build:cli
-  {:doc "Deprecated alias for build:prf."
-   :task (do (println "WARNING: build:cli is deprecated; use build:prf")
-             (clojure "-T:build" "uberjar" ":variant" "prf"))}
 
   build
   {:doc "Build the two supported distributions: prf and sew."

@@ -1,3 +1,4 @@
+^{:nextjournal.clerk/dark-mode true}
 (ns notebooks.equilibrium-artifact
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.notebook-support.common :as common]))

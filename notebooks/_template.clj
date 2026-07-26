@@ -9,6 +9,7 @@
 ;; - `<artifact-path>` — <what it provides>
 
 ^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
   :nextjournal.clerk/visibility {:code :fold}}
 (ns notebooks._template
   (:require [nextjournal.clerk :as clerk]
