@@ -1,7 +1,7 @@
 ;; Generic force-authorisation claim definitions (protocol-independent)
 ;;
 ;; Each claim specifies what it asserts and how it is evaluated, without
-;; reference to SEW-specific state machine or action names.
+;; reference to Sew-specific state machine or action names.
 ;;
 ;; schema: claim.v1
 

@@ -427,9 +427,9 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
 
   help:first {:doc "First-time visitor quick commands"
               :task (do
-                      (println "╔══════════════════════════════════════════════╗")
-                      (println "║       Sew Simulation — First-Time Guide      ║")
-                      (println "╚══════════════════════════════════════════════╝")
+                      (println "╔═══════════════════════════════════════════════════════╗")
+                      (println "║    Protocol Robustness Framework — First-Time Guide   ║")
+                      (println "╚═══════════════════════════════════════════════════════╝")
                       (println "")
                       (println "1) Explore the notebook navigation hub:")
                       (println "   bb notebook:index")

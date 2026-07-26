@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.financial.loss
-  "SEW-specific classification of financial loss modes.
+  "Sew-specific classification of financial loss modes.
 
    A financial loss mode exists when a protocol, escrow, module, vault, or
    settlement path can no longer satisfy, or may no longer be able to
@@ -17,7 +17,7 @@
      resolver-sim.financial.taxonomies — general taxonomy definitions
      (loss statuses, ordinals) used by this namespace.
 
-   This is a SEW reference implementation. Protocols with different
+   This is a Sew reference implementation. Protocols with different
    world state shapes should implement their own classifiers using
    the same taxonomy vocabulary."
   (:require [resolver-sim.financial.taxonomies :as tax]

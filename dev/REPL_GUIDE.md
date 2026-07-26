@@ -154,7 +154,7 @@ The repository has extensive pro-rata allocation functionality:
    :items [{:id :a :weight 100 :cap 50}
            {:id :b :weight 100 :cap 100}]})
 
-;; SEW slash allocation (historical path)
+;; Sew slash allocation (historical path)
 (pro-rata/explain-sew-slash-allocation 
   {:slash-amount 100
    :liable-parties [{:id :resolver-a :slashable-stake 100 :available-slashable 50}

@@ -36,7 +36,7 @@
     (is (= {:provider/id :protocol/sew
             :suite/id :suite/sew-force-authorisation-custody-v1}
            (:benchmark/suite-provider defn))
-        "Suite-provider must identify SEW as the implementation supplier")
+        "Suite-provider must identify Sew as the implementation supplier")
     (is (some? (:benchmark/capability defn))
         "Capability must be present")
     (is (some? (:benchmark/subject-kind defn))
@@ -58,7 +58,7 @@
         "PRF-core registry must contain the canonical entry")
     (is (not-any? #(= :benchmark/force-authorisation-custody-v1 (:benchmark/id %))
                   (:benchmarks (edn-read sew-registry-path)))
-        "SEW registry must NOT contain a duplicate canonical entry")))
+        "Sew registry must NOT contain a duplicate canonical entry")))
 
 (deftest canonical-definition-source-is-prf-core
   (let [prf-reg (edn-read prf-registry-path)
@@ -72,9 +72,9 @@
 (deftest sew-pack-has-no-force-authorisation-benchmark
   (let [sew-ids (set (map :benchmark/id (:benchmarks (edn-read sew-registry-path))))]
     (is (not (contains? sew-ids :benchmark/force-authorisation-custody-v1))
-        "SEW registry must not contain the canonical ID")
+        "Sew registry must not contain the canonical ID")
     (is (not (contains? sew-ids :benchmark/sew-force-authorisation-custody-v1))
-        "SEW registry must not contain the legacy alias ID either")))
+        "Sew registry must not contain the legacy alias ID either")))
 
 (deftest canonical-suite-is-prf-owned
   (let [defn (edn-read canonical-benchmark-path)]
@@ -83,7 +83,7 @@
     (is (= {:provider/id :protocol/sew
             :suite/id :suite/sew-force-authorisation-custody-v1}
            (:benchmark/suite-provider defn))
-        "The suite-provider must reference the SEW-specific implementation suite")))
+        "The suite-provider must reference the Sew-specific implementation suite")))
 
 (deftest generic-claims-exist
   (let [claims (edn/read-string (slurp "data/claims/force_authorisation_claims.edn"))]

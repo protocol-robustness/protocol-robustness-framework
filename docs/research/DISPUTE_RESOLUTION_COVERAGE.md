@@ -5,7 +5,7 @@
 **Last updated:** 2026-06-19
 
 This document maps the dispute-resolution research coverage in the Protocol
-Robustness Framework / SEW simulation. It answers:
+Robustness Framework. It answers:
 
 - Which dispute behaviours can I inspect today?
 - Which scenarios exercise which failure modes?

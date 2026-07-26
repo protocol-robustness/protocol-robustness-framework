@@ -971,7 +971,7 @@ The `dev/pro_rata.clj` namespace provides developer tools that explain the pro-r
 
 | Function | Purpose |
 |---|---|
-| `explain-sew-slash-allocation` | Direct SEW allocation: given a `:slash-amount` and `:liable-parties` with `:slashable-stake` (weight) and `:available-slashable` (cap), returns the allocation map |
+| `explain-sew-slash-allocation` | Direct Sew allocation: given a `:slash-amount` and `:liable-parties` with `:slashable-stake` (weight) and `:available-slashable` (cap), returns the allocation map |
 | `explain-generic-allocation` | Lower-level generic allocation (same engine, raw input) |
 | `explain-projection-artifact` | Build the projection artifact (canonical input for evidence chain) |
 | `explain-projection-vs-direct` | Run both allocation paths and verify equivalence |

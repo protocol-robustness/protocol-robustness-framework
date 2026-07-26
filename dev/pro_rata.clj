@@ -21,7 +21,7 @@
     result))
 
 (defn explain-sew-slash-allocation
-  "Direct SEW slash allocation (the historical path).
+  "Direct Sew slash allocation (the historical path).
    Input shape: {:slash-amount N :liable-parties [{:id kw :slashable-stake N :available-slashable N}]}"
   [input]
   (let [f (requiring-resolve
@@ -38,7 +38,7 @@
 ;;   → allocation → claims → evidence node
 
 (defn explain-projection-artifact
-  "Build a passive projection artifact from a SEW slash allocation input.
+  "Build a passive projection artifact from a Sew slash allocation input.
    The artifact carries projection-hash, projection-definition-hash, claims,
    summary, and source — all canonical-safe.
    Input shape matches explain-sew-slash-allocation."
@@ -52,7 +52,7 @@
 
 (defn explain-projection-vs-direct
   "Run both direct allocation and projection-based allocation on the same
-   SEW slash input. Returns {:direct ..., :projection ..., :equivalent? ...}.
+   Sew slash input. Returns {:direct ..., :projection ..., :equivalent? ...}.
    Equivalent means :total-allocated, :total-unmet, :remainder match and
    every allocation pair id/paid/unmet matches."
   [sew-slash-input]
@@ -84,7 +84,7 @@
     {:direct direct :projection projection :equivalent? match?}))
 
 (defn explain-claims
-  "Evaluate all 7 pro-rata claims on a SEW slash input.
+  "Evaluate all 7 pro-rata claims on a Sew slash input.
    Uses claims.engine/evaluate-claims with evidence-node references.
    Returns {claim-id {:holds? bool :violations [...]}}.
    See explain-sew-slash-allocation for input shape."
@@ -115,7 +115,7 @@
     results))
 
 (defn explain-evidence
-  "Build the full evidence node for a SEW slash allocation (the
+  "Build the full evidence node for a Sew slash allocation (the
    build-prorata-slash-evidence aggregation). Returns the evidence record
    with :evidence/hash and nested :projection / :pro-rata / :allocation.
    
@@ -128,7 +128,7 @@
     evidence))
 
 (defn explain-evidence-from-input
-  "One-shot: given a SEW slash input and a world, build projection artifact,
+  "One-shot: given a Sew slash input and a world, build projection artifact,
    evaluate claims, build evidence node, and print the hash chain.
    
    Input:
@@ -188,7 +188,7 @@
 
 (defn demo-sew
   []
-  (println "=== SEW slash allocation ===")
+  (println "=== Sew slash allocation ===")
   (pp/pprint (explain-sew-slash-allocation sample-sew-input)))
 
 (defn demo-projection

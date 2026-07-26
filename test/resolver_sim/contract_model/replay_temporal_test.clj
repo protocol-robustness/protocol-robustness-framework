@@ -133,7 +133,7 @@
                     :id "S-Temporal-SEW-Appeal-Window"
                     :schema-version "1.1"
                     :scenario-author "@test"
-                    :title "SEW appeal window temporal rule"
+                    :title "Sew appeal window temporal rule"
                     :purpose :adversarial-robustness
                     :expectations {:terminal [{:name :trace-produced :equals true}]}
                     :initial-block-time 1000
@@ -168,7 +168,7 @@
                     :id "S-Temporal-SEW-Appeal-Artifact"
                     :schema-version "1.1"
                     :scenario-author "@test"
-                    :title "SEW appeal window artifact propagation"
+                    :title "Sew appeal window artifact propagation"
                     :purpose :adversarial-robustness
                     :expectations {:terminal [{:name :trace-produced :equals true}]}
                     :initial-block-time 1000

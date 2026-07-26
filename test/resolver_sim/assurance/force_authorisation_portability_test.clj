@@ -1,6 +1,6 @@
 (ns resolver-sim.assurance.force-authorisation-portability-test
   "Benchmark portability assertion: force-authorisation claim evaluation
-   works on canonical evidence records without running the SEW state machine."
+   works on canonical evidence records without running the Sew state machine."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.assurance.force-authorisation :as fa]
             [resolver-sim.assurance.custody :as custody]
@@ -97,7 +97,7 @@
       ;; Missing fields: invalid envelope
       (is (not (fa-ev/valid-envelope? (dissoc envelope :evidence/auth-id))))))
 
-  (testing "Scope hash mismatch detection without SEW state"
+  (testing "Scope hash mismatch detection without Sew state"
     (let [hash (fa/force-authorisation-scope-hash valid-scope)]
       (is (string? hash))
       (is (not (fa/scope-hash-mismatch?

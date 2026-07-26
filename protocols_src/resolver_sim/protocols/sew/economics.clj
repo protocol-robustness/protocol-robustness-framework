@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.economics
-  "SEW-specific economic adapters.
+  "Sew-specific economic adapters.
 
    This namespace maps SEW protocol state and policy into generic economics
    functions. Generic resolver-sim.economics namespaces must not depend on SEW.
@@ -57,7 +57,7 @@
     :else 0))
 
 (defn calculate-appeal-bond-amount
-  "Calculate the required SEW appeal bond amount."
+  "Calculate the required Sew appeal bond amount."
   [amount-after-fee snap]
   (cond
     (pos? (:appeal-bond-amount snap 0))
@@ -94,30 +94,30 @@
       :retained retained})))
 
 (defn calculate-slash-amount-from-basis
-  "Calculate a SEW slash amount from slashable stake and bps."
+  "Calculate a Sew slash amount from slashable stake and bps."
   [slashable-stake slash-bps]
   (payoffs/calculate-bps-amount slashable-stake slash-bps))
 
 (defn calculate-reversal-slash
-  "Calculate a SEW stake-basis reversal slash."
+  "Calculate a Sew stake-basis reversal slash."
   [slashable-stake slash-bps]
   (calculate-slash-amount-from-basis slashable-stake slash-bps))
 
 (defn calculate-escrow-cap
-  "Compute the maximum escrow amount a SEW resolver can handle from stake."
+  "Compute the maximum escrow amount a Sew resolver can handle from stake."
   ([stake] (calculate-escrow-cap stake 1.0))
   ([stake multiplier]
    (payoffs/calculate-capacity-limit stake multiplier)))
 
 (defn calculate-sew-slash-allocation
-  "Allocate a SEW slash amount across liable parties.
+  "Allocate a Sew slash amount across liable parties.
 
    SEW defaults:
    - weight/basis: :slashable-stake
    - cap: :available-slashable
    - unmet policy: :record-only
 
-   Returns the historical SEW-shaped allocation map for compatibility with
+   Returns the historical Sew-shaped allocation map for compatibility with
    evidence builders and call sites."
   [{:keys [slash-amount slash-obligation liable-parties slash-policy basis cap-field unmet-policy]
     :or {basis :slashable-stake
@@ -188,7 +188,7 @@
          :allocations allocations}))))
 
 (defn build-sew-slash-projection-artifact
-  "Build a passive projection artifact from the same SEW slash allocation input.
+  "Build a passive projection artifact from the same Sew slash allocation input.
    This is additive and does not change calculate-sew-slash-allocation.
 
    Optional world-state provenance keys (:world-before-hash, :action-hash-at)
@@ -225,7 +225,7 @@
       :metadata metadata})))
 
 (defn calculate-sew-slash-allocation-from-projection
-  "Return the historical SEW allocation shape from a projection artifact.
+  "Return the historical Sew allocation shape from a projection artifact.
    This is a shadow path for comparing against calculate-sew-slash-allocation;
    call sites should continue using the current function until replacement is explicit."
   [artifact]

@@ -7,7 +7,7 @@
                         [resolver-sim.pro-rata.evidence :as mechanism-evidence]))
 
 (deftest sew-economic-policy-helpers
-  (testing "SEW-specific fees, bonds, slashes, and escrow caps live in the Sew adapter"
+  (testing "Sew-specific fees, bonds, slashes, and escrow caps live in the Sew adapter"
     (is (= 15 (sew-econ/calculate-escrow-fee 1000 150)))
     (is (= {:fee 10 :net 990}
            (sew-econ/calculate-appeal-bond-fee 1000 100)))
@@ -26,7 +26,7 @@
     (is (= 1500.0 (sew-econ/calculate-escrow-cap 1000 1.5)))))
 
 (deftest sew-slashing-distribution
-  (testing "SEW slash distribution keeps the historical default split"
+  (testing "Sew slash distribution keeps the historical default split"
     (is (= {:insurance 500 :protocol 300 :retained 200}
            (sew-econ/calculate-slashing-distribution 1000 0)))
     (is (= 990
@@ -35,7 +35,7 @@
              (+ insurance protocol retained))))))
 
 (deftest sew-slash-allocation-uses-slashable-stake-as-default-weight
-  (testing "SEW adapter maps slashable stake into generic allocation weight"
+  (testing "Sew adapter maps slashable stake into generic allocation weight"
     (let [result (sew-econ/calculate-sew-slash-allocation
                   {:slash-amount 100
                    :liable-parties [{:id :resolver-a
@@ -55,7 +55,7 @@
              (get-in result [:mechanism/evidence-reference :evidence/hash]))))))
 
 (deftest sew-slash-allocation-preserves-caps-and-legacy-shape
-  (testing "SEW adapter applies available-slashable caps and returns historical keys"
+  (testing "Sew adapter applies available-slashable caps and returns historical keys"
     (let [result (sew-econ/calculate-sew-slash-allocation
                   {:slash-obligation 100
                    :liable-parties [{:id :resolver-a
@@ -73,7 +73,7 @@
       (is (= [70 100] (mapv :cap (:allocations result)))))))
 
 (deftest sew-slash-projection-artifact-uses-current-allocation-input
-  (testing "SEW sidecar projection artifact comes from the same parties, basis, caps, and amount"
+  (testing "Sew sidecar projection artifact comes from the same parties, basis, caps, and amount"
     (let [input {:slash-obligation 100
                  :liable-parties [{:id :resolver-a
                                    :slashable-stake 300
@@ -99,7 +99,7 @@
                                   (dissoc artifact :projection-hash)))))))
 
 (deftest sew-slash-allocation-from-projection-shadows-current-path
-  (testing "projection-based SEW allocation matches the current SEW allocation on the same fixtures"
+  (testing "projection-based Sew allocation matches the current Sew allocation on the same fixtures"
     (doseq [input [{:slash-obligation 100
                     :slash-policy {:policy/id :test-policy}
                     :liable-parties [{:id :resolver-a

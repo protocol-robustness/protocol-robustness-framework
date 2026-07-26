@@ -1,7 +1,7 @@
 (ns resolver-sim.protocols.sew.trace-metadata
   "Typed metadata for simulation traces.
 
-   Defines the canonical type vocabulary for the Sew simulation system.
+   Defines the canonical type vocabulary for the Protocol Robustness Framework.
    Every actor, adversary, transition, effect, invariant, scenario, outcome,
    and resolution has a stable keyword type drawn from one of the sets below.
 

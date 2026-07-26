@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.financial.finality
-  "SEW-specific classification of chain finality and financial finality.
+  "Sew-specific classification of chain finality and financial finality.
 
    Chain finality = state permanence (blockchain consensus).
    Financial finality = obligation permanence (economic outcome stability).
@@ -15,7 +15,7 @@
      resolver-sim.financial.taxonomies — general taxonomy definitions
      (chain phases, financial phases, ordinals) used by this namespace.
 
-   This is a SEW reference implementation. Protocols with different
+   This is a Sew reference implementation. Protocols with different
    world state shapes should implement their own classifiers using
    the same taxonomy vocabulary."
   (:require [clojure.string :as str]

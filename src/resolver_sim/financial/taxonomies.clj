@@ -17,7 +17,7 @@
    that assets are sufficient to meet obligations?
 
    For protocol-specific classifiers that read world state to classify against
-   these taxonomies, see the SEW reference implementation:
+   these taxonomies, see the Sew reference implementation:
      resolver-sim.protocols.sew.financial.finality
      resolver-sim.protocols.sew.financial.loss
      resolver-sim.protocols.sew.financial.solvency"

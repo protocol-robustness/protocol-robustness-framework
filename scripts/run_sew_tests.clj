@@ -144,7 +144,7 @@
 
       "scenario"
       (let [syms scenario-test-namespaces]
-        (println "Loading" (count syms) "SEW scenario test namespaces...")
+        (println "Loading" (count syms) "Sew scenario test namespaces...")
         (load-all! syms)
         (println "Running" (count syms) "namespaces with temp-dir evidence...")
         (let [result (run-group "scenario" syms tu/with-temp-evidence)]

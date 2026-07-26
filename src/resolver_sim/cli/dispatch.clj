@@ -61,13 +61,15 @@
    :community-mailbox-clear 'resolver-sim.commands.community/mailbox-clear
    :notebook-focus 'resolver-sim.commands.notebook-focus/focus
    :notebook-latest 'resolver-sim.commands.notebook-focus/latest
-   :notebook-runs 'resolver-sim.commands.notebook-focus/runs})
+   :notebook-runs 'resolver-sim.commands.notebook-focus/runs
+   :invariants-run 'resolver-sim.commands.invariants-run/run
+   :verify-run 'resolver-sim.commands.verify-run/run})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
     :run-scenario :run-invariants :run-benchmark :run-simulation
     :scenario-list :scenario-compare :scenario-pick :scenario-run-search
-    :benchmark-list :suite-list})
+    :benchmark-list :suite-list :invariants-run :verify-run})
 
 (defn sew-capable?
   "True when this distribution contains the Sew protocol implementation."

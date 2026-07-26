@@ -2,7 +2,7 @@
   "Pre-application tests at the SEW protocol / benchmark boundary.
    
    Verifies that the benchmark runner checks preconditions before
-   dispatching scenarios to the SEW replay engine. These tests
+   dispatching scenarios to the Sew replay engine. These tests
    load real scenario files through the benchmark layer and verify
    that invalid or incomplete scenarios are rejected before execution."
   (:require [clojure.test :refer [deftest is testing]]
@@ -335,7 +335,7 @@
     (is (some #(re-find #"benchmark/id" %) (:errors result)))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
-;; Tests: outcome-hash determinism (SEW replay identity)
+;; Tests: outcome-hash determinism (Sew replay identity)
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (deftest outcome-hash-is-scenario-content-hash

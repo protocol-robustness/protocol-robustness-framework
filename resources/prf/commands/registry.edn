@@ -251,8 +251,34 @@
    :command/outputs []
    :command/description "Read-only verification of a completed scenario bundle, including its registry, evidence-chain finalizations, and evidence-set reconciliation."}
 
+   {:command/id :invariants-run
+    :command/path ["invariants" "run"]
+    :command/title "Run invariant suite (canonical)"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-root" :type :string :doc "Target directory for the canonical run package" :required true}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs ["<run-root>/run-plan.json", "<run-root>/scenario-results.json", "<run-root>/completion.json"]
+    :command/description "Run the full invariant registry suite and persist canonical evidence under --run-root."}
+
+   {:command/id :verify-run
+    :command/path ["verify-run"]
+    :command/title "Verify run bundle"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-root" :type :string :doc "Run package directory to verify" :required true}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Verify a completed canonical run package for completeness and integrity."}
+
    {:command/id :run-invariants
-   :command/path ["run-invariants"]
+    :command/path ["run-invariants"]
     :command/title "Run invariant suite"
     :command/category :scenario
     :command/surface :dev

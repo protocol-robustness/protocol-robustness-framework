@@ -94,6 +94,24 @@ jobs:
           echo "Total gating failures: $FAILURES"
           exit $FAILURES
 
+      - name: Run authoritative backstop (canonical invariant evidence)
+        run: |
+          echo "=== Running backstop:full ==="
+          PRF_INVARIANTS_RUN_ROOT="$GITHUB_WORKSPACE/artf/runs/invariants/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            ./scripts/review/backstop.sh full
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+
+      - name: Upload invariant run root
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invariant-run-root
+          path: artf/runs/invariants/
+          if-no-files-found: ignore
+
       - name: Generate ephemeral Ed25519 key for CI signing
         if: always()
         run: |

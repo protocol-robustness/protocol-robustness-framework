@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.financial.solvency
-  "SEW-specific cryptographic solvency classification.
+  "Sew-specific cryptographic solvency classification.
 
    Cryptographic solvency is stronger than accounting solvency. It asks:
    can the protocol prove, from verifiable state commitments, that
@@ -30,7 +30,7 @@
      resolver-sim.financial.taxonomies — general taxonomy definitions
      (solvency tiers, ordinals) used by this namespace.
 
-   This is a SEW reference implementation. Protocols with different
+   This is a Sew reference implementation. Protocols with different
    world state shapes should implement their own classifiers using
    the same taxonomy vocabulary."
   (:require [clojure.string :as str]

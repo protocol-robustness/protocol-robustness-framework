@@ -1,6 +1,6 @@
 # Sew Action Identifier Taxonomy
 
-This document classifies SEW actions based on their requirements for resource identifiers (workflow-id, token, etc.).
+This document classifies Sew actions based on their requirements for resource identifiers (workflow-id, token, etc.).
 
 ## 1. Allocates workflow-id
 - create_escrow

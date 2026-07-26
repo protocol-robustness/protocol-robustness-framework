@@ -208,7 +208,7 @@ accounting validates financial implementation of committed propagation policy
 
 ## SEW pro-rata slash adapter
 
-SEW slash allocation consumes the same public allocation API:
+Sew slash allocation consumes the same public allocation API:
 
 ```text
 liable parties
@@ -227,7 +227,7 @@ present. In particular, do not infer cap, quota, canonical remainder, or
 round-trace validation from legacy projection evidence alone.
 
 SEW currently demonstrates deterministic pro-rata slash allocation and evidence
-translation. It does **not** implement authoritative SEW slash propagation,
+translation. It does **not** implement authoritative Sew slash propagation,
 stake debits, slash destination credits, unmet slash lifecycle state, or
 state mutation.
 
@@ -240,7 +240,7 @@ The following are intentionally outside this contract:
 - package-index or evidence-DAG integration for standalone mechanism evidence;
 - operational later-liquidity / round-two shared-withdrawal execution;
 - successor deferred-position creation and multi-round lifecycle application;
-- authoritative SEW slash propagation, stake debits, and account mutation;
+- authoritative Sew slash propagation, stake debits, and account mutation;
 - mechanism registry or runtime mechanism selection;
 - principal-first or waterfall extraction;
 - generic settlement, propagation, accounting, or deferred-position abstractions;

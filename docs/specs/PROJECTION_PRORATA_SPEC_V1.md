@@ -642,7 +642,7 @@ evidence-record     ───  links frame, result, world hashes, action-hash-at
 2. Keep `:projection-artifact` intent as an alias for `:projection-frame` during migration (both resolve to the same projection function).
 3. Update `build-projection-artifact` to produce the `:projection-frame` shape (minimal change — already correct).
 4. Add `build-projection-result` that consumes a frame artifact, the allocation output from `allocate-pro-rata`, and the world/action context.
-5. Wire `build-projection-result` into the SEW slashing resolution and evidence pipelines.
+5. Wire `build-projection-result` into the Sew slashing resolution and evidence pipelines.
 6. Update artifact-kind registry (`ARTIFACT_KIND_REGISTRY_SPEC_V1.md`) to add projections and result kinds.
 7. Deprecate `:projection-artifact` intent name in favor of `:projection-frame`.
 

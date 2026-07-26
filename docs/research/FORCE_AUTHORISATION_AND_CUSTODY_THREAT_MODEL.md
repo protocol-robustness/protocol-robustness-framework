@@ -1,7 +1,7 @@
 # Force-Authorisation and Held-Custody Threat Model
 
 **Status:** bounded research specification  
-**Applies to:** Sew simulation state machine, held-custody ledger, forensic run bundle  
+**Applies to:** PRF held-custody ledger, forensic run bundle, Sew state machine   
 **Version:** 1.0  
 
 ## 1. Scope and claim discipline

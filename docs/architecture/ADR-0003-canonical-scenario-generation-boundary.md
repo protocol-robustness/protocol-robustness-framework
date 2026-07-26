@@ -2,7 +2,7 @@
 
 - Status: **Accepted**
 - Date: 2026-05-02
-- Deciders: Sew simulation maintainers
+- Deciders: PRF maintainers
 - Related: `docs/architecture/interface-contract.md`, `docs/architecture.md` *(note: `docs/architecture.md` was removed in the 2026-05-21 consolidation; the system diagram it contained is now in `docs/architecture/interface-contract.md` §System Diagram)*
 
 ---

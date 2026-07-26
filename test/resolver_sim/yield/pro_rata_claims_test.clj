@@ -59,7 +59,7 @@
   (update result :allocations #(mapv (fn [row] (dissoc row :share)) (or % []))))
 
 (defn- build-claim-evaluation-node
-  "Build a claim-evaluation evidence node from a SEW slash allocation input,
+  "Build a claim-evaluation evidence node from a Sew slash allocation input,
    matching the shape produced by evidence/slashing.clj."
   [allocation-input]
   (let [direct-result (sew-economics/calculate-sew-slash-allocation allocation-input)

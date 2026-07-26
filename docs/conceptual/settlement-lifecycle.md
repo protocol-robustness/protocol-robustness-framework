@@ -1,6 +1,6 @@
 # Settlement Lifecycle
 
-*Both PRF and SEW perspectives on how a payment moves from creation to finality.*
+*Both PRF and Sew perspectives on how a payment moves from creation to finality.*
 
 ## 1. Overview
 
@@ -10,13 +10,13 @@ creation through to an irreversible terminal state.  Two layers interact:
 - **PRF (Protocol Robustness Framework)** — the protocol-agnostic replay engine
   that drives simulation, checks invariants, and records evidence for any
   lifecycle stage.
-- **SEW** — the concrete escrow + dispute-resolution protocol whose lifecycle
+- **Sew** — the concrete escrow + dispute-resolution protocol whose lifecycle
   the PRF models and tests.
 
 | Layer | Role |
 |-------|------|
 | PRF | Simulation adapter, invariant checking, trace minimization, evidence capture |
-| SEW | State machine, pending-settlement mechanic, appeal windows, keeper dispatch |
+| Sew | State machine, pending-settlement mechanic, appeal windows, keeper dispatch |
 
 ---
 
@@ -68,7 +68,7 @@ Each step in a settlement lifecycle produces:
 
 ---
 
-## 3. SEW Settlement Lifecycle (Protocol Level)
+## 3. Sew Settlement Lifecycle (Protocol Level)
 
 ### 3.1 Escrow State Machine
 
@@ -255,7 +255,7 @@ strict priority:
 | 5 | `auto-cancel-due?` | `finalize-escrow-accounting` (refund) | :pending → :refunded |
 | 6 | (none) | `:none` | unchanged |
 
-Priority 2 is a SEW extension (not in Solidity) — griefing protection that
+Priority 2 is a Sew extension (not in Solidity) — griefing protection that
 prevents a frivolous dispute from blocking an auto-cancel deadline.
 
 ### 3.5 Force-Authorisation: Alternative Authorization Path
@@ -270,7 +270,7 @@ The system spans four layers:
 
 | Layer | File | Role |
 |-------|------|------|
-| Protocol action dispatch | `sew.clj:95-876` | Grant/revoke/execute action handlers, policy definition, scope-hash verification |
+| Protocol action dispatch | `Sew.clj:95-876` | Grant/revoke/execute action handlers, policy definition, scope-hash verification |
 | Resolution integration | `resolution.clj:652-794` | `apply-resolution-transition` provenance plumbing, `finalize` forwarding |
 | Escrow lifecycle | `lifecycle.clj:165-296` | `finalize` held-reason selection (`:force-authorised-release`/`:force-authorised-refund`) |
 | Custody accounting | `accounting.clj:104-527` | `ensure-force-authorisation-usable!`, `mark-force-authorisation-consumed`, `adjust-held` enforcement |
@@ -282,7 +282,7 @@ The system spans four layers:
 
 #### 3.5.1 Forced-Authorisation Policy
 
-The policy (`sew.clj:95-131`) is a static `def ^:private` map that allowlists
+The policy (`Sew.clj:95-131`) is a static `def ^:private` map that allowlists
 four actions with their permissible reasons, authorization class, authorization
 path, allowed checks, allowed sources, and capacity-context requirement:
 
@@ -330,7 +330,7 @@ path, allowed checks, allowed sources, and capacity-context requirement:
 | `force-reversal-slash` | `:governance-intervention` | `:exceptional` | 1 reason | Direct governance action |
 
 The policy is enforced at grant time and also at the `build-force-authorisation-provenance`
-function (`sew.clj:133-182`), which performs five validations:
+function (`Sew.clj:133-182`), which performs five validations:
 
 1. Action must be in `forced-authorisation-policy` keys (throws `:invalid-force-authorisation`)
 2. Reason must be in `(:reasons policy)` (throws with `:allowed-reasons`)
@@ -344,7 +344,7 @@ cannot silently acquire forced-authorisation provenance.
 
 #### 3.5.2 Grant Action Handler (`grant-force-authorisation`)
 
-Defined at `sew.clj:586-699`.  Gated as a governance action via
+Defined at `Sew.clj:586-699`.  Gated as a governance action via
 `run-governance-action`:
 
 ```clojure
@@ -476,7 +476,7 @@ Defined at `sew.clj:586-699`.  Gated as a governance action via
  :held/workflow-id workflow-id}
 ```
 
-**Evidence emitted** (`sew.clj:672-697`):
+**Evidence emitted** (`Sew.clj:672-697`):
 ```clojure
 ;; Captures before/after world state for forensic audit:
 :force-authorisation-granted
@@ -502,7 +502,7 @@ Defined at `sew.clj:586-699`.  Gated as a governance action via
 
 #### 3.5.3 Revoke Action Handler (`revoke-force-authorisation`)
 
-Defined at `sew.clj:705-744`.  Also governance-gated:
+Defined at `Sew.clj:705-744`.  Also governance-gated:
 
 ```clojure
 (defmethod apply-action "revoke-force-authorisation"
@@ -533,7 +533,7 @@ Defined at `sew.clj:705-744`.  Also governance-gated:
             ...)))))
 ```
 
-**Backward-compatibility alias** (`sew.clj:746-748`):
+**Backward-compatibility alias** (`Sew.clj:746-748`):
 ```clojure
 (defmethod apply-action "revoke-force-authorization"
   ;; US-spelling alias
@@ -542,7 +542,7 @@ Defined at `sew.clj:705-744`.  Also governance-gated:
 
 #### 3.5.4 Execute Action Handler (`execute-force-authorised-action`)
 
-Defined at `sew.clj:750-876`.  Gated as a resolved-actor action (not governance):
+Defined at `Sew.clj:750-876`.  Gated as a resolved-actor action (not governance):
 
 ```clojure
 (defmethod apply-action "execute-force-authorised-action"
@@ -644,7 +644,7 @@ Both the full scope map and the hash are compared.  The scope-map comparison
 catches structural drift; the scope-hash comparison catches hash-level
 tampering.  Either mismatch produces `:force-authorisation-grant-scope-mismatch`.
 
-**Evidence emitted** (`sew.clj:841-866`):
+**Evidence emitted** (`Sew.clj:841-866`):
 ```clojure
 :force-authorisation-executed
 {:force-auth/before {:status (:authorization/status record)
@@ -1066,9 +1066,9 @@ prevents hash collisions with other protocol features that use the same
 
 The `assurance/force_authorisation.clj` namespace (`src/resolver_sim/assurance/`)
 provides protocol-independent validation that operates on plain data maps
-instead of a SEW world state.
+instead of a Sew world state.
 
-**Boundary guard** (file header): `MUST NOT import` any SEW namespaces.
+**Boundary guard** (file header): `MUST NOT import` any Sew namespaces.
 Enforced by a portability test at `test/resolver_sim/assurance/force_authorisation_portability_test.clj`.
 
 ##### 3.5.7.1 Normalization Functions
@@ -1154,7 +1154,7 @@ These provide the temporal ordering properties:
 
 #### 3.5.9 Force-Authorisation Record Structure
 
-Created at grant time (`sew.clj:647`), the record carries both grant-time
+Created at grant time (`Sew.clj:647`), the record carries both grant-time
 and execution-time data:
 
 ```clojure
@@ -1220,8 +1220,8 @@ The scope is recomputed at three points, each with a different purpose:
 
 | Point | Scope Source | Purpose |
 |-------|-------------|---------|
-| Grant (`sew.clj:631`) | EscrowTransfer at grant time | Immutable original: records the permitted scope |
-| Execute (`sew.clj:795`) | EscrowTransfer at execution time | Verification: must match grant scope exactly |
+| Grant (`Sew.clj:631`) | EscrowTransfer at grant time | Immutable original: records the permitted scope |
+| Execute (`Sew.clj:795`) | EscrowTransfer at execution time | Verification: must match grant scope exactly |
 | Consume (`accounting.clj:493`) | Held adjustment position components | Enforcement: must match grant scope and hash |
 
 **Hash recomputation chain:**
@@ -1254,7 +1254,7 @@ All 9 keys must match exactly at both execute and consume time.
 
 Two provenance envelopes exist, flowing through different stages:
 
-**Execution provenance** (built at `sew.clj:808`):
+**Execution provenance** (built at `Sew.clj:808`):
 ```clojure
 {:authorization/schema-version      "force-authorisation.v2"
  :authorization/type                :force-authorisation
@@ -1384,7 +1384,7 @@ is rejected.
 
 Force-authorisation consumption is enforced at two independent levels:
 
-**Grant record level** (`sew.clj`):
+**Grant record level** (`Sew.clj`):
 - `:consumed?` flag on the grant record (boolean, set to `true` at consumption)
 - Execution metadata recorded at stage 2 (execute) does NOT set `:consumed?`
 - Transition `:active → :consumed` is final and checked by `ensure-force-authorisation-usable!`
@@ -1719,26 +1719,26 @@ The capability definition at `src/resolver_sim/benchmark/capabilities/force_auth
 
 | Keyword | Stage | Source Line | Meaning |
 |---------|-------|-------------|---------|
-| `:force-authorisation-workflow-not-found` | Grant | `sew.clj:611` | Workflow-id does not exist in escrow-transfers |
-| `:force-authorisation-workflow-not-disputed` | Grant | `sew.clj:612` | Escrow is not in `:disputed` state |
-| `:force-authorisation-invalid-reason` | Grant | `sew.clj:613` | Reason parameter is not a keyword |
-| `:force-authorisation-reason-not-allowed` | Grant | `sew.clj:614` | Reason not in policy's `:allowed-reasons` set |
-| `:force-authorisation-action-not-allowed` | Grant | `sew.clj:615` | Allowed action is not `"execute-resolution"` |
-| `:force-authorisation-invalid-settlement-direction` | Grant | `sew.clj:616` | `:is-release` is not a boolean |
-| `:force-authorisation-invalid-start-time` | Grant | `sew.clj:617` | `:starts-at` is not a number |
-| `:force-authorisation-invalid-duration` | Grant | `sew.clj:618-619` | `:duration` present but not numeric or negative |
-| `:force-authorisation-invalid-expiry` | Grant | `sew.clj:620-621` | `:expires-at` present but not numeric |
-| `:force-authorisation-invalid-time-window` | Grant | `sew.clj:622-623` | `expires-at <= starts-at` (window inverted) |
-| `:force-authorisation-conflicting-timing` | Grant | `sew.clj:624` | Both `:expires-at` and `:duration` specified |
-| `:force-authorisation-duration-exceeds-max` | Grant | `sew.clj:625-626` | `expires-at - starts-at > max-duration` |
-| `:force-authorisation-not-found` | Revoke/Execute | `sew.clj:713, 764` | Auth-id not found in `:force-authorisations` |
-| `:force-authorisation-not-active` | Execute | `sew.clj:767` | Grant status is not `:active` |
-| `:force-authorisation-already-consumed` | Execute | `sew.clj:770, 786` | Grant `:consumed?` flag true OR in consumption registry |
-| `:force-authorisation-workflow-mismatch` | Execute | `sew.clj:773` | Execution workflow-id differs from grant |
-| `:force-authorisation-action-mismatch` | Execute | `sew.clj:776` | Execution action differs from grant's `:allowed-action` |
-| `:force-authorisation-not-yet-started` | Execute/Consume | `sew.clj:779`, `accounting.clj:157` | Current time before `:starts-at` |
-| `:force-authorisation-expired` | Execute/Consume | `sew.clj:783`, `accounting.clj:163` | Current time at/after `:expires-at` |
-| `:force-authorisation-grant-scope-mismatch` | Execute | `sew.clj:807` | Rebuilt scope/hash does not match grant's scope/hash |
+| `:force-authorisation-workflow-not-found` | Grant | `Sew.clj:611` | Workflow-id does not exist in escrow-transfers |
+| `:force-authorisation-workflow-not-disputed` | Grant | `Sew.clj:612` | Escrow is not in `:disputed` state |
+| `:force-authorisation-invalid-reason` | Grant | `Sew.clj:613` | Reason parameter is not a keyword |
+| `:force-authorisation-reason-not-allowed` | Grant | `Sew.clj:614` | Reason not in policy's `:allowed-reasons` set |
+| `:force-authorisation-action-not-allowed` | Grant | `Sew.clj:615` | Allowed action is not `"execute-resolution"` |
+| `:force-authorisation-invalid-settlement-direction` | Grant | `Sew.clj:616` | `:is-release` is not a boolean |
+| `:force-authorisation-invalid-start-time` | Grant | `Sew.clj:617` | `:starts-at` is not a number |
+| `:force-authorisation-invalid-duration` | Grant | `Sew.clj:618-619` | `:duration` present but not numeric or negative |
+| `:force-authorisation-invalid-expiry` | Grant | `Sew.clj:620-621` | `:expires-at` present but not numeric |
+| `:force-authorisation-invalid-time-window` | Grant | `Sew.clj:622-623` | `expires-at <= starts-at` (window inverted) |
+| `:force-authorisation-conflicting-timing` | Grant | `Sew.clj:624` | Both `:expires-at` and `:duration` specified |
+| `:force-authorisation-duration-exceeds-max` | Grant | `Sew.clj:625-626` | `expires-at - starts-at > max-duration` |
+| `:force-authorisation-not-found` | Revoke/Execute | `Sew.clj:713, 764` | Auth-id not found in `:force-authorisations` |
+| `:force-authorisation-not-active` | Execute | `Sew.clj:767` | Grant status is not `:active` |
+| `:force-authorisation-already-consumed` | Execute | `Sew.clj:770, 786` | Grant `:consumed?` flag true OR in consumption registry |
+| `:force-authorisation-workflow-mismatch` | Execute | `Sew.clj:773` | Execution workflow-id differs from grant |
+| `:force-authorisation-action-mismatch` | Execute | `Sew.clj:776` | Execution action differs from grant's `:allowed-action` |
+| `:force-authorisation-not-yet-started` | Execute/Consume | `Sew.clj:779`, `accounting.clj:157` | Current time before `:starts-at` |
+| `:force-authorisation-expired` | Execute/Consume | `Sew.clj:783`, `accounting.clj:163` | Current time at/after `:expires-at` |
+| `:force-authorisation-grant-scope-mismatch` | Execute | `Sew.clj:807` | Rebuilt scope/hash does not match grant's scope/hash |
 | `:authorization/not-found` | Consume | `accounting.clj:136` | Record not found at `ensure-force-authorisation-usable!` |
 | `:authorization/not-active` | Consume | `accounting.clj:139` | Record status not `:active` |
 | `:authorization/already-consumed` | Consume | `accounting.clj:153, 233` | Record already consumed at accounting level |
@@ -1782,27 +1782,27 @@ Available trace and golden files:
 
 | File | Lines | Content |
 |------|-------|---------|
-| `protocols_src/.../sew.clj` | 95-131 | `forced-authorisation-policy` definition |
-| `protocols_src/.../sew.clj` | 133-182 | `build-force-authorisation-provenance` |
-| `protocols_src/.../sew.clj` | 586-699 | `grant-force-authorisation` action handler |
-| `protocols_src/.../sew.clj` | 701-703 | `grant-force-authorization` (US-spelling alias) |
-| `protocols_src/.../sew.clj` | 705-744 | `revoke-force-authorisation` action handler |
-| `protocols_src/.../sew.clj` | 750-876 | `execute-force-authorised-action` action handler |
-| `protocols_src/.../sew/types.clj` | 282-283 | World state keys (`:force-authorisations`, `:next-force-authorisation-id`) |
-| `protocols_src/.../sew/resolution.clj` | 652-721 | `apply-resolution-transition` provenance plumbing |
-| `protocols_src/.../sew/resolution.clj` | 784-794 | `execute-pending-settlement` provenance read-back |
-| `protocols_src/.../sew/resolution.clj` | 2145-2163 | `finalize` (resolution internal) provenance forwarding |
-| `protocols_src/.../sew/lifecycle.clj` | 165-287 | `finalize` held-reason selection (`:force-authorised-release`/`:force-authorised-refund`) |
-| `protocols_src/.../sew/accounting.clj` | 28-48 | `exceptional-held-reasons`, `address-scoped-held-reasons` |
-| `protocols_src/.../sew/accounting.clj` | 50-60 | `held-position-policy` for force-authorised reasons |
-| `protocols_src/.../sew/accounting.clj` | 104-109 | `force-authorisation-scope-domain`, `force-authorisation-scope-hash` |
-| `protocols_src/.../sew/accounting.clj` | 111-118 | `scope-hash-mismatch?` |
-| `protocols_src/.../sew/accounting.clj` | 120-245 | `ensure-force-authorisation-usable!` (7 guard groups, 14 checks) |
-| `protocols_src/.../sew/accounting.clj` | 247-260 | `member-scope-hash-from-adjustment` |
-| `protocols_src/.../sew/accounting.clj` | 262-313 | `mark-force-authorisation-consumed` (single-claim + related-claims) |
-| `protocols_src/.../sew/accounting.clj` | 481-527 | `adjust-held` force-authorisation enforcement entry point |
-| `protocols_src/.../sew/invariants.clj` | 332-342 | `related-member-scope-hash` |
-| `protocols_src/.../sew/invariants.clj` | 344-408 | `force-authorisations-lifecycle-consistent?` |
+| `protocols_src/.../Sew.clj` | 95-131 | `forced-authorisation-policy` definition |
+| `protocols_src/.../Sew.clj` | 133-182 | `build-force-authorisation-provenance` |
+| `protocols_src/.../Sew.clj` | 586-699 | `grant-force-authorisation` action handler |
+| `protocols_src/.../Sew.clj` | 701-703 | `grant-force-authorization` (US-spelling alias) |
+| `protocols_src/.../Sew.clj` | 705-744 | `revoke-force-authorisation` action handler |
+| `protocols_src/.../Sew.clj` | 750-876 | `execute-force-authorised-action` action handler |
+| `protocols_src/.../Sew/types.clj` | 282-283 | World state keys (`:force-authorisations`, `:next-force-authorisation-id`) |
+| `protocols_src/.../Sew/resolution.clj` | 652-721 | `apply-resolution-transition` provenance plumbing |
+| `protocols_src/.../Sew/resolution.clj` | 784-794 | `execute-pending-settlement` provenance read-back |
+| `protocols_src/.../Sew/resolution.clj` | 2145-2163 | `finalize` (resolution internal) provenance forwarding |
+| `protocols_src/.../Sew/lifecycle.clj` | 165-287 | `finalize` held-reason selection (`:force-authorised-release`/`:force-authorised-refund`) |
+| `protocols_src/.../Sew/accounting.clj` | 28-48 | `exceptional-held-reasons`, `address-scoped-held-reasons` |
+| `protocols_src/.../Sew/accounting.clj` | 50-60 | `held-position-policy` for force-authorised reasons |
+| `protocols_src/.../Sew/accounting.clj` | 104-109 | `force-authorisation-scope-domain`, `force-authorisation-scope-hash` |
+| `protocols_src/.../Sew/accounting.clj` | 111-118 | `scope-hash-mismatch?` |
+| `protocols_src/.../Sew/accounting.clj` | 120-245 | `ensure-force-authorisation-usable!` (7 guard groups, 14 checks) |
+| `protocols_src/.../Sew/accounting.clj` | 247-260 | `member-scope-hash-from-adjustment` |
+| `protocols_src/.../Sew/accounting.clj` | 262-313 | `mark-force-authorisation-consumed` (single-claim + related-claims) |
+| `protocols_src/.../Sew/accounting.clj` | 481-527 | `adjust-held` force-authorisation enforcement entry point |
+| `protocols_src/.../Sew/invariants.clj` | 332-342 | `related-member-scope-hash` |
+| `protocols_src/.../Sew/invariants.clj` | 344-408 | `force-authorisations-lifecycle-consistent?` |
 | `src/resolver_sim/evidence/force_authorisation.clj` | 1-62 | Scope schema, envelope schema, temporal ordering validators |
 | `src/resolver_sim/assurance/force_authorisation.clj` | 1-246 | Normalization, `verify-authorisation-usable`, `verify-authorisation-lifecycle-consistency` |
 | `src/resolver_sim/run/bundle_root.clj` | 197-234 | Protocol state hashes for force-authorisations |
@@ -2311,10 +2311,10 @@ portion carries their priority forward to the next liquidity event.
 
 Settlement deadline enforcement operates at two layers.  The PRF replay engine
 evaluates temporal rules *before* dispatching any action — these are generic,
-protocol-agnostic checks.  The SEW protocol logic enforces deadline guards
+protocol-agnostic checks.  The Sew protocol logic enforces deadline guards
 *within* each action handler, providing protocol-specific error semantics.
 Together they form a defence-in-depth: the PRF layer catches timing violations
-at the event boundary, and the SEW layer catches any remaining violations
+at the event boundary, and the Sew layer catches any remaining violations
 during state-machine transition.
 
 ### 4.1 PRF Layer: TemporalDeadlines Protocol
@@ -2336,7 +2336,7 @@ The PRF defines a protocol for deadline lookup in
 The replay engine does not know about specific deadline semantics — it simply
 asks the protocol adapter for a deadline timestamp via `deadline-for`, then
 evaluates the boundary policy.  This keeps the PRF engine protocol-agnostic
-and the deadline logic in the SEW adapter.
+and the deadline logic in the Sew adapter.
 
 Three invariants are always checked before any deadline enforcement:
 1. **`:missing-event-time`** — every event must carry a `:time` field (numeric
@@ -2347,9 +2347,9 @@ Three invariants are always checked before any deadline enforcement:
 
 All three are evaluated in order.  The first failure short-circuits.
 
-### 4.2 SEW Implementation: deadline-for
+### 4.2 Sew Implementation: deadline-for
 
-The SEW adapter (`protocols_src/resolver_sim/protocols/sew.clj:1748`) implements
+The Sew adapter (`protocols_src/resolver_sim/protocols/Sew.clj:1748`) implements
 `deadline-for` with four deadline kinds:
 
 ```clojure
@@ -2541,7 +2541,7 @@ process-step(protocol, context, world, event):
 │     ├── apply-action-with-evidence(protocol, context, world-t, event)
 │     │     │
 │     │     ├── proto/dispatch-action(protocol, context, world-t, event)
-│     │     │     └── → SEW adapter → resolution.clj / lifecycle.clj
+│     │     │     └── → Sew adapter → resolution.clj / lifecycle.clj
 │     │     │           (includes protocol-level deadline guards)
 │     │     │
 │     │     ├── IF invariants-on? → check-invariants-single + transition
@@ -2570,9 +2570,9 @@ that are clearly outside their time window without ever touching the protocol
 state machine.  The protocol guards provide a second layer of defence for
 race conditions and internal keeper operations.
 
-### 4.5 SEW Layer: Time Model and Clock Semantics
+### 4.5 Sew Layer: Time Model and Clock Semantics
 
-The SEW simulation uses a discrete-step time model defined in
+The Protocol Robustness Framework uses a discrete-step time model defined in
 `src/resolver_sim/time/context.clj`:
 
 ```clojure
@@ -2609,7 +2609,7 @@ The SEW simulation uses a discrete-step time model defined in
 - `seconds-per-year` = 31536000
 - `tick-seconds` = 86400 (the default tick rate for keeper-interval parameters)
 
-### 4.6 SEW Layer: Deadline Helper Functions
+### 4.6 Deadline Helper Functions
 
 All deadline arithmetic goes through `src/resolver_sim/time/deadlines.clj`:
 
@@ -2666,9 +2666,9 @@ create scenario variants that test each side of every deadline boundary:
 - At `t`: the window is at the exact cutoff — one side succeeds, the other fails
 - At `t+1`: the window is closed, the other action succeeds
 
-### 4.7 SEW Layer: State Machine Deadline Predicates
+### 4.7 State Machine Deadline Predicates
 
-The SEW state machine (`protocols_src/resolver_sim/protocols/sew/state_machine.clj:399`)
+The Sew state machine (`protocols_src/resolver_sim/protocols/Sew/state_machine.clj:399`)
 defines five deadline guard predicates with precise short-circuit ordering
 to prevent nil-pointer crashes on invalid workflow-ids:
 
@@ -2725,10 +2725,10 @@ path (see 4.11).
 
 ### 4.8 Two-Layer Enforcement Interaction
 
-The PRF temporal rules and SEW guards are redundant by design, but they
+The PRF temporal rules and Sew guards are redundant by design, but they
 differ in important ways:
 
-| Aspect | PRF Temporal Rule Layer | SEW Action Guard Layer |
+| Aspect | PRF Temporal Rule Layer | Sew Action Guard Layer |
 |--------|------------------------|------------------------|
 | **When evaluated** | Before time advance, on current world state | After time advance, on world-t (world with event-time as block-ts) |
 | **Evaluated by** | `evaluate-temporal-rules` in `temporal.clj` | `dispatch-action` → action handler in `resolution.clj` / `lifecycle.clj` |
@@ -2750,7 +2750,7 @@ PRF layer catches it:
   → trace: {:result :rejected, :invariant-phase :temporal-rule}
   → world unchanged, action never reaches handler
 
-SEW layer would catch it if PRF layer is disabled:
+Sew layer would catch it if PRF layer is disabled:
   - Guards: state = :disputed ✓, pending exists ✓
   - (< now-ts (:appeal-deadline pending)) → true
   → (guard-fail :appeal-window-not-expired)
@@ -2765,7 +2765,7 @@ PRF layer cannot catch this:
   - boundary passes (event-time >= deadline)
   → {:ok? true} → passes through
 
-SEW layer catches it:
+Sew layer catches it:
   - Guards: (not= :disputed (t/escrow-state world workflow-id))
   → (guard-fail :transfer-not-in-dispute)
 ```
@@ -2934,7 +2934,7 @@ after a dispute is raised.
 ```
 The `:before` boundary rejects when `event-time >= deadline`.
 
-**SEW action handler** (`resolution.clj:418`):
+**Sew action handler** (`resolution.clj:418`):
 ```clojure
 (defn submit-evidence
   [world workflow-id _caller & [{:keys [evidence-hash]}]]
@@ -2963,9 +2963,9 @@ accepted.
 
 **Why strict `>` vs `>=`:** The PRF temporal rule uses `:before` boundary
 which rejects at `event-time >= deadline`.  If the PRF layer is enabled,
-the PRF catches the `==` case and `submit-evidence` never reaches the SEW
+the PRF catches the `==` case and `submit-evidence` never reaches the Sew
 handler.  If the PRF layer is disabled (e.g., direct `dispatch-action`
-call from within another action), the SEW handler uses `>` as a
+call from within another action), the Sew handler uses `>` as a
 second-line defence, accepting evidence exactly at the deadline.
 
 **Evidence window invariant** (`invariants/dispute.clj:198`):
@@ -3048,7 +3048,7 @@ The window resolution chain:
                               :on-expired :timelock-not-expired}
 ```
 
-**SEW action handler guard** (`resolution.clj:1193`, `resolution.clj:1692`):
+**Sew action handler guard** (`resolution.clj:1193`, `resolution.clj:1692`):
 
 For `execute-fraud-slash`:
 ```clojure
@@ -3112,7 +3112,7 @@ settlement to exist and the appeal window to be open:
 | `now == deadline` | `:appeal-window-expired` | `:appeal-window-expired` | Allowed |
 | `now > deadline` | `:appeal-window-expired` | `:appeal-window-expired` | Allowed |
 
-**`available-actions` filtering** (`sew.clj:1656`):
+**`available-actions` filtering** (`Sew.clj:1656`):
 
 The `available-actions` function (used by reinforcement-learning agents and
 trace analysis) pre-filters actions based on deadline state:
@@ -3182,7 +3182,7 @@ two events in the same block both call `escalate-dispute` or
 **Layer B — Bond cost scaling:**
 ```clojure
 esc-count    (get-in world [:escalation-counts-per-addr caller] 0)
-base-bond    (sew-econ/calculate-challenge-bond-amount (:amount-after-fee et) snap)
+base-bond    (Sew-econ/calculate-challenge-bond-amount (:amount-after-fee et) snap)
 bond-amt     (quot (* base-bond (+ 10000 (* esc-count 1000))) 10000)
 ```
 
@@ -3526,13 +3526,13 @@ The lifecycle is tested across scenarios in the following categories:
 
 | File | Content |
 |------|---------|
-| `protocols_src/.../sew/types.clj` | PendingSettlement, EscrowTransfer, world state, state machine graph |
-| `protocols_src/.../sew/state_machine.clj` | State transition functions, deadline predicates (`pending-settlement-executable?`, `auto-release-due?`, `auto-cancel-due?`, `dispute-timeout-exceeded?`, `auto-cancel-due-on-disputed?`) |
-| `protocols_src/.../sew/resolution.clj` | `execute-resolution`, `execute-pending-settlement`, `escalate-dispute`, `challenge-resolution`, `automate-timed-actions` |
-| `protocols_src/.../sew/lifecycle.clj` | `create-escrow`, `release`, `cancel`, `finalize`, `auto-cancel-disputed` |
-| `protocols_src/.../sew/invariants.clj` | All SEW invariants including settlement-specific |
-| `protocols_src/.../sew/invariants/settlement.clj` | Settlement-specific invariant predicates |
-| `protocols_src/.../sew.clj` | SEW adapter `TemporalDeadlines` implementation (`deadline-for` with `:evidence-submission`, `:settlement`, `:appeal`, `:earliest-execution`) |
+| `protocols_src/.../Sew/types.clj` | PendingSettlement, EscrowTransfer, world state, state machine graph |
+| `protocols_src/.../Sew/state_machine.clj` | State transition functions, deadline predicates (`pending-settlement-executable?`, `auto-release-due?`, `auto-cancel-due?`, `dispute-timeout-exceeded?`, `auto-cancel-due-on-disputed?`) |
+| `protocols_src/.../Sew/resolution.clj` | `execute-resolution`, `execute-pending-settlement`, `escalate-dispute`, `challenge-resolution`, `automate-timed-actions` |
+| `protocols_src/.../Sew/lifecycle.clj` | `create-escrow`, `release`, `cancel`, `finalize`, `auto-cancel-disputed` |
+| `protocols_src/.../Sew/invariants.clj` | All Sew invariants including settlement-specific |
+| `protocols_src/.../Sew/invariants/settlement.clj` | Settlement-specific invariant predicates |
+| `protocols_src/.../Sew.clj` | Sew adapter `TemporalDeadlines` implementation (`deadline-for` with `:evidence-submission`, `:settlement`, `:appeal`, `:earliest-execution`) |
 | `src/resolver_sim/protocols/protocol.clj` | PRF interfaces (`SimulationAdapter`, `TemporalDeadlines`, `EconomicModel`, `AnalysisModule`) |
 | `src/resolver_sim/time/deadlines.clj` | Deadline arithmetic helpers (`deadline-expired?`, `before-deadline?`, `deadline`, `boundary-times`) |
 | `src/resolver_sim/contract_model/replay/temporal.clj` | `:deadline-enforcement` temporal rule, `deadline-action-config` mapping, boundary policy evaluation |

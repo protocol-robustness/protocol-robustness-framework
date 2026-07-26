@@ -49,7 +49,7 @@
       (is (= "0xbuyer" (get-in ctx [:agent-index "buyer" :address]))))))
 
 (deftest build-context-backward-compatible
-  (testing "2-arg arity defaults to SEW and still works"
+  (testing "2-arg arity defaults to Sew and still works"
     (let [ctx (replay/build-context agents params)]
       (is (map? ctx))
       (is (contains? ctx :agent-index))
@@ -63,7 +63,7 @@
       (is (contains? sew-ctx :agent-index))
       (is (contains? dummy-ctx :agent-index))
       (is (contains? yield-ctx :agent-index))
-      ;; SEW adds extra keys (protocol-params, etc) that dummy does not
+      ;; Sew adds extra keys (protocol-params, etc) that dummy does not
       (is (> (count (keys sew-ctx)) (count (keys dummy-ctx)))))))
 
 ;; ---------------------------------------------------------------------------

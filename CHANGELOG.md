@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Force-authorisation custody benchmark moved from SEW pack to PRF core:** Canonical definition at `benchmarks/packs/prf-core/force-authorisation-custody-v1.edn` with ID `:benchmark/force-authorisation-custody-v1`. SEW pack retains a registry-level alias. Suite-provider metadata (`:benchmark/suite-provider`) identifies SEW as implementation provider. (`benchmarks/packs/prf-core/force-authorisation-custody-v1.edn`, `benchmarks/packs/prf-core/registry.edn`)
+- **Force-authorisation custody benchmark moved from SEW pack to PRF core:** Canonical definition at `benchmarks/packs/prf-core/force-authorisation-custody-v1.edn` with ID `:benchmark/force-authorisation-custody-v1`. SEW pack retains a registry-level alias. Suite-provider metadata (`:benchmark/suite-provider`) identifies Sew as implementation provider. (`benchmarks/packs/prf-core/force-authorisation-custody-v1.edn`, `benchmarks/packs/prf-core/registry.edn`)
 
 - **Protocol-independent force-authorisation validation:** `verify-authorisation-usable`, `verify-authorisation-lifecycle-consistency`, `force-authorisation-scope-hash`, `scope-hash-mismatch?` moved from SEW `accounting.clj` to `src/resolver_sim/assurance/force_authorisation.clj`. Zero SEW dependencies. (`src/resolver_sim/assurance/force_authorisation.clj`)
 
@@ -12,7 +12,7 @@
 
 - **Generic `TemporalDeadlines` protocol:** Replaced bespoke `settlement-deadline-reached?` and `appeal-window-closed?` methods with `(deadline-for model world deadline-kind subject context)`. Supports `:evidence-submission`, `:settlement`, `:appeal`, `:earliest-execution` deadline kinds with configurable boundary policies (`:before`, `:at-or-after`). (`src/resolver_sim/protocols/protocol.clj`, `src/resolver_sim/contract_model/replay/temporal.clj`)
 
-- **Benchmark validator supports `:alias` status:** `benchmarks_validate.clj` now accepts `:alias` as a valid benchmark status and skips file/claim validation for alias entries. Fixes validation failure when SEW registry contained an alias reference. (`scripts/benchmarks_validate.clj`)
+- **Benchmark validator supports `:alias` status:** `benchmarks_validate.clj` now accepts `:alias` as a valid benchmark status and skips file/claim validation for alias entries. Fixes validation failure when Sew registry contained an alias reference. (`scripts/benchmarks_validate.clj`)
 
 - **`scenario_safety.clj` syntax fix:** Fixed unmatched delimiter in `classify-safety` function that blocked the CLI benchmark runner. (`src/resolver_sim/commands/scenario_safety.clj`)
 
@@ -945,7 +945,7 @@ runtime mechanism selection or a mechanism registry.
 - **Phase 6 — Pro-rata claim evaluators:** Added `pro_rata_claims.clj` with 7 evaluators (`:projection-deterministic`, `:projection-canonical-safe`, `:allocation-complete`, `:non-negative`, `:conservation`, `:rounding-bounded`, `:ordering-independent`). Registered in `passive_registries.clj` claim-definitions.
 
 ### Added (2026-06-23)
-- **Projection pro-rata Phase 5 shadow path:** Added `calculate-prorata-from-projection` to replay allocation from validated projection artifacts, plus a SEW-shaped `calculate-sew-slash-allocation-from-projection` adapter and focused parity tests comparing projection-derived output with the current direct allocation path on the same fixtures.
+- **Projection pro-rata Phase 5 shadow path:** Added `calculate-prorata-from-projection` to replay allocation from validated projection artifacts, plus a Sew-shaped `calculate-sew-slash-allocation-from-projection` adapter and focused parity tests comparing projection-derived output with the current direct allocation path on the same fixtures.
 - **Projection artifacts Phase 4:** Added passive pro-rata projection artifact construction beside current allocation code, with registered pro-rata intent/projection/claim entries and focused tests for stable projection hashes, canonical safety, registered intent/definition lookup, embedded summaries, and full projection storage.
 - **Projection Pro-Rata Spec V1:** Added `docs/specs/PROJECTION_PRORATA_SPEC_V1.md`, defining the required world → registered intent → registered projection definition → projection artifact → allocation → claims → evidence node flow before runtime refactors.
 - **Passive registries Phase 2:** Added data-only Intent, Projection Definition, Claim Definition, and Attestor registries with canonical entry hashes and validators. Validation remains permissive at runtime unless strict mode is requested; focused registry tests now hard-fail on invalid registry data.

@@ -35,7 +35,7 @@
         pos        (yield-position last-world oid)
         shortfall  (:shortfall pos)
         token      (or (:token pos) :USDC)
-        ;; SEW-specific lookups (safe with nil workflow-id)
+        ;; Sew-specific lookups (safe with nil workflow-id)
         wf-id      (or workflow-id (when (= (first oid) :sew/escrow) (second oid)))
         mid        (or (:module/id pos) :aave-v3)
         ms         (when last-world
@@ -91,7 +91,7 @@
       (or (:reason shortfall) (:reason (:yield-loss pos)))
       (assoc :yield/loss-reason (name (or (:reason shortfall) (:reason (:yield-loss pos)))))
 
-      ;; SEW specific metrics
+      ;; Sew specific metrics
       wf-id
       (assoc :escrow/amount-after-fee    (long (or (get-in last-world [:escrow-amounts wf-id])
                                                    (get-in last-world [:escrow-transfers wf-id :amount-after-fee])
