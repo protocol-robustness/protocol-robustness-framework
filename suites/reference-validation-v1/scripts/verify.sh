@@ -105,11 +105,11 @@ for base in "${files[@]}"; do
   [[ "$ACTUAL_HASH" == "$EXPECTED_HASH" ]] || { echo "FAIL hash mismatch: $base.json"; exit 1; }
 done
 
-# ── Trace verification (all 8 scenarios) ────────────────────────────────
+# ── Trace verification (all 7 scenarios) ────────────────────────────────
 
 TRACES=(001-governance-sandwich 002-malicious-resolver-verdict 003-dispute-flooding \
         004-bond-withdrawal-race 005-same-block-ordering 006-autopush-settlement \
-        007-appeal-failure-cascade 008-yield-accrual-efficiency)
+        007-appeal-failure-cascade)
 
 for trace in "${TRACES[@]}"; do
   [[ -f "$ACTUAL/traces/$trace.trace.json" ]] || { echo "FAIL missing actual trace: $trace"; exit 1; }

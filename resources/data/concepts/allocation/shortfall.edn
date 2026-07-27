@@ -1,0 +1,132 @@
+{:concept/id :allocation/shortfall
+ :concept/name "Shortfall detection and recording"
+ :concept/type :allocation
+ :concept/layer :stakeholder
+
+ :concept/summary
+ "The protocol detects when the requested or owed value exceeds what can
+  be paid from available resources, and records the deficit explicitly
+  rather than silently failing to satisfy claims."
+
+ :concept/stakeholder-question
+ "Does the protocol detect when it cannot satisfy valid claims in full,
+  and does it record the deficit so that claimants, operators, and
+  auditors can see the shortfall?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+  :concept/related
+  [:allocation/partial-fill
+   :allocation/pro-rata-fairness
+   :allocation/redistribution-fairness
+   :consensus/finality
+   :verifiable-assurance/forensic-confidence]
+
+ :concept/roles
+ {:yield-provider
+  {:description "Entity managing the yield position that falls short."
+   :maps-to [:protocol.actor/recipient]}
+  :claimant
+  {:description "Party with a valid claim against the yield position."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :shortfall-detector
+  {:description "Protocol logic that detects when claims exceed available value."
+   :maps-to [:protocol.actor/resolution-module]}
+  :auditor
+  {:description "Party examining shortfall records for correctness."
+   :maps-to [:protocol.actor/verifier]}}
+
+ :concept/entities
+ {:shortfall
+  {:description "Recorded deficit between valid claims and available value."
+   :maps-to [:protocol.entity/shortfall]}
+  :basis-amount
+  {:description "The reference amount against which shortfall is measured."
+   :maps-to [:protocol.entity/claim]}
+  :fulfilled-amount
+  {:description "Portion of the shortfall basis that was actually paid."
+   :maps-to [:protocol.entity/settlement]}
+  :deferred-amount
+  {:description "Shortfall remainder preserved for future recovery."
+   :maps-to [:protocol.entity/deferred-claim]}
+  :haircut-amount
+  {:description "Shortfall portion permanently written off."
+   :maps-to [:protocol.entity/haircut]}}
+
+ :concept/actions
+ {:detect-shortfall
+  {:description "Determine that available value is insufficient for valid claims."
+   :maps-to [:protocol.action/calculate-shortfall]}
+  :record-shortfall
+  {:description "Persist the shortfall amount, fulfilled portion, and deferred remainder."
+   :maps-to [:protocol.action/record-shortfall]}
+  :verify-shortfall
+  {:description "Check that shortfall was correctly detected and recorded."
+   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+  :resolve-shortfall
+  {:description "Deferred recovery or haircut execution when shortfall is resolved."
+   :maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+
+ :concept/outcomes
+ {:shortfall-detected
+  {:description "Shortfall is correctly identified and recorded."
+   :maps-to [:protocol.outcome/deferred]}
+  :shortfall-missed
+  {:description "Shortfall exists but is not detected — claims appear satisfied when they are not."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :shortfall-resolved
+  {:description "Previously recorded shortfall has been fully or partially cured."
+   :maps-to [:protocol.outcome/released]}
+  :shortfall-hidden
+  {:description "Shortfall is detected but not recorded, preventing audit and recovery."
+   :maps-to [:protocol.outcome/stuck]}}
+
+ :concept/failure-modes
+ [{:failure/id :undetected-shortfall
+   :failure/name "Undetected shortfall"
+   :failure/summary
+   "The protocol does not detect when valid claims exceed available value."
+   :protocol-mechanisms [:shortfall-detection :conservation-check]
+   :stakeholder-impact "Claimants are paid less than owed without notification or recourse."}
+
+  {:failure/id :unrecorded-shortfall
+   :failure/name "Unrecorded shortfall"
+   :failure/summary
+   "Shortfall is detected but not persisted, so deferred recovery is impossible."
+   :protocol-mechanisms [:shortfall-accounting :deferred-claims]
+   :stakeholder-impact "Claimants lose future recovery rights due to missing records."}
+
+  {:failure/id :shortfall-miscalculation
+   :failure/name "Shortfall miscalculation"
+   :failure/summary
+   "The detected shortfall amount does not equal valid claims minus available value."
+   :protocol-mechanisms [:conservation-check :allocation-engine]
+   :stakeholder-impact "Recovery amounts are wrong, harming claimants or protocol reserves."}]
+
+ :concept/metrics
+ {:shortfall-basis
+  {:description "Total valid claims before shortfall detection."
+   :source :derived-from-trace}
+  :fulfilled-ratio
+  {:description "Fraction of valid claims actually paid."
+   :source :derived-from-protocol-metrics}
+  :deferred-ratio
+  {:description "Fraction of shortfall preserved for future recovery."
+   :source :derived-from-world-state}
+  :haircut-ratio
+  {:description "Fraction of shortfall permanently written off."
+   :source :derived-from-world-state}}
+
+ :concept/assumptions
+ ["Available value is measurable before allocation."
+  "Shortfall is detected at the protocol level, not externally reported."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world accounting or solvency reporting."
+  "Legal definitions of insolvency or default."
+  "External credit ratings or risk assessment."]
+
+ :concept/notes
+ ["Shortfall recovery (deferred claims paid in a later epoch) is exercised
+   by the Sew yield-shortfall-v1 benchmark via scenario S82."]}

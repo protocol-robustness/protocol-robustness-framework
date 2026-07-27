@@ -1,0 +1,73 @@
+;; Generic force-authorisation claim definitions (protocol-independent)
+;;
+;; Each claim specifies what it asserts and how it is evaluated, without
+;; reference to Sew-specific state machine or action names.
+;;
+;; schema: claim.v1
+
+[{:claim/id         :force-authorisation/scope-enforced
+  :description      "A force-authorisation produces exactly its granted custody scope.
+                     The execution parameters (token, amount, direction, workflow) match
+                     the grant-time commitment recorded in the authorisation scope."
+  :assumptions      ["grant and execution scope are content-addressed"
+                     "scope-hash is committed at grant time"
+                     "execution scope-hash is independently recomputable"]
+  :validated-by     ["benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "A trace produces a forced held adjustment whose scope-hash does not match its recorded grant."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :force-authorisation/single-use
+  :description      "A force-authorisation grant is consumed at most once. After execution,
+                     the same authorisation identity cannot produce a second settlement."
+  :assumptions      ["the consumption registry is append-only"
+                     "consumption is recorded atomically with the held adjustment"
+                     "consumer and registry share an identity namespace"]
+  :validated-by     ["benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "A trace produces two distinct forced held adjustments sharing the same authorisation identity."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :force-authorisation/expiry-enforced
+  :description      "A force-authorisation is rejected when executed after its expiry time.
+                     The authorisation cannot be exercised outside its declared time window."
+  :assumptions      ["expiry time is committed at grant time"
+                     "execution time is deterministically observable"
+                     "the temporal guard is monotonic"]
+  :validated-by     ["benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "A trace executes a force-authorisation at a timestamp beyond its grant-time expiry."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :force-authorisation/evidence-linkage
+  :description      "For every force-authorisation execution, the forensic evidence bundle
+                     contains a committed state witness linking the grant record, the
+                     consumption record, the held adjustment, and the event evidence."
+  :assumptions      ["the bundle root and witness are retained"
+                     "forensic validation is run against the bundle"
+                     "the evidence chain is content-addressed"]
+  :validated-by     ["benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "forensic:validate accepts a bundle with a missing witness, orphan consumption, or invalid scope linkage."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :force-authorisation/custody-isolation
+  :description      "A forced settlement changes custody only within the authorised position.
+                     Other positions, accounts, tokens, or workflows are unaffected."
+  :assumptions      ["custody is partitioned by (reason, token, position-id, account, workflow)"
+                     "the partition boundaries are enforced at mutation time"
+                     "position isolation is independently verifiable via replay"]
+  :validated-by     ["benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "A trace produces a negative custody partition or a cross-partition transfer attributed to a forced settlement."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}]

@@ -1,0 +1,35 @@
+{:description "Phase G: 2D parameter sweep - find break-even surfaces (slash-mult × detection-prob)"
+ :scenario-id "phase-g-sensitivity-2d"
+ :rng-seed 45
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ :force-strategy :malicious
+ :strategy-mix
+ {:honest 0.0
+  :lazy 0.0
+  :malicious 1.0
+  :collusive 0.0}
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+
+ ;; These will be overridden by sweep
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ :n-trials 500  ; Faster iterations for large sweep
+ :n-seeds 1
+ :parallelism :auto
+ :save-samples? false
+ :save-sweep? true
+
+ ;; 2D sweep specification (triggers multi-dimensional sweep)
+ :sweep-params
+ {:slash-multiplier [1.5 2.0 2.5 3.0 3.5]
+  :slashing-detection-probability [0.05 0.10 0.15 0.20 0.30]}}

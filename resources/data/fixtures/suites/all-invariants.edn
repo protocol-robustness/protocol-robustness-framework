@@ -1,0 +1,34 @@
+{:suite/id       :suites/all-invariants
+ :suite/title    "Full invariant regression suite"
+ :suite/purpose  "Run all 24 deterministic scenarios through the replay engine, verifying every protocol invariant passes under standard baseline parameters."
+ :suite/prevents "Regressions in any of the 13+ checked invariants across escrow lifecycle, resolution, escalation, and fee accounting."
+ :suite/class    :safety
+ :suite/criticality :critical
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s01-baseline-happy-path
+          :traces/s02-dr3-dispute-release
+          :traces/s03-dr3-dispute-refund
+          :traces/s04-dispute-timeout-autocancel
+          :traces/s05-pending-settlement-execute
+          :traces/s06-mutual-cancel
+          :traces/s07-unauthorized-resolver-rejected
+          :traces/s08-state-machine-attack-gauntlet
+          :traces/s09-multi-escrow-solvency
+          :traces/s10-double-finalize-rejected
+          :traces/s11-zero-fee-edge-case
+          :traces/s12a-snapshot-isolation-fee-zero
+          :traces/s12b-snapshot-isolation-fee-500
+          :traces/s13-pending-settlement-refund
+          :traces/s14-dr3-module-authorized
+          :traces/s15-dr3-module-unauthorized-rejected
+          :traces/s16-ieo-create-release
+          :traces/s17-ieo-dispute-no-resolver-timeout
+          :traces/s18-dr3-kleros-l0-resolves
+          :traces/s19-dr3-kleros-escalation-rejected-l0-resolves
+          :traces/s20-dr3-kleros-max-escalation-guard
+          :traces/s21-dr3-kleros-pending-cleared-on-escalation
+          :traces/s22-status-leak-agree-cancel-over-dispute
+          :traces/s23-preemptive-escalation-blocked]}

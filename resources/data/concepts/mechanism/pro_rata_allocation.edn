@@ -1,0 +1,52 @@
+{:concept/id :mechanism/pro-rata-allocation
+ :concept/name "Deterministic pro-rata allocation"
+ :concept/type :mechanism
+ :concept/layer :protocol
+
+ :concept/summary
+ "Deterministically distributes a constrained integer quantity across weighted,
+  capped obligation rows while preserving conservation and canonical rounding."
+
+ :concept/properties
+ [:pro-rata/conservation
+  :pro-rata/cap-respecting
+  :pro-rata/allocation-complete
+  :pro-rata/quota-bounded
+  :pro-rata/canonical-remainder-assignment
+  :pro-rata/permutation-invariant
+  :pro-rata/duplicate-preserving]
+
+ :concept/examples
+ [{:domain :shared-withdrawal}
+  {:domain :sew-pro-rata-slash}]
+
+ :concept/guarantees
+ [{:property :pro-rata/duplicate-preserving
+   :enforcement :request-and-result-structure}
+  {:property :pro-rata/cap-respecting
+     :enforcement :claim-evaluator}
+    {:property :pro-rata/canonical-remainder-assignment
+     :enforcement :claim-evaluator}
+  {:property :pro-rata/permutation-invariant
+   :enforcement :claim-evaluator}
+  {:property :pro-rata/conservation
+   :enforcement :claim-evaluator}
+  {:property :pro-rata/quota-bounded
+   :enforcement :claim-evaluator}]
+
+ :concept/security-significance
+ [:input-order-manipulation
+  :rounding-capture
+  :participant-omission
+  :duplicate-row-collapse
+  :over-allocation
+  :hidden-residual-loss
+  :direct-projection-divergence]
+
+ :concept/excludes
+ [:account-selection
+  :accounting-entry-generation
+  :shortfall-classification
+  :deferred-position-semantics
+  :slash-lifecycle
+  :authoritative-state-mutation]}

@@ -1,0 +1,24 @@
+{:suite/id       :suites/dr3-critical
+ :suite/title    "DR3 Critical Decentralized Dispute Resolution"
+ :suite/purpose  "Gate the hardest decentralized dispute-resolution paths: authority routing, escalation boundaries, pending clearing, and terminalization."
+ :suite/prevents "Coverage drift in DR3 critical paths when adding/changing scenarios, fixtures, or protocol wiring."
+ :suite/class    :safety
+ :suite/criticality :critical
+ :suite/tags     [:dr3 :decentralized-resolution :critical-path]
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s14-dr3-module-authorized
+          :traces/s15-dr3-module-unauthorized-rejected
+          :traces/s18-dr3-kleros-l0-resolves
+          :traces/s19-dr3-kleros-escalation-rejected-l0-resolves
+          :traces/s20-dr3-kleros-max-escalation-guard
+          :traces/s21-dr3-kleros-pending-cleared-on-escalation
+          :traces/s23-preemptive-escalation-blocked
+          :traces/s44-escalation-tier-mismatch-rejected
+          :traces/s46a-settlement-before-escalation-window-edge
+          :traces/s46b-escalation-before-settlement-window-edge
+          :traces/s48-max-escalation-exact-boundary
+          :traces/s49-max-escalation-plus-one-rejected
+          :traces/s50-multi-hop-pending-cleared-every-hop]}

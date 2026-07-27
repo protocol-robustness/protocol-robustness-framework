@@ -290,10 +290,48 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                  "resolver-sim.evidence.revocation-test"
                  "resolver-sim.evidence.commitment-root-test")}
 
-   test:quick
-   {:doc "Fast confidence check (~3 min). Covers: framework + dispute-resolution + evidence + contracts + validate."
-    :task (shell "bash" "-c"
-            "bb test:quick-sew && bb test:contracts && bb validate")}
+test:quick
+    {:doc "Fast confidence check (~3 min). Covers: framework + dispute-resolution + evidence + contracts + validate."
+     :task (shell "bash" "-c"
+             "bb test:quick-sew && bb test:contracts")}
+
+   test:quick-sew:concurrent
+    {:doc "Run quick-sew tests concurrently (bypasses artifact lock, uses --noop-capture).
+           Can run alongside bb test, bb backstop, etc. Use only when no other test is writing to results/test-artifacts/."
+     :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
+                  "resolver-sim.core-tests"
+                  "resolver-sim.protocol-alignment-test"
+                  "resolver-sim.time.context-test"
+                  "resolver-sim.time.model-test"
+                  "resolver-sim.sim.defection-test"
+                  "resolver-sim.sim.strategy-adaptation-test"
+                  "resolver-sim.sim.waterfall-test"
+                  "resolver-sim.protocols.sew.dispute-resolution-coverage-test"
+                  "resolver-sim.evidence.node-test"
+                  "resolver-sim.evidence.chain-test"
+                  "resolver-sim.evidence.registry-test"
+                  "resolver-sim.evidence.qol-test"
+                  "resolver-sim.evidence.integrity-test"
+                  "resolver-sim.evidence.attestation-dag-test"
+                  "resolver-sim.evidence.attestation-test"
+                  "resolver-sim.evidence.attestation-node-test"
+                  "resolver-sim.evidence.attestation-registry-test"
+                  "resolver-sim.evidence.attestation-policy-test"
+                  "resolver-sim.evidence.timestamping-test"
+                  "resolver-sim.evidence.revocation-test"
+                  "resolver-sim.evidence.commitment-root-test")}
+
+   test:quick:concurrent
+    {:doc "Run quick tests concurrently (bypasses artifact lock). Can run alongside longer tests."
+     :task (shell "bash" "-c" "bb test:quick-sew:concurrent && bb test:contracts && bb validate")}
+
+   backstop:fast:concurrent
+    {:doc "Run backstop fast with separate artifact directory."
+     :task (shell "PRF_ARTIFACT_DIR=results/backstop-fast-artifacts" "clojure" "-M:cli/sew" "backstop" "fast")}
+
+   backstop:concurrent
+    {:doc "Run backstop with separate artifact directory. Can run alongside other tests."
+     :task (shell "PRF_ARTIFACT_DIR=results/backstop-artifacts" "scripts/with-test-artifact-lock.sh" "bb" "backstop")}
 
    test:medium
    {:doc "Medium coverage check (~12 min). Adds suites to the quick set."
@@ -935,7 +973,7 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
   {:doc "Build (if needed) and smoke-test the unified Sew JAR from an external CWD."
    :task (shell "bash" "scripts/portability-smoke-test.sh")}
 
-  test:failed
+  test:rerun
   {:doc "Rerun test namespaces that failed during the last completed test run."
    :task (clojure "-M:test" "-m" "scripts.test-smart" "failed")}
 

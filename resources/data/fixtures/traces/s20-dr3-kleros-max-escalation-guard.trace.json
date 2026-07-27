@@ -1,0 +1,102 @@
+{
+  "protocol-params": {
+    "resolver-fee-bps": 150,
+    "appeal-window-duration": 0,
+    "max-dispute-duration": 2592000,
+    "resolver-bond-bps": 0,
+    "resolution-module": "0xkleros-proxy",
+    "escalation-resolvers": {
+      "0": "0xl0",
+      "1": "0xl1",
+      "2": "0xl2"
+    }
+  },
+  "allow-open-disputes?": true,
+  "threat-tags": [
+    "appeal-escalation"
+  ],
+  "purpose": "regression",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 5000
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1060,
+      "agent": "buyer",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1060,
+      "agent": "buyer",
+      "action": "escalate_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 3,
+      "time": 1120,
+      "agent": "buyer",
+      "action": "escalate_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 4,
+      "time": 1180,
+      "agent": "buyer",
+      "action": "escalate_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 5,
+      "time": 1240,
+      "agent": "l2resolver",
+      "action": "execute_resolution",
+      "params": {
+        "workflow-id": 0,
+        "is-release": true,
+        "resolution-hash": "0xl2hash"
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s20-dr3-kleros-max-escalation-guard",
+  "title": "DR3 Kleros: Max Escalation Guard",
+  "id": "scenarios\/s20-dr3-kleros-max-escalation-guard",
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    },
+    {
+      "id": "l2resolver",
+      "address": "0xl2",
+      "type": "resolver"
+    }
+  ],
+  "initial-block-time": 1000
+}

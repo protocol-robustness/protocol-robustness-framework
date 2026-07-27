@@ -1,0 +1,29 @@
+{:description "Sybil attack: many low-skill malicious resolvers"
+ :scenario-id "sybil-v1"
+ :rng-seed 999
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ ;; Mostly malicious + lazy (Sybil attack pattern)
+ :strategy-mix
+ {:honest 0.50
+  :lazy 0.30
+  :malicious 0.15
+  :collusive 0.05}
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.15    ; Higher detection for Sybil
+
+ :n-trials 2000
+ :n-seeds 5
+ :parallelism :auto
+ :save-samples? true
+ :save-sweep? false}

@@ -1,0 +1,28 @@
+{:scenario-id "phase-ac-trust-floor"
+ :description "Phase AC: Trust floor and emergency onboarding — safeguard for Phase Z legitimacy spiral"
+ :rng-seed 42
+
+ ;; Required by the validator (not used by Phase AC logic)
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+ :strategy-mix {:honest 0.50 :lazy 0.15 :malicious 0.25 :collusive 0.10}
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+ :fraud-detection-probability 0.25
+ :fraud-slash-bps 5000
+ :reversal-detection-probability 0.25
+ :reversal-slash-bps 2500
+ :timeout-slash-bps 200
+
+ ;; Phase AC specific params
+ :n-epochs 50
+ :n-resolvers 10
+ :disputes-per-epoch 100
+ :resolver-capacity 15
+ :fee-per-dispute 50
+ :min-resolvers 3
+ :onboarding-trust 0.20
+ :emergency-per-epoch 2}

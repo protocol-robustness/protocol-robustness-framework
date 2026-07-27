@@ -1,0 +1,188 @@
+{:concept/id :funding/goal-contingent-pool
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Goal-contingent pooled escrow"
+ :concept/summary
+ "Multiple contributors commit funds into a pooled escrow whose release is
+  contingent on meeting a predefined goal (e.g. a specified total contribution,
+  milestone completion, or time window). If the goal is met, funds are released
+  to a designated beneficiary. If the goal is not met within the specified
+  window, contributors can claim refunds. A resolver or condition authority
+  verifies whether the goal condition was satisfied. The pool structure means
+  that individual contributors do not have unilateral control over release;
+  the outcome depends on the aggregate result."
+
+ :concept/stakeholder-question
+ "If I contribute funds toward a collective goal, can I be sure that funds
+  are only released when the goal is objectively met, and that I can get
+  my contribution back if the goal fails?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/maturity :illustrative
+ :concept/support-status :not-asserted
+
+ :concept/related
+ [:event/deposit
+  :consensus/authority
+  :consensus/evidence
+  :consensus/finality
+  :allocation/pro-rata-fairness
+  :allocation/shortfall
+  :dispute/appeal-escalation]
+
+ :concept/roles
+ {:contributor
+  {:description "Party that commits funds to the pool."
+   :maps-to [:protocol.actor/sender]}
+  :beneficiary
+  {:description "Party entitled to receive the pooled funds if the goal is met."
+   :maps-to [:protocol.actor/recipient]}
+  :goal-authority
+  {:description "Entity that verifies whether the goal condition has been satisfied."
+   :maps-to [:protocol.actor/resolver :protocol.actor/oracle]
+   :mapping/confidence :approximate
+   :mapping/note "Goal verification may be performed by a resolver, oracle, or automated condition check depending on configuration."}
+  :governance
+  {:description "Protocol governance that can adjust pool rules or intervene in disputes about goal verification."
+   :maps-to [:protocol.actor/governance]}}
+
+ :concept/entities
+ {:pool
+  {:description "The aggregate escrow holding all contributions toward the goal."
+   :maps-to [:protocol.entity/escrow-aggregate]
+   :mapping/confidence :approximate
+   :mapping/note "The pool is modelled as an aggregate over individual escrows; the protocol may represent each contribution as a separate escrow."}
+  :contribution
+  {:description "An individual commitment of funds to the pool by a contributor."
+   :maps-to [:protocol.entity/funds]}
+  :goal-condition
+  {:description "The predefined target (contribution amount, milestone, or deadline) that determines release."
+   :maps-to [:protocol.entity/condition]}
+  :goal-verification
+  {:description "The process or attestation that the goal condition was met or not met."
+   :maps-to [:protocol.entity/evidence]}
+  :refund-entitlement
+  {:description "A contributor's right to reclaim their funds if the goal is not met."
+   :maps-to [:protocol.entity/pending-release]
+   :mapping/confidence :approximate
+   :mapping/note "Refund entitlement is tracked within the escrow state; there may not be a distinct entitlement entity."}}
+
+ :concept/actions
+ {:contribute
+  {:description "Commit funds to the pooled escrow toward the goal."
+   :maps-to [:protocol.action/create-escrow]}
+  :verify-goal
+  {:description "Goal authority assesses whether the goal condition has been satisfied."
+   :maps-to [:protocol.action/resolve]}
+  :release-to-beneficiary
+  {:description "Release pooled funds to the beneficiary because the goal was met."
+   :maps-to [:protocol.action/release]}
+  :claim-refund
+  {:description "Contributor reclaims their funds because the goal was not met or the window expired."
+   :maps-to [:protocol.action/cancel :protocol.action/timeout]}
+  :dispute-goal
+  {:description "A party challenges the goal authority's verification."
+   :maps-to [:protocol.action/dispute :protocol.action/appeal]}
+  :resolve-dispute
+  {:description "Resolver determines whether the goal was correctly verified after a challenge."
+   :maps-to [:protocol.action/resolve :protocol.action/settle]}}
+
+ :concept/outcomes
+ {:goal-met
+  {:description "The goal condition was satisfied; funds are released to the beneficiary."
+   :maps-to [:protocol.outcome/released]}
+  :goal-not-met
+  {:description "The goal condition was not satisfied within the specified window; contributors can claim refunds."
+   :maps-to [:protocol.outcome/refunded]}
+  :pool-stuck
+  {:description "Funds are locked because the goal verification is disputed and unresolved."
+   :maps-to [:protocol.outcome/stuck]}
+  :goal-misverified
+  {:description "Goal authority incorrectly verified the condition, causing wrongful release or refund."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :partial-release
+  {:description "Only a portion of the goal was met; funds are released or returned proportionally."
+   :maps-to [:protocol.outcome/deferred]
+   :mapping/confidence :approximate
+   :mapping/note "Partial release is not a standard protocol outcome; it is modelled as deferred because full resolution is not achieved."}}
+
+ :concept/failure-modes
+ [{:failure/id :goal-authority-bias
+   :failure/name "Goal authority bias"
+   :failure/summary
+   "The goal authority verifies the condition in favour of one party, causing wrongful release or refund."
+   :protocol-mechanisms [:dispute :appeal :attestation-verification]
+   :stakeholder-impact "Funds are released or returned contrary to the actual goal status."}
+
+  {:failure/id :contribution-fraud
+   :failure/name "Contribution fraud"
+   :failure/summary
+   "A contributor commits funds that are not backed by real value, inflating the apparent pool total."
+   :protocol-mechanisms [:asset-verification :escrow-creation]
+   :stakeholder-impact "The pool appears to meet its goal but the actual available funds are less than the target."}
+
+  {:failure/id :goal-manipulation
+   :failure/name "Goal condition manipulation"
+   :failure/summary
+   "The goal condition is changed after contributions have been made, altering the release criteria."
+   :protocol-mechanisms [:parameter-snapshot :governance-checks]
+   :stakeholder-impact "Contributors committed under one set of conditions but the release decision uses different criteria."}
+
+  {:failure/id :refund-unavailable
+   :failure/name "Refund unavailable after goal failure"
+   :failure/summary
+   "The goal was not met but some or all contributed funds cannot be returned (e.g. because they were already allocated or lost)."
+   :protocol-mechanisms [:solvency-check :shortfall-detection]
+   :stakeholder-impact "Contributors lose their funds even though the condition for release was not satisfied."}
+
+  {:failure/id :frivolous-goal-dispute
+   :failure/name "Frivolous goal dispute"
+   :failure/summary
+   "A party disputes a valid goal verification solely to delay release or refund."
+   :protocol-mechanisms [:dispute-bond :timeout :evidence-requirements]
+   :stakeholder-impact "Beneficiary or contributors face delays accessing funds."}]
+
+ :concept/metrics
+ {:total-contributions
+  {:description "Total value committed to the pool."
+   :source :derived-from-trace}
+  :contribution-count
+  {:description "Number of individual contributions to the pool."
+   :source :derived-from-trace}
+  :goal-attainment
+  {:description "Whether the goal was met (boolean)."
+   :source :derived-from-trace}
+  :refund-claim-count
+  {:description "Number of refund claims filed after goal failure."
+   :source :derived-from-trace}
+  :time-to-goal-decision
+  {:description "Time from pool creation to goal verification (meet or fail)."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["The goal condition is defined at pool creation and is evaluable."
+  "Contributions are individually identifiable for refund purposes."
+  "The goal authority is either a resolver module or an oracle."
+  "The protocol supports partial refunds if the goal is partially met (subject to allocation policy)."
+  "This use-case models a donation or reward-based structure, not a security or investment vehicle."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world fundraising regulation, securities law, or investment contracts."
+  "Equity, token-sale, or profit-sharing structures."
+  "Credit risk or lending-based crowdfunding."
+  "Tax treatment of contributions or rewards."
+  "Economic sustainability or fraud prevention beyond protocol mechanisms."]
+
+ :concept/known-gaps
+ ["Pool entity maps to escrow-aggregate, which may not exist as a distinct protocol primitive."
+  "Partial release maps approximately to deferred, which is designed for shortfall recovery not proportional goal attainment."
+  "This use-case does not distinguish between donation, reward, and pre-sale structures; each would require separate regulatory analysis."
+  "Goal-authority role maps approximately to resolver or oracle — same as event deposit."
+  "No specific protocol action exists for 'verify goal'; it is modelled through resolve."]
+
+ :concept/evidence
+ {:scenarios #{}
+  :benchmarks #{}
+  :claims #{}}}

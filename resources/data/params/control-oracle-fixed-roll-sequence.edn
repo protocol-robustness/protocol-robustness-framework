@@ -1,0 +1,44 @@
+{:description "Control fixture: fixed oracle roll sequence for detection outcomes"
+ :scenario-id "control-oracle-fixed-roll-sequence"
+ :rng-seed 42
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ :strategy-mix
+ {:honest 0.50
+  :lazy 0.15
+  :malicious 0.25
+  :collusive 0.10}
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+
+ :slashing-detection-probability 0.10
+ :fraud-detection-probability 0.25
+ :reversal-detection-probability 0.25
+ :timeout-detection-probability 0.10
+ :fraud-slash-bps 5000
+ :reversal-slash-bps 2500
+ :timeout-slash-bps 200
+
+ :oracle-fixture
+ {:mode :fixed-roll-sequence
+ :rolls {:fraud-detection [0.99 0.01]
+         :timeout-detection [0.75]
+         :reversal-detection [0.20]
+         :l2-detection [0.50]
+         :default [0.90]}
+  :scope #{:detection}
+  :on-exhaustion :throw}
+
+ :n-trials 1000
+ :n-seeds 1
+ :parallelism :auto
+ :save-samples? false
+ :save-sweep? false}

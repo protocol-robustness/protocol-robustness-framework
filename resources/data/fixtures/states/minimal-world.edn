@@ -1,0 +1,6 @@
+{:state/id :states/minimal-world
+ :block-time 1000
+ :escrow-transfers {}
+ :resolver-stakes {}
+ :total-held {}
+ :total-fees {}}

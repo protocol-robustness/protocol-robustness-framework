@@ -1,0 +1,30 @@
+{:description "Cartel scenario: organized collusion with varied parameters"
+ :scenario-id "cartel-sweep-v1"
+ :rng-seed 456
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 50000
+  :stddev 20000}
+
+ :strategy-mix
+ {:honest 0.70
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.07}
+
+ ;; Sweep parameters (run with all combinations)
+ :sweep-params
+ {:resolver-fee-bps [100 150 200 250]        ; Test fee sensitivity
+  :appeal-bond-bps [500 700 1000 1500]       ; Test bond sensitivity
+  :slash-multiplier [1.5 2.0 2.5 3.0]}
+
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ :n-trials 500
+ :n-seeds 3
+ :parallelism :auto
+ :save-samples? false
+ :save-sweep? true}

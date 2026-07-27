@@ -1,0 +1,13 @@
+{:suite/id :suites/governance-decay
+ :suite/title "Governance Decay Analysis"
+ :suite/purpose "Evaluate protocol robustness when authority oversight (detection/slashing) is degraded."
+ :suite/prevents "Economic collapse due to unpunished malicious resolver behavior."
+ :suite/class :governance
+ :suite/criticality :critical
+
+ :protocol :protocol/slow-timeouts
+ :state    :states/minimal-world
+ :actors   [:actors/rational-malice]
+ :authority :authority/decaying-oversight
+ :thresholds :thresholds/adversarial-minimum
+ :traces [:traces/governance-decay-exploit]}

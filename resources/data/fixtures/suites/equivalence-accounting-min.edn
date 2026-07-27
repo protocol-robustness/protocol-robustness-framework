@@ -1,0 +1,13 @@
+{:suite/id       :suites/equivalence-accounting-min
+ :suite/title    "Equivalence Accounting-Min Semantics"
+ :suite/purpose  "Verify lightweight accounting comparison semantics for held deltas, fee monotonicity, and pending create/clear consistency."
+ :suite/prevents "False equivalence where terminal state matches but accounting side-effects drift."
+ :suite/class    :economic
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s51-held-delta-monotonic-under-resolution
+          :traces/s52-fee-delta-monotonic-under-fot
+          :traces/s53-pending-create-clear-balance-consistency]}

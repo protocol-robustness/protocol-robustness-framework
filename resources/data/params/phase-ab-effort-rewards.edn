@@ -1,0 +1,30 @@
+{:scenario-id "phase-ab-effort-rewards"
+ :description "Phase AB: Per-dispute effort rewards — safeguard for Phase Y evidence fog"
+ :rng-seed 42
+
+ ;; Required by the validator (not used by Phase AB logic)
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+ :strategy-mix {:honest 0.50 :lazy 0.15 :malicious 0.25 :collusive 0.10}
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+ :fraud-detection-probability 0.25
+ :fraud-slash-bps 5000
+ :reversal-detection-probability 0.25
+ :reversal-slash-bps 2500
+ :timeout-slash-bps 200
+
+ ;; Phase AB specific params
+ ;; Base protocol fee earned per resolved dispute
+ :base-fee 50
+
+ ;; Base effort cost for a simple (:low) dispute
+ ;; High-complexity disputes cost base-effort-cost × complexity-multiplier
+ :base-effort-cost 30
+
+ ;; Disputes per tier sample (total = n-trials, allocated by tier fraction)
+ ;; :low 60%, :medium 30%, :high 10%
+ :n-trials 500}

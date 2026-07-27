@@ -1,0 +1,36 @@
+{:description "Phase L: Simultaneous slashes - test waterfall queueing and fairness"
+ :scenario-id "phase-l-simultaneous-slashes"
+ :scenario-name "phase-l-simultaneous-slashes"
+ 
+ ;; Waterfall pool configuration
+ :n-seniors 5
+ :n-juniors-per-senior 10
+ :senior-bond-amount 100000
+ :junior-bond-amount 500
+ :coverage-multiplier 3.0
+ :utilization-factor 0.5
+ 
+ ;; Slashing scenario - normal fraud but many simultaneous
+ :fraud-rate 0.10
+ :fraud-slash-bps 50
+ :repeat-slash-bps 200
+ 
+ ;; Escalation dynamics - high contention
+ :escalation-probability 0.05
+ :simultaneous-slashes 10
+ 
+ ;; Common parameters
+ :rng-seed 42
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+ :strategy-mix {:honest 0.80 :lazy 0.10 :malicious 0.05 :collusive 0.05}
+ :resolver-fee-bps 150
+ :appeal-bond-bps 50
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.3
+ :appeal-probability-if-wrong 0.7
+ :slashing-detection-probability 0.10
+ :reversal-detection-probability 0.02
+ :timeout-slash-bps 25
+ :n-trials 1000
+ :n-seeds 1
+ :parallelism :sequential}

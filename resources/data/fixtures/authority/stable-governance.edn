@@ -1,0 +1,4 @@
+{:authority/id :authority/stable-governance
+ :fraud-detection-probability 0.25
+ :reversal-detection-probability 0.25
+ :slashing-delay-blocks 1}

@@ -1,0 +1,123 @@
+{:concept/id :consensus/evidence
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Consensus evidence"
+ :concept/summary
+ "What facts were available to the decision process? Evidence may be
+  submitted, missing, contradictory, late, or ignored. The quality and
+  completeness of evidence determines whether the decision can be
+  considered informed."
+
+ :concept/stakeholder-question
+ "Did the decider have access to sufficient, timely, and relevant evidence
+  to reach an informed decision?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:evidence-submitter
+  {:description "Party that submits evidence."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :evidence-examiner
+  {:description "Entity that evaluates submitted evidence."
+   :maps-to [:protocol.actor/resolver :protocol.actor/resolution-module]}
+  :evidence-keeper
+   {:description "Entity that stores and provides access to evidence records."
+    :maps-to [:protocol.actor/verifier :protocol.actor/node]
+    :mapping/confidence :approximate
+    :mapping/note "Evidence keeper may be a protocol verifier or a network node"}}
+
+ :concept/entities
+ {:evidence-submission
+  {:description "A single piece of evidence submitted by a party."
+   :maps-to [:protocol.entity/evidence]}
+  :evidence-deadline
+  {:description "Time window within which evidence must be submitted."
+   :maps-to [:protocol.entity/deadline]}
+  :evidence-registry
+  {:description "Ordered collection of all evidence for a dispute."
+   :maps-to [:protocol.entity/evidence-chain]}}
+
+ :concept/actions
+ {:submit-evidence
+  {:description "Provide a fact or claim to support a position."
+   :maps-to [:protocol.action/submit-evidence]}
+  :request-evidence
+  {:description "Ask a party or third party to provide evidence."
+   :maps-to [:protocol.action/request-evidence]}
+  :evaluate-evidence
+  {:description "Weigh submitted evidence as part of a decision."
+   :maps-to [:protocol.action/resolve :protocol.action/settle]}
+  :reject-evidence
+  {:description "Decline to consider submitted evidence as untimely or irrelevant."
+   :maps-to [:protocol.action/reject-evidence]}}
+
+ :concept/outcomes
+ {:evidence-sufficient
+  {:description "Enough timely, non-contradictory evidence existed for an informed decision."
+   :maps-to [:protocol.outcome/resolved]}
+  :evidence-missing
+  {:description "Required evidence was never submitted or was unavailable."
+   :maps-to [:protocol.outcome/stuck]}
+  :evidence-contradictory
+  {:description "Submitted evidence conflicted and could not be reconciled."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :evidence-late
+  {:description "Evidence was submitted after the deadline and excluded."
+   :maps-to [:protocol.outcome/rejected]}
+  :evidence-ignored
+  {:description "Available evidence was not considered by the decider."
+   :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :missing-critical-evidence
+   :failure/name "Missing critical evidence"
+   :failure/summary
+   "Essential evidence was never submitted, making the decision uninformed."
+   :protocol-mechanisms [:evidence-submission :evidence-deadline :discovery]
+   :stakeholder-impact "Decision may be wrong due to incomplete information."}
+
+  {:failure/id :contradictory-evidence-unresolved
+   :failure/name "Contradictory evidence unresolved"
+   :failure/summary
+   "Parties submitted conflicting evidence and the decider could not or did not resolve the conflict."
+   :protocol-mechanisms [:evidence-evaluation :resolution]
+   :stakeholder-impact "Outcome depends on which evidence the decider weights more heavily."}
+
+  {:failure/id :late-evidence-excluded
+   :failure/name "Late evidence excluded"
+   :failure/summary
+   "Pivotal evidence arrived after the deadline and was not considered."
+   :protocol-mechanisms [:evidence-deadline :evidence-rejection]
+   :stakeholder-impact "Decision made without facts that could have changed the outcome."}
+
+  {:failure/id :evidence-ignored
+   :failure/name "Available evidence ignored"
+   :failure/summary
+   "Timely, relevant evidence was available but the decider did not consider it."
+   :protocol-mechanisms [:resolution :settlement]
+   :stakeholder-impact "Decision is uninformed despite available information."}]
+
+ :concept/metrics
+ {:evidence-count
+  {:description "Number of evidence submissions during the interaction."
+   :source :derived-from-trace}
+  :evidence-deadline-met
+  {:description "Whether evidence was submitted before the deadline."
+   :source :derived-from-trace}
+  :evidence-contradictions
+  {:description "Number of contradictory evidence pairs."
+   :source :derived-from-protocol-metrics}
+  :evidence-considered
+  {:description "Fraction of submitted evidence evaluated by the decider."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Evidence is modelled as protocol events with timestamps and content hashes."
+  "Deadlines are protocol-level parameters, not real-world legal deadlines."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world evidentiary standards or rules of procedure."
+  "Weight or credibility of individual evidence items."
+  "Forensic analysis of evidence content."]}

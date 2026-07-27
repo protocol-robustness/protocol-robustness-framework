@@ -1,0 +1,91 @@
+{
+  "schema-version": "1.1",
+  "_allow-open-disputes-reason": "Tests budget-balance :not-applicable path \u2014 escrow intentionally left in :disputed state.",
+  "threat-tags": [],
+  "initial-block-time": 1000,
+  "scenario-author": "@grifma",
+  "expectations": {
+    "terminal": [
+      {
+        "path": [
+          "live-states",
+          0
+        ],
+        "equals": "disputed"
+      }
+    ],
+    "metrics": [
+      {
+        "name": "total-escrows",
+        "op": ":=",
+        "value": 1
+      },
+      {
+        "name": "disputes-triggered",
+        "op": ":=",
+        "value": 1
+      }
+    ]
+  },
+  "id": "scenarios/eq-v2-budget-balance-not-applicable",
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "role": "buyer",
+      "strategy": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "role": "seller",
+      "strategy": "honest"
+    },
+    {
+      "id": "resolver",
+      "address": "0xresolver",
+      "role": "resolver",
+      "strategy": "honest"
+    }
+  ],
+  "scenario-id": "eq-v2-budget-balance-not-applicable",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 5000,
+        "custom-resolver": "0xresolver"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1100,
+      "agent": "buyer",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "theory": {
+    "claim-id": "claims/eq-budget-balance-not-applicable",
+    "claim": "When escrows are still open, budget-balance cannot be evaluated (not-applicable, not a violation).",
+    "mechanism-properties": [
+      "budget-balance"
+    ],
+    "falsifies-if": [],
+    "assumptions": []
+  },
+  "allow-open-disputes?": true,
+  "title": "Budget Balance \u2014 NOT-APPLICABLE (non-terminal escrow)",
+  "description": "Create an escrow and raise a dispute but leave it unresolved. The budget-balance validator fires :not-applicable because escrows are non-terminal; held funds are expected.",
+  "purpose": "regression",
+  "protocol-params": {
+    "resolver-bond-bps": 0
+  }
+}

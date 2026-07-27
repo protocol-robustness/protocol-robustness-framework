@@ -1,0 +1,13 @@
+{:suite/id       :suites/equivalence-auth-paths
+ :suite/title    "Equivalence Authorization Paths"
+ :suite/purpose  "Verify authorization-path semantics: unauthorized attempts reject and authorized resolvers can still conclude validly."
+ :suite/prevents "False equivalence where terminal state matches but authority path is invalid."
+ :suite/class    :adversarial
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s43-auth-rejected-then-authorized-recovery
+          :traces/s44-escalation-tier-mismatch-rejected
+          :traces/s45-stale-module-snapshot-rejects-legacy-resolver]}

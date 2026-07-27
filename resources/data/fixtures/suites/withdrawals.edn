@@ -1,0 +1,13 @@
+{:suite/id       :suites/withdrawals
+ :suite/title    "Withdrawal scenarios — withdraw-fees, withdraw-escrow, claim-deferred-yield"
+ :suite/purpose  "Validate governance fee withdrawal, escrow claimable withdrawal, and deferred yield claiming."
+ :suite/class    :safety
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+  :traces [:traces/s114-withdraw-fees-governance
+           :traces/s115-claim-deferred-yield-recovery
+           :traces/s118-withdraw-while-paused
+           :traces/s119-non-governance-rejected]}

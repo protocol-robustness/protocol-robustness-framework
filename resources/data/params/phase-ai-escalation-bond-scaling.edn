@@ -1,0 +1,32 @@
+{:scenario-id "phase-ai-escalation-bond-scaling"
+ :description "Phase AI (H2): Test dynamic bond scaling (2x per escalation) to mitigate Sybil ring displacement."
+
+ :rng-seed    99
+ :n-trials    100
+ :n-seeds     1
+ :parallelism :auto
+
+ :n-resolvers          60
+ :strategy-mix         {:honest 1.00 :lazy 0.00 :malicious 0.00 :collusive 0.00}
+
+ :use-ring-model?      true
+ :ring-size            5
+ :ring-max-size        15
+ :ring-detection-prob  0.0
+
+ :escalation-rate      1.00
+ :appeal-bond-bps      1000
+ :honest-capital       50000
+ :escalation-cost-per-dispute 1000
+
+ ;; Variable: Bond scaling multiplier
+ :bond-multiplier      2.0  ;; 2x cost per escalation
+
+ :n-epochs             200
+ :n-trials-per-epoch   100
+ :escrow-size          10000
+ :resolver-fee-bps     150
+
+ :displacement-threshold 0.50
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+ :seed 99}

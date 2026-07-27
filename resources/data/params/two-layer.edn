@@ -1,0 +1,51 @@
+{:description "Two-layer escalation: senior resolver only, no Kleros backstop"
+ :scenario-id "two-layer-v1"
+ :rng-seed 42
+
+ ;; Escrow sizes (wei, log scale)
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ ;; Resolver strategy mix
+ :strategy-mix
+ {:honest 0.75
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.02}
+
+ ;; Economic parameters
+ :resolver-fee-bps 150          ; 1.5%
+ :appeal-bond-bps 700           ; 7%
+ :slash-multiplier 2.5
+
+ ;; Appeal dynamics
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ ;; Fraud model — two-layer variant
+ ;; Compare to baseline.edn to see the security difference when Kleros is absent.
+ ;; Expected fraud survival: ~0.66 vs ~0.62 for three-layer (baseline).
+ :fraud-model :sequential-escalation
+ :escalation-assumption-band :two-layer  ; selects has-kleros?=false band defaults
+
+ ;; Explicit escalation tier params (matches :two-layer band in economics.clj):
+ :p-appeal-wrong  0.40
+ :p-l1-reversal   0.85
+ :has-kleros?     false  ; no Kleros backstop — fraud survives if L1 upholds it
+ :p-l2-escalation 0.0   ; not used when has-kleros?=false
+ :p-l2-reversal   0.0   ; not used when has-kleros?=false
+
+ ;; Kept for backward compatibility with legacy :single-stage-ev mode only.
+ :fraud-success-rate 0.90
+
+ ;; Simulation config
+ :n-trials 1000
+ :n-seeds 10
+ :parallelism :auto
+
+ ;; Output
+ :save-samples? true
+ :save-sweep? false}

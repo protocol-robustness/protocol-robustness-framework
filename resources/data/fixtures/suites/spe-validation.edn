@@ -1,0 +1,15 @@
+{:suite/id       :suites/spe-validation
+ :suite/title    "Subgame Perfect Equilibrium (SPE) Proxy Validation"
+ :suite/purpose  "Verify the 'No Profitable Regret' heuristic for trace-level SPE consistency. Detects rational and irrational disputes and escalations."
+ :suite/prevents "Implementation of irrational agent strategies in adversarial scenarios."
+ :suite/class    :safety
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/spe-v1-rational-appeal
+          :traces/spe-v2-irrational-appeal
+          :traces/spe-v3-multi-agent-regret
+          :traces/spe-v4-no-strategic-node
+          :traces/spe-v5-seller-rational-appeal]}

@@ -1,0 +1,52 @@
+;; Human-readable mirror of `resolver-sim.yield.invariant-catalog`.
+;; Source of truth for runtime ids is the Clojure namespace.
+
+{:suite :yield-provider-scenarios
+ :default-runtime-invariants
+ [:yield/position-consistency
+  :yield/exposure
+  :yield/shortfall-splits
+  :yield/status-fsm
+  :yield/realized-non-negative
+  :yield/partial-liquidity-principal
+  :yield/deferred-reclaim]
+
+ :default-transition-invariants
+ [:yield/index-monotone]
+
+ :entries
+ {:yield/position-consistency
+  {:description "Principal, shares, realized ≥ 0; unrealized ≥ 0 unless MTM."
+   :prf-tags [:yield-accounting :accrual]}
+
+  :yield/exposure
+  {:description "Held balances cover active position custody needs."
+   :prf-tags [:solvency :liquidity]}
+
+  :yield/shortfall-splits
+  {:description "fulfilled + deferred = basis on :shortfall maps."
+   :prf-tags [:liquidity-shortfall :partial-withdrawal]}
+
+  :yield/status-fsm
+  {:description "Status ∈ #{:active :unwinding :withdrawn}."
+   :prf-tags [:state-machine]}
+
+  :yield/realized-non-negative
+  {:description "Realized yield never negative."
+   :prf-tags [:yield-accounting]}
+
+  :yield/partial-liquidity-principal
+  {:description "Partial-liquidity unwinding: no principal haircut on shortfall."
+   :prf-tags [:partial-liquidity :shortfall-affected]}
+
+  :yield/deferred-reclaim
+  {:description "Withdrawn: no open shortfall; reclaimed ≥ 0."
+   :prf-tags [:recovery :shortfall-affected]}
+
+  :yield/index-monotone
+  {:description "Liquidity index non-decreasing on accrue (non-increasing under :negative-yield)."
+   :prf-tags [:yield-accounting :accrual :index-precision]}
+
+  :yield/accrual-partition-bounded
+  {:description "Offline: fragmented vs one-shot accrual within drift budget (accrual-properties)."
+   :prf-tags [:index-precision :accrual]}}}

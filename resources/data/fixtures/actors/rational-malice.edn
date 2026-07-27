@@ -1,0 +1,4 @@
+{:actor/id :actors/rational-malice
+ :strategy :rational
+ :malice-threshold 0.5
+ :collusion-group nil}

@@ -1,0 +1,46 @@
+{:description "DR1: Fee-only resolver model (no bonds, no slashing)"
+ :scenario-id "dr1-fee-only"
+ :rng-seed 42
+
+ ;; Escrow sizes (wei, log scale)
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ ;; Resolver strategy mix
+ :strategy-mix
+ {:honest 0.75
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.02}
+
+ ;; Phase DR1 -: Fee-only (no bonds, no slashing)
+ :phase :dr1
+
+ ;; DR1: Fee-only model - resolvers earn 1.5% fee, no capital at risk
+ :resolver-fee-bps 150          ; 1.5% fee
+ :appeal-bond-bps 0             ; No appeal bonds
+ :resolver-bond-bps 0           ; No resolver stake required
+ :slash-multiplier 0            ; No slashing (disabled)
+ :allow-slashing? false          ; Disable slashing entirely
+
+ ;; DR1: Single appeal allowed (governance decides escalation)
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0
+
+ ;; DR1: No L2 backstop (Kleros) in DR1
+ :l2-detection-prob 0
+
+ ;; DR1: No freeze mechanics (not needed without slashing)
+ :freeze-on-detection? false
+
+ ;; Simulation config
+ :n-trials 10000
+ :n-seeds 50
+ :parallelism :auto
+
+ ;; Output
+ :save-samples? true
+ :save-sweep? false}

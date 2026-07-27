@@ -1,0 +1,68 @@
+{
+  "schema-version" : "1.1",
+  "threat-tags" : [ ],
+  "initial-block-time" : 1000,
+  "scenario-author" : "@grifma",
+  "expectations" : {
+    "terminal" : [ {
+      "path" : [ "live-states", 0 ],
+      "equals" : "released"
+    } ],
+    "metrics" : [ {
+      "name" : "attack-attempts",
+      "op" : ":=",
+      "value" : 0
+    }, {
+      "name" : "attack-successes",
+      "op" : ":=",
+      "value" : 0
+    } ]
+  },
+  "id" : "scenarios/eq-v3-dominant-strategy-inconclusive",
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "role" : "buyer",
+    "strategy" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "role" : "seller",
+    "strategy" : "honest"
+  }, {
+    "id" : "resolver",
+    "address" : "0xresolver",
+    "role" : "resolver",
+    "strategy" : "honest"
+  } ],
+  "scenario-id" : "eq-v3-dominant-strategy-inconclusive",
+  "events" : [ {
+    "seq" : 0,
+    "time" : 1000,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 3000
+    }
+  }, {
+    "seq" : 1,
+    "time" : 1100,
+    "agent" : "buyer",
+    "action" : "release",
+    "params" : {
+      "workflow-id" : 0
+    }
+  } ],
+  "theory" : {
+    "claim-id" : "claims/eq-dominant-strategy-inconclusive",
+    "claim" : "Without adversarial actors, dominant-strategy consistency is vacuous and correctly returns :inconclusive.",
+    "equilibrium-concept" : [ "dominant-strategy-equilibrium" ],
+    "falsifies-if" : [ ],
+    "assumptions" : [ ]
+  },
+  "title" : "Dominant Strategy — INCONCLUSIVE (honest-only trace)",
+  "description" : "Honest-only trace with no adversarial events. Dominant-strategy-equilibrium is declared but returns :inconclusive because dominance is untested when no adversary is present.",
+  "purpose" : "regression"
+}

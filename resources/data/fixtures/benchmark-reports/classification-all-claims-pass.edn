@@ -1,0 +1,1 @@
+{:classifier :pass-fail-per-claim, :total 3, :passed 3, :classification {:classification-label "All claims pass", :scoring/summary "Ratio"}}

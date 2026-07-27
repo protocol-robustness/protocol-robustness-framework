@@ -1,0 +1,1 @@
+{:classifier :pass-fail-per-scenario, :total 3, :passed 2, :classification {:classification-label "Some scenarios pass, some fail", :scoring/summary "Ratio"}}

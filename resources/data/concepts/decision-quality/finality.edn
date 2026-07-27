@@ -1,0 +1,123 @@
+{:concept/id :consensus/finality
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Consensus finality"
+ :concept/summary
+ "When does a decision become binding and irreversible? Finality may
+  be reached through settlement, timeout, appeal expiry, or governance
+  override. Premature, blocked, or reversible finality affects whether
+  an outcome can be relied upon."
+
+ :concept/stakeholder-question
+ "Can the outcome of this interaction be relied upon as final, or is it
+  still subject to reversal, challenge, or delay?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:finality-beneficiary
+  {:description "Party that benefits from the final outcome."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :finality-enforcer
+  {:description "Entity that executes the final settlement."
+   :maps-to [:protocol.actor/resolver :protocol.actor/governance]}
+  :finality-challenger
+  {:description "Party that attempts to prevent or reverse finality."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+
+ :concept/entities
+ {:settlement
+  {:description "The executed transfer that makes an outcome binding."
+   :maps-to [:protocol.entity/settlement]}
+  :finality-deadline
+  {:description "Time after which finality cannot be challenged."
+   :maps-to [:protocol.entity/deadline]}
+  :finality-block
+  {:description "Condition that prevents settlement from executing."
+   :maps-to [:protocol.entity/dispute]}}
+
+ :concept/actions
+ {:reach-finality
+  {:description "Execute the settlement that makes the outcome binding."
+   :maps-to [:protocol.action/settle :protocol.action/release :protocol.action/refund]}
+  :block-finality
+  {:description "Prevent settlement from executing through dispute or appeal."
+   :maps-to [:protocol.action/dispute :protocol.action/appeal :protocol.action/challenge]}
+  :reverse-finality
+  {:description "Undo a settlement after it was executed."
+   :maps-to [:protocol.action/governance-intervention]}
+  :confirm-finality
+  {:description "Verify that a settlement is final and irreversible."
+   :maps-to [:protocol.action/verify-finality]}}
+
+ :concept/outcomes
+ {:finality-reached
+   {:description "Settlement executed and challenge window expired."
+    :maps-to [:protocol.outcome/released :protocol.outcome/refunded]
+    :mapping/confidence :approximate
+    :mapping/note "Finality covers both release to recipient and refund to sender"}
+   :finality-blocked
+  {:description "Settlement could not execute due to dispute, appeal, or capacity lock."
+   :maps-to [:protocol.outcome/stuck]}
+  :finality-premature
+  {:description "Settlement executed before challenge window expired or while appeal was pending."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :finality-reversed
+  {:description "A finalised settlement was later undone by governance."
+   :maps-to [:protocol.outcome/governance-override]}
+  :finality-deferred
+  {:description "Settlement delayed past expected time but eventually executed."
+   :maps-to [:protocol.outcome/resolved]}}
+
+ :concept/failure-modes
+ [{:failure/id :finality-blocked-permanently
+   :failure/name "Finality blocked permanently"
+   :failure/summary
+   "Settlement cannot execute under any available path, leaving funds locked indefinitely."
+   :protocol-mechanisms [:dispute :appeal :capacity-exhaustion :timeout]
+   :stakeholder-impact "Funds are permanently inaccessible to all parties."}
+
+  {:failure/id :premature-finality
+   :failure/name "Premature finality"
+   :failure/summary
+   "Settlement executed while a dispute, appeal, or challenge was still active."
+   :protocol-mechanisms [:settlement :settlement-guards :dispute-state]
+   :stakeholder-impact "A party loses the opportunity to contest."}
+
+  {:failure/id :finality-delayed-excessively
+   :failure/name "Finality delayed excessively"
+   :failure/summary
+   "Settlement took significantly longer than the protocol's normal timeline."
+   :protocol-mechanisms [:dispute :appeal :escalation :capacity]
+   :stakeholder-impact "Parties face extended uncertainty and liquidity cost."}
+
+  {:failure/id :reversible-finality
+   :failure/name "Reversible finality"
+   :failure/summary
+   "A settlement was reversed after being considered final, undermining the meaning of finality."
+   :protocol-mechanisms [:governance-intervention :override]
+   :stakeholder-impact "No outcome can be trusted as truly final."}]
+
+ :concept/metrics
+ {:time-to-finality
+  {:description "Blocks or time from escrow creation to final settlement."
+   :source :derived-from-trace}
+  :finality-status
+  {:description "Whether finality was reached, blocked, premature, or reversed."
+   :source :derived-from-trace}
+  :settlement-attempts
+  {:description "Number of times settlement was attempted before succeeding."
+   :source :derived-from-trace}
+  :challenge-window-remaining
+  {:description "Time between settlement execution and challenge window expiry."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Finality is a protocol-level property derived from settlement and dispute state."
+  "Settlement execution with no pending dispute or appeal constitutes finality."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world legal finality or res judicata."
+  "Blockchain-level settlement finality (reorgs, forks)."
+  "Economic finality based on bonded validator sets."]}

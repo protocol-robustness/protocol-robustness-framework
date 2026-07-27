@@ -1,0 +1,24 @@
+{:suite/id       :suites/spe-regression
+ :suite/title    "SPE Regression — bounded-public-state-epsilon-SPE vocabulary and coverage"
+ :suite/purpose  "Regression suite for Phase F–M SPE validation improvements. Covers the bounded-public-state-epsilon-spe equilibrium concept, subgame boundary classification (proper-subgame vs information-set-node), and the rich SPE result vocabulary (:spe/pass, :spe/epsilon-pass, :spe/fail-profitable-deviation, :spe/not-a-proper-subgame, :spe/inconclusive-*). v1 and v5: known-stable (pass). v2: inconclusive (buyer release, no dispute raised; no proper subgames). v3: pass (mixed-node trace — buyer raise_dispute is information-set, resolver execute_resolution is proper-subgame; no regret). v4: known-fail (theory-falsification; resolver slashed after verdict). v6: backward-induction mode — same two-node honest trace, bounded-backward-induction-spe concept. v7: reputation-spe — resolver stake top-up masks slash from bounded-spe (pass), but resolver-reputation-spe detects violation via slash-total (fail). v8: profile-matrix — same stake-top-up trace; resolver-reputation-profile-matrix concept; :reputation/none=pass (attacker indifferent), :reputation/conservative and :reputation/baseline=fail (any non-zero penalty deters)."
+ :suite/prevents "Regressions in Phase F–M SPE additions: subgame boundary misclassification, incorrect SPE result vocabulary, missing counterexample traces, broken bounded-public-state-epsilon-spe concept dispatch."
+ :suite/class    :safety
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/spe-reg-v1-bounded-spe-pass-honest-resolver
+          :traces/spe-reg-v2-inconclusive-no-dispute
+          :traces/spe-reg-v3-mixed-node-pass
+           ;; Negative case — purpose :theory-falsification; expected to produce :fail
+           :traces/spe-reg-v4-fail-slashed-resolver-bounded
+          :traces/spe-reg-v5-both-concepts-pass
+          ;; Phase K: backward-induction mode — same two-node honest trace, new concept
+          :traces/spe-reg-v6-backward-induction-two-node
+           ;; Gap D: reputation-spe — stake top-up masks slash from bounded-spe (pass),
+           ;; resolver-reputation-spe detects via resolver-slash-total (fail)
+           :traces/spe-reg-v7-reputation-slash-fail
+           ;; Gap D profiles: profile-matrix on same trace; :reputation/none=pass (no penalty →
+           ;; regret=0), conservative and baseline=fail (any non-zero penalty deters)
+           :traces/spe-reg-v8-profile-matrix]}

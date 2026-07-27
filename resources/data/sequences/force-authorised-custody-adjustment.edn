@@ -1,0 +1,27 @@
+;; Trust-sequence definition for the force-authorised custody adjustment path.
+;; A governance-granted force-authorisation is executed against an escrow,
+;; consuming the authorisation, adjusting held custody, and finalising.
+;; Protocol-independent: references policies by identity, not by enforcement mechanism.
+{:trust-sequence-definition/schema-version 1
+ :trust-sequence-definition/id :sew.sequence/force-authorised-custody-adjustment
+ :trust-sequence-definition/provider
+ {:protocol/id :protocol/sew
+  :protocol/version "1"}
+ :trust-sequence-definition/steps
+ [{:step/id :prf.step/authorisation-granted
+   :step/type :assertion
+   :step/policy-requirement
+   {:policy/id :sew.policy/force-authorisation
+    :policy/version 1}}
+
+  {:step/id :prf.step/authorised-execution
+   :step/type :assertion
+   :step/policy-requirement
+   {:policy/id :sew.policy/force-authorisation
+    :policy/version 1}}
+
+  {:step/id :prf.step/authorised-consumption-custody-adjustment
+   :step/type :state-transition
+   :step/policy-requirement
+   {:policy/id :sew.policy/force-authorisation
+    :policy/version 1}}]}

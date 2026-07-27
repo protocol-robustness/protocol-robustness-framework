@@ -1,0 +1,17 @@
+{:suite/id       :suites/equivalence-race-pairs
+ :suite/title    "Equivalence Settlement Race Counterfactual Pairs"
+ :suite/purpose  "Verify ordering/timing counterfactuals around escalation vs settlement boundaries."
+ :suite/prevents "False equivalence where only one ordering is tested and race semantics regress."
+ :suite/class    :ordering
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s46a-settlement-before-escalation-window-edge
+          :traces/s46b-escalation-before-settlement-window-edge
+          :traces/s47a-appeal-window-last-second-settlement
+           :traces/s47b-appeal-window-plus-one-rejected
+           {:trace :traces/s81-appeal-deadline-boundary-before
+            :expected-outcome :fail
+            :expected-halt-reason :open-entities-at-end}]}

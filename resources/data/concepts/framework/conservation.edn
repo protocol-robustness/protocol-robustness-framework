@@ -1,0 +1,112 @@
+{:concept/id :concept/conservation
+ :concept/name "Conservation"
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/summary "A property that a tracked quantity is fully accounted for across a state transition."
+ :concept/stakeholder-question "Is the quantity fully accounted for?"
+ :concept/protocols #{:protocol/sew-v1}
+ :concept/frameworks #{:framework/prf}
+ :concept/related [:allocation/shortfall :allocation/partial-fill :allocation/pro-rata-fairness :allocation/redistribution-fairness]
+ :concept/benchmark-domains #{:domain/protocol-value-conservation}
+ :concept/benchmark-concepts [:robustness/protocol-value-conservation]
+ :concept/roles
+ {:role/reviewer {:description "Evaluates whether the result is understandable, reproducible, and appropriately qualified." :maps-to []} :role/researcher {:description "Uses the concept to interpret benchmark results and compare protocol behavior across scenarios." :maps-to []} :role/protocol-designer {:description "Uses the concept to reason about protocol mechanisms, invariants, and failure modes." :maps-to []}}
+ :concept/entities
+ {:entity/token
+  {:description "A fungible asset tracked by the protocol across state transitions."
+   :maps-to [:protocol.entity/token]}
+  :entity/escrow
+  {:description "A workflow-bound escrow with balance, status, and resolver assignment."
+   :maps-to [:protocol.entity/escrow]}
+  :entity/stake
+  {:description "Resolver-staked collateral subject to slashing."
+   :maps-to [:protocol.entity/stake]}
+  :entity/claim
+  {:description "A right to a future amount, tracked as deferred or recognized liability."
+   :maps-to [:protocol.entity/claim]}}
+ :concept/actions
+ {:action/release
+  {:description "Release escrow principal to the recipient, finalising the transfer."
+   :maps-to [:protocol.action/release]}
+  :action/cancel
+  {:description "Cancel an escrow, returning principal to the sender."
+   :maps-to [:protocol.action/cancel]}
+  :action/slash
+  {:description "Deduct resolver stake and distribute according to protocol rules."
+   :maps-to [:protocol.action/slash]}
+  :action/allocate
+  {:description "Distribute available funds across claimants in proportion to their claims."
+   :maps-to [:protocol.action/allocate]}}
+ :concept/outcomes
+ {:outcome/accounted
+  {:description "The quantity is fully accounted for with no residual or deficit."
+   :maps-to [:protocol.outcome/pass]}
+  :outcome/unaccounted
+  {:description "A deficit or surplus exists that is not explained by explicit sinks, sources, or liabilities."
+   :maps-to [:protocol.outcome/fail]}
+  :outcome/residual
+  {:description "A small remainder exists due to integer rounding and is explicitly tracked as residual."
+   :maps-to [:protocol.outcome/warn]}}
+ :concept/failure-modes
+ [{:failure/id :failure/unmodelled-sink
+   :failure/name "Unmodelled sink"
+   :failure/summary "A quantity leaves the accounting equation without an explicit concept or artifact."
+   :protocol-mechanisms [:conservation-check :accounting-integrity]
+   :stakeholder-impact "Loss of auditability; an operator cannot determine where funds went."}
+  {:failure/id :failure/unmodelled-source
+   :failure/name "Unmodelled source"
+   :failure/summary "A quantity appears in the accounting equation without an explicit deposit, issuance, or credit."
+   :protocol-mechanisms [:conservation-check :accounting-integrity]
+   :stakeholder-impact "Inflation of tracked balances; potential misrepresentation of protocol liabilities."}
+  {:failure/id :failure/double-counted-liability
+   :failure/name "Double-counted liability"
+   :failure/summary "A quantity is counted both as an immediate payable balance and as a deferred or protocol-backed credit."
+   :protocol-mechanisms [:conservation-check :claimable-balance]
+   :stakeholder-impact "A resolver or user may appear entitled to more than the protocol actually holds."}
+  {:failure/id :failure/false-conservation-failure
+   :failure/name "False conservation failure"
+   :failure/summary "A reported conservation failure caused by ignoring an explicit sink, source, credit, or deferred claim."
+   :protocol-mechanisms [:conservation-check]
+   :stakeholder-impact "Wasted investigation time; incorrect benchmark failure signals."}
+  {:failure/id :failure/rounding-dust-unaccounted
+   :failure/name "Rounding dust unaccounted"
+   :failure/summary "A rounding residual is silently discarded rather than assigned to an explicit residual bucket."
+   :protocol-mechanisms [:pro-rata-allocation :integer-arithmetic]
+   :stakeholder-impact "Small but systematic accounting discrepancies compound across many transitions."}]
+ :concept/metrics
+ {:metric/accounting-delta
+  {:description "Net difference between claimed total and accounted total for a transition."
+   :source :derived-from-world-state}
+  :metric/unmet-amount
+  {:description "Requested slash or allocation amount that could not be satisfied."
+   :source :derived-from-trace}
+  :metric/waived-amount
+  {:description "Amount explicitly waived or credited by protocol rules."
+   :source :derived-from-trace}
+  :metric/residual-amount
+  {:description "Rounding residual explicitly tracked after a distribution."
+   :source :derived-from-world-state}}
+ :concept/assumptions
+ ["Conservation equations must include explicitly modelled sources, sinks, waivers, losses, residuals, and recognised liabilities."
+  "Integer rounding residuals are acceptable only when explicitly accounted for and bounded."
+  "A protocol-backed deferred claim is a recognised liability, not a balance to be immediately settled."]
+ :concept/out-of-scope
+ ["This concept does not define the economic fairness of an allocation."
+  "This concept does not require every claimant to be made whole."
+  "This concept does not address liquidity -- a solvent protocol may still be unable to honour a withdrawal request."]
+ :concept/subconcepts
+ [{:concept/id :concept/token-conservation
+   :concept/name "Token conservation"
+   :concept/summary "Token balances remain accounted for across release, cancel, withdrawal, yield unwind, fee collection, partial fill, and slashing transitions."}
+  {:concept/id :concept/slashing-conservation
+   :concept/name "Slashing conservation"
+   :concept/summary "A slashing transition conserves the requested slash amount by tracking debited stake, unmet amount, waived amount, and any recognised protocol credit or reversal. requested = debited + unmet + waived."}
+  {:concept/id :concept/allocation-conservation
+   :concept/name "Allocation conservation"
+   :concept/summary "An allocation is conservative when the sum of allocations, residuals, deferred amounts, and unmet claims exactly accounts for the available amount and total claim amounts."}
+  {:concept/id :concept/rounding-conservation
+   :concept/name "Rounding conservation"
+   :concept/summary "Integer arithmetic residuals are explicitly tracked rather than silently discarded. Rounding dust is assigned to a known residual bucket."}
+  {:concept/id :concept/recognized-liability
+   :concept/name "Recognized liability"
+   :concept/summary "An amount the protocol acknowledges as owed or usable in future capacity, tracked separately from liquid balances. Examples: deferred yield claim, vindication credit, pending withdrawal claim, appeal bond refund."}]}

@@ -1,0 +1,4 @@
+{:token/id :tokens/fee-on-transfer
+ :decimals 18
+ :fee-on-transfer 500 ;; 5%
+ :rebasing false}

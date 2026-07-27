@@ -1,0 +1,56 @@
+{:scenario-id          "phase-ah-trajectory-sweep"
+ :description          "Phase AH: Honest vs. Strategic equity divergence sweep"
+
+ ;; Required by io/params validator
+ :rng-seed             42
+ :n-trials             200
+ :n-seeds              1
+ :parallelism          :auto
+ :strategy-mix         {:honest 0.50 :lazy 0.15 :malicious 0.25 :collusive 0.10}
+ :escrow-distribution  {:type :lognormal :mean 10000 :std 5000}
+
+ ;; Resolver cohort
+ :n-resolvers          100
+
+ ;; Epoch and trial counts for the sweep grid.
+ ;; run-phase-ah sweeps :n-epochs over this vector; :n-trials-per-epoch is fixed.
+ :n-epochs-sweep       [100 500 1000]
+ :n-trials-per-epoch   200
+
+ ;; Strategy mixes to test (baseline, high-malice, high-collusive).
+ :strategy-mixes
+ [{:label         "baseline"
+   :honest        0.50
+   :lazy          0.15
+   :malicious     0.25
+   :collusive     0.10}
+  {:label         "high-malice"
+   :honest        0.40
+   :lazy          0.10
+   :malicious     0.40
+   :collusive     0.10}
+  {:label         "high-collusive"
+   :honest        0.40
+   :lazy          0.10
+   :malicious     0.10
+   :collusive     0.40}]
+
+ ;; Divergence thresholds (Phase AH hypothesis).
+ ;; Violation if strategic-mean-equity / honest-mean-equity > drift-threshold-mean
+ ;; OR strategic-p95-equity / honest-mean-equity > drift-threshold-p95.
+ :drift-threshold-mean 2.0
+ :drift-threshold-p95  2.0
+
+ ;; Economic parameters (passed through to batch/dispute simulation).
+ :escrow-size                   10000
+ :resolver-fee-bps              150
+ :appeal-bond-bps               500
+ :slash-multiplier              2.0
+ :appeal-probability-if-correct 0.10
+ :appeal-probability-if-wrong   0.50
+ :slashing-detection-probability 0.10
+ :fraud-detection-probability   0.05
+ :reversal-detection-probability 0.03
+
+ ;; RNG seed for reproducibility.
+ :seed 42}

@@ -1,0 +1,192 @@
+{:concept/id :dispute/appeal-escalation
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Dispute appeal and escalation"
+ :concept/summary
+ "A party who disagrees with a resolver decision can escalate the resolution
+  to a higher authority (L1) by posting an appeal bond. The appeal may uphold,
+  reverse, or modify the original decision. If the appeal is rejected the bond
+  is forfeited; if it succeeds the bond is returned. Escalation is subject to
+  time windows, tier eligibility, and bonding requirements that determine
+  whether the appeal is accepted and how the dispute reaches finality."
+
+ :concept/stakeholder-question
+ "Can I challenge an unfair resolver decision, and what are the costs, risks,
+  and time constraints of doing so?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/maturity :illustrative
+ :concept/support-status :not-asserted
+
+ :concept/related
+ [:consensus/authority
+  :consensus/evidence
+  :consensus/finality
+  :consensus/escalation
+  :consensus/liveness
+  :consensus/legitimacy
+  :allocation/slash-obligation]
+
+ :concept/roles
+ {:appellant
+  {:description "Party that challenges a resolution by escalating to a higher tier."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]
+   :mapping/confidence :approximate
+   :mapping/note "Any escrow participant may appeal; the role depends on who initiated the appeal."}
+  :original-resolver
+  {:description "Resolver whose decision is being challenged."
+   :maps-to [:protocol.actor/resolver]}
+  :appeal-resolver
+  {:description "Higher-tier resolver that reviews and may overturn the original decision."
+   :maps-to [:protocol.actor/resolver]
+   :mapping/confidence :approximate
+   :mapping/note "Protocol distinguishes L0 and L1 resolver roles; this use-case treats the appeal resolver as a separate authority."}
+  :keeper
+  {:description "Entity that executes settlement after the appeal window closes."
+   :maps-to [:protocol.actor/keeper]
+   :mapping/confidence :approximate
+   :mapping/note "Keeper is a protocol actor type; in practice any network participant may execute settlement."}
+  :governance
+  {:description "Protocol governance that can adjust escalation rules, fee schedules, or override decisions."
+   :maps-to [:protocol.actor/governance]}}
+
+ :concept/entities
+ {:original-resolution
+  {:description "The L0 resolver's decision that is being challenged."
+   :maps-to [:protocol.entity/resolution]}
+  :appeal-bond
+  {:description "Collateral posted by the appellant to initiate escalation; forfeited if the appeal is rejected."
+   :maps-to [:protocol.entity/bond]}
+  :appeal-deadline
+  {:description "The time window during which an appeal can be filed."
+   :maps-to [:protocol.entity/deadline]
+   :mapping/confidence :approximate
+   :mapping/note "Protocol deadlines are computed from event timestamps; there is no distinct deadline entity."}
+  :escalation-record
+  {:description "The record of an escalation request, including appellant, tier, and outcome."
+   :maps-to [:protocol.entity/dispute]
+   :mapping/confidence :approximate
+   :mapping/note "Escalation state is tracked within the dispute entity; there is no separate escalation record."}}
+
+ :concept/actions
+ {:file-appeal
+  {:description "Submit an escalation request before the appeal deadline, posting the required bond."
+   :maps-to [:protocol.action/escalate]}
+  :review-appeal
+  {:description "Appeal resolver evaluates the original decision and issues a new resolution."
+   :maps-to [:protocol.action/resolve]}
+  :forfeit-bond
+  {:description "Appeal bond is transferred to the protocol or counterparty because the appeal was rejected."
+   :maps-to [:protocol.action/settle]
+   :mapping/confidence :approximate
+   :mapping/note "Bond forfeiture is a settlement outcome, not a distinct action."}
+  :return-bond
+  {:description "Appeal bond is returned to the appellant because the appeal succeeded."
+   :maps-to [:protocol.action/settle]
+   :mapping/confidence :approximate
+   :mapping/note "Same settle action as forfeiture; the direction of fund flow distinguishes the outcome."}
+  :execute-finality
+  {:description "Settlement executed after the appeal window closes, making the outcome irreversible."
+   :maps-to [:protocol.action/settle]}}
+
+ :concept/outcomes
+ {:appeal-accepted
+  {:description "Escalation request was filed within the deadline with a valid bond; the appeal proceeds."
+   :maps-to [:protocol.outcome/pending]
+   :mapping/confidence :approximate
+   :mapping/note "Protocol does not emit a distinct accepted state; the appeal is pending until resolved."}
+  :original-decision-upheld
+  {:description "Appeal resolver confirmed the original decision."
+   :maps-to [:protocol.outcome/resolved]}
+  :original-decision-reversed
+  {:description "Appeal resolver overturned the original decision."
+   :maps-to [:protocol.outcome/resolved]}
+  :appeal-rejected
+  {:description "Appeal was dismissed as out of time, invalid, or from an unauthorised party."
+   :maps-to [:protocol.outcome/rejected]}
+  :appeal-bond-forfeited
+  {:description "Appeal bond is forfeited to the protocol because the appeal was rejected or the appellant acted in bad faith."
+   :maps-to [:protocol.outcome/slashed]}
+  :appeal-bond-returned
+  {:description "Appeal bond is returned because the appeal succeeded."
+   :maps-to [:protocol.outcome/released]
+   :mapping/confidence :approximate
+   :mapping/note "Bond return uses the same release mechanism as escrow fund release."}
+  :finality-reached
+  {:description "The settlement window closed without further escalation; the outcome is binding."
+   :maps-to [:protocol.outcome/settled]}}
+
+ :concept/failure-modes
+ [{:failure/id :appeal-window-missed
+   :failure/name "Appeal window missed"
+   :failure/summary
+   "The appellant failed to file within the appeal deadline, locking in a potentially unfair outcome."
+   :protocol-mechanisms [:deadline-config :settlement-window]
+   :stakeholder-impact "Party loses the right to challenge; unfair outcome becomes final."}
+
+  {:failure/id :bond-too-low
+   :failure/name "Insufficient appeal bond"
+   :failure/summary
+   "The required appeal bond exceeds what the appellant can post, effectively denying recourse."
+   :protocol-mechanisms [:bond-amount :bonding]
+   :stakeholder-impact "Economically weaker parties cannot afford to challenge unfair decisions."}
+
+  {:failure/id :appeal-tier-mismatch
+   :failure/name "Wrong-tier resolver handles appeal"
+   :failure/summary
+   "A resolver at the wrong escalation tier attempts to review the appeal and is rejected."
+   :protocol-mechanisms [:tier-enforcement :resolver-registration]
+   :stakeholder-impact "Delay while the correct-tier resolver is assigned; appeal deadline may pass."}
+
+  {:failure/id :collusive-appeal-resolver
+   :failure/name "Collusive appeal resolver"
+   :failure/summary
+   "The L1 resolver is controlled by the same party as the L0 resolver, eliminating the corrective value of escalation."
+   :protocol-mechanisms [:resolver-independence :tier-separation]
+   :stakeholder-impact "Escalation provides no safeguard; unfair outcomes persist through both tiers."}
+
+  {:failure/id :appeal-bond-not-returned
+   :failure/name "Appeal bond not returned on success"
+   :failure/summary
+   "The appellant's bond is not returned even though the appeal succeeded, imposing an unfair cost on the prevailing party."
+   :protocol-mechanisms [:bond-accounting :settlement]
+   :stakeholder-impact "Winning an appeal still carries a financial penalty."}]
+
+ :concept/metrics
+ {:appeal-count
+  {:description "Number of escalation requests filed during the interaction."
+   :source :derived-from-trace}
+  :appeal-success-rate
+  {:description "Ratio of successful appeals (decision reversed or modified) to total appeals."
+   :source :derived-from-trace}
+  :time-to-finality
+  {:description "Total time from initial resolution to final settlement after appeal."
+   :source :derived-from-trace}
+  :bond-at-risk
+  {:description "Total bond value posted across active appeals."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Appeal must be filed within a defined deadline counted from the original resolution."
+  "An appeal bond is required and its amount is known at escalation time."
+  "The appeal resolver is a different entity from the original resolver."
+  "Only one escalation level (L0→L1) is modelled; multi-level escalation adds complexity not covered here."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world appeals, litigation, or arbitration."
+  "Multi-level escalation beyond L1 (L2, L3, etc.)."
+  "Social or reputation-based grounds for appeal beyond the resolution outcome."
+  "The economic efficiency or game-theoretic properties of the appeal mechanism."]
+
+ :concept/known-gaps
+ ["Original-decision-upheld and original-decision-reversed both map to the same protocol outcome (:protocol.outcome/resolved); the protocol does not distinguish direction."
+  "Appeal-accepted maps to pending, which is shared with other non-terminal states."
+  "Bond forfeiture and return both use the same settle action; only the fund flow direction distinguishes them."
+  "Keeper role is introduced here but the protocol does not assign keepers as distinct actors."]
+
+ :concept/evidence
+ {:scenarios #{}
+  :benchmarks #{}
+  :claims #{}}}

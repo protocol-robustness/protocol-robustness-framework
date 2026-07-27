@@ -154,7 +154,11 @@
 
         ;; Structured scope from witness verification
         witness-scope (when witness-result
-                        (let [cs (:checks witness-result)]
+                        (let [cs (:checks witness-result)
+                              witness-def-root (try
+                                                 (-> (json/read-str (slurp witness-path) :key-fn keyword)
+                                                     :procedure-execution-witness/definition-root)
+                                                 (catch Exception _ nil))]
                           {:execution-witness
                            {:status (if (:valid? witness-result) :verified :invalid)
                             :check-count (:pass-count witness-result 0)
@@ -164,7 +168,7 @@
                             {:status (if (some #(= :pass (:check/status %))
                                                (filter #(= :procedure-witness/definition-root-matches (:check/code %)) cs))
                                        :pass :fail)
-                             :definition-root (:evidence-index/definition-root witness-result '())}
+                             :definition-root witness-def-root}
                             :evidence-chain
                             {:status (if (and (some #(= :evidence-chain/registry-hash-valid (:check/code %))
                                                     (filter #(= :pass (:check/status %)) cs))

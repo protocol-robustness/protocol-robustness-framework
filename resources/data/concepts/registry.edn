@@ -1,0 +1,237 @@
+{:concept-registry/version 1
+ :concept-registry/description
+ "Registry of supported stakeholder-facing concepts. Each concept
+  maps protocol-level mechanics to a real-world use-case vocabulary."
+
+ :concepts
+ [{:concept/id    :ecommerce/purchase
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/ecommerce.edn"
+   :concept/name  "Ecommerce purchase"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :event/deposit
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/event_deposits.edn"
+   :concept/name  "Event deposit"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :spending-account/controlled-balance
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/controlled_escrow_balance.edn"
+   :concept/name  "Controlled escrow balance"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :dispute/appeal-escalation
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/dispute_appeal_escalation.edn"
+   :concept/name  "Dispute appeal and escalation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :resolver/participation-bonding
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/resolver_participation_bonding.edn"
+   :concept/name  "Resolver participation and bonding"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :yield/escrow
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/yield_bearing_escrow.edn"
+   :concept/name  "Yield-bearing escrow"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :governance/rule-transition
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/governance_rule_transition.edn"
+   :concept/name  "Governance rule transition during active escrow"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :funding/goal-contingent-pool
+   :concept/type  :use-case
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/use-case/goal_contingent_pooled_escrow.edn"
+   :concept/name  "Goal-contingent pooled escrow"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :verifiable-assurance/forensic-confidence
+   :concept/type  :assurance
+   :concept/layer :framework-explanation
+   :concept/file  "data/concepts/assurance/verifiable_assurance.edn"
+   :concept/name  "Verifiable assurance — forensic confidence"
+   :concept/status :draft
+   :concept/protocols #{:protocol/prf :protocol/sew-v1}}
+
+  {:concept/id    :consensus/authority
+   :concept/type  :decision-quality
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/decision-quality/authority.edn"
+   :concept/name  "Consensus authority"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :consensus/evidence
+   :concept/type  :decision-quality
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/decision-quality/evidence.edn"
+   :concept/name  "Consensus evidence"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :consensus/finality
+   :concept/type  :decision-quality
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/decision-quality/finality.edn"
+   :concept/name  "Consensus finality"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :consensus/escalation
+   :concept/type  :decision-quality
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/decision-quality/escalation.edn"
+   :concept/name  "Consensus escalation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :consensus/liveness
+   :concept/type  :decision-quality
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/decision-quality/liveness.edn"
+   :concept/name  "Consensus liveness"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :consensus/legitimacy
+   :concept/type  :decision-quality
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/decision-quality/legitimacy.edn"
+   :concept/name  "Consensus legitimacy"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :allocation/partial-fill
+   :concept/type  :allocation
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/allocation/partial_fill.edn"
+   :concept/name  "Partial fill allocation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :allocation/shortfall
+   :concept/type  :allocation
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/allocation/shortfall.edn"
+   :concept/name  "Shortfall detection and recording"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :allocation/pro-rata-fairness
+   :concept/type  :allocation
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/allocation/pro_rata_fairness.edn"
+   :concept/name  "Pro-rata fairness in allocation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :allocation/redistribution-fairness
+   :concept/type  :allocation
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/allocation/redistribution_fairness.edn"
+   :concept/name  "Redistribution fairness"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :allocation/deferred-claim
+   :concept/type  :allocation
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/allocation/deferred_claim.edn"
+   :concept/name  "Deferred claim recovery"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :allocation/slash-obligation
+   :concept/type  :allocation
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/allocation/slash_obligation.edn"
+   :concept/name  "Slash obligation allocation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :decision-quality/solvency-status
+   :concept/type  :decision-quality
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/decision-quality/solvency.edn"
+   :concept/name  "Solvency status classification"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :yield/yield-bearing
+   :concept/type  :yield
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/yield/yield_bearing.edn"
+   :concept/name  "Yield-bearing position"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :attestation/verification
+   :concept/type  :assurance
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/assurance/attestation.edn"
+   :concept/name  "Attestation verification"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :forensic/evidence-chain
+    :concept/type  :assurance
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/assurance/evidence_chain.edn"
+    :concept/name  "Forensic evidence chain"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+  {:concept/id    :concept/conservation
+   :concept/type  :framework
+   :concept/layer :framework-explanation
+   :concept/file  "data/concepts/framework/conservation.edn"
+   :concept/name  "Conservation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :concept/confidence
+   :concept/type  :framework
+   :concept/layer :framework-explanation
+   :concept/file  "data/concepts/framework/confidence.edn"
+   :concept/name  "Confidence"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :concept/configuration
+   :concept/type  :framework
+   :concept/layer :framework-explanation
+   :concept/file  "data/concepts/framework/configuration.edn"
+   :concept/name  "Configuration"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1}}
+
+  {:concept/id    :security/force-authorisation
+   :concept/type  :security
+   :concept/layer :stakeholder
+   :concept/file  "data/concepts/security/force_authorisation.edn"
+   :concept/name  "Force-authorisation"
+   :concept/status :draft
+   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}]}

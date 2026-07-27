@@ -1,0 +1,168 @@
+{:concept/id :allocation/redistribution-fairness
+ :concept/name "Redistribution fairness"
+ :concept/type :allocation
+ :concept/layer :stakeholder
+
+ :concept/summary
+ "When available value cannot satisfy all valid claims in a single pass,
+  the protocol redistributes surplus, cap-excess, or deferred value across
+  priority levels (cross-level cascade), across epochs (inter-temporal
+  bridge), or across protocol pools (cross-pool transfer). Redistribution
+  is fair when the rules are unambiguous, ordering-independent, consistent
+  with the claim-priority model, and transparently evidenced.
+  Redistribution within a single priority level (cap-excess redistribution
+  among same-level claimants) is covered by the pro-rata-fairness concept."
+
+ :concept/stakeholder-question
+ "If I am not paid in full now, or if another claimant cannot absorb their
+  full allocation, can I trust that surplus, cap-excess, or deferred value
+  is redistributed according to known rules that treat me fairly relative
+  to other claimants at every level and across time?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:allocation/pro-rata-fairness
+  :allocation/partial-fill
+  :allocation/shortfall
+  :allocation/deferred-claim
+  :allocation/slash-obligation
+  :consensus/finality
+  :consensus/legitimacy]
+
+ :concept/roles
+ {:surplus-distributor
+   {:description "Protocol logic that determines where surplus value flows after a priority level's claims are satisfied."
+   :maps-to [:protocol.actor/resolution-module]}
+  :level-sequencer
+  {:description "Entity or rule that orders priority-level processing and cascades surplus between levels."
+   :maps-to [:protocol.actor/resolution-module]}
+  :epoch-bridge
+  {:description "Protocol logic that links deferred claims from a prior epoch to surplus in the current epoch."
+   :maps-to [:protocol.actor/resolution-module]}
+  :deferred-claimant
+  {:description "Party with an unpaid remainder from a prior epoch that may be recovered from current surplus."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :pool-governor
+  {:description "Entity that defines pool boundaries and authorises cross-pool transfers."
+   :maps-to [:protocol.actor/governance]}
+  :verifier
+  {:description "Party checking that redistribution was performed according to declared rules."
+   :maps-to [:protocol.actor/verifier]}}
+
+ :concept/entities
+ {:redistribution-policy
+  {:description "Declared rule defining how surplus, cap-excess, or deferred value is redistributed across levels, epochs, or pools."
+   :maps-to [:protocol.entity/policy]}
+  :level-cascade-record
+  {:description "Evidence of surplus cascading from one priority level to the next, with amounts and ordering."
+   :maps-to [:protocol.entity/evidence]}
+  :epoch-transition-record
+  {:description "Evidence linking deferred claims from a prior epoch to surplus allocated in the current epoch."
+   :maps-to [:protocol.entity/evidence]}
+  :pool-transfer-record
+  {:description "Evidence of value moving from one protocol pool to another, with authorisation and justification."
+   :maps-to [:protocol.entity/evidence]}
+  :redistribution-evidence-pack
+  {:description "Aggregated evidence of all redistribution decisions in a run, enabling post-hoc verification."
+   :maps-to [:protocol.entity/evidence]}}
+
+ :concept/actions
+ {:cascade-level-surplus
+  {:description "Move surplus value from a satisfied priority level to the next lower level."
+   :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+  :bridge-epoch
+  {:description "Apply current-epoch surplus to outstanding deferred claims from a prior epoch."
+   :maps-to [:protocol.action/settle :protocol.action/partial-fill]}
+  :transfer-cross-pool
+  {:description "Move value from one protocol pool to another according to declared pool-boundary rules."
+   :maps-to [:protocol.action/governance-transfer]}
+  :verify-redistribution-fairness
+  {:description "Check that redistribution followed declared policy, preserved ordering-independence, and produced auditable evidence."
+   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+  :detect-redistribution-injustice
+  {:description "Identify when redistribution deviates from declared rules or produces ordering-dependent outcomes."
+   :maps-to [:protocol.action/verify-allocation]}
+  :capture-redistribution-evidence
+  {:description "Record the inputs, rules, and outputs of each redistribution decision as verifiable evidence."
+   :maps-to [:protocol.action/capture-evidence]}}
+
+ :concept/outcomes
+ {:redistribution-fair
+  {:description "All redistribution followed declared rules, was ordering-independent, and is fully evidenced."
+   :maps-to [:protocol.outcome/released]}
+  :redistribution-unfair
+  {:description "Redistribution deviated from declared rules or produced ordering-dependent outcomes."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :redistribution-unevidenced
+  {:description "Redistribution occurred but no evidence artifact captured the decision, preventing audit."
+   :maps-to [:protocol.outcome/stuck]}
+  :redistribution-rule-violated
+  {:description "A cross-pool transfer violated a declared pool boundary or lacked required authorisation."
+   :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :surplus-hidden-at-level
+   :failure/name "Surplus hidden at priority level"
+   :failure/summary
+    "Value remains unallocated at a higher priority level after all claims at that level are satisfied, but is not cascaded to lower priority levels."
+   :protocol-mechanisms [:level-cascade :surplus-distribution]
+   :stakeholder-impact "Lower-priority claimants receive less recovery despite available surplus, violating the priority waterfall model."}
+
+  {:failure/id :deferred-claim-subordination
+   :failure/name "Deferred claim subordination without declared policy"
+   :failure/summary
+   "Deferred claims from a prior epoch are silently subordinated to fresh claims in the current epoch without a declared ordering policy."
+   :protocol-mechanisms [:epoch-bridge :deferred-claims]
+   :stakeholder-impact "Deferred claimants face unpredictable recovery that depends on epoch timing rather than declared priority."}
+
+  {:failure/id :cross-pool-boundary-violation
+   :failure/name "Cross-pool boundary violation"
+   :failure/summary
+   "Value moves between protocol pools without following declared pool-boundary rules or required governance authorisation."
+   :protocol-mechanisms [:pool-governance :cross-pool-transfer]
+   :stakeholder-impact "Pool segregation is undermined, exposing one pool's claimants to risks or shortfalls from another pool."}
+
+  {:failure/id :redistribution-ordering-dependent
+   :failure/name "Redistribution ordering-dependent"
+   :failure/summary
+    "The outcome of a redistribution decision changes when the order of processing (priority-level order, epoch order, pool order) is permuted."
+   :protocol-mechanisms [:level-sequencing :epoch-bridge :allocation-engine]
+   :stakeholder-impact "Claimants receive different recovery depending on processing order rather than their claim's priority or merit."}
+
+  {:failure/id :redistribution-unevidenced
+   :failure/name "Redistribution unevidenced"
+   :failure/summary
+   "A redistribution decision is executed but no evidence artifact captures the inputs, rules applied, or output allocation."
+   :protocol-mechanisms [:evidence-capture :redistribution]}] ; no stakeholder-impact — unevidenced decisions are opaque by nature
+
+ :concept/metrics
+ {:cascade-depth
+  {:description "Number of priority levels that receive cascaded surplus from higher levels."
+   :source :derived-from-redistribution-metadata}
+  :epoch-recovery-ratio
+  {:description "Fraction of deferred claims from prior epochs that are satisfied by current-epoch surplus."
+   :source :derived-from-trace}
+  :cross-pool-flow-volume
+  {:description "Total value transferred between protocol pools in a run."
+   :source :derived-from-trace}
+  :redistribution-evidence-coverage
+  {:description "Fraction of redistribution decisions that have corresponding evidence artifacts."
+   :source :derived-from-invariant-results}
+  :redistribution-ordering-sensitivity
+  {:description "Whether redistribution outcomes change under different processing orders."
+   :source :derived-from-invariant-results}}
+
+ :concept/assumptions
+ ["Redistribution rules are declared and knowable before allocation begins."
+  "Inter-temporal rules for bridging deferred claims across epochs are unambiguous."
+  "Pool boundaries and cross-pool transfer rules are defined at the governance level."
+  "Level cascade is ordering-independent: the same surplus cascades the same way regardless of priority-level processing sequence."
+  "An epoch is a bounded time window or state-machine cycle within which claims accrue and settlement occurs; deferred claims bridge from one epoch to the next."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world wealth redistribution, taxation, or sovereign wealth funds."
+  "Legal receivership, bankruptcy administration, or court-ordered distribution."
+  "Off-chain rebalancing or side agreements between claimants."
+  "Subjective fairness beyond the protocol's declared redistribution policy."]}

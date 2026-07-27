@@ -162,6 +162,7 @@
     (is (<= 2 (:existing result)) (str "Expected >=2 files, missing: " (:missing result)))))
 
 (defn- make-full-fixture-dir [target-root]
+  (.mkdirs (io/file target-root "event-evidence"))
   (doseq [f ["benchmark/assertions/canonical-integrity.json" "manifest/run-package-index.json" "completion.json"
              "benchmark/execution-plan.edn" "benchmark/definition.edn" "manifest/execution-witness.json"]]
     (let [p (io/file target-root f)]

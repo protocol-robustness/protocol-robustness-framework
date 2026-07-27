@@ -1,0 +1,11 @@
+{:suite/id       :suites/baseline-safety
+ :suite/title    "Baseline safety smoke-test"
+ :suite/purpose  "Quick sanity check that happy-path escrow flows pass all invariants under stable governance and strict solvency thresholds."
+ :suite/prevents "Silent regressions in the core create→dispute→resolve lifecycle before running the full suite."
+ :suite/class    :safety
+ :suite/criticality :critical
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :authority  :authority/stable-governance
+ :thresholds :thresholds/strict-baseline}

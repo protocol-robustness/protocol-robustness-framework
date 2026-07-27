@@ -1,0 +1,160 @@
+{:concept/id :forensic/evidence-chain
+ :concept/name "Forensic evidence chain"
+ :concept/type :assurance
+ :concept/layer :stakeholder
+
+ :concept/summary
+ "The evidence chain binds each run's evidence records into a self-hashed,
+  self-verifiable artifact registry. A forensic-grade chain meets five
+  acceptance criteria: registry hash verifies against artifacts, hash is
+  signed by a known key, chain cursor verifies, RFC 3161 timestamp is
+  valid, and on-disk evidence is fully reconciled."
+
+ :concept/stakeholder-question
+ "How do I know that the evidence from a protocol run is complete,
+  unmodified, cryptographically signed, timestamped, and consistent
+  from the first artifact to the final chain cursor?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:verifiable-assurance/forensic-confidence
+  :attestation/verification
+  :consensus/evidence
+  :consensus/finality]
+
+ :concept/roles
+ {:evidence-producer
+  {:description "Protocol runner that generates evidence artifacts and builds the chain."
+   :maps-to [:protocol.actor/resolution-module]}
+  :evidence-verifier
+  {:description "Party that checks the five forensic-grade criteria against a completed chain."
+   :maps-to [:protocol.role/verifier]}
+  :signer
+  {:description "Entity holding the Ed25519 key that signs the registry hash."
+   :maps-to [:protocol.actor/verifier]}
+  :timestamp-authority
+  {:description "External RFC 3161 Time-Stamp Authority that binds evidence to wall-clock time."
+   :maps-to [:protocol.actor/external]}}
+
+ :concept/entities
+ {:evidence-registry
+  {:description "Self-hashed map of all evidence artifacts produced during a run."
+   :maps-to [:protocol.entity/evidence]}
+  :registry-hash
+  {:description "Canonical SHA-256 hash of the registry content, used as a content address."
+   :maps-to [:protocol.entity/canonical-hash]}
+  :chain-cursor
+  {:description "Final cursor that records the chain tip and bridges to the next run."
+   :maps-to [:protocol.entity/evidence-chain]}
+  :signature-map
+  {:description "Ed25519 signature over the registry hash, proving authenticity."
+   :maps-to [:protocol.entity/signature]}
+  :timestamp-proof
+  {:description "RFC 3161 Time-Stamp Response binding registry hash to a wall-clock time."
+   :maps-to [:protocol.entity/timestamp-proof]}
+  :self-referential-hash
+  {:description "Hash that includes its own artifact entry, preventing undetected insertion or removal."
+   :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:build-registry
+  {:description "Collect all evidence artifacts into a self-hashed registry map."
+   :maps-to [:protocol.action/build-registry]}
+  :sign-registry
+  {:description "Sign the registry hash with the runner's Ed25519 key."
+   :maps-to [:protocol.action/sign-attestation]}
+  :timestamp-registry
+  {:description "Request an RFC 3161 timestamp from a TSA, binding the hash to current time."
+   :maps-to [:protocol.action/timestamp-registry]}
+  :write-chain-cursor
+  {:description "Produce and sign a chain cursor that records the chain tip for continuity."
+   :maps-to [:protocol.action/write-chain-cursor]}
+  :reconcile-evidence
+  {:description "Verify that disk files, registry entries, and cursor sequence are consistent."
+   :maps-to [:protocol.action/reconcile-evidence]}
+  :check-forensic-status
+  {:description "Evaluate all five forensic-grade acceptance criteria and report pass/fail."
+   :maps-to [:protocol.action/check-invariant]}}
+
+ :concept/outcomes
+ {:forensic-grade
+  {:description "All five forensic-grade criteria pass — chain is forensically sound."
+   :maps-to [:protocol.outcome/released]}
+  :registry-hash-mismatch
+  {:description "Registry hash does not match recomputation from artifacts."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :signature-missing-or-invalid
+  {:description "Registry hash is not signed or the signature does not verify."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :cursor-mismatch
+  {:description "Chain cursor hash or signature does not match the chain state."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :timestamp-invalid
+  {:description "TSA response token does not validate against the registry hash."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :evidence-unreconciled
+  {:description "Files on disk, registry entries, and cursor sequence are inconsistent."
+   :maps-to [:protocol.outcome/stuck]}}
+
+ :concept/failure-modes
+ [{:failure/id :registry-hash-tampered
+   :failure/name "Registry hash tampered or missing"
+   :failure/summary
+   "The recorded registry hash does not recompute from the artifact entries."
+   :protocol-mechanisms [:registry-hashing :canonical-serialization]
+   :stakeholder-impact "Evidence cannot be verified as authentic — tampering or corruption suspected."}
+
+  {:failure/id :signature-broken
+   :failure/name "Registry signature missing or invalid"
+   :failure/summary
+   "The registry hash is not signed, or the signature does not verify against a known key."
+   :protocol-mechanisms [:ed25519-signing :key-verification]
+   :stakeholder-impact "The evidence cannot be cryptographically linked to a specific runner."}
+
+  {:failure/id :cursor-chain-broken
+   :failure/name "Chain cursor broken or missing"
+   :failure/summary
+   "The chain cursor hash or signature does not match the chain state, or the cursor is missing."
+   :protocol-mechanisms [:cursor-generation :cursor-signing :cursor-verification]
+   :stakeholder-impact "Continuity between runs is broken — the evidence chain has a gap."}
+
+  {:failure/id :timestamp-unverifiable
+   :failure/name "Timestamp unverifiable or missing"
+   :failure/summary
+   "The TSA response token does not validate, has expired, or was not produced."
+   :protocol-mechanisms [:rfc-3161-timestamping :tsa-verification]
+   :stakeholder-impact "Cannot prove that evidence existed before a point in time."}
+
+  {:failure/id :evidence-unreconciled
+   :failure/name "Evidence records unreconciled"
+   :failure/summary
+   "Evidence files on disk, the registry artifact list, and the chain cursor disagree."
+   :protocol-mechanisms [:evidence-registry :chain-cursor :reconciliation]
+   :stakeholder-impact "The evidence chain is internally inconsistent — some artifacts may be lost or extra."}]
+
+ :concept/metrics
+ {:chain-length
+  {:description "Number of evidence artifacts in the chain."
+   :source :derived-from-trace}
+  :registry-hash
+  {:description "Canonical hash of the evidence registry."
+   :source :derived-from-world-state}
+  :forensic-criteria-passed
+  {:description "Number of the five forensic-grade criteria that passed."
+   :source :derived-from-invariant-results}
+  :tsa-timestamp
+  {:description "Wall-clock time from the RFC 3161 timestamp, if present."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Evidence artifacts are produced deterministically from protocol state."
+  "The registry hash includes each artifact's content hash in a canonical ordering."
+  "The TSA is trusted and its root certificate is available for verification."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Blockchain-level anchoring (L1 transaction inclusion)."
+  "Merkle tree inclusion proofs or sparse Merkle trees."
+  "IPFS/IPLD content-addressed publication."
+  "Multi-party witness cosignature protocols."]}

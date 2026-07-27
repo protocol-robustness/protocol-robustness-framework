@@ -86,8 +86,13 @@
         (let [index (edn/read-string (slurp index-file))
               executions (:executions index [])
               execution (first executions)
-              exec-dir (:dir execution)]
-          (when exec-dir (str (io/file exec-dir "event-evidence"))))
+              artifacts (get-in execution [:scenario/artifacts])
+              ev-dir (when artifacts
+                       (let [ev-root (:scenario/evidence-root execution)
+                             artifact-dir (:scenario/artifact-dir artifacts)]
+                         (when (and ev-root artifact-dir)
+                           (str (io/file artifact-dir "event-evidence")))))]
+          (when ev-dir ev-dir))
         (catch Exception _ nil)))))
 
 (defn- resolve-scenario-registry
@@ -98,7 +103,8 @@
         (let [index (edn/read-string (slurp index-file))
               executions (:executions index [])
               execution (first executions)
-              reg-path (get-in execution [:artifacts :evidence-registry :path])]
+              artifacts (get-in execution [:scenario/artifacts])
+              reg-path (:scenario/evidence-registry artifacts)]
           (when reg-path
             (json/read-str (slurp reg-path) :key-fn keyword)))
         (catch Exception _ nil)))))
@@ -111,7 +117,8 @@
         (let [index (edn/read-string (slurp index-file))
               executions (:executions index [])
               execution (first executions)
-              cursor-path (get-in execution [:artifacts :chain-cursor :path])]
+              artifacts (get-in execution [:scenario/artifacts])
+              cursor-path (:scenario/chain-cursor artifacts)]
           (when cursor-path
             (json/read-str (slurp cursor-path) :key-fn keyword)))
         (catch Exception _ nil)))))
@@ -149,15 +156,16 @@
   (try
     (let [ts-root (configured-root run-root)]
       (when ts-root
-        (let [src-file (io/file "data/sequences/force-authorised-custody-adjustment.edn")]
-          (when (.isFile src-file)
-            (let [src (edn/read-string (slurp src-file))
-                  defn (tsd/build-definition
-                        {:id (:trust-sequence-definition/id src)
-                         :provider (:trust-sequence-definition/provider src)
-                         :steps (:trust-sequence-definition/steps src)})]
-              (when (= (:trust-sequence-definition/root defn) ts-root)
-                defn))))))
+        (let [src (some-> (io/resource "data/sequences/force-authorised-custody-adjustment.edn")
+                          slurp
+                          edn/read-string)
+              defn (when src
+                     (tsd/build-definition
+                      {:id (:trust-sequence-definition/id src)
+                       :provider (:trust-sequence-definition/provider src)
+                       :steps (:trust-sequence-definition/steps src)}))]
+          (when (and defn (= (:trust-sequence-definition/root defn) ts-root))
+            defn))))
     (catch Exception _ nil)))
 
 ;; ── Witness builder ────────────────────────────────────────────────────────

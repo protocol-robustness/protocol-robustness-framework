@@ -1,0 +1,32 @@
+{:scenario-id "phase-ai-dual-layer-baseline"
+ :description "Phase AI (H2): Test dual-layer defense (1-epoch delay + 1.5x bond scaling)"
+
+ :rng-seed    99
+ :n-trials    100
+ :n-seeds     1
+ :parallelism :auto
+
+ :n-resolvers          60
+ :strategy-mix         {:honest 1.00 :lazy 0.00 :malicious 0.00 :collusive 0.00}
+
+ :use-ring-model?      true
+ :ring-size            5
+ :ring-max-size        15
+ :ring-detection-prob  0.05       ; Modest 5% base detection
+
+ :escalation-rate      1.00
+ :appeal-bond-bps      1000
+ :honest-capital       50000
+ :escalation-cost-per-dispute 1000
+
+ :escalation-delay-epochs 1       ; Layer A: Minimal cooldown
+ :bond-multiplier      1.5        ; Layer B: Modest scaling
+
+ :n-epochs             200
+ :n-trials-per-epoch   100
+ :escrow-size          10000
+ :resolver-fee-bps     150
+
+ :displacement-threshold 0.50
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+ :seed 99}

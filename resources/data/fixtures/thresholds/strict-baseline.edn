@@ -1,0 +1,4 @@
+{:threshold/id :thresholds/strict-baseline
+ :solvency :strict
+ :max-resolver-profit-ev 0.05
+ :min-detection-rate 0.10}

@@ -1,0 +1,34 @@
+{:description "Phase G: Slashing delays - detect fraud in weeks 2-4 (critical for realistic modeling)"
+ :scenario-id "phase-g-slashing-delays"
+ :rng-seed 44
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ ;; Mixed strategy (same as baseline)
+ :strategy-mix
+ {:honest 0.75
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.02}
+
+ ;; Economic parameters (same as baseline)
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ ;; CRITICAL: 2-week delay before slashing takes effect
+ ;; During this window, malicious resolvers can hide profits
+ :slashing-detection-delay-weeks 2
+
+ :n-trials 1000
+ :n-seeds 1
+ :parallelism :auto
+ :save-samples? true
+ :save-sweep? false}

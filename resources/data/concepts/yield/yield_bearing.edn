@@ -1,0 +1,143 @@
+{:concept/id :yield/yield-bearing
+ :concept/name "Yield-bearing position"
+ :concept/type :yield
+ :concept/layer :stakeholder
+
+ :concept/summary
+ "A yield-bearing position holds principal that generates yield over time
+  according to a yield module (e.g. AAVE-like lending, fixed-rate). The
+  protocol tracks each position's principal, realized yield, and shortfall
+  status, and checks that held balances are sufficient to cover all active
+  positions."
+
+ :concept/stakeholder-question
+ "Can my yield-bearing position be trusted to preserve its value, and what
+  happens if the protocol cannot cover all positions' principal plus
+  accrued yield?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+  :concept/related
+  [:allocation/shortfall
+   :allocation/partial-fill
+   :allocation/pro-rata-fairness
+   :allocation/redistribution-fairness
+   :consensus/finality
+   :decision-quality/solvency-status
+   :verifiable-assurance/forensic-confidence]
+
+ :concept/roles
+ {:yield-provider
+  {:description "Entity that manages the yield position and receives yield proceeds."
+   :maps-to [:protocol.actor/recipient]}
+  :yield-module
+  {:description "Protocol module that computes yield accrual and determines shortfall models."
+   :maps-to [:protocol.actor/yield-module]}
+  :position-holder
+  {:description "Party whose escrow or resolver stake is invested in a yield position."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :shortfall-detector
+  {:description "Protocol logic that detects when held balance is insufficient for active positions."
+   :maps-to [:protocol.actor/resolution-module]}}
+
+ :concept/entities
+ {:yield-position
+  {:description "A position with principal, realized yield, and status (active, withdrawn, etc.)."
+   :maps-to [:protocol.entity/yield-position]}
+  :principal
+  {:description "The base amount deposited into the yield position."
+   :maps-to [:protocol.entity/principal]}
+  :realized-yield
+  {:description "Yield that has been earned and recorded."
+   :maps-to [:protocol.entity/realized-yield]}
+  :unrealized-yield
+  {:description "Yield that may be earned in the future based on the module's rate."
+   :maps-to [:protocol.entity/unrealized-yield]}
+  :shortfall-model
+  {:description "Parameters defining how shortfall is detected and resolved for a position."
+   :maps-to [:protocol.entity/shortfall-model]}
+  :yield-rate
+  {:description "Annualized yield rate for a given token."
+   :maps-to [:protocol.entity/yield-rate]}}
+
+ :concept/actions
+ {:accrue-yield
+  {:description "Compute and record realized yield based on the module's rate and time elapsed."
+   :maps-to [:protocol.action/accrue-yield]}
+  :check-exposure
+  {:description "Verify that held balances cover the custody need (principal + realized yield) for all positions."
+   :maps-to [:protocol.action/check-invariant]}
+  :detect-shortfall
+  {:description "Identify when a yield position's held balance falls below its custody need."
+   :maps-to [:protocol.action/calculate-shortfall]}
+  :resolve-shortfall
+  {:description "Apply partial fill or deferred recovery when shortfall is detected."
+   :maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+
+ :concept/outcomes
+ {:yield-preserved
+  {:description "Yield position value is fully covered by held balances."
+   :maps-to [:protocol.outcome/released]}
+  :yield-shortfall
+  {:description "Held balances are insufficient — some or all yield/principal may be at risk."
+   :maps-to [:protocol.outcome/deferred]}
+  :yield-leakage
+  {:description "Value leaks from the yield position beyond the declared shortfall bounds."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :principal-loss
+  {:description "Yield position loses principal due to negative yield or module failure."
+   :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :uncovered-exposure
+   :failure/name "Uncovered yield exposure"
+   :failure/summary
+   "Held balances are less than the total custody need across active yield positions."
+   :protocol-mechanisms [:yield-exposure-check :shortfall-detection]
+   :stakeholder-impact "Yield positions may not be fully recoverable on demand."}
+
+  {:failure/id :value-leakage
+   :failure/name "Yield value leakage"
+   :failure/summary
+   "Value exits the yield position beyond the bounds of the declared shortfall."
+   :protocol-mechanisms [:shortfall-fidelity :conservation-check]
+   :stakeholder-impact "Position holders lose more value than the shortfall explains."}
+
+  {:failure/id :shortfall-fairness
+   :failure/name "Shortfall allocation unfairness"
+   :failure/summary
+   "When shortfall occurs, the available value is not distributed fairly among claimants."
+   :protocol-mechanisms [:pro-rata-allocation :partial-fill]
+   :stakeholder-impact "Some claimants receive proportionally less than others at the same priority."}
+
+  {:failure/id :yield-miscalculation
+   :failure/name "Yield miscalculation"
+   :failure/summary
+   "Accrued yield does not match the module's expected rate over the elapsed time."
+   :protocol-mechanisms [:yield-accrual :rate-application]
+   :stakeholder-impact "Position holders receive incorrect yield amounts."}]
+
+ :concept/metrics
+ {:yield-rate
+  {:description "Annualized yield rate for the position's token."
+   :source :derived-from-world-state}
+  :total-custody-need
+  {:description "Sum of principal plus realized yield across all active positions."
+   :source :derived-from-trace}
+  :exposure-ratio
+  {:description "Ratio of held balance to total custody need."
+   :source :derived-from-invariant-results}
+  :shortfall-episode-count
+  {:description "Number of times yield shortfall was detected."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Yield accrual is deterministic and reproducible from world state."
+  "Yield modules have known, bounded risk profiles."
+  "Held balances are observable from protocol state before allocation."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world APY, APR, or investment returns."
+  "Market risk, impermanent loss, or oracle price deviations."
+  "Tax treatment of yield as income or capital gain."]}

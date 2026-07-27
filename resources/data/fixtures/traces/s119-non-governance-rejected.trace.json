@@ -1,0 +1,153 @@
+{
+  "scenario-id": "s119-non-governance-rejected",
+  "schema-version": "1.0",
+  "protocol-params": {
+    "resolver-fee-bps": 150
+  },
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "strategy": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "strategy": "honest"
+    },
+    {
+      "id": "gov",
+      "address": "0xgov",
+      "type": "governance"
+    },
+    {
+      "id": "non-gov",
+      "address": "0xnongov"
+    }
+  ],
+  "events": [
+    {
+      "seq": 0,
+      "action": "create_escrow",
+      "time": 1000,
+      "agent": "buyer",
+      "result": "ok",
+      "error": null,
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 10000
+      },
+      "projection": {
+        "total-fees": {
+          "USDC": 150
+        },
+        "dispute-levels": {},
+        "pending-settlements": {},
+        "block-time": 1000,
+        "escrow-transfers": {
+          "0": {
+            "escrow-state": "pending",
+            "recipient-status": "none",
+            "sender-status": "none",
+            "auto-cancel-time": 0,
+            "amount-after-fee": 9850,
+            "auto-release-time": 0,
+            "token": "USDC",
+            "initial-fee": 150,
+            "from": "0xbuyer",
+            "dispute-resolver": null,
+            "last-accrual-time": 1000,
+            "accumulated-yield": 0,
+            "to": "0xseller"
+          }
+        },
+        "total-held": {
+          "USDC": 9850
+        }
+      }
+    },
+    {
+      "seq": 1,
+      "action": "withdraw-fees",
+      "time": 2000,
+      "agent": "non-gov",
+      "result": "rejected",
+      "error": "not-governance",
+      "params": {
+        "token": "USDC"
+      },
+      "projection": {
+        "total-fees": {
+          "USDC": 150
+        },
+        "dispute-levels": {},
+        "pending-settlements": {},
+        "block-time": 2000,
+        "escrow-transfers": {
+          "0": {
+            "escrow-state": "pending",
+            "recipient-status": "none",
+            "sender-status": "none",
+            "auto-cancel-time": 0,
+            "amount-after-fee": 9850,
+            "auto-release-time": 0,
+            "token": "USDC",
+            "initial-fee": 150,
+            "from": "0xbuyer",
+            "dispute-resolver": null,
+            "last-accrual-time": 1000,
+            "accumulated-yield": 0,
+            "to": "0xseller"
+          }
+        },
+        "total-held": {
+          "USDC": 9850
+        }
+      }
+    },
+    {
+      "seq": 2,
+      "action": "withdraw-fees",
+      "time": 3000,
+      "agent": "gov",
+      "result": "ok",
+      "error": null,
+      "params": {
+        "token": "USDC"
+      },
+      "projection": {
+        "total-fees": {
+          "USDC": 0
+        },
+        "dispute-levels": {},
+        "pending-settlements": {},
+        "block-time": 3000,
+        "escrow-transfers": {
+          "0": {
+            "escrow-state": "pending",
+            "recipient-status": "none",
+            "sender-status": "none",
+            "auto-cancel-time": 0,
+            "amount-after-fee": 9850,
+            "auto-release-time": 0,
+            "token": "USDC",
+            "initial-fee": 150,
+            "from": "0xbuyer",
+            "dispute-resolver": null,
+            "last-accrual-time": 1000,
+            "accumulated-yield": 0,
+            "to": "0xseller"
+          }
+        },
+        "total-held": {
+          "USDC": 9850
+        }
+      }
+    }
+  ],
+  "initial-block-time": 1000,
+  "trace-id": "s119-non-governance-rejected",
+  "suite-id": "traces",
+  "expectations": {}
+}

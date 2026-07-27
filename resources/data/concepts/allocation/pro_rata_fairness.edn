@@ -1,0 +1,167 @@
+{:concept/id :allocation/pro-rata-fairness
+ :concept/name "Pro-rata fairness in allocation"
+ :concept/type :allocation
+ :concept/layer :stakeholder
+
+  :concept/summary
+  "When available value is less than total valid claims, equal-priority
+   claimants receive the same fraction of their claim (unless constrained by
+   per-claimant caps). The allocation is independent of claim order, timing,
+   or privileged access. Caps may prevent a claimant from receiving their
+   full proportional share; capped excess is redistributed to remaining
+   uncapped claimants."
+
+  :concept/stakeholder-question
+  "Do all claimants at the same priority level receive the same proportional
+   recovery, regardless of when they submitted their claim? If per-claimant
+   caps are applied, is the capped excess redistributed fairly?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+  :concept/related
+  [:allocation/partial-fill
+   :allocation/shortfall
+   :allocation/redistribution-fairness
+   :consensus/finality
+   :verifiable-assurance/forensic-confidence]
+
+ :concept/roles
+ {:claimant
+  {:description "Party with a valid claim at a given priority level."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :allocation-engine
+  {:description "Protocol logic that computes pro-rata shares."
+   :maps-to [:protocol.actor/resolution-module]}
+  :priority-classifier
+  {:description "Entity or rule that assigns claims to priority levels."
+   :maps-to [:protocol.actor/resolution-module]}
+  :verifier
+  {:description "Party checking that allocation was proportional."
+   :maps-to [:protocol.actor/verifier]}}
+
+  :concept/entities
+  {:claim-group
+   {:description "Set of claims at the same priority level."
+    :maps-to [:protocol.entity/claim-pool]}
+   :pro-rata-share
+   {:description "Fraction of available value allocated to a single claimant."
+    :maps-to [:protocol.entity/allocation]}
+   :cap
+   {:description "Maximum amount allocatable to a single claimant, limiting their proportional share."
+    :maps-to [:protocol.entity/cap]}
+   :allocation-table
+   {:description "Complete mapping from claimants to allocated amounts."
+    :maps-to [:protocol.entity/settlement]}
+   :redistribution
+   {:description "Metadata recording which claimants hit their caps and how capped excess was redistributed."
+    :maps-to [:protocol.entity/evidence]}
+   :proportionality-proof
+   {:description "Evidence that allocation was proportional and ordering-independent."
+    :maps-to [:protocol.entity/evidence]}}
+
+  :concept/actions
+  {:compute-pro-rata
+   {:description "Divide available value proportionally among equal-priority claimants."
+    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+   :enforce-caps
+   {:description "Apply per-claimant caps, limiting individual allocation below proportional share."
+    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+   :redistribute-capped-excess
+   {:description "When a claimant hits their cap, redistribute excess to remaining uncapped claimants."
+    :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+   :verify-proportionality
+   {:description "Check that fill ratios are equal across same-priority claimants (or reflect intended cap constraints)."
+    :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+   :detect-imbalance
+   {:description "Identify when claimants at the same priority receive different fill ratios not explained by caps."
+    :maps-to [:protocol.action/verify-allocation]}
+   :verify-cap-adherence
+   {:description "Check that no claimant receives more than their declared cap."
+    :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+   :reject-unequal-allocation
+   {:description "Prevent settlement when pro-rata fairness is violated."
+    :maps-to [:protocol.action/reject-allocation]}}
+
+ :concept/outcomes
+ {:allocation-proportional
+  {:description "All equal-priority claimants receive the same fill ratio."
+   :maps-to [:protocol.outcome/released]}
+  :allocation-unequal
+  {:description "Equal-priority claimants receive different fill ratios."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :allocation-order-dependent
+  {:description "Allocation changes when claim order is permuted."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :allocation-rejected
+  {:description "Unequal allocation was detected and settlement blocked."
+   :maps-to [:protocol.outcome/rejected]}}
+
+ :concept/failure-modes
+ [{:failure/id :unequal-pro-rata
+   :failure/name "Unequal pro-rata treatment"
+   :failure/summary
+   "Claimants at the same priority level receive different proportional recovery."
+   :protocol-mechanisms [:pro-rata-allocation :settlement]
+   :stakeholder-impact "Some claimants are unfairly favoured despite equivalent rights."}
+
+  {:failure/id :ordering-dependent
+   :failure/name "Ordering-dependent allocation"
+   :failure/summary
+   "Allocation changes based on the order in which claims are processed."
+   :protocol-mechanisms [:claim-ordering :settlement]
+   :stakeholder-impact "Early claimants may receive more than late claimants at the same priority."}
+
+   {:failure/id :priority-violation
+    :failure/name "Priority-level violation"
+    :failure/summary
+    "Lower-priority claimants receive recovery before higher-priority claims are satisfied."
+    :protocol-mechanisms [:priority-waterfall :settlement]
+    :stakeholder-impact "Claim priority model is violated, harming senior claimants."}
+
+   {:failure/id :cap-distorts-proportionality
+    :failure/name "Cap distorts proportional allocation"
+    :failure/summary
+    "A claimant's cap constrains their allocation below the proportional share, causing other claimants to receive a higher effective fill ratio without caps being declared."
+    :protocol-mechanisms [:pro-rata-allocation :cap-enforcement]
+    :stakeholder-impact "Fill ratios diverge across same-priority claimants; the divergence should be explained by declared caps."}
+
+    {:failure/id :capped-excess-not-redistributed
+     :failure/name "Capped excess not redistributed"
+     :failure/summary
+     "When a claimant hits their cap, the excess beyond the cap is not redistributed to remaining uncapped claimants; it is left unallocated or returned to the pool."
+     :protocol-mechanisms [:pro-rata-allocation :redistribution]
+     :stakeholder-impact "Uncapped claimants receive less than their proportional share, and total recovery is reduced."}
+
+   {:failure/id :all-capped-excess-not-redistributed
+    :failure/name "All claimants capped, excess not redistributed"
+    :failure/summary
+    "When every claimant at a priority level hits their cap, the remaining value is left unallocated rather than redistributed to any other level or recorded as surplus."
+    :protocol-mechanisms [:pro-rata-allocation :cap-enforcement :redistribution]
+    :stakeholder-impact "Available value is left on the table, reducing total recovery, and no evidence records whether this was a deliberate policy choice or an unintended gap."}]
+
+ :concept/metrics
+ {:fill-ratio-variance
+  {:description "Variance in fill ratios across equal-priority claimants."
+   :source :derived-from-invariant-results}
+  :ordering-sensitivity
+  {:description "Whether allocation changes when claim order is permuted."
+   :source :derived-from-invariant-results}
+  :priority-adherence
+  {:description "Whether higher-priority claims are fully satisfied before lower-priority claims."
+   :source :derived-from-invariant-results}
+  :claim-count
+  {:description "Number of valid claims at each priority level."
+   :source :derived-from-trace}}
+
+  :concept/assumptions
+  ["Claims can be grouped into priority classes."
+   "Available value is known before allocation."
+   "Fill ratio should be identical for all same-priority claimants absent caps."
+   "Per-claimant caps are known before allocation and explain fill-ratio divergence."
+   "Capped excess is redistributed proportionally to remaining uncapped claimants."
+   "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world bankruptcy law or legal creditor priority."
+  "Subjective fairness beyond the protocol's declared allocation rule."
+  "Off-chain negotiation or side agreements between claimants."]}

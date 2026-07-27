@@ -1,0 +1,209 @@
+;; Falsifiable claim registry for Sew Protocol
+;;
+;; Each claim is independently falsifiable: it specifies the exact
+;; conditions under which it would be disproved, the scenarios that
+;; validate it, and the current validation status.
+;;
+;; schema: claim.v1
+;; last-updated: 2026-06-03
+
+[{:claim/id         :resolver-collusion-unprofitable
+  :description      "Coordinated resolver collusion — where resolvers manipulate outcomes
+                     in exchange for side payments — produces negative expected value for
+                     all colluding parties under canonical bond/slash parameters."
+  :assumptions      ["bond-bps >= 500"
+                     "slash-rate >= 0.10"
+                     "collusion-size <= 3 resolvers"
+                     "detection-probability >= 0.30"]
+  :validated-by     ["scenarios/edn/S26_forking-strategist-l1-reversal.edn"
+                     "scenarios/edn/S42_resolver-buyer-bribery-loop.edn"]
+  :falsified-if     "Any simulation produces a positive EV for a collusion coalition
+                     under the above parameter bounds"
+  :confidence       :bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :dispute-liveness-bounded
+  :description      "The dispute resolution pipeline completes within the
+                     protocol-defined deadline window for all non-adversarial
+                     and bounded-adversarial inputs."
+  :assumptions      ["resolver-count >= 1"
+                     "no network partition"
+                     "adversarial-load <= governance capacity floor"]
+  :validated-by     ["scenarios/edn/S01_baseline-happy-path.edn"
+                     "scenarios/edn/S08_state-machine-attack-gauntlet.edn"]
+  :falsified-if     "Any scenario produces a liveness violation (deadline exceeded
+                     without resolution) under non-partitioned conditions"
+  :confidence       :high
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :bond-slash-deters-frivolous-appeals
+  :description      "The appeal bond mechanism, combined with slash-on-loss, makes
+                     frivolous escalation economically irrational for a rational agent
+                     with no informational advantage."
+  :assumptions      ["bond-bps >= 300"
+                     "slash-rate >= 0.10"
+                     "resolver-accuracy >= 0.75"
+                     "agent is risk-neutral"]
+  :validated-by     ["scenarios/edn/S23_preemptive-escalation-blocked.edn"
+                     "scenarios/edn/S28_forking-strategist-late-escalation-rejected.edn"]
+  :falsified-if     "A rational agent achieves positive EV from frivolous escalation
+                     under any parameter set within the declared bounds"
+  :confidence       :bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :forward-only-upgrade-safe
+  :description      "Governance parameter changes do not retroactively alter the
+                     economics or outcomes of active or settled escrows.
+                     Only escrows created after the upgrade are affected."
+  :assumptions      ["upgrade applied at block boundary"
+                     "no retroactive state mutation"
+                     "active escrow state is immutable post-creation"]
+  :validated-by     ["scenarios/edn/S12_governance-snapshot-isolation.edn"
+                     "scenarios/edn/S61_governance-snapshot-mid-dispute-immutability.edn"
+                     "scenarios/edn/S84_yield-protocol-fee-mid-accrual.edn"
+                     "scenarios/edn/S111_governance-upgrade-mid-dispute-forward-only.edn"]
+  :falsified-if     "Any governance upgrade scenario produces a state mutation in
+                     escrows created before the upgrade block"
+  :confidence       :high
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :partial-liquidity-shortfall-bounded
+  :description      "Under partial-liquidity yield module failure, the shortfall
+                     is bounded to yield-derived amounts only. Escrow principal
+                     is never at risk from yield module shortfall."
+  :assumptions      ["liquidity-mode = partial-liquidity"
+                     "yield module failure is non-catastrophic (not total loss)"
+                     "settlement delivery model = pull-claimable"]
+  :validated-by     ["scenarios/edn/S78_yield-aave-partial-liquidity-release.edn"
+                     "scenarios/edn/S79_yield-aave-partial-liquidity-dispute-resolution.edn"
+                     "scenarios/edn/S81_escrow-yield-may-be-partially-deferred.edn"
+                     "scenarios/edn/S82_shortfall-recovery-cycle.edn"
+                     "scenarios/edn/yield/Y03_partial-liquidity-shortfall-affected.edn"]
+  :falsified-if     "Any shortfall scenario produces principal loss attributable
+                     to yield module failure rather than direct escrow default"
+  :confidence       :bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :forking-strategist-all-levels-confirm
+  :description      "Third escalation after max level must reject without corrupting L2 pending settlement."
+  :assumptions      ["appeal-window-60s" "kleros-escalation-ladder"]
+  :validated-by     ["scenarios/edn/S31_forking-strategist-all-levels-confirm.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :counterexamples  []}
+
+ {:claim/id         :forking-strategist-double-loss
+  :description      "When L1 confirms L0, final settlement remains release and accounting stays conserved."
+  :assumptions      ["appeal-window-60s" "kleros-escalation-ladder"]
+  :validated-by     ["scenarios/edn/S30_forking-strategist-double-loss.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :counterexamples  []}
+
+ {:claim/id         :forking-strategist-l1-reversal
+  :description      "L1 escalation may reverse L0 without breaking accounting or monotonic dispute level."
+  :assumptions      ["appeal-window-60s" "kleros-escalation-ladder"]
+  :validated-by     ["scenarios/edn/S26_forking-strategist-l1-reversal.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :counterexamples  []}
+
+ {:claim/id         :forking-strategist-l2-fork
+  :description      "Dispute level advances monotonically 0→1→2; L2 may fork without rewriting L0/L1 hashes."
+  :assumptions      ["appeal-window-60s" "kleros-escalation-ladder"]
+  :validated-by     ["scenarios/edn/S27_forking-strategist-l2-fork.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :counterexamples  []}
+
+ {:claim/id         :forking-strategist-late-escalation-rejected
+  :description      "Post-deadline escalation must not advance dispute level or block L0 settlement."
+  :assumptions      ["appeal-window-60s" "kleros-escalation-ladder"]
+  :validated-by     ["scenarios/edn/S28_forking-strategist-late-escalation-rejected.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :counterexamples  []}
+
+ {:claim/id         :forking-strategist-premature-settlement-rejected
+  :description      "Premature settlement must reject without corrupting pending state; post-window refund succeeds."
+  :assumptions      ["appeal-window-60s" "kleros-escalation-ladder"]
+  :validated-by     ["scenarios/edn/S32_forking-strategist-premature-settlement-rejected.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :counterexamples  []}
+
+ {:claim/id         :forking-strategist-seller-escalates
+  :description      "Seller escalation may fork L0 refund to L1 release with correct bonds and hashes."
+  :assumptions      ["appeal-window-60s" "kleros-escalation-ladder"]
+  :validated-by     ["scenarios/edn/S29_forking-strategist-seller-escalates.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :counterexamples  []}
+
+ {:claim/id         :workflow-dispute-isolation-shared-resolver
+  :description      "Escalating workflow 0 must not alter, block, cancel, delay, overwrite, or contaminate the pending settlement state of workflow 1."
+  :assumptions      ["appeal-window-60s" "shared-l0-resolver" "independent-escrow-state"]
+  :validated-by     ["scenarios/edn/S33_forking-strategist-two-escrow-fork-isolation.edn"]
+  :falsified-if     "Funds lost or double settlements occur"
+  :confidence       :bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :force-authorisation-exact-scope-single-use
+  :description      "Within the Sew model, a force-authorisation can execute at most once and only for its immutable grant-time custody scope."
+  :assumptions      ["force-authorisation record and held ledger are persisted atomically"
+                     "governance identity is correctly configured"
+                     "registered transition and world invariants are run"]
+   :validated-by     ["protocols_src/test/resolver_sim/protocols/sew/force_authorisation_test.clj"
+                      "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+                      "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "A trace produces a forced held adjustment with a reused authorization ID or a scope differing from its persisted grant."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :held-custody-position-isolation
+  :description      "Within the Sew model, a custody outflow cannot use aggregate token funds from a different derived workflow, account, or position."
+  :assumptions      ["all custody mutations use add-held or sub-held"
+                     "reason-derived position scope is complete"
+                     "registered transition and world invariants are run"]
+   :validated-by     ["protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+                      "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "A successful trace creates a negative position, account, or workflow custody balance, or spends workflow A custody as workflow B."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}
+
+ {:claim/id         :forensic-authorisation-custody-linkage
+  :description      "A force-authorisation forensic bundle exposes a committed state witness linking authorization records, consumption records, held adjustments, and event evidence."
+  :assumptions      ["bundle root and witness are retained"
+                     "forensic validate is run against the bundle and event evidence"
+                     "bundle signature/key verification is performed separately"]
+   :validated-by     ["test/forensic_python/test_validate.py"
+                      "protocols_src/test/resolver_sim/protocols/sew/accounting_test.clj"
+                      "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"]
+  :falsified-if     "forensic:validate accepts a missing witness, orphan consumption, invalid scope linkage, or evidence/state disagreement."
+  :confidence       :trace-bounded
+  :status           :not-falsified
+  :last-validated   nil
+  :counterexamples  []}]

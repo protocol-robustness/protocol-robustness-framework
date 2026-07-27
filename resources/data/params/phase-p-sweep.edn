@@ -1,0 +1,31 @@
+;; Phase P: Bribery Market Integration Test
+;; 2D sweep: margin (bribe-cost-ratio) x detection probability
+;; Baseline from Phase I, enhanced with bribery economics
+
+{:scenario-id "phase-p-bribery-sweep"
+ :escrow-size 10000
+ :resolver-fee-bps 100
+ :appeal-bond-bps 200
+ :slash-multiplier 2
+ :strategy :malicious
+ :appeal-probability-if-correct 0.1
+ :appeal-probability-if-wrong 0.5
+ :slashing-detection-probability 0.25
+
+ ; Phase H baseline: fraud detection
+ :fraud-slash-bps 500
+
+ ; Phase P: Bribery cost model
+ :rng-seed 12345
+ :n-trials 200  ; Per parameter combination
+
+ ; 2D sweep configuration
+ :sweep-params
+ {:axes
+  [{:name "bribe-cost-ratio"
+    :values [1.0 1.1 1.2 1.3 1.4 1.5]}
+   {:name "fraud-detection-probability"
+    :values [0.10 0.15 0.20 0.25 0.30 0.35]}]
+  
+  :output-format "csv"
+  :dimensions ["bribe-cost-ratio" "fraud-detection-probability"]}}

@@ -1,0 +1,117 @@
+{
+  "protocol-params" : {
+    "resolver-fee-bps" : 150,
+    "appeal-window-duration" : 60,
+    "escalation-resolvers" : {
+      "0" : "0xl0",
+      "1" : "0xl1",
+      "2" : "0xl2"
+    },
+    "resolution-module" : "0xl0"
+  },
+  "schema-version" : "1.1",
+  "threat-tags" : [ "timelock-integrity" ],
+  "initial-block-time" : 1000,
+  "scenario-author" : "@grifma",
+  "expectations" : {
+    "metrics" : [ {
+      "name" : "reverts",
+      "op" : ":>=",
+      "value" : 0
+    } ]
+  },
+  "id" : "scenarios/padded-timelock-failure",
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "type" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "type" : "honest"
+  }, {
+    "id" : "resolver",
+    "address" : "0xresolver",
+    "type" : "resolver"
+  }, {
+    "id" : "l0",
+    "address" : "0xl0",
+    "type" : "resolver"
+  }, {
+    "id" : "l1",
+    "address" : "0xl1",
+    "type" : "resolver"
+  }, {
+    "id" : "l2",
+    "address" : "0xl2",
+    "type" : "resolver"
+  } ],
+  "scenario-id" : "padded-timelock-failure",
+  "events" : [ {
+    "seq" : 0,
+    "time" : 1000,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 1000
+    }
+  }, {
+    "seq" : 1,
+    "time" : 1050,
+    "agent" : "buyer",
+    "action" : "raise_dispute",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 2,
+    "time" : 1100,
+    "agent" : "l0",
+    "action" : "execute_resolution",
+    "params" : {
+      "workflow-id" : 0,
+      "is-release" : true
+    }
+  }, {
+    "seq" : 3,
+    "time" : 1110,
+    "agent" : "buyer",
+    "action" : "escalate_dispute",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 4,
+    "time" : 1120,
+    "agent" : "l1",
+    "action" : "execute_resolution",
+    "params" : {
+      "workflow-id" : 0,
+      "is-release" : true
+    },
+    "minimize/pin" : true
+  }, {
+    "seq" : 5,
+    "time" : 1120,
+    "agent" : "buyer",
+    "action" : "escalate_dispute",
+    "params" : {
+      "workflow-id" : 0
+    },
+    "minimize/pin" : true
+  }, {
+    "seq" : 6,
+    "time" : 1200,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 2000
+    }
+  } ],
+  "title" : "Padded Timelock Integrity Under Escalation",
+  "purpose" : "adversarial-robustness"
+}

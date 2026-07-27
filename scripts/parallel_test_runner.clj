@@ -133,7 +133,7 @@
         (cleanup! tmp-root)
         (catch Exception e
           (println "WARN: artifact cleanup failed:" (.getMessage e)))))
-    ;; Persist test state for bb test:failed
+    ;; Persist test state for bb test:rerun
     (let [failed-syms (mapv :sym (filter #(or (pos? (:fail (:result %)))
                                               (pos? (:error (:result %))))
                                         results))]

@@ -1,0 +1,64 @@
+{
+  "protocol-params": {
+    "resolver-fee-bps": 150,
+    "appeal-window-duration": 0,
+    "max-dispute-duration": 2592000
+  },
+  "threat-tags": [],
+  "purpose": "regression",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 1500,
+        "auto-cancel-time": 1060
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1060,
+      "agent": "seller",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1060,
+      "agent": "keeper",
+      "action": "automate_timed_actions",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@research",
+  "scenario-id": "s-same-timestamp-dispute-vs-auto-cancel",
+  "title": "s-same-timestamp-dispute-vs-auto-cancel",
+  "id": "scenarios\/s-same-timestamp-dispute-vs-auto-cancel",
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    },
+    {
+      "id": "keeper",
+      "address": "0xkeeper",
+      "type": "keeper"
+    }
+  ],
+  "initial-block-time": 1000
+}

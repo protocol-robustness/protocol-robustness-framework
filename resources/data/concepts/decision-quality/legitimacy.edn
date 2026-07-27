@@ -1,0 +1,117 @@
+{:concept/id :consensus/legitimacy
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Consensus legitimacy"
+ :concept/summary
+ "Why should parties accept the outcome as binding? Legitimacy derives
+  from proper authority, fair process, adequate evidence, timely
+  resolution, and available escalation. Weak or failed legitimacy means
+  one or more of these dimensions was compromised."
+
+ :concept/stakeholder-question
+ "Should I accept this outcome as binding, or are there grounds —
+  procedural, evidentiary, or authority-based — to challenge it?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:legitimacy-claimer
+  {:description "Party asserting that the outcome should be accepted."
+   :maps-to [:protocol.actor/resolver :protocol.actor/governance]}
+  :legitimacy-assessor
+  {:description "Party evaluating whether the outcome is legitimate."
+   :maps-to [:protocol.actor/verifier]}
+  :legitimacy-challenger
+  {:description "Party rejecting the outcome as illegitimate."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+
+ :concept/entities
+ {:legitimacy-signal
+  {:description "Evidence or marker suggesting the outcome is legitimate."
+   :maps-to [:protocol.entity/settlement :protocol.entity/evidence]}
+  :illegitimacy-signal
+  {:description "Evidence or marker suggesting the outcome is not legitimate."
+   :maps-to [:protocol.entity/dispute :protocol.entity/appeal]}}
+
+ :concept/actions
+ {:establish-legitimacy
+  {:description "Produce evidence, follow procedure, and issue a timely ruling that strengthens acceptance."
+   :maps-to [:protocol.action/resolve :protocol.action/settle :protocol.action/submit-evidence]}
+  :challenge-legitimacy
+  {:description "Argue that authority, evidence, process, or timeliness was flawed."
+   :maps-to [:protocol.action/dispute :protocol.action/appeal :protocol.action/challenge-resolution]}
+  :assess-legitimacy
+  {:description "Evaluate the strength of legitimacy signals."
+   :maps-to [:protocol.action/verify :protocol.action/audit]}
+  :accept-outcome
+  {:description "Consent to the outcome despite disagreement."
+   :maps-to [:protocol.action/accept-split :protocol.action/waive-appeal]}}
+
+ :concept/outcomes
+ {:legitimacy-strong
+  {:description "All dimensions (authority, evidence, finality, escalation, liveness) are satisfactory."
+   :maps-to [:protocol.outcome/resolved]}
+  :legitimacy-weak
+  {:description "At least one dimension was compromised but outcome was still reached."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :legitimacy-failed
+   {:description "Multiple dimensions compromised; outcome is unlikely to be accepted."
+    :maps-to [:protocol.outcome/stuck :protocol.outcome/disputed]
+    :mapping/confidence :approximate
+    :mapping/note "Legitimacy failure may leave funds stuck or the outcome actively disputed"}
+   :legitimacy-contested
+  {:description "Legitimacy was formally challenged and a decision is pending."
+   :maps-to [:protocol.outcome/appealed]}}
+
+ :concept/failure-modes
+ [{:failure/id :authority-deficit
+   :failure/name "Authority deficit"
+   :failure/summary
+   "The decider lacked proper authority or was captured, undermining the basis for acceptance."
+   :protocol-mechanisms [:resolver-authority :governance-rotation :capture]
+   :stakeholder-impact "Outcome has no legitimate claim to acceptance."}
+
+  {:failure/id :procedural-failure
+   :failure/name "Procedural failure"
+   :failure/summary
+   "Required procedural steps were skipped, misordered, or executed incorrectly."
+   :protocol-mechanisms [:dispute-process :evidence-process :settlement-path]
+   :stakeholder-impact "Outcome is procedurally invalid regardless of merit."}
+
+  {:failure/id :evidentiary-failure
+   :failure/name "Evidentiary failure"
+   :failure/summary
+   "Decision was made without adequate evidence or ignored available evidence."
+   :protocol-mechanisms [:evidence-submission :evidence-evaluation]
+   :stakeholder-impact "Outcome cannot be justified on the facts."}
+
+  {:failure/id :remedy-unavailable
+   :failure/name "Remedy unavailable"
+   :failure/summary
+   "Even if illegitimacy is recognised, no protocol mechanism exists to remedy it."
+   :protocol-mechanisms [:governance-override :appeal :settlement-reversal]
+   :stakeholder-impact "Illegitimacy is observable but not actionable."}]
+
+ :concept/metrics
+ {:legitimacy-score
+  {:description "Aggregate score across authority, evidence, finality, escalation, and liveness dimensions."
+   :source :derived-from-multiple-signals}
+  :dimension-failures
+  {:description "Set of dimensions that scored below threshold."
+   :source :derived-from-multiple-signals}
+  :legitimacy-challenge-outcome
+  {:description "Whether a legitimacy challenge was upheld or dismissed."
+   :source :derived-from-trace}
+  :remedy-available
+  {:description "Whether a protocol remedy exists for each identified failure."
+   :source :derived-from-protocol-capabilities}}
+
+ :concept/assumptions
+ ["Legitimacy is a composite concept derived from the other five consensus dimensions."
+  "Strong scores on all five dimensions imply legitimacy."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world political or social legitimacy."
+  "Normative or ethical judgments about the outcome."
+  "Acceptance by parties who always reject any adverse outcome."]}

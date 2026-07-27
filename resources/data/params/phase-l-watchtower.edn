@@ -1,0 +1,27 @@
+{:description "Phase L: Third-party watchtower protects offline victim via challenge bounty"
+ :scenario-id "phase-l-watchtower"
+ :rng-seed 42
+ 
+ :protocol-params
+ {:reversal-slash-bps 10000        ; 100% slash on reversal
+  :challenge-window-duration 259200 ; 3 days
+  :challenge-bounty-bps 2000        ; 20% bounty
+  :challenge-bond-bps 500           ; 5% bond to challenge
+  :resolver-bond-bps 10000          ; 100% bond requirement
+  :resolution-level-map {0 "r0", 1 "r1", 2 "external"}}
+
+ :agents
+ [{:id "buyer",  :address "0xbuyer", :type "honest"}
+  {:id "watch",  :address "0xwatch", :type "watchtower"}
+  {:id "r0",     :address "0xres0",  :type "malicious"}
+  {:id "r1",     :address "0xres1",  :type "resolver"}]
+
+ :events
+ [{:seq 0, :time 1000, :agent "r0", :action "register_stake", :params {:amount 1000}}
+  {:seq 1, :time 1000, :agent "r1", :action "register_stake", :params {:amount 1000}}
+  {:seq 2, :time 1000, :agent "buyer", :action "create_escrow", :params {:token "USDC", :to "0xseller", :amount 1000}}
+  {:seq 3, :time 1100, :agent "buyer", :action "raise_dispute", :params {:workflow-id 0}}
+  {:seq 4, :time 1200, :agent "r0", :action "execute_resolution", :params {:workflow-id 0, :is_release true}}
+  ;; Buyer does NOTHING (offline)
+  {:seq 5, :time 1300, :agent "watch", :action "challenge_resolution", :params {:workflow-id 0}}
+  {:seq 6, :time 1400, :agent "r1", :action "execute_resolution", :params {:workflow-id 0, :is_release false}}]}

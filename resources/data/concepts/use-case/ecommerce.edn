@@ -1,0 +1,196 @@
+{:concept/id :ecommerce/purchase
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Ecommerce purchase"
+ :concept/summary
+ "A buyer pays a merchant through escrow. Funds are released, refunded,
+  disputed, or locked depending on delivery, evidence, and resolver decisions."
+
+ :concept/stakeholder-question
+ "Can a marketplace payment flow remain fair when buyers, merchants,
+  resolvers, or governance behave strategically?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/maturity :benchmark-backed
+  :concept/support-status :not-asserted
+
+ :concept/related
+  [:consensus/authority
+   :consensus/evidence
+   :consensus/finality
+   :consensus/escalation
+   :consensus/liveness
+   :consensus/legitimacy]
+
+ :concept/variants
+  [{:variant/id :fixed-price
+    :concept/name "Fixed-price listing"
+    :concept/summary
+    "A seller lists an item at a fixed price; the price is locked at purchase time.
+     This variant specialises ecommerce/purchase by adding a pre-order listing phase
+     and price-immutability guarantees. Roles, outcomes, and failure modes are shared
+     with the parent use-case."
+    :distinct-properties
+    ["Price is set by the seller before the buyer commits funds and cannot be renegotiated."
+     "Listing phase precedes the escrow creation, decoupling offer from commitment."
+     "Dispute scope is limited to item-condition or delivery claims, not price."]
+    :protocols #{:protocol/sew-v1}}]
+
+ :concept/roles
+ {:buyer
+  {:description "Party paying for goods or services."
+   :maps-to [:protocol.actor/sender]}
+  :merchant
+  {:description "Party expected to fulfill the order."
+   :maps-to [:protocol.actor/recipient]}
+  :resolver
+  {:description "Party or module deciding disputes."
+   :maps-to [:protocol.actor/resolver]}
+  :governance
+  {:description "Protocol governance that can adjust rules, rotate resolvers, or intervene."
+   :maps-to [:protocol.actor/governance]}}
+
+ :concept/entities
+  {:order
+   {:description "The commercial transaction being protected."
+    :maps-to [:protocol.entity/escrow]}
+   :payment
+   {:description "Funds held pending release, refund, or dispute."
+    :maps-to [:protocol.entity/funds]}
+   :dispute
+   {:description "A disagreement about fulfillment."
+    :maps-to [:protocol.entity/dispute]}
+   :evidence
+   {:description "Facts submitted to support a dispute claim."
+    :maps-to [:protocol.entity/evidence]}
+   :dispute-bond
+   {:description "Collateral posted by a party when raising a dispute, forfeited if the dispute is deemed frivolous."
+    :maps-to [:protocol.entity/bond]
+    :mapping/confidence :approximate
+    :mapping/note "Protocol bond mechanism covers resolver bonds, dispute bonds, and appeal bonds; this entity distinguishes the dispute-specific role."}
+   :appeal-bond
+   {:description "Collateral posted by the appealing party when escalating a resolution, forfeited if the appeal is rejected."
+    :maps-to [:protocol.entity/bond]
+    :mapping/confidence :approximate
+    :mapping/note "Same protocol bond primitive as dispute-bond; the distinction is the triggering action (appeal vs. dispute)."}}
+
+ :concept/actions
+ {:place-order
+  {:description "Buyer commits funds for the purchase."
+   :maps-to [:protocol.action/create-escrow]}
+  :confirm-delivery
+  {:description "Buyer confirms receipt; funds are released to merchant."
+   :maps-to [:protocol.action/release]}
+  :request-refund
+  {:description "Buyer requests cancellation before release."
+   :maps-to [:protocol.action/cancel]}
+  :claim-non-delivery
+   {:description "Buyer disputes fulfillment."
+    :maps-to [:protocol.action/dispute :protocol.action/submit-evidence]}
+   :post-dispute-bond
+   {:description "Buyer posts collateral when raising a dispute; forfeited if the dispute is deemed frivolous."
+    :maps-to [:protocol.action/bond]
+    :mapping/confidence :approximate
+    :mapping/note "Protocol bonding may be implicit in the dispute action; this separates the bond post from the dispute initiation for clarity."}
+   :resolve-claim
+   {:description "Resolver determines who receives funds."
+    :maps-to [:protocol.action/resolve :protocol.action/settle]}
+   :appeal-resolution
+   {:description "Party challenges a resolver decision."
+    :maps-to [:protocol.action/appeal :protocol.action/escalate]}
+   :post-appeal-bond
+   {:description "Appealing party posts collateral to challenge a resolution; forfeited if the appeal is rejected."
+    :maps-to [:protocol.action/bond]
+    :mapping/confidence :approximate
+    :mapping/note "Same bond primitive as dispute-bond; the context (appeal vs. dispute) differs."}}
+
+ :concept/outcomes
+ {:merchant-paid
+  {:description "Merchant receives payment."
+   :maps-to [:protocol.outcome/released]}
+  :buyer-refunded
+  {:description "Buyer receives funds back."
+   :maps-to [:protocol.outcome/refunded]}
+  :funds-locked
+  {:description "Neither party receives funds in expected time."
+   :maps-to [:protocol.outcome/stuck]}
+   :manipulated-resolution
+   {:description "Authorized resolver path produces stakeholder-unfair outcome."
+    :maps-to [:protocol.outcome/adversarial-resolution]}
+   :dispute-bond-forfeited
+   {:description "Dispute bond is forfeited because the dispute was deemed frivolous or the posting party acted in bad faith."
+    :maps-to [:protocol.outcome/slashed]}
+   :appeal-bond-forfeited
+   {:description "Appeal bond is forfeited because the appeal was rejected."
+    :maps-to [:protocol.outcome/slashed]}
+   :appeal-bond-returned
+   {:description "Appeal bond is returned because the appeal succeeded."
+    :maps-to [:protocol.outcome/released]
+    :mapping/confidence :approximate
+     :mapping/note "Bond return maps to released in a bond-specific sense; the funds flow back to the poster rather than to a counterparty."}}
+
+ :concept/failure-modes
+ [{:failure/id :merchant-controlled-resolver
+   :failure/name "Merchant-controlled resolver"
+   :failure/summary
+   "Merchant or aligned party controls dispute resolution and rules in its own favor."
+   :protocol-mechanisms [:resolver-authority :governance-rotation :settlement]
+   :stakeholder-impact "Buyer can lose funds despite a disputed or unfulfilled order."}
+
+  {:failure/id :buyer-griefing
+   :failure/name "Buyer griefing"
+   :failure/summary
+   "Buyer opens repeated or low-merit disputes to delay merchant payout."
+   :protocol-mechanisms [:dispute :timeout :bonding]
+   :stakeholder-impact "Merchant liquidity is delayed or operational costs increase."}
+
+  {:failure/id :fund-lock
+   :failure/name "Funds locked after unresolved dispute"
+   :failure/summary
+   "A dispute has no viable resolution path before timeout."
+   :protocol-mechanisms [:resolver-availability :timeout :settlement]
+   :stakeholder-impact "Buyer and merchant cannot access funds."}
+
+  {:failure/id :collusive-fraud
+   :failure/name "Collusive buyer-merchant fraud"
+   :failure/summary
+   "Buyer and merchant collude to extract value from the escrow system."
+   :protocol-mechanisms [:bonding :slashing :evidence-requirements]
+   :stakeholder-impact "Protocol reserves or resolver bonds are drained."}]
+
+ :concept/metrics
+  {:dispute-count
+   {:description "Number of disputes raised during the interaction."
+    :source :derived-from-trace}
+   :time-to-finality
+   {:description "Total time from payment commitment to terminal outcome."
+    :source :derived-from-trace}
+   :resolution-path
+   {:description "Path taken to reach terminal outcome (release, refund, dispute)."
+    :source :derived-from-trace}}
+
+ :concept/assumptions
+  ["A buyer and merchant are identifiable protocol actors."
+   "The escrow balance represents the payment amount."
+   "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world shipping, delivery logistics, or product quality."
+  "Chargebacks, fraud detection, or payment card networks."
+   "Dispute resolution outside the protocol (courts, arbitration)."]
+
+ :concept/known-gaps
+  ["Dispute-bond and appeal-bond both map to the same protocol bond primitive (:protocol.entity/bond); the protocol does not distinguish bond type by trigger action."
+   "Governance role is defined but governance-specific actions and outcomes (rotation, override) are not modelled."]
+
+ :concept/evidence
+  {:scenarios #{}
+   :benchmarks #{:benchmark/sew-escrow-dispute-v1
+                 :benchmark/sew-dispute-liveness-v1
+                 :benchmark/sew-resolver-slashing-v1}
+   :claims #{:claim/no-unauthorized-release
+             :claim/funds-conserved
+             :claim/dispute-liveness
+             :claim/bounded-resolution-time
+             :claim/appeal-bond-adequacy}}}

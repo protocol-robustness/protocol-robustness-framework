@@ -1,0 +1,50 @@
+{:scenario-id "phase-j-baseline-stable"
+ :description "Phase J: Canonical baseline — stable detection, no decay. 100-epoch stability audit (canonical Step 6b run)."
+ :rng-seed 42
+ 
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :std 5000}
+ 
+ :strategy-mix
+ {:honest 0.50
+  :lazy 0.15
+  :malicious 0.25
+  :collusive 0.10}
+ 
+ :resolver-fee-bps 100
+ :appeal-bond-bps 500
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.20
+ :appeal-probability-if-wrong 0.40
+ 
+ ; Phase I: Three detection mechanisms
+ :slashing-detection-probability 0.10
+ :fraud-detection-probability 0.25
+ :fraud-slash-bps 5000
+ :reversal-detection-probability 0.25
+ :reversal-slash-bps 2500
+ :timeout-slash-bps 200
+ 
+ ; Phase H: Realistic bond mechanics
+ :unstaking-delay-days 14
+ :freeze-on-detection? true
+ :freeze-duration-days 3
+ :appeal-window-days 7
+ 
+  ; Phase J: Multi-epoch configuration
+  :n-epochs 100
+  :n-trials-per-epoch 500
+  :n-resolvers 100
+  :detection-decay-rate 0.0  ; No decay (stable control)
+  :n-seeds 1
+  :kernel-validation-sample-size 5
+  :kernel-validation-min-pass-rate 0.80
+
+  ; Phase J: Audit thresholds — override defaults in audit.clj
+  :audit-thresholds
+  {:dominance-threshold 1.2
+   :max-malice-equity-share 0.3
+   :tail-fraction 0.2
+   :malice-survival-threshold 0.5}}
