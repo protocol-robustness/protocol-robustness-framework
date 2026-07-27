@@ -13,17 +13,17 @@
                    :parameter-domain-root "sha256:domain"
                    :generated-case-set-root "sha256:cases"}
    :theorem/premises [{:premise/id :allocation-valid
-                        :status :established
-                        :evidence-hash "sha256:ev1"}
-                       {:premise/id :state-write-back-valid
-                        :status :established
-                        :evidence-hash "sha256:ev2"}]
+                       :status :established
+                       :evidence-hash "sha256:ev1"}
+                      {:premise/id :state-write-back-valid
+                       :status :established
+                       :evidence-hash "sha256:ev2"}]
    :theorem/inference {:rule :conjunctive-entailment
                        :policy-root "sha256:policy"}
    :theorem/conclusion {:status :established
                         :claim-id :claim/quota-bounded}
    :theorem/falsifiers [{:falsifier/id :allocation-over-quota
-                          :status :not-observed}]})
+                         :status :not-observed}]})
 
 (deftest build-minimal-theorem
   (let [th (rto/build-theorem-outcome minimal-theorem)]
@@ -43,23 +43,23 @@
 
 (deftest build-theorem-requires-id
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing :theorem/id"
-        (rto/build-theorem-outcome (dissoc minimal-theorem :theorem/id)))))
+                        (rto/build-theorem-outcome (dissoc minimal-theorem :theorem/id)))))
 
 (deftest build-theorem-requires-type
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing or invalid :theorem/type"
-        (rto/build-theorem-outcome (dissoc minimal-theorem :theorem/type)))))
+                        (rto/build-theorem-outcome (dissoc minimal-theorem :theorem/type)))))
 
 (deftest build-theorem-rejects-invalid-type
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing or invalid :theorem/type"
-        (rto/build-theorem-outcome (assoc minimal-theorem :theorem/type :bogus)))))
+                        (rto/build-theorem-outcome (assoc minimal-theorem :theorem/type :bogus)))))
 
 (deftest build-theorem-requires-statement
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing :theorem/statement"
-        (rto/build-theorem-outcome (dissoc minimal-theorem :theorem/statement)))))
+                        (rto/build-theorem-outcome (dissoc minimal-theorem :theorem/statement)))))
 
 (deftest build-theorem-rejects-hash-mismatch
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Declared theorem/hash"
-        (rto/build-theorem-outcome (assoc minimal-theorem :theorem/hash "sha256:wrong")))))
+                        (rto/build-theorem-outcome (assoc minimal-theorem :theorem/hash "sha256:wrong")))))
 
 (deftest validate-theorem-outcome-valid
   (let [th (rto/build-theorem-outcome minimal-theorem)
@@ -100,7 +100,7 @@
   (let [th (rto/build-theorem-outcome
             (assoc minimal-theorem
                    :theorem/limitations [:finite-generated-case-set
-                                          :coalitions-not-evaluated]))]
+                                         :coalitions-not-evaluated]))]
     (is (rto/theorem-valid? th))
     (is (= 2 (count (:theorem/limitations th))))))
 

@@ -102,20 +102,20 @@
    :state-projection "STATE_PROJECTION_V1"
    :research-framework-change-proposal "RESEARCH_FRAMEWORK_CHANGE_PROPOSAL_V1"
    :changelog-challenge "CHANGELOG_CHALLENGE_V1"
-    :research-benchmark-model "RESEARCH_BENCHMARK_MODEL_V1"
-    :research-theorem-outcome "RESEARCH_THEOREM_OUTCOME_V1"
-    :research-conclusion "RESEARCH_CONCLUSION_V1"
-     :research-command "RESEARCH_COMMAND_V1"
+   :research-benchmark-model "RESEARCH_BENCHMARK_MODEL_V1"
+   :research-theorem-outcome "RESEARCH_THEOREM_OUTCOME_V1"
+   :research-conclusion "RESEARCH_CONCLUSION_V1"
+   :research-command "RESEARCH_COMMAND_V1"
    :trust-sequence-definition "TRUST_SEQUENCE_DEFINITION_V1"
-    :procedure-execution-witness "PROCEDURE_EXECUTION_WITNESS_V1"
-    :research-force-authorisation "RESEARCH_FORCE_AUTHORISATION_V1"
-    :researcher-decision "RESEARCHER_DECISION_V1"
-    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
-    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
-    :force-authorised-execution-evidence "FORCE_AUTHORISED_EXECUTION_EVIDENCE_V1"
-    :pro-rata-allocation-evidence "PRO_RATA_ALLOCATION_EVIDENCE_V1"
-    :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
-    :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"})
+   :procedure-execution-witness "PROCEDURE_EXECUTION_WITNESS_V1"
+   :research-force-authorisation "RESEARCH_FORCE_AUTHORISATION_V1"
+   :researcher-decision "RESEARCHER_DECISION_V1"
+   :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
+   :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
+   :force-authorised-execution-evidence "FORCE_AUTHORISED_EXECUTION_EVIDENCE_V1"
+   :pro-rata-allocation-evidence "PRO_RATA_ALLOCATION_EVIDENCE_V1"
+   :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
+   :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1448,8 +1448,8 @@
                          bb stability:check."
     :intent/includes    #{:files :paths :contents}
     :intent/excludes    #{:metadata :timestamps :runtime-state}
-     :intent/projection-fn project-stability-snapshot
-     :intent/version     1}
+    :intent/projection-fn project-stability-snapshot
+    :intent/version     1}
 
    :trust-sequence-definition
    {:intent/name        :trust-sequence-definition
@@ -1617,9 +1617,9 @@
    :timestamps     (fn [v] (when (and (map? v) (contains? v :evidence/timestamp))
                              "root map contains :evidence/timestamp"))
    :hash-fields    (fn [v]
-                      (when (and (map? v)
-                                 (some self-hash-keys (keys v)))
-                        "root map contains self-hash keys"))
+                     (when (and (map? v)
+                                (some self-hash-keys (keys v)))
+                       "root map contains self-hash keys"))
    :chain-metadata (fn [v]
                      (when (and (map? v)
                                 (some #(re-find #"^evidence/chain-" (name %))

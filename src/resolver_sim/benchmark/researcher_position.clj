@@ -115,55 +115,55 @@
     (when (seq extra)
       (throw (ex-info "Unknown position dimensions"
                       {:unknown extra :known known-dimensions})))
-      (let [normalised-dims
-            (reduce-kv
-             (fn [m dim {:keys [status targets rationale qualifications]}]
-               (when-not (valid-dimension-status? dim status)
-                 (throw (ex-info (str "Invalid status for dimension " dim ": " status)
-                                 {:dimension dim :status status
-                                  :allowed (get dimension-statuses dim)})))
-               (assoc m dim
-                      (cond-> {:status status}
-                        (seq targets) (assoc :targets
-                                             (mapv (fn [t]
-                                                     {:kind (:kind t)
-                                                      :id (:id t)
-                                                      :component-hash (:component-hash t)})
-                                                   targets))
-                        rationale (assoc :rationale rationale)
-                        (seq qualifications) (assoc :qualifications (vec qualifications)))))
-             {}
-             dimensions)
-            normalised-targets
-            (when (seq targets)
-              (mapv (fn [t]
-                      (let [kind (:kind t)
-                            id (:id t)]
-                        (when-not (contains? target-kinds kind)
-                          (throw (ex-info "Invalid target kind"
-                                          {:kind kind :allowed target-kinds})))
-                        (when-not (contains? target-statuses (:status t))
-                          (throw (ex-info "Invalid target status"
-                                          {:status (:status t)
-                                           :allowed target-statuses})))
-                        (when-not (keyword? id)
-                          (throw (ex-info "Target :id must be a keyword"
-                                          {:id id})))
-                        {:kind kind
-                         :id id
-                         :hash (:hash t)
-                         :status (:status t)
-                         :rationale (:rationale t)}))
-                    targets))
-            base (merge {:schema-version schema-version
-                         :benchmark/content-root content-root
-                         :researcher/id id
-                         :position/outcome-hash outcome-hash
-                         :position/dimensions normalised-dims}
-                        (when normalised-targets
-                          {:position/targets normalised-targets}))
-            position-hash (hc/domain-hash :researcher-position base)]
-        (assoc base :position/hash (str "sha256:" position-hash)))))
+    (let [normalised-dims
+          (reduce-kv
+           (fn [m dim {:keys [status targets rationale qualifications]}]
+             (when-not (valid-dimension-status? dim status)
+               (throw (ex-info (str "Invalid status for dimension " dim ": " status)
+                               {:dimension dim :status status
+                                :allowed (get dimension-statuses dim)})))
+             (assoc m dim
+                    (cond-> {:status status}
+                      (seq targets) (assoc :targets
+                                           (mapv (fn [t]
+                                                   {:kind (:kind t)
+                                                    :id (:id t)
+                                                    :component-hash (:component-hash t)})
+                                                 targets))
+                      rationale (assoc :rationale rationale)
+                      (seq qualifications) (assoc :qualifications (vec qualifications)))))
+           {}
+           dimensions)
+          normalised-targets
+          (when (seq targets)
+            (mapv (fn [t]
+                    (let [kind (:kind t)
+                          id (:id t)]
+                      (when-not (contains? target-kinds kind)
+                        (throw (ex-info "Invalid target kind"
+                                        {:kind kind :allowed target-kinds})))
+                      (when-not (contains? target-statuses (:status t))
+                        (throw (ex-info "Invalid target status"
+                                        {:status (:status t)
+                                         :allowed target-statuses})))
+                      (when-not (keyword? id)
+                        (throw (ex-info "Target :id must be a keyword"
+                                        {:id id})))
+                      {:kind kind
+                       :id id
+                       :hash (:hash t)
+                       :status (:status t)
+                       :rationale (:rationale t)}))
+                  targets))
+          base (merge {:schema-version schema-version
+                       :benchmark/content-root content-root
+                       :researcher/id id
+                       :position/outcome-hash outcome-hash
+                       :position/dimensions normalised-dims}
+                      (when normalised-targets
+                        {:position/targets normalised-targets}))
+          position-hash (hc/domain-hash :researcher-position base)]
+      (assoc base :position/hash (str "sha256:" position-hash)))))
 
 (defn position-hash
   "Return the content-addressed hash of the position."

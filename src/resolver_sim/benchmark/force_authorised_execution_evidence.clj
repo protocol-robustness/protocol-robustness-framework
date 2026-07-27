@@ -70,20 +70,20 @@
     (let [o-hash (:consumption/resulting-outcome-hash consumption-receipt)]
       (when-not (some? o-hash)
         (swap! errors conj "consumption-receipt has no resulting-outcome-hash; "
-                "evidence profile requires an outcome-producing execution")))
+               "evidence profile requires an outcome-producing execution")))
     (when (seq @errors)
       (throw (ex-info "Evidence profile build failed" {:errors @errors})))
     ;; ── Call each existing validator ────────────────────────────────────
     (let [auth-val (rfa/validate-authorisation authorisation)
           sig-result (rfa/verify-decision-signatures public-key-resolver
-                                                      authorisation)
+                                                     authorisation)
           policy-val (rfa/verify-against-policy policy authorisation)
           round-val (rfa/verify-against-round review-round authorisation)
           binding-val (rfa/verify-fa-binding outcome-manifest authorisation
-                                              reservation)
+                                             reservation)
           receipt-val (rfa/verify-consumption-receipt consumption-receipt
-                                                       reservation
-                                                       outcome-manifest)
+                                                      reservation
+                                                      outcome-manifest)
           receipt-status (:consumption/status consumption-receipt)
           ;; ── Derive verification map (never caller-supplied) ──────────
           verification {:authorisation-valid? (:valid? auth-val)
@@ -150,10 +150,10 @@
   (let [errors (atom [])]
     (when-not (= schema-version (:schema-version profile))
       (swap! errors conj (str "expected schema-version " schema-version
-                               " got " (:schema-version profile))))
+                              " got " (:schema-version profile))))
     (when-not (= profile-id (:evidence-profile/id profile))
       (swap! errors conj (str "expected profile/id " (pr-str profile-id)
-                               " got " (pr-str (:evidence-profile/id profile)))))
+                              " got " (pr-str (:evidence-profile/id profile)))))
     (doseq [f [:evidence-profile/policy-hash
                :evidence-profile/review-round-hash
                :evidence-profile/authorisation-hash
@@ -178,8 +178,8 @@
                                           without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
-                                   (:evidence-profile/hash profile)
-                                   " computed " computed)))))
+                                  (:evidence-profile/hash profile)
+                                  " computed " computed)))))
     {:valid? (empty? @errors) :errors @errors}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -200,10 +200,10 @@
         mismatches (atom [])]
     ;; Compare profile-hash
     (when-not (= (:evidence-profile/hash profile)
-                  (:evidence-profile/hash recomputed))
+                 (:evidence-profile/hash recomputed))
       (swap! mismatches conj {:field :evidence-profile/hash
-                               :stored (:evidence-profile/hash profile)
-                               :recomputed (:evidence-profile/hash recomputed)}))
+                              :stored (:evidence-profile/hash profile)
+                              :recomputed (:evidence-profile/hash recomputed)}))
     ;; Compare verification map
     (let [v-stored (:evidence-profile/verification profile)
           v-recomp (:evidence-profile/verification recomputed)]
@@ -246,12 +246,12 @@
 
    Returns {:valid? bool :errors [string] :checks map}"
   [package-resolver profile outcome-manifest & {:keys [public-key-resolver]
-                                                  :or {public-key-resolver
-                                                       (fn [id]
-                                                         (throw
-                                                          (ex-info
-                                                           "public-key-resolver not available"
-                                                           {:researcher/id id})))}}]
+                                                :or {public-key-resolver
+                                                     (fn [id]
+                                                       (throw
+                                                        (ex-info
+                                                         "public-key-resolver not available"
+                                                         {:researcher/id id})))}}]
   (let [errors (atom [])
         checks (atom {})
         fa-sec (:execution/force-authorisation outcome-manifest)]
@@ -298,7 +298,7 @@
                             (swap! checks assoc :profile-hash-match? false))))
                     (catch Exception e
                       (swap! errors conj (str "evidence recomputation failed: "
-                                               (.getMessage e))))))
+                                              (.getMessage e))))))
                 {:valid? (empty? @errors)
                  :errors @errors
                  :checks @checks}))))))))

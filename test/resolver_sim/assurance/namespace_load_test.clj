@@ -74,12 +74,12 @@
   (let [results (atom [])]
     (doseq [[ns-sym expected-vars] (namespace-entries)]
       (let [compile-status (try
-                              (require ns-sym :reload)
-                              nil
-                              (catch java.io.FileNotFoundException e
-                                (str "read-failed: " (.getMessage e)))
-                              (catch Exception e
-                                (str "compile-failed: " (.getMessage e))))
+                             (require ns-sym :reload)
+                             nil
+                             (catch java.io.FileNotFoundException e
+                               (str "read-failed: " (.getMessage e)))
+                             (catch Exception e
+                               (str "compile-failed: " (.getMessage e))))
             ns-loaded? (nil? compile-status)
             var-results (when ns-loaded?
                           (mapv (fn [var-sym]
@@ -98,8 +98,8 @@
     (doseq [r @results]
       (testing (str (:namespace r))
         (is (= :ok (:compile-status r))
-          (str "compile: " (:compile-status r)))
+            (str "compile: " (:compile-status r)))
         (when (:loaded? r)
           (doseq [var-status (:var-statuses r)]
             (is (str/includes? var-status ":present")
-              var-status)))))))
+                var-status)))))))

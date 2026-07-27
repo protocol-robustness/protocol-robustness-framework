@@ -86,7 +86,7 @@
 
 (def sew-adapter
   (try @(requiring-resolve 'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
-    (catch Exception _ nil)))
+       (catch Exception _ nil)))
 
 ;; ── Fixture builder ─────────────────────────────────────────────────────────
 

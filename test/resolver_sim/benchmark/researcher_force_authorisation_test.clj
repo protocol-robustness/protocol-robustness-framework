@@ -16,8 +16,8 @@
   [researcher-id decision & {:keys [dissent-reason]}]
   (with-redefs [signing/sign-hash (fn [_ _ _] mock-sig-hex)]
     (rfa/build-signed-decision researcher-id :authorisation/test-001
-                                decision "/dev/null"
-                                :dissent-reason dissent-reason)))
+                               decision "/dev/null"
+                               :dissent-reason dissent-reason)))
 
 (defn- mock-key-resolver
   "Mock public key resolver for testing."
@@ -75,11 +75,11 @@
 
 (deftest build-signed-decision-rejects-invalid-decision
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Invalid decision"
-        (mock-decision "researcher-a" :bogus))))
+                        (mock-decision "researcher-a" :bogus))))
 
 (deftest build-signed-decision-rejects-dissent-without-reason
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Dissent requires a reason"
-        (mock-decision "researcher-a" :dissent))))
+                        (mock-decision "researcher-a" :dissent))))
 
 ;; ── Authorisation building ───────────────────────────────────────────────
 
@@ -125,35 +125,35 @@
 
 (deftest pre-checks-reject-missing-policy
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pre-conditions"
-        (rfa/build-authorisation
-         {:authorisation/id :authorisation/test-001
-          :authorisation/review-round sample-round-ref
-          :authorisation/request-root "sha256:r"
-          :authorisation/target sample-target
-          :authorisation/decision-references [(mock-decision "a" :approve)]
-          :authorisation/threshold {:required 2 :eligible 3}}))))
+                        (rfa/build-authorisation
+                         {:authorisation/id :authorisation/test-001
+                          :authorisation/review-round sample-round-ref
+                          :authorisation/request-root "sha256:r"
+                          :authorisation/target sample-target
+                          :authorisation/decision-references [(mock-decision "a" :approve)]
+                          :authorisation/threshold {:required 2 :eligible 3}}))))
 
 (deftest pre-checks-reject-missing-target
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pre-conditions"
-        (rfa/build-authorisation
-         {:authorisation/id :authorisation/test-001
-          :authorisation/policy sample-policy-ref
-          :authorisation/review-round sample-round-ref
-          :authorisation/request-root "sha256:r"
-          :authorisation/decision-references [(mock-decision "a" :approve)]
-          :authorisation/threshold {:required 2 :eligible 3}}))))
+                        (rfa/build-authorisation
+                         {:authorisation/id :authorisation/test-001
+                          :authorisation/policy sample-policy-ref
+                          :authorisation/review-round sample-round-ref
+                          :authorisation/request-root "sha256:r"
+                          :authorisation/decision-references [(mock-decision "a" :approve)]
+                          :authorisation/threshold {:required 2 :eligible 3}}))))
 
 (deftest pre-checks-reject-duplicate-decision
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pre-conditions"
-        (rfa/build-authorisation
-         {:authorisation/id :authorisation/test-001
-          :authorisation/policy sample-policy-ref
-          :authorisation/review-round sample-round-ref
-          :authorisation/request-root "sha256:r"
-          :authorisation/target sample-target
-          :authorisation/decision-references [(mock-decision "a" :approve)
-                                              (mock-decision "a" :approve)]
-          :authorisation/threshold {:required 2 :eligible 3}}))))
+                        (rfa/build-authorisation
+                         {:authorisation/id :authorisation/test-001
+                          :authorisation/policy sample-policy-ref
+                          :authorisation/review-round sample-round-ref
+                          :authorisation/request-root "sha256:r"
+                          :authorisation/target sample-target
+                          :authorisation/decision-references [(mock-decision "a" :approve)
+                                                              (mock-decision "a" :approve)]
+                          :authorisation/threshold {:required 2 :eligible 3}}))))
 
 ;; ── Cross-artifact verification ──────────────────────────────────────────
 

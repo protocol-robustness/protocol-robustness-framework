@@ -146,7 +146,7 @@
                          :state-after-root (when (:resolved? r) (:world/after-hash ev))
                          :verification-status
                          (or (some #(when (= (:check/code %) :procedure-witness/evidence-resolved)
-                                     (:check/status %)) checks)
+                                      (:check/status %)) checks)
                              (if (:resolved? r) :pass :not-run))}))
                     steps resolved)]
     {:cards cards :step-count (count steps) :resolved-count (count (filter :resolved? resolved))}))

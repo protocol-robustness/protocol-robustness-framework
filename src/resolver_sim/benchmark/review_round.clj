@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.review-round
-   "Benchmark review round: a frozen three-member cell evaluating one
+  "Benchmark review round: a frozen three-member cell evaluating one
     version of a benchmark content entry.
     
     Membership is frozen per round, not permanently per benchmark.

@@ -127,27 +127,27 @@
   (mapcat (fn [step evidence]
             (let [expected (pev/expected-evidence-type adapter (:step/id step))]
               (if (nil? expected) []
-                (if (and evidence (= expected (:evidence/type evidence)))
-                  [(pass :procedure-witness/evidence-type-matches :step/id (:step/id step))]
-                  [(fail :procedure-witness/evidence-type-mismatch
-                         (str "expected " expected " got " (if evidence (:evidence/type evidence) "nil"))
-                         :step/id (:step/id step))]))))
+                  (if (and evidence (= expected (:evidence/type evidence)))
+                    [(pass :procedure-witness/evidence-type-matches :step/id (:step/id step))]
+                    [(fail :procedure-witness/evidence-type-mismatch
+                           (str "expected " expected " got " (if evidence (:evidence/type evidence) "nil"))
+                           :step/id (:step/id step))]))))
           steps resolved))
 
 (defn- check-input-output-roots
   [steps resolved]
   (mapcat (fn [step evidence]
             (if (nil? evidence) []
-              [(if (= (:step/input-root step) (:world/before-hash evidence))
-                 (pass :procedure-witness/input-root-matches :step/id (:step/id step))
-                 (fail :procedure-witness/input-root-mismatch
-                       (str "expected " (:step/input-root step) " got " (:world/before-hash evidence))
-                       :step/id (:step/id step)))
-               (if (= (:step/output-root step) (:world/after-hash evidence))
-                 (pass :procedure-witness/output-root-matches :step/id (:step/id step))
-                 (fail :procedure-witness/output-root-mismatch
-                       (str "expected " (:step/output-root step) " got " (:world/after-hash evidence))
-                       :step/id (:step/id step)))]))
+                [(if (= (:step/input-root step) (:world/before-hash evidence))
+                   (pass :procedure-witness/input-root-matches :step/id (:step/id step))
+                   (fail :procedure-witness/input-root-mismatch
+                         (str "expected " (:step/input-root step) " got " (:world/before-hash evidence))
+                         :step/id (:step/id step)))
+                 (if (= (:step/output-root step) (:world/after-hash evidence))
+                   (pass :procedure-witness/output-root-matches :step/id (:step/id step))
+                   (fail :procedure-witness/output-root-mismatch
+                         (str "expected " (:step/output-root step) " got " (:world/after-hash evidence))
+                         :step/id (:step/id step)))]))
           steps resolved))
 
 (defn verify-evidence-resolution
@@ -223,11 +223,11 @@
   [witness evidence-index adapter & {:keys [expected-correlation-id]}]
   (let [steps (:procedure-execution-witness/steps witness [])
         {:keys [ids checks]} (collect-correlation-ids steps
-                               (mapv (fn [s]
-                                       (get (:evidence-index/by-content-hash evidence-index)
-                                            (:step/evidence-content-hash s)))
-                                     steps)
-                               adapter)
+                                                      (mapv (fn [s]
+                                                              (get (:evidence-index/by-content-hash evidence-index)
+                                                                   (:step/evidence-content-hash s)))
+                                                            steps)
+                                                      adapter)
         all-same? (and (seq ids) (apply = ids))
         all-valid? (every? some? ids)]
     (concat
@@ -338,10 +338,10 @@
   [event-evidence-dir]
   (let [files (find-evidence-files event-evidence-dir)
         evidence-map (into {}
-                          (keep (fn [f]
-                                  (when-let [ev (read-evidence-file f)]
-                                    (when-let [eh (:evidence/hash ev)] [eh ev]))))
-                          files)
+                           (keep (fn [f]
+                                   (when-let [ev (read-evidence-file f)]
+                                     (when-let [eh (:evidence/hash ev)] [eh ev]))))
+                           files)
         all-self-hashes (set (keep :evidence/chain-self-hash (vals evidence-map)))]
     {:evidence-index/by-content-hash evidence-map
      :evidence-index/all-chain-self-hashes all-self-hashes
@@ -376,11 +376,11 @@
    Returns {:valid? bool
             :witness-result {:valid? bool :checks [...]}
             :chain-result {:chain/status keyword :chain/errors [...]}}."
-   [witness definition event-evidence-dir evidence-registry chain-cursor
+  [witness definition event-evidence-dir evidence-registry chain-cursor
    & [{:keys [evidence-adapter expected-correlation-id plan-root]}]]
   (let [;; Verify the registry hash
         registry-valid? (:valid (chain/verify-registry-hash evidence-registry))
-        
+
         ;; Verify scenario chain
         raw-index (build-evidence-index event-evidence-dir)
         scenario-chain (try
@@ -393,7 +393,7 @@
         chain-head (when chain-valid? (:chain/head-hash scenario-chain))
         registry-root (:registry-hash evidence-registry)
         final-index (finalise-evidence-index raw-index registry-root chain-head)
-        
+
         ;; Run pure witness verifier
         witness-result (verify-witness witness definition final-index
                                        {:evidence-adapter evidence-adapter
@@ -411,7 +411,7 @@
                               :reachable-hashes (:chain/reachable-hashes scenario-chain))
                         (fail :evidence-chain/chain-invalid
                               (pr-str (:chain/errors scenario-chain))))]
-        
+
         all-checks (vec (concat chain-checks (:checks witness-result)))
         failures (filter #(= :fail (:check/status %)) all-checks)]
     {:valid? (empty? failures)

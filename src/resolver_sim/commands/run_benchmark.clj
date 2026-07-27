@@ -162,12 +162,12 @@
                             :not-run-count (:not-run-count witness-result 0)
                             :definition
                             {:status (if (some #(= :pass (:check/status %))
-                                              (filter #(= :procedure-witness/definition-root-matches (:check/code %)) cs))
+                                               (filter #(= :procedure-witness/definition-root-matches (:check/code %)) cs))
                                        :pass :fail)
                              :definition-root (:evidence-index/definition-root witness-result '())}
                             :evidence-chain
                             {:status (if (and (some #(= :evidence-chain/registry-hash-valid (:check/code %))
-                                                  (filter #(= :pass (:check/status %)) cs))
+                                                    (filter #(= :pass (:check/status %)) cs))
                                               (some #(= :evidence-chain/chain-valid (:check/code %))
                                                     (filter #(= :pass (:check/status %)) cs)))
                                        :pass :fail)

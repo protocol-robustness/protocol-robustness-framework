@@ -117,16 +117,16 @@
   (let [auth (rfa/build-authorisation
               {:authorisation/id :authorisation/test
                :authorisation/policy {:policy/id :research/three-member
-                                       :policy/version 1
-                                       :policy/schema-version "fa-policy.v1"
-                                       :policy/hash "sha256:policy"}
+                                      :policy/version 1
+                                      :policy/schema-version "fa-policy.v1"
+                                      :policy/hash "sha256:policy"}
                :authorisation/review-round {:review-round/id "rr:t"
-                                             :review-round/hash "sha256:round"}
+                                            :review-round/hash "sha256:round"}
                :authorisation/request-root "sha256:req"
                :authorisation/target {:target/kind :benchmark-branch
-                                       :target/baseline-content-root "sha256:base"
-                                       :target/branch-descriptor-hash "sha256:br"
-                                       :target/proposed-content-root "sha256:prop"}
+                                      :target/baseline-content-root "sha256:base"
+                                      :target/branch-descriptor-hash "sha256:br"
+                                      :target/proposed-content-root "sha256:prop"}
                :authorisation/decision-references
                [{:researcher/id "a" :decision :approve
                  :decision/hash "sha256:mock"
@@ -206,16 +206,16 @@
   (let [auth (rfa/build-authorisation
               {:authorisation/id :authorisation/test
                :authorisation/policy {:policy/id :research/three-member
-                                       :policy/version 1
-                                       :policy/schema-version "fa-policy.v1"
-                                       :policy/hash "sha256:policy"}
+                                      :policy/version 1
+                                      :policy/schema-version "fa-policy.v1"
+                                      :policy/hash "sha256:policy"}
                :authorisation/review-round {:review-round/id "rr:t"
-                                             :review-round/hash "sha256:round"}
+                                            :review-round/hash "sha256:round"}
                :authorisation/request-root "sha256:req"
                :authorisation/target {:target/kind :benchmark-branch
-                                       :target/baseline-content-root "sha256:base"
-                                       :target/branch-descriptor-hash "sha256:br"
-                                       :target/proposed-content-root "sha256:prop"}
+                                      :target/baseline-content-root "sha256:base"
+                                      :target/branch-descriptor-hash "sha256:br"
+                                      :target/proposed-content-root "sha256:prop"}
                :authorisation/decision-references
                [{:researcher/id "a" :decision :approve
                  :decision/hash "sha256:mock1"
@@ -712,9 +712,9 @@
                        priv-pk (.getPrivate pair)
                        pub-pk (.getPublic pair)
                        priv-der (.getEncoded
-                                  (PrivateKeyInfoFactory/createPrivateKeyInfo priv-pk))
+                                 (PrivateKeyInfoFactory/createPrivateKeyInfo priv-pk))
                        pub-der (.getEncoded
-                                 (SubjectPublicKeyInfoFactory/createSubjectPublicKeyInfo pub-pk))
+                                (SubjectPublicKeyInfoFactory/createSubjectPublicKeyInfo pub-pk))
                        priv-file (java.io.File/createTempFile
                                   (str "fa-" label "-priv") ".pem")
                        pub-file (java.io.File/createTempFile
@@ -813,10 +813,10 @@
    decisions is a vector of {:researcher/id :decision :dissent/reason?}."
   [authorisation-id decisions]
   (let [signed (mapv (fn [d] (apply fa-sign-decision!
-                                     (:researcher/id d) authorisation-id
-                                     (:decision d)
-                                     (when (:dissent/reason d)
-                                       [:dissent-reason (:dissent/reason d)])))
+                                    (:researcher/id d) authorisation-id
+                                    (:decision d)
+                                    (when (:dissent/reason d)
+                                      [:dissent-reason (:dissent/reason d)])))
                      decisions)]
     (rfa/build-authorisation
      {:authorisation/id authorisation-id
@@ -854,9 +854,9 @@
 
 (deftest lifecycle-clean-approval
   (let [auth (fa-build-auth! :authorisation/fa-clean
-              [{:researcher/id "researcher-a" :decision :approve}
-               {:researcher/id "researcher-b" :decision :approve}
-               {:researcher/id "researcher-c" :decision :approve}])
+                             [{:researcher/id "researcher-a" :decision :approve}
+                              {:researcher/id "researcher-b" :decision :approve}
+                              {:researcher/id "researcher-c" :decision :approve}])
         summary (fa-lifecycle-summary auth)]
     (is (= :approved (:decision-status summary)))
     (is (:approved? summary))
@@ -870,17 +870,17 @@
 (deftest lifecycle-approval-with-dissent
   (let [authorisation-id :authorisation/fa-dissent
         auth (fa-build-auth! authorisation-id
-              [{:researcher/id "researcher-a" :decision :approve}
-               {:researcher/id "researcher-b" :decision :approve}
-               {:researcher/id "researcher-c" :decision :dissent
-                :dissent/reason "scope concern"}])
+                             [{:researcher/id "researcher-a" :decision :approve}
+                              {:researcher/id "researcher-b" :decision :approve}
+                              {:researcher/id "researcher-c" :decision :dissent
+                               :dissent/reason "scope concern"}])
         ;; Fresh usability
         summary-fresh (fa-lifecycle-summary auth)
         ;; Consumed usability
         consumed-checker (fn [ck]
                            (= ck (rfa/consumption-key auth)))
         summary-consumed (fa-lifecycle-summary auth
-                           :consumption-checker consumed-checker)
+                                               :consumption-checker consumed-checker)
         ;; Expired usability
         auth-expired (assoc auth
                             :authorisation/expires-at "2020-01-01T00:00:00Z")
@@ -924,10 +924,10 @@
       (is (re-find #"^sha256:" ck))
       (is (= ck (rfa/consumption-key
                  (fa-build-auth! authorisation-id
-                   [{:researcher/id "researcher-a" :decision :approve}
-                    {:researcher/id "researcher-b" :decision :approve}
-                    {:researcher/id "researcher-c" :decision :dissent
-                     :dissent/reason "scope concern"}])))
+                                 [{:researcher/id "researcher-a" :decision :approve}
+                                  {:researcher/id "researcher-b" :decision :approve}
+                                  {:researcher/id "researcher-c" :decision :dissent
+                                   :dissent/reason "scope concern"}])))
           "same inputs must produce same consumption-key"))
 
     ;; ── Canonical hash integrity ───────────────────────────────────────
@@ -961,11 +961,11 @@
 
 (deftest lifecycle-declined
   (let [auth (fa-build-auth! :authorisation/fa-declined
-              [{:researcher/id "researcher-a" :decision :approve}
-               {:researcher/id "researcher-b" :decision :dissent
-                :dissent/reason "methodology concern"}
-               {:researcher/id "researcher-c" :decision :dissent
-                :dissent/reason "insufficient evidence"}])
+                             [{:researcher/id "researcher-a" :decision :approve}
+                              {:researcher/id "researcher-b" :decision :dissent
+                               :dissent/reason "methodology concern"}
+                              {:researcher/id "researcher-c" :decision :dissent
+                               :dissent/reason "insufficient evidence"}])
         summary (fa-lifecycle-summary auth)]
     (is (= :declined (:decision-status summary)))
     (is (not (:approved? summary)))
@@ -979,10 +979,10 @@
 (deftest lifecycle-tamper-detection
   (let [authorisation-id :authorisation/fa-tamper
         auth (fa-build-auth! authorisation-id
-              [{:researcher/id "researcher-a" :decision :approve}
-               {:researcher/id "researcher-b" :decision :approve}
-               {:researcher/id "researcher-c" :decision :dissent
-                :dissent/reason "original concern"}])
+                             [{:researcher/id "researcher-a" :decision :approve}
+                              {:researcher/id "researcher-b" :decision :approve}
+                              {:researcher/id "researcher-c" :decision :dissent
+                               :dissent/reason "original concern"}])
         sig-resolver (fn [id] (:public-key-path (fa-key-for id)))]
 
     ;; ── Baseline: valid before tamper ─────────────────────────────────
@@ -1019,9 +1019,9 @@
 
     ;; ── Tamper 2: rebind target to different proposed root ────────────
     (let [tampered-target (assoc-in auth
-                            [:authorisation/target
-                             :target/proposed-content-root]
-                            "sha256:evil-proposed-root")
+                                    [:authorisation/target
+                                     :target/proposed-content-root]
+                                    "sha256:evil-proposed-root")
           scope-validator (fn [a]
                             (when-not (= (:target/proposed-content-root
                                           (:authorisation/target a))
@@ -1045,8 +1045,8 @@
       ;; validate-authorisation should still pass if the hash is recomputed,
       ;; but the stored hash will mismatch.
       (let [v (rfa/validate-authorisation tampered-auth)]
-         (is (not (:valid? v))
-             "changed request root must invalidate the hash commitment")))))
+        (is (not (:valid? v))
+            "changed request root must invalidate the hash commitment")))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; 8. Force-authorisation consumption and manifest binding
@@ -1056,9 +1056,9 @@
   "Build a 3-approve FA artifact for consumption tests."
   [authorisation-id]
   (fa-build-auth! authorisation-id
-    [{:researcher/id "researcher-a" :decision :approve}
-     {:researcher/id "researcher-b" :decision :approve}
-     {:researcher/id "researcher-c" :decision :approve}]))
+                  [{:researcher/id "researcher-a" :decision :approve}
+                   {:researcher/id "researcher-b" :decision :approve}
+                   {:researcher/id "researcher-c" :decision :approve}]))
 
 (def ^:private fa-consumption-cmd-root "sha256:execution-command")
 (def ^:private fa-consumption-plan-root "sha256:execution-plan")
@@ -1100,25 +1100,25 @@
     ;; 4. Simulate execution (or fail)
     (let [fail? fail-after-reservation?
           resulting-outcome-hash (if fail? "sha256:failed-outcome"
-                                    (str "sha256:"
-                                         (hc/domain-hash :benchmark-outcome
-                                                         {:type :executed
-                                                          :plan plan-root
-                                                          :content executed-content-root})))
+                                     (str "sha256:"
+                                          (hc/domain-hash :benchmark-outcome
+                                                          {:type :executed
+                                                           :plan plan-root
+                                                           :content executed-content-root})))
           status (if fail? :failed-after-consumption :consumed)
           ;; 5. Build outcome manifest (references reservation, NOT receipt)
           fa-section {:authorisation-hash (:authorisation/hash auth)
-                       :consumption-key (rfa/consumption-key auth)
-                       :reservation-hash (:reservation/hash reservation)
-                       :execution-attempt-id attempt-id
-                       :branch-descriptor-hash
-                       (get-in auth [:authorisation/target
-                                     :target/branch-descriptor-hash])
-                       :baseline-content-root
-                       (get-in auth [:authorisation/target
-                                     :target/baseline-content-root])
-                       :executed-content-root executed-content-root
-                       :status status}
+                      :consumption-key (rfa/consumption-key auth)
+                      :reservation-hash (:reservation/hash reservation)
+                      :execution-attempt-id attempt-id
+                      :branch-descriptor-hash
+                      (get-in auth [:authorisation/target
+                                    :target/branch-descriptor-hash])
+                      :baseline-content-root
+                      (get-in auth [:authorisation/target
+                                    :target/baseline-content-root])
+                      :executed-content-root executed-content-root
+                      :status status}
           manifest (om/build-manifest
                     (assoc base-input
                            :execution/plan-root plan-root
@@ -1140,9 +1140,9 @@
                             (str "sha256:" (hc/domain-hash :evidence-collection
                                                            {:status :not-captured
                                                             :reason-code
-                                                             :simulated-failure})))))
+                                                            :simulated-failure})))))
           _ (rfa/finalise-consumption! registration (rfa/consumption-key auth)
-                                        status)]
+                                       status)]
       {:reservation reservation
        :outcome-manifest manifest
        :consumption-receipt receipt})))
@@ -1153,8 +1153,8 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-consumption-success)
         result (fa-consume-flow reg auth
-                 fa-consumption-cmd-root fa-consumption-plan-root
-                 fa-consumption-executed-root fa-consumption-attempt-id)
+                                fa-consumption-cmd-root fa-consumption-plan-root
+                                fa-consumption-executed-root fa-consumption-attempt-id)
         fa-sec (get-in result [:outcome-manifest :execution/force-authorisation])]
     ;; Reservation is valid and bound to auth
     (is (rfa/reservation-valid? (:reservation result)))
@@ -1190,8 +1190,8 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-consumption-tamper)
         result (fa-consume-flow reg auth
-                 fa-consumption-cmd-root fa-consumption-plan-root
-                 fa-consumption-executed-root fa-consumption-attempt-id)
+                                fa-consumption-cmd-root fa-consumption-plan-root
+                                fa-consumption-executed-root fa-consumption-attempt-id)
         valid-manifest (:outcome-manifest result)
         ;; Build a fresh manifest with a WRONG authorisation-hash.
         ;; The manifest self-hash will be valid (build-manifest recomputes it),
@@ -1211,7 +1211,7 @@
         "tampered manifest with recomputed hash is internally valid")
     ;; 2. Cross-artifact verification catches the mismatch
     (let [binding (rfa/verify-fa-binding tampered-valid-manifest auth
-                                          (:reservation result))]
+                                         (:reservation result))]
       (is (not (:consistent? binding))
           "cross-artifact binding must fail for wrong authorisation-hash")
       (is (some #(= :authorisation-hash (:field %)) (:mismatches binding))))
@@ -1228,7 +1228,7 @@
       (is (om/manifest-valid? tampered-valid-manifest)
           "internally valid despite wrong consumption-key")
       (let [binding (rfa/verify-fa-binding tampered-valid-manifest auth
-                                            (:reservation result))]
+                                           (:reservation result))]
         (is (not (:consistent? binding)))
         (is (some #(= :consumption-key (:field %)) (:mismatches binding)))))
     ;; 4. Tampering executed-content-root changes the manifest hash
@@ -1259,8 +1259,8 @@
         auth (fa-build-consumption-auth! :authorisation/fa-consumption-second)]
     ;; First execution succeeds
     (let [r1 (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id)]
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id)]
       (is (some? r1) "first execution must succeed"))
     ;; Second execution with same auth must fail before side effects
     (let [usable-check (rfa/verify-authorisation-usable
@@ -1282,12 +1282,12 @@
         auth (fa-build-consumption-auth! :authorisation/fa-consumption-fail)]
     ;; Execution fails after reservation
     (let [result (fa-consume-flow reg auth
-                   fa-consumption-cmd-root fa-consumption-plan-root
-                   fa-consumption-executed-root fa-consumption-attempt-id
-                   :fail-after-reservation? true)]
+                                  fa-consumption-cmd-root fa-consumption-plan-root
+                                  fa-consumption-executed-root fa-consumption-attempt-id
+                                  :fail-after-reservation? true)]
       (is (some? result) "flow must complete with failed status")
       (let [fa-sec (get-in result [:outcome-manifest
-                                    :execution/force-authorisation])
+                                   :execution/force-authorisation])
             receipt (:consumption-receipt result)]
         (is (= :failed-after-consumption (:status fa-sec))
             "status must be :failed-after-consumption")
@@ -1320,25 +1320,25 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-consumption-classify)
         result (fa-consume-flow reg auth
-                 fa-consumption-cmd-root fa-consumption-plan-root
-                 fa-consumption-executed-root fa-consumption-attempt-id)
+                                fa-consumption-cmd-root fa-consumption-plan-root
+                                fa-consumption-executed-root fa-consumption-attempt-id)
         fa-manifest (:outcome-manifest result)
         baseline (om/build-manifest
-                   (assoc base-input
-                          :execution/plan-root fa-consumption-plan-root
-                          :execution/command-root fa-consumption-cmd-root))
+                  (assoc base-input
+                         :execution/plan-root fa-consumption-plan-root
+                         :execution/command-root fa-consumption-cmd-root))
         fa-section (get-in fa-manifest [:execution/force-authorisation])]
     ;; FA manifest has different content-root and plan-root from baseline
     (is (not (om/exact-replication-scope? fa-manifest baseline))
         "FA manifest with different content-root must not be exact replication")
     ;; Same execution scope + same FA section = exact replication
     (let [same-scope-baseline (om/build-manifest
-                                (assoc base-input
-                                       :execution/plan-root fa-consumption-plan-root
-                                       :execution/command-root fa-consumption-cmd-root
-                                       :benchmark/content-root
-                                       (:baseline-content-root fa-section)
-                                       :execution/force-authorisation fa-section))]
+                               (assoc base-input
+                                      :execution/plan-root fa-consumption-plan-root
+                                      :execution/command-root fa-consumption-cmd-root
+                                      :benchmark/content-root
+                                      (:baseline-content-root fa-section)
+                                      :execution/force-authorisation fa-section))]
       (is (om/exact-replication-scope? fa-manifest same-scope-baseline)
           "same execution fields + same FA section = exact replication scope"))
     ;; Same execution scope but different FA section = NOT exact replication
@@ -1385,8 +1385,8 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-valid)
         flow (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id)
         profile (fa-ev-build! auth flow)]
     ;; Profile is structurally valid
     (is (some? (:evidence-profile/hash profile)))
@@ -1426,9 +1426,9 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-fail)
         flow (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id
-               :fail-after-reservation? true)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id
+                              :fail-after-reservation? true)
         profile (fa-ev-build! auth flow)]
     (is (some? (:evidence-profile/hash profile)))
     (let [v (:evidence-profile/verification profile)]
@@ -1445,8 +1445,8 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-missing)
         flow (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id)
         base-args {:policy fa-policy-artifact
                    :review-round fa-round-artifact
                    :reservation (:reservation flow)
@@ -1455,28 +1455,28 @@
                    :public-key-resolver fa-ev-resolver}]
     ;; Missing authorisation
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
-          (fa-ev/build-force-authorised-execution-evidence
-           (assoc base-args :authorisation nil))))
+                          (fa-ev/build-force-authorised-execution-evidence
+                           (assoc base-args :authorisation nil))))
     ;; Missing policy
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
-          (fa-ev/build-force-authorised-execution-evidence
-           (assoc base-args :authorisation auth :policy nil))))
+                          (fa-ev/build-force-authorised-execution-evidence
+                           (assoc base-args :authorisation auth :policy nil))))
     ;; Missing review-round
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
-          (fa-ev/build-force-authorised-execution-evidence
-           (assoc base-args :authorisation auth :review-round nil))))
+                          (fa-ev/build-force-authorised-execution-evidence
+                           (assoc base-args :authorisation auth :review-round nil))))
     ;; Missing reservation
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
-          (fa-ev/build-force-authorised-execution-evidence
-           (assoc base-args :authorisation auth :reservation nil))))
+                          (fa-ev/build-force-authorised-execution-evidence
+                           (assoc base-args :authorisation auth :reservation nil))))
     ;; Missing outcome-manifest
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
-          (fa-ev/build-force-authorised-execution-evidence
-           (assoc base-args :authorisation auth :outcome-manifest nil))))
+                          (fa-ev/build-force-authorised-execution-evidence
+                           (assoc base-args :authorisation auth :outcome-manifest nil))))
     ;; Missing consumption-receipt
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
-          (fa-ev/build-force-authorised-execution-evidence
-           (assoc base-args :authorisation auth :consumption-receipt nil))))))
+                          (fa-ev/build-force-authorised-execution-evidence
+                           (assoc base-args :authorisation auth :consumption-receipt nil))))))
 
 ;; ── 9d. Wrong manifest fails recomputation ─────────────────────────────
 
@@ -1484,8 +1484,8 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-wrong-mf)
         flow (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id)
         profile (fa-ev-build! auth flow)
         ;; Build a DIFFERENT manifest (different content-root)
         other-manifest (om/build-manifest
@@ -1513,20 +1513,20 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-forged)
         flow (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id)
         profile (fa-ev-build! auth flow)
         ;; Forge: alter a verification value and recompute the profile hash
         forged-ver (assoc (:evidence-profile/verification profile)
-                         :decision-signatures-valid? false)
+                          :decision-signatures-valid? false)
         forged-profile (assoc profile
                               :evidence-profile/verification forged-ver)
         ;; Recompute the profile's own hash so it's self-consistent
         without-hash (dissoc forged-profile :evidence-profile/hash)
         recomputed-hash (str "sha256:"
-                              (hc/domain-hash
-                               :force-authorised-execution-evidence
-                               without-hash))
+                             (hc/domain-hash
+                              :force-authorised-execution-evidence
+                              without-hash))
         forged-self-consistent (assoc forged-profile
                                       :evidence-profile/hash
                                       recomputed-hash)]
@@ -1553,8 +1553,8 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-pkg)
         flow (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id)
         manifest (:outcome-manifest flow)
         ;; Package resolver that returns nil for everything
         nil-resolver (fn [_] nil)]
@@ -1578,14 +1578,14 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-hash)
         flow (fa-consume-flow reg auth
-               fa-consumption-cmd-root fa-consumption-plan-root
-               fa-consumption-executed-root fa-consumption-attempt-id)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id)
         profile (fa-ev-build! auth flow)]
     ;; Profile with different auth-hash fails verification
     (let [profile2 (fa-ev-build! auth flow
-                     :override-auth (assoc auth
-                                           :authorisation/hash
-                                           "sha256:different-auth"))]
+                                 :override-auth (assoc auth
+                                                       :authorisation/hash
+                                                       "sha256:different-auth"))]
       (is (not= (:evidence-profile/hash profile)
                 (:evidence-profile/hash profile2))
           "different auth-hash must produce different profile hash"))
@@ -1593,7 +1593,7 @@
     (let [diff-res (assoc (:reservation flow)
                           :reservation/hash "sha256:different-res")
           profile3 (fa-ev-build! auth flow
-                    :override-reservation diff-res)]
+                                 :override-reservation diff-res)]
       (is (not= (:evidence-profile/hash profile)
                 (:evidence-profile/hash profile3))
           "different reservation-hash must produce different profile hash"))
@@ -1681,16 +1681,16 @@
         auth (rfa/build-authorisation
               {:authorisation/id authorisation-id
                :authorisation/policy {:policy/id :research/three-member
-                                       :policy/version 1
-                                       :policy/schema-version "fa-policy.v1"
-                                       :policy/hash "sha256:policy"}
+                                      :policy/version 1
+                                      :policy/schema-version "fa-policy.v1"
+                                      :policy/hash "sha256:policy"}
                :authorisation/review-round {:review-round/id round-id
-                                             :review-round/hash round-hash}
+                                            :review-round/hash round-hash}
                :authorisation/request-root "sha256:request"
                :authorisation/target {:target/kind :benchmark-branch
-                                       :target/baseline-content-root "sha256:baseline"
-                                       :target/branch-descriptor-hash "sha256:branch"
-                                       :target/proposed-content-root "sha256:proposed"}
+                                      :target/baseline-content-root "sha256:baseline"
+                                      :target/branch-descriptor-hash "sha256:branch"
+                                      :target/proposed-content-root "sha256:proposed"}
                :authorisation/decision-references
                (mapv (fn [rid]
                        {:researcher/id rid :decision :approve
@@ -1706,13 +1706,13 @@
                       :reservation/command-root "sha256:cmd"
                       :reservation/plan-root "sha256:plan"})
         manifest-fa {:authorisation-hash (:authorisation/hash auth)
-                      :consumption-key ck
-                      :reservation-hash (:reservation/hash reservation)
-                      :execution-attempt-id :execution/test
-                      :branch-descriptor-hash "sha256:branch"
-                      :baseline-content-root "sha256:baseline"
-                      :executed-content-root "sha256:executed"
-                      :status :consumed}
+                     :consumption-key ck
+                     :reservation-hash (:reservation/hash reservation)
+                     :execution-attempt-id :execution/test
+                     :branch-descriptor-hash "sha256:branch"
+                     :baseline-content-root "sha256:baseline"
+                     :executed-content-root "sha256:executed"
+                     :status :consumed}
         manifest (om/build-manifest
                   (assoc base-input
                          :execution/plan-root "sha256:plan"

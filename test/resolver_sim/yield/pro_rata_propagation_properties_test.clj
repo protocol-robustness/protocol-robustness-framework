@@ -20,10 +20,10 @@
   "Generate a yield position with principal and yield buckets."
   []
   (gen/fmap
-    (fn [[p ry dy]]
-      (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
-                          :principal p :realized-yield ry :deferred-yield dy}))
-    (gen/tuple (gen/choose 1 500) (gen/choose 0 200) (gen/choose 0 200))))
+   (fn [[p ry dy]]
+     (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
+                         :principal p :realized-yield ry :deferred-yield dy}))
+   (gen/tuple (gen/choose 1 500) (gen/choose 0 200) (gen/choose 0 200))))
 
 (defn- check-pass?
   "True if a check result map has :status :pass."
@@ -48,24 +48,24 @@
                             liquidity (gen/choose 0 1000)
                             mode (gen/elements [:pro-rata :principal-first :waterfall])
                             rounding (gen/elements [:floor-and-carry :largest-remainder])]
-                (let [policy {:mode mode :rounding-policy rounding}
-                      decision (pf/calculate-fulfillment liquidity pos policy)
-                      checks (pf/partial-fill-closed-form-checks decision)
-                      algebraic-ids #{:partial-fill/conservation
-                                      :partial-fill/capacity-bound
-                                      :partial-fill/per-claim-bound
-                                      :partial-fill/per-claim-conservation
-                                      :partial-fill/claim-key-consistency
-                                      :partial-fill/non-negative-amounts
-                                      :partial-fill/settlement-mode-consistency
-                                      :partial-fill/mode-valid
-                                      :partial-fill/deferred-haircut-overlap
-                                      :partial-fill/deferred-haircut-sum-bound
-                                      :partial-fill/evidence-self-consistency
-                                      :partial-fill/unrealized-bucket-valid
-                                      :partial-fill/decision-artifact-format}
-                      relevant (filter #(algebraic-ids (check-id %)) checks)]
-                  (every? check-pass? relevant)))
+                           (let [policy {:mode mode :rounding-policy rounding}
+                                 decision (pf/calculate-fulfillment liquidity pos policy)
+                                 checks (pf/partial-fill-closed-form-checks decision)
+                                 algebraic-ids #{:partial-fill/conservation
+                                                 :partial-fill/capacity-bound
+                                                 :partial-fill/per-claim-bound
+                                                 :partial-fill/per-claim-conservation
+                                                 :partial-fill/claim-key-consistency
+                                                 :partial-fill/non-negative-amounts
+                                                 :partial-fill/settlement-mode-consistency
+                                                 :partial-fill/mode-valid
+                                                 :partial-fill/deferred-haircut-overlap
+                                                 :partial-fill/deferred-haircut-sum-bound
+                                                 :partial-fill/evidence-self-consistency
+                                                 :partial-fill/unrealized-bucket-valid
+                                                 :partial-fill/decision-artifact-format}
+                                 relevant (filter #(algebraic-ids (check-id %)) checks)]
+                             (every? check-pass? relevant)))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -88,7 +88,7 @@
 (deftest principal-first-priority-holds
   "Under :principal-first mode, no yield bucket is filled when principal
    remains underfilled."
-  (let [        pos (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
+  (let [pos (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
                                 :principal 200 :realized-yield 100 :deferred-yield 0})
         decision (pf/calculate-fulfillment 150 pos {:mode :principal-first})
         checks (pf/partial-fill-closed-form-checks decision)
@@ -99,7 +99,7 @@
 (deftest waterfall-priority-holds
   "Under :waterfall mode with strict fill-order, higher-priority buckets are
    filled before lower-priority ones."
-  (let [        pos (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
+  (let [pos (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
                                 :principal 300 :realized-yield 100 :deferred-yield 50})
         decision (pf/calculate-fulfillment 200 pos {:mode :waterfall})
         checks (pf/partial-fill-closed-form-checks decision)
@@ -112,14 +112,14 @@
    for partial-fill decisions (liquidity insufficient for all claims)."
   (let [prop (prop/for-all [pos (gen-position)
                             shortfall (gen/choose 1 200)]
-                (let [total (+ (:principal pos 0) (:realized-yield pos 0) (:deferred-yield pos 0))
-                      liquidity (max 0 (- total shortfall))
-                      decision (pf/calculate-fulfillment liquidity pos
-                                  {:mode :pro-rata :rounding-policy :largest-remainder})
-                      checks (pf/partial-fill-closed-form-checks decision)
-                      residual (first (filter #(= :partial-fill/rounding-residual-bounded (check-id %)) checks))]
-                  (and (= :partial-fill (:settlement-mode decision))
-                       (check-pass? residual))))
+                           (let [total (+ (:principal pos 0) (:realized-yield pos 0) (:deferred-yield pos 0))
+                                 liquidity (max 0 (- total shortfall))
+                                 decision (pf/calculate-fulfillment liquidity pos
+                                                                    {:mode :pro-rata :rounding-policy :largest-remainder})
+                                 checks (pf/partial-fill-closed-form-checks decision)
+                                 residual (first (filter #(= :partial-fill/rounding-residual-bounded (check-id %)) checks))]
+                             (and (= :partial-fill (:settlement-mode decision))
+                                  (check-pass? residual))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -128,14 +128,14 @@
    positive claims (for partial-fill decisions)."
   (let [prop (prop/for-all [pos (gen-position)
                             shortfall (gen/choose 1 200)]
-                (let [total (+ (:principal pos 0) (:realized-yield pos 0) (:deferred-yield pos 0))
-                      liquidity (max 0 (- total shortfall))
-                      decision (pf/calculate-fulfillment liquidity pos
-                                  {:mode :pro-rata :rounding-policy :floor-and-carry})
-                      checks (pf/partial-fill-closed-form-checks decision)
-                      residual (first (filter #(= :partial-fill/rounding-residual-bounded (check-id %)) checks))]
-                  (and (= :partial-fill (:settlement-mode decision))
-                       (check-pass? residual))))
+                           (let [total (+ (:principal pos 0) (:realized-yield pos 0) (:deferred-yield pos 0))
+                                 liquidity (max 0 (- total shortfall))
+                                 decision (pf/calculate-fulfillment liquidity pos
+                                                                    {:mode :pro-rata :rounding-policy :floor-and-carry})
+                                 checks (pf/partial-fill-closed-form-checks decision)
+                                 residual (first (filter #(= :partial-fill/rounding-residual-bounded (check-id %)) checks))]
+                             (and (= :partial-fill (:settlement-mode decision))
+                                  (check-pass? residual))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -149,26 +149,26 @@
    that the world contains the expected propagation and application identities,
    and that the independent oracle matches."
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [world (h/build-propagations-from-case c)
-                      result (inv/check-pro-rata-accounting-reconciles world)
-                      propagations (:yield/pro-rata-propagations world)
-                      applications (:yield/applied-pro-rata-propagations world)]
-                  (and
+                           (let [world (h/build-propagations-from-case c)
+                                 result (inv/check-pro-rata-accounting-reconciles world)
+                                 propagations (:yield/pro-rata-propagations world)
+                                 applications (:yield/applied-pro-rata-propagations world)]
+                             (and
                     ;; World contains expected identities (not vacuously empty)
-                    (seq propagations)
-                    (seq applications)
+                              (seq propagations)
+                              (seq applications)
                     ;; Reconciliation holds
-                    (:holds? result)
+                              (:holds? result)
                     ;; No silent failures — every expected check passed
-                    (let [failed (remove #(= :pass %) (vals (:checks result)))]
-                      (empty? failed))
+                              (let [failed (remove #(= :pass %) (vals (:checks result)))]
+                                (empty? failed))
                     ;; Oracle check: allocated matches
-                    (= (h/expected-total-allocated c)
-                       (get-in (first (vals propagations)) [:summary :allocated]))
+                              (= (h/expected-total-allocated c)
+                                 (get-in (first (vals propagations)) [:summary :allocated]))
                     ;; Oracle check: participant IDs match
-                    (= (h/expected-participant-ids c)
-                       (set (map :participant-id
-                                 (:participants (first (vals propagations)))))))))
+                              (= (h/expected-participant-ids c)
+                                 (set (map :participant-id
+                                           (:participants (first (vals propagations)))))))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -177,12 +177,12 @@
    returns the specific failed check names.  This verifies that failure reporting
    is actionable and not vacuously empty."
   (let [world (h/build-propagations-from-case
-                {:token-id :USDC :source-balance 100
-                 :participants [{:participant-id "alice" :eligible-obligation 60
-                                 :fulfilled 60 :deferred 0
-                                 :unmet 0 :waived 0 :obligation-after 0
-                                 :origin {:obligation-id :obl-alice
-                                          :participant-id "alice" :sequence 1}}]})
+               {:token-id :USDC :source-balance 100
+                :participants [{:participant-id "alice" :eligible-obligation 60
+                                :fulfilled 60 :deferred 0
+                                :unmet 0 :waived 0 :obligation-after 0
+                                :origin {:obligation-id :obl-alice
+                                         :participant-id "alice" :sequence 1}}]})
         ;; Corrupt the source balance to trigger :source-balance-chain-broken
         world' (assoc-in world [:total-held :USDC] 999)
         result (inv/check-pro-rata-accounting-reconciles world')]
@@ -202,14 +202,14 @@
    numbers incremented, booleans toggled, etc."
   [m k]
   (update m k
-    (fn [v]
-      (cond
-        (string? v) (str v "-mutated")
-        (keyword? v) (keyword (str (name v) "-mutated"))
-        (number? v) (+ v 1)
-        (boolean? v) (not v)
-        (map? v) (assoc v :mutated true)
-        :else v))))
+          (fn [v]
+            (cond
+              (string? v) (str v "-mutated")
+              (keyword? v) (keyword (str (name v) "-mutated"))
+              (number? v) (+ v 1)
+              (boolean? v) (not v)
+              (map? v) (assoc v :mutated true)
+              :else v))))
 
 (defn- simple-position
   "Construct a minimal position map for hash testing, avoiding ratio values
@@ -232,18 +232,18 @@
   "Generate a minimal position with only integer values."
   []
   (gen/fmap
-    (fn [[p ry dy]]
-      (simple-position p ry dy))
-    (gen/tuple (gen/choose 1 500) (gen/choose 0 200) (gen/choose 0 200))))
+   (fn [[p ry dy]]
+     (simple-position p ry dy))
+   (gen/tuple (gen/choose 1 500) (gen/choose 0 200) (gen/choose 0 200))))
 
 (deftest decision-hash-deterministic
   "Same position and liquidity always produce the same decision artifact hash."
   (let [prop (prop/for-all [pos (gen-simple-position)
                             liquidity (gen/choose 0 500)]
-                (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
-                      d1 (pf/decision-artifact pos (pf/calculate-fulfillment liquidity pos policy))
-                      d2 (pf/decision-artifact pos (pf/calculate-fulfillment liquidity pos policy))]
-                  (= (:decision/hash d1) (:decision/hash d2))))
+                           (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                                 d1 (pf/decision-artifact pos (pf/calculate-fulfillment liquidity pos policy))
+                                 d2 (pf/decision-artifact pos (pf/calculate-fulfillment liquidity pos policy))]
+                             (= (:decision/hash d1) (:decision/hash d2))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -253,11 +253,11 @@
   (let [prop (prop/for-all [pos (gen-simple-position)
                             liquidity (gen/choose 0 500)
                             k (gen/elements [:module/id :token :settlement-mode])]
-                (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
-                      artifact (pf/decision-artifact pos
-                                 (pf/calculate-fulfillment liquidity pos policy))
-                      mutated (mutate-field artifact k)]
-                  (not (pf/decision-hash-valid? mutated))))
+                           (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                                 artifact (pf/decision-artifact pos
+                                                                (pf/calculate-fulfillment liquidity pos policy))
+                                 mutated (mutate-field artifact k)]
+                             (not (pf/decision-hash-valid? mutated))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -267,24 +267,24 @@
   (let [prop (prop/for-all [pos (gen-simple-position)
                             pos2 (gen-simple-position)
                             liquidity (gen/choose 0 500)]
-                (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
-                      h1 (:decision/hash (pf/decision-artifact pos
-                                           (pf/calculate-fulfillment liquidity pos policy)))
-                      h2 (:decision/hash (pf/decision-artifact pos2
-                                           (pf/calculate-fulfillment liquidity pos2 policy)))]
+                           (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                                 h1 (:decision/hash (pf/decision-artifact pos
+                                                                          (pf/calculate-fulfillment liquidity pos policy)))
+                                 h2 (:decision/hash (pf/decision-artifact pos2
+                                                                          (pf/calculate-fulfillment liquidity pos2 policy)))]
                   ;; Only assert different when positions differ
-                  (or (= pos pos2) (not= h1 h2))))
+                             (or (= pos pos2) (not= h1 h2))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
 (deftest application-hash-deterministic
   "Same application always produces the same hash."
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [world (h/build-propagations-from-case c)
-                      app (first (vals (:yield/applied-pro-rata-propagations world)))
-                      h1 (pf/application-hash app)
-                      h2 (pf/application-hash app)]
-                  (= h1 h2)))
+                           (let [world (h/build-propagations-from-case c)
+                                 app (first (vals (:yield/applied-pro-rata-propagations world)))
+                                 h1 (pf/application-hash app)
+                                 h2 (pf/application-hash app)]
+                             (= h1 h2)))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -292,12 +292,12 @@
   "Changing a committed field in the application produces a different hash."
   (let [prop (prop/for-all [c h/gen-any-case
                             k (gen/elements [:calculation-id :outcome-hash :policy-hash])]
-                (let [world (h/build-propagations-from-case c)
-                      app (first (vals (:yield/applied-pro-rata-propagations world)))
-                      original-hash (pf/application-hash app)
-                      mutated (mutate-field app k)
-                      new-hash (pf/application-hash mutated)]
-                  (not= original-hash new-hash)))
+                           (let [world (h/build-propagations-from-case c)
+                                 app (first (vals (:yield/applied-pro-rata-propagations world)))
+                                 original-hash (pf/application-hash app)
+                                 mutated (mutate-field app k)
+                                 new-hash (pf/application-hash mutated)]
+                             (not= original-hash new-hash)))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -320,39 +320,39 @@
   "Every generated propagation artifact has all required identity and
    accounting fields."
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [world (h/build-propagations-from-case c)
-                      prop (first (vals (:yield/pro-rata-propagations world)))]
-                  (and
-                    (every? #(contains? prop %) required-propagation-fields)
-                    (string? (:propagation/id prop))
-                    (keyword? (:token prop))
-                    (map? (:summary prop))
-                    (contains? (:summary prop) :allocated)
-                    (contains? (:summary prop) :available)
-                    (contains? (:summary prop) :unallocated-residual)
-                    (vector? (:participants prop))
-                    (every? #(contains? % :participant-id) (:participants prop))
-                    (every? #(contains? % :fulfilled) (:participants prop))
-                    (every? #(contains? % :deferred) (:participants prop))
-                    (vector? (:accounting-entries prop))
-                    (string? (:accounting-entry-set-hash prop)))))
+                           (let [world (h/build-propagations-from-case c)
+                                 prop (first (vals (:yield/pro-rata-propagations world)))]
+                             (and
+                              (every? #(contains? prop %) required-propagation-fields)
+                              (string? (:propagation/id prop))
+                              (keyword? (:token prop))
+                              (map? (:summary prop))
+                              (contains? (:summary prop) :allocated)
+                              (contains? (:summary prop) :available)
+                              (contains? (:summary prop) :unallocated-residual)
+                              (vector? (:participants prop))
+                              (every? #(contains? % :participant-id) (:participants prop))
+                              (every? #(contains? % :fulfilled) (:participants prop))
+                              (every? #(contains? % :deferred) (:participants prop))
+                              (vector? (:accounting-entries prop))
+                              (string? (:accounting-entry-set-hash prop)))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
 (deftest application-has-required-structure
   "Every generated application artifact has all required fields."
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [world (h/build-propagations-from-case c)
-                      app (first (vals (:yield/applied-pro-rata-propagations world)))]
-                  (and
-                    (every? #(contains? app %) required-application-fields)
-                    (= "pro-rata-propagation-application.v3" (:schema-version app))
-                    (map? (:source-account app))
-                    (contains? (:source-account app) :before)
-                    (contains? (:source-account app) :delta)
-                    (contains? (:source-account app) :after)
-                    (vector? (:participants app))
-                    (every? #(contains? % :withdrawn) (:participants app)))))
+                           (let [world (h/build-propagations-from-case c)
+                                 app (first (vals (:yield/applied-pro-rata-propagations world)))]
+                             (and
+                              (every? #(contains? app %) required-application-fields)
+                              (= "pro-rata-propagation-application.v3" (:schema-version app))
+                              (map? (:source-account app))
+                              (contains? (:source-account app) :before)
+                              (contains? (:source-account app) :delta)
+                              (contains? (:source-account app) :after)
+                              (vector? (:participants app))
+                              (every? #(contains? % :withdrawn) (:participants app)))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -360,20 +360,20 @@
   "The sum of all accounting entry deltas in a propagation is zero:
    debit (negative) + credits (positive) = 0."
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [world (h/build-propagations-from-case c)
-                      entries (get-in (first (vals (:yield/pro-rata-propagations world)))
-                                      [:accounting-entries])]
-                  (zero? (reduce + 0 (map :delta entries)))))
+                           (let [world (h/build-propagations-from-case c)
+                                 entries (get-in (first (vals (:yield/pro-rata-propagations world)))
+                                                 [:accounting-entries])]
+                             (zero? (reduce + 0 (map :delta entries)))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
 (deftest summary-conservation-holds
   "For every propagation: summary.available = summary.allocated + summary.unallocated-residual."
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [summary (get-in (first (vals (:yield/pro-rata-propagations
-                               (h/build-propagations-from-case c)))) [:summary])]
-                  (= (:available summary 0)
-                     (+ (:allocated summary 0) (:unallocated-residual summary 0)))))
+                           (let [summary (get-in (first (vals (:yield/pro-rata-propagations
+                                                               (h/build-propagations-from-case c)))) [:summary])]
+                             (= (:available summary 0)
+                                (+ (:allocated summary 0) (:unallocated-residual summary 0)))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -381,9 +381,9 @@
   "For every application: source-account.before + source-account.delta = source-account.after.
    (Delta is negative for debits.)"
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [sa (get-in (first (vals (:yield/applied-pro-rata-propagations
-                                (h/build-propagations-from-case c)))) [:source-account])]
-                  (= (:after sa 0) (+ (:before sa 0) (:delta sa 0)))))
+                           (let [sa (get-in (first (vals (:yield/applied-pro-rata-propagations
+                                                          (h/build-propagations-from-case c)))) [:source-account])]
+                             (= (:after sa 0) (+ (:before sa 0) (:delta sa 0)))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -391,13 +391,13 @@
   "For every propagation participant: obligation-after = deferred.
    (Waived and unmet are always zero in the current policy.)"
   (let [prop (prop/for-all [c h/gen-any-case]
-                (let [participants (get-in (first (vals (:yield/pro-rata-propagations
-                                        (h/build-propagations-from-case c)))) [:participants])]
-                  (every? (fn [p]
-                            (and (= (:obligation-after p) (:deferred p 0))
-                                 (zero? (:unmet p 0))
-                                 (zero? (:waived p 0))))
-                          participants)))
+                           (let [participants (get-in (first (vals (:yield/pro-rata-propagations
+                                                                    (h/build-propagations-from-case c)))) [:participants])]
+                             (every? (fn [p]
+                                       (and (= (:obligation-after p) (:deferred p 0))
+                                            (zero? (:unmet p 0))
+                                            (zero? (:waived p 0))))
+                                     participants)))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -411,19 +411,19 @@
   (let [prop (prop/for-all [c h/gen-any-case
                             ;; Generate a random permutation of the case's participants
                             perm-idx (gen/choose 0 5)]
-                (let [reordered (update c :participants (fn [ps] (vec (shuffle ps))))
-                      w1 (h/build-propagations-from-case c)
-                      w2 (h/build-propagations-from-case reordered)
-                      p1 (first (vals (:yield/pro-rata-propagations w1)))
-                      p2 (first (vals (:yield/pro-rata-propagations w2)))]
-                  (and
-                    (= (set (map :participant-id (:participants p1)))
-                       (set (map :participant-id (:participants p2))))
-                    (= (:summary p1) (:summary p2))
-                    (= (set (map (juxt :entry/type :account :participant-id :delta)
-                                 (:accounting-entries p1)))
-                       (set (map (juxt :entry/type :account :participant-id :delta)
-                                 (:accounting-entries p2)))))))
+                           (let [reordered (update c :participants (fn [ps] (vec (shuffle ps))))
+                                 w1 (h/build-propagations-from-case c)
+                                 w2 (h/build-propagations-from-case reordered)
+                                 p1 (first (vals (:yield/pro-rata-propagations w1)))
+                                 p2 (first (vals (:yield/pro-rata-propagations w2)))]
+                             (and
+                              (= (set (map :participant-id (:participants p1)))
+                                 (set (map :participant-id (:participants p2))))
+                              (= (:summary p1) (:summary p2))
+                              (= (set (map (juxt :entry/type :account :participant-id :delta)
+                                           (:accounting-entries p1)))
+                                 (set (map (juxt :entry/type :account :participant-id :delta)
+                                           (:accounting-entries p2)))))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -436,13 +436,13 @@
    residual produce a world where check-pro-rata-accounting-reconciles
    passes for both propagation entries."
   (let [prop (prop/for-all [[c1 c2] h/gen-two-case-chain]
-                (let [world (h/build-two-propagation-world c1 c2)
-                      result (inv/check-pro-rata-accounting-reconciles world)]
-                  (and
-                    (some? world)
-                    (:holds? result)
-                    (let [failed (remove #(= :pass %) (vals (:checks result)))]
-                      (empty? failed)))))
+                           (let [world (h/build-two-propagation-world c1 c2)
+                                 result (inv/check-pro-rata-accounting-reconciles world)]
+                             (and
+                              (some? world)
+                              (:holds? result)
+                              (let [failed (remove #(= :pass %) (vals (:checks result)))]
+                                (empty? failed)))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -451,16 +451,16 @@
    the first's source-account.after, and the world total-held matches
    the second's source-account.after."
   (let [prop (prop/for-all [[c1 c2] h/gen-two-case-chain]
-                (let [world (h/build-two-propagation-world c1 c2)
-                      apps (:yield/applied-pro-rata-propagations world)
-                      app1 (get apps "p1")
-                      app2 (get apps "p2")
-                      sa1 (:source-account app1)
-                      sa2 (:source-account app2)]
-                  (and
-                    (some? world)
-                    (= (:after sa1) (:before sa2))
-                    (= (:after sa2) (get-in world [:total-held (:token sa2)])))))
+                           (let [world (h/build-two-propagation-world c1 c2)
+                                 apps (:yield/applied-pro-rata-propagations world)
+                                 app1 (get apps "p1")
+                                 app2 (get apps "p2")
+                                 sa1 (:source-account app1)
+                                 sa2 (:source-account app2)]
+                             (and
+                              (some? world)
+                              (= (:after sa1) (:before sa2))
+                              (= (:after sa2) (get-in world [:total-held (:token sa2)])))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -471,10 +471,10 @@
 (deftest single-participant-propagation-reconciles
   "A propagation with a single participant passes all invariants."
   (let [prop (prop/for-all [c h/gen-case]
-                (let [single-participant (update c :participants #(vec (take 1 %)))]
-                  (let [world (h/build-propagations-from-case single-participant)
-                        result (inv/check-pro-rata-accounting-reconciles world)]
-                    (:holds? result))))
+                           (let [single-participant (update c :participants #(vec (take 1 %)))]
+                             (let [world (h/build-propagations-from-case single-participant)
+                                   result (inv/check-pro-rata-accounting-reconciles world)]
+                               (:holds? result))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -482,11 +482,11 @@
   "A propagation where all participants have zero fulfillment produces
    an empty propagation that the invariant correctly rejects."
   (let [prop (prop/for-all [c h/gen-case]
-                (let [zero-ps (mapv (fn [p] (assoc p :fulfilled 0 :deferred (:eligible-obligation p 0)))
-                                    (:participants c))
-                      case (assoc c :participants zero-ps)]
-                  (let [world (h/build-propagations-from-case case)
-                        result (inv/check-pro-rata-accounting-reconciles world)]
-                    (false? (:holds? result)))))
+                           (let [zero-ps (mapv (fn [p] (assoc p :fulfilled 0 :deferred (:eligible-obligation p 0)))
+                                               (:participants c))
+                                 case (assoc c :participants zero-ps)]
+                             (let [world (h/build-propagations-from-case case)
+                                   result (inv/check-pro-rata-accounting-reconciles world)]
+                               (false? (:holds? result)))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))

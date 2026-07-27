@@ -273,7 +273,7 @@
                proto-descriptor (assoc :protocol proto-descriptor)
                (seq proto-hashes) (assoc :protocol/state-hashes proto-hashes)
                (seq proto-witness) (assoc :protocol/state proto-witness
-                                           :protocol/state-witness-hash proto-witness-hash))
+                                          :protocol/state-witness-hash proto-witness-hash))
         ;; Every emitted bundle field is included in the content-addressed preimage.
         ;; Downstream lifecycle objects must reference this bundle; they must not enrich it.
         ;; Lightweight sensitivity summary (no independently constructed

@@ -16,8 +16,8 @@
             [clojure.tools.logging :as log]))
 
 (log/warn! :sim-dispatcher-deprecated
-  "resolver-sim.sim.dispatcher is a forwarding shim. "
-  "Call resolver-sim.contract-model.replay.execution directly.")
+           "resolver-sim.sim.dispatcher is a forwarding shim. "
+           "Call resolver-sim.contract-model.replay.execution directly.")
 
 (defn apply-action-with-evidence
   "Dispatch an action through the protocol layer and emit a content-hashed

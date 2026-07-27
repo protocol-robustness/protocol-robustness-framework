@@ -188,12 +188,12 @@
                                       (if (= 1 match-count)
                                         (conj acc {:step/id step-id :evidence (first matching)})
                                         (throw (ex-info (str "Expected exactly 1 evidence for step " step-id
-                                                              " but found " match-count)
+                                                             " but found " match-count)
                                                         {:step/id step-id :expected-type expected-type
                                                          :match-count match-count
                                                          :auth-id expected-auth-id})))))
-                                    []
-                                    (:trust-sequence-definition/steps definition))
+                                  []
+                                  (:trust-sequence-definition/steps definition))
             initial-input-root (:world/before-hash (get-in step-bindings [0 :evidence]))
             result-root (:world/after-hash (get-in step-bindings [(dec (count step-bindings)) :evidence]))
             run-id (str "witness-" (java.util.UUID/randomUUID))
@@ -235,30 +235,30 @@
         (when (nil? definition)
           (throw (ex-info "Trust-sequence definition root configured but could not resolve definition"
                           {:trust-sequence-definition-root ts-root})))
-          (let [plan-root (plan-committed-root run-root)
-                _ (when-not plan-root
-                    (throw (ex-info "Trust-sequence definition root configured but execution plan has no committed root"
-                                    {:trust-sequence-definition-root ts-root
-                                     :hint "The execution plan was likely written by an older pipeline version that does not include trust-sequence fields"})))
-                _ (when-not (= ts-root plan-root)
-                    (throw (ex-info "Pre-execution plan root does not match source definition root"
-                                    {:definition-root ts-root :plan-root plan-root})))
-                adapter (load-adapter
-                         (get-in definition [:trust-sequence-definition/provider :protocol/id]))
-               expected-id (or (plan-committed-correlation-id run-root)
-                               (do (println "  [witness] WARNING: no expected-correlation-id in execution plan")
-                                   nil))
-               result (build-witness-from-scenario context definition adapter expected-id)]
+        (let [plan-root (plan-committed-root run-root)
+              _ (when-not plan-root
+                  (throw (ex-info "Trust-sequence definition root configured but execution plan has no committed root"
+                                  {:trust-sequence-definition-root ts-root
+                                   :hint "The execution plan was likely written by an older pipeline version that does not include trust-sequence fields"})))
+              _ (when-not (= ts-root plan-root)
+                  (throw (ex-info "Pre-execution plan root does not match source definition root"
+                                  {:definition-root ts-root :plan-root plan-root})))
+              adapter (load-adapter
+                       (get-in definition [:trust-sequence-definition/provider :protocol/id]))
+              expected-id (or (plan-committed-correlation-id run-root)
+                              (do (println "  [witness] WARNING: no expected-correlation-id in execution plan")
+                                  nil))
+              result (build-witness-from-scenario context definition adapter expected-id)]
           (when (nil? result)
             (throw (ex-info "Witness build failed: could not resolve scenario evidence"
                             {:definition-root ts-root})))
           (let [out-file (io/file run-root witness-filename)]
             (io/make-parents out-file)
             (spit out-file (json/write-str (:witness result)
-                                          {:key-fn (fn [k] (if (keyword? k)
+                                           {:key-fn (fn [k] (if (keyword? k)
                                                               (if-let [ns (namespace k)]
                                                                 (str ns "/" (name k)) (name k)) (str k)))
-                                           :indent true})))
+                                            :indent true})))
           (println (str "  [witness] Built and persisted: " (:root result)))
           (assoc result :definition definition))))))
 
@@ -294,9 +294,9 @@
                          (json/read-str (slurp reg-file) :key-fn keyword))
               cursor (when (and cursor-file (.isFile (io/file cursor-file)))
                        (json/read-str (slurp cursor-file) :key-fn keyword))
-               expected-id (or (plan-committed-correlation-id run-root)
-                               (configured-correlation-id run-root))
-               plan-root (plan-committed-root run-root)]
+              expected-id (or (plan-committed-correlation-id run-root)
+                              (configured-correlation-id run-root))
+              plan-root (plan-committed-root run-root)]
           (if (and definition witness ev-dir registry cursor)
             (wv/verify-witness-from-finalised-evidence
              witness definition ev-dir registry cursor

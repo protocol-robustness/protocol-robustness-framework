@@ -188,7 +188,7 @@
    consumption-key, execution-attempt-id, etc.) so that independently
    authorised reproductions of the same branch can classify as exact
    replication when they executed the same content."
-   [a b]
+  [a b]
   (and (= (:benchmark/content-root a) (:benchmark/content-root b))
        (= (:benchmark/model-root a) (:benchmark/model-root b))
        (= (:execution/model-instance-root a) (:execution/model-instance-root b))
@@ -312,7 +312,7 @@
    agree on content-root and model-root.
    
    Returns {:consistent? bool :mismatches [{:field field :entry-value v :manifest-value v}]}."
-   [registry-entry outcome-manifest]
+  [registry-entry outcome-manifest]
   (let [pairs [[:benchmark/content-root :benchmark/content-root]
                [:benchmark/model-root :benchmark/model-root]
                [:benchmark/evaluation-policy-root :benchmark/evaluation-policy-root]]

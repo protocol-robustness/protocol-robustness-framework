@@ -48,9 +48,9 @@
 
 (deftest missing-artifact-throws
   (is (thrown-with-msg? Exception #"not found"
-        (tb/load-trust-sequence-definition "/nonexistent/file.edn")))
+                        (tb/load-trust-sequence-definition "/nonexistent/file.edn")))
   (is (thrown-with-msg? Exception #"not found"
-        (tb/load-execution-witness "/nonexistent/file.json"))))
+                        (tb/load-execution-witness "/nonexistent/file.json"))))
 
 ;; ── Evidence index ──────────────────────────────────────────────────────────
 
@@ -85,8 +85,8 @@
         witness (get (tb/load-execution-witness (str valid-root "/manifest/execution-witness.json")) :artifact/value)
         ev-idx (tb/build-evidence-index (str valid-root "/event-evidence"))
         adapter (try @(requiring-resolve
-                        'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
-                   (catch Exception _ nil))
+                       'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
+                     (catch Exception _ nil))
         result (wv/verify-witness witness ts-defn ev-idx {:evidence-adapter adapter})
         {:keys [cards resolved-count]} (tb/project-boundary-cards ts-defn witness result ev-idx nil)]
     (is (pos? (count cards)))
@@ -100,8 +100,8 @@
         witness (get (tb/load-execution-witness (str valid-root "/manifest/execution-witness.json")) :artifact/value)
         ev-idx (tb/build-evidence-index (str valid-root "/event-evidence"))
         adapter (try @(requiring-resolve
-                        'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
-                   (catch Exception _ nil))
+                       'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
+                     (catch Exception _ nil))
         result (wv/verify-witness witness ts-defn ev-idx {:evidence-adapter adapter})
         {:keys [cards]} (tb/project-boundary-cards ts-defn witness result ev-idx nil)
         witness-hashes (set (keep :step/evidence-content-hash
@@ -118,8 +118,8 @@
         witness (get (tb/load-execution-witness (str valid-root "/manifest/execution-witness.json")) :artifact/value)
         ev-idx (tb/build-evidence-index (str valid-root "/event-evidence"))
         adapter (try @(requiring-resolve
-                        'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
-                   (catch Exception _ nil))
+                       'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
+                     (catch Exception _ nil))
         result (wv/verify-witness witness ts-defn ev-idx {:evidence-adapter adapter})
         groups (tb/project-verification-groups (:checks result))]
     (is (= 6 (count groups)))
@@ -160,8 +160,6 @@
   (let [result (tb/validate-workbench-run-layout valid-root)]
     ;; At minimum, the fixture must have definition.edn and execution-plan.edn
     (is (<= 2 (:existing result)) (str "Expected >=2 files, missing: " (:missing result)))))
-
-
 
 (defn- make-full-fixture-dir [target-root]
   (doseq [f ["benchmark/assertions/canonical-integrity.json" "manifest/run-package-index.json" "completion.json"
@@ -204,7 +202,7 @@
         witness (get (tb/load-execution-witness (str valid-root "/manifest/execution-witness.json")) :artifact/value)
         ev-idx (tb/build-evidence-index (str valid-root "/event-evidence"))
         adapter (try @(requiring-resolve 'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
-                   (catch Exception _ nil))
+                     (catch Exception _ nil))
         result-a (wv/verify-witness witness ts-defn ev-idx {:evidence-adapter adapter})
         result-b (wv/verify-witness witness ts-defn ev-idx {:evidence-adapter adapter})
         cards-a (:cards (tb/project-boundary-cards ts-defn witness result-a ev-idx nil))

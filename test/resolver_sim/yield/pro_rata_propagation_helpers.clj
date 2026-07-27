@@ -44,53 +44,53 @@
   [gen-fn n]
   (let [ids (vec (take n participant-id-pool))]
     (gen/fmap
-      (fn [amounts]
-        (mapv (fn [id amount] (gen-fn id amount)) ids amounts))
-      (gen/vector (gen/choose 1 200) n))))
+     (fn [amounts]
+       (mapv (fn [id amount] (gen-fn id amount)) ids amounts))
+     (gen/vector (gen/choose 1 200) n))))
 
 (def gen-case
   "Generate a valid semantic case with unique participant IDs.
    source-balance is always >= total-allocated."
   (gen/bind
-    (gen/choose 1 6)
-    (fn [n]
-      (let [ids (vec (take n participant-id-pool))]
-        (gen/fmap
-          (fn [amounts]
-            (let [participants
-                  (mapv (fn [id amount]
-                          (let [eligible (max 1 (long amount))]
-                            (make-participant id eligible eligible)))
-                        ids amounts)
-                  total (reduce + 0 (map :fulfilled participants))
-                  source-balance (max 1 total)]
-              {:token-id :USDC
-               :source-balance source-balance
-               :participants participants}))
-          (gen/vector (gen/choose 1 200) n))))))
+   (gen/choose 1 6)
+   (fn [n]
+     (let [ids (vec (take n participant-id-pool))]
+       (gen/fmap
+        (fn [amounts]
+          (let [participants
+                (mapv (fn [id amount]
+                        (let [eligible (max 1 (long amount))]
+                          (make-participant id eligible eligible)))
+                      ids amounts)
+                total (reduce + 0 (map :fulfilled participants))
+                source-balance (max 1 total)]
+            {:token-id :USDC
+             :source-balance source-balance
+             :participants participants}))
+        (gen/vector (gen/choose 1 200) n))))))
 
 (def gen-case-with-deferred
   "Generate a valid case where some participants may have deferred amounts.
    Each participant's fulfillment ratio is randomly chosen."
   (gen/bind
-    (gen/choose 1 5)
-    (fn [n]
-      (let [ids (vec (take n participant-id-pool))]
-        (gen/fmap
-          (fn [amt-ratio-pairs]
-            (let [participants
-                  (mapv (fn [[id [eligible ratio]]]
-                          (let [eligible (max 2 (long eligible))
-                                fulfilled (max 1 (long (* eligible ratio)))]
-                            (make-participant id eligible fulfilled)))
-                        (map vector ids amt-ratio-pairs))
-                  total-fulfilled (reduce + 0 (map :fulfilled participants))
-                  source-balance (max 1 total-fulfilled)]
-              {:token-id :USDC
-               :source-balance source-balance
-               :participants participants}))
-          (gen/vector (gen/tuple (gen/choose 2 200)
-                                 (gen/double* {:min 0.1 :max 0.95})) n))))))
+   (gen/choose 1 5)
+   (fn [n]
+     (let [ids (vec (take n participant-id-pool))]
+       (gen/fmap
+        (fn [amt-ratio-pairs]
+          (let [participants
+                (mapv (fn [[id [eligible ratio]]]
+                        (let [eligible (max 2 (long eligible))
+                              fulfilled (max 1 (long (* eligible ratio)))]
+                          (make-participant id eligible fulfilled)))
+                      (map vector ids amt-ratio-pairs))
+                total-fulfilled (reduce + 0 (map :fulfilled participants))
+                source-balance (max 1 total-fulfilled)]
+            {:token-id :USDC
+             :source-balance source-balance
+             :participants participants}))
+        (gen/vector (gen/tuple (gen/choose 2 200)
+                               (gen/double* {:min 0.1 :max 0.95})) n))))))
 
 (def gen-any-case
   "Mix of fully-fulfilled and deferred cases."
@@ -114,9 +114,9 @@
      :unmet 0 :waived 0
      :obligation-after deferred
      :origin (:origin p
-              {:obligation-id (keyword (str "obl-" (:participant-id p)))
-               :participant-id (:participant-id p)
-               :sequence 1})}))
+                      {:obligation-id (keyword (str "obl-" (:participant-id p)))
+                       :participant-id (:participant-id p)
+                       :sequence 1})}))
 
 (defn build-propagations-from-case
   "Construct yield/pro-rata-propagations and yield/applied-pro-rata-propagations
@@ -127,7 +127,7 @@
         total-allocated (reduce + 0 (map :fulfilled norm-ps))
         residual (- source-balance total-allocated)
         policy (propagation-policy/normalize-and-validate
-                 propagation-policy/shared-withdrawal-policy)
+                propagation-policy/shared-withdrawal-policy)
         policy-hash (:policy/hash policy)
         calc-id "prop-test-c1"
         outcome-hash "prop-test-o1"
@@ -135,15 +135,15 @@
 
         accounting-entries
         (vec (concat
-               [{:entry/type :debit :account :shared-liquidity
-                 :token token-id :delta (- total-allocated)}]
-               (mapv (fn [p]
-                       {:entry/type :credit :account :withdrawn
-                        :token token-id
-                        :participant-id (:participant-id p)
-                        :obligation-id (get-in p [:origin :obligation-id])
-                        :delta (:fulfilled p)})
-                     norm-ps)))
+              [{:entry/type :debit :account :shared-liquidity
+                :token token-id :delta (- total-allocated)}]
+              (mapv (fn [p]
+                      {:entry/type :credit :account :withdrawn
+                       :token token-id
+                       :participant-id (:participant-id p)
+                       :obligation-id (get-in p [:origin :obligation-id])
+                       :delta (:fulfilled p)})
+                    norm-ps)))
 
         entry-hash (pf/accounting-entry-set-hash accounting-entries)
 
@@ -247,22 +247,22 @@
             total-allocated2 (reduce + 0 (map :fulfilled norm-ps2))
             residual2 (- residual1 total-allocated2)
             policy (propagation-policy/normalize-and-validate
-                     propagation-policy/shared-withdrawal-policy)
+                    propagation-policy/shared-withdrawal-policy)
             policy-hash (:policy/hash policy)
             calc-id2 "prop-test-c2"
             outcome-hash2 "prop-test-o2"
             id-key2 [:pro-rata-propagation calc-id2 outcome-hash2 policy-hash]
             accounting-entries2
             (vec (concat
-                   [{:entry/type :debit :account :shared-liquidity
-                     :token tok2 :delta (- total-allocated2)}]
-                   (mapv (fn [p]
-                           {:entry/type :credit :account :withdrawn
-                            :token tok2
-                            :participant-id (:participant-id p)
-                            :obligation-id (get-in p [:origin :obligation-id])
-                            :delta (:fulfilled p)})
-                         norm-ps2)))
+                  [{:entry/type :debit :account :shared-liquidity
+                    :token tok2 :delta (- total-allocated2)}]
+                  (mapv (fn [p]
+                          {:entry/type :credit :account :withdrawn
+                           :token tok2
+                           :participant-id (:participant-id p)
+                           :obligation-id (get-in p [:origin :obligation-id])
+                           :delta (:fulfilled p)})
+                        norm-ps2)))
             entry-hash2 (pf/accounting-entry-set-hash accounting-entries2)
             propagation2 {:propagation/id "p2"
                           :calculation-ref calc-id2
@@ -311,12 +311,12 @@
                                          :before (get-in w1 [:yield/withdrawn tok2 pid] 0)
                                          :delta fulfilled
                                          :after (+ (get-in w1 [:yield/withdrawn tok2 pid] 0)
-                                                    fulfilled)}
+                                                   fulfilled)}
                              :obligation {:before (:eligible-obligation p)}
                              :cumulative-fulfilled {:before 0
                                                     :delta fulfilled
                                                     :after fulfilled}}))
-                      norm-ps2)}
+                        norm-ps2)}
             app2 (assoc app2 :application/hash (pf/application-hash app2))
             updated-withdrawn
             (reduce (fn [m p]
@@ -361,45 +361,45 @@
    The first case has excess source balance to leave room for the second.
    Uses disjoint participant IDs and :USDT token for the second case."
   (gen/bind
-    (gen/tuple gen-case gen-case)
-    (fn [[c1 c2]]
-      (let [c1 (add-excess-balance c1)
-            alloc1 (reduce + 0 (map :fulfilled (:participants c1)))
-            residual1 (- (:source-balance c1) alloc1)
-            c1-ids (set (map :participant-id (:participants c1)))
-            pool (vec (remove c1-ids participant-id-pool))
-            n (count (:participants c2))
-            new-ids (take n (concat pool (map #(str "ext-" %) (range 20))))
-            scale-factor (if (pos? residual1)
-                           (/ residual1 (max 1 (reduce + 0 (map :fulfilled (:participants c2)))))
-                           1.0)]
-        (if (>= scale-factor 1.0)
+   (gen/tuple gen-case gen-case)
+   (fn [[c1 c2]]
+     (let [c1 (add-excess-balance c1)
+           alloc1 (reduce + 0 (map :fulfilled (:participants c1)))
+           residual1 (- (:source-balance c1) alloc1)
+           c1-ids (set (map :participant-id (:participants c1)))
+           pool (vec (remove c1-ids participant-id-pool))
+           n (count (:participants c2))
+           new-ids (take n (concat pool (map #(str "ext-" %) (range 20))))
+           scale-factor (if (pos? residual1)
+                          (/ residual1 (max 1 (reduce + 0 (map :fulfilled (:participants c2)))))
+                          1.0)]
+       (if (>= scale-factor 1.0)
           ;; c2 fits as-is — just remap IDs; keep same token for source-chain continuity
-          (gen/return
+         (gen/return
+          [c1
+           (-> c2
+               (update :participants
+                       (fn [ps]
+                         (mapv (fn [p new-id]
+                                 (assoc p :participant-id new-id
+                                        :origin (assoc (:origin p)
+                                                       :obligation-id
+                                                       (keyword (str "obl-" new-id)))))
+                               ps new-ids))))])
+          ;; Scale c2 to fit within residual1
+         (let [per-p (long (/ residual1 n))
+               rem (mod residual1 n)]
+           (gen/return
             [c1
              (-> c2
                  (update :participants
                          (fn [ps]
-                           (mapv (fn [p new-id]
-                                   (assoc p :participant-id new-id
-                                          :origin (assoc (:origin p)
-                                                         :obligation-id
-                                                         (keyword (str "obl-" new-id)))))
-                                 ps new-ids))))])
-          ;; Scale c2 to fit within residual1
-          (let [per-p (long (/ residual1 n))
-                rem (mod residual1 n)]
-            (gen/return
-              [c1
-               (-> c2
-                   (update :participants
-                           (fn [ps]
-                             (mapv (fn [p idx new-id]
-                                     (let [eligible (max 1 (long (:eligible-obligation p 0)))
-                                           f (max 1 (min eligible
-                                                         (if (< idx rem) (inc per-p) per-p)))]
-                                       (make-participant new-id eligible f)))
-                                   ps (range) new-ids))))])))))))
+                           (mapv (fn [p idx new-id]
+                                   (let [eligible (max 1 (long (:eligible-obligation p 0)))
+                                         f (max 1 (min eligible
+                                                       (if (< idx rem) (inc per-p) per-p)))]
+                                     (make-participant new-id eligible f)))
+                                 ps (range) new-ids))))])))))))
 ;; Independent test oracle
 ;; ---------------------------------------------------------------------------
 

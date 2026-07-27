@@ -97,7 +97,7 @@
    work.  Calls (f) inside a fresh binding of evidence-registry-atom."
   [f]
   (let [fresh (atom {:artifacts [] :evidence-hashes []
-                      :run-id nil :run-label nil})]
+                     :run-id nil :run-label nil})]
     (binding [evidence-registry-atom fresh]
       (f))))
 
@@ -558,7 +558,7 @@
                      {:evidence-type (:evidence/type evidence)
                       :artifact-kind (:artifact-kind evidence)}))
         eh))))
- 
+
 ;; ── Registry Builder ──────────────────────────────────────────────────────
 
 (defn- now-iso []
@@ -794,8 +794,8 @@
           (.mkdirs (io/file out-dir))
           (spit f (json/write-str artifact :key-fn preserve-ns-key :indent true))
           (log/info! :chain-cursor-written {:file "chain-cursor-final.json"
-                                             :seq (:cursor/final-seq snapshot)
-                                             :signed? (boolean signed)})
+                                            :seq (:cursor/final-seq snapshot)
+                                            :signed? (boolean signed)})
           (register-additional-artifact!
            (index-artifact-entry :chain-cursor-final "chain-cursor-final.json"
                                  "chain-cursor-final.v1" "DIAGNOSTIC"))

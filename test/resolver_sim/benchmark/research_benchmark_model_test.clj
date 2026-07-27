@@ -31,16 +31,16 @@
      [{:kind :predicate
        :predicate
        {:and [{:state {:query [:yield/deferred-position :position/status]
-                        :op := :value :position.status/active}}
-               {:state {:query [:yield/deferred-position :position/current-amount]
-                        :op :> :value 0}}]}}]
+                       :op := :value :position.status/active}}
+              {:state {:query [:yield/deferred-position :position/current-amount]
+                       :op :> :value 0}}]}}]
      :postconditions
      [{:kind :predicate
        :predicate
        {:and [{:state {:query [:yield/position :position/status]
-                        :op := :value :position.status/withdrawn}}
-               {:state {:query [:yield/deferred-position :position/current-amount]
-                        :op := :value 0}}]}}]}]
+                       :op := :value :position.status/withdrawn}}
+              {:state {:query [:yield/deferred-position :position/current-amount]
+                       :op := :value 0}}]}}]}]
    :model/invariants
    [:yield/pro-rata-propagation-complete
     :yield/pro-rata-accounting-reconciles]})
@@ -326,7 +326,7 @@
                             [{:kind :predicate
                               :predicate
                               {:state {:query [:yield/nonexistent-var]
-                                        :op := :value 1}}}])
+                                       :op := :value 1}}}])
         model (rbm/build-model bad-input)
         result (rbm/validate-model model)]
     (is (not (:valid? result)))

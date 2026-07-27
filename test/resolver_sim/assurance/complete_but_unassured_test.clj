@@ -19,7 +19,7 @@
 
 (def sew-adapter
   (try @(requiring-resolve 'resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter)
-    (catch Exception _ nil)))
+       (catch Exception _ nil)))
 
 (defn- sha256-hex [f]
   (let [d (java.security.MessageDigest/getInstance "SHA-256")]
@@ -43,8 +43,8 @@
                               :evidence/chain-hash-scheme "link-v1"
                               :evidence/chain-seq s :evidence/chain-prev-hash prev}
                          eh (hc/hash-with-intent {:hash/intent :evidence-content}
-                                                  (dissoc raw :evidence/chain-hash-scheme
-                                                          :evidence/chain-seq :evidence/chain-prev-hash))
+                                                 (dissoc raw :evidence/chain-hash-scheme
+                                                         :evidence/chain-seq :evidence/chain-prev-hash))
                          ch (chain/chain-link-hash eh s prev)]
                      (assoc raw :evidence/hash eh :evidence/chain-self-hash ch)))
 
@@ -124,8 +124,8 @@
 
     (spit (io/file td "benchmark/index.edn")
           (pr-str {:executions [{:dir ev-dir
-                                :artifacts {:evidence-registry {:path (str ev-dir "/evidence-registry.json")}
-                                            :chain-cursor {:path (str ev-dir "/chain-cursor-final.json")}}}]}))
+                                 :artifacts {:evidence-registry {:path (str ev-dir "/evidence-registry.json")}
+                                             :chain-cursor {:path (str ev-dir "/chain-cursor-final.json")}}}]}))
 
     ;; Write canonical assurance — will be overwritten after verification
     (spit (io/file td "benchmark/assertions/canonical-integrity.json")
@@ -258,41 +258,41 @@
           ;; 4. Package structural verification
         ;;    Use resolve-completion-context to verify the completion seals the index.
         ;;    This checks completion file integrity, index hash match, and byte-length match.
-        (let [ctx (pkg/resolve-completion-context (str td))
-              completion-report (:completion-report ctx {:valid? false})
-              index (:package-index ctx)]
-          (is (true? (:valid? completion-report))
-              (str "Completion verification must pass, got: " (:reasons completion-report)))
-          (is (some? index) "Package index must be resolved from completion seal")
-          (is (some? (:index index)) "Resolved package index must be parseable"))
+          (let [ctx (pkg/resolve-completion-context (str td))
+                completion-report (:completion-report ctx {:valid? false})
+                index (:package-index ctx)]
+            (is (true? (:valid? completion-report))
+                (str "Completion verification must pass, got: " (:reasons completion-report)))
+            (is (some? index) "Package index must be resolved from completion seal")
+            (is (some? (:index index)) "Resolved package index must be parseable"))
 
         ;; 5. Canonical assurance status is 'failed'
-        (let [canonical (try (json/read-str (slurp (io/file td "benchmark/assertions/canonical-integrity.json"))
+          (let [canonical (try (json/read-str (slurp (io/file td "benchmark/assertions/canonical-integrity.json"))
                                               :key-fn keyword)
-                             (catch Exception _ {:status "unknown"}))]
-          (is (= "failed" (:status canonical))
-              "Canonical assurance status must be 'failed'"))
+                               (catch Exception _ {:status "unknown"}))]
+            (is (= "failed" (:status canonical))
+                "Canonical assurance status must be 'failed'"))
 
         ;; 6. Release eligibility: when canoncial assurance is 'failed',
         ;;    release must be blocked. This is a policy judgement checked
         ;;    against the canonical assurance status.
-        (let [canonical (json/read-str (slurp (io/file td "benchmark/assertions/canonical-integrity.json"))
-                                        :key-fn keyword)
-              assurance-failed? (= "failed" (:status canonical))]
-          (is assurance-failed? "Assurance must be 'failed' for release eligibility to be tested")
-          (is (false? (and (not assurance-failed?) true))
-              "Package with failed canonical assurance must not be release-eligible"))
+          (let [canonical (json/read-str (slurp (io/file td "benchmark/assertions/canonical-integrity.json"))
+                                         :key-fn keyword)
+                assurance-failed? (= "failed" (:status canonical))]
+            (is assurance-failed? "Assurance must be 'failed' for release eligibility to be tested")
+            (is (false? (and (not assurance-failed?) true))
+                "Package with failed canonical assurance must not be release-eligible"))
 
         ;; 7. Assert the structured triple
-        (let [ctx (pkg/resolve-completion-context (str td))
-              completion-report (:completion-report ctx {:valid? false})
-              canonical (json/read-str (slurp (io/file td "benchmark/assertions/canonical-integrity.json"))
-                                        :key-fn keyword)
-              assurance-failed? (= "failed" (:status canonical))
-              structural-valid? (true? (:valid? completion-report))]
-          (is (true? structural-valid?) ":package/structural-status :valid")
-          (is (= "failed" (:status canonical)) ":package/assurance-status :failed")
-          (is (false? (and (not assurance-failed?) true)) ":package/release-eligible? false"))))
+          (let [ctx (pkg/resolve-completion-context (str td))
+                completion-report (:completion-report ctx {:valid? false})
+                canonical (json/read-str (slurp (io/file td "benchmark/assertions/canonical-integrity.json"))
+                                         :key-fn keyword)
+                assurance-failed? (= "failed" (:status canonical))
+                structural-valid? (true? (:valid? completion-report))]
+            (is (true? structural-valid?) ":package/structural-status :valid")
+            (is (= "failed" (:status canonical)) ":package/assurance-status :failed")
+            (is (false? (and (not assurance-failed?) true)) ":package/release-eligible? false"))))
 
       (finally (cleanup fx)))))
 
@@ -326,7 +326,7 @@
         ;; run the verification step. The package is structurally complete
         ;; but not yet assured — that is the correct state before verification.
         (let [canonical (json/read-str (slurp (io/file td "benchmark/assertions/canonical-integrity.json"))
-                                        :key-fn keyword)]
+                                       :key-fn keyword)]
           (is (contains? #{"pending" "failed"} (:status canonical))
               "Canonical assurance must be 'pending' or 'failed' before verification is run")))
       (finally (cleanup fx)))))

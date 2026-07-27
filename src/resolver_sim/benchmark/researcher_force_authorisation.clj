@@ -125,11 +125,11 @@
    & {:keys [dissent-reason password]}]
   (when-not (valid-decision? decision)
     (throw (ex-info "Invalid decision value" {:decision decision
-                                               :allowed decision-vocabulary})))
+                                              :allowed decision-vocabulary})))
   (when (and (= :dissent decision) (nil? dissent-reason))
     (throw (ex-info "Dissent requires a reason" {})))
   (let [preimage (decision-preimage researcher-id authorisation-id
-                                     decision dissent-reason)
+                                    decision dissent-reason)
         d-hash (compute-decision-hash preimage)
         stripped (clojure.string/replace d-hash #"^sha256:" "")
         signature (signing/sign-hash stripped private-key-path password)]
@@ -395,7 +395,7 @@
   (let [errors (atom [])]
     (when-not (= schema-version (:schema-version instance))
       (swap! errors conj (str "expected schema-version " schema-version
-                               " got " (:schema-version instance))))
+                              " got " (:schema-version instance))))
     (when-not (some? (:authorisation/id instance))
       (swap! errors conj "missing :authorisation/id"))
     (when-not (some? (:authorisation/hash instance))
@@ -419,8 +419,8 @@
                           (hc/domain-hash :research-force-authorisation without-hash))]
         (when-not (= computed (:authorisation/hash instance))
           (swap! errors conj (str "authorisation/hash mismatch: declared "
-                                   (:authorisation/hash instance)
-                                   " computed " computed)))))
+                                  (:authorisation/hash instance)
+                                  " computed " computed)))))
     {:valid? (empty? @errors) :errors @errors}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -450,10 +450,10 @@
           policy-th (get policy "threshold")]
       (when (and policy-mc (< policy-mc (:eligible threshold)))
         (swap! errors conj (str "policy member-count " policy-mc
-                                 " is less than eligible " (:eligible threshold))))
+                                " is less than eligible " (:eligible threshold))))
       (when (and policy-th (> policy-th (:required threshold)))
         (swap! errors conj (str "policy threshold " policy-th
-                                 " is greater than required " (:required threshold)))))
+                                " is greater than required " (:required threshold)))))
     ;; Check policy flags
     (when (and (get policy "single_use?" true)
                (nil? (:authorisation/consumption-key authorisation)))
@@ -481,7 +481,7 @@
   [review-round authorisation]
   (let [errors (atom [])
         member-ids (set (map :researcher/id
-                              (:review-round/members review-round)))
+                             (:review-round/members review-round)))
         decision-refs (:authorisation/decision-references authorisation)
         decider-ids (map :researcher/id decision-refs)]
     ;; Check all deciders are members
@@ -490,11 +490,11 @@
         (swap! errors conj (str "researcher " id " is not a member of review-round"))))
     ;; Check no overlap between approvals and dissents
     (let [approvers (set (map :researcher/id
-                               (filter #(= :approve (:decision %))
-                                       decision-refs)))
+                              (filter #(= :approve (:decision %))
+                                      decision-refs)))
           dissenters (set (map :researcher/id
-                                (filter #(= :dissent (:decision %))
-                                        decision-refs)))
+                               (filter #(= :dissent (:decision %))
+                                       decision-refs)))
           overlap (clojure.set/intersection approvers dissenters)]
       (when (seq overlap)
         (swap! errors conj (str "researchers in both approve and dissent: " overlap))))
@@ -798,13 +798,13 @@
       (throw (ex-info "Consumption receipt build failed"
                       {:errors @errors})))
     (let [base (merge {:schema-version receipt-schema-version
-                        :consumption/reservation-hash reservation-hash
-                        :consumption/authorisation-hash authorisation-hash
-                        :consumption/consumption-key consumption-key
-                        :consumption/resulting-outcome-hash resulting-outcome-hash
-                        :consumption/status status}
-                       (when terminal-evidence-hash
-                         {:consumption/terminal-evidence-hash terminal-evidence-hash}))
+                       :consumption/reservation-hash reservation-hash
+                       :consumption/authorisation-hash authorisation-hash
+                       :consumption/consumption-key consumption-key
+                       :consumption/resulting-outcome-hash resulting-outcome-hash
+                       :consumption/status status}
+                      (when terminal-evidence-hash
+                        {:consumption/terminal-evidence-hash terminal-evidence-hash}))
           computed-hash (str "sha256:"
                              (hc/domain-hash :force-authorisation-consumption base))]
       (when (and (some? hash) (not= hash computed-hash))
@@ -868,8 +868,8 @@
                     (:status existing))}
       (let [reservation {:status :reserved :reserved-at (str (java.time.Instant/now))}]
         (if (compare-and-set! registration
-                             (dissoc @registration consumption-key)
-                             (assoc @registration consumption-key reservation))
+                              (dissoc @registration consumption-key)
+                              (assoc @registration consumption-key reservation))
           {:reserved? true :key consumption-key}
           (recur registration consumption-key))))))
 
@@ -891,8 +891,8 @@
       (let [updated (assoc existing :status status
                            :finalised-at (str (java.time.Instant/now)))]
         (if (compare-and-set! registration
-                             @registration
-                             (assoc @registration consumption-key updated))
+                              @registration
+                              (assoc @registration consumption-key updated))
           {:finalised? true :status status}
           (recur registration consumption-key status))))))
 
@@ -1023,28 +1023,28 @@
     ;; Receipt ↔ Reservation
     (when-not (= r-hash (:reservation/hash reservation))
       (swap! errors conj {:field :reservation-hash
-                           :reason "receipt does not match reservation artifact"}))
+                          :reason "receipt does not match reservation artifact"}))
     (when-not (= a-hash (:reservation/authorisation-hash reservation))
       (swap! errors conj {:field :authorisation-hash
-                           :reason "receipt auth hash does not match reservation"}))
+                          :reason "receipt auth hash does not match reservation"}))
     (when-not (= c-key (:reservation/consumption-key reservation))
       (swap! errors conj {:field :consumption-key
-                           :reason "receipt key does not match reservation"}))
+                          :reason "receipt key does not match reservation"}))
     ;; Receipt ↔ Outcome
     (when manifest
       (when-not (= o-hash (:benchmark-outcome/hash manifest))
         (swap! errors conj {:field :resulting-outcome-hash
-                             :reason "receipt outcome hash does not match manifest"})))
+                            :reason "receipt outcome hash does not match manifest"})))
     ;; Status rules
     (case status
       :consumed
       (when-not (some? o-hash)
         (swap! errors conj {:field :resulting-outcome-hash
-                             :reason ":consumed requires resulting-outcome-hash"}))
+                            :reason ":consumed requires resulting-outcome-hash"}))
       :rolled-back-after-consumption
       (when-not (some? (:consumption/terminal-evidence-hash receipt))
         (swap! errors conj {:field :terminal-evidence-hash
-                             :reason ":rolled-back-after-consumption requires terminal-evidence-hash"}))
+                            :reason ":rolled-back-after-consumption requires terminal-evidence-hash"}))
       nil)
     {:consistent? (empty? @errors)
      :mismatches @errors}))
@@ -1091,8 +1091,8 @@
           (let [entry (assoc reservation :status :reserved
                              :reserved-at (str (java.time.Instant/now)))]
             (if (compare-and-set! registry
-                                 @registry
-                                 (assoc @registry consumption-key entry))
+                                  @registry
+                                  (assoc @registry consumption-key entry))
               {:reserved? true :key consumption-key}
               (recur)))))))
   (finalise! [_ consumption-key terminal-receipt]
@@ -1102,12 +1102,12 @@
           {:finalised? false
            :reason "no reservation found for consumption key"}
           (let [updated (assoc existing
-                              :status (:consumption/status terminal-receipt)
-                              :receipt-hash (:consumption/hash terminal-receipt)
-                              :finalised-at (str (java.time.Instant/now)))]
+                               :status (:consumption/status terminal-receipt)
+                               :receipt-hash (:consumption/hash terminal-receipt)
+                               :finalised-at (str (java.time.Instant/now)))]
             (if (compare-and-set! registry
-                                 @registry
-                                 (assoc @registry consumption-key updated))
+                                  @registry
+                                  (assoc @registry consumption-key updated))
               {:finalised? true :status (:consumption/status terminal-receipt)}
               (recur)))))))
   (consumed? [_ consumption-key]

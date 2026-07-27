@@ -157,9 +157,9 @@
         b (om/build-manifest
            (assoc base-manifest
                   :execution/parameter-domain-root "sha256:d"
-                   :execution/sampling-policy-root "sha256:s"
-                   :execution/realised-parameter-set-root "sha256:p"
-                   :execution/generated-case-set-root "sha256:c"))]
+                  :execution/sampling-policy-root "sha256:s"
+                  :execution/realised-parameter-set-root "sha256:p"
+                  :execution/generated-case-set-root "sha256:c"))]
     (is (= (om/classify-outcome-compatibility a b) (om/classify-outcome-compatibility b a)))))
 
 ;; ── Hierarchical outcome manifest ─────────────────────────────────────────

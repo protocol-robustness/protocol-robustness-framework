@@ -93,9 +93,9 @@
 (deftest allocation-missing-artifact-throws
   (let [base (alloc-args (real-alloc))]
     (is (thrown-with-msg? Exception #"evidence build failed"
-          (alloc-ev/build-pro-rata-allocation-evidence (dissoc base :allocation-result))))
+                          (alloc-ev/build-pro-rata-allocation-evidence (dissoc base :allocation-result))))
     (is (thrown-with-msg? Exception #"evidence build failed"
-          (alloc-ev/build-pro-rata-allocation-evidence (dissoc base :mechanism))))))
+                          (alloc-ev/build-pro-rata-allocation-evidence (dissoc base :mechanism))))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; 2. Application profile — requires full world state (structural only)
@@ -103,10 +103,10 @@
 
 (deftest application-requires-all-artifacts
   (is (thrown-with-msg? Exception #"evidence build failed"
-        (app-ev/build-pro-rata-application-evidence
-         {:allocation-evidence-hash "sha256:test" :propagation nil :application nil
-          :world-before nil :world-after nil :state-write-back-evidence nil
-          :continuity-evidence nil :evidence-ladder nil :operational-outcome nil}))))
+                        (app-ev/build-pro-rata-application-evidence
+                         {:allocation-evidence-hash "sha256:test" :propagation nil :application nil
+                          :world-before nil :world-after nil :state-write-back-evidence nil
+                          :continuity-evidence nil :evidence-ladder nil :operational-outcome nil}))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; 2a. Decisive application case: accounting passes, authoritative state fails
@@ -131,14 +131,14 @@
 
 (def ^:private world-before
   {:yield/positions {:p1 {:position/id :pos-p1
-                           :position/current-amount 100
-                           :position/deferred-position nil}}})
+                          :position/current-amount 100
+                          :position/deferred-position nil}}})
 
 (def ^:private world-after-accounting-only
   ;; Accounting agrees: balance went from 100 to 40 (delta -60)
   {:yield/positions {:p1 {:position/id :pos-p1
-                           :position/current-amount 40
-                           :position/deferred-position nil}}})
+                          :position/current-amount 40
+                          :position/deferred-position nil}}})
 
 (def ^:private state-wb-evidence-accounting-only
   ;; State write-back fails: withdrawn balance doesn't match
@@ -307,9 +307,9 @@
 
 (deftest execution-no-incentive-overreach
   (let [overreaching-conclusion {:conclusion/id :conclusion/incentive-compatible
-                                  :conclusion/hash "sha256:overreach"
-                                  :conclusion/status :established
-                                  :conclusion/statement "The mechanism is universally incentive compatible"}
+                                 :conclusion/hash "sha256:overreach"
+                                 :conclusion/status :established
+                                 :conclusion/statement "The mechanism is universally incentive compatible"}
         manifest (om/build-manifest
                   {:benchmark/content-root "sha256:cr"
                    :benchmark/model-root "sha256:mr"
@@ -369,11 +369,11 @@
 (deftest execution-wrong-manifest-rejected
   (let [args (exec-args)
         args-wrong (exec-args :manifest (om/build-manifest
-                                          {:benchmark/content-root "sha256:other"
-                                           :benchmark/model-root "sha256:mr"
-                                           :benchmark/evaluation-policy-root "sha256:eval"
-                                           :execution/status :completed
-                                           :results/operational {:conservation :pass}}))
+                                         {:benchmark/content-root "sha256:other"
+                                          :benchmark/model-root "sha256:mr"
+                                          :benchmark/evaluation-policy-root "sha256:eval"
+                                          :execution/status :completed
+                                          :results/operational {:conservation :pass}}))
         p (exec-ev/build-pro-rata-execution-evidence args)
         v (exec-ev/verify-pro-rata-execution-evidence p args-wrong)]
     (is (not (:valid? v)))
@@ -388,5 +388,5 @@
 
 (deftest execution-missing-artifact-throws
   (is (thrown-with-msg? Exception #"evidence build failed"
-        (exec-ev/build-pro-rata-execution-evidence
-         (assoc (exec-args) :outcome-manifest nil)))))
+                        (exec-ev/build-pro-rata-execution-evidence
+                         (assoc (exec-args) :outcome-manifest nil)))))

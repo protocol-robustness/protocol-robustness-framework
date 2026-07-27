@@ -65,7 +65,7 @@
     (when (and (some? status) (not (valid-conclusion-status? status)))
       (swap! errors conj (str "invalid :conclusion/status: " status)))
     (when (seq @errors)
-       (throw (ex-info (str "Conclusion build failed: " (str/join "; " @errors))
+      (throw (ex-info (str "Conclusion build failed: " (str/join "; " @errors))
                       {:errors @errors})))
     (let [base {:schema-version schema-version
                 :conclusion/id id
@@ -106,7 +106,7 @@
   (let [errors (atom [])]
     (when-not (= schema-version (:schema-version conclusion))
       (swap! errors conj (str "expected schema-version " schema-version
-                               " got " (:schema-version conclusion))))
+                              " got " (:schema-version conclusion))))
     (when-not (some? (:conclusion/id conclusion))
       (swap! errors conj "missing :conclusion/id"))
     (when-not (some? (:conclusion/premise conclusion))
@@ -121,8 +121,8 @@
             computed (str "sha256:" (hc/domain-hash :research-conclusion without-hash))]
         (when-not (= computed (:conclusion/hash conclusion))
           (swap! errors conj (str "conclusion/hash mismatch: declared "
-                                   (:conclusion/hash conclusion)
-                                   " computed " computed)))))
+                                  (:conclusion/hash conclusion)
+                                  " computed " computed)))))
     {:valid? (empty? @errors) :errors @errors}))
 
 (defn conclusion-overreaches?

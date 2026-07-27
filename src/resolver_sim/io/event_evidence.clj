@@ -253,9 +253,9 @@
      (verify-write! e f)
      (record-serialize-latency! serialize-start)
      (record-capture-latency! capture-start)
-      (log/info! :evidence-captured {:type (:evidence/type e) :hash (:evidence/hash e)})
-      (chain/register-evidence! (normalize-for-chain e))
-      e))
+     (log/info! :evidence-captured {:type (:evidence/type e) :hash (:evidence/hash e)})
+     (chain/register-evidence! (normalize-for-chain e))
+     e))
   ([evidence]
    (let [capture-start (System/nanoTime)]
      (when (map? evidence)

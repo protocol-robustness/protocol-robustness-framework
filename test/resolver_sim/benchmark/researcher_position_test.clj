@@ -75,13 +75,13 @@
 
 (deftest invalid-dimension-status-throws
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Invalid status"
-        (rp/build-position
-         {:benchmark/content-root "sha256:content"
-          :researcher/id "researcher-c"
-          :outcome-hash "sha256:outcome"
-          :dimensions
-          {:reproduction {:status :not-a-real-status}
-           :publication {:status :publish}}}))))
+                        (rp/build-position
+                         {:benchmark/content-root "sha256:content"
+                          :researcher/id "researcher-c"
+                          :outcome-hash "sha256:outcome"
+                          :dimensions
+                          {:reproduction {:status :not-a-real-status}
+                           :publication {:status :publish}}}))))
 
 (deftest absent-semantics
   (is (rp/absent? :not-reviewed))
@@ -145,23 +145,23 @@
 
 (deftest build-position-rejects-invalid-target-kind
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Invalid target kind"
-        (rp/build-position
-         {:benchmark/content-root "sha256:content"
-          :researcher/id "researcher-a"
-          :outcome-hash "sha256:outcome"
-          :dimensions {:publication {:status :publish}}
-          :position/targets
-          [{:kind :bogus :id :x :hash "sha256:x" :status :reproduced}]}))))
+                        (rp/build-position
+                         {:benchmark/content-root "sha256:content"
+                          :researcher/id "researcher-a"
+                          :outcome-hash "sha256:outcome"
+                          :dimensions {:publication {:status :publish}}
+                          :position/targets
+                          [{:kind :bogus :id :x :hash "sha256:x" :status :reproduced}]}))))
 
 (deftest build-position-rejects-invalid-target-status
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Invalid target status"
-        (rp/build-position
-         {:benchmark/content-root "sha256:content"
-          :researcher/id "researcher-a"
-          :outcome-hash "sha256:outcome"
-          :dimensions {:publication {:status :publish}}
-          :position/targets
-          [{:kind :theorem :id :t :hash "sha256:t" :status :bogus}]}))))
+                        (rp/build-position
+                         {:benchmark/content-root "sha256:content"
+                          :researcher/id "researcher-a"
+                          :outcome-hash "sha256:outcome"
+                          :dimensions {:publication {:status :publish}}
+                          :position/targets
+                          [{:kind :theorem :id :t :hash "sha256:t" :status :bogus}]}))))
 
 (deftest find-target-returns-nil-for-nonexistent
   (let [pos (rp/build-position

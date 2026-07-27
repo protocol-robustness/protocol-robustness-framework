@@ -35,23 +35,23 @@
 
 (deftest build-conclusion-requires-id
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing :conclusion/id"
-        (rc/build-conclusion (dissoc minimal-conclusion :conclusion/id)))))
+                        (rc/build-conclusion (dissoc minimal-conclusion :conclusion/id)))))
 
 (deftest build-conclusion-requires-premise
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing :conclusion/premise"
-        (rc/build-conclusion (dissoc minimal-conclusion :conclusion/premise)))))
+                        (rc/build-conclusion (dissoc minimal-conclusion :conclusion/premise)))))
 
 (deftest build-conclusion-requires-result
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing :conclusion/result"
-        (rc/build-conclusion (dissoc minimal-conclusion :conclusion/result)))))
+                        (rc/build-conclusion (dissoc minimal-conclusion :conclusion/result)))))
 
 (deftest build-conclusion-rejects-invalid-status
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"invalid :conclusion/status"
-        (rc/build-conclusion (assoc minimal-conclusion :conclusion/status :bogus)))))
+                        (rc/build-conclusion (assoc minimal-conclusion :conclusion/status :bogus)))))
 
 (deftest build-conclusion-rejects-hash-mismatch
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Declared conclusion/hash"
-        (rc/build-conclusion (assoc minimal-conclusion :conclusion/hash "sha256:wrong")))))
+                        (rc/build-conclusion (assoc minimal-conclusion :conclusion/hash "sha256:wrong")))))
 
 (deftest validate-conclusion-valid
   (let [c (rc/build-conclusion minimal-conclusion)

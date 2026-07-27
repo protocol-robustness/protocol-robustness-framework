@@ -101,10 +101,10 @@
          unrealized          (if (= loss-mode :mark-to-market)
                                (floor-to-asset-decimals-signed pnl decimals)
                                (floor-to-asset-decimals pnl decimals))]
-      (assoc position
-             :current-index current-index
-             :current-value current-value
-             :unrealized-yield unrealized))))
+     (assoc position
+            :current-index current-index
+            :current-value current-value
+            :unrealized-yield unrealized))))
 
 (defn realize-yield
   "Move unrealized yield to realized-yield. Usually called during crystallization."

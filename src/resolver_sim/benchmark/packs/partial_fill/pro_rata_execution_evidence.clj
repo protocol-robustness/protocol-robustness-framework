@@ -59,7 +59,7 @@
           provided-conclusion-hashes (set (map :conclusion/hash conclusions))
           theorem-binding-ok (every? theorem-hashes provided-theorem-hashes)
           conclusion-binding-ok (every? conclusion-hashes
-                                       provided-conclusion-hashes)
+                                        provided-conclusion-hashes)
           ;; ── Execution result classification ───────────────────────────
           operational (get outcome-manifest :results/operational {})
           pos-amt? (not= :fail (:authoritative-application operational))
@@ -116,10 +116,10 @@
   (let [errors (atom [])]
     (when-not (= schema-version (:schema-version profile))
       (swap! errors conj (str "expected schema-version " schema-version
-                               " got " (:schema-version profile))))
+                              " got " (:schema-version profile))))
     (when-not (= profile-id (:evidence-profile/id profile))
       (swap! errors conj (str "expected profile/id " (pr-str profile-id)
-                               " got " (pr-str (:evidence-profile/id profile)))))
+                              " got " (pr-str (:evidence-profile/id profile)))))
     (doseq [f [:evidence-profile/benchmark-content-root
                :evidence-profile/model-root
                :evidence-profile/outcome-manifest-hash
@@ -138,8 +138,8 @@
                                           without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
-                                   (:evidence-profile/hash profile)
-                                   " computed " computed)))))
+                                  (:evidence-profile/hash profile)
+                                  " computed " computed)))))
     {:valid? (empty? @errors) :errors @errors}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -155,17 +155,17 @@
   (let [recomputed (apply build-pro-rata-execution-evidence args)
         mismatches (atom [])]
     (when-not (= (:evidence-profile/hash profile)
-                  (:evidence-profile/hash recomputed))
+                 (:evidence-profile/hash recomputed))
       (swap! mismatches conj {:field :evidence-profile/hash
-                               :stored (:evidence-profile/hash profile)
-                               :recomputed (:evidence-profile/hash recomputed)}))
+                              :stored (:evidence-profile/hash profile)
+                              :recomputed (:evidence-profile/hash recomputed)}))
     (let [v-s (:evidence-profile/verification profile)
           v-r (:evidence-profile/verification recomputed)]
       (doseq [k (keys v-s)]
         (when-not (= (get v-s k) (get v-r k))
           (swap! mismatches conj {:field k
-                                   :stored (get v-s k)
-                                   :recomputed (get v-r k)}))))
+                                  :stored (get v-s k)
+                                  :recomputed (get v-r k)}))))
     {:valid? (empty? @mismatches)
      :profile-recomputed recomputed
      :mismatches @mismatches}))
@@ -199,10 +199,10 @@
             app-profile (when app-hash (package-resolver app-hash))]
         (when-not alloc-profile
           (swap! errors conj (str "allocation evidence profile not found: "
-                                   alloc-hash)))
+                                  alloc-hash)))
         (when-not app-profile
           (swap! errors conj (str "application evidence profile not found: "
-                                   app-hash)))
+                                  app-hash)))
         {:valid? (empty? @errors) :required? true
          :errors @errors
          :checks {:allocation-profile-resolved? (some? alloc-profile)

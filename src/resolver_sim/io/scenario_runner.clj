@@ -297,19 +297,19 @@
            (throw (ex-info (str "Ambiguous prefix \"" scenario "\" matches "
                                 (count matches) " scenarios")
                            {:prefix scenario :matches matches}))))
-          (some (fn [file]
-                (when (and (.isFile file)
-                           (str/ends-with? (.getName file) ".edn"))
-                  (try
-                    (let [path (.getPath file)
-                          fixture (io-sc/load-scenario-file path)]
-                      (when (= scenario (:scenario-id fixture)) path))
-                    (catch Exception e
-                      (log-event :warn :scenario-id-resolve-error
-                                 :file (.getPath file)
-                                 :error (.getMessage e))
-                      nil))))
-              (file-seq fixture-dir))
+       (some (fn [file]
+               (when (and (.isFile file)
+                          (str/ends-with? (.getName file) ".edn"))
+                 (try
+                   (let [path (.getPath file)
+                         fixture (io-sc/load-scenario-file path)]
+                     (when (= scenario (:scenario-id fixture)) path))
+                   (catch Exception e
+                     (log-event :warn :scenario-id-resolve-error
+                                :file (.getPath file)
+                                :error (.getMessage e))
+                     nil))))
+             (file-seq fixture-dir))
        scenario))))
 
 (defn resolve-path-run-request

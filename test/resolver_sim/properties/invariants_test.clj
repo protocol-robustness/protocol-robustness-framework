@@ -18,14 +18,14 @@
      - replay rejected a valid scenario (outcome :fail, halt-reason set)
      - replay completed but an invariant failed"
   (let [prop (prop/for-all [seed (gen/large-integer* {:min 1 :max 100000})]
-                (let [sc (scenario/build-scenario {:seed seed :max-steps 4})
-                      r  (sew/replay-with-sew-protocol sc)
-                      world (:world r)
-                      all-ok? (:all-hold? (inv/check-all world))]
-                  (and (not= :invalid (:outcome r))
-                       (not= :fail (:outcome r))
-                       (nil? (:halt-reason r))
-                       all-ok?)))
+                           (let [sc (scenario/build-scenario {:seed seed :max-steps 4})
+                                 r  (sew/replay-with-sew-protocol sc)
+                                 world (:world r)
+                                 all-ok? (:all-hold? (inv/check-all world))]
+                             (and (not= :invalid (:outcome r))
+                                  (not= :fail (:outcome r))
+                                  (nil? (:halt-reason r))
+                                  all-ok?)))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 

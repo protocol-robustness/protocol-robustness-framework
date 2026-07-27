@@ -71,7 +71,7 @@
     (when (or (nil? argv) (not (sequential? argv)) (empty? argv))
       (swap! errors conj ":command/argv must be a non-empty sequential"))
     (when (seq @errors)
-       (throw (ex-info (str "Command build failed: " (str/join "; " @errors))
+      (throw (ex-info (str "Command build failed: " (str/join "; " @errors))
                       {:errors @errors})))
     (let [normalised-includes (normalise-includes include)
           base {:schema-version schema-version
@@ -114,7 +114,7 @@
   (let [errors (atom [])]
     (when-not (= schema-version (:schema-version command))
       (swap! errors conj (str "expected schema-version " schema-version
-                               " got " (:schema-version command))))
+                              " got " (:schema-version command))))
     (when-not (some? (:command/id command))
       (swap! errors conj "missing :command/id"))
     (when-not (some? (:command/type command))
@@ -131,8 +131,8 @@
             computed (str "sha256:" (hc/domain-hash :research-command without-hash))]
         (when-not (= computed (:command/hash command))
           (swap! errors conj (str "command/hash mismatch: declared "
-                                   (:command/hash command)
-                                   " computed " computed)))))
+                                  (:command/hash command)
+                                  " computed " computed)))))
     {:valid? (empty? @errors) :errors @errors}))
 
 (defn command-semantic-identity

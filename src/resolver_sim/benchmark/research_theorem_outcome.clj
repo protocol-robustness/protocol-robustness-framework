@@ -101,7 +101,7 @@
       (when-not (valid-theorem-status? conc-status)
         (swap! errors conj (str "invalid theorem/conclusion status: " conc-status))))
     (when (seq @errors)
-       (throw (ex-info (str "Theorem outcome build failed: " (str/join "; " @errors))
+      (throw (ex-info (str "Theorem outcome build failed: " (str/join "; " @errors))
                       {:errors @errors})))
     (let [base {:schema-version schema-version
                 :theorem/id id
@@ -145,7 +145,7 @@
   (let [errors (atom [])]
     (when-not (= schema-version (:schema-version theorem-outcome))
       (swap! errors conj (str "expected schema-version " schema-version
-                               " got " (:schema-version theorem-outcome))))
+                              " got " (:schema-version theorem-outcome))))
     (when-not (some? (:theorem/id theorem-outcome))
       (swap! errors conj "missing :theorem/id"))
     (when-not (some? (:theorem/type theorem-outcome))
@@ -158,8 +158,8 @@
             computed (str "sha256:" (hc/domain-hash :research-theorem-outcome without-hash))]
         (when-not (= computed (:theorem/hash theorem-outcome))
           (swap! errors conj (str "theorem/hash mismatch: declared "
-                                   (:theorem/hash theorem-outcome)
-                                   " computed " computed)))))
+                                  (:theorem/hash theorem-outcome)
+                                  " computed " computed)))))
     {:valid? (empty? @errors) :errors @errors}))
 
 (defn theorem-references

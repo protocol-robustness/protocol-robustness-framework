@@ -213,14 +213,14 @@
 
 (deftest per-theorem-consensus-unanimous
   (let [posses [(make-pos-with-targets "a"
-                 :targets [{:kind :theorem :id :theorem/quota-bounded
-                            :hash "sha256:th1" :status :reproduced}])
+                                       :targets [{:kind :theorem :id :theorem/quota-bounded
+                                                  :hash "sha256:th1" :status :reproduced}])
                 (make-pos-with-targets "b"
-                 :targets [{:kind :theorem :id :theorem/quota-bounded
-                            :hash "sha256:th1" :status :reproduced}])
+                                       :targets [{:kind :theorem :id :theorem/quota-bounded
+                                                  :hash "sha256:th1" :status :reproduced}])
                 (make-pos-with-targets "c"
-                 :targets [{:kind :theorem :id :theorem/quota-bounded
-                            :hash "sha256:th1" :status :reproduced}])]
+                                       :targets [{:kind :theorem :id :theorem/quota-bounded
+                                                  :hash "sha256:th1" :status :reproduced}])]
         consensus (tmc/per-theorem-consensus posses)]
     (is (contains? consensus :theorem/quota-bounded))
     (let [th (get consensus :theorem/quota-bounded)]
@@ -230,14 +230,14 @@
 
 (deftest per-theorem-consensus-majority-with-dissent
   (let [posses [(make-pos-with-targets "a"
-                 :targets [{:kind :theorem :id :theorem/incentive-compatibility
-                            :hash "sha256:th2" :status :reproduced}])
+                                       :targets [{:kind :theorem :id :theorem/incentive-compatibility
+                                                  :hash "sha256:th2" :status :reproduced}])
                 (make-pos-with-targets "b"
-                 :targets [{:kind :theorem :id :theorem/incentive-compatibility
-                            :hash "sha256:th2" :status :reproduced}])
+                                       :targets [{:kind :theorem :id :theorem/incentive-compatibility
+                                                  :hash "sha256:th2" :status :reproduced}])
                 (make-pos-with-targets "c"
-                 :targets [{:kind :theorem :id :theorem/incentive-compatibility
-                            :hash "sha256:th2" :status :challenged}])]
+                                       :targets [{:kind :theorem :id :theorem/incentive-compatibility
+                                                  :hash "sha256:th2" :status :challenged}])]
         consensus (tmc/per-theorem-consensus posses)]
     (let [th (get consensus :theorem/incentive-compatibility)]
       (is (= :majority-with-dissent (:status th)))
@@ -246,13 +246,13 @@
 
 (deftest per-conclusion-consensus-with-absent-members
   (let [posses [(make-pos-with-targets "a"
-                 :targets [{:kind :conclusion :id :conclusion/partial-fill
-                            :hash "sha256:c1" :status :supported}])
+                                       :targets [{:kind :conclusion :id :conclusion/partial-fill
+                                                  :hash "sha256:c1" :status :supported}])
                 (make-pos-with-targets "b"
-                 :targets [{:kind :conclusion :id :conclusion/partial-fill
-                            :hash "sha256:c1" :status :supported}])
+                                       :targets [{:kind :conclusion :id :conclusion/partial-fill
+                                                  :hash "sha256:c1" :status :supported}])
                 (make-pos-with-targets "c"
-                 :targets [])]
+                                       :targets [])]
         consensus (tmc/per-conclusion-consensus posses)]
     (let [th (get consensus :conclusion/partial-fill)]
       (is (= :unanimous (:status th)))
@@ -269,14 +269,14 @@
 (deftest certificate-includes-theorem-conclusion-consensus
   (let [cert (make-cert reports-exact
                         [(make-pos-with-targets "a"
-                           :targets [{:kind :theorem :id :theorem/quota-bounded
-                                      :hash "sha256:t" :status :reproduced}])
+                                                :targets [{:kind :theorem :id :theorem/quota-bounded
+                                                           :hash "sha256:t" :status :reproduced}])
                          (make-pos-with-targets "b"
-                           :targets [{:kind :theorem :id :theorem/quota-bounded
-                                      :hash "sha256:t" :status :reproduced}])
+                                                :targets [{:kind :theorem :id :theorem/quota-bounded
+                                                           :hash "sha256:t" :status :reproduced}])
                          (make-pos-with-targets "c"
-                           :targets [{:kind :theorem :id :theorem/quota-bounded
-                                      :hash "sha256:t" :status :reproduced}])])]
+                                                :targets [{:kind :theorem :id :theorem/quota-bounded
+                                                           :hash "sha256:t" :status :reproduced}])])]
     (is (contains? cert :theorem-consensus))
     (is (contains? cert :conclusion-consensus))
     (let [th-cons (get-in cert [:theorem-consensus :theorem/quota-bounded])]

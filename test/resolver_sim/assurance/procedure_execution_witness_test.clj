@@ -539,20 +539,20 @@
                           :trust-sequence-definition/steps []}]
         ;; Should return results, not throw
         (is (wv/verify-witness (:witness ctx) invalid-defn ev-idx
-                                {:evidence-adapter (adapter-or-nil)})))
+                               {:evidence-adapter (adapter-or-nil)})))
       (finally (cleanup ctx)))))
 
 (deftest check-ordering-is-deterministic
   (let [results (repeatedly 5
-                 (fn []
-                   (let [ctx (make-three-step-sequence)
-                         ev-idx (build-evidence-index (:ev-dir ctx))
-                         opts {:evidence-adapter (adapter-or-nil)
-                               :expected-correlation-id (:auth-id ctx)}
-                         result (wv/verify-witness (:witness ctx) (:definition ctx) ev-idx opts)
-                         codes (mapv :check/code (:checks result))]
-                     (cleanup ctx)
-                     codes)))
+                            (fn []
+                              (let [ctx (make-three-step-sequence)
+                                    ev-idx (build-evidence-index (:ev-dir ctx))
+                                    opts {:evidence-adapter (adapter-or-nil)
+                                          :expected-correlation-id (:auth-id ctx)}
+                                    result (wv/verify-witness (:witness ctx) (:definition ctx) ev-idx opts)
+                                    codes (mapv :check/code (:checks result))]
+                                (cleanup ctx)
+                                codes)))
         first-result (first results)]
     (is (every? #(= first-result %) results))))
 
@@ -667,14 +667,14 @@
                                 :world-before "0x00" :world-after "0x01")
             ev1b ev1a  ;; same map, same content hash — duplicate
             ev2 (make-evidence "force-authorisation-executed" auth-id 2
-                                (:evidence/chain-self-hash ev1a)
-                                {:force-auth/workflow-id workflow-id}
-                                :world-before "0x01" :world-after "0x02")
+                               (:evidence/chain-self-hash ev1a)
+                               {:force-auth/workflow-id workflow-id}
+                               :world-before "0x01" :world-after "0x02")
             ev3 (make-evidence "escrow-released" auth-id 3
-                                (:evidence/chain-self-hash ev2)
-                                {:finalize/workflow-id workflow-id
-                                 :finalize/authorization-id auth-id}
-                                :world-before "0x02" :world-after "0x03")
+                               (:evidence/chain-self-hash ev2)
+                               {:finalize/workflow-id workflow-id
+                                :finalize/authorization-id auth-id}
+                               :world-before "0x02" :world-after "0x03")
             _ (write-evidence! ev-dir ev1a)
             _ (write-evidence! ev-dir ev1b)  ;; duplicate
             _ (write-evidence! ev-dir ev2)

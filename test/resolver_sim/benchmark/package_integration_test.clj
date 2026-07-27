@@ -127,35 +127,35 @@
         aw (:result/witness alloc-result)
         ;; Build allocation evidence profile
         alloc-prof (alloc-ev/build-pro-rata-allocation-evidence
-                     {:benchmark-content-root content-root
-                      :model-root model-root
-                      :allocation-request (:canonical-request alloc-result)
-                      :allocation-result alloc-result
-                      :mechanism {:mechanism/id :pro-rata/largest-remainder
-                                  :mechanism/version 1 :mechanism/hash "sha256:mh"}
-                      :policy {:policy/id :default :policy/hash "sha256:ph"}
-                      :allocation-witness (:committed-rows aw [])})
+                    {:benchmark-content-root content-root
+                     :model-root model-root
+                     :allocation-request (:canonical-request alloc-result)
+                     :allocation-result alloc-result
+                     :mechanism {:mechanism/id :pro-rata/largest-remainder
+                                 :mechanism/version 1 :mechanism/hash "sha256:mh"}
+                     :policy {:policy/id :default :policy/hash "sha256:ph"}
+                     :allocation-witness (:committed-rows aw [])})
         alloc-hash (:evidence-profile/hash alloc-prof)
         ;; Build application evidence profile
         app-prof (app-ev/build-pro-rata-application-evidence
-                   {:allocation-evidence-hash alloc-hash
-                    :propagation app-propag
-                    :application app-application
-                    :world-before {} :world-after {}
-                    :state-write-back-evidence app-wb
-                    :continuity-evidence []
-                    :evidence-ladder app-ladder
-                    :operational-outcome app-op})
+                  {:allocation-evidence-hash alloc-hash
+                   :propagation app-propag
+                   :application app-application
+                   :world-before {} :world-after {}
+                   :state-write-back-evidence app-wb
+                   :continuity-evidence []
+                   :evidence-ladder app-ladder
+                   :operational-outcome app-op})
         app-hash (:evidence-profile/hash app-prof)
         ;; Build execution evidence profile
         exec-prof (exec-ev/build-pro-rata-execution-evidence
-                    {:benchmark-content-root content-root
-                     :model-root model-root
-                     :outcome-manifest manifest
-                     :allocation-evidence-hash alloc-hash
-                     :application-evidence-hash app-hash
-                     :theorem-outcomes []
-                     :conclusions []})
+                   {:benchmark-content-root content-root
+                    :model-root model-root
+                    :outcome-manifest manifest
+                    :allocation-evidence-hash alloc-hash
+                    :application-evidence-hash app-hash
+                    :theorem-outcomes []
+                    :conclusions []})
         exec-hash (:evidence-profile/hash exec-prof)
         ;; Assemble package
         artifact-map {alloc-hash alloc-prof,
@@ -191,16 +191,16 @@
         auth (rfa/build-authorisation
               {:authorisation/id :authorisation/pkg-fa
                :authorisation/policy {:policy/id :research/three-member
-                                       :policy/version 1
-                                       :policy/schema-version "fa-policy.v1"
-                                       :policy/hash "sha256:policy"}
+                                      :policy/version 1
+                                      :policy/schema-version "fa-policy.v1"
+                                      :policy/hash "sha256:policy"}
                :authorisation/review-round {:review-round/id :rr/pkg
-                                             :review-round/hash "sha256:round"}
+                                            :review-round/hash "sha256:round"}
                :authorisation/request-root "sha256:request"
                :authorisation/target {:target/kind :benchmark-branch
-                                       :target/baseline-content-root "sha256:baseline"
-                                       :target/branch-descriptor-hash "sha256:branch"
-                                       :target/proposed-content-root "sha256:proposed"}
+                                      :target/baseline-content-root "sha256:baseline"
+                                      :target/branch-descriptor-hash "sha256:branch"
+                                      :target/proposed-content-root "sha256:proposed"}
                :authorisation/decision-references
                [{:researcher/id "a" :decision :approve
                  :decision/hash "sha256:dec-a"
@@ -210,19 +210,19 @@
                  :signature {:algorithm :ed25519 :value "sigb" :signed-at "now"}}]
                :authorisation/threshold {:required 2 :eligible 3}})
         reservation (rfa/build-reservation
-                      {:reservation/authorisation-hash (:authorisation/hash auth)
-                       :reservation/consumption-key (rfa/consumption-key auth)
-                       :reservation/execution-attempt-id :execution/pkg-fa
-                       :reservation/command-root "sha256:cmd"
-                       :reservation/plan-root "sha256:plan"})
+                     {:reservation/authorisation-hash (:authorisation/hash auth)
+                      :reservation/consumption-key (rfa/consumption-key auth)
+                      :reservation/execution-attempt-id :execution/pkg-fa
+                      :reservation/command-root "sha256:cmd"
+                      :reservation/plan-root "sha256:plan"})
         fa-section {:authorisation-hash (:authorisation/hash auth)
-                     :consumption-key (rfa/consumption-key auth)
-                     :reservation-hash (:reservation/hash reservation)
-                     :execution-attempt-id :execution/pkg-fa
-                     :branch-descriptor-hash "sha256:branch"
-                     :baseline-content-root "sha256:baseline"
-                     :executed-content-root "sha256:executed"
-                     :status :consumed}
+                    :consumption-key (rfa/consumption-key auth)
+                    :reservation-hash (:reservation/hash reservation)
+                    :execution-attempt-id :execution/pkg-fa
+                    :branch-descriptor-hash "sha256:branch"
+                    :baseline-content-root "sha256:baseline"
+                    :executed-content-root "sha256:executed"
+                    :status :consumed}
         fa-manifest (om/build-manifest
                      (assoc (into {} (build-pro-rata-manifest))
                             :execution/command-root "sha256:cmd"
@@ -230,24 +230,24 @@
                             :execution/force-authorisation fa-section
                             :benchmark/content-root "sha256:baseline"))
         receipt (rfa/build-consumption-receipt
-                  {:consumption/reservation-hash (:reservation/hash reservation)
-                   :consumption/authorisation-hash (:authorisation/hash auth)
-                   :consumption/consumption-key (rfa/consumption-key auth)
-                   :consumption/resulting-outcome-hash
-                   (:benchmark-outcome/hash fa-manifest)
-                   :consumption/status :consumed})
+                 {:consumption/reservation-hash (:reservation/hash reservation)
+                  :consumption/authorisation-hash (:authorisation/hash auth)
+                  :consumption/consumption-key (rfa/consumption-key auth)
+                  :consumption/resulting-outcome-hash
+                  (:benchmark-outcome/hash fa-manifest)
+                  :consumption/status :consumed})
         evidence-profile (fa-ev/build-force-authorised-execution-evidence
-                           {:authorisation auth
-                            :policy {"policy_sha256" "sha256:policy"}
-                            :review-round {:review-round/id :rr/pkg
-                                           :review-round/hash "sha256:round"
-                                           :review-round/members
-                                           [{:researcher/id "a" :role :steward}
-                                            {:researcher/id "b" :role :reproducer}]}
-                            :reservation reservation
-                            :outcome-manifest fa-manifest
-                            :consumption-receipt receipt
-                            :public-key-resolver (fn [id] "/dev/null")})
+                          {:authorisation auth
+                           :policy {"policy_sha256" "sha256:policy"}
+                           :review-round {:review-round/id :rr/pkg
+                                          :review-round/hash "sha256:round"
+                                          :review-round/members
+                                          [{:researcher/id "a" :role :steward}
+                                           {:researcher/id "b" :role :reproducer}]}
+                           :reservation reservation
+                           :outcome-manifest fa-manifest
+                           :consumption-receipt receipt
+                           :public-key-resolver (fn [id] "/dev/null")})
         policy-artifact {"policy_sha256" "sha256:policy"
                          "schema_version" "force-authorisation-policy.v1"
                          "member_count" 3 "threshold" 2}
@@ -273,18 +273,18 @@
     (is (some? (resolver (:evidence-profile/hash evidence-profile))) "profile in package")
     ;; Package completion check
     (is (:valid? (rfa/verify-package-completion-force-authorised
-                   resolver fa-manifest evidence-profile))
+                  resolver fa-manifest evidence-profile))
         "package completion verifier passes")))
 
 (deftest pkg-write-back-failure
   (let [wb-fail (assoc-in app-wb [0 :withdrawn :verified?] false)
         app-prof (app-ev/build-pro-rata-application-evidence
-                   {:allocation-evidence-hash "sha256:alloc"
-                    :propagation app-propag :application app-application
-                    :world-before {} :world-after {}
-                    :state-write-back-evidence wb-fail
-                    :continuity-evidence [] :evidence-ladder app-ladder
-                    :operational-outcome (assoc app-op :authoritative-application :fail)})
+                  {:allocation-evidence-hash "sha256:alloc"
+                   :propagation app-propag :application app-application
+                   :world-before {} :world-after {}
+                   :state-write-back-evidence wb-fail
+                   :continuity-evidence [] :evidence-ladder app-ladder
+                   :operational-outcome (assoc app-op :authoritative-application :fail)})
         v (:evidence-profile/verification app-prof)]
     ;; Application profile records the split
     (is (:apparent-application-recorded? v) "apparent application passes")
@@ -341,16 +341,16 @@
                    :execution/status :completed
                    :results/operational {:conservation :pass :quota-bounded :pass}})
         overreach {:conclusion/id :conclusion/incentive-compatible
-                    :conclusion/hash "sha256:incentive"
-                    :conclusion/status :established}
+                   :conclusion/hash "sha256:incentive"
+                   :conclusion/status :established}
         profile (exec-ev/build-pro-rata-execution-evidence
-                  {:benchmark-content-root content-root
-                   :model-root model-root
-                   :outcome-manifest manifest
-                   :allocation-evidence-hash "sha256:alloc"
-                   :application-evidence-hash "sha256:app"
-                   :theorem-outcomes []
-                   :conclusions [overreach]})]
+                 {:benchmark-content-root content-root
+                  :model-root model-root
+                  :outcome-manifest manifest
+                  :allocation-evidence-hash "sha256:alloc"
+                  :application-evidence-hash "sha256:app"
+                  :theorem-outcomes []
+                  :conclusions [overreach]})]
     ;; Profile builds and records no incentive theorem
     (is (some? (:evidence-profile/hash profile)))
     (is (empty? (:evidence-profile/theorem-hashes profile))
@@ -365,31 +365,31 @@
         alloc-result (real-alloc)
         aw (:result/witness alloc-result)
         alloc-prof (alloc-ev/build-pro-rata-allocation-evidence
-                     {:benchmark-content-root content-root
-                      :model-root model-root
-                      :allocation-request (:canonical-request alloc-result)
-                      :allocation-result alloc-result
-                      :mechanism {:mechanism/id :pro-rata/largest-remainder
-                                  :mechanism/version 1 :mechanism/hash "sha256:mh"}
-                      :policy {:policy/id :default :policy/hash "sha256:ph"}
-                      :allocation-witness (:committed-rows aw [])})
-        alloc-hash (:evidence-profile/hash alloc-prof)
-        app-prof (app-ev/build-pro-rata-application-evidence
-                   {:allocation-evidence-hash alloc-hash
-                    :propagation app-propag :application app-application
-                    :world-before {} :world-after {}
-                    :state-write-back-evidence app-wb
-                    :continuity-evidence [] :evidence-ladder app-ladder
-                    :operational-outcome app-op})
-        app-hash (:evidence-profile/hash app-prof)
-        exec-prof (exec-ev/build-pro-rata-execution-evidence
                     {:benchmark-content-root content-root
                      :model-root model-root
-                     :outcome-manifest manifest
-                     :allocation-evidence-hash alloc-hash
-                     :application-evidence-hash app-hash
-                     :theorem-outcomes []
-                     :conclusions []})
+                     :allocation-request (:canonical-request alloc-result)
+                     :allocation-result alloc-result
+                     :mechanism {:mechanism/id :pro-rata/largest-remainder
+                                 :mechanism/version 1 :mechanism/hash "sha256:mh"}
+                     :policy {:policy/id :default :policy/hash "sha256:ph"}
+                     :allocation-witness (:committed-rows aw [])})
+        alloc-hash (:evidence-profile/hash alloc-prof)
+        app-prof (app-ev/build-pro-rata-application-evidence
+                  {:allocation-evidence-hash alloc-hash
+                   :propagation app-propag :application app-application
+                   :world-before {} :world-after {}
+                   :state-write-back-evidence app-wb
+                   :continuity-evidence [] :evidence-ladder app-ladder
+                   :operational-outcome app-op})
+        app-hash (:evidence-profile/hash app-prof)
+        exec-prof (exec-ev/build-pro-rata-execution-evidence
+                   {:benchmark-content-root content-root
+                    :model-root model-root
+                    :outcome-manifest manifest
+                    :allocation-evidence-hash alloc-hash
+                    :application-evidence-hash app-hash
+                    :theorem-outcomes []
+                    :conclusions []})
         exec-hash (:evidence-profile/hash exec-prof)]
     ;; Corrupt allocation profile reference in execution profile
     (let [bad-prof (assoc exec-prof :evidence-profile/allocation-evidence-hash

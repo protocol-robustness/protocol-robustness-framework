@@ -251,9 +251,9 @@
        :not-reviewed-members (mapv :researcher/id
                                    (filter #(= :not-reviewed (:status %)) entries))
        :insufficient-information-members (mapv :researcher/id
-                                                (filter #(= :insufficient-information (:status %)) entries))
+                                               (filter #(= :insufficient-information (:status %)) entries))
        :not-applicable-members (mapv :researcher/id
-                                      (filter #(= :not-applicable (:status %)) entries))}
+                                     (filter #(= :not-applicable (:status %)) entries))}
       (let [unique-statuses (set assessed-statuses)]
         (if (= 1 (count unique-statuses))
           {:item/id item-id
@@ -364,57 +364,57 @@
   [{:keys [review-round reports positions force-authorisations disagreements]
     :or {force-authorisations [] disagreements []}}]
   (let [pre-checks (pre-certificate-checks {:review-round review-round
-                                             :reports reports
-                                             :positions positions})]
+                                            :reports reports
+                                            :positions positions})]
     (when-not (:pre-certificate-valid? pre-checks)
       (throw (ex-info "Certificate pre-conditions not met"
                       {:errors (:errors pre-checks)})))
     (let [outcome-groups (group-outcomes reports)
-        exec-status (execution-status outcome-groups)
-        rep-type (replication-type reports)
-        model-dims [:model-state :model-transitions :model-authority
-                    :model-adversary :model-parameters :model-cases]
-        incentive-dims [:incentives-participants :incentives-strategies
-                        :incentives-coalitions]
-        other-dims [:reproduction :evidence :claims :publication]]
-    {:schema-version schema-version
-     :benchmark/content-root (:benchmark/content-root review-round)
-     :review-round/id (:review-round/id review-round)
-     :review-round/purpose (:review-round/purpose review-round)
-     :execution
-     {:status exec-status
-      :replication-type rep-type
-      :outcome-groups outcome-groups}
-    :model-consensus
-      (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
-              {} model-dims)
-      :incentive-consensus
-      (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
-              {} incentive-dims)
-      :other-consensus
-      (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
-              {} other-dims)
-      :theorem-consensus
-      (per-theorem-consensus positions)
-      :conclusion-consensus
-      (per-conclusion-consensus positions)
-     :member-positions
-     (mapv (fn [pos]
-             (let [report (some #(when (= (:researcher/id %)
-                                         (:researcher/id pos))
-                                   %)
-                                reports)]
-               (when-not report
-                 (throw (ex-info "No matching report found for position"
-                                 {:researcher/id (:researcher/id pos)})))
-               {:researcher/id (:researcher/id pos)
-                :position/hash (:position/hash pos)
-                :outcome-hash (:position/outcome-hash pos)
-                :report-hash (:researcher-run-report/hash report)}))
-           positions)
-     :force-authorisations (vec force-authorisations)
-     :unresolved-disagreements (vec disagreements)
-      :certificate/hash nil})))
+          exec-status (execution-status outcome-groups)
+          rep-type (replication-type reports)
+          model-dims [:model-state :model-transitions :model-authority
+                      :model-adversary :model-parameters :model-cases]
+          incentive-dims [:incentives-participants :incentives-strategies
+                          :incentives-coalitions]
+          other-dims [:reproduction :evidence :claims :publication]]
+      {:schema-version schema-version
+       :benchmark/content-root (:benchmark/content-root review-round)
+       :review-round/id (:review-round/id review-round)
+       :review-round/purpose (:review-round/purpose review-round)
+       :execution
+       {:status exec-status
+        :replication-type rep-type
+        :outcome-groups outcome-groups}
+       :model-consensus
+       (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+               {} model-dims)
+       :incentive-consensus
+       (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+               {} incentive-dims)
+       :other-consensus
+       (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+               {} other-dims)
+       :theorem-consensus
+       (per-theorem-consensus positions)
+       :conclusion-consensus
+       (per-conclusion-consensus positions)
+       :member-positions
+       (mapv (fn [pos]
+               (let [report (some #(when (= (:researcher/id %)
+                                            (:researcher/id pos))
+                                     %)
+                                  reports)]
+                 (when-not report
+                   (throw (ex-info "No matching report found for position"
+                                   {:researcher/id (:researcher/id pos)})))
+                 {:researcher/id (:researcher/id pos)
+                  :position/hash (:position/hash pos)
+                  :outcome-hash (:position/outcome-hash pos)
+                  :report-hash (:researcher-run-report/hash report)}))
+             positions)
+       :force-authorisations (vec force-authorisations)
+       :unresolved-disagreements (vec disagreements)
+       :certificate/hash nil})))
 
 (defn finalise-certificate!
   "Compute the certificate hash and return the finalised certificate."

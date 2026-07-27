@@ -180,7 +180,7 @@
                :proposal/provenance (:proposal/provenance proposal)}
               computed (str "sha256:"
                             (hc/domain-hash :research-framework-change-proposal
-                                             semantic-base))]
+                                            semantic-base))]
           (when-not (= computed hash-field)
             (swap! errors conj (str "proposal/hash mismatch: declared "
                                     hash-field " computed " computed))))))

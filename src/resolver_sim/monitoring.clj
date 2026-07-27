@@ -33,17 +33,17 @@
    "resolver-sim.monitoring"
    "Resolver Simulation Monitoring"
    (into-array MBeanAttributeInfo
-     [(attr "ScenariosRun" "long" "Total scenarios run")
-      (attr "ScenariosPassed" "long" "Scenarios passed")
-      (attr "ScenariosFailed" "long" "Scenarios failed")
-      (attr "EvidenceCaptured" "long" "Evidence records captured")
-      (attr "UptimeSeconds" "long" "Uptime in seconds")
-      (attr "Running" "boolean" "Whether monitoring is active")])
+               [(attr "ScenariosRun" "long" "Total scenarios run")
+                (attr "ScenariosPassed" "long" "Scenarios passed")
+                (attr "ScenariosFailed" "long" "Scenarios failed")
+                (attr "EvidenceCaptured" "long" "Evidence records captured")
+                (attr "UptimeSeconds" "long" "Uptime in seconds")
+                (attr "Running" "boolean" "Whether monitoring is active")])
    (make-array MBeanConstructorInfo 0)
    (into-array MBeanOperationInfo
-     [(MBeanOperationInfo. "resetCounters" "Reset all counters"
-                           (make-array MBeanParameterInfo 0)
-                           "void" MBeanOperationInfo/ACTION)])
+               [(MBeanOperationInfo. "resetCounters" "Reset all counters"
+                                     (make-array MBeanParameterInfo 0)
+                                     "void" MBeanOperationInfo/ACTION)])
    (make-array MBeanNotificationInfo 0)))
 
 (defn- build-dynamic-mbean []

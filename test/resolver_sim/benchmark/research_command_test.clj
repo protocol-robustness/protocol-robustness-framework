@@ -40,23 +40,23 @@
 
 (deftest build-command-requires-id
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing :command/id"
-        (rcmd/build-command (dissoc minimal-command :command/id)))))
+                        (rcmd/build-command (dissoc minimal-command :command/id)))))
 
 (deftest build-command-requires-type
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing or invalid :command/type"
-        (rcmd/build-command (dissoc minimal-command :command/type)))))
+                        (rcmd/build-command (dissoc minimal-command :command/type)))))
 
 (deftest build-command-rejects-invalid-type
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing or invalid :command/type"
-        (rcmd/build-command (assoc minimal-command :command/type :bogus)))))
+                        (rcmd/build-command (assoc minimal-command :command/type :bogus)))))
 
 (deftest build-command-requires-non-empty-argv
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #":command/argv"
-        (rcmd/build-command (assoc minimal-command :command/argv [])))))
+                        (rcmd/build-command (assoc minimal-command :command/argv [])))))
 
 (deftest build-command-rejects-hash-mismatch
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Declared command/hash"
-        (rcmd/build-command (assoc minimal-command :command/hash "sha256:wrong")))))
+                        (rcmd/build-command (assoc minimal-command :command/hash "sha256:wrong")))))
 
 (deftest validate-command-valid
   (let [c (rcmd/build-command minimal-command)

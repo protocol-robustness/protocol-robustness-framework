@@ -248,17 +248,17 @@
    test.check gen/double*."
   []
   (gen/bind
-    (gen/tuple
-      (gen/choose 1 20)        ;; resolver count
-      (gen/choose 0 1000))     ;; dispute count
-    (fn [[n dispute-count]]
-      (let [ids (mapv #(keyword (str "r-" %)) (range n))]
-        (gen/fmap
-          (fn [budget-vals]
-            {:resolver-ids ids
-             :budgets (zipmap ids (map double budget-vals))
-             :dispute-count dispute-count})
-          (gen/vector (gen/choose 0 500) n))))))
+   (gen/tuple
+    (gen/choose 1 20)        ;; resolver count
+    (gen/choose 0 1000))     ;; dispute count
+   (fn [[n dispute-count]]
+     (let [ids (mapv #(keyword (str "r-" %)) (range n))]
+       (gen/fmap
+        (fn [budget-vals]
+          {:resolver-ids ids
+           :budgets (zipmap ids (map double budget-vals))
+           :dispute-count dispute-count})
+        (gen/vector (gen/choose 0 500) n))))))
 
 (deftest prorata-satisfies-all-guarantees
   "Generative verification of formal guarantees G1–G5 across random valid inputs.
@@ -266,20 +266,20 @@
    through generator ranges rather than individual examples."
   (let [prop (prop/for-all [{:keys [resolver-ids budgets dispute-count]}
                             (valid-prorata-input-gen)]
-                (let [alloc (ec/prorata-dispute-load resolver-ids budgets dispute-count)
-                      total-budget (reduce + (vals budgets))
-                      same (ec/prorata-dispute-load resolver-ids budgets dispute-count)]
-                  (and
+                           (let [alloc (ec/prorata-dispute-load resolver-ids budgets dispute-count)
+                                 total-budget (reduce + (vals budgets))
+                                 same (ec/prorata-dispute-load resolver-ids budgets dispute-count)]
+                             (and
                     ;; G1 — Conservation
-                    (= dispute-count (reduce + 0 (vals alloc)))
+                              (= dispute-count (reduce + 0 (vals alloc)))
                     ;; G2 — Quota rule (skip when total-budget = 0 — fallback uniform)
-                    (or (zero? total-budget)
-                        (check-quota-rule alloc budgets total-budget dispute-count))
+                              (or (zero? total-budget)
+                                  (check-quota-rule alloc budgets total-budget dispute-count))
                     ;; G3 — Non-negative
-                    (every? #(>= % 0) (vals alloc))
+                              (every? #(>= % 0) (vals alloc))
                     ;; G4 — Completeness: every resolver-id appears in the result
-                    (= (set resolver-ids) (set (keys alloc)))
+                              (= (set resolver-ids) (set (keys alloc)))
                     ;; G5 — Determinism
-                    (= alloc same))))
+                              (= alloc same))))
         res (tc/quick-check (pbh/trial-count pbh/review-trials) prop)]
     (is (:pass? res) (pbh/report-failure res))))

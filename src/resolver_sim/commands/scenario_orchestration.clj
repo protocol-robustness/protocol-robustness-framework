@@ -252,7 +252,7 @@
                                        (catch Exception _ nil)))
                                 evidence-files))
         evidence-nodes (vec (keep (fn [f]
-                                     (try (let [data (edn/read-string (slurp f))]
+                                    (try (let [data (edn/read-string (slurp f))]
                                            (when (:node-hash data) data))
                                          (catch Exception _ nil)))
                                   evidence-node-files))
@@ -427,7 +427,7 @@
                                     (.endsWith (.getName %) ".edn"))))
                    (keep (fn [file]
                            (try
-                              (let [node (edn/read-string (slurp file))]
+                             (let [node (edn/read-string (slurp file))]
                                (when (= "pro-rata-mechanism-node.v1"
                                         (get-in node [:extensions :mechanism/node-schema-version]))
                                  {:path (str (.relativize (.toPath root) (.toPath file)))
