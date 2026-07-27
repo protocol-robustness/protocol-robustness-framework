@@ -50,10 +50,14 @@ notebook.log
 .idea
 *.iml
 .nrepl*
+.nrepl-port
+.repl
 .lsp
 .clj-kondo
 .cider
 .calva
+.eca
+.joyride
 
 # AI tools
 .kilo
