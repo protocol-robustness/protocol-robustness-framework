@@ -125,7 +125,7 @@ echo "PASS verify-$SUITE"
 
 # ── Artifact Registry Emission ──────────────────────────────────────────
 echo "Emitting artifact registry..."
-python3 "$REPO_ROOT/scripts/write_scenario_run_manifest.py" \
+python3 "$REPO_ROOT/scripts/evidence/write_scenario_run_manifest.py" \
     --scenario "$SUITE" \
     --suite "$SUITE" \
     --status "pass" \

@@ -255,8 +255,9 @@ strict priority:
 | 5 | `auto-cancel-due?` | `finalize-escrow-accounting` (refund) | :pending → :refunded |
 | 6 | (none) | `:none` | unchanged |
 
-Priority 2 is a Sew extension (not in Solidity) — griefing protection that
-prevents a frivolous dispute from blocking an auto-cancel deadline.
+Priority 2 is a Sew extension (ported to Solidity in Session 10 as
+`ACTION_AUTO_CANCEL_DISPUTED` via `SettlementOps.computeTimedActions`) — griefing
+protection that prevents a frivolous dispute from blocking an auto-cancel deadline.
 
 ### 3.5 Force-Authorisation: Alternative Authorization Path
 
@@ -2870,7 +2871,7 @@ the keeper function.  Instead, it evaluates the deadline predicates directly:
             r))
 
         ;; Priority 2: auto-cancel-time passed on DISPUTED escrow
-        ;; NOT IN SOLIDITY — griefing protection
+        ;; Solidity shadow: ACTION_AUTO_CANCEL_DISPUTED (SettlementOps.sol computeTimedActions)
         (sm/auto-cancel-due-on-disputed? world workflow-id)
         (let [r (lc/auto-cancel-disputed-on-auto-time world workflow-id)]
           (if (:ok r)

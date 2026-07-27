@@ -1,21 +1,22 @@
 # Interactive Workbenches (Clerk Notebooks)
 
-The repository ships five interactive workbenches built with
+The repository ships 31 interactive workbenches built with
 [Clerk](https://clerk.vision). They are evidence-oriented, not dashboards —
 each one shows raw data, artifact provenance, and honest confidence levels
 rather than status indicators alone.
 
----
+See `data/notebooks.edn` for the full registry with descriptions, maturity
+levels, and per-notebook notes.
 
-## Workbenches
+Key workbenches include:
 
 | File | Purpose | Audience |
 |------|---------|----------|
+| `notebooks/report.clj` | Evidence dashboard — suite-level pass/fail statistics, parameter sweeps, confidence tiers | Project leads, grant reviewers |
 | `notebooks/dispute_resolution.clj` | Dispute resolution validation workbench — lifecycle, state machine, adversarial coverage, invariants, escalation, Kleros integration, open gaps | Protocol reviewers, integrators, security researchers |
 | `notebooks/invariant_failures.clj` | Invariant failure inspector — per-scenario violation drilldown, trace replay, failure classification | Engineers debugging invariant regressions |
-| `notebooks/report.clj` | Evidence dashboard — suite-level pass/fail statistics, parameter sweeps, confidence tiers | Project leads, grant reviewers |
-| `notebooks/telemetry.clj` | Live-run telemetry — XTDB-backed trial outcomes, live simulation statistics | Engineers running the gRPC live simulation |
-| `notebooks/xtdb_overview.clj` | XTDB persistence layer overview — schema, example queries, event store structure | Engineers maintaining the persistence layer |
+| `notebooks/game_theory_artifact.clj` | Game theory — validation story with equilibrium analysis | Protocol researchers |
+| `notebooks/workbench_v2.clj` | Adversarial validation workbench (v2) — generalized scenario exploration | Engineers, security researchers |
 
 ---
 

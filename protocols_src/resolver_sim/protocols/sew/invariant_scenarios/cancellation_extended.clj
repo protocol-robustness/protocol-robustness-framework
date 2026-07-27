@@ -258,8 +258,8 @@
 ;; orphaned the deadline because auto-cancel-due? only fires for PENDING.
 ;; The escrow was forced into the longer max-dispute-duration path.
 ;;
-;; FIX (Session 10): Added auto-cancel-due-on-disputed? (NOT IN SOLIDITY)
-;; as Priority 2 in automate-timed-actions.  When a DISPUTED escrow has
+;; FIX (Session 10): Added auto-cancel-due-on-disputed? (ported to Solidity
+;; in Session 10 as ACTION_AUTO_CANCEL_DISPUTED).  When a DISPUTED escrow has
 ;; auto-cancel-time set and passed, the dispute is automatically cancelled
 ;; — refunding the sender and closing the griefing window.
 ;;
@@ -271,7 +271,7 @@
 (def s-auto-cancel-time-orphaned-by-dispute
   "Griefing vector CLOSED: dispute raised before auto-cancel-time no
    longer orphans the deadline.  automate-timed-actions fires auto-cancel-
-   on-disputed at t=1500, refunding the buyer immediately.  NOT IN SOLIDITY."
+   on-disputed at t=1500, refunding the buyer immediately.  Solidity shadow: SettlementOps.sol."
   {:scenario-id     "s-auto-cancel-time-orphaned-by-dispute"
    :schema-version  "1.0"
    :scenario-author "@research"

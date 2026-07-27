@@ -8,7 +8,6 @@
 
 # Generated simulation output (canonical root)
 results/
-benchmarks/outputs/
 !data/fixtures/protocol/*.edn
 !data/fixtures/states/*.edn
 !data/fixtures/actors/*.edn
@@ -66,8 +65,13 @@ notebook.log
 .clojure-mcp
 .gemini
 .aider*
+.aider/
+.aider/
 .ai
 .opencode
+.agents/
+.codex/
+.jj/
 
 # Local / experimental
 local

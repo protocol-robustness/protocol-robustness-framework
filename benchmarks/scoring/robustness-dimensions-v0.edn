@@ -17,16 +17,16 @@
      :scenario       "malicious-resolver-verdict-v1"
      :pass-condition "Scenario outcome is :pass and all invariants hold.
                       Semantic/economic claim verification for this dimension
-                      is deferred (see DESIGN_CLAIM_VERIFICATION.md Level 3)."}
-    {:dimension/id    :robustness/liveness-under-load
-     :scenario       "dispute-flooding-v1"
-     :pass-condition "Scenario outcome is :pass and all invariants hold.
-                      Semantic/economic claim verification for this dimension
-                      is deferred (see DESIGN_CLAIM_VERIFICATION.md Level 3)."}
-    {:dimension/id    :robustness/escrow-fund-safety
-     :scenario       "autopush-settlement-v1"
-     :pass-condition "Scenario outcome is :pass and all invariants hold.
-                      Semantic/economic claim verification for this dimension
-                      is deferred (see DESIGN_CLAIM_VERIFICATION.md Level 3)."}]}}
+                       is deferred (see docs/benchmarks/DESIGN_CLAIM_VERIFICATION.md Level 3)."}
+     {:dimension/id    :robustness/liveness-under-load
+      :scenario       "dispute-flooding-v1"
+      :pass-condition "Scenario outcome is :pass and all invariants hold.
+                       Semantic/economic claim verification for this dimension
+                       is deferred (see docs/benchmarks/DESIGN_CLAIM_VERIFICATION.md Level 3)."}
+     {:dimension/id    :robustness/escrow-fund-safety
+      :scenario       "autopush-settlement-v1"
+      :pass-condition "Scenario outcome is :pass and all invariants hold.
+                       Semantic/economic claim verification for this dimension
+                       is deferred (see docs/benchmarks/DESIGN_CLAIM_VERIFICATION.md Level 3)."}]}}
 
 

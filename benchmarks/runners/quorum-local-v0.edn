@@ -6,7 +6,7 @@
 
  :runner-policy/adapter :adapter/sew
  :runner-policy/concurrency 1
- :runner-policy/output "benchmarks/outputs/"
+ :runner-policy/output "results/benchmarks/"
  :runner-policy/attestation-enabled false
  :runner-policy/consensus-mode :multi-run
  :runner-policy/min-consensus-runs 3

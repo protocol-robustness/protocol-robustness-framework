@@ -511,7 +511,7 @@
                               :held/account (:held/account components)
                               :owner/address (:owner/address components)
                               :held/reason reason}
-                             (select-keys (or extra {}) [:held/workflow-id :shortfall/started-at]))]
+                             (select-keys (or extra {}) [:held/workflow-id]))]
         (ensure-force-authorisation-usable! world authorization-provenance scope-map)))
     (let [current (get-in world [:total-held token] 0)]
       (when (and (= direction :out) (< current amount))

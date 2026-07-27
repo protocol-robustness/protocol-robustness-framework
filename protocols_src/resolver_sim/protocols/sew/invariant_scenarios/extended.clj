@@ -1061,6 +1061,7 @@
    :scenario-author "@grifma"
    :initial-block-time 1000
    :expected-fail?   true
+   :allow-open-entities? true
    :agents          [{:id "buyer"    :address "0xbuyer"   :strategy "honest"}
                      {:id "seller"   :address "0xseller"  :strategy "honest"}
                      {:id "resolver" :address "0xresolver" :role "resolver"}

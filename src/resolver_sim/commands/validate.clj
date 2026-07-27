@@ -23,7 +23,7 @@
   "Run the structural validation pipeline: lint, notebook checks, SPEDS."
   [{:keys [strict? json?] :as opts}]
   (println "Structural validation...")
-  (let [lint-ok   (ok? "Lint (src:test)" #(sh "clj" "-M:lint/core"))
+  (let [lint-ok   (ok? "Lint (src:test)" #(sh "clojure" "-M:lint/core"))
         nb-ok     (ok? "Notebook namespace check"
                        #(sh "scripts/with-test-artifact-lock.sh" "clojure"
                             "-M:with-sew"
@@ -52,7 +52,7 @@
   [{:keys [json?] :as opts}]
   (println "Linting source...")
   (flush)
-  (let [exit (sh "clj" "-M:lint/core")]
+  (let [exit (sh "clojure" "-M:lint/core")]
     (if (zero? exit)
       (do (println "  Lint passed")
           {:exit-code 0 :message "Lint passed"})

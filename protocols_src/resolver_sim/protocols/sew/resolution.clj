@@ -961,7 +961,7 @@
 ;; Dispatch order:
 ;;   1. ACTION_EXECUTE_PENDING       — pending-settlement executable?
 ;;   2. ACTION_AUTO_CANCEL_DISPUTED  — auto-cancel-time passed on DISPUTED?
-;;                                     (NOT IN SOLIDITY — griefing protection)
+;;                                     (Solidity shadow: SettlementOps.sol computeTimedActions)
 ;;   3. ACTION_DISPUTE_TIMEOUT       — max-dispute-duration elapsed? (auto-cancel-disputed)
 ;;   4. ACTION_AUTO_RELEASE          — auto-release-time passed?
 ;;   5. ACTION_AUTO_CANCEL           — auto-cancel-time passed?
@@ -990,10 +990,10 @@
             r))
 
         ;; Priority 2: auto-cancel-time passed on DISPUTED escrow
-        ;; NOT IN SOLIDITY — griefing protection.  Without this check a
-        ;; frivolous dispute raised before auto-cancel-time orphans the
-        ;; deadline, forcing the escrow into the longer max-dispute-duration
-        ;; path.
+        ;; Solidity shadow: ACTION_AUTO_CANCEL_DISPUTED (SettlementOps.sol
+        ;; computeTimedActions).  Without this check a frivolous dispute
+        ;; raised before auto-cancel-time orphans the deadline, forcing the
+        ;; escrow into the longer max-dispute-duration path.
         (sm/auto-cancel-due-on-disputed? world workflow-id)
         (let [r (lc/auto-cancel-disputed-on-auto-time world workflow-id)]
           (if (:ok r)

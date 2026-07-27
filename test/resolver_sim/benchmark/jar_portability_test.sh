@@ -90,7 +90,7 @@ fi
 # --- Test 4: No source-tree paths in output ---
 echo "--- Test 4: No source-tree paths in output ---"
 if [ -f "${TEST_OUT_DIR}/unknown-bench.edn" ]; then
-  if grep -q "/home/user/Code/\|/workspaces/" "${TEST_OUT_DIR}/unknown-bench.edn" 2>/dev/null; then
+  if grep -qE "/home/[^/]+/Code/|/workspaces/" "${TEST_OUT_DIR}/unknown-bench.edn" 2>/dev/null; then
     fail "Evidence bundle contains source-tree paths"
   else
     pass "No source-tree paths in output"

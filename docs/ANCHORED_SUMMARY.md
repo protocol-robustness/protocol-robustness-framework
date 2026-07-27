@@ -23,7 +23,7 @@ Research and harden the Sew protocol's dispute resolution mechanism by finding c
 4. **`:upheld?` vs `:appeal-upheld?` param key mismatch** — changed DR-C-002 to use correct key `:upheld?`. DR-C-002 now correctly tests the UPHELD path.
 5. **Slash-id format consistency** — added `resolve-reversal-slash-id` helper at `resolution.clj:1278`. When integer workflow-id fails to find a pending slash, it searches for reversal-style keys (`<wf-id>-reversal-<level>`). Applied to `execute-fraud-slash`, `resolve-appeal`, and `appeal-slash`.
 
-**Solidity porting analysis** — Completed for both fixes with per-file instructions for `/home/user/Code/sew-protocol/contracts/`.
+**Solidity porting analysis** — Completed for both fixes with per-file instructions for `<SEW_REPO_ROOT>/contracts/`.
 
 **Adversarial scenario families (all 27 PASS):**
 - DR-A: Capacity exhaustion griefing

@@ -1,7 +1,8 @@
 {:paths ["." "src" "resources"]
 
  :mvn/repos {"central" {:url "https://repo1.maven.org/maven2/"}
-             "clojars" {:url "https://repo.clojars.org/"}}
+             "clojars" {:url "https://repo.clojars.org/"}
+             "clojars-https" {:url "https://clojars.org/repo/"}}
 
  :deps {org.clojure/clojure              {:mvn/version "1.12.0"}
         org.clojure/tools.logging         {:mvn/version "1.2.4"}
@@ -161,12 +162,11 @@
    {:main-opts ["-m" "resolver-sim.core"]}
 
    :cli
-   {:main-opts ["-m" "resolver-sim.cli.main"]
-    :extra-paths ["resources"]}
+   {:main-opts ["-m" "resolver-sim.cli.main"]}
 
    :cli/sew
    {:main-opts ["-m" "resolver-sim.cli.main"]
-    :extra-paths ["protocols_src" "protocols_src/test" "resources"]}
+    :extra-paths ["protocols_src" "protocols_src/test"]}
 
   :diff-traces
   {:main-opts ["-m" "resolver-sim.io.diff-runner"]}

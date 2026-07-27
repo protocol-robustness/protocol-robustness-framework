@@ -2,8 +2,8 @@
 
 **Generated:** 2026-07-27T17:47:10Z
 **Manifest:** `etc/trace-solidity-manifest.edn` (SHA-256: `a870fdb04f2b35bf27606fddb722d76e741b8eb72dbb221c19dac1acfb4c596b`)
-**Clojure repo:** `/home/user/Code/.workspaces/agent-c`
-**Solidity repo:** `/home/user/Code/sew-protocol`
+**Clojure repo:** `<PRF_ROOT>`
+**Solidity repo:** `<SEW_REPO_ROOT>`
 
 ---
 

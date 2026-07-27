@@ -19,11 +19,11 @@
    :evaluator/id :claim/hash-consistency-across-runs
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "0857f05b04e454c6da7bb3d78f981e82712f084b3c7f44c2bf2ed458db2a7875"}
-   :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/binary-claims-v1}"
-   :policy/sha256 "f8a6cd3376ac285741c07c3b33c7609494d3ec52f6d6ce862d51bc2fc35898be"
-   :evidence/packages []
-   :publication/copy {:headline "Sew-backed deterministic replay"
+                               :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
+    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/binary-claims-v1}"
+    :policy/sha256 "f8a6cd3376ac285741c07c3b33c7609494d3ec52f6d6ce862d51bc2fc35898be"
+    :evidence/packages []
+    :publication/copy {:headline "Sew-backed deterministic replay"
                       :summary "The included Sew dispute workload produces matching canonical results and evidence roots across repeated PRF-runner executions."}}
 
   {:claim/id "PHC-0002"
@@ -39,7 +39,7 @@
    :evaluator/id :claim/no-unauthorized-release
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "0857f05b04e454c6da7bb3d78f981e82712f084b3c7f44c2bf2ed458db2a7875"}
+                              :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []
@@ -59,7 +59,7 @@
    :evaluator/id :claim/funds-conserved
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "0857f05b04e454c6da7bb3d78f981e82712f084b3c7f44c2bf2ed458db2a7875"}
+                              :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []
@@ -79,7 +79,7 @@
    :evaluator/id :claim/reversal-reviewer-due-process
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+                              :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []
@@ -99,7 +99,7 @@
    :evaluator/id :claim/reversal-slash-conservation
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+                              :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []
@@ -119,7 +119,7 @@
    :evaluator/id :claim/vindication-stability
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+                              :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []
@@ -139,7 +139,7 @@
    :evaluator/id :claim/challenge-bounty-correctness
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+                              :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []
@@ -159,7 +159,7 @@
    :evaluator/id :claim/governance-force-reversal-authorized
    :evaluator/version "benchmark-claims-v1"
    :evaluator/implementation {:path "src/resolver_sim/benchmark/claims.clj"
-                              :sha256 "67000a53e69fdb65bd56749f8b02b057502414d96ee707feb54b4b2a785fe007"}
+                              :sha256 "c9c3c9b9b4e954245509de560639f0be7146ece10c8fa3dcf5a852cba2de6ff3"}
    :policy/canonical-edn "{:runner-policy :runner-policy/deterministic-local-v1 :evidence-policy :evidence-policy/forensic-standard-v1 :scoring-rule :scoring/severity-weighted-robustness-v1}"
    :policy/sha256 "6aa5f3224a8d6d278c54a80c823985586a92cf249ade47d3fa7ae225acacb5dc"
    :evidence/packages []

@@ -1005,8 +1005,7 @@
     (cancel-disputed-escrow-now world workflow-id)))
 
 (defn auto-cancel-disputed-on-auto-time
-  "NOT IN SOLIDITY — extra protection against griefing where a frivolous
-   dispute raised before auto-cancel-time orphans the deadline.
+  "Solidity shadow: ACTION_AUTO_CANCEL_DISPUTED (computeTimedActions, SettlementOps.sol).
 
    Cancel a DISPUTED escrow whose auto-cancel-time has passed, bypassing
    max-dispute-duration check.  Mirrors auto-cancel-disputed-escrow but
@@ -1071,7 +1070,7 @@
   (am/update-with-result auto-cancel-disputed-escrow workflow-id))
 
 (defn auto-cancel-disputed-on-auto-time-m
-  "Monadic version of auto-cancel-disputed-on-auto-time (NOT IN SOLIDITY)."
+  "Monadic version of auto-cancel-disputed-on-auto-time."
   [workflow-id]
   (am/update-with-result auto-cancel-disputed-on-auto-time workflow-id))
 

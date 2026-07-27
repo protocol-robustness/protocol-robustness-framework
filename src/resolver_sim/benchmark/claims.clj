@@ -9,7 +9,7 @@
    passed for a scenario result.  This covers Sew protocol claims where a
    semantic property is proxied by invariant results from check-all.
 
-   See benchmarks/DESIGN_CLAIM_VERIFICATION.md for maturity level definitions."
+   See docs/benchmarks/DESIGN_CLAIM_VERIFICATION.md for maturity level definitions."
   (:require [clojure.string :as str]
             [resolver-sim.claims.engine :as evidence-claims]
             [resolver-sim.definitions.passive-registries :as passive-registries]

@@ -95,7 +95,7 @@ result summary for consensus comparison.
     "source/dirty?": "false",
     "registry/snapshot/hash": "1234..."
   },
-  "runner-message/bundle-path": "/home/user/prf-runs/2026-06-28T12-00-00Z-consensus-a",
+  "runner-message/bundle-path": "<PRF_RUNS_DIR>/2026-06-28T12-00-00Z-consensus-a",
   "runner-message/evidence": {
     "dag-inventory-hash": "abcd...",
     "claim-count": 3,

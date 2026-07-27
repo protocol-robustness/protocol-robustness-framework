@@ -125,7 +125,13 @@
   [{:keys [variant main]
     :or   {variant "sew"
            main   nil}}]
-  (let [variant (keyword (name variant))
+  (let [variant (cond
+                  (keyword? variant) variant
+                  (string? variant) (keyword variant)
+                  (instance? clojure.lang.Symbol variant) (keyword (name variant))
+                  :else (throw (ex-info "Unsupported variant type"
+                                        {:variant variant :type (type variant)
+                                         :supported [:prf :sew]})))
         _ (when-not (#{:prf :sew} variant)
             (throw (ex-info "Unknown JAR build variant" {:variant variant :supported [:prf :sew]})))
         vname (name variant)
@@ -192,15 +198,16 @@ core-deps-str (pr-str
           (printf "  Removing test dir: %s\n" test-dir)
           (b/delete {:path (str td)}))))
     ;; Copy data dirs preserving directory name (b/copy-dir flattens contents,
-    ;; so copy each dir into a subdirectory of class-dir)
-    (when is-prf
-      (doseq [extra-dir ["resources/prf"]]
-        (let [d (java.io.File. extra-dir)]
-          (when (.exists d)
-            (printf "    %s/ -> class-dir/%s/\n" extra-dir extra-dir)
-            (.mkdirs (java.io.File. class-dir extra-dir))
-            (b/copy-dir {:src-dirs [extra-dir]
-                         :target-dir (str class-dir "/" extra-dir)})))))
+    ;; so copy each dir into a subdirectory of class-dir).
+    ;; data/ and config/ are classpath resources accessed via io/resource
+    ;; (not listed in the build :paths since they live at repository root).
+    (doseq [extra-dir ["data" "config" "resources/prf"]]
+      (let [d (java.io.File. extra-dir)]
+        (when (.exists d)
+          (printf "    %s/ -> class-dir/%s/\n" extra-dir extra-dir)
+          (.mkdirs (java.io.File. class-dir extra-dir))
+          (b/copy-dir {:src-dirs [extra-dir]
+                       :target-dir (str class-dir "/" extra-dir)}))))
 
     ;; The Sew archive packages an explicit, publishable runtime corpus. This
     ;; intentionally excludes source-tree miscellany such as notebooks, docs,

@@ -1,82 +1,34 @@
-# Sew benchmark execution
+# Benchmark Documentation
 
-Benchmarks are executed by the full Sew distribution:
-`target/prf-runner-sew-0.1.0-uber.jar`. It includes the supported Sew
-scenario corpus, benchmark registries, suites, concepts, and configuration as
-classpath resources. It runs from any directory without a source checkout.
+Human-readable specifications and design documentation for the benchmark
+infrastructure. The canonical executable surface lives in `benchmarks/`.
 
-## Build
+## Specifications
 
-```bash
-bb build:sew
-```
+- [Benchmark Pack Spec V1](BENCHMARK_PACK_SPEC_V1.md) — registry format,
+  benchmark definition bundle, lifecycle, claims, runner policies, scoring,
+  and evidence policies.
+- [Benchmark Result Spec V1](BENCHMARK_RESULT_SPEC_V1.md) — result shape,
+  status classification, claim/scenario result format, and hash computation.
+- [Benchmark Report Fields](BENCHMARK_REPORT_FIELDS.md) — field-by-field
+  reference for benchmark reports, scoring classification, claim maturity,
+  and conclusion format.
+- [Benchmark Assurance Spec V1](BENCHMARK_ASSURANCE_SPEC_V1.md) — assurance
+  and finalization chain: conservation, input-set commitment, finalization,
+  and verification.
+- [Benchmark Conclusion Spec V1](BENCHMARK_CONCLUSION_SPEC_V1.md) — conclusion
+  projection schema, classification rules, and registry contract.
+- [External Benchmark Pack Spec V1](EXTERNAL_BENCHMARK_PACK_SPEC_V1.md) —
+  contract for supplying external benchmark packs to the canonical runner.
 
-Output: `target/prf-runner-sew-0.1.0-uber.jar`
+## Design
 
-### Prerequisites
+- [Claim Verification Design](DESIGN_CLAIM_VERIFICATION.md) — claim
+  verification maturity levels, evaluator interface, runner integration,
+  and implementation status.
 
-- Clojure CLI (`clojure` on PATH)
-- Java 17+
+## Canonical Source
 
-## What's in the JAR
-
-| Contents | Path (inside JAR) |
-|----------|-------------------|
-| Benchmark pack registry | `benchmarks/registry.edn` |
-| Pack definitions | `benchmarks/packs/*/` |
-| Scoring rules | `benchmarks/scoring/*.edn` |
-| Benchmark-local concepts | `benchmarks/concepts/*.edn` |
-| Global concept registry | `data/concepts/registry.edn` |
-| Executable scenarios | `scenarios/edn/` |
-| Reference validation suite | `suites/reference-validation-v1/` |
-| Evidence config | `config/evidence.json` |
-
-All internal paths use the `resource:` scheme and are loaded from the
-classpath. No filesystem access required.
-
-## Run
-
-```bash
-# List supported benchmark IDs
-java -jar target/prf-runner-sew-0.1.0-uber.jar benchmark list
-
-# Run a benchmark into one fresh, authoritative bundle root
-java -jar target/prf-runner-sew-0.1.0-uber.jar \
-  run-benchmark force-authorisation-custody-v1 \
-  --run-root ./runs/force-authorisation
-
-# Run an external benchmark input when it is supported by the installed corpus
-java -jar target/prf-runner-sew-0.1.0-uber.jar \
-  run-benchmark /absolute/path/custom-benchmark.edn \
-  --run-root ./runs/custom-benchmark
-```
-
-### Exit codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Orchestration and evidence finalization completed; conclusion may be pass, fail, or inconclusive |
-| non-zero | Replay, finalization, or command failure; no completion marker is written |
-
-## Add a custom benchmark pack
-
-1. Create a pack directory: `benchmarks/packs/<name>/`
-2. Add a registry file: `benchmarks/packs/<name>/registry.edn`
-3. Register it in `benchmarks/registry.edn` under `:packs`
-4. Rebuild the JAR
-
-See `BENCHMARK_PACK_SPEC_V1.md` for the pack registry schema.
-
-## Directory layout
-
-```
-benchmarks/
-├── registry.edn              # Top-level pack index
-├── packs/
-│   └── sew/                  # Pack directory
-│       ├── registry.edn      #   Pack registry
-│       └── escrow-dispute-v1.edn  #   Benchmark manifest
-├── scoring/                  # Scoring rule definitions
-├── concepts/                 # Benchmark-local concepts
-└── README.md                 # This file
-```
+The corresponding executable surface — registries, pack definitions,
+scenario data, scoring policies, and runner configuration — lives in
+`benchmarks/`.

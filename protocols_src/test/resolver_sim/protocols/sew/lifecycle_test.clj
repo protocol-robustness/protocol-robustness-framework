@@ -329,7 +329,7 @@
     (is (= :dispute-timeout-not-exceeded (:error r)))))
 
 ;; ---------------------------------------------------------------------------
-;; auto-cancel-disputed-on-auto-time (NOT IN SOLIDITY)
+;; auto-cancel-disputed-on-auto-time
 ;; ---------------------------------------------------------------------------
 
 (deftest auto-cancel-disputed-on-auto-time-happy

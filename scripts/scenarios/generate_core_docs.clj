@@ -235,10 +235,10 @@
         coverage (read-json-file (evcfg/artifact-path :coverage))
         findings (read-json-file (evcfg/artifact-path :findings))
         issues (read-json-file (evcfg/artifact-path :issues))
-        cdrs-trace-schema (read-json-file "spec/cdrs-trace-v0.2.schema.json")
-        cdrs-event-schema (read-json-file "spec/cdrs-event-v0.2.schema.json")]
+        cdrs-trace-schema (read-json-file "schemas/cdrs-trace-v0.2.schema.json")
+        cdrs-event-schema (read-json-file "schemas/cdrs-event-v0.2.schema.json")]
     (str "# Evidence Artifact Contract (Generated)\n\n"
-         (str "Source of truth: current emitted artifacts under `" (evcfg/artifact-dir) "`, CDRS schemas under `spec/`, and semantic registry hash.\n\n")
+         (str "Source of truth: current emitted artifacts under `" (evcfg/artifact-dir) "`, CDRS schemas under `schemas/`, and semantic registry hash.\n\n")
          "Definitions hash: `" (defs/definitions-hash) "`\n\n"
          "## Canonical Artifact Set\n\n"
          (str "- `" (evcfg/artifact-path :test-summary) "`\n"

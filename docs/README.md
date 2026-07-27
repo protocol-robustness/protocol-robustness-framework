@@ -224,9 +224,8 @@ Primary project framing and status live in the root `../README.md`.
 
 ## Notebooks
 
-| Document | Description |
-|---|---|
-| `notebooks/README.md` | Clerk interactive workbench index |
+The repository ships 31 interactive Clerk notebooks under `notebooks/`.
+See `data/notebooks.edn` for the full registry with descriptions and maturity levels.
 
 ## Framework invariants
 

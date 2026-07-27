@@ -429,7 +429,7 @@
   (deadline-due? world workflow-id :auto-cancel-time))
 
 (defn auto-cancel-due-on-disputed?
-  "NOT IN SOLIDITY — simulation-side griefing protection.
+  "Solidity shadow: ACTION_AUTO_CANCEL_DISPUTED (computeTimedActions, SettlementOps.sol).
 
    True when a DISPUTED escrow has auto-cancel-time set and the
    deadline has passed, with no pending settlement blocking cleanup.

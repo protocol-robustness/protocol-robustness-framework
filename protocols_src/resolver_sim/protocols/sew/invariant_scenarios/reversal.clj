@@ -110,6 +110,7 @@
                      {:id "challenger" :address "0xchall"  :strategy "honest"}]
    :protocol-params reversal-slash-enabled
    :expected-fail? true
+   :allow-open-entities? true
    :events
    [{:seq 0 :time 1000 :agent "l0" :action "register_stake" :params {:amount 8000}}
     {:seq 1 :time 1000 :agent "l1" :action "register_stake" :params {:amount 8000}}

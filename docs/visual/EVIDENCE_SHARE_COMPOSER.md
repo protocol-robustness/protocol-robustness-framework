@@ -68,7 +68,7 @@ Every generated asset includes a "Signature Anchor":
 ## 7. Interaction Model: "The Scientific Peer-Review"
 
 The ESC is not just about posting; it's about **Proof**.
-- **The "Verify" CTA:** Every Farcaster frame has a `[Verify Replay]` button that deep-links into the `notebooks/workbench.clj` view for that specific scenario.
+- **The "Verify" CTA:** Every Farcaster frame has a `[Verify Replay]` button that deep-links into the `notebooks/workbench_v2.clj` view for that specific scenario.
 - **Side-by-Side Benchmarks:** System generates "Comparison Cards" showing `Previous Run Performance` vs `Current Run Performance`.
 
 ---
