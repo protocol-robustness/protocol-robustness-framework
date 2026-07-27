@@ -179,7 +179,7 @@
    "pending_delay_seconds":60}},
  "trace_kind":["dispute-resolution", "pending-settlement"],
  "terminal_projection_hash":
- "a20f32e0bdf481503ef3803dd0a89f2d50f574707351a784a0b1f2a29a637210",
+ "bd26ba929b9cc7ecdec995ed493ad619afbe3db61733684e1453cf2a6a44ff36",
  "appeal_window_duration":60,
  "step_count":6,
  "metadata":

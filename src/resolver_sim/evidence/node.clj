@@ -96,6 +96,14 @@
   "In-memory registry of execution evidence nodes keyed by :node-hash."
   (atom {}))
 
+(def ^:dynamic *node-persistence-lock*
+  "Dynamic lock for node persistence operations.
+   Bound via with-fresh-registry to give each test its own lock,
+   allowing parallel tests with separate artifact directories to proceed
+   concurrently without blocking each other.
+   Falls back to a global lock when unbound (backward compatibility)."
+  (Object.))
+
 (defn reset-node-registry!
   []
   (reset! *node-registry* {})
@@ -104,10 +112,13 @@
 (defmacro with-fresh-registry
   "Execute body with a fresh empty node registry.
    The outer registry is restored when body exits.
-   Uses dynamic binding for thread-safe test isolation."
+   Uses dynamic binding for thread-safe test isolation.
+   Each fresh registry gets its own persistence lock for parallel execution."
   [& body]
-  `(let [fresh-atom# (atom {})]
-     (binding [*node-registry* fresh-atom#]
+  `(let [fresh-atom# (atom {})
+         fresh-lock# (Object.)]
+     (binding [*node-registry* fresh-atom#
+               *node-persistence-lock* fresh-lock#]
        ~@body)))
 
 (defn all-nodes
@@ -122,6 +133,16 @@
   [node]
   (swap! *node-registry* assoc (:node-hash node) node)
   node)
+
+(defn with-fresh-registry*
+  "Thunk-based version of with-fresh-registry for higher-order contexts.
+   Calls (f) inside fresh bindings of *node-registry* and *node-persistence-lock*."
+  [f]
+  (let [fresh-atom (atom {})
+        fresh-lock (Object.)]
+    (binding [*node-registry* fresh-atom
+              *node-persistence-lock* fresh-lock]
+      (f))))
 
 (defn- now-iso
   []
@@ -412,17 +433,17 @@
                         :checks checks})))
      node)))
 
-(def ^:private node-persistence-lock
-  "Serializes validation, persistence, and chain registration for in-process
-   emitters sharing an artifact directory. Cross-process writers are protected
-   by write-node-artifact!'s atomic create-without-replace behavior."
-  (Object.))
-
 (defn persist-execution-node!
+  "Build, persist, and register an execution node.
+   Returns the node map (including :node-hash).
+   
+   Uses the dynamic *node-persistence-lock* for thread safety within a test.
+   Each test gets its own lock via with-fresh-registry, allowing parallel
+   tests with separate artifact directories to proceed concurrently."
   ([node]
    (persist-execution-node! node (set (keys @*node-registry*))))
   ([node known-parent-hashes]
-   (locking node-persistence-lock
+   (locking *node-persistence-lock*
      (validate-node-or-throw! node known-parent-hashes)
      (let [path (write-node-artifact! node)
            entry (node-artifact-entry node path)

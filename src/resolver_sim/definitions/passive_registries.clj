@@ -474,21 +474,27 @@
            :inputs [:pro-rata-allocation-result]
            :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
            :outputs [:holds? :result :reason :violations]}
-          {:id :pro-rata/projection-diff
-           :version 1
-           :category :safety
-           :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
-           :inputs [:projection-artifact]
-           :evaluation {:type :metadata-completeness
-                        :required-keys [:path :type :value :contract]}
-           :outputs [:holds? :violations]}
+{:id :pro-rata/projection-diff
+            :version 1
+            :category :safety
+            :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
+            :inputs [:projection-artifact]
+            :evaluation {:type :metadata-completeness
+                         :required-keys [:path :type :value :contract]}
+            :outputs [:holds? :violations]}
              ;; Protocol-specific claim definitions are registered dynamically
-           ;; by protocol implementation namespaces via register-claim-definitions!.
-           ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
-            ;; the Sew forensic-grade claims (registry-hash-verifies,
-            ;; registry-hash-signed, cursor-verifies, tsa-token-verified,
-            ;; evidence-chain-reconciled, forensic-grade).
-          ])))
+             ;; by protocol implementation namespaces via register-claim-definitions!.
+             ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
+             ;; the Sew forensic-grade claims (registry-hash-verifies,
+             ;; registry-hash-signed, cursor-verifies, tsa-token-verified,
+             ;; evidence-chain-reconciled, forensic-grade).
+             ;;
+             ;; IMPORTANT: register-forensic-claims! must be called AFTER this
+             ;; namespace is fully loaded but BEFORE any concurrent test execution
+             ;; or multi-epoch simulation. The claim-definitions var is NOT
+             ;; ^:dynamic because it is a static registry; forensic claims are
+             ;; added via alter-var-root and are shared across all concurrent runs.
+           ])))
 
 (def claim-definition-registry
   {:registry-version 1

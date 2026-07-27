@@ -6,6 +6,8 @@
  :benchmark/subject-kind :protocol-implementation
  :benchmark/domain :domain/protocol-value-conservation
  :benchmark/protocol :protocol/sew
+ :benchmark/trust-sequence-definition-root "019c66636b8f0a2be455f8aa4caa91e303ea4a18bd1498c504c78067cb069350"
+ :benchmark/expected-correlation-id "fa-0"
  :benchmark/scenario-suite :suite/force-authorisation-custody-v1
  :benchmark/suite-provider
  {:provider/id :protocol/sew

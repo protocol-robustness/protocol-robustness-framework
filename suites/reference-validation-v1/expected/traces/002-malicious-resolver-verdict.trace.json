@@ -225,7 +225,7 @@
  ["dispute-resolution", "pending-settlement", "authorization",
   "adversarial"],
  "terminal_projection_hash":
- "b569e23eab5bab811eb2530f17b07896bae10ecb9cb91d7a564d284686ff7710",
+ "7fb349256cd199ec422a2d50c5f6729a3baa7dbbfbfd0decee6b3f1a2c08ab9c",
  "appeal_window_duration":120,
  "step_count":8,
  "metadata":

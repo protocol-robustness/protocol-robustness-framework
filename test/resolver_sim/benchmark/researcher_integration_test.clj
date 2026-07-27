@@ -13,6 +13,7 @@
             [resolver-sim.benchmark.research-theorem-outcome :as rto]
             [resolver-sim.benchmark.research-conclusion :as rc]
             [resolver-sim.benchmark.research-command :as rcmd]
+            [resolver-sim.benchmark.force-authorised-execution-evidence :as fa-ev]
             [resolver-sim.hash.canonical :as hc])
   (:import [org.bouncycastle.crypto.generators Ed25519KeyPairGenerator]
            [org.bouncycastle.crypto.params Ed25519KeyGenerationParameters]
@@ -773,7 +774,7 @@
   {:policy/id :research/three-member-force-authorisation
    :policy/version 1
    :policy/schema-version "force-authorisation-policy.v1"
-   :policy/hash (:policy_sha256 fa-policy-artifact)})
+   :policy/hash (get fa-policy-artifact "policy_sha256")})
 
 (def ^:private fa-round-artifact
   "A resolved review-round artifact for cross-artifact verification."
@@ -1062,7 +1063,8 @@
 (def ^:private fa-consumption-cmd-root "sha256:execution-command")
 (def ^:private fa-consumption-plan-root "sha256:execution-plan")
 (def ^:private fa-consumption-attempt-id :execution/fa-consumption-test)
-(def ^:private fa-consumption-executed-root "sha256:executed-content")
+(def ^:private fa-consumption-executed-root
+  (get-in fa-target [:target/proposed-content-root]))
 
 (defn- fa-consume-flow
   "Simulate the reserve-execute-finalise consumption flow.
@@ -1127,12 +1129,18 @@
                                          :target/baseline-content-root])))
           ;; 6. Build terminal consumption receipt (references outcome hash)
           receipt (rfa/build-consumption-receipt
-                   {:consumption/reservation-hash (:reservation/hash reservation)
-                    :consumption/authorisation-hash (:authorisation/hash auth)
-                    :consumption/consumption-key (rfa/consumption-key auth)
-                    :consumption/resulting-outcome-hash
-                    (:benchmark-outcome/hash manifest)
-                    :consumption/status status})
+                   (cond-> {:consumption/reservation-hash (:reservation/hash reservation)
+                            :consumption/authorisation-hash (:authorisation/hash auth)
+                            :consumption/consumption-key (rfa/consumption-key auth)
+                            :consumption/resulting-outcome-hash
+                            (:benchmark-outcome/hash manifest)
+                            :consumption/status status}
+                     (= :failed-after-consumption status)
+                     (assoc :consumption/terminal-evidence-hash
+                            (str "sha256:" (hc/domain-hash :evidence-collection
+                                                           {:status :not-captured
+                                                            :reason-code
+                                                             :simulated-failure})))))
           _ (rfa/finalise-consumption! registration (rfa/consumption-key auth)
                                         status)]
       {:reservation reservation
@@ -1345,3 +1353,265 @@
                                    :execution/force-authorisation diff-fa))]
       (is (not (om/exact-replication-scope? fa-manifest diff-fa-manifest))
           "different :execution/force-authorisation = not exact replication"))))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; 9. Force-authorised execution evidence profile
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(defn- fa-ev-resolver
+  "Mock public-key-resolver for evidence profile tests."
+  [researcher-id]
+  (:public-key-path (fa-key-for researcher-id)))
+
+(defn- fa-ev-build!
+  "Build an evidence profile from the result of fa-consume-flow."
+  [auth flow-result & {:keys [override-auth override-policy override-round
+                              override-reservation override-manifest override-receipt]
+                       :or {override-auth nil override-policy nil
+                            override-round nil override-reservation nil
+                            override-manifest nil override-receipt nil}}]
+  (fa-ev/build-force-authorised-execution-evidence
+   {:authorisation (or override-auth auth)
+    :policy (or override-policy fa-policy-artifact)
+    :review-round (or override-round fa-round-artifact)
+    :reservation (or override-reservation (:reservation flow-result))
+    :outcome-manifest (or override-manifest (:outcome-manifest flow-result))
+    :consumption-receipt (or override-receipt (:consumption-receipt flow-result))
+    :public-key-resolver fa-ev-resolver}))
+
+;; ── 9a. Valid consumed execution ────────────────────────────────────────
+
+(deftest evidence-profile-valid-consumed
+  (let [reg (atom {})
+        auth (fa-build-consumption-auth! :authorisation/fa-ev-valid)
+        flow (fa-consume-flow reg auth
+               fa-consumption-cmd-root fa-consumption-plan-root
+               fa-consumption-executed-root fa-consumption-attempt-id)
+        profile (fa-ev-build! auth flow)]
+    ;; Profile is structurally valid
+    (is (some? (:evidence-profile/hash profile)))
+    (is (:valid? (fa-ev/validate-force-authorised-execution-evidence profile)))
+    ;; Verification map is all-true for valid flow
+    (let [v (:evidence-profile/verification profile)]
+      (is (:authorisation-valid? v))
+      (is (:decision-signatures-valid? v))
+      (is (:policy-binding-valid? v))
+      (is (:review-round-binding-valid? v))
+      (is (:manifest-binding-valid? v))
+      (is (:receipt-binding-valid? v)))
+    ;; Execution result
+    (let [er (:evidence-profile/execution-result profile)]
+      (is (= :consumed (:terminal-status er)))
+      (is (:outcome-produced? er))
+      (is (:successful-authorised-outcome? er)))
+    ;; Direct reference fields present
+    (is (some? (:evidence-profile/policy-hash profile)))
+    (is (some? (:evidence-profile/review-round-hash profile)))
+    ;; Independent verifier recomputes and matches
+    (let [verify-result (fa-ev/verify-force-authorised-execution-evidence
+                         profile
+                         {:authorisation auth
+                          :policy fa-policy-artifact
+                          :review-round fa-round-artifact
+                          :reservation (:reservation flow)
+                          :outcome-manifest (:outcome-manifest flow)
+                          :consumption-receipt (:consumption-receipt flow)
+                          :public-key-resolver fa-ev-resolver})]
+      (is (:valid? verify-result))
+      (is (empty? (:mismatches verify-result))))))
+
+;; ── 9b. Failed-after-consumption with terminal evidence ────────────────
+
+(deftest evidence-profile-failed-after-consumption
+  (let [reg (atom {})
+        auth (fa-build-consumption-auth! :authorisation/fa-ev-fail)
+        flow (fa-consume-flow reg auth
+               fa-consumption-cmd-root fa-consumption-plan-root
+               fa-consumption-executed-root fa-consumption-attempt-id
+               :fail-after-reservation? true)
+        profile (fa-ev-build! auth flow)]
+    (is (some? (:evidence-profile/hash profile)))
+    (let [v (:evidence-profile/verification profile)]
+      (is (:authorisation-valid? v))
+      (is (:decision-signatures-valid? v)))
+    (let [er (:evidence-profile/execution-result profile)]
+      (is (= :failed-after-consumption (:terminal-status er)))
+      (is (:outcome-produced? er))
+      (is (not (:successful-authorised-outcome? er))))))
+
+;; ── 9c. Missing artifact fails with precise reason ─────────────────────
+
+(deftest evidence-profile-missing-artifact
+  (let [reg (atom {})
+        auth (fa-build-consumption-auth! :authorisation/fa-ev-missing)
+        flow (fa-consume-flow reg auth
+               fa-consumption-cmd-root fa-consumption-plan-root
+               fa-consumption-executed-root fa-consumption-attempt-id)
+        base-args {:policy fa-policy-artifact
+                   :review-round fa-round-artifact
+                   :reservation (:reservation flow)
+                   :outcome-manifest (:outcome-manifest flow)
+                   :consumption-receipt (:consumption-receipt flow)
+                   :public-key-resolver fa-ev-resolver}]
+    ;; Missing authorisation
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
+          (fa-ev/build-force-authorised-execution-evidence
+           (assoc base-args :authorisation nil))))
+    ;; Missing policy
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
+          (fa-ev/build-force-authorised-execution-evidence
+           (assoc base-args :authorisation auth :policy nil))))
+    ;; Missing review-round
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
+          (fa-ev/build-force-authorised-execution-evidence
+           (assoc base-args :authorisation auth :review-round nil))))
+    ;; Missing reservation
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
+          (fa-ev/build-force-authorised-execution-evidence
+           (assoc base-args :authorisation auth :reservation nil))))
+    ;; Missing outcome-manifest
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
+          (fa-ev/build-force-authorised-execution-evidence
+           (assoc base-args :authorisation auth :outcome-manifest nil))))
+    ;; Missing consumption-receipt
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Evidence profile"
+          (fa-ev/build-force-authorised-execution-evidence
+           (assoc base-args :authorisation auth :consumption-receipt nil))))))
+
+;; ── 9d. Wrong manifest fails recomputation ─────────────────────────────
+
+(deftest evidence-profile-wrong-manifest
+  (let [reg (atom {})
+        auth (fa-build-consumption-auth! :authorisation/fa-ev-wrong-mf)
+        flow (fa-consume-flow reg auth
+               fa-consumption-cmd-root fa-consumption-plan-root
+               fa-consumption-executed-root fa-consumption-attempt-id)
+        profile (fa-ev-build! auth flow)
+        ;; Build a DIFFERENT manifest (different content-root)
+        other-manifest (om/build-manifest
+                        (assoc base-input
+                               :benchmark/content-root "sha256:different-content"
+                               :execution/plan-root "sha256:other-plan"))]
+    ;; Self-consistent profile with wrong manifest
+    (is (some? (:evidence-profile/hash profile)))
+    (let [verify-result (fa-ev/verify-force-authorised-execution-evidence
+                         profile
+                         {:authorisation auth
+                          :policy fa-policy-artifact
+                          :review-round fa-round-artifact
+                          :reservation (:reservation flow)
+                          :outcome-manifest other-manifest
+                          :consumption-receipt (:consumption-receipt flow)
+                          :public-key-resolver fa-ev-resolver})]
+      (is (not (:valid? verify-result)))
+      (is (some #(= :evidence-profile/hash (:field %))
+                (:mismatches verify-result))))))
+
+;; ── 9e. Forged verification map fails ──────────────────────────────────
+
+(deftest evidence-profile-forged-verification
+  (let [reg (atom {})
+        auth (fa-build-consumption-auth! :authorisation/fa-ev-forged)
+        flow (fa-consume-flow reg auth
+               fa-consumption-cmd-root fa-consumption-plan-root
+               fa-consumption-executed-root fa-consumption-attempt-id)
+        profile (fa-ev-build! auth flow)
+        ;; Forge: alter a verification value and recompute the profile hash
+        forged-ver (assoc (:evidence-profile/verification profile)
+                         :decision-signatures-valid? false)
+        forged-profile (assoc profile
+                              :evidence-profile/verification forged-ver)
+        ;; Recompute the profile's own hash so it's self-consistent
+        without-hash (dissoc forged-profile :evidence-profile/hash)
+        recomputed-hash (str "sha256:"
+                              (hc/domain-hash
+                               :force-authorised-execution-evidence
+                               without-hash))
+        forged-self-consistent (assoc forged-profile
+                                      :evidence-profile/hash
+                                      recomputed-hash)]
+    ;; The forged profile is structurally self-consistent
+    (is (:valid? (fa-ev/validate-force-authorised-execution-evidence
+                  forged-self-consistent)))
+    ;; Independent recomputation detects the forgery
+    (let [verify-result (fa-ev/verify-force-authorised-execution-evidence
+                         forged-self-consistent
+                         {:authorisation auth
+                          :policy fa-policy-artifact
+                          :review-round fa-round-artifact
+                          :reservation (:reservation flow)
+                          :outcome-manifest (:outcome-manifest flow)
+                          :consumption-receipt (:consumption-receipt flow)
+                          :public-key-resolver fa-ev-resolver})]
+      (is (not (:valid? verify-result)))
+      (is (some #(= :decision-signatures-valid? (:field %))
+                (:mismatches verify-result))))))
+
+;; ── 9f. FA manifest without profile fails package verification ─────────
+
+(deftest evidence-profile-missing-from-package
+  (let [reg (atom {})
+        auth (fa-build-consumption-auth! :authorisation/fa-ev-pkg)
+        flow (fa-consume-flow reg auth
+               fa-consumption-cmd-root fa-consumption-plan-root
+               fa-consumption-executed-root fa-consumption-attempt-id)
+        manifest (:outcome-manifest flow)
+        ;; Package resolver that returns nil for everything
+        nil-resolver (fn [_] nil)]
+    ;; Package verification fails because no artifacts can be resolved
+    (let [result (fa-ev/verify-package-force-authorised-execution
+                  nil-resolver nil manifest)]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"authorisation" %) (:errors result))))))
+
+;; ── 9g. Normal manifest requires no profile ────────────────────────────
+
+(deftest evidence-profile-normal-manifest-no-profile
+  (let [manifest (om/build-manifest base-input)]
+    (is (not (fa-ev/package-requires-evidence-profile? manifest)))
+    ;; The FA section is nil — no FA artifacts or profile needed
+    (is (nil? (:execution/force-authorisation manifest)))))
+
+;; ── 9h. Changing referenced hashes changes profile hash ────────────────
+
+(deftest evidence-profile-hash-sensitivity
+  (let [reg (atom {})
+        auth (fa-build-consumption-auth! :authorisation/fa-ev-hash)
+        flow (fa-consume-flow reg auth
+               fa-consumption-cmd-root fa-consumption-plan-root
+               fa-consumption-executed-root fa-consumption-attempt-id)
+        profile (fa-ev-build! auth flow)]
+    ;; Profile with different auth-hash fails verification
+    (let [profile2 (fa-ev-build! auth flow
+                     :override-auth (assoc auth
+                                           :authorisation/hash
+                                           "sha256:different-auth"))]
+      (is (not= (:evidence-profile/hash profile)
+                (:evidence-profile/hash profile2))
+          "different auth-hash must produce different profile hash"))
+    ;; Profile with different reservation-hash fails verification
+    (let [diff-res (assoc (:reservation flow)
+                          :reservation/hash "sha256:different-res")
+          profile3 (fa-ev-build! auth flow
+                    :override-reservation diff-res)]
+      (is (not= (:evidence-profile/hash profile)
+                (:evidence-profile/hash profile3))
+          "different reservation-hash must produce different profile hash"))
+    ;; Package verification succeeds with correct artifacts
+    (let [artifact-index {(:authorisation/hash auth) auth
+                          (:policy/hash (:authorisation/policy auth))
+                          fa-policy-artifact
+                          (:review-round/hash
+                           (:authorisation/review-round auth))
+                          fa-round-artifact
+                          (:reservation/hash (:reservation flow))
+                          (:reservation flow)
+                          (:consumption/hash (:consumption-receipt flow))
+                          (:consumption-receipt flow)}
+          resolver (fn [hash] (get artifact-index hash))
+          pkg-result (fa-ev/verify-package-force-authorised-execution
+                      resolver profile (:outcome-manifest flow)
+                      :public-key-resolver fa-ev-resolver)]
+      (is (:valid? pkg-result))
+      (is (get-in pkg-result [:checks :evidence-recomputed?]))
+      (is (get-in pkg-result [:checks :profile-hash-match?])))))

@@ -4,7 +4,8 @@
 
 (def phases [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion
              :write-summary :scan-sensitivity :write-content-registry :write-finalization
-             :write-canonical-assurance :write-verdict-policy :write-package-index :build-inventory
+             :build-execution-witness :write-canonical-assurance :write-verdict-policy
+             :write-package-index :build-inventory
              :finalize-registry :validate-registry :complete])
 
 (defn run!

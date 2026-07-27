@@ -130,7 +130,7 @@
   {"auto_cancel_triggered":false, "within_resolution_window":true}},
  "trace_kind":["dispute-resolution", "authorization"],
  "terminal_projection_hash":
- "d4c31e7b01b48c4e49b428caa6826b6bd792727c4dddf8881ad28ecee636df06",
+ "df2eb3cfd093a02216037155d348857bc4940e8252e0388a8f8e3774013be05a",
  "appeal_window_duration":0,
  "step_count":4,
  "metadata":

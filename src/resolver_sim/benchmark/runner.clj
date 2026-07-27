@@ -126,9 +126,14 @@
   (when path
     (let [file (io/file path)]
       (.mkdirs (.getParentFile file))
-      (spit file (pr-str {:schema_version "benchmark-execution-plan.v1"
-                          :benchmark/id (:benchmark/id benchmark)
-                          :executions plan})))))
+      (spit file (pr-str (cond-> {:schema_version "benchmark-execution-plan.v1"
+                                  :benchmark/id (:benchmark/id benchmark)
+                                  :executions plan}
+                           (:benchmark/trust-sequence-definition-root benchmark)
+                           (assoc :trust-sequence-definition-root
+                                  (:benchmark/trust-sequence-definition-root benchmark)
+                                  :expected-correlation-id
+                                  (:benchmark/expected-correlation-id benchmark))))))))
 
 (defn- execution-output-dir
   [executions-dir ordinal descriptor]

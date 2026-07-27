@@ -707,8 +707,14 @@
 ;; Status/root rules:
 ;;   Status                          resulting-outcome-hash   terminal-evidence-hash
 ;;   :consumed                       required                  optional
-;;   :failed-after-consumption       optional                  recommended
+;;   :failed-after-consumption       optional                  required (or :not-captured)
 ;;   :rolled-back-after-consumption  required                  required
+;;
+;; For :failed-after-consumption, :terminal-evidence-hash must be present.
+;; When no failure artifact was captured (e.g. runner terminated before
+;; evidence could be written), use the explicit status:
+;;   {:status :not-captured :reason-code kw}
+;; so the absence is semantic, not ambiguous.
 
 (def ^:const receipt-schema-version
   "force-authorisation-consumption.v1")
@@ -726,9 +732,12 @@
   (contains? receipt-statuses s))
 
 (def ^:private receipt-status-rules
-  "Status/root validation rules."
+  "Status/root validation rules.
+   For :failed-after-consumption, :terminal-evidence-hash must be present.
+   If none was captured, use {:status :not-captured :reason-code kw}
+   to make the absence explicit rather than ambiguous."
   {:consumed                      {:outcome-hash :required :terminal-evidence :optional}
-   :failed-after-consumption      {:outcome-hash :optional :terminal-evidence :recommended}
+   :failed-after-consumption      {:outcome-hash :optional :terminal-evidence :required}
    :rolled-back-after-consumption {:outcome-hash :required :terminal-evidence :required}})
 
 (defn build-consumption-receipt

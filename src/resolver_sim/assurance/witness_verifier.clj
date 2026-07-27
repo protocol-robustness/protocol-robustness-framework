@@ -78,6 +78,29 @@
                                  (str "expected order " def-order " got " witness-order))))
       @checks)))
 
+;; ── Phase 2.5: Pre-execution plan commitment ───────────────────────────────
+;; Verifies the execution plan's committed definition root matches the
+;; witness definition root. The execution plan is written before scenario
+;; execution begins, so it is the authoritative pre-execution commitment.
+
+(defn verify-plan-commitment
+  "Check witness definition root matches the execution-plan committed root.
+   The plan-root is the trust-sequence-definition-root written into the
+   execution plan before scenario execution.
+   Returns :not-run when no plan root is provided."
+  [witness plan-root]
+  (let [witness-def-root (:procedure-execution-witness/definition-root witness)]
+    (if (nil? plan-root)
+      [(not-run :procedure-witness/definition-matches-execution-plan
+                "no execution plan root provided")]
+      (if (= plan-root witness-def-root)
+        [(pass :procedure-witness/definition-matches-execution-plan
+               :plan-root plan-root)]
+        [(fail :procedure-witness/definition-does-not-match-execution-plan
+               (str "plan root " plan-root " != witness definition-root " witness-def-root)
+               :plan-root plan-root
+               :witness-def-root witness-def-root)]))))
+
 ;; ── Phase 3: Evidence resolution ────────────────────────────────────────────
 
 (defn- resolve-step-evidence
@@ -258,14 +281,16 @@
                         :evidence-index/status :chain-verified
                         :evidence-index/registry-root \"...\"
                         :evidence-index/chain-head \"...\"}
-     opts           — {:evidence-adapter adapter
-                        :expected-correlation-id id}
+      opts           — {:evidence-adapter adapter
+                         :expected-correlation-id id
+                         :plan-root \"sha256:...\"}
    
    Returns {:valid? bool :checks [...] :pass-count [...] :fail-count [...]}."
-  [witness definition evidence-index & [{:keys [evidence-adapter expected-correlation-id]}]]
+  [witness definition evidence-index & [{:keys [evidence-adapter expected-correlation-id plan-root]}]]
   (let [adapter (or evidence-adapter {})
         phases [(vec (verify-structural-integrity witness))
                 (vec (verify-definition-binding witness definition))
+                (vec (verify-plan-commitment witness plan-root))
                 (vec (verify-evidence-resolution witness evidence-index adapter))
                 (vec (verify-chain-integrity witness evidence-index))
                 (vec (verify-correlation-identity witness evidence-index adapter
@@ -283,10 +308,11 @@
 
 (defn verify-witness-summary
   "Return a concise summary map suitable for canonical-assurance checks."
-  [witness definition evidence-index & [{:keys [evidence-adapter expected-correlation-id]}]]
+  [witness definition evidence-index & [{:keys [evidence-adapter expected-correlation-id plan-root]}]]
   (let [result (verify-witness witness definition evidence-index
                                {:evidence-adapter evidence-adapter
-                                :expected-correlation-id expected-correlation-id})]
+                                :expected-correlation-id expected-correlation-id
+                                :plan-root plan-root})]
     {:execution-witness-verified (:valid? result)
      :execution-witness-root (:witness-root result)
      :execution-witness-checks-passed (:pass-count result)
@@ -350,25 +376,20 @@
    Returns {:valid? bool
             :witness-result {:valid? bool :checks [...]}
             :chain-result {:chain/status keyword :chain/errors [...]}}."
-  [witness definition event-evidence-dir evidence-registry chain-cursor
-   & [{:keys [evidence-adapter expected-correlation-id]}]]
+   [witness definition event-evidence-dir evidence-registry chain-cursor
+   & [{:keys [evidence-adapter expected-correlation-id plan-root]}]]
   (let [;; Verify the registry hash
         registry-valid? (:valid (chain/verify-registry-hash evidence-registry))
         
         ;; Verify scenario chain
+        raw-index (build-evidence-index event-evidence-dir)
         scenario-chain (try
-                         (let [records (vals (get-in evidence-registry [:evidence-index/by-content-hash
-                                                                        (:evidence-index/by-content-hash
-                                                                         (build-evidence-index event-evidence-dir))]
-                                                    {}))]
+                         (let [records (vals (:evidence-index/by-content-hash raw-index))]
                            (chain/verify-scenario-chain records))
                          (catch Exception _
                            {:chain/status :invalid :chain/errors [(str "chain verification failed")]}))
 
         chain-valid? (= :verified (:chain/status scenario-chain))
-        
-        ;; Build and finalise evidence index
-        raw-index (build-evidence-index event-evidence-dir)
         chain-head (when chain-valid? (:chain/head-hash scenario-chain))
         registry-root (:registry-hash evidence-registry)
         final-index (finalise-evidence-index raw-index registry-root chain-head)
@@ -376,7 +397,8 @@
         ;; Run pure witness verifier
         witness-result (verify-witness witness definition final-index
                                        {:evidence-adapter evidence-adapter
-                                        :expected-correlation-id expected-correlation-id})
+                                        :expected-correlation-id expected-correlation-id
+                                        :plan-root plan-root})
 
         ;; Chain-specific checks
         chain-checks [(if registry-valid?

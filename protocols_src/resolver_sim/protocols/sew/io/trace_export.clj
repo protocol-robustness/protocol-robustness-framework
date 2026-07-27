@@ -353,19 +353,21 @@
 ;; ---------------------------------------------------------------------------
 
 (defn terminal-projection-hash
-  "Compute SHA-256 of the 6-field projection for Solidity equivalence check.
-   Returns nil when wf-id is nil (no escrow in scenario)."
-  [world wf-id token-sym]
+  "Compute SHA-256 of the per-escrow projection for Solidity equivalence check.
+   Format: sha256(state|afa|psExists|dispLevel)
+   Returns nil when wf-id is nil (no escrow in scenario).
+   Note: total-held and total-fees are omitted because the token address key
+   differs between Clojure (keyword) and Solidity (ERC20 address).  Those
+   fields are verified per-step in the Forge equivalence suite."
+  [world wf-id]
   (when wf-id
     (let [state-kw (get-in world [:escrow-transfers wf-id :escrow-state])
-          state    (get escrow-state->int state-kw 0)
-          afa      (get-in world [:escrow-transfers wf-id :amount-after-fee] 0)
-          held     (get-in world [:total-held token-sym] 0)
-          fees     (get-in world [:total-fees token-sym] 0)
+          state     (get escrow-state->int state-kw 0)
+          afa       (get-in world [:escrow-transfers wf-id :amount-after-fee] 0)
           ps-exists (if (get-in world [:pending-settlements wf-id :exists] false) 1 0)
           disp-level (get-in world [:dispute-levels wf-id] 0)
-          data     (str state "|" afa "|" held "|" fees "|" ps-exists "|" disp-level)
-          digest   (java.security.MessageDigest/getInstance "SHA-256")]
+          data      (str state "|" afa "|" ps-exists "|" disp-level)
+          digest    (java.security.MessageDigest/getInstance "SHA-256")]
       (format "%064x" (java.math.BigInteger. 1 (.digest digest (.getBytes data "UTF-8")))))))
 
 ;; ---------------------------------------------------------------------------
@@ -415,7 +417,7 @@
                             (assoc "idempotency" idem-summary))
         :expected_semantics expected-semantics
         :step_count        (count steps)
-        :terminal_projection_hash (terminal-projection-hash last-world primary-wf-id token-sym)
+        :terminal_projection_hash (terminal-projection-hash last-world primary-wf-id)
         :steps             steps
        ;; Resolution summary for all escrows in the trace
        :resolutions       (into {} (for [[alias id] id-alias-map]

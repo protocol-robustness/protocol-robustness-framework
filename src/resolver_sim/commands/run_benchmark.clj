@@ -21,7 +21,9 @@
             [resolver-sim.run.verdict-policy :as verdict-policy]
             [resolver-sim.forensic.source-hash :as source-hash]
             [resolver-sim.run.distribution-provenance :as distribution]
-            [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
+            [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
+            [resolver-sim.commands.witness-build :as witness-build]
+            [resolver-sim.assurance.witness-verifier :as wv])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (declare sha-ref)
@@ -123,19 +125,109 @@
         assurance (io/file root "benchmark/assertions/benchmark-assurance.json")
         conservation (io/file root "benchmark/assertions/conservation.json")
         content (io/file root "benchmark/evidence/content-registry.json")
-        value {"schema_version" "canonical-integrity.v1"
-               "assurance_kind" "unsigned-canonical-integrity"
-               "run_id" (:run/id context)
-               "benchmark_id" (str (:benchmark/id context))
-               "status" "passed"
-               "scope" {"content_integrity" true "evidence_reconciliation" true
-                        "operator_identity" false "runtime_isolation" false}
-               "benchmark_finalization" {"ref" "benchmark/finalization.json" "sha256" (sha-ref finalization)}
-               "benchmark_assurance" {"ref" "benchmark/assertions/benchmark-assurance.json" "sha256" (sha-ref assurance)}
-               "conservation" {"ref" "benchmark/assertions/conservation.json" "sha256" (sha-ref conservation)}
-               "evidence_content_registry" {"ref" "benchmark/evidence/content-registry.json" "sha256" (sha-ref content)}
-               "limitations" ["Unsigned assurance does not establish operator identity or signature trust."
-                              "Runtime isolation is outside this assurance scope."]}
+        witness-path (io/file root "manifest/execution-witness.json")
+        run-root-str (str root)
+        ts-root (witness-build/configured-root run-root-str)
+        witness-exists? (.isFile witness-path)
+        ws-required (witness-build/witness-requirement (some? ts-root) witness-exists?)
+
+        ;; Run witness verification when configured and present
+        witness-result (case ws-required
+                         :required-present
+                         (try
+                           (witness-build/canonical-witness-verification run-root-str)
+                           (catch Exception e
+                             {:valid? false
+                              :checks [{:check/code :execution-witness/error
+                                        :check/status :fail
+                                        :check/detail (.getMessage e)}]
+                              :pass-count 0 :fail-count 1}))
+
+                         :required-missing
+                         {:valid? false
+                          :checks [{:check/code :execution-witness/configured-missing
+                                    :check/status :fail
+                                    :check/detail "Trust-sequence configured but execution witness not found"}]
+                          :pass-count 0 :fail-count 1}
+
+                         nil)
+
+        ;; Structured scope from witness verification
+        witness-scope (when witness-result
+                        (let [cs (:checks witness-result)]
+                          {:execution-witness
+                           {:status (if (:valid? witness-result) :verified :invalid)
+                            :check-count (:pass-count witness-result 0)
+                            :fail-count (:fail-count witness-result 0)
+                            :not-run-count (:not-run-count witness-result 0)
+                            :definition
+                            {:status (if (some #(= :pass (:check/status %))
+                                              (filter #(= :procedure-witness/definition-root-matches (:check/code %)) cs))
+                                       :pass :fail)
+                             :definition-root (:evidence-index/definition-root witness-result '())}
+                            :evidence-chain
+                            {:status (if (and (some #(= :evidence-chain/registry-hash-valid (:check/code %))
+                                                  (filter #(= :pass (:check/status %)) cs))
+                                              (some #(= :evidence-chain/chain-valid (:check/code %))
+                                                    (filter #(= :pass (:check/status %)) cs)))
+                                       :pass :fail)
+                             :registry-verified (some #(= :evidence-chain/registry-hash-valid (:check/code %))
+                                                      (filter #(= :pass (:check/status %)) cs))
+                             :chain-verified (some #(= :evidence-chain/chain-valid (:check/code %))
+                                                   (filter #(= :pass (:check/status %)) cs))
+                             :selected-step-count (count (filter #(= :procedure-witness/evidence-resolved (:check/code %)) cs))}
+                            :correlation
+                            {:status (cond
+                                       (and (some #(= :procedure-witness/correlation-internally-consistent (:check/code %))
+                                                  (filter #(= :pass (:check/status %)) cs))
+                                            (some #(= :procedure-witness/correlation-matches-planned-instance (:check/code %))
+                                                  (filter #(= :pass (:check/status %)) cs))) :pass
+                                       (some #(= :not-run (:check/status %))
+                                             (filter #(= :procedure-witness/correlation-matches-planned-instance (:check/code %)) cs)) :not-verified
+                                       :else :fail)
+                             :internally-consistent (some #(= :procedure-witness/correlation-internally-consistent (:check/code %))
+                                                          (filter #(= :pass (:check/status %)) cs))
+                             :matches-expected (some #(= :procedure-witness/correlation-matches-planned-instance (:check/code %))
+                                                     (filter #(= :pass (:check/status %)) cs))}
+                            :result-binding
+                            {:status (if (and (some #(= :procedure-witness/initial-input-matches (:check/code %))
+                                                    (filter #(= :pass (:check/status %)) cs))
+                                              (some #(= :procedure-witness/final-output-matches-result (:check/code %))
+                                                    (filter #(= :pass (:check/status %)) cs)))
+                                       :pass :fail)}
+                            :runtime-policy-binding
+                            {:status :not-verified
+                             :reason :operative-policy-not-content-addressed}}}))
+
+        assurance-status (case ws-required
+                           :not-required "passed"
+                           (:required-present :unexpected-present)
+                           (if (:valid? witness-result) "passed" "failed")
+                           :required-missing "failed")
+
+        scope-base {"content_integrity" true "evidence_reconciliation" true
+                    "operator_identity" false "runtime_isolation" false}
+        scope (if witness-scope (assoc scope-base "execution_witness" witness-scope) scope-base)
+
+        limitations ["Unsigned assurance does not establish operator identity or signature trust."
+                     "Runtime isolation is outside this assurance scope."
+                     (when ts-root "Runtime policy binding is code-backed, not content-addressed.")]
+        limitations (remove nil? limitations)
+
+        value (merge {"schema_version" "canonical-integrity.v1"
+                      "assurance_kind" "unsigned-canonical-integrity"
+                      "run_id" (:run/id context)
+                      "benchmark_id" (str (:benchmark/id context))
+                      "status" assurance-status
+                      "scope" scope
+                      "benchmark_finalization" {"ref" "benchmark/finalization.json" "sha256" (sha-ref finalization)}
+                      "benchmark_assurance" {"ref" "benchmark/assertions/benchmark-assurance.json" "sha256" (sha-ref assurance)}
+                      "conservation" {"ref" "benchmark/assertions/conservation.json" "sha256" (sha-ref conservation)}
+                      "evidence_content_registry" {"ref" "benchmark/evidence/content-registry.json" "sha256" (sha-ref content)}
+                      "limitations" limitations}
+                     (when (and ts-root (.isFile witness-path))
+                       {"execution_witness_ref" "manifest/execution-witness.json"
+                        "execution_witness_sha256" (sha-ref witness-path)}))
         deferred {"schema_version" "forensic-claims-status.v1" "run_id" (:run/id context)
                   "status" "deferred" "reason_code" "unsigned-forensic-signing-not-configured"
                   "canonical_integrity_ref" "benchmark/assertions/canonical-integrity.json"}
@@ -209,25 +301,41 @@
   (let [root (io/file (str (:run/root context)))
         ref (fn [path]
               (let [file (io/file root path)]
-                {:ref path :sha256 (when (.isFile file) (sha-ref file))}))]
+                {:ref path :sha256 (when (.isFile file) (sha-ref file))}))
+        run-root-str (str root)
+        ts-root (witness-build/configured-root run-root-str)
+        witness-exists? (.isFile (io/file root "manifest/execution-witness.json"))
+        ws-required (witness-build/witness-requirement (some? ts-root) witness-exists?)
+        witness-artifacts (case ws-required
+                            :required-present
+                            {:execution-witness (ref "manifest/execution-witness.json")}
+                            :required-missing
+                            (throw (ex-info "Package index: trust-sequence configured but execution witness missing"
+                                            {:trust-sequence-definition-root ts-root}))
+                            :unexpected-present
+                            (throw (ex-info "Package index: execution witness present but no trust-sequence configured"
+                                            {}))
+                            :not-required
+                            {})]
     (package-index/write!
      (io/file root paths/run-package-index)
      {:run-id (:run/id context)
       :run-type :benchmark
       :bundle-root-hash (sha-ref (io/file root "benchmark/evidence/evidence.edn"))
-      :artifacts {:runner-finalization (ref "benchmark/execution/runner-finalization.json")
-                  :benchmark-definition (ref "benchmark/definition.edn")
-                  :execution-plan (ref "benchmark/execution-plan.edn")
-                  :benchmark-index (ref "benchmark/index.edn")
-                  :benchmark-evidence (ref "benchmark/evidence/evidence.edn")
-                  :content-registry (ref "benchmark/evidence/content-registry.json")
-                  :benchmark-conclusion (ref "benchmark/conclusion.json")
-                  :benchmark-conservation (ref "benchmark/assertions/conservation.json")
-                  :benchmark-finalization (ref "benchmark/finalization.json")
-                  :benchmark-assurance (ref "benchmark/assertions/benchmark-assurance.json")
-                  :canonical-integrity (ref "benchmark/assertions/canonical-integrity.json")
-                  :verdict-policy (ref "manifest/verdict-policy.json")
-                  :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}})))
+      :artifacts (merge {:runner-finalization (ref "benchmark/execution/runner-finalization.json")
+                         :benchmark-definition (ref "benchmark/definition.edn")
+                         :execution-plan (ref "benchmark/execution-plan.edn")
+                         :benchmark-index (ref "benchmark/index.edn")
+                         :benchmark-evidence (ref "benchmark/evidence/evidence.edn")
+                         :content-registry (ref "benchmark/evidence/content-registry.json")
+                         :benchmark-conclusion (ref "benchmark/conclusion.json")
+                         :benchmark-conservation (ref "benchmark/assertions/conservation.json")
+                         :benchmark-finalization (ref "benchmark/finalization.json")
+                         :benchmark-assurance (ref "benchmark/assertions/benchmark-assurance.json")
+                         :canonical-integrity (ref "benchmark/assertions/canonical-integrity.json")
+                         :verdict-policy (ref "manifest/verdict-policy.json")
+                         :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}
+                        witness-artifacts)})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
@@ -436,6 +544,7 @@
                                    :scan-sensitivity (fn [_ _] (scan-sensitivity! context))
                                    :write-content-registry (fn [_ _] (write-content-registry! context))
                                    :write-finalization (fn [_ _] (write-finalization! context @benchmark-conclusion))
+                                   :build-execution-witness (fn [_ _] (witness-build/build-and-write! context))
                                    :write-canonical-assurance (fn [_ _] (write-canonical-assurance! context))
                                    :write-verdict-policy (fn [_ result] (write-verdict-policy! context (:evidence result) @benchmark-conclusion))
                                    :write-package-index (fn [_ _] (write-package-index! context))
