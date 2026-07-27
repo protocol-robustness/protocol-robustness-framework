@@ -32,15 +32,43 @@
 
 - **`three-member-research-certificate.v1`:** Whole-outcome grouping (never synthetic field-wise majority), six member groups (`:supporting`, `:qualifying`, `:dissenting`, `:absent`, `:insufficient-information`, `:not-reviewed`, `:not-applicable`), replication-type classification (`:exact-replication`, `:independent-sampling`, `:model-corroboration`, `:incompatible-scope`), per-dimension-consensus with member detail, `pre-certificate-checks`. (`src/resolver_sim/benchmark/review/three_member_certificate.clj`)
 
-- **`research-force-authorisation.v1`:** Policy/instance split, 2-of-3 threshold with dissent preservation, member validation, `build-authorisation`, `policy-valid?`. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
+- **`research-force-authorisation.v1` (content-addressed):** Signed three-member decisions with Ed25519 signatures, policy-by-reference (portable ref, no run-layer import), acyclic reservation→outcome→receipt lifecycle, terminal consumption statuses (`:consumed`, `:failed-after-consumption`, `:rolled-back-after-consumption`), `verify-fa-binding`, `verify-consumption-receipt`. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
+
+- **`research-theorem-outcome.v1`:** Canonical theorem artifact with `:if`/`:then` DSL, premises, inference, falsifiers, conclusion status, limitations. (`src/resolver_sim/benchmark/research_theorem_outcome.clj`)
+
+- **`research-conclusion.v1`:** "X, therefore Y" conclusion artifact with qualifications, scope, overreach detection. (`src/resolver_sim/benchmark/research_conclusion.clj`)
+
+- **`research-command.v1`:** Structured execution provenance with normalised `:command/include`, semantic identity comparison. (`src/resolver_sim/benchmark/research_command.clj`)
+
+- **`force-authorisation-reservation.v1`:** Pre-execution reservation artifact committing authorisation, plan, command. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
+
+- **`force-authorisation-consumption.v1`:** Terminal consumption receipt (post-outcome) with status/root rules: `:consumed` requires outcome hash, `:failed-after-consumption` requires terminal evidence (use `:not-captured` when absent), `:rolled-back-after-consumption` requires rollback evidence. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
+
+- **`force-authorised-execution-evidence.v1`:** Derived evidence profile calling 6 existing validators (validate-authorisation, verify-against-policy, verify-against-round, verify-decision-signatures, verify-fa-binding, verify-consumption-receipt); independently recomputable. (`src/resolver_sim/benchmark/force_authorised_execution_evidence.clj`)
+
+- **`ReservationBackend` protocol:** `reserve!`/`finalise!`/`consumed?`/`read-state` interface for durable single-use enforcement. `AtomBackend` implementation uses `compare-and-set!` for in-process correctness. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
+
+- **`verify-package-completion-force-authorised`:** Resolves all 7 FA chain artifacts (policy, round, auth, reservation, manifest, receipt, profile) from package index by committed hash. Normal packages unaffected. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
+
+- **`force-authorisation-summary`:** Reviewer-facing summary with decision, execution, verification, and qualification sections. (`src/resolver_sim/benchmark/researcher_force_authorisation.clj`)
 
 - **Partial-fill benchmark evidence pack:** Six-level application evidence ladder (`:allocation-calculated`, `:application-claimed`, `:accounting-emitted`, `:state-written-back`, `:continuity-consumed`, `:outcome-committed`), `derive-state-write-back` from existing artifacts (no yield code modification), `collect-application-refs`, `collect-propagation-refs`, `semantic-commitments`, `derive-continuity-evidence`, `evaluate-operational`, `evaluate-incentives`, `normalise-decision-outcome`. (`src/resolver_sim/benchmark/packs/partial_fill/evidence.clj`, `src/resolver_sim/benchmark/packs/partial_fill/outcome.clj`)
 
-- **181 benchmark-layer tests:** 9 test namespaces covering registry entry, review round, outcome manifest, run report, position, certificate, force-authorisation, partial-fill evidence, cross-artifact integration, and Sew pre-application. All passing with 331 assertions. (`test/resolver_sim/benchmark/`)
+- **`pro-rata-allocation-evidence.v1`:** Verifies allocation hash, capacity bounds, quota compliance, conservation, canonical remainder assignment, round-trace coherence, residual validity. Calls `allocation-hash-valid?` and `result-violations` (aggregates 8 invariants). (`src/resolver_sim/benchmark/packs/partial_fill/pro_rata_allocation_evidence.clj`)
+
+- **`pro-rata-application-evidence.v1`:** Verifies propagation-allocation binding, apparent application recording, accounting reconciliation, authoritative state write-back, deferred current-amount continuity, next-precondition continuity (`:verified`, `:not-observed`, `:failed`). Preserves the six-level evidence ladder. (`src/resolver_sim/benchmark/packs/partial_fill/pro_rata_application_evidence.clj`)
+
+- **`pro-rata-execution-evidence.v1`:** Binds allocation and application profiles by hash, cross-validates theorem and conclusion hashes against outcome manifest. Separate `:positive-amount-applied?` and `:fully-satisfied?` flags. `package-requires-pro-rata-evidence?`, `verify-package-pro-rata-evidence`. (`src/resolver_sim/benchmark/packs/partial_fill/pro_rata_execution_evidence.clj`)
+
+- **`exact-execution-scope?` and `same-authorisation-provenance?`:** Separate semantic scope from governance provenance. Independently authorised reproductions of the same branch can be exact-replication scope. (`src/resolver_sim/benchmark/outcome_manifest.clj`)
+
+- **367 benchmark-layer tests:** 17 test namespaces covering registry entry, review round, outcome manifest, run report, position, certificate, force-authorisation lifecycle, FA evidence profile, partial-fill evidence, pro-rata evidence profiles, package integration, cross-artifact integration, and Sew pre-application. All passing with 852 assertions. (`test/resolver_sim/benchmark/`, `test/resolver_sim/research/`)
 
 ### Fixed
 
 - **`:deferred` component status made strict:** Now requires `:reason-code` and `:expected-version`, prohibits non-nil root. Added `:provisional` status (requires root). Status/root validation enforced in both builder and standalone `validate-entry`. (`src/resolver_sim/benchmark/content_registry_entry.clj`)
+
+- **`evidence/chain.clj` unbalanced parentheses:** Two closing-paren corrections (`evidence->artifact-entry` defn- and `verify-cursor-forensic` let form) that prevented compilation under the `:test` classpath. No semantic change. (`src/resolver_sim/evidence/chain.clj`)
 
 - **`exact-replication-scope?` missing model-root check:** Added `:benchmark/model-root` equality — previously a different model-root with the same content-root silently classified as exact replication. (`src/resolver_sim/benchmark/outcome_manifest.clj`)
 

@@ -1,0 +1,4 @@
+{:benchmark/id :benchmark/force-authorisation-custody-v1
+ :benchmark/protocol :protocol/sew
+ :benchmark/trust-sequence-definition-root "019c66636b8f0a2be455f8aa4caa91e303ea4a18bd1498c504c78067cb069350"
+ :benchmark/expected-correlation-id "fa-fixture-0"}

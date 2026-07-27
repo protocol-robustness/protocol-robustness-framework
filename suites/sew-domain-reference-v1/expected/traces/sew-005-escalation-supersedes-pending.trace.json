@@ -1,6 +1,11 @@
 {"description":
  "Generated trace: s65-escalation-supersedes-old-pending-then-old-path-attempt",
  "fee_bps":0,
+ "invariant_profile":
+ {"id":"solidity-equivalence-core-v1",
+  "version":1,
+  "root":
+  "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"},
  "max_dispute_duration":600,
  "schema_version":"2",
  "resolutions":

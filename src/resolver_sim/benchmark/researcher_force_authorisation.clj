@@ -1048,3 +1048,182 @@
       nil)
     {:consistent? (empty? @errors)
      :mismatches @errors}))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Durable reservation backend protocol
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(defprotocol ReservationBackend
+  "Durable reservation interface for single-use consumption enforcement.
+   
+   A production runner implements this protocol using a filesystem lock,
+   database transaction, or other durable compare-and-set mechanism.
+   
+   The in-process atom implementation below is correct for single-JVM
+   testing but does NOT enforce exclusivity across processes, restarts,
+   or distributed workers."
+  (reserve! [backend consumption-key reservation]
+    "Atomically reserve a consumption key.
+     Returns {:reserved? true :key key} on success.
+     Returns {:reserved? false :reason str} if already reserved or consumed.")
+  (finalise! [backend consumption-key terminal-receipt]
+    "Atomically finalise a reserved key with terminal status.
+     Returns {:finalised? true :status status} on success.
+     Returns {:finalised? false :reason str} if not found or already finalised.")
+  (consumed? [backend consumption-key]
+    "True when the key has a terminal status.")
+  (read-state [backend consumption-key]
+    "Returns the recorded state map or nil."))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Atom-based reservation backend (in-process, single-JVM)
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(defrecord AtomBackend [registry]
+  ReservationBackend
+  (reserve! [_ consumption-key reservation]
+    (loop []
+      (let [existing (get @registry consumption-key)]
+        (if existing
+          {:reserved? false
+           :reason (str "consumption key already has status: "
+                        (:status existing))}
+          (let [entry (assoc reservation :status :reserved
+                             :reserved-at (str (java.time.Instant/now)))]
+            (if (compare-and-set! registry
+                                 @registry
+                                 (assoc @registry consumption-key entry))
+              {:reserved? true :key consumption-key}
+              (recur)))))))
+  (finalise! [_ consumption-key terminal-receipt]
+    (loop []
+      (let [existing (get @registry consumption-key)]
+        (if-not existing
+          {:finalised? false
+           :reason "no reservation found for consumption key"}
+          (let [updated (assoc existing
+                              :status (:consumption/status terminal-receipt)
+                              :receipt-hash (:consumption/hash terminal-receipt)
+                              :finalised-at (str (java.time.Instant/now)))]
+            (if (compare-and-set! registry
+                                 @registry
+                                 (assoc @registry consumption-key updated))
+              {:finalised? true :status (:consumption/status terminal-receipt)}
+              (recur)))))))
+  (consumed? [_ consumption-key]
+    (let [entry (get @registry consumption-key)]
+      (contains? #{:consumed :failed-after-consumption
+                   :rolled-back-after-consumption} (:status entry))))
+  (read-state [_ consumption-key]
+    (get @registry consumption-key)))
+
+(defn atom-backend
+  "Create an in-process atom-based reservation backend.
+   Returns a ReservationBackend implementation suitable for single-JVM use."
+  []
+  (->AtomBackend (atom {})))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Package completion verification for force-authorised executions
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(defn verify-package-completion-force-authorised
+  "Verify that a package contains the complete force-authorisation chain
+   required when the manifest declares :execution/force-authorisation.
+
+   Required artifacts in the package index:
+     - policy (by hash referenced in authorisation)
+     - review round (by hash referenced in authorisation)
+     - force-authorisation artifact
+     - reservation artifact
+     - outcome manifest
+     - terminal consumption receipt
+     - evidence profile
+
+   package-resolver — fn (sha256) -> resolved artifact map | nil
+   manifest         — the outcome manifest
+   profile          — the evidence profile (or nil, will be recomputed)
+
+   Returns {:valid? bool :required? bool :errors [str] :checks map}"
+  [package-resolver manifest profile]
+  (let [fa-sec (:execution/force-authorisation manifest)]
+    (if-not fa-sec
+      {:valid? true :required? false
+       :errors [] :checks {:has-fa-section? false}}
+      (let [errors (atom [])
+            checks (atom {:has-fa-section? true})
+            auth-hash (:authorisation-hash fa-sec)
+            auth (when auth-hash (package-resolver auth-hash))
+            _ (when-not auth (swap! errors conj "authorisation not found"))
+            _ (swap! checks assoc :authorisation-resolved? (some? auth))
+            policy-hash (get-in auth [:authorisation/policy :policy/hash])
+            policy (when policy-hash (package-resolver policy-hash))
+            _ (when-not policy (swap! errors conj "policy not found"))
+            _ (swap! checks assoc :policy-resolved? (some? policy))
+            round-hash (get-in auth [:authorisation/review-round :review-round/hash])
+            round (when round-hash (package-resolver round-hash))
+            _ (when-not round (swap! errors conj "review-round not found"))
+            _ (swap! checks assoc :round-resolved? (some? round))
+            res-hash (:reservation-hash fa-sec)
+            reservation (when res-hash (package-resolver res-hash))
+            _ (when-not reservation (swap! errors conj "reservation not found"))
+            _ (swap! checks assoc :reservation-resolved? (some? reservation))
+            ;; Terminal receipt: resolved from profile when available
+            receipt-hash (when profile
+                           (:evidence-profile/consumption-receipt-hash profile))
+            receipt (when receipt-hash (package-resolver receipt-hash))
+            _ (when-not receipt (swap! errors conj "terminal receipt not found"))
+            _ (swap! checks assoc :receipt-resolved? (some? receipt))]
+        {:valid? (empty? @errors) :required? true
+         :errors @errors :checks @checks}))))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Reviewer-facing summary
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(defn force-authorisation-summary
+  "Produce a concentrated human-readable summary of a force-authorisation
+   execution chain from the resolved artifacts.
+
+   Returns a map with :decision, :execution, :qualification keys."
+  [authorisation reservation manifest receipt profile]
+  (let [fa-sec (:execution/force-authorisation manifest)
+        thresh (:authorisation/threshold authorisation)
+        dec-refs (:authorisation/decision-references authorisation)
+        approvals (filter #(= :approve (:decision %)) dec-refs)
+        dissents (filter #(= :dissent (:decision %)) dec-refs)
+        target (:authorisation/target authorisation)
+        status (when receipt (:consumption/status receipt))
+        decision-label
+        (case (:authorisation/decision-status authorisation)
+          :approved "Approved unanimously"
+          :approved-with-dissent (str "Approved with dissent — "
+                                      (count approvals) " approvals, "
+                                      (count dissents) " dissent(s).")
+          :declined (str "Declined — " (count approvals) " of "
+                         (:required thresh) " required approvals."))
+        target-label (str (name (:target/kind target))
+                          " — baseline: " (:target/baseline-content-root target)
+                          ", proposed: " (:target/proposed-content-root target))
+        policy-ref (:authorisation/policy authorisation)]
+    {:decision
+     {:label decision-label
+      :target target-label
+      :threshold (str (:approved thresh) " approved of "
+                      (:required thresh) " required ("
+                      (:eligible thresh) " eligible)")
+      :approvals (mapv :researcher/id approvals)
+      :dissents (mapv :researcher/id dissents)}
+     :execution
+     {:attempt (:reservation/execution-attempt-id reservation)
+      :terminal-status status
+      :consumption-key (:authorisation/consumption-key authorisation)
+      :receipt-hash (:consumption/hash receipt)
+      :outcome-produced? (some? (:consumption/resulting-outcome-hash receipt))}
+     :verification
+     {:authorisation-hash (:authorisation/hash authorisation)
+      :policy-ref policy-ref
+      :profile-hash (:evidence-profile/hash profile)}
+     :qualification
+     "This verifies authorisation and execution provenance; it does not by
+      itself establish that the resulting research conclusion is correct."}))

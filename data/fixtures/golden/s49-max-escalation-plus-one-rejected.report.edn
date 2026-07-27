@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/equivalence-escalation-boundaries,
+ :suite-id :suites/dr3-critical,
  :trace-id "s49-max-escalation-plus-one-rejected",
  :final-state-hash
  "fa95e081ce677da694efe20d4456febd33d5cb9d6795e7bd899cdc6c84fd2738",

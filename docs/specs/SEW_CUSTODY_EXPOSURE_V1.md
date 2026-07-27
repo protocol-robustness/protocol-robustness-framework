@@ -7,30 +7,39 @@ its settlement deadline and is executed or finalized.**
 
 | Layer | Responsibility |
 |---|---|
-| PRF core | Ledger replay (`replay-held-adjustment-state`), summaries (`final-held-summary`), artifact construction (`rebuild-held-custody-artifacts`), closed-form checks (`held-custody-closed-form-checks`), force-authorisation validation (`verify-authorisation-usable`), evidence envelope validation (`valid-envelope?`) |
-| Sew | Pending-settlement lifecycle, appeal-deadline semantics, terminal world state, protocol-specific trace projection (`trace-end-projection`) |
+ | PRF core | Ledger replay (`replay-held-adjustment-state`), summaries (`final-held-summary`), artifact construction (`rebuild-held-custody-artifacts`), closed-form checks (`held-custody-closed-form-checks`), force-authorisation validation (`verify-authorisation-usable`), evidence envelope validation (`valid-envelope?`) |
+| Sew | Pending-settlement lifecycle, appeal-deadline semantics, terminal world state, protocol-specific trace projection (`trace-end-projection`), live custody mutation (`update-ledger-index`) |
 | `prf-ef-review-packet.v1` | Packages the resulting evidence for inspection; does not redefine custody semantics |
+
+The relationship between Sew's live custody mutation (`update-ledger-index` in `accounting.clj`)
+and core's replay reconstruction (`replay-held-adjustment-state`) is documented in a comment
+on the Sew function. The existing test `held-custody-closed-form-checks-pass-on-valid-artifacts`
+characterises the current equivalence guarantee.
 
 ## Evidence contract
 
 The following values are resolved from existing benchmark or scenario outputs.
 No new artifact fields are introduced.
 
-| Field | Source | Exists? |
+| Field | Source | Resolution |
 |---|---|---|
-| Workflow identifier | event `:params :workflow-id` on `execute_pending_settlement` | Yes |
-| Token | adjustment `:token` or world `:total-held` keys | Yes |
-| Settlement deadline | world `:pending-settlements {wf-id :appeal-deadline}` | Yes |
-| Execution event | trace entry for `execute_pending_settlement` | Yes |
-| Ordered held adjustments | `:held-adjustments` from world state, sorted by `:held-adjustment/id` | Yes |
-| Replayed ledger state | `replay-held-adjustment-state(adjustments)` | Yes |
-| Final held summary | `final-held-summary(adjustments, index, total-held)` | Yes |
-| Terminal Sew projection | `trace-end-projection(world)` → custody-relevant portion of `:money-movement-summary` | Yes |
-| Force-authorisation reference | world `:force-authorisations` and `:force-authorisations/consumed` (when applicable) | Yes |
-| Closed-form check results | `held-custody-closed-form-checks(artifacts)` | Yes |
-| Source artifact hashes | `:artifact/hash` from each `:held-artifacts` entry | Yes |
+| Workflow identifier | event `:params :workflow-id` on `execute_pending_settlement` | Direct trace lookup |
+| Token | adjustment `:token` or world `:total-held` keys | Direct world lookup |
+| Settlement deadline | world `:pending-settlements {wf-id :appeal-deadline}` | Direct world lookup |
+| Execution event | trace entry for `execute_pending_settlement` | Direct trace lookup |
+| Ordered held adjustments | `:held-adjustments` sorted by `:held-adjustment/id` | Derived from world |
+| Replayed ledger state | `replay-held-adjustment-state(adjustments)` | Core function call |
+| Final held summary | `final-held-summary(adjustments, index, total-held)` | Core function call |
+| Terminal Sew projection | `trace-end-projection(world)` → `:money-movement-summary` | Sew projection call |
+| Force-authorisation reference | `:force-authorisations` / `:force-authorisations/consumed` | Direct world lookup |
+| Closed-form check results | `held-custody-closed-form-checks(artifacts)` | Core function call |
+| Source artifact hashes | `:artifact/hash` from each `:held-artifacts` entry | Direct artifact lookup |
 
 ## Reviewable claims
+
+> **Trace scope:** Claims marked trace-scoped below are verifiable from events,
+> world states, and invariants within a single scenario trace. They do not assert
+> properties across independent execution runs or protocol upgrades.
 
 ### 1. Replay determinism
 
@@ -47,11 +56,14 @@ terminal world's `:total-held` and `:held-ledger/index`.
 
 ### 2. Projection reconciliation
 
-The replayed totals and positions reconcile with the custody-relevant portion of
-the committed terminal Sew state projection.
+The replayed totals and positions reconcile with the terminal world state's held
+ledger.
 
 **Verification:** Compare `final-held-summary(adjustments, index, total-held)` against
-`trace-end-projection(world)` `:money-movement-summary` to confirm token totals match.
+the terminal world's `:total-held` and `:held-ledger/index` to confirm token totals
+match by all available derivation paths. The Sew-specific trace projection
+(`trace-end-projection`) is an additional rendering; the terminal world state is
+the authoritative source.
 
 ### 3. Adjustment conservation
 
@@ -62,15 +74,20 @@ totals equal the initial totals plus the complete ordered adjustment sequence.
 `held-custody-closed-form-checks` verify conservation across every individual
 adjustment and the full sequence.
 
-### 4. Deadline execution traceability
+### 4. Deadline execution traceability (trace-scoped)
 
 The custody-changing settlement action is linked to the pending settlement and its
-applicable deadline evidence.
+applicable deadline evidence. The temporal guard that enforces the deadline is a
+PRF-core rule, not merely a Sew state-machine check.
 
-**Verification:** The trace entry for `execute_pending_settlement` references the
-workflow ID that the pending settlement record identifies. The pending settlement's
-`:appeal-deadline` precedes the event timestamp. No contemporaneous `escalate_dispute`
-or `challenge_resolution` exists at that timestamp for the same workflow.
+**Verification:** The `:deadline-enforcement` temporal rule in
+`contract_model/replay/temporal.clj` rejects `execute_pending_settlement` when
+`event-time < appeal-deadline`. The trace entry confirms the action was allowed,
+meaning the deadline had passed at the time of execution. The pending settlement
+record provides the deadline for cross-reference. No contemporaneous
+`escalate_dispute` or `challenge_resolution` exists at that timestamp for the
+same workflow. This is a trace-scoped property: verifiable from events within a
+single scenario trace.
 
 ### 5. Authorisation binding
 
@@ -83,16 +100,20 @@ adjustment's scope. The `valid-envelope?` check confirms the evidence ordering
 grant → execution → custody movement. The consumption registry entry links the
 auth ID to the held adjustment ID.
 
-### 6. Post-finality immutability
+### 6. Post-finality immutability (trace-scoped)
 
-No later transition mutates the custody state after the settlement event.
+After the settlement event, the workflow is in a terminal escrow state. The Sew
+state machine rejects any action on a terminal-state workflow.
 
-**Verification:** Check that all subsequent trace entries for the same workflow
-produce no new held adjustments with that workflow ID. This is a trace property
-that presupposes no re-execution of `execute_pending_settlement` or other custody-
-changing action on the same workflow. If the protocol permits post-finality state
-change via governance override, this claim is limited to the standard settlement
-path and must be documented as such.
+**Verification:** The trace entry for `execute_pending_settlement` transitions the
+workflow to a terminal escrow state (`:released` or `:refunded`). The
+`terminal-states-unchanged?` cross-world invariant enforces that terminal states
+are absorbing within the scope of a single trace: no subsequent trace event can
+change a terminal workflow's escrow state or produce new held adjustments for
+that workflow ID. If the protocol permits post-finality state change via
+governance override, this claim is limited to the standard settlement path and
+must be documented as such. This is a trace-scoped property: verifiable from the
+events and invariants within a single scenario trace.
 
 ## Concrete example
 

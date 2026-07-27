@@ -1615,3 +1615,135 @@
       (is (:valid? pkg-result))
       (is (get-in pkg-result [:checks :evidence-recomputed?]))
       (is (get-in pkg-result [:checks :profile-hash-match?])))))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; 10. Durable reservation backend interface
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(deftest atom-backend-reserve-finalise-consumed
+  (let [backend (rfa/atom-backend)
+        ck "sha256:test-consumption-key"
+        reservation {:authorisation-hash "sha256:auth" :plan-root "sha256:plan"}
+        receipt (rfa/build-consumption-receipt
+                 {:consumption/reservation-hash "sha256:res"
+                  :consumption/authorisation-hash "sha256:auth"
+                  :consumption/consumption-key ck
+                  :consumption/status :consumed
+                  :consumption/resulting-outcome-hash "sha256:outcome"})]
+    ;; Fresh key: not consumed, nil read-state
+    (is (not (rfa/consumed? backend ck)))
+    (is (nil? (rfa/read-state backend ck)))
+    ;; Reserve
+    (let [r (rfa/reserve! backend ck reservation)]
+      (is (:reserved? r))
+      (is (not (rfa/consumed? backend ck)))
+      (is (some? (rfa/read-state backend ck))))
+    ;; Finalise
+    (let [f (rfa/finalise! backend ck receipt)]
+      (is (:finalised? f))
+      (is (rfa/consumed? backend ck)))
+    ;; Second reserve fails
+    (let [r (rfa/reserve! backend ck reservation)]
+      (is (not (:reserved? r)))
+      (is (re-find #"already" (:reason r))))))
+
+(deftest atom-backend-double-execution-rejected
+  (let [backend (rfa/atom-backend)
+        ck "sha256:double-exec-key"
+        reservation {:authorisation-hash "sha256:a"}
+        receipt (rfa/build-consumption-receipt
+                 {:consumption/reservation-hash "sha256:r"
+                  :consumption/authorisation-hash "sha256:a"
+                  :consumption/consumption-key ck
+                  :consumption/status :consumed
+                  :consumption/resulting-outcome-hash "sha256:o"})]
+    ;; First execution
+    (is (:reserved? (rfa/reserve! backend ck reservation)))
+    (is (:finalised? (rfa/finalise! backend ck receipt)))
+    (is (rfa/consumed? backend ck))
+    ;; Second execution — same key — rejected before side effects
+    (is (not (:reserved? (rfa/reserve! backend ck reservation)))
+        "second reserve must fail for consumed key")))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; 11. Acceptance test: two packages, same execution, different provenance
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(defn- accept-build-fa-and-execute
+  "Build a FA artifact and execute it, returning all artifacts."
+  [authorisation-id reviewer-ids round-id round-hash]
+  (let [ck (str "sha256:ck-" (name authorisation-id))
+        round {:review-round/id round-id
+               :review-round/hash round-hash
+               :review-round/members
+               (mapv (fn [rid] {:researcher/id rid :role :model-steward})
+                     reviewer-ids)}
+        auth (rfa/build-authorisation
+              {:authorisation/id authorisation-id
+               :authorisation/policy {:policy/id :research/three-member
+                                       :policy/version 1
+                                       :policy/schema-version "fa-policy.v1"
+                                       :policy/hash "sha256:policy"}
+               :authorisation/review-round {:review-round/id round-id
+                                             :review-round/hash round-hash}
+               :authorisation/request-root "sha256:request"
+               :authorisation/target {:target/kind :benchmark-branch
+                                       :target/baseline-content-root "sha256:baseline"
+                                       :target/branch-descriptor-hash "sha256:branch"
+                                       :target/proposed-content-root "sha256:proposed"}
+               :authorisation/decision-references
+               (mapv (fn [rid]
+                       {:researcher/id rid :decision :approve
+                        :decision/hash (str "sha256:dec-" rid)
+                        :signature {:algorithm :ed25519 :value "sig" :signed-at "now"}})
+                     reviewer-ids)
+               :authorisation/threshold {:required 2 :eligible 3}
+               :authorisation/consumption-key ck})
+        reservation (rfa/build-reservation
+                     {:reservation/authorisation-hash (:authorisation/hash auth)
+                      :reservation/consumption-key ck
+                      :reservation/execution-attempt-id :execution/test
+                      :reservation/command-root "sha256:cmd"
+                      :reservation/plan-root "sha256:plan"})
+        manifest-fa {:authorisation-hash (:authorisation/hash auth)
+                      :consumption-key ck
+                      :reservation-hash (:reservation/hash reservation)
+                      :execution-attempt-id :execution/test
+                      :branch-descriptor-hash "sha256:branch"
+                      :baseline-content-root "sha256:baseline"
+                      :executed-content-root "sha256:executed"
+                      :status :consumed}
+        manifest (om/build-manifest
+                  (assoc base-input
+                         :execution/plan-root "sha256:plan"
+                         :execution/command-root "sha256:cmd"
+                         :execution/force-authorisation manifest-fa
+                         :benchmark/content-root "sha256:baseline"))
+        receipt (rfa/build-consumption-receipt
+                 {:consumption/reservation-hash (:reservation/hash reservation)
+                  :consumption/authorisation-hash (:authorisation/hash auth)
+                  :consumption/consumption-key ck
+                  :consumption/resulting-outcome-hash
+                  (:benchmark-outcome/hash manifest)
+                  :consumption/status :consumed})]
+    {:auth auth :reservation reservation :manifest manifest :receipt receipt}))
+
+(deftest acceptance-two-packages-same-execution-different-provenance
+  (let [pkg-a (accept-build-fa-and-execute
+               :authorisation/pkg-a ["a" "b" "c"] :round/rr-a "sha256:round-a")
+        pkg-b (accept-build-fa-and-execute
+               :authorisation/pkg-b ["x" "y" "z"] :round/rr-b "sha256:round-b")
+        ma (:manifest pkg-a)
+        mb (:manifest pkg-b)]
+    ;; Same execution scope (same content-root, plan, etc.)
+    (is (om/exact-execution-scope? ma mb)
+        "same branch descriptors, content roots, plans = exact execution scope")
+    ;; Different authorisation provenance
+    (is (not (om/same-authorisation-provenance? ma mb))
+        "different review rounds, authorisation hashes, reservation hashes =
+         different provenance")
+    ;; Different outcome hashes even though same execution scope
+    ;; (provenance is part of the payload, so outcome hashes differ)
+    (is (not= (:benchmark-outcome/hash ma)
+              (:benchmark-outcome/hash mb))
+        "different provenance produces different outcome hashes")))

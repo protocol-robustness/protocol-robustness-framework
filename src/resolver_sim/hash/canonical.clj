@@ -1036,7 +1036,7 @@
     :intent/domain-tag  "EVIDENCE_CONTENT_V1"
     :intent/description "JSON-round-trippable content hash of an evidence record"
     :intent/includes    #{:serialized-content :evidence-fields :artifact-body}
-    :intent/excludes    #{:keywords :hash-fields :chain-metadata :timestamps}
+    :intent/excludes    #{:chain-metadata :timestamps}
     :intent/projection-fn project-for-content-hash
     :intent/version     1}
 
@@ -1579,7 +1579,7 @@
                 (vswap! results conj {:predicate-index i :detail r}))
               (cond
                 (instance? clojure.lang.IPersistentMap x)
-                (run! (fn [[k v]] (walk k) (walk v)) x)
+                (run! (fn [[_ v]] (walk v)) x)
                 (instance? clojure.lang.IPersistentVector x)
                 (run! walk x)
                 (instance? clojure.lang.IPersistentSet x)
@@ -1617,9 +1617,9 @@
    :timestamps     (fn [v] (when (and (map? v) (contains? v :evidence/timestamp))
                              "root map contains :evidence/timestamp"))
    :hash-fields    (fn [v]
-                     (when (and (map? v)
-                                (some #(.endsWith (name %) "hash") (keys v)))
-                       "root map contains hash-related keys"))
+                      (when (and (map? v)
+                                 (some self-hash-keys (keys v)))
+                        "root map contains self-hash keys"))
    :chain-metadata (fn [v]
                      (when (and (map? v)
                                 (some #(re-find #"^evidence/chain-" (name %))

@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/dr3-critical,
+ :suite-id :suites/all-invariants,
  :trace-id "s14-dr3-module-authorized",
  :final-state-hash
  "eaa26acf9d04527d7885f6b4c8f6ade23c69dfb15a7a3db4c432916c63e03939",

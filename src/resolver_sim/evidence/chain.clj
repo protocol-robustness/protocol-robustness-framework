@@ -383,12 +383,20 @@
             duplicate-seqs (->> seqs frequencies (keep (fn [[seq n]] (when (> n 1) seq))) vec)
             identity-valid? (and resolved-scenario-id
                                  (= observed-scenario-ids #{resolved-scenario-id}))
-            scheme-errors (->> sorted-records
-                               (keep (fn [record]
-                                       (when (not= chain-hash-scheme (:evidence/chain-hash-scheme record))
-                                         {:chain-seq (:evidence/chain-seq record)
-                                          :reason :unsupported-chain-hash-scheme})))
-                               vec)
+            scheme-errors (let [schemes (set (keep :evidence/chain-hash-scheme sorted-records))]
+                            (into (->> sorted-records
+                                       (keep (fn [record]
+                                               (when (not= chain-hash-scheme (:evidence/chain-hash-scheme record))
+                                                 {:chain-seq (:evidence/chain-seq record)
+                                                  :reason :unsupported-chain-hash-scheme})))
+                                       vec)
+                                  ;; Chain-level uniformity: all records must use the same scheme.
+                                  ;; A future migration scheme may define cross-scheme transitions,
+                                  ;; but for link-v1 mixing is unsupported.
+                                  (when (< 1 (count schemes))
+                                    [{:reason :chain-hash-schemes-inconsistent
+                                      :observed-schemes (vec (sort schemes))
+                                      :expected-scheme chain-hash-scheme}])))
             hash-errors (->> sorted-records
                              (keep (fn [record]
                                      (let [expected (chain-link-hash (:evidence/hash record)

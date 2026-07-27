@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/dr3-critical,
+ :suite-id :suites/all-invariants,
  :trace-id "s15-dr3-module-unauthorized-rejected",
  :final-state-hash
  "4553e718f6a077f81eec2a3f67de66b9837e6f8c113a138870ef527ab183ef1d",

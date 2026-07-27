@@ -1,16 +1,22 @@
 (ns resolver-sim.benchmark.review-round
-  "Benchmark review round: a frozen three-member cell evaluating one
-   version of a benchmark content entry.
-   
-   Membership is frozen per round, not permanently per benchmark.
-   
-   Purpose-specific validation enforces different requirements per review purpose:
-     :model-admission       — requires content-root, policy-root, three members
-     :model-replication     — requires three completed run reports, compatible execution scopes
-     :model-challenge       — requires challenge target, reason code, evidence reference
-     :model-revision        — requires parent and proposed content roots, change-set
-     :sampling-report       — requires sampling comparison policy, compatible parameter domains
-     :force-authorisation   — requires exact target, policy, approvals, branch reference"
+   "Benchmark review round: a frozen three-member cell evaluating one
+    version of a benchmark content entry.
+    
+    Membership is frozen per round, not permanently per benchmark.
+    
+    Purpose-specific validation enforces different requirements per review purpose:
+      :model-admission       — requires content-root, policy-root, three members
+      :model-replication     — requires three completed run reports, compatible execution scopes
+      :model-challenge       — requires challenge target, reason code, evidence reference
+      :model-revision        — requires parent and proposed content roots, change-set
+      :sampling-report       — requires sampling comparison policy, compatible parameter domains
+      :force-authorisation   — requires exact target, policy, approvals, branch reference,
+                               reservation, terminal receipt, evidence profile
+      :pro-rata-allocation   — requires allocation result, mechanism, policy, witness
+      :pro-rata-application  — requires propagation, application, world state, evidence ladder,
+                               state write-back evidence
+      :pro-rata-execution    — requires outcome manifest, allocation and application
+                               evidence profiles, theorem and conclusion bindings"
   (:require [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const schema-version "benchmark-review-round.v1")
@@ -18,7 +24,8 @@
 (def ^:const review-purposes
   "Controlled vocabulary for review-round purposes."
   #{:model-admission :model-replication :model-challenge
-    :model-revision :sampling-report :force-authorisation})
+    :model-revision :sampling-report :force-authorisation
+    :pro-rata-allocation :pro-rata-application :pro-rata-execution})
 
 (def ^:const review-statuses
   "Controlled vocabulary for review-round status."
@@ -66,7 +73,33 @@
                        :review-round/force-target
                        :review-round/approval-set
                        :review-round/branch-descriptor}
-    :label "Force authorisation"}})
+    :label "Force authorisation"}
+
+   :pro-rata-allocation
+   {:required-inputs #{:benchmark/content-root
+                       :review-round/allocation-result-ref
+                       :review-round/allocation-mechanism-ref
+                       :review-round/allocation-policy-ref
+                       :review-round/allocation-witness-ref}
+    :label "Pro-rata allocation evidence"}
+
+   :pro-rata-application
+   {:required-inputs #{:benchmark/content-root
+                       :review-round/propagation-ref
+                       :review-round/application-ref
+                       :review-round/state-wb-evidence-ref
+                       :review-round/continuity-evidence-ref
+                       :review-round/evidence-ladder-ref}
+    :label "Pro-rata application evidence"}
+
+   :pro-rata-execution
+   {:required-inputs #{:benchmark/content-root
+                       :review-round/outcome-manifest-ref
+                       :review-round/allocation-evidence-ref
+                       :review-round/application-evidence-ref
+                       :review-round/theorem-refs
+                       :review-round/conclusion-refs}
+    :label "Pro-rata execution evidence"}})
 
 ;; ── Purpose requirements: creation vs finalisation ───────────────────────
 ;;
@@ -79,7 +112,13 @@
 ;; :model-challenge      target, category, policy                evidence, positions
 ;; :model-revision       parent, proposed, change-set            positions, certificate
 ;; :sampling-report      content-root, sampling policy           sample count, coverage
-;; :force-authorisation  target, policy                          approvals, branch
+;; :force-authorisation  target, policy                          approvals, branch, reservation,
+;;                                                               receipt, evidence profile
+;; :pro-rata-allocation  result-ref, mechanism-ref               witness, policy binding
+;; :pro-rata-application propagation-ref, application-ref        state-wb, continuity, ladder
+;; :pro-rata-execution   outcome-manifest-ref                    allocation-evidence,
+;;                                                               application-evidence,
+;;                                                               theorem-refs, conclusion-refs
 
 (def ^:private ^:const creation-requirements
   "Inputs required to CREATE a review round for each purpose."
@@ -95,7 +134,15 @@
    :sampling-report     #{:benchmark/content-root :review-round/policy-root
                           :review-round/sampling-comparison-policy-root}
    :force-authorisation #{:benchmark/content-root :review-round/policy-root
-                          :review-round/force-target}})
+                          :review-round/force-target}
+   :pro-rata-allocation #{:benchmark/content-root
+                          :review-round/allocation-result-ref
+                          :review-round/allocation-mechanism-ref}
+   :pro-rata-application #{:benchmark/content-root
+                           :review-round/propagation-ref
+                           :review-round/application-ref}
+   :pro-rata-execution   #{:benchmark/content-root
+                           :review-round/outcome-manifest-ref}})
 
 (def ^:private ^:const finalisation-requirements
   "Outputs required to FINALISE a review round for each purpose.
@@ -106,7 +153,16 @@
    :model-revision      nil
    :sampling-report     nil
    :force-authorisation #{:review-round/approval-set
-                          :review-round/branch-descriptor}})
+                          :review-round/branch-descriptor}
+   :pro-rata-allocation #{:review-round/allocation-witness-ref
+                          :review-round/allocation-policy-ref}
+   :pro-rata-application #{:review-round/state-wb-evidence-ref
+                           :review-round/continuity-evidence-ref
+                           :review-round/evidence-ladder-ref}
+   :pro-rata-execution   #{:review-round/allocation-evidence-ref
+                           :review-round/application-evidence-ref
+                           :review-round/theorem-refs
+                           :review-round/conclusion-refs}})
 
 (defn check-creation-requirements
   "Validate that a review-round context satisfies its purpose's creation requirements.

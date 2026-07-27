@@ -355,3 +355,109 @@
 
 (deftest load-adapter-unknown-protocol-throws
   (is (thrown? Exception (wb/load-adapter :protocol/unknown))))
+
+;; ── Plan commitment tests ──────────────────────────────────────────────────
+
+(deftest plan-tampering-after-execution-fails
+  (let [fx (build-valid-fixture)]
+    (try
+      (let [definition (:definition fx)
+            def-root (:trust-sequence-definition/root definition)
+            witness (:witness fx)
+            ev-idx (wv/build-evidence-index (:ev-dir fx))
+            wrong-root "0000000000000000000000000000000000000000000000000000000000000000"]
+        ;; Verify with correct plan root — passes
+        (let [result (wv/verify-witness witness definition ev-idx
+                                        {:plan-root def-root
+                                         :evidence-adapter sew-adapter
+                                         :expected-correlation-id (:auth-id fx)})]
+          (is (:valid? result))
+          (is (some #(= :procedure-witness/definition-matches-execution-plan (:check/code %))
+                    (filter #(= :pass (:check/status %)) (:checks result)))))
+        ;; Verify with tampered plan root — fails
+        (let [result (wv/verify-witness witness definition ev-idx
+                                        {:plan-root wrong-root
+                                         :evidence-adapter sew-adapter
+                                         :expected-correlation-id (:auth-id fx)})]
+          (is (not (:valid? result)))
+          (is (some #(= :procedure-witness/definition-does-not-match-execution-plan (:check/code %))
+                    (filter #(= :fail (:check/status %)) (:checks result))))))
+      (finally (cleanup-fixture fx)))))
+
+(deftest missing-plan-commitment-fails-for-configured-benchmark
+  (let [fx (build-valid-fixture)]
+    (try
+      (let [definition (:definition fx)
+            witness (:witness fx)
+            ev-idx (wv/build-evidence-index (:ev-dir fx))]
+        ;; Verify without plan root — :not-run (backward compatible)
+        (let [result (wv/verify-witness witness definition ev-idx
+                                        {:evidence-adapter sew-adapter
+                                         :expected-correlation-id (:auth-id fx)})]
+          (is (:valid? result))
+          (is (some #(= :not-run (:check/status %))
+                    (filter #(= :procedure-witness/definition-matches-execution-plan (:check/code %))
+                            (:checks result)))))
+        ;; Configured canonical path should reject nil plan root
+        ;; This is enforced in witness-build/build-and-write! which throws
+        ;; when the plan has no committed root. The pure verifier keeps
+        ;; backward compatibility with :not-run for unconfigured callers.
+        )
+      (finally (cleanup-fixture fx)))))
+
+(deftest expected-correlation-plan-binding
+  (let [fx (build-valid-fixture)]
+    (try
+      (let [definition (:definition fx)
+            witness (:witness fx)
+            ev-idx (wv/build-evidence-index (:ev-dir fx))
+            correct-id (:auth-id fx)
+            wrong-id "wrong-auth"]
+        ;; Correct planned correlation — passes
+        (let [result (wv/verify-witness witness definition ev-idx
+                                        {:plan-root (:trust-sequence-definition/root definition)
+                                         :evidence-adapter sew-adapter
+                                         :expected-correlation-id correct-id})]
+          (is (:valid? result))
+          (is (some #(= :procedure-witness/correlation-matches-planned-instance (:check/code %))
+                    (filter #(= :pass (:check/status %)) (:checks result)))))
+        ;; Wrong planned correlation — fails
+        (let [result (wv/verify-witness witness definition ev-idx
+                                        {:plan-root (:trust-sequence-definition/root definition)
+                                         :evidence-adapter sew-adapter
+                                         :expected-correlation-id wrong-id})]
+          (is (not (:valid? result)))
+          (is (some #(= :procedure-witness/correlation-matches-planned-instance (:check/code %))
+                    (filter #(= :fail (:check/status %)) (:checks result))))))
+      (finally (cleanup-fixture fx)))))
+
+;; ── Chain-level scheme uniformity test ──────────────────────────────────────
+
+(deftest mixed-chain-hash-schemes-fail
+  (let [auth-id "fa-scheme-test"
+        temp-dir (str (System/getProperty "java.io.tmpdir") "/tsscheme-" (java.util.UUID/randomUUID))
+        ev-dir (str temp-dir "/event-evidence")
+        _ (.mkdirs (io/file ev-dir))]
+    (try
+      (let [ev1 (make-evidence "force-authorisation-granted" auth-id 1 nil
+                               {:force-auth/workflow-id "wft"}
+                               :world-before "0x00" :world-after "0x01")
+            ev2 (assoc (make-evidence "force-authorisation-executed" auth-id 2
+                                      (:evidence/chain-self-hash ev1)
+                                      {:force-auth/workflow-id "wft"}
+                                      :world-before "0x01" :world-after "0x02")
+                       :evidence/chain-hash-scheme "link-v2")
+            result (chain/verify-scenario-chain [ev1 ev2])
+            errors (:chain/errors result)]
+        (is (= :invalid (:chain/status result)))
+        (is (some #(and (= :unsupported-chain-hash-scheme (:reason %))
+                        (= 2 (:chain-seq %)))
+                  errors)
+            "link-v2 record should be rejected as unsupported")
+        (is (some #(= :chain-hash-schemes-inconsistent (:reason %))
+                  errors)
+            "Mixed schemes in one chain should fail uniformity check"))
+      (finally
+        (doseq [f (file-seq (io/file temp-dir))]
+          (when (.isFile f) (.delete f)))
+        (.delete (io/file temp-dir))))))

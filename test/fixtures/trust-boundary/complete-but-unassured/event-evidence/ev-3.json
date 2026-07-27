@@ -1,0 +1,16 @@
+{
+  "evidence/type": "escrow-released",
+  "scenario/id": "fixture",
+  "evidence/hash": "551048cfd774b06fd7d7d60887ebb11d5db179c90c723f33744eb23fe03e0696",
+  "world/before-hash": "0x02",
+  "world/after-hash": "0x03",
+  "inputs": {
+    "force-auth/auth-id": "fa-fixture-0",
+    "finalize/workflow-id": "wf",
+    "finalize/authorization-id": "fa-fixture-0"
+  },
+  "evidence/chain-hash-scheme": "link-v1",
+  "evidence/chain-seq": 3,
+  "evidence/chain-prev-hash": "82314b5240a18e5f18b40a7f6dd50a6ee4ebc2b9fc1ce4c36e8ad51de4a3858e",
+  "evidence/chain-self-hash": "b2299f641ad5178d261e982fe9d9ba6c2bc506db33d4815392f64630132ebae5"
+}

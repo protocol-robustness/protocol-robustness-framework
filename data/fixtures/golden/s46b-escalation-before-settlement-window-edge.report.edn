@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/equivalence-race-pairs,
+ :suite-id :suites/dr3-critical,
  :trace-id "s46b-escalation-before-settlement-window-edge",
  :final-state-hash
  "a87babe92967838e144ef78d87b478922d9eb22cfec8ccdc6bac260157309d30",

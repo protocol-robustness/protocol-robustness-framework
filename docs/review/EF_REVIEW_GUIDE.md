@@ -304,3 +304,215 @@ It does not claim that:
 
 Legacy/internal execution paths remain in the repository for compatibility and
 research, but are not part of this review surface.
+
+## Researcher-led benchmark evidence chain
+
+This packet introduces two new content-addressed evidence chains for
+researcher-led benchmark evaluation. Both are optional, independently
+recomputable, and bound through the package index.
+
+### Pro-rata evidence chain
+
+```text
+allocation request/result
+→ allocation evidence profile (pro-rata-allocation-evidence.v1)
+→ propagation/application artifacts
+→ accounting and state write-back evidence
+→ application evidence profile (pro-rata-application-evidence.v1)
+→ theorem and conclusion artifacts
+→ execution evidence profile (pro-rata-execution-evidence.v1)
+→ package index
+→ independent verifier
+```
+
+**Allocation evidence profile** verifies:
+- hash integrity of the allocation result
+- capacity bounds (each allocation ≤ effective cap)
+- quota compliance (each allocation within [floor, ceil] of adjusted quota)
+- conservation (requested = allocated + unmet + residual)
+- canonical remainder assignment (for largest-remainder rounding)
+- round-trace coherence (redistribution continuity)
+- residual validity (unallocated amount matches observed state)
+
+**Application evidence profile** verifies:
+- propagation-allocation binding
+- apparent application recording
+- accounting reconciliation
+- authoritative state write-back verification (withdrawn balance matches)
+- deferred current-amount continuity
+- next-precondition continuity (verified : not-observed : failed)
+
+**Execution evidence profile** verifies:
+- allocation and application profile binding
+- outcome-manifest binding
+- theorem and conclusion hash binding
+
+**Key distinction: apparent application ≠ authoritative write-back.**
+A propagation may record an apparent-accounting delta that reconciles with
+accounting entries, while the authoritative withdrawn balance in the final
+world state does not match. The application profile reports both facts
+independently — allowing the reviewer to see exactly where the chain breaks.
+
+**Continuity status vocabulary:**
+- `:verified` — the successor state matches the committed next precondition
+- `:not-observed` — terminal scenario with no later transition (not a failure)
+- `:failed` — the next precondition state does not match
+
+### Force-authorisation evidence chain
+
+```text
+policy
+→ review round
+→ signed researcher decisions (Ed25519)
+→ force-authorisation artifact (researcher-force-authorisation.v1)
+→ reservation artifact (force-authorisation-reservation.v1)
+→ outcome manifest (:execution/force-authorisation section)
+→ terminal consumption receipt (force-authorisation-consumption.v1)
+→ evidence profile (force-authorised-execution-evidence.v1)
+→ package index
+→ independent verifier
+```
+
+**Force-authorisation artifact** records:
+- portable policy reference (by hash, not embedded)
+- review-round identity
+- signed researcher decisions with Ed25519 signatures
+- target commitment (branch descriptor, baseline and proposed content roots)
+- approval threshold and decision status
+- deterministic single-use consumption key
+
+**Decision statuses:**
+- `:approved` — threshold met, no dissent
+- `:approved-with-dissent` — threshold met, dissent preserved
+- `:declined` — threshold not met
+
+**Reservation artifact** (created before execution):
+- authorisation hash, consumption key, execution attempt, command root, plan root
+
+**Terminal consumption receipt** (created after outcome manifest):
+- reservation hash, authorisation hash, consumption key, resulting outcome hash
+
+**Consumption statuses (all terminal — no reuse):**
+- `:consumed` — execution completed successfully
+- `:failed-after-consumption` — reserved, execution failed; terminal evidence
+  required (use `:not-captured` when none was written)
+- `:rolled-back-after-consumption` — reserved, consumed, rolled back;
+  terminal evidence required
+
+**Evidence profile** independently recomputes every verification boolean
+by calling existing validators:
+- `validate-authorisation` — structural validity
+- `verify-against-policy` — policy rules satisfied
+- `verify-against-round` — decision-makers are round members
+- `verify-decision-signatures` — all three decisions cryptographically authentic
+- `verify-fa-binding` — manifest ↔ auth + reservation cross-references
+- `verify-consumption-receipt` — receipt ↔ reservation + outcome consistency
+
+### Execution scope vs authorisation provenance
+
+Two predicates distinguish semantic scope from governance provenance:
+
+```clojure
+(exact-execution-scope? a b)
+;; true when both manifests have the same content-root, model-root,
+;; execution fields, and executed-content-root — regardless of whether
+;; force-authorisation was used or who authorised it.
+
+(same-authorisation-provenance? a b)
+;; true when both manifests share the same authorisation-hash,
+;; reservation-hash, consumption-key, and execution-attempt-id.
+;; Returns true when both lack an FA section.
+```
+
+This means two researchers who independently authorise the same branch
+can produce exact-replication-scope outcomes with different provenance.
+
+### Package-bound verification
+
+When an outcome manifest declares `:execution/force-authorisation`, the
+package index must contain the complete dependency chain:
+
+```
+policy
+review round
+force-authorisation artifact
+reservation artifact
+outcome manifest
+terminal consumption receipt
+evidence profile
+```
+
+`verify-package-completion-force-authorised` resolves each artifact by
+committed hash from the package index and verifies the full dependency
+closure. Ordinary packages without an FA section are unaffected.
+
+### Demonstrative test cases
+
+**Case 1: Ordinary quota-bounded partial fill**
+A standard pro-rata allocation with complete propagation, application,
+accounting, and state write-back. All evidence profiles verify cleanly.
+No force-authorisation invoked. Exact execution scope = true.
+No authorisation provenance (FA section absent).
+
+**Case 2: Authoritative write-back failure despite accounting**
+Accounting entries reconcile with apparent application deltas.
+Authoritative withdrawn balance does not match. Application profile
+reports `:accounting-reconciled? true` but
+`:authoritative-state-write-back-verified? false`. The profile remains
+structurally valid — it records the specific failure, not a silent pass.
+
+**Case 3: Valid-artifact substitution rejection**
+Two independently valid allocation results (A and B). An application
+profile bound to allocation A receives allocation B during verification.
+Every artifact is individually valid. Cross-artifact verification
+rejects the package because the allocation hash does not match.
+
+**Case 4: Independently authorised reproduction**
+Two different review rounds, different authorisation artifacts, different
+reservation hashes — same executed branch. `exact-execution-scope?`
+returns true (same content root, plan, executed content).
+`same-authorisation-provenance?` returns false (different hashes).
+
+### What the evidence chain proves
+
+- A pro-rata allocation was calculated under a declared mechanism and
+  policy, with a complete and internally consistent allocation witness.
+- The committed propagation and application artifacts correspond to that
+  exact allocation.
+- Accounting deltas and authoritative state changes either reconcile or
+  the specific failure point is identified.
+- The deferred residual is preserved as the successor current amount.
+- Later transitions consume that state when applicable (or the terminal
+  status is reported as `:not-observed`).
+- Force-authorisation was approved under a referenced policy by an
+  authentic threshold of frozen review-round members.
+- The resulting authorisation was reserved once, executed against the
+  committed branch, and terminally consumed.
+
+### What the evidence chain observes but does not establish
+
+- The authorised branch may have been executed under the committed
+  target but the execution evidence is recorded, not independently
+  enforced by this layer.
+- The consumption event is recorded; durable cross-process single-use
+  enforcement requires a reservation backend beyond the in-process atom.
+- Apparent application accounting may reconcile while authoritative
+  state write-back fails; both facts are reported independently.
+- The conclusion claims are bound to the outcome manifest; overreach
+  (a conclusion claiming more than the evidence supports) is detected
+  only when the conclusion references theorems that were not committed.
+
+### Out of scope for these evidence profiles
+
+- Universal incentive compatibility — operational pro-rata evidence does
+  not establish coalition or strategy-proof incentive properties unless a
+  separate incentive theorem was produced.
+- Distributed double-execution prevention — the in-process atom backend
+  is correct for single-JVM testing. Durable cross-process enforcement
+  requires a filesystem lock, database transaction, or other distributed
+  reservation backend.
+- Runner-wide mandatory generation — these profiles are optional for
+  ordinary benchmark packages and required only when the outcome
+  manifest contains specific evidence declarations.
+- Package-level release gating — these verification checks inform but do
+  not gate the release pipeline in this packet.

@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/dr3-critical,
+ :suite-id :suites/all-invariants,
  :trace-id "s19-dr3-kleros-escalation-rejected-l0-resolves",
  :final-state-hash
  "5ba37dde1c2fad210241d14fc63ef20be5e46ff98f167375c11549c0a1ee6085",

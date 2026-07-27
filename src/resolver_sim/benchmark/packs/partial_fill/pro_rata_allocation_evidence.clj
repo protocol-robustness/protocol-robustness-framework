@@ -80,6 +80,11 @@
           participant-ok (and (seq committed-rows)
                               (every? :row/id committed-rows))
           ;; ── Build verification map ────────────────────────────────────
+          has-violations? (or (seq (:cap-respecting viols))
+                              (seq (:quota-bounded viols))
+                              (seq (:round-trace viols))
+                              (seq (:residual viols))
+                              (some? (first (:canonical-remainder-assignment viols))))
           verification {:request-valid? request-hash-ok
                         :result-valid? hash-ok
                         :mechanism-binding-valid? true
@@ -87,7 +92,7 @@
                         :allocation-hash-valid? all-hash-ok
                         :participant-completeness-valid? participant-ok
                         :non-negative-valid? true
-                        :conservation-valid? (empty? viols) ;; no dedicated key
+                        :conservation-valid? (not has-violations?)
                         :capacity-bounded? cap-ok
                         :quota-compliance-valid? quota-ok
                         :canonical-remainder-valid? remainder-ok

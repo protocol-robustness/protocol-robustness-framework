@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/dr3-critical,
+ :suite-id :suites/all-invariants,
  :trace-id "s18-dr3-kleros-l0-resolves",
  :final-state-hash
  "403c0f82ca34f28a016570c0d4d1de054957fcddaf7017d3bc528c6c84428a5d",

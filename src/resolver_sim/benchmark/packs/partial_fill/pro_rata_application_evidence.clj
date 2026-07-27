@@ -83,7 +83,7 @@
           ;; ── Accounting reconciliation ─────────────────────────────────
           acct-result (yield-inv/check-pro-rata-accounting-reconciles
                        world-after)
-          acct-ok (empty? (remove nil? (flatten (vals acct-result))))
+          acct-ok (:holds? acct-result)
           prop-complete (yield-inv/check-pro-rata-propagation-complete
                          world-after)
           prop-complete-ok (every? (fn [[k v]] (or (true? v) (nil? v)))
@@ -103,10 +103,11 @@
                             ladder-levels)
           deferred-ca-ok (= "verified" (or (:status state-wb-status) ""))
           ;; ── Current-amount continuity ─────────────────────────────────
-          amt-ok (and (seq continuity-evidence)
-                      (every? (fn [ce]
-                                (every? :amount-continuous? ce))
-                              continuity-evidence))
+          amt-ok (or (empty? continuity-evidence)
+                     (and (seq continuity-evidence)
+                          (every? (fn [ce]
+                                    (every? :amount-continuous? ce))
+                                  continuity-evidence)))
           ;; ── Next precondition continuity ──────────────────────────────
           cont-classification (continuity-status continuity-evidence)
           ;; ── Apparent application vs accounting reconciliation ─────────

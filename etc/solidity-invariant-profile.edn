@@ -1,0 +1,141 @@
+{:profile/id           :solidity-equivalence-core-v1
+ :profile/version      1
+ :profile/content-root "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"
+ :profile/description
+ "Portable cross-implementation invariant checks for CDRS v0.2 trace
+  equivalence between the Clojure simulation and the Solidity contracts.
+  Each entry defines an exact equation or semantic property checked
+  independently by both implementations during trace replay."
+
+ :scope/binding
+ "This profile is referenced by solidity-equivalence-scope-v1.
+  The authoritative scope declaration lives in the cross-repository
+  manifest (etc/trace-solidity-manifest.edn) and commits:
+    - trace-set root (18 trace hashes)
+    - invariant profile root (this file's canonical hash)
+    - projection schema root (evm-projection-v1)
+    - source and replica implementation commits."
+
+ :equivalence-classification
+ {:exact
+  "The same equation, evaluated on the same canonical projection
+   fields with the same arithmetic, produces the same Boolean result
+   in both implementations.  No tolerance, no semantic mapping."
+
+  :exact-quantified
+  "The equation is exact but its quantification is restricted to the
+   primary traced workflow rather than all escrows in the system.
+   Validated per-step on manifest traces.  The Clojure sim also
+   supports a system-wide variant; this profile checks the
+   primary-workflow-scoped version in both implementations."
+
+  :semantic
+  "The property holds in both implementations but is tested differently:
+   a prohibited-action revert (Solidity) vs a guard-rejection predicate
+   (Clojure).  Outcome-equivalent but not structurally identical."}
+
+ :invariants
+ [{:invariant/id :conservation-of-funds
+   :clojure-check :conservation-of-funds
+   :solidity-check "checkStateEquations(→_checkConservationOfFunds)"
+   :kind :state-equation
+   :equivalence
+   {:class :exact
+    :equation-root "PRF-ACCT-CONSERVATION-V1"}
+   :quantification
+   {:scope :token
+    :aggregate :sum-over-escrows}
+   :required-fields [:deposited :held :fees :released :refunded]
+   :notes "deposited = held + fees + released + refunded.  Deposited/released/refunded
+           tracked by test harness accumulators mirroring Clojure metrics."}
+
+  {:invariant/id :held-reconstruction
+   :clojure-check :held-non-negative
+   :solidity-check "checkHeldReconstruction"
+   :kind :state-equation
+   :equivalence
+   {:class :exact-quantified
+    :equation-root "PRF-ACCT-HELD-RECON-V1"}
+   :quantification
+   {:scope :workflow
+    :selector :trace-primary-workflow}
+   :applicability
+   {:requires [:established-workflow :pending-or-disputed]}
+   :notes "totalHeld == amountAfterFee for primary workflow when active.
+           Exact for single-escrow traces; system-wide variant deferred."}
+
+  {:invariant/id :dispute-level-bounded
+   :clojure-check :dispute-level-bounded
+   :solidity-check "checkStateEquations(→_checkDisputeLevelBounded)"
+   :kind :state-equation
+   :equivalence
+   {:class :exact
+    :equation-root "PRF-DR-LEVEL-BOUNDED-V1"}
+   :quantification
+   {:scope :workflow
+    :bound :max-dispute-rounds}
+   :notes "Dispute level ≤ MAX_DISPUTE_ROUNDS (2)."}
+
+  {:invariant/id :terminal-payout-exclusivity
+   :clojure-check :cancellation-mutex
+   :solidity-check "checkStateEquations(→_checkTerminalPayoutExclusivity)"
+   :kind :state-equation
+   :equivalence
+   {:class :exact
+    :equation-root "PRF-SM-TERMINAL-PAYOUT-EXCL-V1"}
+   :quantification
+   {:scope :workflow}
+   :notes "Terminal escrows (RELEASED/REFUNDED) must not have pending settlements."}
+
+  {:invariant/id :state-transition-valid
+   :clojure-check :escrow-state-transition-valid
+   :solidity-check "checkTransitionEquations(→_checkStateTransitionValid)"
+   :kind :transition-equation
+   :equivalence
+   {:class :exact
+    :equation-root "PRF-SM-STATE-GRAPH-V1"}
+   :quantification
+   {:scope :workflow}
+   :notes "NONE→PENDING→{DISPUTED,RELEASED,REFUNDED}; DISPUTED→{RELEASED,REFUNDED}."}
+
+  {:invariant/id :escalation-monotonic
+   :clojure-check :escalation-level-monotonic
+   :solidity-check "checkTransitionEquations(→_checkEscalationMonotonic)"
+   :kind :transition-equation
+   :equivalence
+   {:class :exact
+    :equation-root "PRF-DR-ESCALATION-MONO-V1"}
+   :quantification
+   {:scope :workflow}
+   :notes "Dispute level never decreases."}
+
+  {:invariant/id :terminal-state-immutable
+   :clojure-check :terminal-states-unchanged
+   :solidity-check "checkTransitionEquations(→_checkTerminalStateImmutable)"
+   :kind :transition-equation
+   :equivalence
+   {:class :exact
+    :equation-root "PRF-SM-TERMINAL-IMMUTABLE-V1"}
+   :quantification
+   {:scope :workflow}
+   :notes "RELEASED/REFUNDED escrows do not transition."}]
+
+ :exclusions
+ [{:invariant/id :related-claims-consistency
+   :reason :sim-only-artifact
+   :notes "Related-claims registry is a Clojure evidence-layer structure with no EVM equivalent."}
+  {:invariant/id :yield-position-consistency
+   :reason :absent-from-solidity-model
+   :notes "Yield module positions tracked only in Clojure yield subsystem."}
+  {:invariant/id :shortfall-fidelity
+   :reason :absent-from-solidity-model
+   :notes "Shortfall policy is a Clojure yield-policy concept."}
+  {:invariant/id :migration-parity
+   :reason :sim-only-artifact
+   :notes "Storage migration from uint256 to bytes32 IDs is simulation-only."}
+  {:invariant/id :held-adjustments-reconstruct-total-held
+   :reason :sim-only-accounting
+   :notes "Clojure's ledger overlay for tracking individual held-position deltas."}
+  {:invariant/id :stake-lifecycle
+   :reason :pre-established-in-harness
+   :notes "register_stake/withdraw_stake are no-ops in Forge harness; state pre-established in setUp()."}]}

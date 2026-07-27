@@ -411,10 +411,13 @@
         :fee_bps           (get-in scenario [:protocol-params :resolver-fee-bps] 100)
         :appeal_window_duration (get-in scenario [:protocol-params :appeal-window-duration] 0)
         :max_dispute_duration   (get-in scenario [:protocol-params :max-dispute-duration] 0)
-       :metadata          (cond-> {"scenario_class" (kw-val->str-flat (meta/classify-scenario scenario))
-                                   "outcome_type"   (kw-val->str-flat (meta/classify-outcome result scenario))}
-                            (pos? (:dedupe_step_count idem-summary))
-                            (assoc "idempotency" idem-summary))
+        :metadata          (cond-> {"scenario_class" (kw-val->str-flat (meta/classify-scenario scenario))
+                                    "outcome_type"   (kw-val->str-flat (meta/classify-outcome result scenario))}
+                             (pos? (:dedupe_step_count idem-summary))
+                             (assoc "idempotency" idem-summary))
+        :invariant_profile {"id"      "solidity-equivalence-core-v1"
+                            "version" 1
+                            "root"    "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"}
         :expected_semantics expected-semantics
         :step_count        (count steps)
         :terminal_projection_hash (terminal-projection-hash last-world primary-wf-id)

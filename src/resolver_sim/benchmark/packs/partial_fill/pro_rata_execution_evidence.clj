@@ -182,14 +182,17 @@
 
 (defn verify-package-pro-rata-evidence
   "Package-level verification for pro-rata execution packages.
+   For non-pro-rata manifests returns {:valid? true :required? false
+                                       :status :not-required}.
+
    Resolves artifacts from the package index and recomputes profiles.
 
    Returns {:valid? bool :errors [string] :checks map}"
   [package-resolver profile outcome-manifest]
   (let [errors (atom [])]
     (if-not (package-requires-pro-rata-evidence? outcome-manifest)
-      (do (swap! errors conj "outcome-manifest has no pro-rata results")
-          {:valid? false :errors @errors :checks {}})
+      {:valid? true :required? false :status :not-required
+       :errors [] :checks {}}
       (let [alloc-hash (:evidence-profile/allocation-evidence-hash profile)
             app-hash (:evidence-profile/application-evidence-hash profile)
             alloc-profile (when alloc-hash (package-resolver alloc-hash))
@@ -200,7 +203,7 @@
         (when-not app-profile
           (swap! errors conj (str "application evidence profile not found: "
                                    app-hash)))
-        {:valid? (empty? @errors)
+        {:valid? (empty? @errors) :required? true
          :errors @errors
          :checks {:allocation-profile-resolved? (some? alloc-profile)
                   :application-profile-resolved? (some? app-profile)}}))))
