@@ -1,0 +1,18 @@
+{:policy-id       :confidence/evidence-v1
+ :policy-version  "1.0"
+ :derivation
+ {:high  {:minimum-replay-match-percentage 100.0
+          :required-trace-digest-status    :computed
+          :golden-report-required?         true}
+  :medium {:minimum-replay-match-percentage 95.0
+           :required-trace-digest-status    :computed
+           :golden-report-required?         false}
+  :low   {:minimum-replay-match-percentage 0.0
+          :required-trace-digest-status    nil
+          :golden-report-required?         false}}
+ :defaults
+ {:scenario {:level :high   :status :final      :scope :unbounded}
+  :economic {:level :medium :status :provisional :scope :bounded}
+  :forensic {:level :low    :status :provisional :scope :bounded}
+  :finding  {:level :medium :status :final      :scope :unbounded}
+  :claim    {:level :low    :status :final      :scope :unbounded}}}

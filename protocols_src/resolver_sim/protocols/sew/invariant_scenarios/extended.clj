@@ -1600,7 +1600,7 @@
                         {:id "keeper"   :address "0xkeeper"   :role "keeper"}]
    :protocol-params    timeout
    :notes "Kleros ruling 0 (refuse to arbitrate). The escrow stays disputed until max-dispute-duration (300s) elapses, then the keeper auto-cancels via auto-cancel-refused-resolution."
-   :allow-open-disputes? false
+   :allow-open-disputes? true
    :events
    [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
      :params {:amount 5000}}

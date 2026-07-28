@@ -779,6 +779,7 @@
                             :refused-by caller
                             :resolution-hash resolution-hash
                             :refused-at (time-ctx/block-ts world)})]
+      (log/warn! :execute-resolution-refused {:workflow-id workflow-id :caller caller})
       (t/ok world'))))
 
 ;; ---------------------------------------------------------------------------

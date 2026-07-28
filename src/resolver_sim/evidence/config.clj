@@ -2,6 +2,7 @@
   "Canonical evidence chain configuration from config/evidence.json.
    All consumers should read from this namespace rather than hardcoding paths or versions."
   (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]))
 
 (def ^:private config
@@ -98,3 +99,33 @@
    In strict mode, recommended checks are promoted to required (warnings → failures)."
   []
   (boolean (get (get-config) :strict_mode false)))
+
+;; ── Confidence policy ─────────────────────────────────────────────────────────
+
+(def ^:private confidence-policy-config
+  "Delay-loaded confidence derivation policy from config/confidence.edn.
+   Override with PRF_CONFIDENCE_POLICY_PATH env var."
+  (delay
+    (or (when-let [path (System/getenv "PRF_CONFIDENCE_POLICY_PATH")]
+          (try (-> (io/file path) slurp edn/read-string)
+               (catch Exception e
+                 (.println *err* (str "CONFIDENCE-POLICY-FAILURE: PRF_CONFIDENCE_POLICY_PATH="
+                                      path " — " (.getMessage e)))
+                 nil)))
+        (when-let [r (io/resource "config/confidence.edn")]
+          (try (-> r slurp edn/read-string)
+               (catch Exception e
+                 (.println *err* (str "CONFIDENCE-POLICY-FAILURE: resource config/confidence.edn — "
+                                      (.getMessage e)))
+                 nil)))
+        (try (-> "config/confidence.edn" io/file slurp edn/read-string)
+             (catch Exception e
+               (.println *err* (str "CONFIDENCE-POLICY-FAILURE: config/confidence.edn — "
+                                    (.getMessage e)))
+               nil)))))
+
+(defn confidence-policy
+  "Return the confidence derivation policy map, or nil if no config file found.
+   Callers should supply their own code-level defaults when this returns nil."
+  []
+  @confidence-policy-config)

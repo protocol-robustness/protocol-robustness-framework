@@ -7,7 +7,8 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.evidence.config :as evcfg])
+            [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.evidence.confidence :as confidence])
   (:import [java.security MessageDigest]))
 
 (defn- sort-keys
@@ -187,21 +188,23 @@
         (let [criterion (:criterion c)
               pass? (:pass c)
               detail (:detail c)
-              cr (write-claim-result!
-                  {:claim-id (str (name criterion))
-                   :category "audit"
-                   :confidence (if pass? "high" "low")
-                   :status (if pass? "pass" "fail")
+               level (if pass? :high :low)
+               cr (write-claim-result!
+                   {:claim-id (str (name criterion))
+                    :category "audit"
+                    :confidence (name level)
+                    :status (if pass? "pass" "fail")
                    :evidence-refs (criterion-evidence-refs criterion detail)
                    :description (str "Forensic claim: " (name criterion))
                    :failure-detail (when-not pass?
                                      (pr-str (select-keys detail [:error :valid :recorded])))})]
           (swap! claim-results conj cr)))
       ;; Write composite forensic-grade claim result
-      (let [composite-cr (write-claim-result!
-                          {:claim-id "forensic-grade"
-                           :category "composite"
-                           :confidence (if all-pass? "high" "low")
+      (let [comp-level (if all-pass? :high :low)
+            composite-cr (write-claim-result!
+                           {:claim-id "forensic-grade"
+                            :category "composite"
+                            :confidence (name comp-level)
                            :status (if all-pass? "pass" "fail")
                            :evidence-refs (vec (mapv (fn [cr]
                                                        {:ref/kind "claim-result"

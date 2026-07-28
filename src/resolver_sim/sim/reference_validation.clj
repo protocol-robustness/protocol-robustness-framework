@@ -16,7 +16,8 @@
             [resolver-sim.contract-model.replay.yield :as yield-replay]
             [resolver-sim.yield.invariant-catalog :as yield-invariant-catalog]
             [resolver-sim.yield.invariants :as yield-invariants]
-            [resolver-sim.sim.reference-validation-evidence :as evidence])
+            [resolver-sim.sim.reference-validation-evidence :as evidence]
+            [resolver-sim.evidence.confidence :as confidence])
   (:gen-class))
 
 (def ^{:doc "Default suite root (relative to project root)."}
@@ -173,8 +174,8 @@
                          (sha256-file trace-path))]
         {:scenario_id id
          :classification (namespace-keyword->string classification)
-         :confidence "high"
-         :evidence_type "simulator-backed"
+          :confidence (name (:level (confidence/default-confidence :scenario)))
+          :evidence_type "simulator-backed"
          :expectations_failed (if exp-ok? 0 exp-violations)
          :expectations_passed (or expectations-passed 0)
          :invariants_failed inv-violations
@@ -241,8 +242,8 @@
        :checks
        [{:check_id check-id
          :classification (namespace-keyword->string classification)
-         :confidence "provisional"
-         :evidence_type "pinned-derivation"
+          :confidence (name (:level (confidence/default-confidence :economic)))
+          :evidence_type "pinned-derivation"
          :simulator_backed false
          :source_artifact "expected/economic-results.json"
          :status "pass"

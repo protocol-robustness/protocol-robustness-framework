@@ -10,7 +10,8 @@
    2. Stable enums — treat them as API; add, do not remove.
    3. Generic — no SEW action names, SEW state names, or SEW invariant IDs.
    4. Queryable — protocol integrations validate their classifiers against these
-      sets to ensure cross-protocol trace compatibility.")
+      sets to ensure cross-protocol trace compatibility."
+  (:require [resolver-sim.evidence.confidence :as confidence]))
 
 ;; ===========================================================================
 ;; Actor taxonomy
@@ -150,13 +151,25 @@
 ;; ===========================================================================
 
 (def resolution-quality-values
-  "How correct or reliable the resolution outcome was."
+  "How correct or reliable the resolution outcome was.
+   Legacy :low-confidence and :high-confidence keywords are trace-level descriptors.
+   Use `resolution-quality->confidence` to map into the canonical confidence vocabulary
+   (resolver-sim.evidence.confidence)."
   #{:correct
     :incorrect
     :contested
     :unverified
     :low-confidence
     :high-confidence})
+
+(defn resolution-quality->confidence
+  "Map a resolution-quality keyword to the canonical structured confidence record.
+
+   :high-confidence → {:level :high  :status :final :scope :unbounded}
+   :low-confidence  → {:level :low   :status :final :scope :unbounded}
+   Other values     → {:level nil    :status :final :scope :unbounded}"
+  [quality]
+  (confidence/normalize-confidence quality))
 
 (def resolution-finality-values
   "The finality state of the resolution."

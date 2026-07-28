@@ -533,26 +533,32 @@
   (.mkdirs (java.io.File. dir))
   (let [base {:evidence/schema-version "event-evidence.v1"}
         a1 (assoc base :evidence/type "escrow-created"
-                  :evidence/chain-seq 1
-                  :evidence/chain-prev-hash nil
                   :evidence/group-id "g1")
         a2 (assoc base :evidence/type "escrow-released"
-                  :evidence/chain-seq 2
-                  :evidence/chain-prev-hash "h1"
                   :evidence/group-id "g1")
         a3 (assoc base :evidence/type "dispute-raised"
-                  :evidence/chain-seq 3
-                  :evidence/chain-prev-hash "h2"
                   :evidence/group-id "g1")
-        a1 (assoc a1 :evidence/hash (compute-content-hash a1)
-                  :evidence/chain-self-hash (compute-content-hash a1))
-        a2 (assoc a2 :evidence/hash (compute-content-hash a2)
-                  :evidence/chain-self-hash (compute-content-hash a2))
-        a3 (assoc a3 :evidence/hash (compute-content-hash a3)
-                  :evidence/chain-self-hash (compute-content-hash a3))
-        ;; Update prev-hashes to use actual computed hashes
-        a2 (assoc a2 :evidence/chain-prev-hash (:evidence/hash a1))
-        a3 (assoc a3 :evidence/chain-prev-hash (:evidence/hash a2))]
+        ;; Compute content hashes from base content only (before adding chain fields)
+        h1 (compute-content-hash a1)
+        h2 (compute-content-hash a2)
+        h3 (compute-content-hash a3)
+        ;; Add chain fields, matching the real pipeline order:
+        ;; finalize-evidence adds :evidence/hash, then inject-chain-fields adds chain fields
+        a1 (assoc a1 :evidence/hash h1
+                  :evidence/chain-hash-scheme chain/chain-hash-scheme
+                  :evidence/chain-seq 1
+                  :evidence/chain-prev-hash nil
+                  :evidence/chain-self-hash h1)
+        a2 (assoc a2 :evidence/hash h2
+                  :evidence/chain-hash-scheme chain/chain-hash-scheme
+                  :evidence/chain-seq 2
+                  :evidence/chain-prev-hash h1
+                  :evidence/chain-self-hash h2)
+        a3 (assoc a3 :evidence/hash h3
+                  :evidence/chain-hash-scheme chain/chain-hash-scheme
+                  :evidence/chain-seq 3
+                  :evidence/chain-prev-hash h2
+                  :evidence/chain-self-hash h3)]
     (doseq [m [a1 a2 a3]]
       (spit (io/file dir (str "ev-" (:evidence/hash m) ".json"))
             (json/write-str m {:key-fn evidence/qualified-key :indent true})))

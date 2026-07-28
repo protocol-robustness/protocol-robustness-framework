@@ -455,12 +455,12 @@
 
 (deftest scenario-chain-finalization-verifies-a-linked-chain
   (let [r1 {:scenario/id "S1" :evidence/hash "content-1"
-            :evidence/chain-hash-scheme "link-v1"
+            :evidence/chain-hash-scheme chain/chain-hash-scheme
             :evidence/chain-seq 1 :evidence/chain-prev-hash nil}
         r1 (assoc r1 :evidence/chain-self-hash
                   (chain/chain-link-hash (:evidence/hash r1) 1 nil))
         r2 {:scenario/id "S1" :evidence/hash "content-2"
-            :evidence/chain-hash-scheme "link-v1"
+            :evidence/chain-hash-scheme chain/chain-hash-scheme
             :evidence/chain-seq 2
             :evidence/chain-prev-hash (:evidence/chain-self-hash r1)}
         r2 (assoc r2 :evidence/chain-self-hash
@@ -486,13 +486,65 @@
 
 (deftest scenario-chain-finalization-rejects-duplicate-sequences
   (let [record {:scenario/id "S1" :evidence/hash "content"
-                :evidence/chain-hash-scheme "link-v1"
+                :evidence/chain-hash-scheme chain/chain-hash-scheme
                 :evidence/chain-seq 1 :evidence/chain-prev-hash nil}
         record (assoc record :evidence/chain-self-hash
                       (chain/chain-link-hash (:evidence/hash record) 1 nil))
         result (chain/verify-scenario-chain [record record] :scenario-id "S1")]
     (is (= :invalid (:chain/status result)))
     (is (some #(= :duplicate-sequences (:reason %)) (:chain/errors result)))))
+
+(deftest chain-link-hash-deterministic
+  "Same inputs always produce the same chain-link hash."
+  (let [h1 (chain/chain-link-hash "content-hash-abc" 1 nil)
+        h2 (chain/chain-link-hash "content-hash-abc" 1 nil)]
+    (is (= h1 h2))
+    (is (string? h1))
+    (is (= 64 (count h1)) "SHA-256 hex is 64 chars")))
+
+(deftest chain-link-hash-compartment-separates-schemes
+  "Different chain-hash-scheme values produce different hashes
+   even when all other inputs are identical."
+  (let [base-hash (chain/chain-link-hash "test-content" 1 nil)
+        alt-hash (hc/hash-with-intent
+                  {:hash/intent :evidence-chain-link-v1}
+                  {:chain/hash-scheme "link-v2-alt"
+                   :evidence/hash "test-content"
+                   :evidence/chain-seq 1
+                   :evidence/chain-prev-hash nil})]
+    (is (not= base-hash alt-hash))))
+
+(deftest inject-chain-fields-missing-evidence-hash
+  "inject-chain-fields without an :evidence/hash still produces chain fields."
+  (chain/reset-chain-cursor!)
+  (let [result (chain/inject-chain-fields {:scenario/id "S1"})]
+    (is (nil? (:evidence/hash result)))
+    (is (= chain/chain-hash-scheme (:evidence/chain-hash-scheme result)))
+    (is (= 1 (:evidence/chain-seq result)))
+    (is (nil? (:evidence/chain-prev-hash result)))
+    (is (string? (:evidence/chain-self-hash result)))))
+
+(deftest inject-chain-fields-monotonic-seq
+  "Consecutive inject-chain-fields calls produce strictly increasing sequences."
+  (chain/reset-chain-cursor!)
+  (let [e1 (chain/inject-chain-fields {:evidence/hash "h1"})
+        e2 (chain/inject-chain-fields {:evidence/hash "h2"})
+        e3 (chain/inject-chain-fields {:evidence/hash "h3"})]
+    (is (= 1 (:evidence/chain-seq e1)))
+    (is (= 2 (:evidence/chain-seq e2)))
+    (is (= 3 (:evidence/chain-seq e3)))
+    (is (nil? (:evidence/chain-prev-hash e1)))
+    (is (= (:evidence/chain-self-hash e1) (:evidence/chain-prev-hash e2)))
+    (is (= (:evidence/chain-self-hash e2) (:evidence/chain-prev-hash e3)))))
+
+(deftest inject-chain-fields-after-reset-restarts-seq
+  "Resetting the cursor restarts the sequence from 1."
+  (chain/reset-chain-cursor!)
+  (chain/inject-chain-fields {:evidence/hash "h1"})
+  (chain/reset-chain-cursor!)
+  (let [e (chain/inject-chain-fields {:evidence/hash "h2"})]
+    (is (= 1 (:evidence/chain-seq e)))
+    (is (nil? (:evidence/chain-prev-hash e)))))
 
 (deftest evidence-set-reconciliation-requires-exact-identity-sets
   (let [exact (chain/reconcile-evidence-sets

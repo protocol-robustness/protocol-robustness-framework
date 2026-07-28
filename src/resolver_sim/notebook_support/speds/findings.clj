@@ -13,6 +13,7 @@
             [resolver-sim.notebook-support.speds.data :as data]
             [resolver-sim.notebook-support.speds.semantics :as sem]
             [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.evidence.confidence :as confidence]
             [resolver-sim.scenario.outcome-semantics :as ose]
             [resolver-sim.notebook-support.speds.config :as config]))
 
@@ -192,19 +193,23 @@
   (let [metrics (data/narrative-metrics artifacts)
         replay-pct (:replay-match-pct metrics)
         golden (data/find-golden-report (:golden-reports artifacts) (:id scenario))
-        trace-ok? (= "computed" trace-digest-status)
-        replay-good? (and (number? replay-pct) (>= replay-pct 100.0))
-        golden-ok? (some? golden)
-        level (cond
-                (and trace-ok? replay-good? golden-ok?) "high"
-                (and (not trace-ok?) (not golden-ok?) (nil? replay-pct)) "low"
-                :else "medium")
-        sources (cond-> ["single-run-artifact-derived"]
-                  trace-ok? (conj "trace-verified")
-                  golden-ok? (conj "golden-report-matched")
-                  replay-good? (conj "deterministic-replay-confirmed"))]
-    {:level level
-     :basis (str/join ", " sources)}))
+        trace-st (keyword trace-digest-status)
+        signals {:replay-match-percentage replay-pct
+                 :trace-digest-status trace-st
+                 :golden-report-present? (some? golden)}
+        policy (or (evcfg/confidence-policy) {})
+        derived (confidence/derive-confidence policy signals)
+        reasons (:reasons derived)
+        basis (str/join ", "
+                        (cond-> ["single-run-artifact-derived"]
+                          (some #(= :trace-digest-computed %) reasons)
+                          (conj "trace-verified")
+                          (some #(= :golden-report-present %) reasons)
+                          (conj "golden-report-matched")
+                          (some #(= :replay-complete %) reasons)
+                          (conj "deterministic-replay-confirmed")))]
+    {:level (name (:level derived))
+     :basis basis}))
 
 (defn- narrative-artifact-spec [artifacts scenario sid sev st-kind comparator-config trace-info]
   (let [canon (data/canonical-summary (:summary artifacts))
@@ -287,9 +292,10 @@
    {:class (->outcome-class classification)
     :status (->outcome-status classification)
     :severity (->outcome-severity sev)
-    :confidence {:level (keyword (or (:confidence classification) "medium"))
-                 :basis :single-run-artifact-derived
-                 :rationale (:rationale classification)}
+     :confidence (merge (confidence/normalize-confidence
+                         (or (:confidence classification) "medium"))
+                        {:basis :single-run-artifact-derived
+                         :rationale (:rationale classification)})
     :execution {:result (keyword (or st-kind "observed"))
                 :halt-reason nil
                 :scenario-id sid
@@ -372,7 +378,7 @@
         classif (classification-for scenario)
         trace-info (compute-trace-digest artifacts sid)
         story-spec (narrative-artifact-spec artifacts scenario sid sev st-kind comparator-config trace-info)
-        confidence-level (:level (:confidence story-spec))]
+        confidence-level (:level (confidence/normalize-confidence (:confidence story-spec)))]
     {:finding_id (finding-id (or (:run-id canon) (:run-id config/protocol-defaults)) sid)
      :scenario_id sid
      :kind (purpose->kind (:purpose scenario))

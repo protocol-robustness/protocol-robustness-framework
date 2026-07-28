@@ -212,7 +212,7 @@
               chain-cursor fresh-cursor]
       (f))))
 
-(def ^:private chain-hash-scheme "link-v1")
+(def chain-hash-scheme "link-v1")
 
 (defn chain-link-hash
   "Return the versioned hash for one targeted-evidence chain link.

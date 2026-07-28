@@ -1,7 +1,8 @@
 (ns resolver-sim.definitions.registry
   "Canonical semantic definitions registry used by replay/report/evidence/Clerk."
   (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [resolver-sim.evidence.confidence :as confidence]))
 
 (def purposes
   {:regression {:label "Regression" :default-story-family :scenario-deep-dive}
@@ -40,9 +41,13 @@
    :economic-solvency {:label "Economic solvency"}})
 
 (def confidence-levels
-  {:high {:score 0.9}
-   :medium {:score 0.6}
-   :low {:score 0.3}})
+  "Confidence level metadata.
+   Delegates to resolver-sim.evidence.confidence for canonical vocabulary.
+   Scores are ordinal ranks (not calibrated probabilities) for ordering and display."
+  (let [rank->score {3 0.9, 2 0.6, 1 0.3}]
+    (into {} (map (fn [lvl]
+                    [lvl {:score (get rank->score (confidence/confidence-score lvl) 0.0)}])
+                  confidence/levels))))
 
 (defn- load-speds-definitions
   "Load SPEDS definitions from the first available source:
