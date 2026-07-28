@@ -423,8 +423,9 @@
                         (:node-hash artifact)
                         (:bundle/root-hash artifact)
                         (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
-         evidence-findings (not-empty (or (:sensitivity/findings artifact)
-                                        (:safety/findings artifact)))
+         evidence-findings (some-> (or (seq (:sensitivity/findings artifact))
+                                      (seq (:safety/findings artifact)))
+                                   vec)
          base-report {:sentinel/version sentinel-version
                      :sentinel/policy-hash (compute-policy-hash)
                      :sentinel/evaluated-at (str (Instant/now))

@@ -72,8 +72,12 @@ jobs:
 
       - name: Validate public claim bindings
         run: |
+          set +e
           bb public-claims:generate
+          GENERATE_EXIT=$?
           bb claim-bindings:validate
+          VALIDATE_EXIT=$?
+          exit $((GENERATE_EXIT | VALIDATE_EXIT))
 
       - name: Upload claim-binding report
         if: always()
@@ -81,4 +85,4 @@ jobs:
         with:
           name: claim-binding-report
           path: target/claim-binding-report.json
-          if-no-files-found: error
+          if-no-files-found: warn

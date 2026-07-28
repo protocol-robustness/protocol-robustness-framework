@@ -9,6 +9,7 @@ on:
 jobs:
   core-validation:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     services:
       xtdb:
         image: ghcr.io/xtdb/xtdb@sha256:15b6aa9d37d1e1a4e21748788db9275a57b87c339e5eb66d86376cf1e6899816
@@ -53,53 +54,52 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
           restore-keys: ${{ runner.os }}-maven-
 
-      - name: Run canonical suite
-        run: |
-          set +e
-          echo "=== Running CLI backstop (structural gate) ==="
-          clojure -M:cli/sew backstop
-          BACKSTOP_EXIT=$?
-          echo "Backstop exit code: $BACKSTOP_EXIT"
+      - name: CLI backstop (structural gate)
+        timeout-minutes: 5
+        run: clojure -M:cli/sew backstop
 
-          echo "=== Running unit tests ==="
-          ./scripts/test.sh unit
-          UNIT_EXIT=$?
-          echo "Unit exit code: $UNIT_EXIT"
+      - name: Unit tests
+        timeout-minutes: 15
+        run: ./scripts/test.sh unit
 
-          echo "=== Running reference validation ==="
-          clojure -M:reference-validation
-          REF_EXIT=$?
-          echo "Reference validation exit code: $REF_EXIT"
+      - name: Reference validation
+        timeout-minutes: 10
+        run: clojure -M:reference-validation
 
-          echo "=== Running invariants ==="
-          ./scripts/test.sh invariants || true
+      - name: Invariant scenarios
+        continue-on-error: true
+        timeout-minutes: 15
+        run: ./scripts/test.sh invariants
 
-          echo "=== Running integration tests ==="
-          bb test:integration
-          INT_EXIT=$?
-          echo "Integration test exit code: $INT_EXIT"
+      - name: Integration tests
+        continue-on-error: true
+        timeout-minutes: 10
+        run: bb test:integration
 
-          echo "=== Running contracts ==="
-          ./scripts/test.sh contracts || true
+      - name: Contracts
+        continue-on-error: true
+        timeout-minutes: 5
+        run: ./scripts/test.sh contracts
 
-          echo "=== Running coverage ==="
-          ./scripts/test.sh coverage || true
+      - name: Coverage
+        continue-on-error: true
+        timeout-minutes: 5
+        run: ./scripts/test.sh coverage
 
-          echo "=== Running triage ==="
-          ./scripts/test.sh triage || true
+      - name: Triage
+        continue-on-error: true
+        timeout-minutes: 5
+        run: ./scripts/test.sh triage
 
-          echo "=== Running monte-carlo ==="
-          ./scripts/test.sh monte-carlo || true
+      - name: Monte Carlo
+        continue-on-error: true
+        timeout-minutes: 15
+        run: ./scripts/test.sh monte-carlo
 
-          echo "=== Running dr3-coverage ==="
-          ./scripts/test.sh dr3-coverage || true
-
-          FAILURES=0
-          [ $BACKSTOP_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))
-          [ $UNIT_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))
-          [ $REF_EXIT -eq 0 ] || FAILURES=$((FAILURES + 1))
-          echo "Total gating failures: $FAILURES"
-          exit $FAILURES
+      - name: DR3 coverage
+        continue-on-error: true
+        timeout-minutes: 10
+        run: ./scripts/test.sh dr3-coverage
 
       - name: Run authoritative backstop (canonical invariant evidence)
         run: |
