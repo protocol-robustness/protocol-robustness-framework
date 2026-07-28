@@ -205,7 +205,8 @@
    "sender-cancel"               :transition/state-change
    "recipient-cancel"            :transition/state-change
    "automate-timed-actions"      :transition/maintenance
-   "auto-cancel-disputed"        :transition/timeout})
+    "auto-cancel-disputed"        :transition/timeout
+    "auto-cancel-refused-resolution" :transition/timeout})
 
 (defn transition-type
   "Map a SEW action string to its :transition/type keyword.

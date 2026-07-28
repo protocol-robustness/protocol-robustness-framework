@@ -5,6 +5,7 @@
             [resolver-sim.yield.invariant-catalog :as cat]
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
+            [resolver-sim.yield.modules.liquid-lending :as ll]
             [resolver-sim.logging :as log]))
 
 (defn- inv-result [holds?]
@@ -739,10 +740,17 @@
                                        (nil? a) (conj {:propagation-id id :reason :missing-propagation-application})
                                        (and a (not (#{"pro-rata-propagation-application.v2" "pro-rata-propagation-application.v3"} (:schema-version a)))) (conj {:propagation-id id :reason :unsupported-application-schema})
                                        (and a (nil? (:application/hash a))) (conj {:propagation-id id :reason :application-hash-missing})
-                                       (and a (:application/hash a)
-                                            (not= (:application/hash a)
-                                                  (partial-fill/application-hash a)))
-                                       (conj {:propagation-id id :reason :application-hash-mismatch})
+                                        (and a (:application/hash a)
+                                             (not= (:application/hash a)
+                                                   (partial-fill/application-hash a)))
+                                        (conj {:propagation-id id :reason :application-hash-mismatch})
+                                        (and a (:application/output a)
+                                             (not= "pro-rata-application-output.v1" (get-in a [:application/output :schema-version])))
+                                        (conj {:propagation-id id :reason :application-output-schema-invalid})
+                                        (and a (:application/output a) (:hash (:application/output a))
+                                             (not= (:hash (:application/output a))
+                                                   (partial-fill/pro-rata-application-output-hash a p)))
+                                        (conj {:propagation-id id :reason :application-output-hash-mismatch})
                                        (and a (let [expected-ref {:propagation/id id :propagation/hash (:propagation/hash p) :propagation/content-hash (:propagation/content-hash p)}
                                                     actual-ref (:propagation/reference a)]
                                                 (not= expected-ref actual-ref))) (conj {:propagation-id id :reason :application-propagation-reference-mismatch})
@@ -781,9 +789,20 @@
                                        (and (pos? allocated) (not= 1 (count debit))) (conj {:propagation-id id :reason :source-account-entry-missing})
                                        (not= 0 (reduce + 0 (map #(long (:delta % 0)) entries))) (conj {:propagation-id id :reason :accounting-entry-set-unbalanced})
                                        (and a (not= (set (map :participant-id participants)) (set (map :participant-id apps)))) (conj {:propagation-id id :reason :application-participant-set-mismatch})
-                                       (and a (not= allocated (reduce + 0 (map #(long (get-in % [:withdrawn :delta] 0)) apps)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
-                                       (and a (not= allocated (reduce + 0 (map #(long (:delta % 0)) credits)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch}))))
-                                 props)
+                                        (and a (not= allocated (reduce + 0 (map #(long (get-in % [:withdrawn :delta] 0)) apps)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
+                                        (and a (not= allocated (reduce + 0 (map #(long (:delta % 0)) credits)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
+                                        (and a (pos? allocated)
+                                             (some (fn [ap]
+                                                     (let [delta (long (get-in ap [:withdrawn :delta] 0))]
+                                                       (and (pos? delta)
+                                                            (let [pid (:participant-id ap)
+                                                                  stored-hash (:position-after-hash ap)
+                                                                  actual-position (get-in world [:yield/positions pid])]
+                                                              (and stored-hash actual-position
+                                                                   (not= stored-hash (ll/canonical-hash-safe actual-position)))))))
+                                                   apps))
+                                        (conj {:propagation-id id :reason :position-after-hash-mismatch}))))
+                                  props)
                          (mapcat #(policy-accounting-violations % (get-in world [:yield/applied-pro-rata-propagations (:propagation/id %)])) props)
                          ;; Application/accounting evidence is only meaningful when the
                          ;; committed v2 propagation still faithfully binds its decision.
@@ -809,12 +828,13 @@
           pass? (fn [reason-set] (if (empty? (clojure.set/intersection reasons reason-set)) :pass :fail))]
       {:holds? (empty? failures)
        :checks {:application-record-present (pass? #{:missing-propagation-application})
-                :allocation-decision-binding-valid (pass? #{:propagation-allocation-id-mismatch
-                                                            :propagation-allocation-hash-mismatch
-                                                            :propagation-mechanism-reference-mismatch
-                                                            :propagation-mechanism-evidence-reference-mismatch
-                                                            :decision-mechanism-evidence-invalid
-                                                            :propagation-decision-reference-mismatch})
+                 :allocation-decision-binding-valid (pass? #{:propagation-allocation-id-mismatch
+                                                             :propagation-allocation-hash-mismatch
+                                                             :propagation-mechanism-reference-mismatch
+                                                             :propagation-mechanism-evidence-reference-mismatch
+                                                             :decision-mechanism-evidence-invalid
+                                                             :propagation-decision-reference-mismatch
+                                                             :decision-hash-mismatch})
                 :allocation-row-translation-valid
                 (pass? #{:missing-propagation-participant
                          :extra-propagation-participant
@@ -873,13 +893,17 @@
                 :source-token-consistent (pass? #{:source-token-mismatch})
                 :available-allocation-residual (pass? #{:available-allocation-residual-mismatch :residual-record-mismatch :residual-token-mismatch})
                 :residual-retained-in-pool (pass? #{:residual-destination-policy-mismatch})
-                :entry-set-balanced (pass? #{:accounting-entry-set-unbalanced})}
+                :entry-set-balanced (pass? #{:accounting-entry-set-unbalanced})
+                 :application-output-schema-valid (pass? #{:application-output-schema-invalid})
+                 :application-output-hash-valid (pass? #{:application-output-hash-mismatch})
+                 :position-after-hash-valid (pass? #{:position-after-hash-mismatch})}
        :violations failures})))
 
 (defn check-pro-rata-propagation-complete
-  "Every persisted shared pro-rata outcome must have been applied exactly once.
-   Verifies allocation and entitlement conservation, state-position residuals,
-   capacity bounds, accounting deltas, and an explicit residual destination."
+  "The committed allocation decision was bound to the propagation;
+   entitlement and capacity constraints held; each committed amount
+   was applied exactly once to a policy-authorised account class;
+   and the accounting entries and resulting state changes reconciled."
   [world]
   (let [propagations (vals (:yield/pro-rata-propagations world {}))
         decisions (:yield/partial-fill-decisions world {})
@@ -887,14 +911,19 @@
         (vec
          (mapcat
           (fn [artifact]
-            (let [participants (:participants artifact [])
+            (let [pid (:propagation/id artifact)
+                  participants (:participants artifact [])
                   decision (get decisions (:calculation-ref artifact))
                   binding-errors (if (= "pro-rata-propagation.v2" (:schema-version artifact))
                                    (if decision
                                      (partial-fill/propagation-allocation-binding-violations decision artifact)
                                      [{:reason :propagation-decision-reference-mismatch
-                                       :propagation-id (:propagation/id artifact)}])
+                                       :propagation/id pid}])
                                    [])
+                  app (get-in world [:yield/applied-pro-rata-propagations pid])
+                  account-class-errors (if app
+                                         (policy-accounting-violations artifact app)
+                                         [])
                   summary (:summary artifact {})
                   positions (:yield/positions world {})
                   sum-field (fn [field] (reduce + 0 (map #(long (get % field 0)) participants)))
@@ -911,10 +940,18 @@
                            position (get positions id)
                            position-deferred (long (get-in position [:shortfall :deferred-amount] 0))]
                        (cond-> []
-                         (not= eligible (+ fulfilled deferred unmet waived)) (conj {:participant-id id :error :entitlement-not-conserved})
-                         (> fulfilled cap) (conj {:participant-id id :error :capacity-exceeded})
-                         (and (pos? deferred) (not= deferred position-deferred)) (conj {:participant-id id :error :deferred-position-not-applied})
-                         (and (zero? deferred) (not= :withdrawn (:status position))) (conj {:participant-id id :error :fulfilled-position-not-closed}))))
+                         (not= eligible (+ fulfilled deferred unmet waived))
+                         (conj {:propagation/id pid :participant-id id
+                                :reason :entitlement-not-conserved})
+                         (> fulfilled cap)
+                         (conj {:propagation/id pid :participant-id id
+                                :reason :capacity-exceeded})
+                         (and (pos? deferred) (not= deferred position-deferred))
+                         (conj {:propagation/id pid :participant-id id
+                                :reason :deferred-position-not-applied})
+                         (and (zero? deferred) (not= :withdrawn (:status position)))
+                         (conj {:propagation/id pid :participant-id id
+                                :reason :fulfilled-position-not-closed}))))
                    participants)
                   allocated (long (:allocated summary 0))
                   available (long (:available summary 0))
@@ -922,57 +959,115 @@
                   participant-accounting-total (reduce + 0 (map #(long (get-in % [:accounting-entry :delta] 0)) (:applications artifact [])))
                   ledger-net (reduce + 0 (map #(long (:delta % 0)) (:accounting-entries artifact [])))
                   apparent-accounting-errors
-                  (mapcat (fn [app]
-                            (let [apparent-delta (get-in app [:apparent-application :accounting-delta])
-                                  entry-delta (get-in app [:accounting-entry :delta])]
+                  (mapcat (fn [app-entry]
+                            (let [apparent-delta (get-in app-entry [:apparent-application :accounting-delta])
+                                  entry-delta (get-in app-entry [:accounting-entry :delta])]
                               (cond-> []
                                 (and (some? apparent-delta) (not= apparent-delta entry-delta))
-                                (conj {:participant-id (:participant-id app)
-                                       :error :apparent-application-accounting-mismatch}))))
+                                (conj {:propagation/id pid
+                                       :participant-id (:participant-id app-entry)
+                                       :reason :apparent-application-accounting-mismatch}))))
                           (:applications artifact []))
                   artifact-errors (cond-> []
-                                    (not= allocated (sum-field :fulfilled)) (conj {:error :allocation-not-applied})
-                                    (not= allocated participant-accounting-total) (conj {:error :participant-accounting-not-reconciled})
-                                    (not= 0 ledger-net) (conj {:error :ledger-not-balanced})
-                                    (not= available (+ allocated residual)) (conj {:error :liquidity-not-conserved})
+                                    (not= allocated (sum-field :fulfilled))
+                                    (conj {:propagation/id pid :reason :allocation-not-applied})
+                                    (not= allocated participant-accounting-total)
+                                    (conj {:propagation/id pid :reason :participant-accounting-not-reconciled})
+                                    (not= 0 ledger-net)
+                                    (conj {:propagation/id pid :reason :ledger-not-balanced})
+                                    (not= available (+ allocated residual))
+                                    (conj {:propagation/id pid :reason :liquidity-not-conserved})
                                     (not= (sum-field :eligible-obligation)
                                           (+ (sum-field :fulfilled) (sum-field :deferred)
-                                             (sum-field :unmet) (sum-field :waived))) (conj {:error :aggregate-entitlement-not-conserved})
-                                    (and (pos? residual) (nil? (get-in artifact [:residual :destination]))) (conj {:error :residual-without-destination}))]
-              (concat binding-errors participant-errors apparent-accounting-errors artifact-errors)))
-          propagations))]
-    (let [reasons (set (map :reason violations))
-          pass? (fn [reason-set]
-                  (if (empty? (clojure.set/intersection reasons reason-set)) :pass :fail))]
-      {:holds? (empty? violations)
-       :checks {:allocation-decision-binding-valid
-                (pass? #{:propagation-allocation-id-mismatch
-                         :propagation-allocation-hash-mismatch
-                         :propagation-mechanism-reference-mismatch
-                         :propagation-mechanism-evidence-reference-mismatch
-                         :decision-mechanism-evidence-invalid
-                         :propagation-decision-reference-mismatch})}
-       :allocation-row-translation-valid
-       (pass? #{:missing-propagation-participant
-                :extra-propagation-participant
-                :duplicate-propagation-participant
-                :duplicate-decision-allocation-row
-                :propagated-fulfilled-mismatch
-                :propagated-unmet-mismatch
-                :propagation-fulfilled-total-mismatch
-                :propagation-unmet-total-mismatch})
-       :entitlement-conserved (pass? #{:entitlement-not-conserved
-                                       :aggregate-entitlement-not-conserved})
-       :capacity-within-bounds (pass? #{:capacity-exceeded})
-       :deferred-position-applied (pass? #{:deferred-position-not-applied})
-       :fulfilled-position-closed (pass? #{:fulfilled-position-not-closed})
-       :allocation-applied (pass? #{:allocation-not-applied})
-       :ledger-balanced (pass? #{:ledger-not-balanced})
-       :liquidity-conserved (pass? #{:liquidity-not-conserved})
-       :participant-accounting-reconciled (pass? #{:participant-accounting-not-reconciled})
-       :apparent-application-accounting-reconciled (pass? #{:apparent-application-accounting-mismatch})
-       :residual-has-destination (pass? #{:residual-without-destination})
-       :violations violations})))
+                                             (sum-field :unmet) (sum-field :waived)))
+                                    (conj {:propagation/id pid :reason :aggregate-entitlement-not-conserved})
+                                    (and (pos? residual) (nil? (get-in artifact [:residual :destination])))
+                                    (conj {:propagation/id pid :reason :residual-without-destination}))]
+              (concat binding-errors account-class-errors
+                      participant-errors apparent-accounting-errors artifact-errors)))
+          propagations))
+        reasons (set (map :reason violations))
+
+        pass?
+        (fn [reason-set]
+          (if (empty? (clojure.set/intersection reasons reason-set))
+            :pass :fail))
+
+        checks
+         {:allocation-decision-binding-valid
+          (pass? #{:propagation-allocation-id-mismatch
+                   :propagation-allocation-hash-mismatch
+                   :propagation-mechanism-reference-mismatch
+                   :propagation-mechanism-evidence-reference-mismatch
+                   :decision-mechanism-evidence-invalid
+                   :propagation-decision-reference-mismatch
+                   :decision-hash-mismatch})
+         :allocation-row-translation-valid
+         (pass? #{:missing-propagation-participant
+                  :extra-propagation-participant
+                  :duplicate-propagation-participant
+                  :duplicate-decision-allocation-row
+                  :propagated-fulfilled-mismatch
+                  :propagated-unmet-mismatch
+                  :propagation-fulfilled-total-mismatch
+                  :propagation-unmet-total-mismatch})
+         :entitlement-conserved
+         (pass? #{:entitlement-not-conserved
+                  :aggregate-entitlement-not-conserved})
+         :capacity-within-bounds
+         (pass? #{:capacity-exceeded})
+         :deferred-position-applied
+         (pass? #{:deferred-position-not-applied})
+         :fulfilled-position-closed
+         (pass? #{:fulfilled-position-not-closed})
+         :allocation-applied
+         (pass? #{:allocation-not-applied})
+         :account-classes-valid
+         (pass? #{:application-source-account-policy-mismatch
+                  :source-entry-account-policy-mismatch
+                  :participant-credit-account-policy-mismatch})
+         :ledger-balanced
+         (pass? #{:ledger-not-balanced})
+         :liquidity-conserved
+         (pass? #{:liquidity-not-conserved})
+         :participant-accounting-reconciled
+         (pass? #{:participant-accounting-not-reconciled})
+         :apparent-application-accounting-reconciled
+         (pass? #{:apparent-application-accounting-mismatch})
+         :residual-has-destination
+         (pass? #{:residual-without-destination})}
+
+        checks-pass?
+        (fn [check-ids]
+          (every? #(= :pass (get checks %)) check-ids))
+
+        categories
+        {:account-classes-valid
+         (checks-pass? [:account-classes-valid])
+         :allocation-constraints-valid
+         (checks-pass? [:entitlement-conserved
+                        :capacity-within-bounds])
+         :allocation-propagated-exactly
+         (checks-pass? [:allocation-decision-binding-valid
+                        :allocation-row-translation-valid
+                        :allocation-applied
+                        :deferred-position-applied
+                        :fulfilled-position-closed])
+         :accounting-entries-complete
+         (checks-pass? [:participant-accounting-reconciled])
+         :accounting-reconciles
+         (checks-pass? [:ledger-balanced
+                        :liquidity-conserved
+                        :apparent-application-accounting-reconciled
+                        :residual-has-destination])}
+
+        holds? (empty? violations)]
+    {:check/id :yield/pro-rata-propagation-complete
+     :checks checks
+     :categories categories
+     :valid? holds?
+     :holds? holds?
+     :violations (vec violations)}))
 
 (def ^:private check-fns
   {:yield/position-consistency check-position-consistency

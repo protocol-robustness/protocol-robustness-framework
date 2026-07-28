@@ -400,7 +400,10 @@ run_yield() {
          'resolver-sim.protocols.sew.yield.finalize-parity-test
          'resolver-sim.protocols.sew.resolver-yield-accrual-test
          'resolver-sim.scenario.yield-expectations-test
-         'resolver-sim.scenario.yield-scenario-lint-test)
+         'resolver-sim.scenario.yield-scenario-lint-test
+         'resolver-sim.yield.liquid-lending-v2-test
+         'resolver-sim.yield.pro-rata-accounting-test
+         'resolver-sim.yield.pro-rata-propagation-properties-test)
 (binding [resolver-sim.evidence.chain/*allow-dirty* true]
   (let [results (t/run-tests
                'resolver-sim.protocols.sew.yield-reorg-race-test
@@ -410,7 +413,10 @@ run_yield() {
                'resolver-sim.protocols.sew.yield.finalize-parity-test
                'resolver-sim.protocols.sew.resolver-yield-accrual-test
                'resolver-sim.scenario.yield-expectations-test
-                'resolver-sim.scenario.yield-scenario-lint-test)]
+               'resolver-sim.scenario.yield-scenario-lint-test
+               'resolver-sim.yield.liquid-lending-v2-test
+               'resolver-sim.yield.pro-rata-accounting-test
+               'resolver-sim.yield.pro-rata-propagation-properties-test)]
               (when (pos? (+ (:error results) (:fail results)))
                 (System/exit 1))))"
   return $?

@@ -35,6 +35,7 @@ layer that makes simulation results explainable to stakeholders.
 | `docs/concepts/GLOSSARY.md` | General project glossary |
 | `docs/concepts/RISK_TAXONOMY.md` | Risk taxonomy across concepts |
 | `docs/concepts/scenario-annotation-guide.md` | How to annotate scenarios |
+| `docs/concepts/sensitivity-provenance-chain.md` | Cryptographic verification of sensitivity classification provenance |
 | `src/resolver_sim/concepts/registry.clj` | Registry loading + validation |
 | `src/resolver_sim/concepts/reporting.clj` | Concept-aware report shape (stub) |
 

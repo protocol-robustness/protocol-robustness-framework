@@ -466,6 +466,23 @@
          (pos? max-dur)
          (dl/deadline-expired? (time-ctx/block-ts world) (dl/deadline ts max-dur)))))
 
+(defn refused-resolution-timeout?
+  "True when a resolution-refused escrow has exceeded max-dispute-duration
+   and can be auto-cancelled by keeper.
+   Kleros ruling 0 (refuse to arbitrate) leaves the escrow in :disputed state
+   with no pending settlement.  The timeout path is the only settlement mechanism."
+  [world workflow-id]
+  (let [state   (t/escrow-state world workflow-id)
+        ts      (get-in world [:dispute-timestamps workflow-id] 0)
+        snap    (t/get-snapshot world workflow-id)
+        max-dur (get snap :max-dispute-duration 0)
+        refused (get-in world [:escrow-transfers workflow-id :resolution :refused] false)]
+    (and (= :disputed state)
+         refused
+         (pos? ts)
+         (pos? max-dur)
+         (dl/deadline-expired? (time-ctx/block-ts world) (dl/deadline ts max-dur)))))
+
 (defn pending-settlement-executable?
   "True when a pending-settlement exists and its appeal-deadline has passed
    (or eligible superseded pending exists when no active pending exists),

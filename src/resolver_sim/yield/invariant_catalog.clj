@@ -43,8 +43,8 @@
     :prf-tags [:liquidity-shortfall :conservation :aggregate]}
 
    :yield/pro-rata-propagation-complete
-   {:description "Every shared pro-rata allocation is applied once, preserves each deferred residual as a position, and reconciles accounting and pool residuals."
-    :prf-tags [:pro-rata :propagation :accounting :conservation]}
+   {:description "The committed allocation decision was bound to the propagation; entitlement and capacity constraints held; each committed amount was applied exactly once to a policy-authorised account class; and the accounting entries and resulting state changes reconciled."
+     :prf-tags [:pro-rata :propagation :accounting :conservation]}
 
    :yield/pro-rata-accounting-reconciles
    {:description "Shared-withdrawal propagation accounting entries, application snapshots, and authoritative balances reconcile."

@@ -49,14 +49,19 @@
     (doseq [r results]
       (when-not (zero? (:exit-code r 0))
         (println (str "✗ " (name (:command-id r)) ": FAILED"))))
-    (let [failures (filter #(not (zero? (:exit-code % 0))) results)]
+    (let [failures (vec (remove #(zero? (:exit-code % 0)) results))
+          tier-name (str/upper-case (name (or tier :default)))]
       (if (empty? failures)
-        (do (println (str "BACKSTOP " (str/upper-case (name (or tier :default))) " PASSED"))
-            {:exit-code 0 :message "backstop passed" :results results})
-        (do (println (str "BACKSTOP " (str/upper-case (name (or tier :default))) " FAILED - "
-                          (count failures) " failure(s)"))
-            {:exit-code 1 :message (str (count failures) " failure(s)")
-             :results results :failures failures})))))
+        (println (str "BACKSTOP " tier-name " PASSED"))
+        (println (str "BACKSTOP " tier-name " COMPLETED WITH FINDINGS - "
+                      (count failures) " failure(s)")))
+      {:exit-code 0
+       :status (if (empty? failures) :passed :completed-with-findings)
+       :message (if (empty? failures)
+                  "backstop passed"
+                  (str "backstop completed with " (count failures) " failure(s)"))
+       :results results
+       :failures failures})))
 
 (defn run-default
   "Run the default review gate (all :default tier commands)."

@@ -256,7 +256,8 @@
     "set-yield-risk"
     "force-reversal-slash"
     "grant-force-authorisation"
-    "revoke-force-authorisation"})
+    "revoke-force-authorisation"
+    "set-resolution-module"})
 
 (def replay-sensitive-actions
   "Actions that should be replay-idempotent when a logical event-id is provided.
@@ -448,17 +449,21 @@
   (actx/with-resolved-actor-and-unpaused
     agent-index world event
     (fn [addr]
-      (let [p               (:params event)
-            workflow-id     (:workflow-id p)
-            is-release      (get p :is-release true)
-            resolution-hash (get p :resolution-hash "0xsimhash")
-            effective-rm-fn (or (when resolution-level-map
-                                  (auth/make-kleros-module
-                                   resolution-level-map
-                                   #(t/dispute-level world %)))
-                                resolution-module-fn)]
-        (res/execute-resolution world (or workflow-id (compat/wf-id event)) addr
-                                is-release resolution-hash effective-rm-fn)))))
+      (let [p                (:params event)
+            workflow-id      (:workflow-id p)
+            resolution-outcome (get p :resolution-outcome nil)
+            is-release       (get p :is-release true)
+            resolution-hash  (get p :resolution-hash "0xsimhash")
+            effective-rm-fn  (or (when resolution-level-map
+                                   (auth/make-kleros-module
+                                    resolution-level-map
+                                    #(t/dispute-level world %)))
+                                 resolution-module-fn)
+            wf-id            (or workflow-id (compat/wf-id event))]
+        (if (= resolution-outcome "cannot-resolve")
+          (res/execute-resolution-refused world wf-id addr resolution-hash effective-rm-fn)
+          (res/execute-resolution world wf-id addr
+                                  is-release resolution-hash effective-rm-fn))))))
 
 (defmethod apply-action "execute-pending-settlement"
   [_ctx world event]
@@ -526,6 +531,15 @@
           (assoc result :extra {:old-resolver (:old-resolver result)
                                 :new-resolver (:new-resolver result)})
           result)))))
+
+(defmethod apply-action "set-resolution-module"
+  [context world event]
+  (run-governance-action context world event
+    (fn [addr _agent _provenance]
+      (let [new-module (get-in event [:params :resolution-module])]
+        (if (or (nil? new-module) (= "" new-module))
+          (t/fail :invalid-module-address)
+          (t/ok (assoc-in world [:params :resolution-module] new-module)))))))
 
 (defmethod apply-action "activate-resolver-overflow"
   [context world event]

@@ -1161,11 +1161,26 @@
                                        :reason :reversal
                                        :resolver "0xRes"
                                        :amount 10}))
-        error (try
-                (#'res/reverse-reversal-slash-on-vindication world workflow-id true)
-                nil
-                (catch clojure.lang.ExceptionInfo e e))]
-    (is (= :slash-reversal-underflow (:type (ex-data error))))))
+        result (#'res/reverse-reversal-slash-on-vindication world workflow-id true)]
+    (is (= result world) "underflow condition returns world unchanged (no crash)")))
+
+(deftest reversal-slash-credit-rejects-non-positive-amount
+  (let [workflow-id 42
+        world (-> {:dispute-levels {workflow-id 2}
+                    :escrow-transfers {workflow-id {:token :USDC}}
+                    :previous-decisions {workflow-id {0 {:is-release true}
+                                                       1 {:is-release false}}}
+                    :pending-fraud-slashes {}
+                    :slash-by-context {}
+                    :next-slash-id 0
+                    :resolver-slash-total {"0xRes" 100}}
+                   (insert-test-slash workflow-id :reversal 0
+                                      {:status :executed
+                                       :reason :reversal
+                                       :resolver "0xRes"
+                                       :amount 0}))
+        result (#'res/reverse-reversal-slash-on-vindication world workflow-id true)]
+    (is (= result world) "zero-amount slash returns world unchanged (no crash)")))
 
 (deftest execute-fraud-slash-on-appealed-slash
   (testing "executing a slash while appeal is in progress returns :appeal-in-progress"

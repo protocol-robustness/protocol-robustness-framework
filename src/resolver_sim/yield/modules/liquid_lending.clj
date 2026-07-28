@@ -38,6 +38,23 @@
   (partial-fill/application-hash
    (if (map? value) value {:value value})))
 
+(defn canonical-hash-safe
+  "Canonical hash that normalizes ratios (and other types unsafe for
+   canonical-bytes) into deterministic safe equivalents before hashing.
+   Used for position data that may contain ratio fields like :shares,
+   :entry-index, and :current-index."
+  [value]
+  (letfn [(walk [v]
+            (cond
+              (instance? clojure.lang.Ratio v) (long (Math/round (double v)))
+              (instance? Double v) (double v)
+              (instance? Float v) (double v)
+              (map? v) (persistent! (reduce-kv (fn [m k v] (assoc! m (walk k) (walk v))) (transient {}) v))
+              (vector? v) (mapv walk v)
+              (set? v) (set (map walk v))
+              :else v))]
+    (canonical-hash (walk value))))
+
 (defn- fail!
   ([message reason]
    (fail! message reason {}))
@@ -508,7 +525,7 @@
 
 (defn- position-state-commitment [owner-id position]
   {:owner-id owner-id
-   :position-hash (canonical-hash position)
+   :position-hash (canonical-hash-safe position)
    :position-id (base-position-id owner-id position)
    :module-id (:module/id position)
    :token (normalize-token (:token position))
@@ -518,7 +535,7 @@
                                  [:deferred-position :position/id])
    :deferred-position-hash
    (when-let [deferred (:deferred-position position)]
-     (canonical-hash deferred))
+     (canonical-hash-safe deferred))
    :deferred-current-amount
    (get-in position [:deferred-position :position/current-amount])
    :root-obligation-id
@@ -996,9 +1013,11 @@
                                 fulfilled)
                      (assoc-in [:yield/positions participant-id]
                                updated-position))))
-             world
-             participants)
-            application-base
+              world
+              participants)
+             next-world (assoc-in next-world [:total-held token]
+                                  (- source-before allocated))
+             application-base
             {:schema-version "pro-rata-propagation-application.v3"
              :propagation-id propagation-id
              :propagation/reference
@@ -1056,9 +1075,9 @@
                    :position-before-hash (:position-hash precondition)
                    :position-after
                    (get-in next-world [:yield/positions participant-id])
-                   :position-after-hash
-                   (canonical-hash
-                    (get-in next-world [:yield/positions participant-id]))
+                    :position-after-hash
+                    (canonical-hash-safe
+                     (get-in next-world [:yield/positions participant-id]))
                    :withdrawn
                    {:account :withdrawn
                     :token token
@@ -1099,17 +1118,17 @@
                                    [:residual :destination])}
              :status :committed}
             application
-            (let [app-hash (canonical-hash application-base)
-                  app-with-hash (assoc application-base :application/hash app-hash)
-                  output-hash {:schema-version "pro-rata-application-output.v1"
-                               :hash-algorithm "sha256"
-                               :hash (partial-fill/pro-rata-application-output-hash app-with-hash propagation)}
-                  outcome {:schema-version "partial-fill-decision.v1"
-                           :artifact/id (:calculation-id application-base)
-                           :artifact/hash (:outcome-hash application-base)}]
-              (assoc app-with-hash
-                     :application/output output-hash
-                     :application/outcome outcome))]
+             (let [outcome {:schema-version "partial-fill-decision.v1"
+                            :artifact/id (:calculation-id application-base)
+                            :artifact/hash (:outcome-hash application-base)}
+                   application-base (assoc application-base :application/outcome outcome)
+                   app-hash (canonical-hash application-base)
+                   app-with-hash (assoc application-base :application/hash app-hash)
+                   output-hash {:schema-version "pro-rata-application-output.v1"
+                                :hash-algorithm "sha256"
+                                :hash (partial-fill/pro-rata-application-output-hash app-with-hash propagation)}]
+               (assoc app-with-hash
+                      :application/output output-hash))]
         {:status :applied
          :propagation-id propagation-id
          :world

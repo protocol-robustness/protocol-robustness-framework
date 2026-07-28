@@ -4,7 +4,9 @@
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.modules.liquid-lending :as ll]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
-            [resolver-sim.yield.invariant-catalog :as catalog]))
+            [resolver-sim.yield.invariant-catalog :as catalog]
+            [resolver-sim.pro-rata.allocation :as pro-rata]
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
 (defn- propagation [entries]
   {:propagation/id "p1" :token :USDC
@@ -189,9 +191,9 @@
     (is (some #(= :propagation-accounting-entry-hash-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/pro-rata-propagations "p1" :accounting-entry-set-hash] "bad")))))
-    (is (not (some #(= :latest-source-balance-mismatch (:reason %))
-                   (:violations (inv/check-pro-rata-accounting-reconciles
-                                 (assoc-in world [:total-held :USDC] 39))))))
+    (is (some #(= :latest-source-balance-mismatch (:reason %))
+               (:violations (inv/check-pro-rata-accounting-reconciles
+                             (assoc-in world [:total-held :USDC] 39)))))
     (is (some #(= :latest-authoritative-withdrawn-balance-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/withdrawn :USDC "alice"] 39)))))
@@ -432,63 +434,169 @@
       (is (false? (:holds? results)))
       (is (= :fail (get-in results [:checks :application-output-hash-valid])))))
 
-  (testing "Application with missing output schema fails verification"
+  (testing "Application with unsupported output schema fails verification"
     (let [world (accounting-world)
           [app p] (create-test-application-with-output)
-          app-no-output (dissoc app :application/output)
+          app-bad-schema (assoc-in app [:application/output :schema-version] "unsupported-schema")
           world-with-output (assoc-in world [:yield/applied-pro-rata-propagations "p1"]
-                                      (assoc app-no-output :propagation-id "p1"))
+                                      (assoc app-bad-schema :propagation-id "p1"))
           world-with-prop (assoc-in world-with-output [:yield/pro-rata-propagations "p1"] p)
           results (inv/check-pro-rata-accounting-reconciles world-with-prop)]
       (is (false? (:holds? results)))
       (is (= :fail (get-in results [:checks :application-output-schema-valid]))))))
 
+(defn- v2-propagation-world
+  "Build a minimal world with a valid v2 propagation and matching decision."
+  []
+  (let [alloc (pro-rata/allocate
+               {:allocation/id [:v2-test]
+                :rows [{:row/id [:row "alice"]
+                        :obligation/id "obl-alice"
+                        :requested 100 :weight 100 :cap 100}
+                       {:row/id [:row "bob"]
+                        :obligation/id "obl-bob"
+                        :requested 60 :weight 60 :cap 60}]
+                :available 160
+                :rounding-policy :largest-remainder
+                :tie-break-policy :canonical-row-id
+                :redistribution-policy :unallocated})
+        mech-evidence (pro-rata-evidence/mechanism-evidence-artifact alloc)
+        alloc-rows (mapv (fn [r]
+                           {:key (name (second (:row/id r)))
+                            :obligation-id (:obligation/id r)
+                            :source-position-id nil
+                            :filled (long (:allocated r))
+                            :deferred 0
+                            :effective-cap (:requested r)
+                            :owed (:requested r)})
+                         (:rows alloc))
+        position {:owner/id "pool" :position/id "pool"
+                  :module/id :mod :token :USDC}
+        decision-base {:settlement-mode :partial-fill
+                       :requested (into {} (map (fn [r] [(:key r) (:owed r)]) alloc-rows))
+                       :filled (into {} (map (fn [r] [(:key r) (:filled r)]) alloc-rows))
+                       :deferred {}
+                       :haircut {}
+                       :policy {:mode :pro-rata}
+                       :evidence {:allocation-rows alloc-rows
+                                  :allocation-mechanism
+                                  {:allocation/id (:allocation/id alloc)
+                                   :allocation/hash (:allocation/hash alloc)
+                                   :mechanism (:mechanism alloc)}
+                                  :allocation-mechanism-evidence mech-evidence
+                                  :available-liquidity 160}}
+        decision (pf/decision-artifact position decision-base
+                                       {:decision-source :test
+                                        :allocation/invocation-context
+                                        {:step 1 :scenario-id "test"}})
+        raw-policy propagation-policy/shared-withdrawal-policy
+        propagation (pf/pro-rata-propagation-artifact
+                     decision raw-policy {:policy-source :default})
+        prop-id (:propagation/id propagation)]
+    {:yield/pro-rata-propagations {prop-id propagation}
+     :yield/partial-fill-decisions {(:decision/id decision) decision}
+     :yield/positions {"alice" {:status :withdrawn :shortfall {:deferred-amount 0}}
+                        "bob" {:status :withdrawn :shortfall {:deferred-amount 0}}}}))
+
 (deftest outcome-preimage-mutation-detected
-  (testing "Decision preimage tampering is detected during verification"
-    (let [decision-base {:settlement-mode :partial-fill
-                         :requested {:alice 40 :bob 20}
-                         :filled {:alice 40 :bob 20}
-                         :deferred {:alice 0 :bob 0}
-                         :haircut {}
-                         :policy {:mode :pro-rata}
-                         :evidence {:available-liquidity 100}}
-          position {:owner/id "shared-pool" :position/id "shared-pool" :module/id :mod :token :USDC}
-          decision (pf/decision-artifact position decision-base {:decision-source :test})
-          p {:propagation/id "p1" :calculation-ref (:decision/id decision) :outcome-ref (:decision/hash decision)
-             :token :USDC
-             :participants [{:participant-id "alice" :fulfilled 40 :origin {:obligation-id "oa"}}
-                            {:participant-id "bob" :fulfilled 20 :origin {:obligation-id "ob"}}]
-             :accounting-entries valid-entries
-             :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)}
-          app {:schema-version "pro-rata-propagation-application.v3"
-               :propagation-id "p1"
-               :propagation/reference {:propagation/id "p1" :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"}
-               :calculation-id (:decision/id decision)
-               :outcome-hash (:decision/hash decision)
-               :application-key [:pro-rata-propagation (:decision/id decision) (:decision/hash decision) (:policy/hash (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy))]
-               :application-order {:schema-version "pro-rata-application-order.v2" :step 1 :event-id 0}
-               :accounting-entry-set-hash (pf/accounting-entry-set-hash valid-entries)
-               :source-account {:account :shared-liquidity :token :USDC :before 100 :delta -60 :after 40}
-               :participants [{:participant-id "alice" :obligation-id "oa" :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
-                               :obligation {:before 40 :fulfilled 40 :deferred 0 :unmet 0 :waived 0 :after 0}
-                               :cumulative-fulfilled {:before 0 :delta 40 :after 40}}
-                              {:participant-id "bob" :obligation-id "ob" :withdrawn {:token :USDC :before 0 :delta 20 :after 20}
-                               :obligation {:before 20 :fulfilled 20 :deferred 0 :unmet 0 :waived 0 :after 0}
-                               :cumulative-fulfilled {:before 0 :delta 20 :after 20}}]}
-          app (assoc app :application/hash (pf/application-hash app)
-                     :application/output {:schema-version "pro-rata-application-output.v1"
-                                          :hash-algorithm "sha256"
-                                          :hash (pf/pro-rata-application-output-hash app p)})]
-      (let [world {:yield/partial-fill-decisions {(:decision/id decision) decision}
-                   :yield/pro-rata-propagations {"p1" p}
-                   :yield/applied-pro-rata-propagations {"p1" app}
-                   :total-held {:USDC 40}
-                   :yield/withdrawn {:USDC {"alice" 40 "bob" 20}}
-                   :yield/positions {"alice" {:status :withdrawn :token :USDC}
-                                     "bob" {:status :withdrawn :token :USDC}}}
-            results-valid (inv/check-pro-rata-accounting-reconciles world)
-            world-tampered (assoc-in world [:yield/partial-fill-decisions (:decision/id decision) :decision/preimage] "tampered")
-            results-tampered (inv/check-pro-rata-accounting-reconciles world-tampered)]
-        (is (true? (:holds? results-valid)))
-        (is (false? (:holds? results-tampered)))
-        (is (some #(= :decision-hash-mismatch (:reason %)) (:violations results-tampered)))))))
+  (testing "Decision hash validity is verified by check-pro-rata-propagation-complete"
+    (let [world (v2-propagation-world)
+          prop-id (ffirst (:yield/pro-rata-propagations world))
+          prop (get-in world [:yield/pro-rata-propagations prop-id])
+          calc-ref (:calculation-ref prop)
+          decision (get-in world [:yield/partial-fill-decisions calc-ref])
+          world-tampered (assoc-in world [:yield/partial-fill-decisions calc-ref :filled] {:alice 0 :bob 0})
+          results-valid (inv/check-pro-rata-propagation-complete world)
+          results-tampered (inv/check-pro-rata-propagation-complete world-tampered)]
+      (is (= :pass (get-in results-valid [:checks :allocation-decision-binding-valid])))
+      (is (= :fail (get-in results-tampered [:checks :allocation-decision-binding-valid])))
+      (is (some #(= :decision-hash-mismatch (:reason %)) (:violations results-tampered))))))
+
+(deftest v2-propagation-without-allocation-decision-is-detected
+  (let [world (v2-propagation-world)
+        prop-id (ffirst (:yield/pro-rata-propagations world))
+        world' (update world :yield/partial-fill-decisions empty)
+        result (inv/check-pro-rata-propagation-complete world')]
+    (is (= :fail (get-in result [:checks :allocation-decision-binding-valid]))
+        "missing decision must be detected through decision binding")
+    (is (false? (get-in result [:categories :allocation-propagated-exactly]))
+        "propagation-exact category must reflect the failure")))
+
+(deftest allocation-reference-substitution-is-detected
+  (let [world (v2-propagation-world)
+        prop-id (ffirst (:yield/pro-rata-propagations world))
+        world' (assoc-in world
+                         [:yield/pro-rata-propagations prop-id
+                          :allocation/reference :allocation/id]
+                         :substituted-allocation)
+        result (inv/check-pro-rata-propagation-complete world')]
+    (is (= :fail (get-in result [:checks :allocation-decision-binding-valid]))
+        "substituted allocation reference must be detected")
+    (is (false? (get-in result [:categories :allocation-propagated-exactly]))
+        "propagation-exact category must reflect the failure")))
+
+(deftest propagation-fulfilled-mutation-is-detected
+  (let [world (v2-propagation-world)
+        prop-id (ffirst (:yield/pro-rata-propagations world))
+        world' (assoc-in world
+                         [:yield/pro-rata-propagations prop-id
+                          :participants 0 :fulfilled]
+                         999)
+        result (inv/check-pro-rata-propagation-complete world')]
+    (is (= :fail (get-in result [:checks :allocation-row-translation-valid]))
+        "row translation must detect fulfilled mismatch against decision")
+    (is (false? (get-in result [:categories :allocation-propagated-exactly]))
+        "propagation-exact category must reflect the failure")))
+
+(deftest account-class-corruption-is-detected
+  (let [world (accounting-world)
+        entries (get-in world [:yield/pro-rata-propagations "p1" :accounting-entries])
+        credit-index (first
+                      (keep-indexed
+                       (fn [idx entry]
+                         (when (= :credit (:entry/type entry)) idx))
+                       entries))
+        _ (is (some? credit-index)
+              "fixture must contain at least one credit entry")
+        world' (assoc-in world
+                         [:yield/pro-rata-propagations "p1"
+                          :accounting-entries credit-index :account]
+                         :shared-liquidity)
+        result (inv/check-pro-rata-propagation-complete world')]
+    (is (= :fail (get-in result [:checks :account-classes-valid]))
+        "account-class check must detect role boundary violation")
+    (is (false? (get-in result [:categories :account-classes-valid]))
+        "account-classes category must reflect the failure")))
+
+(deftest missing-credit-entry-is-detected
+  (let [world (accounting-world)
+        entries (get-in world [:yield/pro-rata-propagations "p1" :accounting-entries])
+        credit-index (first
+                      (keep-indexed
+                       (fn [idx entry]
+                         (and (= :credit (:entry/type entry))
+                              (pos? (long (:delta entry 0)))
+                              idx))
+                       entries))
+        _ (is (some? credit-index)
+              "fixture must contain a non-zero participant credit entry")
+        removed-entry (fn [entries]
+                        (let [removed? (volatile! false)]
+                          (vec
+                           (reduce
+                            (fn [result entry]
+                              (if (and (not @removed?)
+                                       (= :credit (:entry/type entry))
+                                       (pos? (long (:delta entry 0))))
+                                (do (vreset! removed? true) result)
+                                (conj result entry)))
+                            [] entries))))
+        truncated-entries (removed-entry entries)
+        world' (assoc-in world
+                         [:yield/pro-rata-propagations "p1" :accounting-entries]
+                         truncated-entries)
+        result (inv/check-pro-rata-propagation-complete world')]
+    (is (= :fail (get-in result [:checks :participant-accounting-reconciled]))
+        "participant accounting must detect missing credit entry")
+    (is (false? (get-in result [:categories :accounting-entries-complete]))
+        "entries-complete category must reflect the failure")))

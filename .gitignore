@@ -36,13 +36,14 @@ __pycache__/
 .jupyter
 .venv
 venv/
-scripts/__pycache__
 pytest-of-user
 .hypothesis
+__pycache__/
 
 # Clerk notebook artifacts
 .clerk
 notebook.log
+
 
 # IDE / editor
 .vscode

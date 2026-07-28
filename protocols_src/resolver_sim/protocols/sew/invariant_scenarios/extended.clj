@@ -1562,8 +1562,83 @@
      :params {:workflow-id 0}}
     {:seq 3 :time 1120 :agent "resolver" :action "execute_resolution"
      :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
-    {:seq 4 :time 1250 :agent "keeper" :action "execute_pending_settlement"
+     {:seq 4 :time 1250 :agent "keeper" :action "execute_pending_settlement"
+      :params {:workflow-id 0}}]})
+
+(def s114
+  {:scenario-id        "s114-resolution-module-mutation"
+   :schema-version     "1.0"
+   :scenario-author    "@opencode"
+   :initial-block-time 1000
+   :agents             [{:id "buyer"   :address "0xbuyer"   :strategy "honest"}
+                        {:id "seller"  :address "0xseller"  :strategy "honest"}
+                        {:id "resolver" :address "0xresolver" :role "resolver"}
+                        {:id "governance" :address "0xgov" :role "governance"}]
+   :protocol-params    dr3
+   :notes "Governance changes the resolution-module param while a dispute is in-flight. The existing dispute's module snapshot is immutable, so it resolves normally. New escrows would use the new module."
+   :events
+   [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
+     :params {:amount 5000}}
+    {:seq 1 :time 1000 :agent "buyer" :action "create_escrow"
+     :params {:token "USDC" :to "0xseller" :amount 5000
+              :custom-resolver "0xresolver"}}
+    {:seq 2 :time 1060 :agent "buyer" :action "raise_dispute"
+     :params {:workflow-id 0}}
+    {:seq 3 :time 1100 :agent "governance" :action "set_resolution_module"
+     :params {:resolution-module "0xnew-module"}}
+     {:seq 4 :time 1120 :agent "resolver" :action "execute_resolution"
+      :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}]})
+
+(def s115
+  {:scenario-id        "s115-resolution-refused-timeout"
+   :schema-version     "1.0"
+   :scenario-author    "@opencode"
+   :initial-block-time 1000
+   :agents             [{:id "buyer"    :address "0xbuyer"    :strategy "honest"}
+                        {:id "seller"   :address "0xseller"   :strategy "honest"}
+                        {:id "resolver" :address "0xresolver" :role "resolver"}
+                        {:id "keeper"   :address "0xkeeper"   :role "keeper"}]
+   :protocol-params    timeout
+   :notes "Kleros ruling 0 (refuse to arbitrate). The escrow stays disputed until max-dispute-duration (300s) elapses, then the keeper auto-cancels via auto-cancel-refused-resolution."
+   :allow-open-disputes? false
+   :events
+   [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
+     :params {:amount 5000}}
+    {:seq 1 :time 1000 :agent "buyer" :action "create_escrow"
+     :params {:token "USDC" :to "0xseller" :amount 5000
+              :custom-resolver "0xresolver"}}
+    {:seq 2 :time 1060 :agent "buyer" :action "raise_dispute"
+     :params {:workflow-id 0}}
+    {:seq 3 :time 1120 :agent "resolver" :action "execute_resolution"
+     :params {:workflow-id 0 :resolution-outcome "cannot-resolve" :resolution-hash "0xhash"}}
+    {:seq 4 :time 1361 :agent "keeper" :action "automate_timed_actions"
      :params {:workflow-id 0}}]})
+
+(def s116
+  {:scenario-id        "s116-resolution-refused-then-resolved"
+   :schema-version     "1.0"
+   :scenario-author    "@opencode"
+   :initial-block-time 1000
+   :agents             [{:id "buyer"      :address "0xbuyer"      :strategy "honest"}
+                        {:id "seller"     :address "0xseller"     :strategy "honest"}
+                        {:id "resolver"  :address "0xresolver"  :role "resolver"}
+                        {:id "governance" :address "0xgov"       :role "governance"}]
+   :protocol-params    timeout
+   :notes "Kleros ruling 0 (refuse to arbitrate). Before the timeout expires, governance rotates the resolver (who can then release). Tests the recovery path where a refused dispute gets back on track."
+   :events
+   [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
+     :params {:amount 5000}}
+    {:seq 1 :time 1000 :agent "buyer" :action "create_escrow"
+     :params {:token "USDC" :to "0xseller" :amount 5000
+              :custom-resolver "0xresolver"}}
+    {:seq 2 :time 1060 :agent "buyer" :action "raise_dispute"
+     :params {:workflow-id 0}}
+    {:seq 3 :time 1120 :agent "resolver" :action "execute_resolution"
+     :params {:workflow-id 0 :resolution-outcome "cannot-resolve" :resolution-hash "0xhash"}}
+    {:seq 4 :time 1200 :agent "governance" :action "rotate_dispute_resolver"
+     :params {:workflow-id 0 :new-resolver "0xresolver"}}
+    {:seq 5 :time 1300 :agent "resolver" :action "execute_resolution"
+     :params {:workflow-id 0 :is-release true :resolution-hash "0xrelease"}}]})
 
 ;; ---------------------------------------------------------------------------
 

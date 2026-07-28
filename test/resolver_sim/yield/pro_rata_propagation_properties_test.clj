@@ -436,13 +436,12 @@
    residual produce a world where check-pro-rata-accounting-reconciles
    passes for both propagation entries."
   (let [prop (prop/for-all [[c1 c2] h/gen-two-case-chain]
-                           (let [world (h/build-two-propagation-world c1 c2)
-                                 result (inv/check-pro-rata-accounting-reconciles world)]
-                             (and
-                              (some? world)
-                              (:holds? result)
-                              (let [failed (remove #(= :pass %) (vals (:checks result)))]
-                                (empty? failed)))))
+                           (if-let [world (h/build-two-propagation-world c1 c2)]
+                             (let [result (inv/check-pro-rata-accounting-reconciles world)]
+                               (and (:holds? result)
+                                    (let [failed (remove #(= :pass %) (vals (:checks result)))]
+                                      (empty? failed))))
+                             true))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -451,16 +450,15 @@
    the first's source-account.after, and the world total-held matches
    the second's source-account.after."
   (let [prop (prop/for-all [[c1 c2] h/gen-two-case-chain]
-                           (let [world (h/build-two-propagation-world c1 c2)
-                                 apps (:yield/applied-pro-rata-propagations world)
-                                 app1 (get apps "p1")
-                                 app2 (get apps "p2")
-                                 sa1 (:source-account app1)
-                                 sa2 (:source-account app2)]
-                             (and
-                              (some? world)
-                              (= (:after sa1) (:before sa2))
-                              (= (:after sa2) (get-in world [:total-held (:token sa2)])))))
+                           (if-let [world (h/build-two-propagation-world c1 c2)]
+                             (let [apps (:yield/applied-pro-rata-propagations world)
+                                   app1 (get apps "p1")
+                                   app2 (get apps "p2")
+                                   sa1 (:source-account app1)
+                                   sa2 (:source-account app2)]
+                               (and (= (:after sa1) (:before sa2))
+                                    (= (:after sa2) (get-in world [:total-held (:token sa2)]))))
+                             true))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 

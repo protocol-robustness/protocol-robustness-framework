@@ -157,6 +157,9 @@
    ["EXT-same-timestamp-cancel-vs-dispute"               cancellation-ext/s-same-timestamp-cancel-vs-dispute]
     ["EXT-same-timestamp-dispute-vs-cancel"               cancellation-ext/s-same-timestamp-dispute-vs-cancel]
     ["EXT-auto-cancel-time-via-keeper"                     cancellation-ext/s-auto-cancel-time-via-keeper]
+    ["S114 resolution-module-mutation"                      extended/s114]
+    ["S115 resolution-refused-timeout"                      extended/s115]
+    ["S116 resolution-refused-then-resolved"                extended/s116]
     ["EXT-auto-cancel-time-boundary"                       cancellation-ext/s-auto-cancel-time-boundary]
      ["EXT-auto-cancel-time-orphaned-by-dispute"             cancellation-ext/s-auto-cancel-time-orphaned-by-dispute]
      ["EXT-same-timestamp-auto-cancel-vs-dispute"            cancellation-ext/s-same-timestamp-auto-cancel-vs-dispute]
@@ -670,7 +673,19 @@
 
    "s-auto-cancel-due-on-disputed-pending-settlement"
    {:scenario/type :griefing-protection
-    :tests #{:auto-cancel-due-on-disputed :pending-settlement-blocks :keeper-dispatch}}})
+    :tests #{:auto-cancel-due-on-disputed :pending-settlement-blocks :keeper-dispatch}}
+
+   "s114-resolution-module-mutation"
+   {:scenario/type :governance
+    :tests #{:resolution-module :mid-dispute-mutation :snapshot-immutability}}
+
+   "s115-resolution-refused-timeout"
+   {:scenario/type :kleros-ruling-0
+    :tests #{:arbitrator-refusal :timeout-fallback :auto-cancel-refused}}
+
+   "s116-resolution-refused-then-resolved"
+   {:scenario/type :kleros-ruling-0
+    :tests #{:arbitrator-refusal :governance-recovery :resolve-after-refusal}}})
 
 (defn- scenario-registry-entries []
   (mapcat (fn [[display-name entry]]
