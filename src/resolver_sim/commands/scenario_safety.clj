@@ -163,19 +163,13 @@
       (when-let [relevant-findings (seq (filter #(= (:finding/path-token %) scenario-path-token) findings))]
         (let [evidence-classification (sentinel/classify-from-findings relevant-findings)]
           {:structural/classification-level (name (:level evidence-classification))
-           :structural/reasons
-           (mapv (fn [f]
-                   {:reason/code (case (:rule/id f)
-                                   :secret-scanner/private-key :contains-live-vulnerability
-                                   :secret-scanner/credential-assignment :contains-unpublished-evidence
-                                   :secret-scanner/bearer-auth :contains-unpublished-evidence
-                                   :secret-scanner/jwt-token :contains-protocol-identifier
-                                   :secret-scanner/github-token :contains-linkable-subject-hash
-                                   :secret-scanner/npm-token :contains-linkable-subject-hash
-                                   :contains-unpublished-evidence)
-                    :rule/id (:rule/id f)
-                    :rule/version (:rule/version f)
-                    :finding/ref (:finding/id f)})
+            :structural/reasons
+            (mapv (fn [f]
+                    (let [codes (sentinel/finding-reason-codes (:rule/id f))]
+                      {:reason/code (first codes)
+                       :rule/id (:rule/id f)
+                       :rule/version (:rule/version f)
+                       :finding/ref (:finding/id f)}))
                  relevant-findings)
            :structural/ruleset-hash (secret-scanner-ruleset-hash)
            :evidence/findings relevant-findings})))))

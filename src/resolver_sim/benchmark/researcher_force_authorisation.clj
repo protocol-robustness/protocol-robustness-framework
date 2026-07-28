@@ -1041,6 +1041,10 @@
       (when-not (some? o-hash)
         (swap! errors conj {:field :resulting-outcome-hash
                             :reason ":consumed requires resulting-outcome-hash"}))
+      :failed-after-consumption
+      (when-not (some? (:consumption/terminal-evidence-hash receipt))
+        (swap! errors conj {:field :terminal-evidence-hash
+                            :reason ":failed-after-consumption requires terminal-evidence-hash"}))
       :rolled-back-after-consumption
       (when-not (some? (:consumption/terminal-evidence-hash receipt))
         (swap! errors conj {:field :terminal-evidence-hash

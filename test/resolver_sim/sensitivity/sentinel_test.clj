@@ -486,9 +486,8 @@
 (deftest evidence-backed-classification-via-sensitivity-findings
   (let [artifact {:sensitivity/findings [sample-finding-private-key]}
         result (sentinel/classify-structural artifact)]
-    (is (= :sensitivity/private (:level (sentinel/classify-from-findings
-                                         (:sensitivity/findings artifact))))
-        "classify-from-findings must return private for private-key finding")))
+    (is (= :sensitivity/private result)
+        "classify-structural must use sensitivity-findings for evidence-backed level")))
 
 (deftest evidence-backed-classification-via-safety-findings
   (let [artifact {:safety/findings [sample-finding-jwt]}
@@ -530,6 +529,14 @@
         r (sentinel/sentinel-report artifact :local)]
     (is (some? (:sentinel/evidence-findings r))
         "sentinel report must include :sentinel/evidence-findings when findings present")
+    (is (= 1 (count (:sentinel/evidence-findings r))))))
+
+(deftest sentinel-report-includes-evidence-findings-via-safety
+  (let [artifact {:scenario-id "s42"
+                  :safety/findings [sample-finding-jwt]}
+        r (sentinel/sentinel-report artifact :local)]
+    (is (some? (:sentinel/evidence-findings r))
+        "sentinel report must include :sentinel/evidence-findings when safety/findings present")
     (is (= 1 (count (:sentinel/evidence-findings r))))))
 
 (deftest sentinel-report-omits-evidence-findings-without-findings

@@ -1426,14 +1426,18 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-fail)
         flow (fa-consume-flow reg auth
-                              fa-consumption-cmd-root fa-consumption-plan-root
-                              fa-consumption-executed-root fa-consumption-attempt-id
-                              :fail-after-reservation? true)
+                               fa-consumption-cmd-root fa-consumption-plan-root
+                               fa-consumption-executed-root fa-consumption-attempt-id
+                               :fail-after-reservation? true)
         profile (fa-ev-build! auth flow)]
     (is (some? (:evidence-profile/hash profile)))
     (let [v (:evidence-profile/verification profile)]
       (is (:authorisation-valid? v))
-      (is (:decision-signatures-valid? v)))
+      (is (:decision-signatures-valid? v))
+      (is (:policy-binding-valid? v))
+      (is (:review-round-binding-valid? v))
+      (is (:manifest-binding-valid? v))
+      (is (:receipt-binding-valid? v)))
     (let [er (:evidence-profile/execution-result profile)]
       (is (= :failed-after-consumption (:terminal-status er)))
       (is (:outcome-produced? er))

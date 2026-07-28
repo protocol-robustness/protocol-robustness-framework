@@ -145,6 +145,8 @@
 
 ;; ── Evidence-Backed Classification ───────────────────────────────────────────
 
+(declare finding-reason-codes)
+
 (defn classify-from-findings
   "Classify an artifact based on safety findings (evidence) from scanning.
    
@@ -171,20 +173,26 @@
                                         :secret-scanner/npm-token :sensitivity/internal
                                         :sensitivity/critical-private))
                                     findings))
-          reason-codes (vec (distinct
-                             (mapcat (fn [f]
-                                       (case (:rule/id f)
-                                         :secret-scanner/private-key [:contains-live-vulnerability]
-                                         :secret-scanner/credential-assignment [:contains-unpublished-evidence]
-                                         :secret-scanner/bearer-auth [:contains-unpublished-evidence]
-                                         :secret-scanner/jwt-token [:contains-protocol-identifier]
-                                         :secret-scanner/github-token [:contains-linkable-subject-hash]
-                                         :secret-scanner/npm-token [:contains-linkable-subject-hash]
-                                         [:contains-unpublished-evidence]))
-                                     findings)))]
+          reason-codes (vec (distinct (mapcat (fn [f]
+                                                (finding-reason-codes (:rule/id f)))
+                                              findings)))]
       {:level highest-level
        :reasons reason-codes
        :findings (vec (map :finding/id findings))})))
+
+(defn finding-reason-codes
+  "Map a finding's rule ID to its reason code keywords.
+   Single source of truth — all evidence-backed classification paths
+   share this mapping."
+  [rule-id]
+  (case rule-id
+    :secret-scanner/private-key [:contains-live-vulnerability]
+    :secret-scanner/credential-assignment [:contains-unpublished-evidence]
+    :secret-scanner/bearer-auth [:contains-unpublished-evidence]
+    :secret-scanner/jwt-token [:contains-protocol-identifier]
+    :secret-scanner/github-token [:contains-linkable-subject-hash]
+    :secret-scanner/npm-token [:contains-linkable-subject-hash]
+    [:contains-unpublished-evidence]))
 
 (defn- evidence-backed-classification
   "Attempt to classify based on evidence findings attached to the artifact.
@@ -195,8 +203,8 @@
    
    Returns {:level <kw> :reasons [<kw> ...]} or nil if no findings present."
   [artifact]
-  (when-let [findings (or (:sensitivity/findings artifact)
-                          (:safety/findings artifact))]
+  (when-let [findings (or (seq (:sensitivity/findings artifact))
+                          (seq (:safety/findings artifact)))]
     (classify-from-findings findings)))
 
 ;; ── Classification ───────────────────────────────────────────────────────────
@@ -369,20 +377,12 @@
    
    Returns vector of reason code keywords, or empty vector if no findings."
   [artifact]
-  (let [findings (or (:sensitivity/findings artifact)
-                     (:safety/findings artifact))]
-    (when (seq findings)
-      (vec (distinct
-            (mapcat (fn [f]
-                      (case (:rule/id f)
-                        :secret-scanner/private-key [:contains-live-vulnerability]
-                        :secret-scanner/credential-assignment [:contains-unpublished-evidence]
-                        :secret-scanner/bearer-auth [:contains-unpublished-evidence]
-                        :secret-scanner/jwt-token [:contains-protocol-identifier]
-                        :secret-scanner/github-token [:contains-linkable-subject-hash]
-                        :secret-scanner/npm-token [:contains-linkable-subject-hash]
-                        [:contains-unpublished-evidence]))
-                    findings))))))
+  (let [findings (or (seq (:sensitivity/findings artifact))
+                     (seq (:safety/findings artifact)))]
+    (when findings
+      (vec (distinct (mapcat (fn [f]
+                               (finding-reason-codes (:rule/id f)))
+                             findings))))))
 
 (defn- extract-risk-meta
   "Extract the risk metadata map from an artifact, if present."
@@ -419,11 +419,13 @@
                          (:holds? artifact) :claim-result
                          (:bundle/kind artifact) :bundle
                          :else :unknown)
-        input-hash (or (:attestation/id artifact)
-                       (:node-hash artifact)
-                       (:bundle/root-hash artifact)
-                       (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
-        base-report {:sentinel/version sentinel-version
+         input-hash (or (:attestation/id artifact)
+                        (:node-hash artifact)
+                        (:bundle/root-hash artifact)
+                        (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
+         evidence-findings (not-empty (or (:sensitivity/findings artifact)
+                                        (:safety/findings artifact)))
+         base-report {:sentinel/version sentinel-version
                      :sentinel/policy-hash (compute-policy-hash)
                      :sentinel/evaluated-at (str (Instant/now))
                      :sentinel/input-kind input-kind
@@ -446,8 +448,8 @@
                                        (hc/hash-with-intent
                                         {:hash/intent :evidence-record}
                                         risk-meta))
-                      (seq (:sensitivity/findings artifact))
-                      (assoc :sentinel/evidence-findings (:sensitivity/findings artifact)))
+                       (seq evidence-findings)
+                        (assoc :sentinel/evidence-findings evidence-findings))
         report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                          (dissoc base-report
                                                  :sentinel/report-hash

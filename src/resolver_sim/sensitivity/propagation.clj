@@ -176,16 +176,12 @@
   (let [structural (sentinel/classify-structural artifact)
         declared-level (:level scenario-sensitivity)
         risk-meta (:risk-meta scenario-sensitivity)
-        ;; Evidence-backed reasons from findings
-        finding-reasons (some->> (or (:sensitivity/findings artifact)
-                                     (:safety/findings artifact))
-                                 (sentinel/classify-from-findings)
-                                 :reasons)
-        evidence-level (when (seq finding-reasons)
-                         (some-> (sentinel/classify-from-findings
-                                  (or (:sensitivity/findings artifact)
-                                      (:safety/findings artifact)))
-                                 :level))
+        ;; Evidence-backed classification from findings (single call)
+        evidence (some->> (or (seq (:sensitivity/findings artifact))
+                              (seq (:safety/findings artifact)))
+                          (sentinel/classify-from-findings))
+        finding-reasons (:reasons evidence)
+        evidence-level (:level evidence)
         structural-level (or evidence-level structural)
         effective (if (and declared-level
                            (contains? sentinel/level-set declared-level)

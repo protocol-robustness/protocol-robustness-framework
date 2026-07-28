@@ -34,11 +34,6 @@
 
 (def ^:const schema-version "three-member-research-certificate.v1")
 
-;; Absent-statuses definition imported from researcher-position.
-;; Must remain in sync with resolver-sim.benchmark.researcher-position/absent-statuses.
-(def ^:private absent-statuses
-  #{:not-reviewed :insufficient-information :not-applicable})
-
 ;; ── Outcome grouping ──────────────────────────────────────────────────────
 
 (defn group-outcomes
@@ -89,11 +84,21 @@
                (= 1 (count eval-policies)))
           :exact-replication
           (and (= 1 (count content-roots))
+               (= 1 (count model-roots))
+               (= 1 (count mi-roots))
+               (= 1 (count plan-roots))
                (= 1 (count domain-roots))
                (= 1 (count sampling-roots))
                (not= 1 (count case-roots)))
           :independent-sampling
-          (= 1 (count model-roots))
+          (and (= 1 (count content-roots))
+               (= 1 (count model-roots))
+               (= 1 (count mi-roots))
+               (= 1 (count plan-roots))
+               (or (not= 1 (count domain-roots))
+                   (not= 1 (count sampling-roots))
+                   (not= 1 (count case-roots))
+                   (not= 1 (count eval-policies))))
           :model-corroboration
           :else :incompatible-scope)))))
 
@@ -459,7 +464,11 @@
         (swap! errors conj "missing :execution/status"))
       (when-not (:outcome-groups exec)
         (swap! errors conj "missing :execution/outcome-groups")))
-    (when (some? (:certificate/hash certificate))
+     (doseq [f [:model-consensus :incentive-consensus :other-consensus
+                :theorem-consensus :conclusion-consensus :member-positions]]
+       (when-not (contains? certificate f)
+         (swap! errors conj (str "missing " (name f)))))
+     (when (some? (:certificate/hash certificate))
       (let [hash-input (dissoc certificate :certificate/hash)
             expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
         (when-not (= expected (:certificate/hash certificate))

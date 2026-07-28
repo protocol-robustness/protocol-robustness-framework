@@ -69,8 +69,8 @@
     ;; Receipt must reference an outcome manifest for this profile type
     (let [o-hash (:consumption/resulting-outcome-hash consumption-receipt)]
       (when-not (some? o-hash)
-        (swap! errors conj "consumption-receipt has no resulting-outcome-hash; "
-               "evidence profile requires an outcome-producing execution")))
+        (swap! errors conj (str "consumption-receipt has no resulting-outcome-hash; "
+                                "evidence profile requires an outcome-producing execution"))))
     (when (seq @errors)
       (throw (ex-info "Evidence profile build failed" {:errors @errors})))
     ;; ── Call each existing validator ────────────────────────────────────
@@ -106,6 +106,9 @@
             :rolled-back-after-consumption
             {:terminal-status :rolled-back-after-consumption
              :outcome-produced? true
+             :successful-authorised-outcome? false}
+            {:terminal-status :unknown
+             :outcome-produced? false
              :successful-authorised-outcome? false})
           ;; ── Build profile ─────────────────────────────────────────────
           base {:schema-version schema-version
