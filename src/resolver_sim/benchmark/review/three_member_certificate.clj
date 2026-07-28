@@ -30,7 +30,8 @@
    The certificate preserves both aggregate consensus and member-level
    per-dimension detail so the result is independently recomputable
    from referenced positions."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+             [resolver-sim.benchmark.review-round :as rr]))
 
 (def ^:const schema-version "three-member-research-certificate.v1")
 
@@ -317,6 +318,36 @@
                {}
                conclusions)))
 
+;; ── Member-key enrichment ─────────────────────────────────────────────────
+
+(defn- enrich-consensus-with-keys
+  "Add integer key vectors to a consensus result when the review round
+   has member keys.  Derives keys from the existing string-ID vectors
+   via the round's membership table.
+
+   Returns the consensus map unchanged when the round is not keyed."
+  [consensus round]
+  (if (rr/round-uses-member-keys? round)
+    (let [key-fn (fn [id] (rr/member-key-for-researcher round id))]
+      (merge consensus
+             (when-let [ids (seq (:supporting-members consensus))]
+               {:supporting-member-keys (mapv key-fn ids)})
+             (when-let [ids (seq (:qualifying-members consensus))]
+               {:qualifying-member-keys (mapv key-fn ids)})
+             (when-let [ids (seq (:dissenting-members consensus))]
+               {:dissenting-member-keys (mapv key-fn ids)})
+             (when-let [ids (seq (:absent-members consensus))]
+               {:absent-member-keys (mapv key-fn ids)})
+             (when-let [ids (seq (:not-reviewed-members consensus))]
+               {:not-reviewed-member-keys (mapv key-fn ids)})
+             (when-let [ids (seq (:insufficient-information-members consensus))]
+               {:insufficient-information-member-keys (mapv key-fn ids)})
+             (when-let [ids (seq (:not-applicable-members consensus))]
+               {:not-applicable-member-keys (mapv key-fn ids)})
+             (when-let [ids (seq (:assessed-members consensus))]
+               {:assessed-member-keys (mapv key-fn ids)})))
+    consensus))
+
 ;; ── Certificate pre-conditions ───────────────────────────────────────────
 
 (defn pre-certificate-checks
@@ -391,18 +422,37 @@
         :replication-type rep-type
         :outcome-groups outcome-groups}
        :model-consensus
-       (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+       (reduce (fn [m dim]
+                 (assoc m dim (enrich-consensus-with-keys
+                               (per-dimension-consensus positions dim)
+                               review-round)))
                {} model-dims)
        :incentive-consensus
-       (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+       (reduce (fn [m dim]
+                 (assoc m dim (enrich-consensus-with-keys
+                               (per-dimension-consensus positions dim)
+                               review-round)))
                {} incentive-dims)
        :other-consensus
-       (reduce (fn [m dim] (assoc m dim (per-dimension-consensus positions dim)))
+       (reduce (fn [m dim]
+                 (assoc m dim (enrich-consensus-with-keys
+                               (per-dimension-consensus positions dim)
+                               review-round)))
                {} other-dims)
        :theorem-consensus
-       (per-theorem-consensus positions)
+       (if (rr/round-uses-member-keys? review-round)
+         (reduce-kv (fn [m k v]
+                      (assoc m k (enrich-consensus-with-keys v review-round)))
+                    {}
+                    (per-theorem-consensus positions))
+         (per-theorem-consensus positions))
        :conclusion-consensus
-       (per-conclusion-consensus positions)
+       (if (rr/round-uses-member-keys? review-round)
+         (reduce-kv (fn [m k v]
+                      (assoc m k (enrich-consensus-with-keys v review-round)))
+                    {}
+                    (per-conclusion-consensus positions))
+         (per-conclusion-consensus positions))
        :member-positions
        (mapv (fn [pos]
                (let [report (some #(when (= (:researcher/id %)
@@ -412,10 +462,14 @@
                  (when-not report
                    (throw (ex-info "No matching report found for position"
                                    {:researcher/id (:researcher/id pos)})))
-                 {:researcher/id (:researcher/id pos)
-                  :position/hash (:position/hash pos)
-                  :outcome-hash (:position/outcome-hash pos)
-                  :report-hash (:researcher-run-report/hash report)}))
+                 (cond-> {:researcher/id (:researcher/id pos)
+                          :position/hash (:position/hash pos)
+                          :outcome-hash (:position/outcome-hash pos)
+                          :report-hash (:researcher-run-report/hash report)}
+                   (rr/round-uses-member-keys? review-round)
+                   (assoc :review-member/key
+                          (rr/member-key-for-researcher
+                           review-round (:researcher/id pos))))))
              positions)
        :force-authorisations (vec force-authorisations)
        :unresolved-disagreements (vec disagreements)

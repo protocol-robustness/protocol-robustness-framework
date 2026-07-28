@@ -1,7 +1,8 @@
 (ns resolver-sim.benchmark.researcher-force-authorisation-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
-            [resolver-sim.benchmark.signing :as signing]))
+            [resolver-sim.benchmark.signing :as signing]
+            [resolver-sim.benchmark.review-round :as rr]))
 
 ;; ── Mock key infrastructure ──────────────────────────────────────────────
 ;; Avoids system ssh-keygen dependency. The signing function is redef'd
@@ -276,3 +277,94 @@
         result (rfa/verify-against-policy policy auth)]
     (is (not (:valid? result)))
     (is (some #(re-find #"threshold" %) (:errors result)))))
+
+;; ── Member-key cross-check tests ───────────────────────────────────────────
+
+(def ^:private unkeyed-round
+  {:review-round/id :review-round/test
+   :review-round/hash "sha256:unkeyed-round-hash"
+   :benchmark/content-root "sha256:cr"
+   :review-round/purpose :model-admission
+   :review-round/members
+   [{:researcher/id "researcher-a" :role :model-steward}
+    {:researcher/id "researcher-b" :role :independent-reproducer}
+    {:researcher/id "researcher-c" :role :adversarial-reviewer}]
+   :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+   :review-round/policy-root "sha256:policy"})
+
+(def ^:private keyed-round
+  {:review-round/id :review-round/test-keyed
+   :review-round/hash "sha256:keyed-round-hash"
+   :benchmark/content-root "sha256:cr"
+   :review-round/purpose :model-admission
+   :review-round/members
+   [{:review-member/key 0, :researcher/id "researcher-a", :role :model-steward}
+    {:review-member/key 1, :researcher/id "researcher-b", :role :independent-reproducer}
+    {:review-member/key 2, :researcher/id "researcher-c", :role :adversarial-reviewer}]
+   :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+   :review-round/policy-root "sha256:policy"})
+
+(deftest verify-against-round-keyed-round-derives-key-from-id
+  (let [auth (build-auth :decisions [(mock-decision "researcher-a" :approve)
+                                     (mock-decision "researcher-b" :approve)])
+        result (rfa/verify-against-round keyed-round auth)]
+    (is (:valid? result))
+    (is (= [0 1] (:approval-member-keys result)))
+    (is (empty? (:dissent-member-keys result)))))
+
+(deftest verify-against-round-keyed-round-cross-checks-provided-key
+  (let [decision-with-correct-key
+        (assoc (mock-decision "researcher-a" :approve) :review-member/key 0)
+        auth (build-auth :decisions [decision-with-correct-key
+                                     (mock-decision "researcher-b" :approve)])
+        result (rfa/verify-against-round keyed-round auth)]
+    (is (:valid? result))
+    (is (= [0 1] (:approval-member-keys result)))))
+
+(deftest verify-against-round-key-mismatch-detected
+  (let [decision-with-wrong-key
+        (assoc (mock-decision "researcher-a" :approve) :review-member/key 2)
+        auth (build-auth :decisions [decision-with-wrong-key
+                                     (mock-decision "researcher-b" :approve)])
+        result (rfa/verify-against-round keyed-round auth)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #"member key mismatch.*researcher-a" %) (:errors result)))))
+
+(deftest verify-against-round-keyed-ref-rejected-against-unkeyed-round
+  (let [decision-with-key
+        (assoc (mock-decision "researcher-a" :approve) :review-member/key 0)
+        auth (build-auth :decisions [decision-with-key
+                                     (mock-decision "researcher-b" :approve)])
+        result (rfa/verify-against-round unkeyed-round auth)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #":member-key-unresolvable.*researcher-a" %)
+              (:errors result)))))
+
+(deftest verify-against-round-unkeyed-ref-passes-against-unkeyed-round
+  (let [auth (build-auth :decisions [(mock-decision "researcher-a" :approve)
+                                     (mock-decision "researcher-b" :approve)])
+        result (rfa/verify-against-round unkeyed-round auth)]
+    (is (:valid? result))
+    (is (not (contains? result :approval-member-keys))
+        "unkeyed round should not emit key vectors")))
+
+(deftest force-authorisation-summary-key-vectors
+  (let [auth (build-auth :decisions [(mock-decision "researcher-a" :approve)
+                                     (mock-decision "researcher-b" :dissent
+                                                    :dissent-reason "scope")
+                                     (mock-decision "researcher-c" :approve)])
+        reservation {:reservation/execution-attempt-id :execution/test
+                     :reservation/authorisation-hash (:authorisation/hash auth)}
+        manifest {:execution/force-authorisation
+                  {:authorisation-hash (:authorisation/hash auth)}
+                  :benchmark-outcome/hash "sha256:o"}
+        receipt {:consumption/status :consumed
+                 :consumption/hash "sha256:receipt"
+                 :consumption/resulting-outcome-hash "sha256:o"}
+        profile {:evidence-profile/hash "sha256:profile"}
+        summary (rfa/force-authorisation-summary
+                 auth reservation manifest receipt profile keyed-round)]
+    (is (= [0 2] (get-in summary [:decision :approval-member-keys])))
+    (is (= [1] (get-in summary [:decision :dissent-member-keys])))
+    (is (= ["researcher-a" "researcher-c"] (get-in summary [:decision :approvals])))
+    (is (= ["researcher-b"] (get-in summary [:decision :dissents])))))

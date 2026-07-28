@@ -199,6 +199,41 @@
                      (conj (str "Missing finalisation outputs for purpose " purpose ": " missing)))]
         {:valid? (empty? errors) :purpose purpose :errors errors}))))
 
+;; ── Member-key predicates ─────────────────────────────────────────────────
+
+(defn valid-member-key?
+  "True when k is a non-negative integer."
+  [k]
+  (and (integer? k) (not (neg? k))))
+
+(defn round-uses-member-keys?
+  "True when every member of the round carries a :review-member/key.
+   A round is keyed only when all members have explicit keys."
+  [round]
+  (let [members (:review-round/members round)]
+    (and (seq members)
+         (every? :review-member/key members))))
+
+(defn unique-member-keys?
+  "True when no two members share the same :review-member/key."
+  [members]
+  (let [ks (map :review-member/key members)]
+    (= (count ks) (count (set ks)))))
+
+(defn dense-member-key-set?
+  "True when member keys form a dense zero-based set: #{0..n-1}."
+  [members]
+  (= (set (map :review-member/key members))
+     (set (range (count members)))))
+
+(defn assign-consecutive-member-keys
+  "Assign :review-member/key 0..n-1 in caller vector order.
+   Caller declares that insertion order is semantically meaningful.
+   Does NOT modify the original member maps — returns new ones."
+  [members]
+  (mapv (fn [idx m] (assoc m :review-member/key idx))
+        (range) members))
+
 ;; ── Round builder ─────────────────────────────────────────────────────────
 
 (defn build-review-round
@@ -233,18 +268,40 @@
     (doseq [m members]
       (when-not (contains? member-roles (:role m))
         (throw (ex-info (str "Invalid member role: " (:role m))
-                        {:member m :allowed member-roles}))))
+                        {:member m :allowed member-roles})))
+      (when (and (some? (:review-member/key m))
+                 (not (valid-member-key? (:review-member/key m))))
+        (throw (ex-info (str "Invalid member key: " (:review-member/key m))
+                        {:member m}))))
+    (let [keyed? (every? :review-member/key members)]
+      (when (and keyed? (not (unique-member-keys? members)))
+        (throw (ex-info "Duplicate review-member keys"
+                        {:members members})))
+      (when (and keyed? (not (dense-member-key-set? members)))
+        (throw (ex-info "Non-dense review-member keys"
+                        {:keys (map :review-member/key members)})))
+      (when (and keyed? (not (every? valid-member-key? (map :review-member/key members))))
+        (throw (ex-info "Invalid review-member keys"
+                        {:keys (map :review-member/key members)})))
+      (when (some? (some :review-member/key members))
+        (when-not keyed?
+          (throw (ex-info "Mixed keyed and unkeyed members in review round"
+                          {:members members})))))
     (let [reqs (check-creation-requirements purpose ctx)]
       (when-not (:valid? reqs)
         (throw (ex-info (str "Review-round creation requirements not met: " (:errors reqs))
                         {:purpose purpose :errors (:errors reqs)}))))
-    (let [review-round-id (str "review-round:"
-                               (hc/domain-hash :review-round-identity
-                                               {:benchmark/content-root content-root
-                                                :members (vec (sort-by :researcher/id members))
-                                                :membership-frozen-at membership-frozen-at
-                                                :policy-root policy-root
-                                                :purpose purpose}))]
+    (let [keyed? (every? :review-member/key members)
+          sorted-members (if keyed?
+                           (vec (sort-by :review-member/key members))
+                           (vec (sort-by :researcher/id members)))
+          review-round-id (str "review-round:"
+                                (hc/domain-hash :review-round-identity
+                                                {:benchmark/content-root content-root
+                                                 :members sorted-members
+                                                 :membership-frozen-at membership-frozen-at
+                                                 :policy-root policy-root
+                                                 :purpose purpose}))]
       {:schema-version schema-version
        :review-round/id review-round-id
        :benchmark/content-root content-root
@@ -279,14 +336,20 @@
 (defn round-valid?
   "Quick structural check for a review round."
   [round]
-  (and (= schema-version (:schema-version round))
-       (some? (:review-round/id round))
-       (some? (:benchmark/content-root round))
-       (contains? review-purposes (:review-round/purpose round))
-       (contains? review-statuses (:review-round/status round :open))
-       (= 3 (count (:review-round/members round)))
-       (every? :researcher/id (:review-round/members round))
-       (every? (fn [m] (contains? member-roles (:role m))) (:review-round/members round))))
+  (let [members (:review-round/members round)]
+    (and (= schema-version (:schema-version round))
+         (some? (:review-round/id round))
+         (some? (:benchmark/content-root round))
+         (contains? review-purposes (:review-round/purpose round))
+         (contains? review-statuses (:review-round/status round :open))
+         (= 3 (count members))
+         (every? :researcher/id members)
+         (every? (fn [m] (contains? member-roles (:role m))) members)
+         (or (not (some? (some :review-member/key members)))
+             (and (every? :review-member/key members)
+                  (every? valid-member-key? (map :review-member/key members))
+                  (unique-member-keys? members)
+                  (dense-member-key-set? members))))))
 
 (defn validate-round
   "Standalone validator for a loaded review round.
@@ -313,14 +376,30 @@
     (let [st (:review-round/status round :open)]
       (when-not (contains? review-statuses st)
         (swap! errors conj (str "invalid status: " st))))
-    (let [members (:review-round/members round)]
+    (let [members (:review-round/members round)
+          keyed? (some? (some :review-member/key members))]
       (when-not (= 3 (count members))
         (swap! errors conj (str "expected 3 members, got " (count members))))
       (doseq [m members]
         (when-not (:researcher/id m)
           (swap! errors conj "member missing :researcher/id"))
         (when-not (contains? member-roles (:role m))
-          (swap! errors conj (str "invalid role: " (:role m) " in member")))))
+          (swap! errors conj (str "invalid role: " (:role m) " in member"))))
+      (when keyed?
+        (when-not (every? :review-member/key members)
+          (swap! errors conj "mixed keyed and unkeyed members"))
+        (when (every? :review-member/key members)
+          (when-not (unique-member-keys? members)
+            (swap! errors conj "duplicate review-member keys"))
+          (when-not (dense-member-key-set? members)
+            (swap! errors conj (str "non-dense review-member keys: " (map :review-member/key members))))
+          (doseq [m members]
+            (when-not (valid-member-key? (:review-member/key m))
+              (swap! errors conj (str "invalid member key: " (:review-member/key m)))))
+          (let [id->key (group-by :researcher/id members)]
+            (doseq [[rid ms] id->key]
+              (when (> (count ms) 1)
+                (swap! errors conj (str "duplicate researcher/id under different keys: " rid))))))))
     (let [purpose (:review-round/purpose round)
           fin-reqs (check-finalisation-requirements purpose round)]
       (when-not (:valid? fin-reqs)
@@ -332,3 +411,31 @@
   [round researcher-id]
   (some #(when (= researcher-id (:researcher/id %)) (:role %))
         (:review-round/members round)))
+
+;; ── Member-key lookup ─────────────────────────────────────────────────────
+
+(defn member-by-key
+  "Return the member map for a given member key, or nil."
+  [round key]
+  (some #(when (= key (:review-member/key %)) %)
+        (:review-round/members round)))
+
+(defn member-key-for-researcher
+  "Return the :review-member/key for a given researcher-id, or nil."
+  [round researcher-id]
+  (some #(when (= researcher-id (:researcher/id %))
+           (:review-member/key %))
+        (:review-round/members round)))
+
+(defn researcher-id-for-member-key
+  "Return the :researcher/id for a given member key, or nil."
+  [round key]
+  (:researcher/id (member-by-key round key)))
+
+(defn member-keys
+  "Return a vector of member keys for all members.
+   Returns nil when the round is not keyed (no member has a key).
+   Returns a vector only when all members have keys."
+  [round]
+  (when (round-uses-member-keys? round)
+    (mapv :review-member/key (:review-round/members round))))

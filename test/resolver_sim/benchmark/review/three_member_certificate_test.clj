@@ -1,7 +1,8 @@
 (ns resolver-sim.benchmark.review.three-member-certificate-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.review.three-member-certificate :as tmc]
-            [resolver-sim.benchmark.researcher-position :as rp]))
+            [resolver-sim.benchmark.researcher-position :as rp]
+            [resolver-sim.benchmark.review-round :as rr]))
 
 (defn- make-report [id outcome-hash & {:keys [mi plan domain sampling params cases eval-policy model-root content-root]
                                        :or {content-root "sha256:cr" model-root "sha256:m"
@@ -282,3 +283,82 @@
     (let [th-cons (get-in cert [:theorem-consensus :theorem/quota-bounded])]
       (is (= :unanimous (:status th-cons)))
       (is (= 3 (count (:supporting-members th-cons)))))))
+
+;; ── Member-key certificate tests ───────────────────────────────────────────
+
+(def keyed-round-members
+  [{:review-member/key 0, :researcher/id "a", :role :model-steward}
+   {:review-member/key 1, :researcher/id "b", :role :independent-reproducer}
+   {:review-member/key 2, :researcher/id "c", :role :adversarial-reviewer}])
+
+(defn- make-keyed-round []
+  (rr/build-review-round
+   {:benchmark/content-root "sha256:cr"
+    :review-round/purpose :model-admission
+    :review-round/members keyed-round-members
+    :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+    :review-round/policy-root "sha256:policy"}))
+
+(deftest keyed-round-certificate-emits-key-vectors
+  (let [round (make-keyed-round)
+        cert (tmc/build-certificate
+              {:review-round round
+               :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+               :positions [(make-pos "a") (make-pos "b") (make-pos "c")]})
+        pub-cons (get-in cert [:other-consensus :publication])]
+    (is (tmc/certificate-valid? cert))
+    (is (= ["a" "b" "c"] (:supporting-members pub-cons)))
+    (is (= [0 1 2] (:supporting-member-keys pub-cons)) "should emit key vectors")))
+
+(deftest keyed-round-certificate-dissent-key-vectors
+  (let [round (make-keyed-round)
+        dim-pos [(rp/build-position
+                  {:benchmark/content-root "sha256:cr"
+                   :researcher/id "a"
+                   :outcome-hash "sha256:o"
+                   :dimensions {:publication {:status :publish}}})
+                 (rp/build-position
+                  {:benchmark/content-root "sha256:cr"
+                   :researcher/id "b"
+                   :outcome-hash "sha256:o"
+                   :dimensions {:publication {:status :publish}}})
+                 (rp/build-position
+                  {:benchmark/content-root "sha256:cr"
+                   :researcher/id "c"
+                   :outcome-hash "sha256:o"
+                   :dimensions {:publication {:status :do-not-publish}}})]
+        cert (tmc/build-certificate
+              {:review-round round
+               :reports (mapv (fn [id] (make-report id "sha256:o")) ["a" "b" "c"])
+               :positions dim-pos})
+        pub-cons (get-in cert [:other-consensus :publication])]
+    (is (= :majority-with-dissent (:status pub-cons)))
+    (is (= ["c"] (:dissenting-members pub-cons)))
+    (is (= [2] (:dissenting-member-keys pub-cons)))))
+
+(deftest legacy-round-certificate-omits-key-vectors
+  (let [legacy-round (rr/build-review-round
+                      {:benchmark/content-root "sha256:cr"
+                       :review-round/purpose :model-admission
+                       :review-round/members
+                       [{:researcher/id "a" :role :model-steward}
+                        {:researcher/id "b" :role :independent-reproducer}
+                        {:researcher/id "c" :role :adversarial-reviewer}]
+                       :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                       :review-round/policy-root "sha256:policy"})
+        cert (tmc/build-certificate
+              {:review-round legacy-round
+               :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+               :positions [(make-pos "a") (make-pos "b") (make-pos "c")]})
+        pub-cons (get-in cert [:other-consensus :publication])]
+    (is (tmc/certificate-valid? cert))
+    (is (not (contains? pub-cons :supporting-member-keys))
+        "legacy round should not emit key vectors")))
+
+(deftest keyed-round-member-positions-include-key
+  (let [round (make-keyed-round)
+        cert (tmc/build-certificate
+              {:review-round round
+               :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+               :positions [(make-pos "a") (make-pos "b") (make-pos "c")]})]
+    (is (= [0 1 2] (mapv :review-member/key (:member-positions cert))))))

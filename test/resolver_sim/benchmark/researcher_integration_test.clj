@@ -1751,3 +1751,47 @@
     (is (not= (:benchmark-outcome/hash ma)
               (:benchmark-outcome/hash mb))
         "different provenance produces different outcome hashes")))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; 12. Integer-key isomorphism test
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(deftest isomorphism-key-identity-separated-from-topology
+  (let [round-a (rr/build-review-round
+                 {:benchmark/content-root "sha256:iso"
+                  :review-round/purpose :model-admission
+                  :review-round/members
+                  [{:review-member/key 0, :researcher/id "alice", :role :model-steward}
+                   {:review-member/key 1, :researcher/id "bob", :role :independent-reproducer}
+                   {:review-member/key 2, :researcher/id "carol", :role :adversarial-reviewer}]
+                  :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                  :review-round/policy-root "sha256:policy"})
+        round-b (rr/build-review-round
+                 {:benchmark/content-root "sha256:iso"
+                  :review-round/purpose :model-admission
+                  :review-round/members
+                  [{:review-member/key 0, :researcher/id "xavier", :role :model-steward}
+                   {:review-member/key 1, :researcher/id "yuki", :role :independent-reproducer}
+                   {:review-member/key 2, :researcher/id "zara", :role :adversarial-reviewer}]
+                  :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                  :review-round/policy-root "sha256:policy"})
+        ;; The interaction topology is identical: both rounds have keys #{0 1 2}
+        ;; with roles {model-steward, independent-reproducer, adversarial-reviewer}
+        mapping {0 0, 1 1, 2 2}]
+    (testing "different global identities produce different round hashes"
+      (is (not= (:review-round/id round-a) (:review-round/id round-b)))
+      (is (not= "alice" (rr/researcher-id-for-member-key round-b 0))))
+    (testing "local topology is identical under identity mapping"
+      (is (= (rr/member-keys round-a) (rr/member-keys round-b)))
+      (is (= (mapv #(get-in (rr/member-by-key round-a %) [:role])
+                   [0 1 2])
+             (mapv #(get-in (rr/member-by-key round-b %) [:role])
+                   [0 1 2]))))
+    (testing "approval vector by member-key is independent of global identity"
+      (is (= [0 1] ;; keys 0 and 1 approve in both rounds
+             (sort (mapv #(rr/member-key-for-researcher round-a %)
+                         ["alice" "bob"])))
+          "keys 0 and 1 identify the same topological positions")
+      (is (= [0 1]
+             (sort (mapv #(rr/member-key-for-researcher round-b %)
+                         ["xavier" "yuki"])))))))

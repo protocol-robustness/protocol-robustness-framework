@@ -163,3 +163,28 @@ attestation, and replay infrastructure.
 | funds-locked | Protocol metrics | Funds unavailable at terminal state. |
 | holds-active | Trace | Number of currently reserved holds. |
 | balance | Trace | Current available account balance. |
+
+## Scoped References
+
+Integer-keyed references throughout the framework are meaningful only within
+an explicitly committed scope. A naked integer key without its scope root is
+not globally meaningful.
+
+| Valid scoped reference | Scope root | Meaning |
+|------------------------|------------|---------|
+| `{:review-round/hash "sha256:..." :review-member/key 1}` | review-round hash | Member key 1 within one frozen review round |
+| `{:benchmark-registry/root "sha256:..." :benchmark/key 27}` | registry root | Benchmark entry 27 within one registry snapshot |
+| `{:generated-case-set-root "sha256:..." :case/key 143}` | case-set root | Case 143 within one generated case set |
+| `{:benchmark-outcome/hash "sha256:..." :theorem/key 0}` | outcome hash | Theorem 0 within one outcome manifest |
+| `{:evidence-dag/root "sha256:..." :evidence-node/key 7}` | DAG root | Node 7 within one evidence DAG |
+| `{:package-index/hash "sha256:..." :artifact/key 5}` | package-index hash | Artifact 5 within one package index |
+
+Invalid alone:
+
+```clojure
+{:review-member/key 1}                                     ;; scope missing — not meaningful
+{:benchmark/key 27}                                        ;; scope missing — not meaningful
+{:case/key 143}                                            ;; scope missing — not meaningful
+```
+
+Resolution rule: `integer key + scope root → globally unambiguous reference`.

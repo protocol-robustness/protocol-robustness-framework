@@ -21,8 +21,9 @@
    deviate from the established benchmark protocol.' They are independent
    truth domains."
   (:require [clojure.set]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.benchmark.signing :as signing]))
+             [resolver-sim.hash.canonical :as hc]
+             [resolver-sim.benchmark.signing :as signing]
+             [resolver-sim.benchmark.review-round :as rr]))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Constants
@@ -473,13 +474,20 @@
    authorisation   — the force-authorisation artifact
 
    Checks:
-     1. :authorisation/review-round hash matches the resolved round's hash
-     2. All researchers in decision-references are members of the round
-     3. No researcher appears in both approvals and dissents
+      1. :authorisation/review-round hash matches the resolved round's hash
+      2. All researchers in decision-references are members of the round
+      3. No researcher appears in both approvals and dissents
+      4. When the round is keyed, optional :review-member/key on decision-refs
+         must match the derived key (or derive if absent)
+      5. When the round is NOT keyed, :review-member/key on a decision-ref
+         is rejected as :member-key-unresolvable
 
-   Returns {:valid? bool :errors [string]}."
+   Returns {:valid? bool :errors [string]}.
+   When the round is keyed, also returns :approval-member-keys and
+   :dissent-member-keys."
   [review-round authorisation]
   (let [errors (atom [])
+        round-keyed? (rr/round-uses-member-keys? review-round)
         member-ids (set (map :researcher/id
                              (:review-round/members review-round)))
         decision-refs (:authorisation/decision-references authorisation)
@@ -488,6 +496,21 @@
     (doseq [id decider-ids]
       (when-not (contains? member-ids id)
         (swap! errors conj (str "researcher " id " is not a member of review-round"))))
+    ;; Check member-key cross-references
+    (doseq [d decision-refs]
+      (let [provided-key (:review-member/key d)]
+        (when (and provided-key round-keyed?)
+          (let [derived-key (rr/member-key-for-researcher
+                             review-round (:researcher/id d))]
+            (when-not (= provided-key derived-key)
+              (swap! errors conj
+                     (str "member key mismatch for " (:researcher/id d)
+                          ": provided " provided-key
+                          ", derived " derived-key)))))
+        (when (and provided-key (not round-keyed?))
+          (swap! errors conj
+                 (str ":member-key-unresolvable for " (:researcher/id d)
+                      " — round is not keyed")))))
     ;; Check no overlap between approvals and dissents
     (let [approvers (set (map :researcher/id
                               (filter #(= :approve (:decision %))
@@ -498,7 +521,18 @@
           overlap (clojure.set/intersection approvers dissenters)]
       (when (seq overlap)
         (swap! errors conj (str "researchers in both approve and dissent: " overlap))))
-    {:valid? (empty? @errors) :errors @errors}))
+    (let [result {:valid? (empty? @errors) :errors @errors}]
+      (if round-keyed?
+        (assoc result
+               :approval-member-keys
+               (mapv #(rr/member-key-for-researcher review-round %)
+                     (map :researcher/id
+                          (filter #(= :approve (:decision %)) decision-refs)))
+               :dissent-member-keys
+               (mapv #(rr/member-key-for-researcher review-round %)
+                     (map :researcher/id
+                          (filter #(= :dissent (:decision %)) decision-refs))))
+        result))))
 
 (defn verify-decision-signatures
   "Verify that every decision reference in an authorisation artifact
@@ -1189,45 +1223,57 @@
   "Produce a concentrated human-readable summary of a force-authorisation
    execution chain from the resolved artifacts.
 
+   Optional :review-round key adds :approval-member-keys and :dissent-member-keys.
    Returns a map with :decision, :execution, :qualification keys."
-  [authorisation reservation manifest receipt profile]
-  (let [fa-sec (:execution/force-authorisation manifest)
-        thresh (:authorisation/threshold authorisation)
-        dec-refs (:authorisation/decision-references authorisation)
-        approvals (filter #(= :approve (:decision %)) dec-refs)
-        dissents (filter #(= :dissent (:decision %)) dec-refs)
-        target (:authorisation/target authorisation)
-        status (when receipt (:consumption/status receipt))
-        decision-label
-        (case (:authorisation/decision-status authorisation)
-          :approved "Approved unanimously"
-          :approved-with-dissent (str "Approved with dissent — "
-                                      (count approvals) " approvals, "
-                                      (count dissents) " dissent(s).")
-          :declined (str "Declined — " (count approvals) " of "
-                         (:required thresh) " required approvals."))
-        target-label (str (name (:target/kind target))
-                          " — baseline: " (:target/baseline-content-root target)
-                          ", proposed: " (:target/proposed-content-root target))
-        policy-ref (:authorisation/policy authorisation)]
-    {:decision
-     {:label decision-label
-      :target target-label
-      :threshold (str (:approved thresh) " approved of "
-                      (:required thresh) " required ("
-                      (:eligible thresh) " eligible)")
-      :approvals (mapv :researcher/id approvals)
-      :dissents (mapv :researcher/id dissents)}
-     :execution
-     {:attempt (:reservation/execution-attempt-id reservation)
-      :terminal-status status
-      :consumption-key (:authorisation/consumption-key authorisation)
-      :receipt-hash (:consumption/hash receipt)
-      :outcome-produced? (some? (:consumption/resulting-outcome-hash receipt))}
-     :verification
-     {:authorisation-hash (:authorisation/hash authorisation)
-      :policy-ref policy-ref
-      :profile-hash (:evidence-profile/hash profile)}
-     :qualification
-     "This verifies authorisation and execution provenance; it does not by
-      itself establish that the resulting research conclusion is correct."}))
+  ([authorisation reservation manifest receipt profile]
+   (force-authorisation-summary authorisation reservation manifest receipt profile nil))
+  ([authorisation reservation manifest receipt profile review-round]
+   (let [fa-sec (:execution/force-authorisation manifest)
+         thresh (:authorisation/threshold authorisation)
+         dec-refs (:authorisation/decision-references authorisation)
+         approvals (filter #(= :approve (:decision %)) dec-refs)
+         dissents (filter #(= :dissent (:decision %)) dec-refs)
+         target (:authorisation/target authorisation)
+         status (when receipt (:consumption/status receipt))
+         decision-label
+         (case (:authorisation/decision-status authorisation)
+           :approved "Approved unanimously"
+           :approved-with-dissent (str "Approved with dissent — "
+                                       (count approvals) " approvals, "
+                                       (count dissents) " dissent(s).")
+           :declined (str "Declined — " (count approvals) " of "
+                          (:required thresh) " required approvals."))
+         target-label (str (name (:target/kind target))
+                           " — baseline: " (:target/baseline-content-root target)
+                           ", proposed: " (:target/proposed-content-root target))
+         policy-ref (:authorisation/policy authorisation)
+         base {:decision
+               {:label decision-label
+                :target target-label
+                :threshold (str (:approved thresh) " approved of "
+                                (:required thresh) " required ("
+                                (:eligible thresh) " eligible)")
+                :approvals (mapv :researcher/id approvals)
+                :dissents (mapv :researcher/id dissents)}
+               :execution
+               {:attempt (:reservation/execution-attempt-id reservation)
+                :terminal-status status
+                :consumption-key (:authorisation/consumption-key authorisation)
+                :receipt-hash (:consumption/hash receipt)
+                :outcome-produced? (some? (:consumption/resulting-outcome-hash receipt))}
+               :verification
+               {:authorisation-hash (:authorisation/hash authorisation)
+                :policy-ref policy-ref
+                :profile-hash (:evidence-profile/hash profile)}
+               :qualification
+               "This verifies authorisation and execution provenance; it does not by
+                itself establish that the resulting research conclusion is correct."}]
+     (if (and review-round (rr/round-uses-member-keys? review-round))
+       (-> base
+           (assoc-in [:decision :approval-member-keys]
+                     (mapv #(rr/member-key-for-researcher review-round %)
+                           (map :researcher/id approvals)))
+           (assoc-in [:decision :dissent-member-keys]
+                     (mapv #(rr/member-key-for-researcher review-round %)
+                           (map :researcher/id dissents))))
+       base))))
