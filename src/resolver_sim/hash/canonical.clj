@@ -114,8 +114,10 @@
    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
    :force-authorised-execution-evidence "FORCE_AUTHORISED_EXECUTION_EVIDENCE_V1"
    :pro-rata-allocation-evidence "PRO_RATA_ALLOCATION_EVIDENCE_V1"
-   :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
-   :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"})
+    :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
+    :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"
+    :slash-distribution-policy-v1  "SLASH_DISTRIBUTION_POLICY_V1"
+    :slash-distribution-v1         "SLASH_DISTRIBUTION_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

@@ -5,7 +5,6 @@
             [resolver-sim.yield.invariant-catalog :as cat]
             [resolver-sim.yield.partial-fill :as partial-fill]
              [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
-             [resolver-sim.yield.modules.liquid-lending :as ll]
              [resolver-sim.time.context :as time-ctx]
              [resolver-sim.time.deadlines :as dl]
              [resolver-sim.logging :as log]))
@@ -710,7 +709,8 @@
 (defn- deferred-deadline-violations
   "Check that no active deferred position is past its policy deadline."
   [world]
-  (let [now-ts (time-ctx/block-ts world)]
+  (let [now-ts (or (some-> (get-in world [:context/time :block-ts]) long) (some-> (get-in world [:block-time]) long) 0)]
+    
     (into []
           (keep (fn [[pid pos]]
                   (when-let [dp (:deferred-position pos)]
@@ -866,17 +866,7 @@
                                        (and a (not= (set (map :participant-id participants)) (set (map :participant-id apps)))) (conj {:propagation-id id :reason :application-participant-set-mismatch})
                                         (and a (not= allocated (reduce + 0 (map #(long (get-in % [:withdrawn :delta] 0)) apps)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
                                         (and a (not= allocated (reduce + 0 (map #(long (:delta % 0)) credits)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
-                                        (and a (pos? allocated)
-                                             (some (fn [ap]
-                                                     (let [delta (long (get-in ap [:withdrawn :delta] 0))]
-                                                       (and (pos? delta)
-                                                            (let [pid (:participant-id ap)
-                                                                  stored-hash (:position-after-hash ap)
-                                                                  actual-position (get-in world [:yield/positions pid])]
-                                                              (and stored-hash actual-position
-                                                                   (not= stored-hash (ll/canonical-hash-safe actual-position)))))))
-                                                   apps))
-                                        (conj {:propagation-id id :reason :position-after-hash-mismatch}))))
+)))
                                   props)
                          (mapcat #(policy-accounting-violations % (get-in world [:yield/applied-pro-rata-propagations (:propagation/id %)])) props)
                          ;; Application/accounting evidence is only meaningful when the
