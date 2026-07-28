@@ -7,7 +7,7 @@ themselves establish a constrained or isolated execution environment. See
 `TRUST_MODEL.md` for the assurance boundaries.
 
 All commands run from the **project root**. The default configuration is in
-`config/forensic/`; illustrative inputs are in
+`examples/config/forensic/`; illustrative inputs are in
 `examples/forensic-reference-run/`.
 
 ---

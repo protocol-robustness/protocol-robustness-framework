@@ -114,3 +114,31 @@
     (let [result (replay/simple-replay dummy/protocol minimal-scenario)]
       (is (= :pass (:outcome result)))
       (is (contains? (:metrics result) :attack-attempts)))))
+
+(deftest process-step-runtime-context-preserves-output
+  (testing "process-step runtime context does not leak into persisted output"
+    (let [ctx-key? (fn [x]
+                     (and (keyword? x)
+                          (= "ctx" (namespace x))))
+          contains-ctx-key? (fn contains-ctx-key? [x]
+                              (cond
+                                (map? x)
+                                (or (some ctx-key? (keys x))
+                                    (some contains-ctx-key? (vals x)))
+                                (coll? x)
+                                (some contains-ctx-key? x)
+                                :else false))
+          flags  (assoc flags/default-replay-flags :evidence-mode :all)
+          ctx    {:replay-flags flags}
+          world  {:block-time 1000 :params {:scenario-id "test"}}
+          event  {:seq 0 :time 1000 :agent "a" :action "noop" :params {}}
+          result (execution/process-step dummy/protocol ctx world event)
+          te     (:trace-entry result)]
+      (is (map? result))
+      (is (contains? te :seq))
+      (is (some? (:transition/hash te)))
+      (is (string? (:transition/hash te)))
+      (is (contains? te :projection-hash))
+      (is (not (contains-ctx-key? result)))
+      (is (not (contains-ctx-key? te)))
+      (is (not (contains-ctx-key? (:world te)))))))

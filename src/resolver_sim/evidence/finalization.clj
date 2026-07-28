@@ -8,23 +8,23 @@
             [clojure.set :as set]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.node :as evidence-node]
-            [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.nio.file Files StandardCopyOption AtomicMoveNotSupportedException]
            [java.security MessageDigest]
            [java.math BigInteger]))
 
 (def schema-version "evidence-finalization.v2")
 (def hash-set-schema-version "evidence-hash-set.v1")
-(def ^:private sha256-ref-pattern #"^sha256:[0-9a-f]{64}$")
 
 (defn sha256-ref? [value]
-  (boolean (and (string? value) (re-matches sha256-ref-pattern value))))
+  (hash-ref/valid-sha256-ref? value))
 
 (defn sha256-ref [raw-hash]
   (let [hash (str raw-hash)]
     (cond
-      (sha256-ref? hash) hash
-      (re-matches #"^[0-9a-f]{64}$" hash) (str "sha256:" hash)
+      (hash-ref/valid-sha256-ref? hash) hash
+      (re-matches #"^[0-9a-f]{64}$" hash) (hash-ref/sha256-ref hash)
       :else (throw (ex-info "Expected SHA-256 digest" {:value raw-hash})))))
 
 (defn hash-set-projection [hashes]

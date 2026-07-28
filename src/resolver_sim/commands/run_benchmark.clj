@@ -5,6 +5,7 @@
             [clojure.string :as str]
             [resolver-sim.benchmark.conservation :as conservation]
             [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
             [resolver-sim.commands.benchmark-inventory :as inventory]
             [resolver-sim.commands.benchmark-orchestration :as orchestration]
@@ -426,7 +427,7 @@
     artifact))
 
 (defn- sha-ref [file]
-  (str "sha256:" (lifecycle/sha256-file file)))
+  (hash-ref/sha256-ref (lifecycle/sha256-file file)))
 
 (defn- input-set-root [inputs]
   (str "sha256:"

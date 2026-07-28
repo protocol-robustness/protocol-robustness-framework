@@ -489,8 +489,8 @@ def main():
                         default="examples/forensic-reference-run/registry-snapshot.example.edn",
                         help="Path to registry snapshot file (default: examples/forensic-reference-run/registry-snapshot.example.edn)")
     parser.add_argument("--evidence-policy",
-                        default="config/forensic/evidence-policy.edn",
-                        help="Path to evidence policy file (default: config/forensic/evidence-policy.edn)")
+                        default="examples/config/forensic/evidence-policy.edn",
+                        help="Path to evidence policy file (default: examples/config/forensic/evidence-policy.edn)")
     parser.add_argument("--output-dir",
                         help="Target output directory for the run")
     parser.add_argument("--output", "-o",

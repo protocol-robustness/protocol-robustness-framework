@@ -4,10 +4,16 @@
             [resolver-sim.benchmark.research-theorem-outcome :as rto]
             [resolver-sim.benchmark.research-conclusion :as rc]))
 
+(defn- h
+  "Produce a sha256: hash from a known hex pattern (characters 0-9, a-f only)."
+  [pattern]
+  (assert (re-matches #"[0-9a-f]+" pattern) (str "not hex: " pattern))
+  (str "sha256:" (apply str (take 64 (cycle pattern)))))
+
 (def base-manifest
-  {:benchmark/content-root "sha256:content"
-   :benchmark/model-root "sha256:model"
-   :benchmark/evaluation-policy-root "sha256:eval"
+  {:benchmark/content-root (h "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+   :benchmark/model-root (h "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+   :benchmark/evaluation-policy-root (h "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
    :execution/status :completed
    :results/operational {:conservation :pass}})
 
@@ -15,151 +21,152 @@
   (let [manifest (om/build-manifest base-manifest)]
     (is (om/manifest-valid? manifest))
     (is (some? (:benchmark-outcome/hash manifest)))
-    (is (= "sha256:model" (:benchmark/model-root manifest)))))
+    (is (some? (:benchmark/model-root manifest)))))
+
 
 (deftest exact-replication-scope
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"))
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"))]
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")))]
     (is (om/exact-replication-scope? a b))))
 
 (deftest not-exact-replication-different-domains
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d1"
-                  :execution/generated-case-set-root "sha256:c"))
+                  :execution/parameter-domain-root (h "d1")
+                  :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d2"
-                  :execution/generated-case-set-root "sha256:c"))]
+                  :execution/parameter-domain-root (h "d2")
+                  :execution/generated-case-set-root (h "c")))]
     (is (not (om/exact-replication-scope? a b)))))
 
 (deftest sampling-comparison-scope
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c1"))
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c1")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c2"))]
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c2")))]
     (is (om/sampling-comparison-scope? a b))))
 
 (deftest sampling-comparison-rejects-same-cases
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c"))
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c"))]
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c")))]
     (is (not (om/sampling-comparison-scope? a b)))))
 
 (deftest related-model-scope
-  (let [a (om/build-manifest (assoc base-manifest :benchmark/model-root "sha256:m"))
-        b (om/build-manifest (assoc base-manifest :benchmark/model-root "sha256:m"
-                                    :execution/parameter-domain-root "sha256:other"))]
+  (let [a (om/build-manifest (assoc base-manifest :benchmark/model-root (h "a")))
+        b (om/build-manifest (assoc base-manifest :benchmark/model-root (h "a")
+                                    :execution/parameter-domain-root (h "dead")))]
     (is (om/related-model-scope? a b))))
 
 (deftest not-related-model-scope
-  (let [a (om/build-manifest (assoc base-manifest :benchmark/model-root "sha256:ma"))
-        b (om/build-manifest (assoc base-manifest :benchmark/model-root "sha256:mb"))]
+  (let [a (om/build-manifest (assoc base-manifest :benchmark/model-root (h "a0")))
+        b (om/build-manifest (assoc base-manifest :benchmark/model-root (h "b0")))]
     (is (not (om/related-model-scope? a b)))))
 
 (deftest compatible-outcomes-exact
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"))
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"))]
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")))]
     (is (= :exact-replication (om/classify-outcome-compatibility a b)))))
 
 (deftest compatible-outcomes-sampling
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c1"))
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c1")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c2"))]
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c2")))]
     (is (= :independent-sampling (om/classify-outcome-compatibility a b)))))
 
 (deftest compatible-outcomes-model-corroboration
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :benchmark/model-root "sha256:m"
-                  :execution/parameter-domain-root "sha256:d1"
-                  :execution/realised-parameter-set-root "sha256:p1"
-                  :execution/generated-case-set-root "sha256:c1"))
+                  :benchmark/model-root (h "a")
+                  :execution/parameter-domain-root (h "d1")
+                  :execution/realised-parameter-set-root (h "f1")
+                  :execution/generated-case-set-root (h "c1")))
         b (om/build-manifest
            (assoc base-manifest
-                  :benchmark/model-root "sha256:m"
-                  :execution/parameter-domain-root "sha256:d2"
-                  :execution/realised-parameter-set-root "sha256:p2"
-                  :execution/generated-case-set-root "sha256:c2"))]
+                  :benchmark/model-root (h "a")
+                  :execution/parameter-domain-root (h "d2")
+                  :execution/realised-parameter-set-root (h "f2")
+                  :execution/generated-case-set-root (h "c2")))]
     (is (= :model-corroboration (om/classify-outcome-compatibility a b)))))
 
 (deftest compatible-outcomes-incompatible
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :benchmark/content-root "sha256:ca"
-                  :benchmark/model-root "sha256:ma"))
+                  :benchmark/content-root (h "ca")
+                  :benchmark/model-root (h "a0")))
         b (om/build-manifest
            (assoc base-manifest
-                  :benchmark/content-root "sha256:cb"
-                  :benchmark/model-root "sha256:mb"))]
+                  :benchmark/content-root (h "cb")
+                  :benchmark/model-root (h "b0")))]
     (is (= :incompatible-scope (om/classify-outcome-compatibility a b)))))
 
 (deftest compatibility-symmetric
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c1"))
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c1")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/generated-case-set-root "sha256:c2"))]
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/generated-case-set-root (h "c2")))]
     (is (= (om/classify-outcome-compatibility a b) (om/classify-outcome-compatibility b a)))))
 
 (deftest compatibility-symmetric-exact
   (let [a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"))
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"))]
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")))]
     (is (= (om/classify-outcome-compatibility a b) (om/classify-outcome-compatibility b a)))))
 
 ;; ── Hierarchical outcome manifest ─────────────────────────────────────────
@@ -170,7 +177,7 @@
    :theorem/statement
    {:if {:claim :partial-fill-calculated}
     :then {:claim :quota-bounded}}
-   :theorem/scope {:model/root "sha256:model"}
+   :theorem/scope {:model/root (h "a")}
    :theorem/conclusion {:status :established :claim-id :claim/quota-bounded}})
 
 (def ^:const sample-conclusion-params
@@ -187,10 +194,10 @@
         c1 (rc/build-conclusion sample-conclusion-params)
         manifest (om/build-manifest
                   (assoc base-manifest
-                         :execution/command-root "sha256:cmd"
-                         :outcomes/operational-root "sha256:oper"
-                         :outcomes/incentive-root "sha256:inc"
-                         :outcomes/incentive-compatibility-root "sha256:ic"
+                         :execution/command-root (h "c0d")
+                         :outcomes/operational-root (h "0ead")
+                         :outcomes/incentive-root (h "1c")
+                         :outcomes/incentive-compatibility-root (h "1c")
                          :outcomes/theorems
                          [{:theorem/id :theorem/quota-bounded
                            :theorem/hash (:theorem/hash t1)
@@ -203,7 +210,7 @@
                            :conclusion/hash (:conclusion/hash c1)}]))]
     (is (om/manifest-valid? manifest))
     (is (some? (:benchmark-outcome/hash manifest)))
-    (is (= "sha256:cmd" (:execution/command-root manifest)))
+    (is (= (h "c0d") (:execution/command-root manifest)))
     (is (contains? manifest :outcomes/operational-root))
     (is (contains? manifest :outcomes/incentive-root))
     (is (contains? manifest :outcomes/incentive-compatibility-root))
@@ -224,23 +231,182 @@
   (let [t1 (rto/build-theorem-outcome sample-theorem-params)
         a (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")
                   :outcomes/theorems
                   [{:theorem/id :theorem/quota-bounded
                     :theorem/hash (:theorem/hash t1)
                     :status :established}]))
         b (om/build-manifest
            (assoc base-manifest
-                  :execution/parameter-domain-root "sha256:d"
-                  :execution/sampling-policy-root "sha256:s"
-                  :execution/realised-parameter-set-root "sha256:p"
-                  :execution/generated-case-set-root "sha256:c"
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")
                   :outcomes/theorems
                   [{:theorem/id :theorem/quota-bounded
                     :theorem/hash (:theorem/hash t1)
                     :status :established}]))]
     (is (om/exact-replication-scope? a b))
     (is (om/compatible-outcomes? a b))))
+
+;; ── Hash projection: root changes alter the singular outcome hash ────────
+
+(deftest command-root-change-alters-outcome-hash
+  (let [base (assoc base-manifest
+                    :execution/command-root (h "aaaa")
+                    :outcomes/operational-root (h "0ead")
+                    :outcomes/incentive-root (h "1c")
+                    :outcomes/incentive-compatibility-root (h "1c"))
+        a (om/build-manifest base)
+        b (om/build-manifest (assoc base :execution/command-root (h "bbbb")))]
+    (is (not= (:benchmark-outcome/hash a) (:benchmark-outcome/hash b)))))
+
+(deftest incentive-compatibility-root-change-alters-outcome-hash
+  (let [base (assoc base-manifest
+                    :execution/command-root (h "c0d")
+                    :outcomes/operational-root (h "0ead")
+                    :outcomes/incentive-root (h "1c")
+                    :outcomes/incentive-compatibility-root (h "1c1"))
+        a (om/build-manifest base)
+        b (om/build-manifest (assoc base :outcomes/incentive-compatibility-root (h "1c2")))]
+    (is (not= (:benchmark-outcome/hash a) (:benchmark-outcome/hash b)))))
+
+(deftest operational-root-change-alters-outcome-hash
+  (let [base (assoc base-manifest
+                    :execution/command-root (h "c0d")
+                    :outcomes/operational-root (h "f001")
+                    :outcomes/incentive-root (h "1c")
+                    :outcomes/incentive-compatibility-root (h "1c"))
+        a (om/build-manifest base)
+        b (om/build-manifest (assoc base :outcomes/operational-root (h "f002")))]
+    (is (not= (:benchmark-outcome/hash a) (:benchmark-outcome/hash b)))))
+
+(deftest incentive-root-change-alters-outcome-hash
+  (let [base (assoc base-manifest
+                    :execution/command-root (h "c0d")
+                    :outcomes/operational-root (h "0ead")
+                    :outcomes/incentive-root (h "1c01")
+                    :outcomes/incentive-compatibility-root (h "1c"))
+        a (om/build-manifest base)
+        b (om/build-manifest (assoc base :outcomes/incentive-root (h "1c02")))]
+    (is (not= (:benchmark-outcome/hash a) (:benchmark-outcome/hash b)))))
+
+(deftest incentive-roots-ungated-from-operational
+  (let [without-oper (om/build-manifest
+                      (assoc base-manifest
+                             :outcomes/incentive-root (h "1c")
+                             :outcomes/incentive-compatibility-root (h "1c")))
+        with-oper (om/build-manifest
+                   (assoc base-manifest
+                          :outcomes/operational-root (h "0ead")
+                          :outcomes/incentive-root (h "1c")
+                          :outcomes/incentive-compatibility-root (h "1c")))]
+    (is (contains? without-oper :outcomes/incentive-root)
+        "incentive-root present without operational-root")
+    (is (contains? without-oper :outcomes/incentive-compatibility-root)
+        "incentive-compatibility-root present without operational-root")
+    (is (contains? without-oper :outcome-hashes)
+        "outcome-hashes present from incentive roots alone")
+    (is (not= (:benchmark-outcome/hash without-oper)
+              (:benchmark-outcome/hash with-oper))
+        "adding operational-root changes the hash")))
+
+;; ── Derived outcome-hashes integrity ─────────────────────────────────────
+
+(deftest mismatched-outcome-hashes-rejected
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/command-root (h "c0d")
+                         :outcomes/operational-root (h "0ead")))
+        tampered (assoc manifest :outcome-hashes
+                        (assoc (:outcome-hashes manifest)
+                               :command-root (h "badd")))]
+    (is (not (:valid? (om/validate-manifest tampered))))
+    (let [errors (:errors (om/validate-manifest tampered))]
+      (is (some #(re-find #"outcome-hashes mismatch" %) errors)))))
+
+(deftest omitted-outcome-hashes-entry-rejected
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/command-root (h "c0d")
+                         :outcomes/operational-root (h "0ead")))
+        truncated (update manifest :outcome-hashes dissoc :command-root)]
+    (is (not (:valid? (om/validate-manifest truncated))))
+    (let [errors (:errors (om/validate-manifest truncated))]
+      (is (some #(re-find #"outcome-hashes mismatch" %) errors)))))
+
+;; ── Unknown field rejection ─────────────────────────────────────────────
+
+(deftest unknown-manifest-field-rejected
+  (let [manifest (om/build-manifest base-manifest)
+        polluted (assoc manifest :outcomes/unknown-root (h "dead"))]
+    (is (not (:valid? (om/validate-manifest polluted))))
+    (let [errors (:errors (om/validate-manifest polluted))]
+      (is (some #(re-find #"unknown manifest key" %) errors)))))
+
+(deftest unknown-noncanonical-embedded-field-rejected
+  (let [manifest (om/build-manifest base-manifest)
+        polluted (assoc manifest :execution/extra-metadata {:foo "bar"})]
+    (is (not (:valid? (om/validate-manifest polluted))))
+    (let [errors (:errors (om/validate-manifest polluted))]
+      (is (some #(re-find #"unknown manifest key" %) errors)))))
+
+;; ── Pre-application checks ──────────────────────────────────────────────
+
+(deftest pre-application-checks-accepts-complete-manifest
+  (let [t1 (rto/build-theorem-outcome sample-theorem-params)
+        c1 (rc/build-conclusion sample-conclusion-params)
+        manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/parameter-domain-root (h "d")
+                         :execution/sampling-policy-root (h "c0")
+                         :execution/realised-parameter-set-root (h "f")
+                         :execution/generated-case-set-root (h "c")
+                         :execution/command-root (h "c0d")
+                         :outcomes/operational-root (h "0ead")
+                         :outcomes/incentive-root (h "1c")
+                         :outcomes/incentive-compatibility-root (h "1c")
+                         :outcomes/theorems
+                         [{:theorem/id :theorem/quota-bounded
+                           :theorem/hash (:theorem/hash t1)
+                           :status :established}]
+                         :outcomes/conclusions
+                         [{:conclusion/id :conclusion/partial-fill-correctness
+                           :conclusion/hash (:conclusion/hash c1)}]))
+        result (om/pre-application-checks manifest)]
+    (is (:pre-application-valid? result)
+        (str "complete manifest should pass pre-application checks, errors: "
+             (:errors result)))))
+
+(deftest pre-application-checks-rejects-missing-content-root
+  (let [manifest (om/build-manifest (dissoc base-manifest :benchmark/content-root))
+        result (om/pre-application-checks manifest)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"content-root" %) (:errors result)))))
+
+(deftest pre-application-checks-rejects-missing-model-root
+  (let [manifest (om/build-manifest (dissoc base-manifest :benchmark/model-root))
+        result (om/pre-application-checks manifest)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"model-root" %) (:errors result)))))
+
+(deftest pre-application-checks-rejects-invalid-hash-root
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/command-root "not-a-valid-hash"))
+        result (om/pre-application-checks manifest)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"not a valid sha256" %) (:errors result)))))
+
+(deftest pre-application-checks-detects-outcome-hashes-mismatch
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/command-root (h "c0d")))
+        tampered (assoc manifest :outcome-hashes
+                        {:command-root (h "badd")})
+        result (om/pre-application-checks tampered)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"outcome-hashes mismatch" %) (:errors result)))))

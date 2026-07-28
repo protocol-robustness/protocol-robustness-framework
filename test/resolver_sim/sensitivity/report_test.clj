@@ -28,7 +28,8 @@
     :scenario-path "scenarios/edn/s01.edn" :scenario-hash "hash-s01"}
    {:scenario-id "s99"
     :scenario-metadata {:scenario/sensitivity {:level :sensitivity/private
-                                               :risk-meta {:value-at-risk "15M"}}}
+                                               :risk-meta {:value-at-risk "15M"
+                                                           :risk-severity :risk-severity/critical}}}
     :scenario-input-hash "abc123"
     :scenario-path "scenarios/edn/s99.edn"
     :scenario-hash "hash-s99"}])
@@ -124,6 +125,39 @@
         "structural-derivation must include :evidence/findings")
     (is (= 2 (count (get-in s99-entry [:structural-derivation :evidence/findings])))
         "both findings must be present in evidence/findings")))
+
+(deftest build-report-aggregation-derivation
+  (testing "aggregation-derivation is present when run-sensitivity is provided"
+    (let [report (report/build-sensitivity-report
+                  (sample-safety-result)
+                  (sample-run-sensitivity)
+                  (sample-scenarios)
+                  (context))
+          ad (:aggregation-derivation report)]
+      (is (some? ad) "aggregation-derivation must be present when run-sensitivity is provided")
+      (is (= :max-effective-sensitivity (:aggregation/function ad)))
+      (is (= "merge-sensitivity.v2" (:aggregation/version ad)))
+      (is (= 2 (:aggregation/input-count ad)))
+      (is (= 1 (:aggregation/included-count ad)))
+      (is (= 1 (:aggregation/missing-count ad)))
+      (is (= "private" (:aggregation/result ad)))
+      (is (some? (:aggregation/scenario-id-set-hash ad)))
+      (is (some? (:aggregation/input-set-hash ad)))
+      (is (vector? (:aggregation/winners ad)))
+      (is (= 1 (count (:aggregation/winners ad)))
+          "s99 is the only scenario with :private sensitivity level")
+      (is (false? (:aggregation/multiple-winners? ad)))
+      (is (= :max-risk-severity (:risk-aggregation/function ad)))
+      (is (some? (:risk-aggregation/risk-meta-hash ad)))
+      (is (= "s99" (:risk-aggregation/winner-scenario-id ad))
+          "s99 has a risk-meta matching the run-level")
+      (is (= "critical" (:risk-aggregation/result ad))))))
+
+(deftest build-report-aggregation-derivation-absent-without-run-sensitivity
+  (testing "aggregation-derivation is absent when run-sensitivity is nil"
+    (let [report (report/build-sensitivity-report (sample-safety-result) nil [] (context))]
+      (is (nil? (:aggregation-derivation report))
+          "aggregation-derivation must be absent when no run-sensitivity provided"))))
 
 (deftest build-report-no-findings-no-structural-derivation
   (let [report (report/build-sensitivity-report

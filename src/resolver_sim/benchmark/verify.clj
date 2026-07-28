@@ -7,11 +7,12 @@
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.run.package-index :as package-index]
             [resolver-sim.run.verdict-policy :as verdict-policy]))
 
 (defn- read-json [file] (json/read-str (slurp file)))
-(defn- sha-ref [file] (str "sha256:" (lifecycle/sha256-file file)))
+(defn- sha-ref [file] (hash-ref/sha256-ref (lifecycle/sha256-file file)))
 
 (defn- input-set-root [inputs]
   (str "sha256:"

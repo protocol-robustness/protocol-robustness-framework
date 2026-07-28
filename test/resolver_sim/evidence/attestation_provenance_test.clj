@@ -47,8 +47,8 @@
 
 (deftest provenance-for-claim-includes-claim-context
   (let [claim-result {:claim-id :conservation
-                      :claim-definition-hash "sha256:def-hash"
-                      :claim-result-hash "sha256:abc-hash"
+                      :claim-definition-hash "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                      :claim-result-hash "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                       :holds? true
                       :status :pass}
         p (ap/provenance-for-claim :claim-evaluation claim-result
@@ -56,8 +56,8 @@
                                    :scenario-id "S01")
         ctx (:provenance/claims-context p)]
     (is (= :conservation (:provenance/claim-id ctx)))
-    (is (= "sha256:def-hash" (:provenance/claim-definition-hash ctx)))
-    (is (= "sha256:abc-hash" (:provenance/claim-result-hash ctx)))
+    (is (= "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" (:provenance/claim-definition-hash ctx)))
+    (is (= "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" (:provenance/claim-result-hash ctx)))
     (is (= true (:provenance/claim-holds? ctx)))
     (is (= :pass (:provenance/claim-status ctx)))
     (is (= "run-claim-test" (:provenance/run-id p)))
@@ -65,8 +65,8 @@
 
 (deftest provenance-for-claim-preserves-general-fields
   (let [claim-result {:claim-id :non-negative
-                      :claim-definition-hash "sha256:xyz"
-                      :claim-result-hash "sha256:789"
+                      :claim-definition-hash "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                      :claim-result-hash "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
                       :holds? false
                       :status :fail}
         p (ap/provenance-for-claim :claim-evaluation claim-result
@@ -79,7 +79,7 @@
 ;; ── validate-provenance ──────────────────────────────────────────────────────
 
 (deftest validate-valid-provenance-passes
-  (let [p (ap/provenance-entry :claim-evaluation
+  (let [p (ap/provenance-entry :replay-complete
                                :run-id "r1"
                                :scenario-id "S01")]
     (is (:valid? (ap/validate-provenance p)))))
@@ -132,21 +132,21 @@
 ;; ── Integration: provenance can be used with build-attestation ──────────────
 
 (deftest provenance-entry-compatible-with-build-attestation
-  (let [provenance (ap/provenance-entry :claim-evaluation
-                                        :run-id "run-integration"
-                                        :scenario-id "S01"
-                                        :step 10)
+  (let [provenance (ap/provenance-entry :replay-complete
+                                         :run-id "run-integration"
+                                         :scenario-id "S01"
+                                         :step 10)
         result (ap/validate-provenance provenance)]
     (is (:valid? result))
-    (is (= :claim-evaluation (:provenance/trigger provenance)))
+    (is (= :replay-complete (:provenance/trigger provenance)))
     (is (= "run-integration" (:provenance/run-id provenance)))
     (is (= "S01" (:provenance/scenario-id provenance)))
     (is (= 10 (:provenance/step provenance)))))
 
 (deftest provenance-for-claim-produces-valid-provenance
   (let [claim-result {:claim-id :conservation
-                      :claim-definition-hash "sha256:def"
-                      :claim-result-hash "sha256:abc"
+                      :claim-definition-hash "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                      :claim-result-hash "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                       :holds? true
                       :status :pass}
         p (ap/provenance-for-claim :claim-evaluation claim-result
@@ -154,3 +154,123 @@
                                    :vcs-sha "abc123")
         validation (ap/validate-provenance p)]
     (is (:valid? validation))))
+
+;; ── validate-provenance claims-context ─────────────────────────────────────────
+
+(deftest validate-requires-claims-context-for-claim-evaluation
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"claims-context" %) (:errors result)))))
+
+(deftest validate-detects-missing-claims-context-keys
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :test}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #":provenance/claim-definition-hash" %) (:errors result)))
+    (is (some #(re-find #":provenance/claim-result-hash" %) (:errors result)))
+    (is (some #(re-find #":provenance/claim-holds\?" %) (:errors result)))
+    (is (some #(re-find #":provenance/claim-status" %) (:errors result)))))
+
+(deftest validate-detects-nil-claims-context-keys
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :test
+                                                :provenance/claim-definition-hash nil
+                                                :provenance/claim-result-hash "sha256:abc"
+                                                :provenance/claim-holds? true
+                                                :provenance/claim-status :pass}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"valid sha256 ref" %) (:errors result)))))
+
+(deftest validate-detects-non-keyword-claim-id
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id "not-a-keyword"
+                                                :provenance/claim-definition-hash "sha256:def"
+                                                :provenance/claim-result-hash "sha256:abc"
+                                                :provenance/claim-holds? true
+                                                :provenance/claim-status :pass}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"claim-id.*keyword" %) (:errors result)))))
+
+(deftest validate-detects-invalid-definition-hash
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :test
+                                                :provenance/claim-definition-hash 12
+                                                :provenance/claim-result-hash "sha256:abc"
+                                                :provenance/claim-holds? true
+                                                :provenance/claim-status :pass}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"claim-definition-hash" %) (:errors result)))))
+
+(deftest validate-detects-invalid-result-hash
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :test
+                                                :provenance/claim-definition-hash "sha256:def"
+                                                :provenance/claim-result-hash []
+                                                :provenance/claim-holds? true
+                                                :provenance/claim-status :pass}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"claim-result-hash" %) (:errors result)))))
+
+(deftest validate-detects-empty-string-hash
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :test
+                                                :provenance/claim-definition-hash ""
+                                                :provenance/claim-result-hash "sha256:abc"
+                                                :provenance/claim-holds? true
+                                                :provenance/claim-status :pass}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"claim-definition-hash" %) (:errors result)))))
+
+(deftest validate-detects-non-boolean-holds
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :test
+                                                :provenance/claim-definition-hash "sha256:def"
+                                                :provenance/claim-result-hash "sha256:abc"
+                                                :provenance/claim-holds? :yes
+                                                :provenance/claim-status :pass}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"claim-holds\?" %) (:errors result)))))
+
+(deftest validate-detects-non-keyword-status
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :test
+                                                :provenance/claim-definition-hash "sha256:def"
+                                                :provenance/claim-result-hash "sha256:abc"
+                                                :provenance/claim-holds? true
+                                                :provenance/claim-status ""}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (false? (:valid? result)))
+    (is (some #(re-find #"claim-status" %) (:errors result)))))
+
+(deftest validate-passes-with-valid-claims-context
+  (let [p (ap/provenance-entry :claim-evaluation
+                               :claims-context {:provenance/claim-id :conservation
+                                                :provenance/claim-definition-hash "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                                                :provenance/claim-result-hash "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                                                :provenance/claim-holds? true
+                                                :provenance/claim-status :pass}
+                               :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (:valid? result))))
+
+(deftest validate-does-not-require-claims-context-for-non-claim-triggers
+  (let [p (ap/provenance-entry :replay-complete :run-id "r1")
+        result (ap/validate-provenance p)]
+    (is (:valid? result))))

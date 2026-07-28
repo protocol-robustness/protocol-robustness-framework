@@ -269,9 +269,10 @@
 ;; ---------------------------------------------------------------------------
 
 (def resolution-path-map
-  {"execute-resolution"          :resolution/standard
-   "execute-pending-settlement"  :resolution/delayed
-   "auto-cancel-disputed"        :resolution/timeout})
+  {"execute-resolution"             :resolution/standard
+   "execute-pending-settlement"     :resolution/delayed
+   "auto-cancel-disputed"           :resolution/timeout
+   "auto-cancel-refused-resolution" :resolution/timeout})
 
 (defn resolution-path
   "Map an action name to its resolution path type."

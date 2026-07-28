@@ -19,7 +19,8 @@
      :scenario-result    — attestation was created from a scenario result
      :pipeline-step      — attestation was created as part of a pipeline step"
 
-  (:require [clojure.set :as set])
+  (:require [clojure.set :as set]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.time Instant]))
 
 ;; ── Schema ───────────────────────────────────────────────────────────────────
@@ -31,6 +32,15 @@
   #{:provenance/schema-version
     :provenance/trigger
     :provenance/generated-at})
+
+(def ^:const claims-context-required-keys
+  "Provenance sub-keys that must be present in :provenance/claims-context
+   when :provenance/trigger is :claim-evaluation."
+  #{:provenance/claim-id
+    :provenance/claim-definition-hash
+    :provenance/claim-result-hash
+    :provenance/claim-holds?
+    :provenance/claim-status})
 
 (def ^:const optional-keys
   "Provenance keys that may be present."
@@ -145,6 +155,31 @@
         (vswap! errors conj (str ":provenance/generated-at must be a string, got " (type g))))
       (when (= g "")
         (vswap! errors conj ":provenance/generated-at must not be empty")))
+    ;; claims-context — recursive validation when trigger is claim-evaluation
+    (when (= (:provenance/trigger provenance) :claim-evaluation)
+      (let [ctx (:provenance/claims-context provenance)]
+        (if (nil? ctx)
+          (vswap! errors conj ":provenance/claims-context is required when :provenance/trigger is :claim-evaluation")
+          (do
+            (doseq [k claims-context-required-keys]
+              (when-not (contains? ctx k)
+                (vswap! errors conj (str "Missing required claims-context key: " k))))
+            ;; Field-level type validation
+            (let [claim-id (:provenance/claim-id ctx)]
+              (when (and (contains? ctx :provenance/claim-id) (not (keyword? claim-id)))
+                (vswap! errors conj (str ":provenance/claim-id must be a keyword, got " (type claim-id)))))
+            (let [def-hash (:provenance/claim-definition-hash ctx)]
+              (when (and (contains? ctx :provenance/claim-definition-hash) (not (hash-ref/valid-sha256-ref? def-hash)))
+                (vswap! errors conj (str ":provenance/claim-definition-hash is not a valid sha256 ref: " (pr-str def-hash)))))
+            (let [result-hash (:provenance/claim-result-hash ctx)]
+              (when (and (contains? ctx :provenance/claim-result-hash) (not (hash-ref/valid-sha256-ref? result-hash)))
+                (vswap! errors conj (str ":provenance/claim-result-hash is not a valid sha256 ref: " (pr-str result-hash)))))
+            (let [holds (:provenance/claim-holds? ctx)]
+              (when (and (contains? ctx :provenance/claim-holds?) (not (instance? Boolean holds)))
+                (vswap! errors conj (str ":provenance/claim-holds? must be a boolean, got " (type holds)))))
+            (let [status (:provenance/claim-status ctx)]
+              (when (and (contains? ctx :provenance/claim-status) (not (keyword? status)))
+                (vswap! errors conj (str ":provenance/claim-status must be a keyword, got " (type status)))))))))
     (if (seq @errors)
       {:valid? false :errors @errors}
       {:valid? true})))

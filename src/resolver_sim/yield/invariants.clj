@@ -4,9 +4,11 @@
             [resolver-sim.yield.risk :as risk]
             [resolver-sim.yield.invariant-catalog :as cat]
             [resolver-sim.yield.partial-fill :as partial-fill]
-            [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
-            [resolver-sim.yield.modules.liquid-lending :as ll]
-            [resolver-sim.logging :as log]))
+             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
+             [resolver-sim.yield.modules.liquid-lending :as ll]
+             [resolver-sim.time.context :as time-ctx]
+             [resolver-sim.time.deadlines :as dl]
+             [resolver-sim.logging :as log]))
 
 (defn- inv-result [holds?]
   {:holds? (boolean holds?)})
@@ -705,6 +707,79 @@
                                    :expected expected-eligibility :observed (:position/eligibility active))))))
                 (:participants propagation))))))
 
+(defn- deferred-deadline-violations
+  "Check that no active deferred position is past its policy deadline."
+  [world]
+  (let [now-ts (time-ctx/block-ts world)]
+    (into []
+          (keep (fn [[pid pos]]
+                  (when-let [dp (:deferred-position pos)]
+                    (when (and (= :active (:position/status dp))
+                               (some? (:position/deadline-ts dp))
+                               (dl/deadline-expired? now-ts (:position/deadline-ts dp)))
+                      {:participant-id pid
+                       :reason :deferred-position-deadline-expired
+                       :deadline-ts (:position/deadline-ts dp)
+                       :current-ts now-ts}))))
+          (:yield/positions world {}))))
+
+(def ^:private accounting-category-checks
+  "Mapping from categories to the set of detailed check keys they summarise."
+  {:account-classes-valid
+   [:deferred-position-policy-valid
+    :policy-accounting-contract-supported
+    :source-account-policy-compliant
+    :participant-account-policy-compliant
+    :shortfall-policy-compliant
+    :token-policy-compliant
+    :account-classes-valid
+    :source-token-consistent]
+
+   :application-binding-valid
+   [:application-record-present
+    :allocation-decision-binding-valid
+    :allocation-row-translation-valid
+    :application-binding-valid
+    :application-participant-set-valid
+    :application-obligation-identities-valid]
+
+   :accounting-entries-complete
+   [:participant-credit-total-valid
+    :participant-credit-keys-complete
+    :participant-credits-match-individually
+    :participant-credit-set-exact
+    :entry-set-balanced]
+
+           :accounting-state-reconciles
+           [:source-account-arithmetic-valid
+            :participant-withdrawn-arithmetic
+            :deferred-position-presence-valid
+            :deferred-position-amounts-valid
+            :deferred-position-identities-valid
+            :deferred-position-deadline-valid
+            :obligation-identities-valid
+    :obligation-conservation
+    :unsupported-obligation-outcomes-absent
+    :obligation-after-valid
+    :residual-policy-compliant
+    :available-allocation-residual
+    :residual-retained-in-pool]
+
+   :chain-continuity-valid
+   [:application-order-valid
+    :source-balance-chain-valid
+    :participant-balance-chain-valid
+    :cumulative-fulfilment-valid
+    :closed-position-history-valid]
+
+   :artifact-integrity-valid
+   [:accounting-entry-set-hash-consistent
+    :policy-reference-valid
+    :idempotency-policy-compliant
+    :application-output-schema-valid
+    :application-output-hash-valid
+    :position-after-hash-valid]})
+
 (defn check-pro-rata-accounting-reconciles
   "Reconcile each persisted propagation with its committed application snapshot."
   [world]
@@ -820,83 +895,102 @@
                          (deferred-state-violations world props)
                          (obligation-violations props)
                          (cumulative-fulfilment-violations applications)
-                         (application-obligation-violations props applications)
-                         (closed-history-violations applications))]
+                          (application-obligation-violations props applications)
+                          (closed-history-violations applications)
+                          (deferred-deadline-violations world))]
 
     (let [failures (vec failures)
           reasons (set (map :reason failures))
-          pass? (fn [reason-set] (if (empty? (clojure.set/intersection reasons reason-set)) :pass :fail))]
-      {:holds? (empty? failures)
-       :checks {:application-record-present (pass? #{:missing-propagation-application})
-                 :allocation-decision-binding-valid (pass? #{:propagation-allocation-id-mismatch
-                                                             :propagation-allocation-hash-mismatch
-                                                             :propagation-mechanism-reference-mismatch
-                                                             :propagation-mechanism-evidence-reference-mismatch
-                                                             :decision-mechanism-evidence-invalid
-                                                             :propagation-decision-reference-mismatch
-                                                             :decision-hash-mismatch})
-                :allocation-row-translation-valid
-                (pass? #{:missing-propagation-participant
-                         :extra-propagation-participant
-                         :duplicate-propagation-participant
-                         :duplicate-decision-allocation-row
-                         :propagated-fulfilled-mismatch
-                         :propagated-unmet-mismatch
-                         :propagation-fulfilled-total-mismatch
-                         :propagation-unmet-total-mismatch})
-                :application-order-valid (pass? #{:application-order-missing :application-order-duplicate})
-                :application-binding-valid
-                (pass? #{:unsupported-application-schema
-                         :application-hash-missing
-                         :application-hash-mismatch
-                         :application-propagation-reference-mismatch
-                         :application-invocation-context-mismatch
-                         :application-calculation-id-mismatch
-                         :application-outcome-hash-mismatch
-                         :application-policy-hash-mismatch})
-                :application-participant-set-valid (pass? #{:application-participant-set-mismatch})
-                :participant-credit-total-valid (pass? #{:participant-credit-total-mismatch})
-                :source-account-arithmetic-valid
-                (pass? #{:source-account-arithmetic-failed
-                         :source-debit-mismatch
-                         :source-account-entry-missing})
-                :accounting-entry-set-hash-consistent
-                (pass? #{:propagation-accounting-entry-hash-mismatch
-                         :application-accounting-entry-hash-mismatch})
-                :source-balance-chain-valid (pass? #{:source-balance-chain-broken :latest-source-balance-mismatch})
-                :participant-withdrawn-arithmetic (pass? #{:participant-withdrawn-arithmetic-failed :application-withdrawn-delta-mismatch})
-                :participant-balance-chain-valid (pass? #{:participant-balance-chain-broken :latest-authoritative-withdrawn-balance-mismatch})
-                :participant-credit-keys-complete (pass? #{:participant-obligation-id-missing :credit-obligation-id-missing :duplicate-propagation-participant})
-                :participant-credits-match-individually (pass? #{:participant-credit-missing :participant-credit-duplicate :participant-credit-mismatch :participant-credit-token-mismatch :participant-credit-owner-mismatch :participant-credit-obligation-mismatch})
-                :participant-credit-set-exact (pass? #{:orphan-participant-credit :unexpected-zero-fulfilment-credit})
-                :deferred-position-presence-valid (pass? #{:deferred-position-missing :fulfilled-position-still-active})
-                :deferred-position-amounts-valid (pass? #{:deferred-position-amount-mismatch})
-                :deferred-position-identities-valid (pass? #{:deferred-position-token-mismatch :deferred-position-root-obligation-mismatch :deferred-position-origin-mismatch})
-                :deferred-position-policy-valid (pass? #{:deferred-position-policy-mismatch
-                                                         :deferred-position-policy-compliant (pass? #{:deferred-position-policy-mismatch})})
-                :obligation-identities-valid (pass? #{:participant-obligation-id-missing})
-                :application-obligation-identities-valid (pass? #{:application-participant-record-missing :application-participant-record-duplicate :application-obligation-id-mismatch :application-obligation-token-mismatch :application-obligation-participant-mismatch})
-                :obligation-conservation (pass? #{:obligation-conservation-failed :invalid-obligation-amount})
-                :unsupported-obligation-outcomes-absent (pass? #{:unsupported-unmet-withdrawal :unsupported-waived-withdrawal})
-                :obligation-after-valid (pass? #{:obligation-after-mismatch})
-                :cumulative-fulfilment-valid (pass? #{:cumulative-fulfilment-arithmetic-failed :cumulative-fulfilment-exceeded})
-                :closed-position-history-valid (pass? #{:closed-position-history-missing :closed-position-history-identity-mismatch :closed-position-history-closure-mismatch})
-                :policy-reference-valid (pass? #{:propagation-policy-missing :unsupported-propagation-policy-schema :propagation-policy-hash-mismatch :propagation-policy-reference-mismatch :unsupported-propagation-policy})
-                :policy-accounting-contract-supported (pass? #{:unsupported-propagation-policy})
-                :source-account-policy-compliant (pass? #{:application-source-account-policy-mismatch :source-entry-account-policy-mismatch})
-                :participant-account-policy-compliant (pass? #{:participant-credit-account-policy-mismatch})
-                :shortfall-policy-compliant (pass? #{:shortfall-classification-policy-mismatch :unsupported-policy-shortfall-classification})
-                :residual-policy-compliant (pass? #{:residual-destination-policy-mismatch :source-debit-violates-residual-policy :unexpected-residual-refund})
-                :idempotency-policy-compliant (pass? #{:unsupported-policy-idempotency-contract :policy-idempotency-component-missing :application-key-policy-mismatch})
-                :token-policy-compliant (pass? #{:source-token-mismatch :participant-token-mismatch :residual-token-mismatch})
-                :account-classes-valid (pass? #{:source-account-policy-mismatch :participant-account-policy-mismatch :application-source-account-policy-mismatch :source-entry-account-policy-mismatch :participant-credit-account-policy-mismatch})
-                :source-token-consistent (pass? #{:source-token-mismatch})
-                :available-allocation-residual (pass? #{:available-allocation-residual-mismatch :residual-record-mismatch :residual-token-mismatch})
-                :residual-retained-in-pool (pass? #{:residual-destination-policy-mismatch})
-                :entry-set-balanced (pass? #{:accounting-entry-set-unbalanced})
-                 :application-output-schema-valid (pass? #{:application-output-schema-invalid})
-                 :application-output-hash-valid (pass? #{:application-output-hash-mismatch})
-                 :position-after-hash-valid (pass? #{:position-after-hash-mismatch})}
+          pass? (fn [reason-set] (if (empty? (clojure.set/intersection reasons reason-set)) :pass :fail))
+
+          checks
+          {:application-record-present (pass? #{:missing-propagation-application})
+           :allocation-decision-binding-valid (pass? #{:propagation-allocation-id-mismatch
+                                                       :propagation-allocation-hash-mismatch
+                                                       :propagation-mechanism-reference-mismatch
+                                                       :propagation-mechanism-evidence-reference-mismatch
+                                                       :decision-mechanism-evidence-invalid
+                                                       :propagation-decision-reference-mismatch
+                                                       :decision-hash-mismatch})
+           :allocation-row-translation-valid
+           (pass? #{:missing-propagation-participant
+                    :extra-propagation-participant
+                    :duplicate-propagation-participant
+                    :duplicate-decision-allocation-row
+                    :propagated-fulfilled-mismatch
+                    :propagated-unmet-mismatch
+                    :propagation-fulfilled-total-mismatch
+                    :propagation-unmet-total-mismatch})
+           :application-order-valid (pass? #{:application-order-missing :application-order-duplicate})
+           :application-binding-valid
+           (pass? #{:unsupported-application-schema
+                    :application-hash-missing
+                    :application-hash-mismatch
+                    :application-propagation-reference-mismatch
+                    :application-invocation-context-mismatch
+                    :application-calculation-id-mismatch
+                    :application-outcome-hash-mismatch
+                    :application-policy-hash-mismatch})
+           :application-participant-set-valid (pass? #{:application-participant-set-mismatch})
+           :participant-credit-total-valid (pass? #{:participant-credit-total-mismatch})
+           :source-account-arithmetic-valid
+           (pass? #{:source-account-arithmetic-failed
+                    :source-debit-mismatch
+                    :source-account-entry-missing})
+           :accounting-entry-set-hash-consistent
+           (pass? #{:propagation-accounting-entry-hash-mismatch
+                    :application-accounting-entry-hash-mismatch})
+           :source-balance-chain-valid (pass? #{:source-balance-chain-broken :latest-source-balance-mismatch})
+           :participant-withdrawn-arithmetic (pass? #{:participant-withdrawn-arithmetic-failed :application-withdrawn-delta-mismatch})
+           :participant-balance-chain-valid (pass? #{:participant-balance-chain-broken :latest-authoritative-withdrawn-balance-mismatch})
+           :participant-credit-keys-complete (pass? #{:participant-obligation-id-missing :credit-obligation-id-missing :duplicate-propagation-participant})
+           :participant-credits-match-individually (pass? #{:participant-credit-missing :participant-credit-duplicate :participant-credit-mismatch :participant-credit-token-mismatch :participant-credit-owner-mismatch :participant-credit-obligation-mismatch})
+           :participant-credit-set-exact (pass? #{:orphan-participant-credit :unexpected-zero-fulfilment-credit})
+           :deferred-position-presence-valid (pass? #{:deferred-position-missing :fulfilled-position-still-active})
+           :deferred-position-amounts-valid (pass? #{:deferred-position-amount-mismatch})
+           :deferred-position-identities-valid (pass? #{:deferred-position-token-mismatch :deferred-position-root-obligation-mismatch :deferred-position-origin-mismatch})
+           :deferred-position-policy-valid (pass? #{:deferred-position-policy-mismatch})
+           :obligation-identities-valid (pass? #{:participant-obligation-id-missing})
+           :application-obligation-identities-valid (pass? #{:application-participant-record-missing :application-participant-record-duplicate :application-obligation-id-mismatch :application-obligation-token-mismatch :application-obligation-participant-mismatch})
+           :obligation-conservation (pass? #{:obligation-conservation-failed :invalid-obligation-amount})
+           :unsupported-obligation-outcomes-absent (pass? #{:unsupported-unmet-withdrawal :unsupported-waived-withdrawal})
+           :obligation-after-valid (pass? #{:obligation-after-mismatch})
+           :cumulative-fulfilment-valid (pass? #{:cumulative-fulfilment-arithmetic-failed :cumulative-fulfilment-exceeded})
+           :closed-position-history-valid (pass? #{:closed-position-history-missing :closed-position-history-identity-mismatch :closed-position-history-closure-mismatch})
+           :policy-reference-valid (pass? #{:propagation-policy-missing :unsupported-propagation-policy-schema :propagation-policy-hash-mismatch :propagation-policy-reference-mismatch :unsupported-propagation-policy})
+           :policy-accounting-contract-supported (pass? #{:unsupported-propagation-policy})
+           :source-account-policy-compliant (pass? #{:application-source-account-policy-mismatch :source-entry-account-policy-mismatch})
+           :participant-account-policy-compliant (pass? #{:participant-credit-account-policy-mismatch})
+           :shortfall-policy-compliant (pass? #{:shortfall-classification-policy-mismatch :unsupported-policy-shortfall-classification})
+           :residual-policy-compliant (pass? #{:residual-destination-policy-mismatch :source-debit-violates-residual-policy :unexpected-residual-refund})
+           :idempotency-policy-compliant (pass? #{:unsupported-policy-idempotency-contract :policy-idempotency-component-missing :application-key-policy-mismatch})
+           :token-policy-compliant (pass? #{:source-token-mismatch :participant-token-mismatch :residual-token-mismatch})
+           :account-classes-valid (pass? #{:source-account-policy-mismatch :participant-account-policy-mismatch :application-source-account-policy-mismatch :source-entry-account-policy-mismatch :participant-credit-account-policy-mismatch :deferred-position-policy-mismatch})
+           :source-token-consistent (pass? #{:source-token-mismatch})
+           :available-allocation-residual (pass? #{:available-allocation-residual-mismatch :residual-record-mismatch :residual-token-mismatch})
+           :residual-retained-in-pool (pass? #{:residual-destination-policy-mismatch})
+           :entry-set-balanced (pass? #{:accounting-entry-set-unbalanced})
+           :application-output-schema-valid (pass? #{:application-output-schema-invalid})
+           :application-output-hash-valid (pass? #{:application-output-hash-mismatch})
+           :position-after-hash-valid (pass? #{:position-after-hash-mismatch})
+           :deferred-position-deadline-valid (pass? #{:deferred-position-deadline-expired})}
+
+           checks-pass?
+          (fn [check-ids]
+            (every? #(= :pass (get checks %)) check-ids))
+
+          categories
+          (into {}
+                (map (fn [[category check-ids]]
+                       [category (checks-pass? check-ids)]))
+                accounting-category-checks)
+
+          holds? (empty? failures)]
+      {:check/id :yield/pro-rata-accounting-reconciles
+       :checks checks
+       :categories categories
+       :valid? holds?
+       :holds? holds?
        :violations failures})))
 
 (defn check-pro-rata-propagation-complete

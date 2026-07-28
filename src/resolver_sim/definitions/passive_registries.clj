@@ -1,6 +1,28 @@
 (ns resolver-sim.definitions.passive-registries
   "Semantic registries validated on namespace load.
 
+   ════════════════════════════════════════════════════════════════
+   CONFIGURATION AUTHORITY BOUNDARY
+   ════════════════════════════════════════════════════════════════
+
+   Runtime policy is CODE-DEFINED.  The canonical source of truth
+   for evidence policy, execution policy, output policy, and all
+   registries is this namespace and its registry definitions.
+
+   Configuration files under config/ with a dedicated explicit
+   loader (e.g. config/evidence.json loaded by
+   resolver-sim.evidence.config) are the ONLY files that control
+   runtime behaviour.  All other files under config/ are either
+   reference examples (config/examples/) or architecture
+   documentation (config/architecture/).
+
+   There is NO silent file-to-code fallback.  If a configuration
+   file is not loaded by an explicit, documented loader, it has
+   no effect on runtime behaviour.  This ensures deterministic,
+   auditable policy provenance.
+
+   ════════════════════════════════════════════════════════════════
+
    Registries validated at startup:
    - intent-registry
    - projection-definition-registry

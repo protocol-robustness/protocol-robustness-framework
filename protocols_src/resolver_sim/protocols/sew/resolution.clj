@@ -774,12 +774,12 @@
 
     :else
     (let [world (lc/accrue-yield world workflow-id)
-          world' (assoc-in world [:escrow-transfers workflow-id :resolution]
-                           {:refused true
-                            :refused-by caller
-                            :resolution-hash resolution-hash
-                            :refused-at (time-ctx/block-ts world)})]
-      (log/warn! :execute-resolution-refused {:workflow-id workflow-id :caller caller})
+          now   (time-ctx/block-ts world)
+          world' (-> world
+                     (assoc-in [:escrow-transfers workflow-id :resolution/refused] true)
+                     (assoc-in [:escrow-transfers workflow-id :resolution/refused-by] caller)
+                     (assoc-in [:escrow-transfers workflow-id :resolution/refused-at] now)
+                     (assoc-in [:escrow-transfers workflow-id :resolution/refused-hash] resolution-hash))]
       (t/ok world'))))
 
 ;; ---------------------------------------------------------------------------

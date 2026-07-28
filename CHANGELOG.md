@@ -2,7 +2,31 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`benchmark-outcome.v1` hash projection corrected (hash-breaking).** The singular `:benchmark-outcome/hash` previously committed to both `:outcomes/theorems`/`:outcomes/conclusions` (the raw reference lists) and their aggregate `:theorem-root`/`:conclusion-root` inside `:outcome-hashes` — double-counting the same information. Now the hash projection excludes the mirrored top-level fields (`:execution/command-root`, `:outcomes/operational-root`, `:outcomes/incentive-root`, `:outcomes/incentive-compatibility-root`, `:outcomes/theorems`, `:outcomes/conclusions`) and commits only through `:outcome-hashes`. The `derive-outcome-hashes` function is the sole authoritative source. `validate-manifest` enforces exact equality between `(:outcome-hashes manifest)` and `(derive-outcome-hashes manifest)`. `pre-application-checks` validates hash-prefix encoding and derived-map consistency. `build-manifest` un-gates `:outcomes/incentive-root` and `:outcomes/incentive-compatibility-root` from `:outcomes/operational-root` — each is now independently optional. (`src/resolver_sim/benchmark/outcome_manifest.clj`)
+
+- **Centralised SHA-256 reference construction and validation through `resolver-sim.hash.reference`.** Replaced two raw-prefix bypasses (`run/package-index.clj:42`, `benchmark/verify.clj:14`) that used `(str "sha256:" digest)` with the authoritative `hash-ref/sha256-ref`. Removed the duplicated `sha256-ref-pattern` regex and seven validation gates in `package_index.clj`; all now delegate to `hash-ref/valid-sha256-ref?`. The change is representation-preserving: package references, content roots, fixtures, schemas, and persisted artifact shapes remain unchanged.
+
+- **Sew `resolution.clj` syntax errors fixed:** 4 syntax bugs fixed — missing `)` on `cond->` (line 436), missing `}` on two `hash-with-intent` intent maps (lines 1282, 1568), and `nil` incorrectly placed inside an evidence inputs map (line ~1914). (`protocols_src/resolver_sim/protocols/sew/resolution.clj`)
+
+- **Yield tests fixed — 14 pre-existing failures/errors resolved:** `liquid-lending-v2-test` (3 ratio-hashing errors), `pro-rata-accounting-test` (10 failures: added missing output-validation checks to invariant, fixed test data and assertions), `pro-rata-propagation-properties-test` (1 flaky property test: filtered nil worlds from generator). (`test/resolver_sim/yield/liquid_lending_v2_test.clj`, `test/resolver_sim/yield/pro_rata_accounting_test.clj`, `test/resolver_sim/yield/pro_rata_propagation_properties_test.clj`, `src/resolver_sim/yield/invariants.clj`, `src/resolver_sim/yield/modules/liquid_lending.clj`)
+
+- **`verify-chain-integrity` content hash recomputation fixed:** Was missing `:evidence/chain-hash-scheme`, `:evidence/chain-seq`, and `:evidence/timestamp` from its dissoc list — these fields are added by `inject-chain-fields`/`finalize-evidence` AFTER the content hash is computed, so including them in the recomputation caused false hash mismatches. Also added scheme validation (Check 4) that verifies every artifact uses `chain/chain-hash-scheme`. (`src/resolver_sim/io/event_evidence.clj`)
+
 ### Added
+
+- **`pre-application-checks` CLI command and backstop entry.** Registered as a `:default`-tier backstop command at `["pre-application" "checks"]`. Validates an outcome manifest — reads from `--manifest` path or uses a canonical fixture. Wraps `outcome_manifest.clj:pre-application-checks`. (`src/resolver_sim/commands/pre_application_checks.clj`, `resources/prf/commands/registry.edn`, `src/resolver_sim/cli/dispatch.clj`)
+
+- **Hash-binding, mismatch, omission, and unknown-field tests for outcome manifests.** 13 new tests in `outcome_manifest_test.clj`: command-root/incentive-compatibility-root/operational-root/incentive-root change-alters-hash, incentive-roots-ungated-from-operational, mismatched-outcome-hashes-rejected, omitted-outcome-hashes-entry-rejected, unknown-manifest-field-rejected, unknown-noncanonical-embedded-field-rejected, pre-application-checks-accepts-complete-manifest, pre-application-checks-rejects-missing-content-root, pre-application-checks-rejects-missing-model-root, pre-application-checks-rejects-invalid-hash-root, pre-application-checks-detects-outcome-hashes-mismatch. (`test/resolver_sim/benchmark/outcome_manifest_test.clj`)
+
+- **Position-after-hash invariant check:** `check-pro-rata-accounting-reconciles` now verifies that each application participant's `:position-after-hash` matches `canonical-hash-safe` of the actual position in `:yield/positions`, detecting post-application position tampering. (`src/resolver_sim/yield/invariants.clj`)
+
+- **`canonical-hash-safe` made public:** Exported from `liquid_lending.clj` (was `defn-`) so the invariant can verify position hashes. (`src/resolver_sim/yield/modules/liquid_lending.clj`)
+
+- **Chain-hash scheme stability and edge-case tests:** 5 new tests — `chain-link-hash-deterministic`, `chain-link-hash-compartment-separates-schemes`, `inject-chain-fields-missing-evidence-hash`, `inject-chain-fields-monotonic-seq`, `inject-chain-fields-after-reset-restarts-seq`. (`test/resolver_sim/evidence/chain_test.clj`)
+
+- **3 yield test namespaces registered in `test:yield`:** Added `resolver-sim.yield.liquid-lending-v2-test`, `resolver-sim.yield.pro-rata-accounting-test`, and `resolver-sim.yield.pro-rata-propagation-properties-test` to `run_yield()` in `test.sh` so `bb test:yield` and `bb backstop` pick them up. (`scripts/test.sh`)
 
 - **Unified live registry hub (`resolver-sim.registry.live`):** Central entry point for reading and mutating registry data across 10 built-in types (`:benchmark`, `:pack`, `:concept`, `:command`, `:claim`, `:protocol`, `:evidence`, `:yield-module`, `:sew-resolver`, `:definitions`). Resolution order: world state → live atom → classpath resource → resolver fn. `update-live-registry!` for runtime injection. `register-registry!` for dynamic type registration. `:skip-fallback` option and `*live-only*` dynamic var restrict resolution to world + live atom only. `read-live` convenience wrapper with zero-arity (atom snapshot) and type-aware arities. `with-test-registry` macro injects fixtures, binds `*live-only*`, and restores atom state on exit. (`src/resolver_sim/registry/live.clj`, `test/resolver_sim/registry/live_test.clj`)
 

@@ -16,7 +16,7 @@ The forensic bundle workflow is a repository-level execution and evidence-packag
 
 | Location | Purpose |
 |---|---|
-| `config/forensic/` | Versioned default evidence, execution, and output policy definitions. |
+| `examples/config/forensic/` | Versioned default evidence, execution, and output policy definitions. |
 | `examples/forensic-reference-run/` | Non-evidentiary example inputs. Placeholder values must not be used for a real run. |
 | `scripts/forensic/` | Orchestration, preflight, verification, and bundle tools. |
 | `docs/forensic/BUNDLE_WORKFLOW.md` | Command reference and lifecycle. |

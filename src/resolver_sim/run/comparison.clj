@@ -2,8 +2,9 @@
   (:require [clojure.data.json :as json] [clojure.java.io :as io]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.paths :as paths]))
-(defn- sha [f] (str "sha256:" (lifecycle/sha256-file f)))
+(defn- sha [f] (hash-ref/sha256-ref (lifecycle/sha256-file f)))
 (defn- readj [f] (json/read-str (slurp f)))
 (defn- verify-package! [root completion]
   (case (get completion "run_type")

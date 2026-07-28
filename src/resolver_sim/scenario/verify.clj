@@ -8,6 +8,7 @@
             [resolver-sim.evidence.finalization :as finalization]
             [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.run.verdict-policy :as verdict-policy]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
@@ -17,7 +18,7 @@
   (json/read-str (slurp file) :key-fn keyword))
 
 (defn- sha-ref [file]
-  (str "sha256:" (lifecycle/sha256-file file)))
+  (hash-ref/sha256-ref (lifecycle/sha256-file file)))
 
 (defn- files-named [root name]
   (->> (file-seq (io/file root))

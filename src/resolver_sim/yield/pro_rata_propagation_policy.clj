@@ -15,9 +15,10 @@
    :policy/id :shared-withdrawal-propagation
    :policy/version 1
    :policy/domain :shared-withdrawal
-   :shortfall {:classification :deferred :next-position/type :deferred-withdrawal
-               :next-position/eligibility :later-liquidity
-               :next-round-weight-policy :residual-entitlement}
+    :shortfall {:classification :deferred :next-position/type :deferred-withdrawal
+                :next-position/eligibility :later-liquidity
+                :next-round-weight-policy :residual-entitlement
+                :deferral-duration-seconds 2592000}
    :priority {:propagation-policy :preserve-original}
    :rounding {:propagation-policy :independent-rounds}
    :fulfilled-position {:terminal-state :closed}
@@ -29,7 +30,7 @@
 
 (def ^:private registry {:shared-withdrawal-propagation shared-withdrawal-policy})
 (def ^:private required-fields
-  {:shortfall #{:classification :next-position/type :next-position/eligibility :next-round-weight-policy}
+   {:shortfall #{:classification :next-position/type :next-position/eligibility :next-round-weight-policy :deferral-duration-seconds}
    :priority #{:propagation-policy} :rounding #{:propagation-policy}
    :fulfilled-position #{:terminal-state} :residual-liquidity #{:destination}
    :accounting-contract #{:source-account :participant-credit-account :deferred-position-account}

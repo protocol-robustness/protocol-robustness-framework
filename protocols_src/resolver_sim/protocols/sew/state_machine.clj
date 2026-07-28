@@ -476,7 +476,7 @@
         ts      (get-in world [:dispute-timestamps workflow-id] 0)
         snap    (t/get-snapshot world workflow-id)
         max-dur (get snap :max-dispute-duration 0)
-        refused (get-in world [:escrow-transfers workflow-id :resolution :refused] false)]
+        refused (get-in world [:escrow-transfers workflow-id :resolution/refused] false)]
     (and (= :disputed state)
          refused
          (pos? ts)

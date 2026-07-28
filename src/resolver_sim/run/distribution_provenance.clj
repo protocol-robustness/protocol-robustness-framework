@@ -3,7 +3,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [resolver-sim.commands.run-lifecycle :as lifecycle]))
+            [resolver-sim.commands.run-lifecycle :as lifecycle]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def schema-version "prf-distribution-provenance.v1")
 
@@ -24,7 +25,8 @@
     (let [sidecar (io/file (str (.getPath jar) ".provenance.json"))]
       (if (.isFile sidecar)
         (let [manifest (json/read-str (slurp sidecar))
-              jar-sha (str "sha256:" (lifecycle/sha256-file jar))]
+              jar-sha (or (hash-ref/sha256-ref-file (.getPath jar))
+                          (hash-ref/sha256-ref (lifecycle/sha256-file jar)))]
           {"mode" (if (= jar-sha (get manifest "jar_sha256")) "release-distribution" "unverified-distribution")
            "jar_path" (.getName jar)
            "jar_sha256" jar-sha
@@ -32,7 +34,7 @@
            "reason" (when-not (= jar-sha (get manifest "jar_sha256")) "build-manifest-jar-hash-mismatch")})
         {"mode" "unverified-distribution"
          "jar_path" (.getName jar)
-         "jar_sha256" (str "sha256:" (lifecycle/sha256-file jar))
+         "jar_sha256" (hash-ref/sha256-ref (lifecycle/sha256-file jar))
          "reason" "missing-build-provenance-sidecar"}))
     {"mode" "source-classpath"
      "reason" "no-prf-distribution-jar-on-classpath"}))

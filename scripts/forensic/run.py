@@ -586,7 +586,7 @@ def _bundle_scenario_files(run_dir: Path, suite_key: str) -> None:
 def run_forensic(run_request_path: str = "examples/forensic-reference-run/run-request.example.edn",
                  label: str | None = None,
                  registry_snapshot_path: str = "examples/forensic-reference-run/registry-snapshot.example.edn",
-                 evidence_policy_path: str = "config/forensic/evidence-policy.edn",
+                 evidence_policy_path: str = "examples/config/forensic/evidence-policy.edn",
                  output_base: str | Path | None = None,
                  repo_root: str | Path | None = None,
                  dry_run: bool = False,
@@ -967,8 +967,8 @@ def main():
                         default="examples/forensic-reference-run/registry-snapshot.example.edn",
                         help="Path to registry snapshot file (default: examples/forensic-reference-run/registry-snapshot.example.edn)")
     parser.add_argument("--evidence-policy",
-                        default="config/forensic/evidence-policy.edn",
-                        help="Path to evidence policy file (default: config/forensic/evidence-policy.edn)")
+                        default="examples/config/forensic/evidence-policy.edn",
+                        help="Path to evidence policy file (default: examples/config/forensic/evidence-policy.edn)")
     parser.add_argument("--output-base",
                         default=str(PRF_RUNS_ROOT),
                         help="Base directory for run output (default: ~/prf-runs)")

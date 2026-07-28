@@ -332,10 +332,10 @@
   [run-sensitivity scenarios findings]
   (let [scenario-entries (mapv #(per-scenario-entry % findings) scenarios)
         total (count scenarios)
-        missing (count (filter #(= ":sensitivity-status/no-declaration-structural-only"
+        missing (count (filter #(= "no-declaration-structural-only"
                                    (:sensitivity/status %))
                                scenario-entries))
-        evaluated (count (filter #(= ":sensitivity-status/evaluated"
+        evaluated (count (filter #(= "evaluated"
                                      (:sensitivity/status %))
                                  scenario-entries))
         run-level-name (when run-sensitivity (name (:level run-sensitivity)))

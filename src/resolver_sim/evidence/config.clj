@@ -1,5 +1,25 @@
 (ns resolver-sim.evidence.config
   "Canonical evidence chain configuration from config/evidence.json.
+
+   ════════════════════════════════════════════════════════════════
+   CONFIGURATION AUTHORITY
+   ════════════════════════════════════════════════════════════════
+
+   This namespace is the ONLY explicit, documented loader for
+   evidence chain configuration.  The authoritative source is:
+
+     config/evidence.json
+
+   with optional overrides via PRF_EVIDENCE_CONFIG_PATH (env var)
+   and PRF_ARTIFACT_DIR (env var / thread-local binding).
+
+   All other files under config/ that are NOT loaded here or in
+   resolver-sim.definitions.passive-registries have NO effect on
+   runtime behaviour.  See resolver-sim.definitions.passive-registries
+   for code-defined policy registries.
+
+   ════════════════════════════════════════════════════════════════
+
    All consumers should read from this namespace rather than hardcoding paths or versions."
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]

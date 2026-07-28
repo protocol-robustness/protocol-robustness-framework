@@ -600,3 +600,203 @@
         "participant accounting must detect missing credit entry")
     (is (false? (get-in result [:categories :accounting-entries-complete]))
         "entries-complete category must reflect the failure")))
+
+(deftest deferred-position-class-corruption-is-detected
+  (let [entries valid-entries
+        entry-hash (pf/accounting-entry-set-hash entries)
+        policy (propagation-policy/normalize-and-validate
+                propagation-policy/shared-withdrawal-policy)
+        policy-hash (:policy/hash policy)
+        p {:propagation/id "p1" :calculation-ref "c1" :outcome-ref "o1"
+           :token :USDC
+           :propagation/hash "propagation-hash" :propagation/content-hash "content-hash"
+           :propagation-policy (propagation-policy/policy-reference policy)
+           :summary {:available 100 :allocated 40 :unallocated-residual 60}
+           :residual {:destination :remain-in-shared-liquidity}
+           :participants [{:participant-id "alice" :eligible-obligation 100
+                           :fulfilled 40 :deferred 60 :unmet 0 :waived 0
+                           :obligation-after 60
+                           :origin {:obligation-id "oa" :participant-id "alice"}}]
+           :accounting-entries entries :accounting-entry-set-hash entry-hash}
+        app {:schema-version "pro-rata-propagation-application.v3"
+             :propagation-id "p1"
+             :propagation/reference {:propagation/id "p1"
+                                     :propagation/hash "propagation-hash"
+                                     :propagation/content-hash "content-hash"}
+             :calculation-id "c1" :outcome-hash "o1" :policy-hash policy-hash
+             :application-key [:pro-rata-propagation "c1" "o1" policy-hash]
+             :application-order {:schema-version "pro-rata-application-order.v2"
+                                 :step 1 :event-id 0}
+             :accounting-entry-set-hash entry-hash
+             :source-account {:account :shared-liquidity :token :USDC
+                              :before 100 :delta -40 :after 60}
+             :residual {:token :USDC :available 100 :allocated 40 :amount 60
+                        :destination :remain-in-shared-liquidity}
+             :participants [{:participant-id "alice" :obligation-id "oa"
+                             :withdrawn {:token :USDC :before 0 :delta 40 :after 40}
+                             :obligation {:before 100 :fulfilled 40 :deferred 60
+                                          :unmet 0 :waived 0 :after 60}
+                             :cumulative-fulfilled {:before 0 :delta 40 :after 40}}]}
+        app (assoc app :application/hash (pf/application-hash app))
+        world {:yield/pro-rata-propagations {"p1" p}
+               :yield/applied-pro-rata-propagations {"p1" app}
+               :total-held {:USDC 60}
+               :yield/withdrawn {:USDC {"alice" 40}}
+               :yield/positions {"alice"
+                                 {:token :USDC
+                                  :status :partially-deferred
+                                  :deferred-position
+                                  {:position/current-amount 60
+                                   :position/root-obligation-id "oa"
+                                   :position/origin-propagation-id "p1"
+                                   :position/round 1
+                                   :position/type :deferred-withdrawal
+                                   :position/eligibility :later-liquidity}}}}
+        world' (assoc-in world
+                         [:yield/positions "alice" :deferred-position
+                          :position/type]
+                         :wrong-position-type)
+        result (inv/check-pro-rata-accounting-reconciles world')]
+    (is (= :fail (get-in result [:checks :deferred-position-policy-valid]))
+        "deferred-position-policy-valid must detect wrong type")
+    (is (= :fail (get-in result [:checks :account-classes-valid]))
+        "account-classes-valid must also detect wrong deferred type")))
+
+(deftest accounting-category-coverage-is-complete
+  (let [checks (get (inv/check-pro-rata-accounting-reconciles (accounting-world)) :checks)
+        all-check-keys (set (keys checks))
+        mapped-check-keys (set (mapcat val
+                                       ;; Duplicate the category mapping for test isolation
+                                       {:account-classes-valid
+                                        [:deferred-position-policy-valid
+                                         :policy-accounting-contract-supported
+                                         :source-account-policy-compliant
+                                         :participant-account-policy-compliant
+                                         :shortfall-policy-compliant
+                                         :token-policy-compliant
+                                         :account-classes-valid
+                                         :source-token-consistent]
+                                        :application-binding-valid
+                                        [:application-record-present
+                                         :allocation-decision-binding-valid
+                                         :allocation-row-translation-valid
+                                         :application-binding-valid
+                                         :application-participant-set-valid
+                                         :application-obligation-identities-valid]
+                                        :accounting-entries-complete
+                                        [:participant-credit-total-valid
+                                         :participant-credit-keys-complete
+                                         :participant-credits-match-individually
+                                         :participant-credit-set-exact
+                                         :entry-set-balanced]
+                                         :accounting-state-reconciles
+                                         [:source-account-arithmetic-valid
+                                          :participant-withdrawn-arithmetic
+                                          :deferred-position-presence-valid
+                                          :deferred-position-amounts-valid
+                                          :deferred-position-identities-valid
+                                          :deferred-position-deadline-valid
+                                          :obligation-identities-valid
+                                         :obligation-conservation
+                                         :unsupported-obligation-outcomes-absent
+                                         :obligation-after-valid
+                                         :residual-policy-compliant
+                                         :available-allocation-residual
+                                         :residual-retained-in-pool]
+                                        :chain-continuity-valid
+                                        [:application-order-valid
+                                         :source-balance-chain-valid
+                                         :participant-balance-chain-valid
+                                         :cumulative-fulfilment-valid
+                                         :closed-position-history-valid]
+                                        :artifact-integrity-valid
+                                        [:accounting-entry-set-hash-consistent
+                                         :policy-reference-valid
+                                         :idempotency-policy-compliant
+                                         :application-output-schema-valid
+                                         :application-output-hash-valid
+                                         :position-after-hash-valid]}))
+        unmapped (clojure.set/difference all-check-keys mapped-check-keys)]
+    (is (empty? unmapped)
+        (str "Every check key must be assigned to at least one category; unmapped: "
+             unmapped))))
+
+;; ============================================================================
+;; Keeper deadline tests
+;; ============================================================================
+
+(deftest expired-deferred-position-is-detected-by-invariant
+  (let [world {:yield/positions
+               {"alice" {:deferred-position
+                         {:position/status :active
+                          :position/current-amount 100
+                          :position/eligibility :later-liquidity
+                          :position/type :deferred-withdrawal
+                          :position/deadline-ts 10
+                          :position/root-obligation-id "oa"
+                          :position/origin-propagation-id "p1"
+                          :position/round 1}}
+                :context/time {:schema-version "temporal-context.v1"
+                               :step 100
+                               :event-seq 0
+                               :block-ts 100
+                               :clock/source :discrete-step
+                               :clock/mode :discrete-step
+                               :tick-seconds 86400}}}
+        result (inv/check-pro-rata-accounting-reconciles world)]
+    (is (= :fail (get-in result [:checks :deferred-position-deadline-valid]))
+        "deadline check must detect expired position")
+    (is (false? (get-in result [:categories :accounting-state-reconciles]))
+        "accounting-state-reconciles must reflect the failure")))
+
+(deftest active-deferred-position-within-deadline-passes
+  (let [world {:yield/positions
+               {"alice" {:deferred-position
+                         {:position/status :active
+                          :position/current-amount 100
+                          :position/eligibility :later-liquidity
+                          :position/type :deferred-withdrawal
+                          :position/deadline-ts 200
+                          :position/root-obligation-id "oa"
+                          :position/origin-propagation-id "p1"
+                          :position/round 1}}
+                :context/time {:schema-version "temporal-context.v1"
+                               :step 100
+                               :event-seq 0
+                               :block-ts 100
+                               :clock/source :discrete-step
+                               :clock/mode :discrete-step
+                               :tick-seconds 86400}}}
+        result (inv/check-pro-rata-accounting-reconciles world)]
+    (is (= :pass (get-in result [:checks :deferred-position-deadline-valid]))
+        "deadline check must pass for active position within deadline")))
+
+(deftest keeper-closes-expired-deferred-positions
+  (let [world {:yield/positions
+               {"alice" {:deferred-position
+                         {:position/status :active
+                          :position/current-amount 100
+                          :position/eligibility :later-liquidity
+                          :position/type :deferred-withdrawal
+                          :position/deadline-ts 10
+                          :position/root-obligation-id "oa"
+                          :position/origin-propagation-id "p1"
+                          :position/round 1}}
+                :context/time {:schema-version "temporal-context.v1"
+                               :step 100
+                               :event-seq 0
+                               :block-ts 100
+                               :clock/source :discrete-step
+                               :clock/mode :discrete-step
+                               :tick-seconds 86400}}}
+        after-keeper (ll/expire-overdue-deferred-positions world)
+        dp (get-in after-keeper [:yield/positions "alice" :deferred-position])]
+    (is (= :closed (:position/status dp))
+        "keeper must close expired deferred position")
+    (is (zero? (:position/current-amount dp))
+        "keeper must zero out current-amount")
+    (is (= 100 (:position/expired-at-ts dp))
+        "keeper must record expiry timestamp")
+    (let [result (inv/check-pro-rata-accounting-reconciles after-keeper)]
+      (is (= :pass (get-in result [:checks :deferred-position-deadline-valid]))
+          "after keeper, deadline check must pass"))))

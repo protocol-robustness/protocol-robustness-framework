@@ -17,6 +17,7 @@
             [resolver-sim.util.evidence :as util-evidence]
             [resolver-sim.yield.evidence :as ye]
             [resolver-sim.time.context :as time-ctx]
+            [resolver-sim.time.deadlines :as dl]
             [resolver-sim.evidence.capture :as evidence]))
 
 (def ^:private propagation-content-hash-field :propagation/content-hash)
@@ -951,8 +952,17 @@
                       :position/origin-propagation-id propagation-id
                       :position/created-by-transition-hash transition-hash
                       :position/created-order application-order
-                      :position/created-event-time event-time
-                      :position/round round
+                       :position/created-event-time event-time
+                       :position/deadline-ts
+                       (let [dur (get-in propagation
+                                         [:propagation-policy
+                                          :policy/snapshot
+                                          :shortfall
+                                          :deferral-duration-seconds]
+                                         0)]
+                         (when (pos? dur)
+                           (dl/deadline event-time dur)))
+                       :position/round round
                       :position/original-priority
                       (or (:position/original-priority current-deferred)
                           original-priority)
@@ -1715,6 +1725,31 @@
                       (assoc :unrealized-yield 0)))
 
         :else world))))
+
+;; ---------------------------------------------------------------------------
+;; keeper: deferred-position deadline expiry
+;; ---------------------------------------------------------------------------
+
+(defn expire-overdue-deferred-positions
+  "Keeper function: close any active deferred position past its deadline.
+   Returns the updated world with expired positions closed."
+  [world]
+  (let [now-ts (time-ctx/block-ts world)]
+    (reduce-kv
+     (fn [w pid pos]
+       (if-let [dp (:deferred-position pos)]
+         (if (and (= :active (:position/status dp))
+                  (some? (:position/deadline-ts dp))
+                  (dl/deadline-expired? now-ts (:position/deadline-ts dp)))
+           (assoc-in w [:yield/positions pid :deferred-position]
+                     (-> dp
+                         (assoc :position/status :closed)
+                         (assoc :position/current-amount 0)
+                         (assoc :position/expired-at-ts now-ts)))
+           w)
+         w))
+     world
+     (:yield/positions world {}))))
 
 ;; ---------------------------------------------------------------------------
 ;; module constructor

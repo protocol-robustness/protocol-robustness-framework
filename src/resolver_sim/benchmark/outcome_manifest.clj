@@ -39,6 +39,84 @@
   "Controlled vocabulary for execution/status."
   #{:completed :partial :failed})
 
+(def ^:private hash-excluded-keys
+  "Keys excluded from the singular outcome hash projection.
+
+   Mirrored top-level fields are committed via :outcome-hashes
+   (the canonical commitment map), not individually. The
+   :outcome-hashes map itself IS included in the projection.
+   :benchmark-outcome/hash is self-excluded."
+  [:execution/command-root :outcomes/operational-root
+   :outcomes/incentive-root :outcomes/incentive-compatibility-root
+   :outcomes/theorems :outcomes/conclusions
+   :benchmark-outcome/hash])
+
+(def ^:const valid-manifest-keys
+  "Known top-level keys in a canonical benchmark-outcome.v1 manifest.
+   Any key outside this set is rejected by validate-manifest."
+  #{:schema-version
+    :benchmark/content-root :benchmark/model-root
+    :benchmark/evaluation-policy-root
+    :execution/status
+    :execution/model-instance-root :execution/plan-root
+    :execution/parameter-domain-root :execution/sampling-policy-root
+    :execution/realised-parameter-set-root
+    :execution/generated-case-set-root
+    :execution/command-root :execution/force-authorisation
+    :results/operational :results/incentives :results/claims
+    :results/model-coverage-root
+    :evidence/semantic-commitments
+    :outcomes/operational-root :outcomes/incentive-root
+    :outcomes/incentive-compatibility-root
+    :outcomes/theorems :outcomes/conclusions
+    :outcome-hashes :benchmark-outcome/hash})
+
+(defn- hash-projection
+  "Return the map committed by the singular outcome hash.
+   Excludes mirrored top-level fields (carried in :outcome-hashes)
+   and the self-hash field."
+  [manifest]
+  (apply dissoc manifest hash-excluded-keys))
+
+(defn derive-outcome-hashes
+  "Derive the canonical commitment projection from a manifest's
+   top-level hierarchical fields.
+
+   This is the sole authoritative source for :outcome-hashes — the
+   parent hash commits to this map.  Callers must not supply an
+   :outcome-hashes key independently; build-manifest derives it.
+   validate-manifest asserts exact equality.
+
+   Returns nil when no hierarchical fields are present."
+  [manifest]
+  (let [entries (cond-> {}
+                  (:execution/command-root manifest)
+                  (assoc :command-root
+                         (:execution/command-root manifest))
+
+                  (:outcomes/operational-root manifest)
+                  (assoc :operational-root
+                         (:outcomes/operational-root manifest))
+
+                  (:outcomes/incentive-root manifest)
+                  (assoc :incentive-root
+                         (:outcomes/incentive-root manifest))
+
+                  (:outcomes/incentive-compatibility-root manifest)
+                  (assoc :incentive-compatibility-root
+                         (:outcomes/incentive-compatibility-root manifest))
+
+                  (:outcomes/theorems manifest)
+                  (assoc :theorem-root
+                         (theorem/theorem-outcome-collective-hash
+                          (:outcomes/theorems manifest)))
+
+                  (:outcomes/conclusions manifest)
+                  (assoc :conclusion-root
+                         (conclusion/conclusion-collective-hash
+                          (:outcomes/conclusions manifest))))]
+    (when (seq entries) entries)))
+
 (defn build-manifest
   "Build a canonical benchmark outcome manifest.
 
@@ -119,38 +197,41 @@
               :results/claims (or claims {})
               :results/model-coverage-root model-coverage-root
               :evidence/semantic-commitments (or semantic-commitments {})}
-        ;; ── Hierarchical outcome structure (optional) ───────────────────
+        ;; ── Execution command root (optional) ───────────────────────
         base (if (some? command-root)
                (assoc base :execution/command-root command-root)
                base)
+        ;; ── Force-authorisation (optional) ──────────────────────────
         base (if (some? force-authorisation)
                (assoc base :execution/force-authorisation force-authorisation)
                base)
+        ;; ── Hierarchical outcome roots (independently optional) ─────
         base (if (some? operational-root)
-               (assoc base
-                      :outcomes/operational-root operational-root
-                      :outcomes/incentive-root incentive-root
-                      :outcomes/incentive-compatibility-root
+               (assoc base :outcomes/operational-root operational-root)
+               base)
+        base (if (some? incentive-root)
+               (assoc base :outcomes/incentive-root incentive-root)
+               base)
+        base (if (some? incentive-compatibility-root)
+               (assoc base :outcomes/incentive-compatibility-root
                       incentive-compatibility-root)
                base)
+        ;; ── Theorem and conclusion references (optional) ───────────
         base (if (seq theorems)
                (assoc base :outcomes/theorems (vec theorems))
                base)
         base (if (seq conclusions)
                (assoc base :outcomes/conclusions (vec conclusions))
                base)
-        ;; ── Plural outcome-hashes (when theorems/conclusions present) ──
-        base (if (seq theorems)
-               (assoc base :outcome-hashes
-                      {:theorem-root
-                       (theorem/theorem-outcome-collective-hash theorems)
-                       :conclusion-root
-                       (conclusion/conclusion-collective-hash
-                        (vec (or conclusions [])))})
+        ;; ── Canonical commitment projection (derived, not supplied) ──
+        outcome-hashes (derive-outcome-hashes base)
+        base (if outcome-hashes
+               (assoc base :outcome-hashes outcome-hashes)
                base)
-        ;; ── Singular outcome-hash (includes plural hashes when present) ──
+        ;; ── Singular outcome-hash (excludes mirrored top-level fields) ──
         outcome-hash (str "sha256:"
-                          (hc/domain-hash :benchmark-outcome base))]
+                          (hc/domain-hash :benchmark-outcome
+                                          (hash-projection base)))]
     (assoc base :benchmark-outcome/hash outcome-hash)))
 
 (defn outcome-hash
@@ -165,8 +246,8 @@
        (some? (:benchmark/content-root manifest))
        (some? (:benchmark/model-root manifest))
        (some? (:benchmark-outcome/hash manifest))
-       (let [without-hash (dissoc manifest :benchmark-outcome/hash)
-             computed (str "sha256:" (hc/domain-hash :benchmark-outcome without-hash))]
+       (let [projection (hash-projection manifest)
+             computed (str "sha256:" (hc/domain-hash :benchmark-outcome projection))]
          (= computed (:benchmark-outcome/hash manifest)))))
 
 ;; ── Comparison predicates (all symmetric) ─────────────────────────────────
@@ -266,6 +347,11 @@
   (not= :incompatible-scope
         (classify-outcome-compatibility a b)))
 
+(defn- hash-prefix-valid?
+  "True when v is a sha256: prefixed hash string (the canonical encoding)."
+  [v]
+  (and (string? v) (re-matches #"sha256:[0-9a-f]{64}" v)))
+
 (defn pre-application-checks
   "Pre-application validation: verify that an outcome manifest is valid
    and ready for benchmark execution.
@@ -278,6 +364,9 @@
      5. Execution fields are present (parameter domain, sampling policy,
         generated case set — required for execution traceability)
      6. Status is set (benchmark lifecycle state)
+     7. Any present hierarchical root carries a valid hash encoding
+     8. :outcome-hashes exactly matches the derived projection from
+        top-level fields (when :outcome-hashes is present)
    
    Unlike validate-manifest (post-hoc), this does NOT require a
    pre-computed outcome-hash — the hash is a result, not a precondition.
@@ -305,6 +394,24 @@
         (swap! errors conj "missing :execution/status"))
       (when (and exec-st (not (contains? execution-statuses exec-st)))
         (swap! errors conj (str "invalid execution/status: " exec-st))))
+    ;; ── Hierarchical root hash validation ───────────────────────────
+    (doseq [[k v] (select-keys manifest
+                               [:execution/command-root
+                                :outcomes/operational-root
+                                :outcomes/incentive-root
+                                :outcomes/incentive-compatibility-root])
+            :when (some? v)]
+      (when-not (hash-prefix-valid? v)
+        (swap! errors conj (str k " is not a valid sha256: hash: " v))))
+    ;; ── Derived outcome-hashes consistency ──────────────────────────
+    (when (some? (:outcome-hashes manifest))
+      (let [derived (derive-outcome-hashes manifest)]
+        (if (nil? derived)
+          (swap! errors conj ":outcome-hashes present but no hierarchical fields found")
+          (when-not (= (:outcome-hashes manifest) derived)
+            (swap! errors conj (str ":outcome-hashes mismatch: declared "
+                                    (pr-str (:outcome-hashes manifest))
+                                    " derived " (pr-str derived)))))))
     {:pre-application-valid? (empty? @errors) :errors @errors}))
 
 (defn cross-artifact-roots-consistent?
@@ -328,9 +435,10 @@
 
 (defn validate-manifest
   "Standalone validator for a loaded outcome manifest.
-   Recomputes the outcome hash, checks required fields, and returns
-   structured errors.
-   
+   Recomputes the outcome hash, checks required fields, verifies
+   that :outcome-hashes exactly matches the derived projection,
+   and rejects unknown top-level keys.
+
    Returns {:valid? bool :errors [string]}."
   [manifest]
   (let [errors (atom [])]
@@ -341,13 +449,27 @@
       (swap! errors conj "missing :benchmark/content-root"))
     (when-not (some? (:benchmark/model-root manifest))
       (swap! errors conj "missing :benchmark/model-root"))
+    ;; ── Reject unknown top-level keys ───────────────────────────────
+    (doseq [k (keys manifest)
+            :when (not (contains? valid-manifest-keys k))]
+      (swap! errors conj (str "unknown manifest key: " (pr-str k))))
+    ;; ── Hash projection integrity ───────────────────────────────────
     (when (some? (:benchmark-outcome/hash manifest))
-      (let [without-hash (dissoc manifest :benchmark-outcome/hash)
-            computed (str "sha256:" (hc/domain-hash :benchmark-outcome without-hash))]
+      (let [projection (hash-projection manifest)
+            computed (str "sha256:" (hc/domain-hash :benchmark-outcome projection))]
         (when-not (= computed (:benchmark-outcome/hash manifest))
           (swap! errors conj (str "outcome-hash mismatch: declared "
                                   (:benchmark-outcome/hash manifest)
                                   " computed " computed)))))
+    ;; ── Derived outcome-hashes exact match ──────────────────────────
+    (when (some? (:outcome-hashes manifest))
+      (let [derived (derive-outcome-hashes manifest)]
+        (if (nil? derived)
+          (swap! errors conj ":outcome-hashes present but no hierarchical fields found")
+          (when-not (= (:outcome-hashes manifest) derived)
+            (swap! errors conj (str ":outcome-hashes mismatch: declared "
+                                    (pr-str (:outcome-hashes manifest))
+                                    " derived " (pr-str derived)))))))
     {:valid? (empty? @errors) :errors @errors}))
 
 (defn semantic-commitment

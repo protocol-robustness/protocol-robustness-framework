@@ -24,13 +24,13 @@
  ;; Protocol selection
  :protocol/default-id "sew-v1"
 
- ;; Evidence policy reference
- :evidence-policy  {:policy-id :forensic-default-v1
-                    :policy-path "config/forensic/evidence-policy.edn"}
+  ;; Evidence policy reference (example — runtime policy is code-defined)
+  :evidence-policy  {:policy-id :forensic-default-v1
+                     :policy-path "examples/config/forensic/evidence-policy.edn"}
 
- ;; Execution policy reference
- :execution-policy {:policy-id :forensic-execution-v1
-                    :policy-path "config/forensic/execution-policy.edn"}
+  ;; Execution policy reference (example — runtime policy is code-defined)
+  :execution-policy {:policy-id :forensic-execution-v1
+                     :policy-path "examples/config/forensic/execution-policy.edn"}
 
  ;; Network policy
  :network-policy   :deny

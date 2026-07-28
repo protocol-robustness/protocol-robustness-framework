@@ -147,29 +147,30 @@
 (defn emit-invariant-attestation!
   "Build and chain an invariant attestation evidence record.
    Best-effort — failures are logged but do not halt execution.
-   Optional evidence-hash links back to the transition evidence this
-   attestation covers."
-  [step inv-single inv-trans check-inv? & [evidence-hash]]
-  (when-let [attestation (build-invariant-attestation step inv-single inv-trans check-inv?)]
-    (try
-      (let [safe-map {:step step
-                      :passed (:passed attestation)
-                      :failed (:failed attestation)
-                      :invariants (mapv (fn [i] [(name (:id i)) (name (:result i))])
-                                        (:invariants attestation))}
-            h (hc/hash-with-intent {:hash/intent :invariant-attestation} safe-map)
-            evidence {:artifact-kind :invariant-attestation
-                      :evidence-hash h
-                      :attestation/step step
-                      :attestation/passed (:passed attestation)
-                      :attestation/failed (:failed attestation)}
-            evidence (if evidence-hash
-                       (assoc evidence :attestation/evidence-hash evidence-hash)
-                       evidence)]
-        (chain/register-evidence! evidence))
-      (catch Exception e
-        (log/error! :invariant-attestation-failed
-                    {:step step :error (.getMessage e)})))))
+   The replay-ctx provides :ctx/event-index and :ctx/evidence-hash."
+  [replay-ctx inv-single inv-trans check-inv?]
+  (let [step (:ctx/event-index replay-ctx)
+        evidence-hash (:ctx/evidence-hash replay-ctx)]
+    (when-let [attestation (build-invariant-attestation step inv-single inv-trans check-inv?)]
+      (try
+        (let [safe-map {:step step
+                        :passed (:passed attestation)
+                        :failed (:failed attestation)
+                        :invariants (mapv (fn [i] [(name (:id i)) (name (:result i))])
+                                          (:invariants attestation))}
+              h (hc/hash-with-intent {:hash/intent :invariant-attestation} safe-map)
+              evidence {:artifact-kind :invariant-attestation
+                        :evidence-hash h
+                        :attestation/step step
+                        :attestation/passed (:passed attestation)
+                        :attestation/failed (:failed attestation)}
+              evidence (if evidence-hash
+                         (assoc evidence :attestation/evidence-hash evidence-hash)
+                         evidence)]
+          (chain/register-evidence! evidence))
+        (catch Exception e
+          (log/error! :invariant-attestation-failed
+                      {:step step :error (.getMessage e)}))))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Projection Evidence (Evidence Layer 8)
@@ -177,24 +178,29 @@
 
 (defn emit-projection-evidence!
   "Build and chain a projection evidence record.
-   Best-effort — failures are logged but do not halt execution."
-  [step world-hash projection-hash]
-  (when projection-hash
-    (try
-      (let [data {:step step
-                  :world-hash world-hash
-                  :projection-hash projection-hash
-                  :projection-version 1}
-            h (hc/hash-with-intent {:hash/intent :projection-evidence} data)
-            evidence {:artifact-kind :projection-evidence
-                      :evidence-hash h
-                      :projection/step step
-                      :projection/world-hash world-hash
-                      :projection/projection-hash projection-hash}]
-        (chain/register-evidence! evidence))
-      (catch Exception e
-        (log/error! :projection-evidence-failed
-                    {:step step :error (.getMessage e)})))))
+   Best-effort — failures are logged but do not halt execution.
+   The replay-ctx must contain :ctx/event-index, :ctx/world-hash,
+   and :ctx/projection-hash."
+  [replay-ctx]
+  (let [step (:ctx/event-index replay-ctx)
+        world-hash (:ctx/world-hash replay-ctx)
+        projection-hash (:ctx/projection-hash replay-ctx)]
+    (when projection-hash
+      (try
+        (let [data {:step step
+                    :world-hash world-hash
+                    :projection-hash projection-hash
+                    :projection-version 1}
+              h (hc/hash-with-intent {:hash/intent :projection-evidence} data)
+              evidence {:artifact-kind :projection-evidence
+                        :evidence-hash h
+                        :projection/step step
+                        :projection/world-hash world-hash
+                        :projection/projection-hash projection-hash}]
+          (chain/register-evidence! evidence))
+        (catch Exception e
+          (log/error! :projection-evidence-failed
+                      {:step step :error (.getMessage e)}))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Invariant Failure Evidence (Evidence Layer 6)
@@ -369,66 +375,75 @@
                              (merge (when-not (:ok? inv-single) (:violations inv-single))
                                     (when-not (:ok? inv-trans)  (:violations inv-trans))))]
 
-        ;; Emit invariant attestation evidence (best-effort, :all evidence-mode only)
-        ;; Links back to the transition evidence from apply-action-with-evidence
-        (let [tx-evidence-hash (:evidence-hash (:evidence result))]
+        ;; Assemble base runtime context from values available before projection.
+        ;; Invariant attestation uses this; projection fields are enriched below.
+        (let [replay-ctx {:ctx/event-index (:seq event)
+                          :ctx/evidence-hash (:evidence-hash (:evidence result))}]
+          ;; Emit invariant attestation evidence (best-effort, :all evidence-mode only)
+          ;; Links back to the transition evidence from apply-action-with-evidence
+          ;; Preserved at original position — before final-world / ph computation.
           (when (evidence-mode-allows? flags :invariant-attestation)
-            (emit-invariant-attestation! (:seq event) inv-single inv-trans
-                                         (and ok? check-inv?) tx-evidence-hash)))
+            (emit-invariant-attestation! replay-ctx inv-single inv-trans
+                                         (and ok? check-inv?)))
 
-        (let [result-kw    (cond violated? :invariant-violated ok? :ok :else :rejected)
-              error-kw     (when-not ok? (:error result))
-              event-tags   (if (satisfies? proto/EconomicModel protocol)
-                             (proto/classify-event protocol event result-kw error-kw)
-                             #{})
-              final-world  (if violated? world-t world-next)
-              [proj ph]    (if (satisfies? proto/AnalysisModule protocol)
-                             (proto/compute-projection protocol final-world)
-                             [nil nil])
-              metadata     (if (satisfies? proto/AnalysisModule protocol)
-                             (proto/classify-transition protocol (:action event) result-kw)
-                             nil)
-              yield-delta  (when (and ok? (yield-accounting-action? (:action event)))
-                             (yield-accounting-delta world-t final-world))
-              yield-node   (when (and yield-delta
-                                      (evidence-mode-allows? flags :execution-node))
-                             (emit-yield-execution-node! event yield-delta))]
-          ;; Emit projection evidence (best-effort, :all evidence-mode only)
-          (when (and ph (evidence-mode-allows? flags :projection))
-            (emit-projection-evidence! (:seq event)
-                                       (hc/hash-with-intent {:hash/intent :world-structure} final-world)
-                                       ph))
-          {:ok?    (and ok? (not violated?))
-           :world  final-world
-           :trace-entry
-           {:seq             (:seq event)
-            :time            event-time
-            :time-before     time-before
-            :time-after      time-after
-            :agent           (:agent event)
-            :action          (:action event)
-            :params          (:params event)
-            :save-id-as      (:save-id-as event)
-            :transition/id   (analysis/action->transition-id (:action event))
-            :transition/hash (:evidence-hash (:evidence result))
-            :result          result-kw
-            :error           error-kw
-            :extra           (:extra result)
-            :detail          (:detail result)
-            :event-tags      event-tags
-            :invariant-phase :post-event
-            :invariants-ok?  (if (and ok? check-inv?)
-                               (and (:ok? inv-single) (:ok? inv-trans))
-                               true)
-            :violations      all-violations
-            :trace-metadata  metadata
-            :yield/accounting-delta yield-delta
-            :yield/execution-node-hash (:node-hash yield-node)
-            :world           (proto/world-snapshot protocol final-world)
-            :projection      proj
-            :projection-hash ph
-            :guard-context   (:guard-context result)}
-           :halted? violated?})))))
+          (let [result-kw    (cond violated? :invariant-violated ok? :ok :else :rejected)
+                error-kw     (when-not ok? (:error result))
+                event-tags   (if (satisfies? proto/EconomicModel protocol)
+                               (proto/classify-event protocol event result-kw error-kw)
+                               #{})
+                final-world  (if violated? world-t world-next)
+                [proj ph]    (if (satisfies? proto/AnalysisModule protocol)
+                               (proto/compute-projection protocol final-world)
+                               [nil nil])
+                metadata     (if (satisfies? proto/AnalysisModule protocol)
+                               (proto/classify-transition protocol (:action event) result-kw)
+                               nil)
+                yield-delta  (when (and ok? (yield-accounting-action? (:action event)))
+                               (yield-accounting-delta world-t final-world))
+                yield-node   (when (and yield-delta
+                                        (evidence-mode-allows? flags :execution-node))
+                               (emit-yield-execution-node! event yield-delta))]
+            ;; Enrich context with projection fields once available
+            (let [projection-ctx (assoc replay-ctx
+                                   :ctx/projection-hash ph
+                                   :ctx/world-hash
+                                   (hc/hash-with-intent
+                                     {:hash/intent :world-structure}
+                                     final-world))]
+              ;; Emit projection evidence (best-effort, :all evidence-mode only)
+              (when (and ph (evidence-mode-allows? flags :projection))
+                (emit-projection-evidence! projection-ctx))
+              {:ok?    (and ok? (not violated?))
+               :world  final-world
+               :trace-entry
+               {:seq             (:seq event)
+                :time            event-time
+                :time-before     time-before
+                :time-after      time-after
+                :agent           (:agent event)
+                :action          (:action event)
+                :params          (:params event)
+                :save-id-as      (:save-id-as event)
+                :transition/id   (analysis/action->transition-id (:action event))
+                :transition/hash (:ctx/evidence-hash replay-ctx)
+                :result          result-kw
+                :error           error-kw
+                :extra           (:extra result)
+                :detail          (:detail result)
+                :event-tags      event-tags
+                :invariant-phase :post-event
+                :invariants-ok?  (if (and ok? check-inv?)
+                                   (and (:ok? inv-single) (:ok? inv-trans))
+                                   true)
+                :violations      all-violations
+                :trace-metadata  metadata
+                :yield/accounting-delta yield-delta
+                :yield/execution-node-hash (:node-hash yield-node)
+                :world           (proto/world-snapshot protocol final-world)
+                :projection      proj
+                :projection-hash (:ctx/projection-hash projection-ctx)
+                :guard-context   (:guard-context result)}
+               :halted? violated?})))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Trace utilities

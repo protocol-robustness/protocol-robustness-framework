@@ -6,6 +6,7 @@
             [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.run.force-authorisation-policy :as fa-policy]))
 
 (def schema-version "verdict-policy.v1")
@@ -17,10 +18,10 @@
 ;;; ============================================================
 
 (defn sha-ref [file]
-  (str "sha256:" (lifecycle/sha256-file file)))
+  (hash-ref/sha256-ref (lifecycle/sha256-file file)))
 
 (defn policy-hash [artifact]
-  (str "sha256:" (canonical/domain-hash domain (dissoc artifact "policy_sha256"))))
+  (hash-ref/sha256-ref (canonical/domain-hash domain (dissoc artifact "policy_sha256"))))
 
 (defn- check [pred err]
   (if pred [] [err]))

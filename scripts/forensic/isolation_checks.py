@@ -22,18 +22,7 @@ from typing import Any
 PRF_EVIDENCE_USER = os.environ.get("PRF_EVIDENCE_USER", "")
 PRF_EVIDENCE_WORKSPACE = os.environ.get("PRF_EVIDENCE_WORKSPACE", "")
 
-try:
-    import yaml
-
-    with open(
-        os.path.join(
-            os.path.dirname(__file__), "..", "..", "config", "forensic_hardening.yaml"
-        ),
-        "r",
-    ) as f:
-        HARDENING_CONFIG = yaml.safe_load(f)
-except Exception:
-    HARDENING_CONFIG = {"hardening": {"minimum_ptrace_scope": 3}}
+HARDENING_CONFIG = {"hardening": {"minimum_ptrace_scope": 3}}
 
 
 def check_uid(expected_user: str = "") -> dict[str, Any]:

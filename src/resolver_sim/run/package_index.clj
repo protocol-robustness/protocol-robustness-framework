@@ -16,6 +16,7 @@
             [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.forensic.execution-dag :as execution-dag]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.run.runner-finalization :as runner-finalization]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry])
@@ -39,7 +40,7 @@
     :benchmark benchmark-artifacts
     #{}))
 
-(defn- sha-ref [file] (str "sha256:" (lifecycle/sha256-file file)))
+(defn- sha-ref [file] (hash-ref/sha256-ref (lifecycle/sha256-file file)))
 (defn- reason [code & {:as data}] (assoc data :code code))
 (defn- json-key [k] (if (keyword? k) (if-let [ns (namespace k)] (str ns "/" (name k)) (name k)) (str k)))
 (defn- contained-file [root ref]
@@ -105,7 +106,6 @@
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
     {:path target :index index}))
 
-(def ^:private sha256-ref-pattern #"^sha256:[0-9a-f]{64}$")
 (defn- bytes-sha-ref [bytes]
   (let [digest (MessageDigest/getInstance "SHA-256")]
     (str "sha256:" (format "%064x" (BigInteger. 1 (.digest digest bytes))))))
@@ -148,7 +148,7 @@
                             (when-not (string? path) [(reason :package/completion-invalid :field :run_package_index_ref)])
                             (when (and path (nil? index-file)) [(reason :package/package-index-path-invalid :path path)])
                             (when (and index-file (not (.isFile index-file))) [(reason :package/package-index-missing :path path)])
-                            (when-not (and (string? expected-hash) (re-matches sha256-ref-pattern expected-hash))
+                            (when-not (hash-ref/valid-sha256-ref? expected-hash)
                               [(reason :package/completion-invalid :field :run_package_index_sha256)])
                             (when-not (and (integer? expected-bytes) (not (neg? expected-bytes)))
                               [(reason :package/completion-invalid :field :run_package_index_bytes)])
@@ -400,7 +400,7 @@
         expected-execution-id (:execution/id index)
         expected-input-hash (get-in artifacts [:input-snapshot :sha256])
         input-reasons (vec (concat
-                            (when-not (and (string? expected-input-hash) (re-matches sha256-ref-pattern expected-input-hash))
+                            (when-not (hash-ref/valid-sha256-ref? expected-input-hash)
                               [(reason :package/missing-authoritative-input-commitment :artifact-id :input-snapshot)])
                             (when (and scenario-final expected-input-hash
                                        (not= expected-input-hash (get-in scenario-final [:subject :scenario-input :sha256])))
@@ -700,7 +700,7 @@
                                  (not= (:execution/id member) (:execution-id scenario)))
                         [(reason :package/execution-id-mismatch :artifact-id :scenario-finalization
                                  :expected (:execution/id member) :actual (:execution-id scenario))])
-                      (when-not (and (string? expected-input-hash) (re-matches sha256-ref-pattern expected-input-hash))
+                      (when-not (hash-ref/valid-sha256-ref? expected-input-hash)
                         [(reason :package/missing-authoritative-input-commitment :artifact-id :input-snapshot)])
                       (when (and expected-input-hash (:artifact-present? scenario)
                                  (not= expected-input-hash (:scenario-input-hash scenario)))
@@ -767,9 +767,9 @@
                     (cond-> []
                       (nil? file) (conj (reason :package/path-outside-root :artifact-id id :path ref))
                       (and file (not (.isFile file))) (conj (reason :package/missing-artifact :artifact-id id :path ref))
-                      (not (and (string? sha256) (re-matches sha256-ref-pattern sha256)))
+                      (not (hash-ref/valid-sha256-ref? sha256))
                       (conj (reason :package/invalid-artifact-sha256 :artifact-id id :path ref :actual sha256))
-                      (and file (.isFile file) (string? sha256) (re-matches sha256-ref-pattern sha256)
+                      (and file (.isFile file) (hash-ref/valid-sha256-ref? sha256)
                            (not= sha256 (sha-ref file)))
                       (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref)))))
                 entries)
@@ -833,11 +833,10 @@
                                (conj (reason :package/path-outside-root :artifact-id id :path ref))
                                (and file (not (.isFile (io/file file))))
                                (conj (reason :package/missing-artifact :artifact-id id :path ref))
-                               (not (and (string? sha256) (re-matches sha256-ref-pattern sha256)))
+                               (not (hash-ref/valid-sha256-ref? sha256))
                                (conj (reason :package/invalid-artifact-sha256 :artifact-id id :path ref :actual sha256))
-                               (and file (.isFile (io/file file)) (string? sha256)
-                                    (re-matches sha256-ref-pattern sha256) (not= sha256 (sha-ref file)))
-                               (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref))
+(and file (.isFile (io/file file)) (hash-ref/valid-sha256-ref? sha256) (not= sha256 (sha-ref file)))
+                                (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref))
                                (and (contains? single-scenario-artifacts id) (nil? bytes))
                                (conj (reason :package/missing-artifact-byte-length :artifact-id id :path ref))
                                (and (some? bytes) (not (and (integer? bytes) (not (neg? bytes)))))

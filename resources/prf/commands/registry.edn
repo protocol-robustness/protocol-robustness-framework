@@ -382,7 +382,20 @@
     :command/outputs []
     :command/description "Lint source and test code with clj-kondo."}
 
-  {:command/id :run-simulation
+   {:command/id :pre-application-checks
+    :command/path ["pre-application" "checks"]
+    :command/title "Pre-application checks"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :default
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--manifest" :type :string :doc "Path to outcome manifest EDN file"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Validate that an outcome manifest is ready for benchmark execution."}
+
+   {:command/id :run-simulation
    :command/path ["run-simulation"]
    :command/title "Run simulation"
    :command/category :simulation
