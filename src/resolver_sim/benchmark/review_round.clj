@@ -234,14 +234,14 @@
   (when-not (contains? member-roles role)
     (throw (ex-info (str "Invalid member role: " role)
                     {:member {:role role} :allowed member-roles})))
-      (when (and (some? review-member-key)
-                 (not (valid-member-key? review-member-key)))
-        (throw (ex-info (str "Invalid member key: " review-member-key)
-                        {:reason (if (and (integer? review-member-key)
-                                         (neg? review-member-key))
-                                   :negative-review-member-key
-                                   :invalid-review-member-key)
-                         :key review-member-key})))
+  (when (and (some? review-member-key)
+             (not (valid-member-key? review-member-key)))
+    (throw (ex-info (str "Invalid member key: " review-member-key)
+                    {:reason (if (and (integer? review-member-key)
+                                      (neg? review-member-key))
+                               :negative-review-member-key
+                               :invalid-review-member-key)
+                     :key review-member-key})))
   (cond-> {:researcher/id researcher-id :role role}
     (some? review-member-key) (assoc :review-member/key review-member-key)))
 
@@ -485,7 +485,7 @@
    Returns a vector only when all members have keys."
   [round]
   (when (round-uses-member-keys? round)
-        (mapv :review-member/key (:review-round/members round))))
+    (mapv :review-member/key (:review-round/members round))))
 
 (defn member-bit-width
   "Minimum bits needed to represent the largest member key.

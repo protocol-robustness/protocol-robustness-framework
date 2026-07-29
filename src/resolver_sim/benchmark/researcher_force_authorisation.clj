@@ -142,7 +142,7 @@
    & {:keys [dissent-reason password]}]
   (when-not (valid-decision? decision)
     (throw (ex-info "Invalid decision value" {:decision decision
-                                               :allowed decision-vocabulary})))
+                                              :allowed decision-vocabulary})))
   (when (and (= :dissent decision) (nil? dissent-reason))
     (throw (ex-info "Dissent requires a reason" {})))
   (let [preimage (decision-preimage researcher-id authorisation-id
@@ -556,8 +556,6 @@
                (mapv #(rr/member-key-for-researcher review-round %)
                      (map :researcher/id (filter #(= :dissent (:decision %)) decision-refs))))
         result))))
-
-
 
 (defn verify-decision-signatures
   "Verify that every decision reference in an authorisation artifact

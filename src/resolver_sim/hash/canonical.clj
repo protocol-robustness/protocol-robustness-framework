@@ -124,8 +124,8 @@
    :slash-distribution-application-plan-v1 "SLASH_DISTRIBUTION_APPLICATION_PLAN_V1"
    :bounty-payable-v1              "BOUNTY_PAYABLE_V1"
    :bounty-payable-backing-v1      "BOUNTY_PAYABLE_BACKING_V1"
-    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
-    :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"})
+   :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
+   :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
