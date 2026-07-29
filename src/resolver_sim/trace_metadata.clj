@@ -10,8 +10,7 @@
    2. Stable enums — treat them as API; add, do not remove.
    3. Generic — no SEW action names, SEW state names, or SEW invariant IDs.
    4. Queryable — protocol integrations validate their classifiers against these
-      sets to ensure cross-protocol trace compatibility."
-  )
+      sets to ensure cross-protocol trace compatibility.")
 
 ;; ===========================================================================
 ;; Actor taxonomy
@@ -221,7 +220,7 @@
   (let [authoritative? (some? authoritative-expected-outcome)
         matches? (and authoritative? (= actual-outcome authoritative-expected-outcome))
         conflicts? (and authoritative? actual-outcome
-                     (not= actual-outcome authoritative-expected-outcome))]
+                        (not= actual-outcome authoritative-expected-outcome))]
     (when (and matches? conflicts?)
       (throw (ex-info "Contradictory classifier input: both matching and conflicting with expected truth"
                       facts)))
@@ -254,7 +253,7 @@
   {:correct   {:level :high   :status :final      :scope :unbounded}
    :incorrect {:level :low    :status :final      :scope :unbounded}
    :contested {:level nil     :status :provisional :scope :unbounded}
-   :unverified{:level nil     :status :provisional :scope :bounded}})
+   :unverified {:level nil     :status :provisional :scope :bounded}})
 
 (defn resolution-quality->confidence
   "Map a resolution-outcome keyword to a canonical structured confidence record.

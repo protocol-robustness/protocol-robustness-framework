@@ -76,9 +76,9 @@
   "Verify all scoring rule files exist."
   []
   (let [scoring-files [hash-ref/scoring-robustness-dimensions-path
-                        hash-ref/scoring-binary-claims-path
-                        hash-ref/scoring-severity-weighted-path
-                        hash-ref/scoring-shortfall-allocation-path]
+                       hash-ref/scoring-binary-claims-path
+                       hash-ref/scoring-severity-weighted-path
+                       hash-ref/scoring-shortfall-allocation-path]
         missing (remove resource-exists? scoring-files)]
     (if (seq missing)
       (fail :scoring-rules (str "Missing scoring rules: " (pr-str missing)))

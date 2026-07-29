@@ -10,14 +10,15 @@
      - BondCollector appeal bond accounting
 
    All arithmetic uses integer division (uint256 truncation semantics)."
-  (:require [resolver-sim.protocols.sew.types :as t]
+  (:require             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.evidence.capture :as cap]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.time.context :as time-ctx]
-            [resolver-sim.assurance.custody :as custody-core]))
+            [resolver-sim.assurance.custody :as custody-core]
+            [resolver-sim.economics.slash-distribution :as sd]))
 
 (declare sub-held record-fee record-claimable)
 
@@ -855,12 +856,16 @@
    positive-valued award. The application is idempotent: replaying with the same
    distribution hash is a no-op.
 
+   Produces and stores a slash-distribution-application-receipt.v1 binding the
+   distribution root, pre/post state roots, abstract allocation effects, concrete
+   state deltas, and per-award obligation references.
+
    Returns updated world."
   ([world amount] (distribute-slashed-funds world amount nil 0 nil))
   ([world amount challenger bounty-bps]
    (distribute-slashed-funds world amount challenger bounty-bps nil))
   ([world amount challenger bounty-bps workflow-id]
-   (let [bounty (sew-econ/calculate-bounty amount bounty-bps)
+   (let [pre-state-root (hash/hash-with-intent {:hash/intent :world-structure} world)
          insurance-bps (get-in world [:params :insurance-cut-bps] 5000)
          protocol-bps  (get-in world [:params :protocol-retained-bps] 3000)
          result (sew-econ/build-sew-slash-distribution
@@ -880,22 +885,93 @@
          dist   (:distribution result)
          final  (:distribution/final-allocations dist)
          dist-hash (:distribution/hash dist)
+         policy-root (:distribution/policy-root dist)
+         param-root (get-in dist [:distribution/parameter-context :source-root] "sew:live-snapshot")
+         verification (sd/verify-distribution dist)
+         _ (when-not (:valid? verification)
+             (throw (ex-info "distribute-slashed-funds: distribution verification failed"
+                             {:distribution/hash dist-hash
+                              :violations (:violations verification)})))
+         bounty-awards (filterv #(= :sew.award/challenge-bounty (:award/id %))
+                                (:distribution/awards dist))
+         _ (when (and challenger (pos? bounty-bps) (empty? bounty-awards))
+             (throw (ex-info "distribute-slashed-funds: missing challenge-bounty award"
+                             {:distribution/hash dist-hash
+                              :awards (:distribution/awards dist)})))
+         _ (when (> (count bounty-awards) 1)
+             (throw (ex-info "distribute-slashed-funds: duplicate challenge-bounty awards"
+                             {:distribution/hash dist-hash
+                              :award-count (count bounty-awards)})))
+         bounty-amount (if (seq bounty-awards)
+                         (:award/amount (first bounty-awards))
+                         0)
          app-key [:slash-distribution-applied (or workflow-id 0) (or challenger 0)]
-         app-hash (get-in world app-key)]
-     (if (and (some? app-hash) (= app-hash dist-hash))
-       ;; Idempotent: same hash already applied → no-op
-       world
-       (let [world' (-> world
+         app-record (get-in world app-key)
+         app-hash (when (map? app-record) (:distribution-hash app-record))]
+      (if (and (some? app-hash) (= app-hash dist-hash))
+        ;; Idempotent: same hash already applied → no-op
+        (let [receipt (sd/build-application-receipt
+                       {:distribution-root dist-hash
+                        :policy-root policy-root
+                        :parameter-context-root param-root
+                        :pre-state-root pre-state-root
+                        :post-state-root pre-state-root
+                        :idempotency-key app-key
+                        :status :skipped
+                        :abstract-effects []
+                        :obligations []})
+              receipt-hash (:receipt/hash receipt)]
+          (assoc-in world (conj app-key :receipt-hash) receipt-hash))
+       (let [obligation-ref (when (and challenger (pos? bounty-amount) (some? workflow-id))
+                              (str "claimable:" workflow-id ":" challenger))
+             world' (-> world
                         (update-in [:bond-distribution :insurance] (fnil + 0)
                                    (get final :sew.allocation/insurance 0))
                         (update-in [:bond-distribution :protocol] (fnil + 0)
                                    (get final :sew.allocation/protocol 0))
                         (update-in [:retained-slash-reserves] (fnil + 0)
                                    (get final :sew.allocation/retained 0))
-                        (cond-> (and challenger (pos? bounty) (some? workflow-id))
-                          (record-claimable-v2 workflow-id :liability/challenge-bounty challenger bounty))
-                        (assoc-in app-key dist-hash))]
-         (when (and challenger (pos? bounty))
+                        (cond-> (and challenger (pos? bounty-amount) (some? workflow-id))
+                          (record-claimable-v2 workflow-id :liability/challenge-bounty
+                                               challenger bounty-amount))
+                         (assoc-in app-key {:distribution-hash dist-hash}))
+             post-state-root (hash/hash-with-intent {:hash/intent :world-structure} world')
+             abstract-effects [{:allocation/id :sew.allocation/insurance
+                                :amount (get final :sew.allocation/insurance 0)}
+                               {:allocation/id :sew.allocation/protocol
+                                :amount (get final :sew.allocation/protocol 0)}
+                               {:allocation/id :sew.allocation/retained
+                                :amount (get final :sew.allocation/retained 0)}
+                               (when (and challenger (pos? bounty-amount))
+                                 {:allocation/id :sew.allocation/challenge-bounty
+                                  :amount bounty-amount})]
+             concrete-effects [{:target {:target/type :sew.target/world-ledger
+                                         :target/key :bond-distribution/insurance}
+                                :delta (get final :sew.allocation/insurance 0)}
+                               {:target {:target/type :sew.target/world-ledger
+                                         :target/key :bond-distribution/protocol}
+                                :delta (get final :sew.allocation/protocol 0)}
+                               {:target {:target/type :sew.target/world-ledger
+                                         :target/key :retained-slash-reserves}
+                                :delta (get final :sew.allocation/retained 0)}]
+             obligations (when (and challenger (pos? bounty-amount) obligation-ref)
+                           [{:obligation/kind :sew.obligation/challenge-bounty
+                             :beneficiary challenger
+                             :amount bounty-amount
+                             :obligation-reference obligation-ref}])
+             receipt (sd/build-application-receipt
+                       {:distribution-root dist-hash
+                        :policy-root policy-root
+                        :parameter-context-root param-root
+                        :pre-state-root pre-state-root
+                        :post-state-root post-state-root
+                        :idempotency-key app-key
+                        :status :applied
+                        :abstract-effects abstract-effects
+                        :concrete-effects concrete-effects
+                        :obligations obligations})
+             world' (assoc-in world' (conj app-key :receipt) (:receipt/hash receipt))]
+         (when (and challenger (pos? bounty-amount))
            (attr/with-attribution
              {:subject/type :challenger
               :subject/id   challenger
@@ -903,8 +979,10 @@
               :evidence/reason :incentive-payout}
              (cap/capture-event-evidence! :incentive-payout
                {:bounty-claimable 0}
-               {:bounty-claimable bounty}
-               {:slash-amount amount :bounty-bps bounty-bps :distribution-hash dist-hash}
+               {:bounty-claimable bounty-amount}
+               {:slash-amount amount :bounty-bps bounty-bps
+                :distribution-hash dist-hash
+                :receipt-hash (:receipt/hash receipt)}
                {:formula "slash-distribution.v1 via build-sew-slash-distribution"}
                {:world-before world
                 :world-after world'})))

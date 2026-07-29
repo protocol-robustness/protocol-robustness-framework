@@ -637,11 +637,21 @@
   (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
                                       (application-hash-preimage application))))
 
+(defn- normalize-entry
+  "Normalize an accounting entry to a sorted map for deterministic
+   pr-str representation regardless of key insertion order."
+  [entry]
+  (into (sorted-map) entry))
+
 (defn canonical-accounting-entries
   "Return a deterministically ordered vector of entries. This is a list
-   canonicalization: duplicate entries are retained deliberately."
+   canonicalization: duplicate entries are retained deliberately.
+   
+   Entries are sorted by their normalized (key-sorted) pr-str representation
+   so that logically identical entries with different key insertion orders
+   produce the same canonical ordering and hash."
   [entries]
-  (->> entries (sort-by pr-str) vec))
+  (->> entries (map normalize-entry) (sort-by pr-str) vec))
 
 (defn accounting-entry-set-hash
   "Hash the duplicate-preserving canonical accounting-entry list."
@@ -1580,9 +1590,9 @@
             failed (filterv #(= :fail (:status %)) results)]
         (when (seq failed)
           (throw (ex-info "Partial-fill closed-form checks failed"
-                   {:type :closed-form-failure
-                    :check-results results
-                    :failed-checks failed})))
+                          {:type :closed-form-failure
+                           :check-results results
+                           :failed-checks failed})))
         results))))
 
 (defn partial-fill-application-deltas
@@ -1788,11 +1798,11 @@
                             :passed? bool} ...]}"
   [decisions]
   (let [checks (mapv (fn [d]
-                        (try
-                          (partial-fill-closed-form-checks d)
-                          (catch clojure.lang.ExceptionInfo e
-                            (:check-results (ex-data e)))))
-                      decisions)
+                       (try
+                         (partial-fill-closed-form-checks d)
+                         (catch clojure.lang.ExceptionInfo e
+                           (:check-results (ex-data e)))))
+                     decisions)
         indexed (map-indexed (fn [i cs]
                                {:decision-index i
                                 :pass? (every? #(#{:pass :not-applicable} (:status %)) cs)

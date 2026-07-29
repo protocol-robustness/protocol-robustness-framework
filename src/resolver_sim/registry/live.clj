@@ -136,10 +136,10 @@
                        :canonical-path nil}
          :concept     {:resolve-fn resolve-concept-registry
                        :canonical-path (str hash-ref/resource-prefix hash-ref/concept-registry-path)}
-          :command     {:resolve-fn resolve-command-registry
-                        :canonical-path (str hash-ref/resource-prefix hash-ref/command-registry-path)}
-          :claim       {:resolve-fn resolve-claim-registry
-                        :canonical-path hash-ref/claim-registry-path}
+         :command     {:resolve-fn resolve-command-registry
+                       :canonical-path (str hash-ref/resource-prefix hash-ref/command-registry-path)}
+         :claim       {:resolve-fn resolve-claim-registry
+                       :canonical-path hash-ref/claim-registry-path}
          :protocol    {:resolve-fn resolve-protocol-registry
                        :canonical-path nil}
          :evidence    {:resolve-fn resolve-evidence-registry
@@ -253,38 +253,38 @@
    (read-live-registry registry-type nil nil))
   ([registry-type world]
    (read-live-registry registry-type world nil))
-   ([registry-type world opts]
-    (let [normalized (keyword registry-type)]
-      (when-not (contains? @registry-resolvers normalized)
-        (throw (ex-info "Unknown registry type"
-                        {:registry/type registry-type
-                         :known (vec (keys @registry-resolvers))})))
-      (let [force (:force opts)
-            skip-fallback (or (:skip-fallback opts) *live-only*)
-            from-world (when (and world (not force))
-                         (read-world-registry normalized world))
-            from-cache (when (not (or force from-world))
-                         (read-cache normalized))
-            from-file  (when (not (or from-world from-cache skip-fallback))
-                         (read-file-registry normalized opts))
-            result     (or from-world from-cache from-file)]
-        (if result
-          (let [data (:registry/content result)
-                source (:registry/source result)]
-            (when (and (not from-world) (not from-cache))
-              (write-cache! normalized data source))
-            (let [spec (or (:registry/spec data)
-                           (:schema-version data)
-                           (:spec data)
-                           (str "live." (name normalized)))]
-              {:registry/spec spec
-               :registry/type normalized
-               :registry/source source
-               :registry/content data}))
-          (throw (ex-info "Registry not available"
-                          {:registry/type normalized
-                           :world? (some? world)
-                           :opts opts})))))))
+  ([registry-type world opts]
+   (let [normalized (keyword registry-type)]
+     (when-not (contains? @registry-resolvers normalized)
+       (throw (ex-info "Unknown registry type"
+                       {:registry/type registry-type
+                        :known (vec (keys @registry-resolvers))})))
+     (let [force (:force opts)
+           skip-fallback (or (:skip-fallback opts) *live-only*)
+           from-world (when (and world (not force))
+                        (read-world-registry normalized world))
+           from-cache (when (not (or force from-world))
+                        (read-cache normalized))
+           from-file  (when (not (or from-world from-cache skip-fallback))
+                        (read-file-registry normalized opts))
+           result     (or from-world from-cache from-file)]
+       (if result
+         (let [data (:registry/content result)
+               source (:registry/source result)]
+           (when (and (not from-world) (not from-cache))
+             (write-cache! normalized data source))
+           (let [spec (or (:registry/spec data)
+                          (:schema-version data)
+                          (:spec data)
+                          (str "live." (name normalized)))]
+             {:registry/spec spec
+              :registry/type normalized
+              :registry/source source
+              :registry/content data}))
+         (throw (ex-info "Registry not available"
+                         {:registry/type normalized
+                          :world? (some? world)
+                          :opts opts})))))))
 
 (defn update-live-registry!
   "Write or replace a registry entry in the live atom.

@@ -1452,12 +1452,12 @@
                           (when (seq (:dissenting-members consensus))
                             (str "  dissent: " (pr-str (:dissenting-members consensus)))))]
                     [:td {:style {:padding "6px 8px" :color "#7ADDDC" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
-                     (str "Keys: " (pr-str (:supporting-member-keys consensus))
-                          (when (seq (:dissenting-member-keys consensus))
-                            (str "  dissent: " (pr-str (:dissenting-member-keys consensus)))))]])
+                     (str "Keys: " (pr-str (:supporting-member-indices consensus))
+                          (when (seq (:dissenting-member-indices consensus))
+                            (str "  dissent: " (pr-str (:dissenting-member-indices consensus)))))]])
                (sort-by first by-theorem)))]))
 
-;; The key vectors are particularly useful for the `majority-with-dissent`
+;; The index vectors are particularly useful for the `majority-with-dissent`
 ;; case.  Supporting keys `[0 2]` and dissenting key `[1]` compactly
 ;; represent the same information as the full string vectors.
 
@@ -1476,9 +1476,9 @@
                [:tr {:key (name dim)}
                 [:td {:style {:padding "6px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a"}} (name dim)]
                 [:td {:style {:padding "6px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
-                 (str "support: " (pr-str (:supporting-member-keys consensus))
-                      (when (seq (:dissenting-member-keys consensus))
-                        (str "  dissent: " (pr-str (:dissenting-member-keys consensus)))))]])
+                 (str "support: " (pr-str (:supporting-member-indices consensus))
+                      (when (seq (:dissenting-member-indices consensus))
+                        (str "  dissent: " (pr-str (:dissenting-member-indices consensus)))))]])
           (sort-by first
                    (merge (get-in approval-cert [:other-consensus])
                           (get-in approval-cert [:model-consensus])

@@ -10,7 +10,7 @@
 ;;
 ;; **Key concepts:**
 ;; - `:review-member/key` — dense zero-based integer, unique within a round
-;; - `:supporting-member-keys` / `:dissenting-member-keys` — additive vectors
+;; - `:supporting-member-indices` / `:dissenting-member-indices` — additive vectors
 ;; - `{:review-round/hash "sha256:..." :review-member/key N}` — scoped reference
 ;;
 ;; **Data contract:**
@@ -166,7 +166,7 @@
                   :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
     [:div {:style {:color "#22c55e" :fontWeight 700}} "publication — " (pr-str (:status pub))]
     [:div "  supporting members: " (pr-str (:supporting-members pub))]
-    [:div "  supporting keys:    " (pr-str (:supporting-member-keys pub))]]))
+    [:div "  supporting indices: " (pr-str (:supporting-member-indices pub))]]))
 
 ;; ### 3.2  Majority-with-Dissent Dimensions
 
@@ -181,13 +181,13 @@
     [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
                    :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
      [:div {:style {:color "#f59e0b" :fontWeight 700}} "model-state — " (pr-str (:status model))]
-     [:div "  supporting: " (pr-str (:supporting-members model)) "  keys " (pr-str (:supporting-member-keys model))]
-     [:div "  dissenting: " (pr-str (:dissenting-members model)) "  keys " (pr-str (:dissenting-member-keys model))]]
+     [:div "  supporting: " (pr-str (:supporting-members model)) "  indices " (pr-str (:supporting-member-indices model))]
+     [:div "  dissenting: " (pr-str (:dissenting-members model)) "  indices " (pr-str (:dissenting-member-indices model))]]
     [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
                    :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
      [:div {:style {:color "#f59e0b" :fontWeight 700}} "evidence — " (pr-str (:status evid))]
-     [:div "  supporting: " (pr-str (:supporting-members evid)) "  keys " (pr-str (:supporting-member-keys evid))]
-     [:div "  dissenting: " (pr-str (:dissenting-members evid)) "  keys " (pr-str (:dissenting-member-keys evid))]]])))
+     [:div "  supporting: " (pr-str (:supporting-members evid)) "  indices " (pr-str (:supporting-member-indices evid))]
+     [:div "  dissenting: " (pr-str (:dissenting-members evid)) "  indices " (pr-str (:dissenting-member-indices evid))]]])))
 
 ;; ### 3.3  Member Positions Carry Keys
 
@@ -370,5 +370,6 @@
     [:div "round uses member keys? " (rr/round-uses-member-keys? legacy-round)]
     [:div "certificate valid? " (tmc/certificate-valid? legacy-cert)]
     [:div "key vector present? "
-     (contains? (get-in legacy-cert [:other-consensus :publication])
-                :supporting-member-keys)]]))
+          (contains? (get-in legacy-cert [:other-consensus :publication])
+                :supporting-member-indices)]]
+)

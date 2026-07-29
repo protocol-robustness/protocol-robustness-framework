@@ -56,6 +56,33 @@ Fixture suites can now declare mixed `:traces` entry shapes:
 
 This avoids false failures for intentional rejection/negative-path traces in equivalence gates.
 
+## Concurrent Test Execution
+
+`bb test` and `bb backstop` share a global lock on `results/.test-artifact.lock` to
+prevent clobbering `results/test-artifacts/`.  For concurrent runs, use the
+`:concurrent` variants — each writes to a separate artifact directory and skips the
+lock:
+
+| Task | Artifact dir | Lock | Runs alongside |
+|---|---|---|---|
+| `bb test` | `results/test-artifacts` | Yes | — (serial only) |
+| `bb test:concurrent` | `results/test-artifacts-<timestamp>` | No | Anything |
+| `bb backstop` | `results/test-artifacts` | Yes | — (serial only) |
+| `bb backstop:concurrent` | `results/backstop-artifacts` | No | Anything |
+| `bb backstop:fast:concurrent` | `results/backstop-fast-artifacts` | No | Anything |
+| `bb test:quick-sew:concurrent` | `/tmp/parallel-test-*` (noop) | No | Anything |
+| `bb test:quick:concurrent` | `/tmp/parallel-test-*` (noop) | No | Anything |
+
+For example, to run the full validation gate and backstop in parallel:
+
+```bash
+bb test:concurrent &
+bb backstop:concurrent &
+```
+
+These work because each process writes to its own artifact directory (`PRF_ARTIFACT_DIR`)
+and neither acquires the global lock.
+
 ## 🔴 Required: Trace Equivalence Verification (Model + Solidity, manifest-scoped)
 
 This is a **mandatory release check** for equivalence claims on the

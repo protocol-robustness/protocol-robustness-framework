@@ -14,6 +14,9 @@
             [resolver-sim.benchmark.research-conclusion :as rc]
             [resolver-sim.benchmark.research-command :as rcmd]
             [resolver-sim.benchmark.force-authorised-execution-evidence :as fa-ev]
+            [resolver-sim.benchmark.review-member-canonical-indices :as ci]
+            [resolver-sim.benchmark.case-set :as cs]
+            [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.hash.canonical :as hc])
   (:import [org.bouncycastle.crypto.generators Ed25519KeyPairGenerator]
            [org.bouncycastle.crypto.params Ed25519KeyGenerationParameters]
@@ -801,10 +804,11 @@
 (defn- fa-sign-decision!
   "Sign a researcher decision using the real Ed25519 signing path.
    Returns a decision reference map suitable for :authorisation/decision-references."
-  [researcher-id authorisation-id decision & {:keys [dissent-reason]}]
+  [researcher-id authorisation-id request-root round-hash
+   decision & {:keys [dissent-reason]}]
   (let [keypair (fa-key-for researcher-id)]
     (rfa/build-signed-decision
-     researcher-id authorisation-id decision
+     researcher-id authorisation-id request-root round-hash decision
      (:private-key-path keypair)
      :dissent-reason dissent-reason)))
 
@@ -814,6 +818,8 @@
   [authorisation-id decisions]
   (let [signed (mapv (fn [d] (apply fa-sign-decision!
                                     (:researcher/id d) authorisation-id
+                                    fa-request-root
+                                    (:review-round/hash fa-round-ref)
                                     (:decision d)
                                     (when (:dissent/reason d)
                                       [:dissent-reason (:dissent/reason d)])))
@@ -1426,9 +1432,9 @@
   (let [reg (atom {})
         auth (fa-build-consumption-auth! :authorisation/fa-ev-fail)
         flow (fa-consume-flow reg auth
-                               fa-consumption-cmd-root fa-consumption-plan-root
-                               fa-consumption-executed-root fa-consumption-attempt-id
-                               :fail-after-reservation? true)
+                              fa-consumption-cmd-root fa-consumption-plan-root
+                              fa-consumption-executed-root fa-consumption-attempt-id
+                              :fail-after-reservation? true)
         profile (fa-ev-build! auth flow)]
     (is (some? (:evidence-profile/hash profile)))
     (let [v (:evidence-profile/verification profile)]
@@ -1795,3 +1801,169 @@
       (is (= [0 1]
              (sort (mapv #(rr/member-key-for-researcher round-b %)
                          ["xavier" "yuki"])))))))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; 13. Full lifecycle acceptance test
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(deftest lifecycle-keyed-round-full-chain
+  (let [members [{:review-member/key 0 :researcher/id "researcher-a" :role :model-steward}
+                 {:review-member/key 1 :researcher/id "researcher-b" :role :independent-reproducer}
+                 {:review-member/key 2 :researcher/id "researcher-c" :role :adversarial-reviewer}]
+        round (rr/build-review-round
+               {:benchmark/content-root "sha256:lifecycle"
+                :review-round/purpose :model-admission
+                :review-round/members members
+                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                :review-round/policy-root "sha256:lifecycle-policy"})
+        ci-artifact (ci/build-canonical-indices round)
+        plan [{:execution/ordinal 1 :execution/id "sha256:case-a"}
+              {:execution/ordinal 2 :execution/id "sha256:case-b"}
+              {:execution/ordinal 3 :execution/id "sha256:case-c"}]
+        case-set (cs/build-case-set plan)
+        case-root (cs/compute-case-set-root case-set)
+        manifest (om/build-manifest base-input)
+        reports [(rrr/build-report {:outcome-manifest manifest
+                                    :researcher-id "researcher-a"
+                                    :runner-info runner-info
+                                    :evidence-refs evidence-refs
+                                    :run-id "lifecycle-a"})
+                 (rrr/build-report {:outcome-manifest manifest
+                                    :researcher-id "researcher-b"
+                                    :runner-info runner-info
+                                    :evidence-refs evidence-refs
+                                    :run-id "lifecycle-b"})
+                 (rrr/build-report {:outcome-manifest manifest
+                                    :researcher-id "researcher-c"
+                                    :runner-info runner-info
+                                    :evidence-refs evidence-refs
+                                    :run-id "lifecycle-c"})]
+        positions [(rp/build-position
+                    {:benchmark/content-root "sha256:lifecycle"
+                     :researcher/id "researcher-a"
+                     :outcome-hash "sha256:lifecycle-outcome"
+                     :dimensions {:publication {:status :publish}
+                                  :model-state {:status :adequate}
+                                  :evidence {:status :sufficient}}})
+                   (rp/build-position
+                    {:benchmark/content-root "sha256:lifecycle"
+                     :researcher/id "researcher-b"
+                     :outcome-hash "sha256:lifecycle-outcome"
+                     :dimensions {:publication {:status :publish}
+                                  :model-state {:status :adequate}
+                                  :evidence {:status :sufficient}}})
+                   (rp/build-position
+                    {:benchmark/content-root "sha256:lifecycle"
+                     :researcher/id "researcher-c"
+                     :outcome-hash "sha256:lifecycle-outcome"
+                     :dimensions {:publication {:status :publish}
+                                  :model-state {:status :incomplete}
+                                  :evidence {:status :insufficient}}})]
+        cert (tmc/build-certificate
+              {:review-round round
+               :canonical-indices ci-artifact
+               :reports reports
+               :positions positions})
+        final (tmc/finalise-certificate! cert)
+        ; 6. Researcher decisions with scope-bound signatures
+        signed-decisions
+        (with-redefs [signing/sign-hash (fn [_ _ _] "deadbeef")]
+          [(rfa/build-signed-decision
+            "researcher-a" :authorisation/lifecycle
+            "sha256:lifecycle-request" (:review-round/hash round)
+            :approve "/dev/null")
+           (rfa/build-signed-decision
+            "researcher-b" :authorisation/lifecycle
+            "sha256:lifecycle-request" (:review-round/hash round)
+            :approve "/dev/null")
+           (rfa/build-signed-decision
+            "researcher-c" :authorisation/lifecycle
+            "sha256:lifecycle-request" (:review-round/hash round)
+            :dissent "/dev/null"
+            :dissent-reason "scope concern")])
+        fa (rfa/build-authorisation
+            {:authorisation/id :authorisation/lifecycle
+             :authorisation/policy
+             {:policy/id :research/three-member-force-authorisation
+              :policy/version 1 :policy/schema-version "fa-policy.v1"
+              :policy/hash "sha256:fa-policy"}
+             :authorisation/review-round
+             {:review-round/id (:review-round/id round)
+              :review-round/hash (:review-round/hash round)}
+             :authorisation/request-root "sha256:lifecycle-request"
+             :authorisation/target
+             {:target/kind :benchmark-branch
+              :target/baseline-content-root "sha256:baseline"
+              :target/branch-descriptor-hash "sha256:branch"
+              :target/proposed-content-root "sha256:proposed"}
+             :authorisation/decision-references signed-decisions
+             :authorisation/threshold {:required 2 :eligible 3}})
+        ; 7. Negative test: wrong key for researcher
+        wrong-key-decision
+        (with-redefs [signing/sign-hash (fn [_ _ _] "deadbeef")]
+          (rfa/build-signed-decision
+           "researcher-a" :authorisation/bad-key
+           "sha256:req" (:review-round/hash round)
+           :approve "/dev/null"))
+        bad-fa (rfa/build-authorisation
+                {:authorisation/id :authorisation/bad-key
+                 :authorisation/policy
+                 {:policy/id :research/three-member
+                  :policy/version 1 :policy/schema-version "fa-policy.v1"
+                  :policy/hash "sha256:p"}
+                 :authorisation/review-round
+                 {:review-round/id (:review-round/id round)
+                  :review-round/hash (:review-round/hash round)}
+                 :authorisation/request-root "sha256:req"
+                 :authorisation/target
+                 {:target/kind :benchmark-branch
+                  :target/baseline-content-root "sha256:b"
+                  :target/branch-descriptor-hash "sha256:bd"
+                  :target/proposed-content-root "sha256:pr"}
+                 :authorisation/decision-references
+                 [(assoc (first signed-decisions) :review-member/key 99)
+                  (second signed-decisions)
+                  (nth signed-decisions 2)]
+                 :authorisation/threshold {:required 2 :eligible 3}})
+        round-check (rfa/verify-against-round round bad-fa)]
+    ;; 1. Keyed review round
+    (testing "round is keyed with correct keys"
+      (is (rr/round-uses-member-keys? round))
+      (is (= [0 1 2] (rr/member-keys round))))
+    ;; 2. Canonical-indices
+    (testing "canonical-indices bind correctly"
+      (is (= 3 (:review-member/count ci-artifact)))
+      (is (some? (:review-member-canonical-indices/hash ci-artifact))))
+    ;; 3. Case-set
+    (testing "case-set has scoped case keys"
+      (is (= [0 1 2] (mapv :case/key case-set)))
+      (is (re-matches #"sha256:[0-9a-f]{64}" case-root)))
+    ;; 4. Certificate preserves IDs + emits index vectors
+    (testing "certificate preserves IDs and emits index vectors"
+      (is (= ["researcher-a" "researcher-b" "researcher-c"]
+             (get-in final [:other-consensus :publication :supporting-members])))
+      (is (= [0 1 2]
+             (get-in final [:other-consensus :publication :supporting-member-indices])))
+      (is (some? (:review-member-canonical-indices/hash final)))
+      (is (tmc/certificate-valid? final)))
+    ;; 5. Force-authorisation
+    (testing "force-authorisation with scope-bound signatures"
+      (is (= :approved-with-dissent (:authorisation/decision-status fa)))
+      (is (= 2 (:approved (:authorisation/threshold fa))))
+      (is (= 1 (:dissented (:authorisation/threshold fa)))))
+    (testing "verify-against-round agrees with key assignments"
+      (let [check (rfa/verify-against-round round fa)]
+        (is (:valid? check))
+        (is (= [0 1] (:approval-member-keys check)))
+        (is (= [2] (:dissent-member-keys check)))))
+    (testing "decisions embed scope-binding fields"
+      (doseq [d signed-decisions]
+        (is (= "sha256:lifecycle-request" (:authorisation/request-root d))
+            "every decision binds the request-root")
+        (is (= (:review-round/hash round) (:review-round/hash d))
+            "every decision binds the review-round hash")))
+    ;; 7. Wrong key rejected
+    (testing "wrong key for researcher rejected"
+      (is (not (:valid? round-check)))
+      (is (some #(= :member-key-researcher-mismatch (:reason %))
+                (:reasons round-check))))))

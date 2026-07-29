@@ -15,7 +15,7 @@
     :benchmark/model-root (str "sha256:"
                                (apply str (take 64 (cycle "a0de"))))
     :benchmark/evaluation-policy-root (str "sha256:"
-                                            (apply str (take 64 (cycle "e5ca"))))
+                                           (apply str (take 64 (cycle "e5ca"))))
     :execution/status :completed
     :execution/parameter-domain-root (str "sha256:"
                                           (apply str (take 64 (cycle "d0"))))

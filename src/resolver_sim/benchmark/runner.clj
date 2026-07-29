@@ -338,11 +338,11 @@
     (let [index-path (or benchmark-index-path
                          (str (io/file scenario-output-dir "benchmark-index.edn")))
           executions (mapv (fn [result]
-                              (let [artifacts (:scenario/artifacts result)]
-                                {:execution/id (:execution/id result)
-                                 :execution/descriptor (:execution/descriptor result)
-                                 :case/key (:case/key result)
-                                 :scenario/id (:scenario/id result)
+                             (let [artifacts (:scenario/artifacts result)]
+                               {:execution/id (:execution/id result)
+                                :execution/descriptor (:execution/descriptor result)
+                                :case/key (:case/key result)
+                                :scenario/id (:scenario/id result)
                                 :scenario/source-path (:simulator/scenario-path result)
                                 :benchmark/run-index (:benchmark/run-index result)
                                 :benchmark/run-count (:benchmark/run-count result)

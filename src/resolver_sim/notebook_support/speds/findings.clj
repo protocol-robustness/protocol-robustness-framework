@@ -292,10 +292,10 @@
    {:class (->outcome-class classification)
     :status (->outcome-status classification)
     :severity (->outcome-severity sev)
-     :confidence (merge (confidence/normalize-confidence
-                         (or (:confidence classification) "medium"))
-                        {:basis :single-run-artifact-derived
-                         :rationale (:rationale classification)})
+    :confidence (merge (confidence/normalize-confidence
+                        (or (:confidence classification) "medium"))
+                       {:basis :single-run-artifact-derived
+                        :rationale (:rationale classification)})
     :execution {:result (keyword (or st-kind "observed"))
                 :halt-reason nil
                 :scenario-id sid

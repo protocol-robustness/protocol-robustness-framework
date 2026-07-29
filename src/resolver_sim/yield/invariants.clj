@@ -4,10 +4,10 @@
             [resolver-sim.yield.risk :as risk]
             [resolver-sim.yield.invariant-catalog :as cat]
             [resolver-sim.yield.partial-fill :as partial-fill]
-             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
-             [resolver-sim.time.context :as time-ctx]
-             [resolver-sim.time.deadlines :as dl]
-             [resolver-sim.logging :as log]))
+            [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
+            [resolver-sim.time.context :as time-ctx]
+            [resolver-sim.time.deadlines :as dl]
+            [resolver-sim.logging :as log]))
 
 (defn- inv-result [holds?]
   {:holds? (boolean holds?)})
@@ -710,7 +710,7 @@
   "Check that no active deferred position is past its policy deadline."
   [world]
   (let [now-ts (or (some-> (get-in world [:context/time :block-ts]) long) (some-> (get-in world [:block-time]) long) 0)]
-    
+
     (into []
           (keep (fn [[pid pos]]
                   (when-let [dp (:deferred-position pos)]
@@ -750,14 +750,14 @@
     :participant-credit-set-exact
     :entry-set-balanced]
 
-           :accounting-state-reconciles
-           [:source-account-arithmetic-valid
-            :participant-withdrawn-arithmetic
-            :deferred-position-presence-valid
-            :deferred-position-amounts-valid
-            :deferred-position-identities-valid
-            :deferred-position-deadline-valid
-            :obligation-identities-valid
+   :accounting-state-reconciles
+   [:source-account-arithmetic-valid
+    :participant-withdrawn-arithmetic
+    :deferred-position-presence-valid
+    :deferred-position-amounts-valid
+    :deferred-position-identities-valid
+    :deferred-position-deadline-valid
+    :obligation-identities-valid
     :obligation-conservation
     :unsupported-obligation-outcomes-absent
     :obligation-after-valid
@@ -815,17 +815,17 @@
                                        (nil? a) (conj {:propagation-id id :reason :missing-propagation-application})
                                        (and a (not (#{"pro-rata-propagation-application.v2" "pro-rata-propagation-application.v3"} (:schema-version a)))) (conj {:propagation-id id :reason :unsupported-application-schema})
                                        (and a (nil? (:application/hash a))) (conj {:propagation-id id :reason :application-hash-missing})
-                                        (and a (:application/hash a)
-                                             (not= (:application/hash a)
-                                                   (partial-fill/application-hash a)))
-                                        (conj {:propagation-id id :reason :application-hash-mismatch})
-                                        (and a (:application/output a)
-                                             (not= "pro-rata-application-output.v1" (get-in a [:application/output :schema-version])))
-                                        (conj {:propagation-id id :reason :application-output-schema-invalid})
-                                        (and a (:application/output a) (:hash (:application/output a))
-                                             (not= (:hash (:application/output a))
-                                                   (partial-fill/pro-rata-application-output-hash a p)))
-                                        (conj {:propagation-id id :reason :application-output-hash-mismatch})
+                                       (and a (:application/hash a)
+                                            (not= (:application/hash a)
+                                                  (partial-fill/application-hash a)))
+                                       (conj {:propagation-id id :reason :application-hash-mismatch})
+                                       (and a (:application/output a)
+                                            (not= "pro-rata-application-output.v1" (get-in a [:application/output :schema-version])))
+                                       (conj {:propagation-id id :reason :application-output-schema-invalid})
+                                       (and a (:application/output a) (:hash (:application/output a))
+                                            (not= (:hash (:application/output a))
+                                                  (partial-fill/pro-rata-application-output-hash a p)))
+                                       (conj {:propagation-id id :reason :application-output-hash-mismatch})
                                        (and a (let [expected-ref {:propagation/id id :propagation/hash (:propagation/hash p) :propagation/content-hash (:propagation/content-hash p)}
                                                     actual-ref (:propagation/reference a)]
                                                 (not= expected-ref actual-ref))) (conj {:propagation-id id :reason :application-propagation-reference-mismatch})
@@ -864,10 +864,9 @@
                                        (and (pos? allocated) (not= 1 (count debit))) (conj {:propagation-id id :reason :source-account-entry-missing})
                                        (not= 0 (reduce + 0 (map #(long (:delta % 0)) entries))) (conj {:propagation-id id :reason :accounting-entry-set-unbalanced})
                                        (and a (not= (set (map :participant-id participants)) (set (map :participant-id apps)))) (conj {:propagation-id id :reason :application-participant-set-mismatch})
-                                        (and a (not= allocated (reduce + 0 (map #(long (get-in % [:withdrawn :delta] 0)) apps)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
-                                        (and a (not= allocated (reduce + 0 (map #(long (:delta % 0)) credits)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
-)))
-                                  props)
+                                       (and a (not= allocated (reduce + 0 (map #(long (get-in % [:withdrawn :delta] 0)) apps)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch})
+                                       (and a (not= allocated (reduce + 0 (map #(long (:delta % 0)) credits)))) (conj {:propagation-id id :reason :participant-credit-total-mismatch}))))
+                                 props)
                          (mapcat #(policy-accounting-violations % (get-in world [:yield/applied-pro-rata-propagations (:propagation/id %)])) props)
                          ;; Application/accounting evidence is only meaningful when the
                          ;; committed v2 propagation still faithfully binds its decision.
@@ -885,9 +884,9 @@
                          (deferred-state-violations world props)
                          (obligation-violations props)
                          (cumulative-fulfilment-violations applications)
-                          (application-obligation-violations props applications)
-                          (closed-history-violations applications)
-                          (deferred-deadline-violations world))]
+                         (application-obligation-violations props applications)
+                         (closed-history-violations applications)
+                         (deferred-deadline-violations world))]
 
     (let [failures (vec failures)
           reasons (set (map :reason failures))
@@ -965,7 +964,7 @@
            :position-after-hash-valid (pass? #{:position-after-hash-mismatch})
            :deferred-position-deadline-valid (pass? #{:deferred-position-deadline-expired})}
 
-           checks-pass?
+          checks-pass?
           (fn [check-ids]
             (every? #(= :pass (get checks %)) check-ids))
 
@@ -1078,14 +1077,14 @@
             :pass :fail))
 
         checks
-         {:allocation-decision-binding-valid
-          (pass? #{:propagation-allocation-id-mismatch
-                   :propagation-allocation-hash-mismatch
-                   :propagation-mechanism-reference-mismatch
-                   :propagation-mechanism-evidence-reference-mismatch
-                   :decision-mechanism-evidence-invalid
-                   :propagation-decision-reference-mismatch
-                   :decision-hash-mismatch})
+        {:allocation-decision-binding-valid
+         (pass? #{:propagation-allocation-id-mismatch
+                  :propagation-allocation-hash-mismatch
+                  :propagation-mechanism-reference-mismatch
+                  :propagation-mechanism-evidence-reference-mismatch
+                  :decision-mechanism-evidence-invalid
+                  :propagation-decision-reference-mismatch
+                  :decision-hash-mismatch})
          :allocation-row-translation-valid
          (pass? #{:missing-propagation-participant
                   :extra-propagation-participant

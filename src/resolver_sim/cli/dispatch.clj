@@ -59,8 +59,8 @@
    :community-task-report 'resolver-sim.commands.community/task-report
    :community-graph-export 'resolver-sim.commands.community/graph-export
    :community-mailbox-clear 'resolver-sim.commands.community/mailbox-clear
-    :pre-application-checks 'resolver-sim.commands.pre-application-checks/checks
-    :notebook-focus 'resolver-sim.commands.notebook-focus/focus
+   :pre-application-checks 'resolver-sim.commands.pre-application-checks/checks
+   :notebook-focus 'resolver-sim.commands.notebook-focus/focus
    :notebook-latest 'resolver-sim.commands.notebook-focus/latest
    :notebook-runs 'resolver-sim.commands.notebook-focus/runs
    :invariants-run 'resolver-sim.commands.invariants-run/run

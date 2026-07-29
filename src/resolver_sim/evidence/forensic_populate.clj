@@ -188,12 +188,12 @@
         (let [criterion (:criterion c)
               pass? (:pass c)
               detail (:detail c)
-               level (if pass? :high :low)
-               cr (write-claim-result!
-                   {:claim-id (str (name criterion))
-                    :category "audit"
-                    :confidence (name level)
-                    :status (if pass? "pass" "fail")
+              level (if pass? :high :low)
+              cr (write-claim-result!
+                  {:claim-id (str (name criterion))
+                   :category "audit"
+                   :confidence (name level)
+                   :status (if pass? "pass" "fail")
                    :evidence-refs (criterion-evidence-refs criterion detail)
                    :description (str "Forensic claim: " (name criterion))
                    :failure-detail (when-not pass?
@@ -202,9 +202,9 @@
       ;; Write composite forensic-grade claim result
       (let [comp-level (if all-pass? :high :low)
             composite-cr (write-claim-result!
-                           {:claim-id "forensic-grade"
-                            :category "composite"
-                            :confidence (name comp-level)
+                          {:claim-id "forensic-grade"
+                           :category "composite"
+                           :confidence (name comp-level)
                            :status (if all-pass? "pass" "fail")
                            :evidence-refs (vec (mapv (fn [cr]
                                                        {:ref/kind "claim-result"

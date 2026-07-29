@@ -405,11 +405,11 @@
                                (emit-yield-execution-node! event yield-delta))]
             ;; Enrich context with projection fields once available
             (let [projection-ctx (assoc replay-ctx
-                                   :ctx/projection-hash ph
-                                   :ctx/world-hash
-                                   (hc/hash-with-intent
-                                     {:hash/intent :world-structure}
-                                     final-world))]
+                                        :ctx/projection-hash ph
+                                        :ctx/world-hash
+                                        (hc/hash-with-intent
+                                         {:hash/intent :world-structure}
+                                         final-world))]
               ;; Emit projection evidence (best-effort, :all evidence-mode only)
               (when (and ph (evidence-mode-allows? flags :projection))
                 (emit-projection-evidence! projection-ctx))

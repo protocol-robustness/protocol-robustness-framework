@@ -48,9 +48,9 @@
   (let [case-set-a (cs/build-case-set sample-plan)
         root-a (cs/compute-case-set-root case-set-a)
         case-set-b (cs/build-case-set
-                     [{:execution/ordinal 1 :execution/id "sha256:xyz"}
-                      {:execution/ordinal 2 :execution/id "sha256:def"}
-                      {:execution/ordinal 3 :execution/id "sha256:ghi"}])
+                    [{:execution/ordinal 1 :execution/id "sha256:xyz"}
+                     {:execution/ordinal 2 :execution/id "sha256:def"}
+                     {:execution/ordinal 3 :execution/id "sha256:ghi"}])
         root-b (cs/compute-case-set-root case-set-b)]
     (is (not= root-a root-b) "different execution IDs → different hash")))
 

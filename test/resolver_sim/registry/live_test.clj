@@ -163,8 +163,8 @@
 (deftest unknown-type-throws
   (testing "read-live-registry throws for unknown registry type"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
-          #"Unknown registry type"
-          (live/read-live-registry :nonexistent-type)))))
+                          #"Unknown registry type"
+                          (live/read-live-registry :nonexistent-type)))))
 
 ;; ── List and info ────────────────────────────────────────────────────────────
 
@@ -206,8 +206,8 @@
   (testing ":skip-fallback returns unavailable for unloaded live-only types"
     (live/register-registry! :test-sc {:world-path [:my :data]})
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
-          #"Registry not available"
-          (live/read-live-registry :test-sc nil {:skip-fallback true}))))
+                          #"Registry not available"
+                          (live/read-live-registry :test-sc nil {:skip-fallback true}))))
   (testing ":skip-fallback with world still works"
     (let [result (live/read-live-registry :test-sc {:my {:data "hello"}} {:skip-fallback true})]
       (is (= :live (:registry/source result)))
@@ -249,8 +249,8 @@
     (live/register-registry! :test-dyn {:world-path [:my :cfg]})
     (binding [resolver-sim.registry.live/*live-only* true]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo
-            #"Registry not available"
-            (live/read-live-registry :test-dyn))))
+                            #"Registry not available"
+                            (live/read-live-registry :test-dyn))))
     (testing "and world state still works"
       (binding [resolver-sim.registry.live/*live-only* true]
         (let [result (live/read-live-registry :test-dyn {:my {:cfg "loaded"}})]
@@ -276,8 +276,8 @@
     (live/with-test-registry
       nil
       (is (thrown-with-msg? clojure.lang.ExceptionInfo
-            #"Registry not available"
-            (live/read-live-registry :test-macro-empty))))))
+                            #"Registry not available"
+                            (live/read-live-registry :test-macro-empty))))))
 
 (deftest with-test-registry-restores-state
   (testing "with-test-registry restores live atom after exit"

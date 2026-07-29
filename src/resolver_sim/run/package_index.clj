@@ -165,10 +165,10 @@
                                    :path index-file
                                    :sha256 actual-hash
                                    :bytes actual-bytes}
-                                   (catch Exception ex {:reason (reason :package/package-index-invalid-json
-                                                                          :path path
-                                                                          :exception (.getMessage ex)
-                                                                          :exception-class (str (class ex)))})))
+                                  (catch Exception ex {:reason (reason :package/package-index-invalid-json
+                                                                       :path path
+                                                                       :exception (.getMessage ex)
+                                                                       :exception-class (str (class ex)))})))
               profile-reasons (when-let [index (:index index-result)]
                                 (case (:run/type index)
                                   :single-scenario
@@ -199,8 +199,8 @@
         (catch Exception ex
           {:run-root run-root
            :completion-report {:valid? false :reasons [(reason :package/completion-invalid
-                                                              :exception (.getMessage ex)
-                                                              :exception-class (str (class ex)))]}
+                                                               :exception (.getMessage ex)
+                                                               :exception-class (str (class ex)))]}
            :reasons [(reason :package/completion-invalid
                              :exception (.getMessage ex)
                              :exception-class (str (class ex)))]})))))
@@ -850,8 +850,8 @@
                                (conj (reason :package/missing-artifact :artifact-id id :path ref))
                                (not (hash-ref/valid-sha256-ref? sha256))
                                (conj (reason :package/invalid-artifact-sha256 :artifact-id id :path ref :actual sha256))
-(and file (.isFile (io/file file)) (hash-ref/valid-sha256-ref? sha256) (not= sha256 (sha-ref file)))
-                                (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref))
+                               (and file (.isFile (io/file file)) (hash-ref/valid-sha256-ref? sha256) (not= sha256 (sha-ref file)))
+                               (conj (reason :package/artifact-hash-mismatch :artifact-id id :path ref))
                                (and (contains? single-scenario-artifacts id) (nil? bytes))
                                (conj (reason :package/missing-artifact-byte-length :artifact-id id :path ref))
                                (and (some? bytes) (not (and (integer? bytes) (not (neg? bytes)))))

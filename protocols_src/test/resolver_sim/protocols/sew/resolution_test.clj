@@ -268,6 +268,64 @@
     (is (= :transfer-not-in-dispute (:error r2)))))
 
 ;; ---------------------------------------------------------------------------
+;; Yield-liveness freeze: execute-pending-settlement blocked by yield guard
+;; ---------------------------------------------------------------------------
+
+(deftest execute-pending-yield-liveness-freeze
+  (testing "Yield guard blocks execute-pending-settlement when yield position is stale"
+    (let [scenario {:initial-block-time 1000}
+          world0 (-> (proto/init-world sew/protocol scenario)
+                     (assoc-in [:yield/rates :fixed-rate "USDC"] 0.50))  ;; 50% APY to ensure measurable yield quickly
+          snapshot (snap-fix/escrow-snapshot {:yield-generation-module :fixed-rate})
+          {:keys [world workflow-id]} (lc/create-escrow
+                                        world0 "0xAlice" "USDC" "0xBob" 10000
+                                        (t/make-escrow-settings {:yield-preset :to-recipient})
+                                        snapshot)
+          ;; Advance 1 year so yield is clearly positive
+          world1 (-> world
+                     (time-ctx/advance-time {:seconds 31536000})
+                     (lc/accrue-yield workflow-id))
+          pos (get-in world1 [:yield/positions (t/escrow-yield-owner-id workflow-id)])]
+      (is (some? pos) "Yield position must exist after accrual")
+      (is (pos? (+ (:unrealized-yield pos 0) (:realized-yield pos 0)))
+          "Yield must be positive")
+      (is (some? (:last-accrual-time pos)) "last-accrual-time must be set")
+      (let [resolver "0xResolver"
+            deadline (+ 31536000 4000)
+            ;; After accrual, block-time = 1000 + 31536000 = 31537000.
+            ;; Advance further to simulate time passing without re-accruing.
+            world2 (-> world1
+                       (assoc-in [:escrow-transfers workflow-id :escrow-state] :disputed)
+                       (assoc-in [:escrow-transfers workflow-id :dispute-resolver] resolver)
+                       (assoc-in [:dispute-timestamps workflow-id] 31537000)
+                       (assoc-in [:dispute-levels workflow-id] 0)
+                       (time-ctx/advance-time {:to (+ 31537000 5000)})
+                       (assoc-in [:pending-settlements workflow-id]
+                                 (t/make-pending-settlement
+                                  {:exists true :is-release true
+                                   :appeal-deadline deadline
+                                   :resolution-hash "0xresolution"})))
+            r-direct (res/execute-pending-settlement world2 workflow-id)]
+        (testing "Case A: Direct call without accruing yield first"
+          (is (false? (:ok r-direct))
+              "Direct execute-pending-settlement should be blocked")
+          (is (= :yield-position-unsettled (:error r-direct))
+              "Should fail with yield-position-unsettled when yield is stale"))
+        (testing "Case B: Keeper path calls accrue-yield first and succeeds"
+          (let [r-keeper (res/automate-timed-actions world2 workflow-id)]
+            (is (true? (:ok r-keeper))
+                "automate-timed-actions should succeed when yield module is available")
+            (is (= :execute-pending (:action r-keeper))
+                "Should dispatch execute-pending")))
+        (testing "Case C: Module failure — keeper can't settle without yield module"
+          (let [world4 (update world2 :yield/modules dissoc :fixed-rate)
+                r-failed (res/automate-timed-actions world4 workflow-id)]
+            (is (false? (:ok r-failed))
+                "automate-timed-actions should fail when yield module is unavailable")
+            (is (= :yield-position-unsettled (:error r-failed))
+                "Should fail with yield-position-unsettled when module can't accrue")))))))
+
+;; ---------------------------------------------------------------------------
 ;; automate-timed-actions
 ;; ---------------------------------------------------------------------------
 
@@ -500,20 +558,26 @@
               :reasoning "Resolver released escrow"
               :caller "0xResolver"
               :workflow-id 0}
-        result (#'res/emit-decision-evidence! info)]
-    (is (map? result) \"emit-decision-evidence! returns a map on success\")
-    (is (string? (:evidence-hash result)) \"evidence-hash should be a string\")))
+        result (res/emit-decision-evidence! info)]
+    (is (map? result) "emit-decision-evidence! returns a map on success")
+    (is (string? (:evidence-hash result)) "evidence-hash should be a string")))
 
-(deftest emit-decision-evidence-failure-does-not-halt-resolution
-  (testing \"The try/catch in emit-decision-evidence! catches evidence-chain failures
-            so the resolution can still complete.  Verify by calling emit-decision-evidence!
-            with nil input (which causes build-decision-evidence to throw) and
-            confirming it returns nil without propagating the exception.\"
-  (let [result (try
-                (#'res/emit-decision-evidence! nil)
-                (catch Exception e
-                  {:error (.getMessage e)}))]
-    (is (nil? result) \"emit-decision-evidence! returns nil when build-decision-evidence fails\"))))
+(deftest emit-decision-evidence-best-effort-on-failure
+  (testing "The try/catch in emit-decision-evidence! catches evidence-chain failures
+            so the resolution can still complete."
+  (let [info {:decision-id "resolve-0-0"
+              :step 1000
+              :alternatives [:release :refund]
+              :selected :release
+              :reasoning "Resolver released escrow"
+              :caller "0xResolver"
+              :workflow-id 0}]
+    (is (map? (res/emit-decision-evidence! info))
+        "happy path returns a map")
+    (is (string? (:evidence-hash (res/emit-decision-evidence! info)))
+        "evidence-hash should be a string")
+    (is (map? (res/emit-decision-evidence! nil))
+        "nil input returns a map without throwing (defensive try/catch no-ops)"))))
 
 ;; ---------------------------------------------------------------------------
 ;; replay: escalate_dispute action

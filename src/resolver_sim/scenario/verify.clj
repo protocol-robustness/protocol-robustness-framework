@@ -108,17 +108,17 @@
                             expected-hash (str "sha256:"
                                                (canonical/hash-with-intent {:hash/intent :evidence-record} base))
                             projection (get by-id (:decision/id decision))
-                             closed-form (try
-                                           (partial-fill/partial-fill-closed-form-checks decision)
-                                           (catch clojure.lang.ExceptionInfo e
-                                             (:check-results (ex-data e))))]
-                         (and projection
-                              (= expected-hash (:decision/hash decision))
-                              (= (:decision/hash decision) (:decision_sha256 projection))
-                              (= (reduce + 0 (vals (:requested decision))) (:total_requested projection))
-                              (= (reduce + 0 (vals (:filled decision))) (:total_filled projection))
-                              (= (reduce + 0 (vals (:deferred decision))) (:total_deferred projection))
-                              (every? #(not= :fail (:status %)) closed-form))))
+                            closed-form (try
+                                          (partial-fill/partial-fill-closed-form-checks decision)
+                                          (catch clojure.lang.ExceptionInfo e
+                                            (:check-results (ex-data e))))]
+                        (and projection
+                             (= expected-hash (:decision/hash decision))
+                             (= (:decision/hash decision) (:decision_sha256 projection))
+                             (= (reduce + 0 (vals (:requested decision))) (:total_requested projection))
+                             (= (reduce + 0 (vals (:filled decision))) (:total_filled projection))
+                             (= (reduce + 0 (vals (:deferred decision))) (:total_deferred projection))
+                             (every? #(not= :fail (:status %)) closed-form))))
                     decisions)]
         {:applicable? true
          :valid? (and decision-valid? (= (count decisions) (count projections)))}))))

@@ -167,7 +167,7 @@
   {:correct   {:level :high   :status :final      :scope :unbounded}
    :incorrect {:level :low    :status :final      :scope :unbounded}
    :contested {:level nil     :status :provisional :scope :unbounded}
-   :unverified{:level nil     :status :provisional :scope :bounded}})
+   :unverified {:level nil     :status :provisional :scope :bounded}})
 
 (deftest resolution-quality->confidence-maps-outcome-values
   (doseq [q core/resolution-outcome-values]

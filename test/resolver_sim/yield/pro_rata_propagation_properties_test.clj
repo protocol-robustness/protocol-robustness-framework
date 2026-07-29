@@ -9,7 +9,6 @@
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.invariants :as inv]
             [resolver-sim.yield.position :as pos]
-            [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.yield.pro-rata-propagation-helpers :as h]))
 
 ;; ============================================================================
@@ -416,9 +415,7 @@
 (deftest propagation-is-order-independent
   "Reordering participant inputs produces the same propagation artifact
    (same participants, same accounting entries, same summary)."
-  (let [prop (prop/for-all [c h/gen-any-case
-                            ;; Generate a random permutation of the case's participants
-                            perm-idx (gen/choose 0 5)]
+  (let [prop (prop/for-all [c h/gen-any-case]
                            (let [reordered (update c :participants (fn [ps] (vec (shuffle ps))))
                                  w1 (h/build-propagations-from-case c)
                                  w2 (h/build-propagations-from-case reordered)
@@ -477,10 +474,10 @@
 (deftest single-participant-propagation-reconciles
   "A propagation with a single participant passes all invariants."
   (let [prop (prop/for-all [c h/gen-case]
-                           (let [single-participant (update c :participants #(vec (take 1 %)))]
-                             (let [world (h/build-propagations-from-case single-participant)
-                                   result (inv/check-pro-rata-accounting-reconciles world)]
-                               (:holds? result))))
+                           (let [single-participant (update c :participants #(vec (take 1 %)))
+                                 world (h/build-propagations-from-case single-participant)
+                                 result (inv/check-pro-rata-accounting-reconciles world)]
+                             (:holds? result)))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))
 
@@ -490,9 +487,9 @@
   (let [prop (prop/for-all [c h/gen-case]
                            (let [zero-ps (mapv (fn [p] (assoc p :fulfilled 0 :deferred (:eligible-obligation p 0)))
                                                (:participants c))
-                                 case (assoc c :participants zero-ps)]
-                             (let [world (h/build-propagations-from-case case)
-                                   result (inv/check-pro-rata-accounting-reconciles world)]
-                               (false? (:holds? result)))))
+                                 case (assoc c :participants zero-ps)
+                                 world (h/build-propagations-from-case case)
+                                 result (inv/check-pro-rata-accounting-reconciles world)]
+                             (false? (:holds? result))))
         res (tc/quick-check (pbh/trial-count) prop)]
     (is (:pass? res) (pbh/report-failure res))))

@@ -952,17 +952,17 @@
                       :position/origin-propagation-id propagation-id
                       :position/created-by-transition-hash transition-hash
                       :position/created-order application-order
-                       :position/created-event-time event-time
-                       :position/deadline-ts
-                       (let [dur (get-in propagation
-                                         [:propagation-policy
-                                          :policy/snapshot
-                                          :shortfall
-                                          :deferral-duration-seconds]
-                                         0)]
-                         (when (pos? dur)
-                           (dl/deadline event-time dur)))
-                       :position/round round
+                      :position/created-event-time event-time
+                      :position/deadline-ts
+                      (let [dur (get-in propagation
+                                        [:propagation-policy
+                                         :policy/snapshot
+                                         :shortfall
+                                         :deferral-duration-seconds]
+                                        0)]
+                        (when (pos? dur)
+                          (dl/deadline event-time dur)))
+                      :position/round round
                       :position/original-priority
                       (or (:position/original-priority current-deferred)
                           original-priority)
@@ -1023,11 +1023,11 @@
                                 fulfilled)
                      (assoc-in [:yield/positions participant-id]
                                updated-position))))
-              world
-              participants)
-             next-world (assoc-in next-world [:total-held token]
-                                  (- source-before allocated))
-             application-base
+             world
+             participants)
+            next-world (assoc-in next-world [:total-held token]
+                                 (- source-before allocated))
+            application-base
             {:schema-version "pro-rata-propagation-application.v3"
              :propagation-id propagation-id
              :propagation/reference
@@ -1085,9 +1085,9 @@
                    :position-before-hash (:position-hash precondition)
                    :position-after
                    (get-in next-world [:yield/positions participant-id])
-                    :position-after-hash
-                    (canonical-hash-safe
-                     (get-in next-world [:yield/positions participant-id]))
+                   :position-after-hash
+                   (canonical-hash-safe
+                    (get-in next-world [:yield/positions participant-id]))
                    :withdrawn
                    {:account :withdrawn
                     :token token
@@ -1128,17 +1128,17 @@
                                    [:residual :destination])}
              :status :committed}
             application
-             (let [outcome {:schema-version "partial-fill-decision.v1"
-                            :artifact/id (:calculation-id application-base)
-                            :artifact/hash (:outcome-hash application-base)}
-                   application-base (assoc application-base :application/outcome outcome)
-                   app-hash (canonical-hash application-base)
-                   app-with-hash (assoc application-base :application/hash app-hash)
-                   output-hash {:schema-version "pro-rata-application-output.v1"
-                                :hash-algorithm "sha256"
-                                :hash (partial-fill/pro-rata-application-output-hash app-with-hash propagation)}]
-               (assoc app-with-hash
-                      :application/output output-hash))]
+            (let [outcome {:schema-version "partial-fill-decision.v1"
+                           :artifact/id (:calculation-id application-base)
+                           :artifact/hash (:outcome-hash application-base)}
+                  application-base (assoc application-base :application/outcome outcome)
+                  app-hash (canonical-hash application-base)
+                  app-with-hash (assoc application-base :application/hash app-hash)
+                  output-hash {:schema-version "pro-rata-application-output.v1"
+                               :hash-algorithm "sha256"
+                               :hash (partial-fill/pro-rata-application-output-hash app-with-hash propagation)}]
+              (assoc app-with-hash
+                     :application/output output-hash))]
         {:status :applied
          :propagation-id propagation-id
          :world

@@ -50,10 +50,10 @@
 (defn check-embedded-resources
   "Verify all built-in resource: URIs resolve."
   []
-   (let [paths [hash-ref/benchmark-registry-path
-                (str hash-ref/resource-prefix hash-ref/concept-registry-path)
-                (str hash-ref/resource-prefix hash-ref/fixture-suite-manifest-path)
-                (str hash-ref/resource-prefix hash-ref/evidence-config-path)
+  (let [paths [hash-ref/benchmark-registry-path
+               (str hash-ref/resource-prefix hash-ref/concept-registry-path)
+               (str hash-ref/resource-prefix hash-ref/fixture-suite-manifest-path)
+               (str hash-ref/resource-prefix hash-ref/evidence-config-path)
                "resource:scenarios/edn/S01_baseline-happy-path.edn"
                hash-ref/reference-validation-suite-manifest]
         results (mapv (fn [p] {:path p :ok? (resource-exists? p)}) paths)

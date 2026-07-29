@@ -163,9 +163,9 @@
           failed (filterv #(= :fail (:status %)) results)]
       (when (seq failed)
         (throw (ex-info "Held custody closed-form checks failed"
-                 {:type :closed-form-failure
-                  :check-results results
-                  :failed-checks failed})))
+                        {:type :closed-form-failure
+                         :check-results results
+                         :failed-checks failed})))
       results)))
 
 (defn replay-held-adjustment-state

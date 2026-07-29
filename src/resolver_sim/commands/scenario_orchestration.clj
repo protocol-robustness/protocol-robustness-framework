@@ -249,38 +249,38 @@
                                  (filter #(.endsWith (.getName %) ".edn"))
                                  vec)
         attestations (vec (keep (fn [f]
-                                   (try (let [data (json/read-str (slurp f) :key-fn keyword)]
-                                          (when (:attestation/id data) data))
-                                        (catch Exception e
-                                          (log/warn! :attestation-bundle-read-error
-                                            "Failed to read attestation evidence file"
-                                            {:path (str f) :error (.getMessage e)})
-                                          nil)))
-                                 evidence-files))
+                                  (try (let [data (json/read-str (slurp f) :key-fn keyword)]
+                                         (when (:attestation/id data) data))
+                                       (catch Exception e
+                                         (log/warn! :attestation-bundle-read-error
+                                                    "Failed to read attestation evidence file"
+                                                    {:path (str f) :error (.getMessage e)})
+                                         nil)))
+                                evidence-files))
         evidence-nodes (vec (keep (fn [f]
-                                     (try (let [data (edn/read-string (slurp f))]
-                                            (when (:node-hash data) data))
-                                          (catch Exception e
-                                            (log/warn! :attestation-bundle-read-error
-                                              "Failed to read evidence node file"
-                                              {:path (str f) :error (.getMessage e)})
-                                            nil)))
-                                   evidence-node-files))
+                                    (try (let [data (edn/read-string (slurp f))]
+                                           (when (:node-hash data) data))
+                                         (catch Exception e
+                                           (log/warn! :attestation-bundle-read-error
+                                                      "Failed to read evidence node file"
+                                                      {:path (str f) :error (.getMessage e)})
+                                           nil)))
+                                  evidence-node-files))
         registries {:attestors (get-in bundle-root [:registry/snapshot :attestors] {})
-                     :claim-definitions (get-in bundle-root [:registry/snapshot :claim-definitions] {})
-                     :hash-intents (get-in bundle-root [:registry/snapshot :hash-intents] {})}
+                    :claim-definitions (get-in bundle-root [:registry/snapshot :claim-definitions] {})
+                    :hash-intents (get-in bundle-root [:registry/snapshot :hash-intents] {})}
         sensitivity-report-file (io/file (p (:manifest/dir c)) "sensitivity-report.json")
         sensitivity-report
         (if (.isFile sensitivity-report-file)
           (try (json/read-str (slurp sensitivity-report-file) :key-fn keyword)
                (catch Exception e
                  (log/warn! :attestation-bundle-sensitivity-read-error
-                   "Failed to read sensitivity report; defaulting to allowed"
-                   {:path (str sensitivity-report-file) :error (.getMessage e)})
+                            "Failed to read sensitivity report; defaulting to allowed"
+                            {:path (str sensitivity-report-file) :error (.getMessage e)})
                  {:decision "allowed"}))
           (do (log/warn! :attestation-bundle-sensitivity-not-found
-                "No sensitivity report found at expected path; defaulting to allowed"
-                {:path (str sensitivity-report-file)})
+                         "No sensitivity report found at expected path; defaulting to allowed"
+                         {:path (str sensitivity-report-file)})
               {:decision "allowed"}))
         ;; Derive provenance from the persisted report, not from the
         ;; bundle root summary. The report is the canonical authority.
@@ -314,23 +314,23 @@
         objects-map {:attestations (persisted-value attestations)
                      :claim-results (persisted-value (get-in execution [:run-result :results] []))
                      :evidence-nodes (persisted-value evidence-nodes)}
-         _ (when (and (seq evidence-files) (empty? attestations))
-             (log/warn! :attestation-bundle-no-attestations
-               "Evidence files found but no attestations with :attestation/id extracted"
-               {:evidence-file-count (count evidence-files)}))
-         _ (when (and (seq evidence-node-files) (empty? evidence-nodes))
-             (log/warn! :attestation-bundle-no-evidence-nodes
-               "Evidence node files found but none with :node-hash extracted"
-               {:evidence-node-file-count (count evidence-node-files)}))
-         bundle-dir (str (io/file (p (:run/root c)) "evidence" "attestation-bundle"))
-         result (ab/build-attestation-bundle
-                 {:attestations attestations
-                  :claim-results (:claim-results objects-map)
-                  :evidence-nodes evidence-nodes
-                  :registries registries
-                  :sensitivity-report sensitivity-report
-                  :sensitivity-provenance sensitivity-provenance
-                  :options {:bundle-dir bundle-dir}})]
+        _ (when (and (seq evidence-files) (empty? attestations))
+            (log/warn! :attestation-bundle-no-attestations
+                       "Evidence files found but no attestations with :attestation/id extracted"
+                       {:evidence-file-count (count evidence-files)}))
+        _ (when (and (seq evidence-node-files) (empty? evidence-nodes))
+            (log/warn! :attestation-bundle-no-evidence-nodes
+                       "Evidence node files found but none with :node-hash extracted"
+                       {:evidence-node-file-count (count evidence-node-files)}))
+        bundle-dir (str (io/file (p (:run/root c)) "evidence" "attestation-bundle"))
+        result (ab/build-attestation-bundle
+                {:attestations attestations
+                 :claim-results (:claim-results objects-map)
+                 :evidence-nodes evidence-nodes
+                 :registries registries
+                 :sensitivity-report sensitivity-report
+                 :sensitivity-provenance sensitivity-provenance
+                 :options {:bundle-dir bundle-dir}})]
     (ab/write-attestation-bundle! result objects-map bundle-dir)
     result))
 (defn default-write-canonical-assurance!

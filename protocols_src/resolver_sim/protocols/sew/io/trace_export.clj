@@ -293,19 +293,13 @@
 
         expected-raw (projection->expected proj (or wf-id 0) token-sym)
 
-        ;; Patch for resolution window logic
-        expected-state
-        (if (and expected-raw (= action "execute_resolution"))
-          (assoc expected-raw :escrow_state 4 :pending_settlement_exists true)
-          expected-raw)
-
         expected
         (if (= result :rejected)
           {:reverted true
            :error    (name (:error entry :unknown))
-           :escrow_state (get-in expected-state [:escrow_state] 0)
-           :pending_settlement_exists (get-in expected-state [:pending_settlement_exists] false)}
-          expected-state)
+           :escrow_state (get-in expected-raw [:escrow_state] 0)
+           :pending_settlement_exists (get-in expected-raw [:pending_settlement_exists] false)}
+          expected-raw)
 
         accepted?     (= result :ok)
         expected-v2   (cond-> (assoc expected

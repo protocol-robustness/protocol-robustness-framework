@@ -172,17 +172,16 @@
                             :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
                             :review-round/policy-root "sha256:policy"})))))
 
-(deftest non-dense-keys-rejected
-  (let [bad-members [{:review-member/key 0, :researcher/id "a", :role :model-steward}
-                     {:review-member/key 2, :researcher/id "b", :role :independent-reproducer}
-                     {:review-member/key 3, :researcher/id "c", :role :adversarial-reviewer}]]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Non-dense review-member keys"
-                          (rr/build-review-round
-                           {:benchmark/content-root "sha256:abc"
-                            :review-round/purpose :model-admission
-                            :review-round/members bad-members
-                            :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
-                            :review-round/policy-root "sha256:policy"})))))
+(deftest non-dense-keys-valid-in-builder
+  (let [round (rr/build-review-round
+               {:benchmark/content-root "sha256:abc"
+                :review-round/purpose :model-admission
+                :review-round/members [{:review-member/key 0, :researcher/id "a", :role :model-steward}
+                                       {:review-member/key 2, :researcher/id "b", :role :independent-reproducer}
+                                       {:review-member/key 3, :researcher/id "c", :role :adversarial-reviewer}]
+                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                :review-round/policy-root "sha256:policy"})]
+    (is (rr/round-valid? round) "builder accepts non-dense keys; density validated by canonical-indices artifact")))
 
 (deftest duplicate-researcher-id-under-different-keys-rejected-via-validate
   (let [bad-members [{:review-member/key 0, :researcher/id "a", :role :model-steward}
@@ -200,15 +199,20 @@
     (is (some #(re-find #"duplicate researcher/id" %)
               (:errors (rr/validate-round round))))))
 
-(deftest assign-consecutive-member-keys-preserves-order
+(deftest assign-consecutive-member-keys-sorts-by-id
   (let [members [{:researcher/id "z" :role :model-steward}
                  {:researcher/id "a" :role :independent-reproducer}
                  {:researcher/id "m" :role :adversarial-reviewer}]
         keyed (rr/assign-consecutive-member-keys members)]
-    (is (= 0 (:review-member/key (first keyed))))
-    (is (= "z" (:researcher/id (first keyed))))
-    (is (= 1 (:review-member/key (second keyed))))
-    (is (= 2 (:review-member/key (nth keyed 2))))))
+    (is (= 3 (count keyed)))
+    (is (= 0 (:review-member/key (first keyed)))
+        "first member (a, sorted) gets key 0")
+    (is (= 1 (:review-member/key (second keyed)))
+        "second member (m, sorted) gets key 1")
+    (is (= 2 (:review-member/key (nth keyed 2)))
+        "third member (z, sorted) gets key 2")
+    (is (= ["a" "m" "z"] (mapv :researcher/id keyed))
+        "members are sorted by :researcher/id before key assignment")))
 
 (deftest legacy-round-without-keys-validates
   (let [round (rr/build-review-round
@@ -240,7 +244,7 @@
       (is (= "researcher-a" (rr/researcher-id-for-member-key round 0)))
       (is (= "researcher-b" (rr/researcher-id-for-member-key round 1))))))
 
-(deftest keyed-round-hash-differs-from-legacy
+(deftest same-researcher-ids-produce-identity-concordance
   (let [legacy (rr/build-review-round
                 {:benchmark/content-root "sha256:abc"
                  :review-round/purpose :model-admission
@@ -253,5 +257,44 @@
                 :review-round/members keyed-members
                 :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
                 :review-round/policy-root "sha256:policy"})]
-    (is (not= (:review-round/id legacy) (:review-round/id keyed))
-        "keyed and legacy rounds should have different hashes (keys are committed)")))
+    ;; Identity hash excludes :review-member/key — keyed and unkeyed rounds
+    ;; with the same three researcher IDs share the same review-round hash.
+    (is (= (:review-round/id legacy) (:review-round/id keyed))
+        ":review-member/key is excluded from the identity projection")
+    ;; The round map itself still carries :review-member/key on keyed members
+    (is (= 0 (:review-member/key (first (:review-round/members keyed))))
+        "keyed round still stores :review-member/key on members")
+    (is (nil? (:review-member/key (first (:review-round/members legacy))))
+        "legacy round has no :review-member/key on members")))
+
+;; ── Member-bit-width tests ──────────────────────────────────────────────────
+
+(deftest member-bit-width-three-member-round
+  (let [round (rr/build-review-round
+               {:benchmark/content-root "sha256:abc"
+                :review-round/purpose :model-admission
+                :review-round/members keyed-members
+                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                :review-round/policy-root "sha256:policy"})]
+    (is (= 2 (rr/member-bit-width round))
+        "3 members with keys 0,1,2 require 2 bits")))
+
+(deftest member-bit-width-standard-three-member-round
+  (let [round (rr/build-review-round
+               {:benchmark/content-root "sha256:abc"
+                :review-round/purpose :model-admission
+                :review-round/members keyed-members
+                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                :review-round/policy-root "sha256:policy"})]
+    (is (= 2 (rr/member-bit-width round))
+        "standard 3-member keyed round (keys 0,1,2) requires 2 bits")))
+
+(deftest member-bit-width-nil-for-legacy-round
+  (let [round (rr/build-review-round
+               {:benchmark/content-root "sha256:abc"
+                :review-round/purpose :model-admission
+                :review-round/members sample-members
+                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                :review-round/policy-root "sha256:policy"})]
+    (is (nil? (rr/member-bit-width round))
+        "legacy unkeyed round must return nil for bit-width")))

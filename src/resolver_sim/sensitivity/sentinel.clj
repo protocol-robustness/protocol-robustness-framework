@@ -419,14 +419,14 @@
                          (:holds? artifact) :claim-result
                          (:bundle/kind artifact) :bundle
                          :else :unknown)
-         input-hash (or (:attestation/id artifact)
-                        (:node-hash artifact)
-                        (:bundle/root-hash artifact)
-                        (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
-         evidence-findings (some-> (or (seq (:sensitivity/findings artifact))
+        input-hash (or (:attestation/id artifact)
+                       (:node-hash artifact)
+                       (:bundle/root-hash artifact)
+                       (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
+        evidence-findings (some-> (or (seq (:sensitivity/findings artifact))
                                       (seq (:safety/findings artifact)))
-                                   vec)
-         base-report {:sentinel/version sentinel-version
+                                  vec)
+        base-report {:sentinel/version sentinel-version
                      :sentinel/policy-hash (compute-policy-hash)
                      :sentinel/evaluated-at (str (Instant/now))
                      :sentinel/input-kind input-kind
@@ -449,8 +449,8 @@
                                        (hc/hash-with-intent
                                         {:hash/intent :evidence-record}
                                         risk-meta))
-                       (seq evidence-findings)
-                        (assoc :sentinel/evidence-findings evidence-findings))
+                      (seq evidence-findings)
+                      (assoc :sentinel/evidence-findings evidence-findings))
         report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                          (dissoc base-report
                                                  :sentinel/report-hash

@@ -23,7 +23,6 @@
     (is (some? (:benchmark-outcome/hash manifest)))
     (is (some? (:benchmark/model-root manifest)))))
 
-
 (deftest exact-replication-scope
   (let [a (om/build-manifest
            (assoc base-manifest

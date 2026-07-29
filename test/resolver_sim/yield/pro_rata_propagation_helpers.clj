@@ -387,8 +387,8 @@
                                                        (keyword (str "obl-" new-id)))))
                                ps new-ids))))])
            ;; Scale c2 to fit within residual1
-          (let [per-p (long (/ residual1 n))
-                rem (mod residual1 n)]
+         (let [per-p (long (/ residual1 n))
+               rem (mod residual1 n)]
            (gen/return
             [c1
              (-> c2

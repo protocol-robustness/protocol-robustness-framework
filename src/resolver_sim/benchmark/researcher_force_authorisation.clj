@@ -21,9 +21,9 @@
    deviate from the established benchmark protocol.' They are independent
    truth domains."
   (:require [clojure.set]
-             [resolver-sim.hash.canonical :as hc]
-             [resolver-sim.benchmark.signing :as signing]
-             [resolver-sim.benchmark.review-round :as rr]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.benchmark.signing :as signing]
+            [resolver-sim.benchmark.review-round :as rr]))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Constants
@@ -91,10 +91,16 @@
 (defn- decision-preimage
   "Construct the canonical preimage for a researcher decision.
    This preimage is domain-hashed to produce :decision/hash.
-   The hash is then stripped of the sha256: prefix and signed."
-  [researcher-id authorisation-id decision dissent-reason]
+   The hash is then stripped of the sha256: prefix and signed.
+
+   Binds the exact authorisation request-root and review-round hash
+   so the signed decision cannot be replayed into a different scope."
+  [researcher-id authorisation-id request-root review-round-hash
+   decision dissent-reason]
   (cond-> {:researcher/id researcher-id
            :authorisation/id authorisation-id
+           :authorisation/request-root request-root
+           :review-round/hash review-round-hash
            :decision decision}
     (and (= :dissent decision) (some? dissent-reason))
     (assoc :dissent/reason dissent-reason)))
@@ -109,32 +115,45 @@
 
    researcher-id       — string identifying the researcher
    authorisation-id    — qualified keyword identifying the force-authorisation
+   request-root        — sha256 of the authorisation request artifact
+   review-round-hash   — sha256 hash of the review round
    decision            — :approve or :dissent
    private-key-path    — path to the researcher's Ed25519 private key
+   request-root        — sha256 binding the exact authorisation request
+   review-round-hash   — sha256 binding the exact review round
    dissent-reason      — required when decision is :dissent (optional)
    password            — optional key password
 
+   Binds the exact request-root and review-round-hash into the signed
+   preimage so the decision cannot be replayed into a different scope.
+
    Returns the signed decision reference map:
      {:researcher/id id
+      :authorisation/request-root \"sha256:...\"
+      :review-round/hash \"sha256:...\"
       :decision :approve | :dissent
       :dissent/reason (only for dissents)
       :decision/hash \"sha256:...\"
       :signature {:algorithm :ed25519 :value \"...\" :signed-at \"...\"}}
 
    Throws on missing private key or signing error."
-  [researcher-id authorisation-id decision private-key-path
+  [researcher-id authorisation-id request-root review-round-hash
+   decision private-key-path
    & {:keys [dissent-reason password]}]
   (when-not (valid-decision? decision)
     (throw (ex-info "Invalid decision value" {:decision decision
-                                              :allowed decision-vocabulary})))
+                                               :allowed decision-vocabulary})))
   (when (and (= :dissent decision) (nil? dissent-reason))
     (throw (ex-info "Dissent requires a reason" {})))
   (let [preimage (decision-preimage researcher-id authorisation-id
+                                    request-root review-round-hash
                                     decision dissent-reason)
         d-hash (compute-decision-hash preimage)
         stripped (clojure.string/replace d-hash #"^sha256:" "")
         signature (signing/sign-hash stripped private-key-path password)]
     (cond-> {:researcher/id researcher-id
+             :authorisation/request-root request-root
+             :review-round/hash review-round-hash
              :decision decision
              :decision/hash d-hash
              :signature {:algorithm :ed25519
@@ -149,6 +168,10 @@
    authorisation-id    — the authorisation id (to reconstruct preimage)
    public-key-path     — path to the researcher's Ed25519 public key
 
+   Reconstructs the preimage from the decision-ref's embedded
+   :authorisation/request-root and :review-round/hash, ensuring the
+   signature binds the exact scope.
+
    Returns {:valid? true} or {:valid? false :reason str}."
   [decision-ref authorisation-id public-key-path]
   (let [signature (:signature decision-ref)]
@@ -157,6 +180,8 @@
       (let [preimage (decision-preimage
                       (:researcher/id decision-ref)
                       authorisation-id
+                      (:authorisation/request-root decision-ref)
+                      (:review-round/hash decision-ref)
                       (:decision decision-ref)
                       (:dissent/reason decision-ref))
             expected-hash (compute-decision-hash preimage)
@@ -482,14 +507,14 @@
       5. When the round is NOT keyed, :review-member/key on a decision-ref
          is rejected as :member-key-unresolvable
 
-   Returns {:valid? bool :errors [string]}.
+   Returns {:valid? bool :errors [string] :reasons [{:reason kw ...}]}.
    When the round is keyed, also returns :approval-member-keys and
    :dissent-member-keys."
   [review-round authorisation]
   (let [errors (atom [])
+        reasons (atom [])
         round-keyed? (rr/round-uses-member-keys? review-round)
-        member-ids (set (map :researcher/id
-                             (:review-round/members review-round)))
+        member-ids (set (map :researcher/id (:review-round/members review-round)))
         decision-refs (:authorisation/decision-references authorisation)
         decider-ids (map :researcher/id decision-refs)]
     ;; Check all deciders are members
@@ -500,39 +525,39 @@
     (doseq [d decision-refs]
       (let [provided-key (:review-member/key d)]
         (when (and provided-key round-keyed?)
-          (let [derived-key (rr/member-key-for-researcher
-                             review-round (:researcher/id d))]
+          (let [derived-key (rr/member-key-for-researcher review-round (:researcher/id d))]
             (when-not (= provided-key derived-key)
-              (swap! errors conj
-                     (str "member key mismatch for " (:researcher/id d)
-                          ": provided " provided-key
-                          ", derived " derived-key)))))
+              (swap! errors conj (str "member key mismatch for " (:researcher/id d)
+                                      ": provided " provided-key ", derived " derived-key))
+              (swap! reasons conj {:reason :member-key-researcher-mismatch
+                                   :researcher/id (:researcher/id d)
+                                   :provided-key provided-key
+                                   :derived-key derived-key}))))
         (when (and provided-key (not round-keyed?))
-          (swap! errors conj
-                 (str ":member-key-unresolvable for " (:researcher/id d)
-                      " — round is not keyed")))))
+          (swap! errors conj (str ":member-key-unresolvable for " (:researcher/id d)
+                                  " — round is not keyed"))
+          (swap! reasons conj {:reason :member-key-unresolvable
+                               :researcher/id (:researcher/id d)
+                               :provided-key provided-key}))))
     ;; Check no overlap between approvals and dissents
-    (let [approvers (set (map :researcher/id
-                              (filter #(= :approve (:decision %))
-                                      decision-refs)))
-          dissenters (set (map :researcher/id
-                               (filter #(= :dissent (:decision %))
-                                       decision-refs)))
+    (let [approvers (set (map :researcher/id (filter #(= :approve (:decision %)) decision-refs)))
+          dissenters (set (map :researcher/id (filter #(= :dissent (:decision %)) decision-refs)))
           overlap (clojure.set/intersection approvers dissenters)]
       (when (seq overlap)
         (swap! errors conj (str "researchers in both approve and dissent: " overlap))))
-    (let [result {:valid? (empty? @errors) :errors @errors}]
+    ;; Build result with optional key vectors
+    (let [result {:valid? (empty? @errors) :errors @errors :reasons @reasons}]
       (if round-keyed?
         (assoc result
                :approval-member-keys
                (mapv #(rr/member-key-for-researcher review-round %)
-                     (map :researcher/id
-                          (filter #(= :approve (:decision %)) decision-refs)))
+                     (map :researcher/id (filter #(= :approve (:decision %)) decision-refs)))
                :dissent-member-keys
                (mapv #(rr/member-key-for-researcher review-round %)
-                     (map :researcher/id
-                          (filter #(= :dissent (:decision %)) decision-refs))))
+                     (map :researcher/id (filter #(= :dissent (:decision %)) decision-refs))))
         result))))
+
+
 
 (defn verify-decision-signatures
   "Verify that every decision reference in an authorisation artifact

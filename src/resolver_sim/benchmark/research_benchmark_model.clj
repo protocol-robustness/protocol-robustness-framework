@@ -195,7 +195,7 @@
    
    Review the diff carefully: a changed hash means old model roots
    with the previous serialisation become unverifiable."
-  [   {:description "Minimal model with all optional fields absent"
+  [{:description "Minimal model with all optional fields absent"
     :model
     {:schema-version "research-benchmark-model.v1"
      :model/id :test/minimal

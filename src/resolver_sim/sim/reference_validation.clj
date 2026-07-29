@@ -174,8 +174,8 @@
                          (sha256-file trace-path))]
         {:scenario_id id
          :classification (namespace-keyword->string classification)
-          :confidence (name (:level (confidence/default-confidence :scenario)))
-          :evidence_type "simulator-backed"
+         :confidence (name (:level (confidence/default-confidence :scenario)))
+         :evidence_type "simulator-backed"
          :expectations_failed (if exp-ok? 0 exp-violations)
          :expectations_passed (or expectations-passed 0)
          :invariants_failed inv-violations
@@ -242,8 +242,8 @@
        :checks
        [{:check_id check-id
          :classification (namespace-keyword->string classification)
-          :confidence (name (:level (confidence/default-confidence :economic)))
-          :evidence_type "pinned-derivation"
+         :confidence (name (:level (confidence/default-confidence :economic)))
+         :evidence_type "pinned-derivation"
          :simulator_backed false
          :source_artifact "expected/economic-results.json"
          :status "pass"

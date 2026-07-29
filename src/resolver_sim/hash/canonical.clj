@@ -111,15 +111,21 @@
    :research-force-authorisation "RESEARCH_FORCE_AUTHORISATION_V1"
    :researcher-decision "RESEARCHER_DECISION_V1"
    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
-    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
-    :force-authorised-execution-evidence "FORCE_AUTHORISED_EXECUTION_EVIDENCE_V1"
-    :generated-case-set "GENERATED_CASE_SET_V1"
+   :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
+   :force-authorised-execution-evidence "FORCE_AUTHORISED_EXECUTION_EVIDENCE_V1"
+   :generated-case-set "GENERATED_CASE_SET_V1"
    :pro-rata-allocation-evidence "PRO_RATA_ALLOCATION_EVIDENCE_V1"
-    :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
-    :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"
-     :slash-distribution-policy-v1  "SLASH_DISTRIBUTION_POLICY_V1"
-     :slash-distribution-v1         "SLASH_DISTRIBUTION_V1"
-     :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"})
+   :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
+   :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"
+   :slash-distribution-policy-v1  "SLASH_DISTRIBUTION_POLICY_V1"
+   :slash-distribution-v1         "SLASH_DISTRIBUTION_V1"
+   :slash-distribution-application-receipt-v1 "SLASH_DISTRIBUTION_APPLICATION_RECEIPT_V1"
+   :fixed-regression-case-v1      "FIXED_REGRESSION_CASE_V1"
+   :slash-distribution-application-plan-v1 "SLASH_DISTRIBUTION_APPLICATION_PLAN_V1"
+   :bounty-payable-v1              "BOUNTY_PAYABLE_V1"
+   :bounty-payable-backing-v1      "BOUNTY_PAYABLE_BACKING_V1"
+    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
+    :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

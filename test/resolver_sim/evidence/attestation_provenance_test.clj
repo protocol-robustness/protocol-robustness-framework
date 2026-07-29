@@ -133,9 +133,9 @@
 
 (deftest provenance-entry-compatible-with-build-attestation
   (let [provenance (ap/provenance-entry :replay-complete
-                                         :run-id "run-integration"
-                                         :scenario-id "S01"
-                                         :step 10)
+                                        :run-id "run-integration"
+                                        :scenario-id "S01"
+                                        :step 10)
         result (ap/validate-provenance provenance)]
     (is (:valid? result))
     (is (= :replay-complete (:provenance/trigger provenance)))

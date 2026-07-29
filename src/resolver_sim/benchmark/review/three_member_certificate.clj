@@ -31,10 +31,9 @@
    per-dimension detail so the result is independently recomputable
    from referenced positions."
   (:require [resolver-sim.hash.canonical :as hc]
-              [resolver-sim.benchmark.review-round :as rr]
-              [resolver-sim.benchmark.review.position-group :as pg]
-              [resolver-sim.benchmark.review-member-canonical-indices :as ci]
-              [resolver-sim.trace-metadata :as tm]))
+            [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.benchmark.review.position-group :as pg]
+            [resolver-sim.benchmark.review-member-canonical-indices :as ci]))
 
 (def ^:const schema-version "three-member-research-certificate.v1")
 
@@ -294,33 +293,31 @@
 ;; ── Member-key enrichment ─────────────────────────────────────────────────
 
 (defn- enrich-consensus-with-keys
-  "Add integer key vectors to a consensus result when the review round
-   has member keys.  Derives keys from the existing researcher-ID vectors
-   via canonical-indices when available, or the round's membership table.
+  "Add integer index vectors to a consensus result.
 
-   Returns the consensus map unchanged when the round is not keyed."
-  [consensus round canonical-indices]
-  (if (rr/round-uses-member-keys? round)
-    (let [key-fn (if canonical-indices
-                   (fn [id] (ci/review-member-index canonical-indices id))
-                   (fn [id] (rr/member-key-for-researcher round id)))]
+   Derives indices from the canonical-indices artifact — the sole
+   authoritative source for integer member references.
+   Always adds indices when canonical-indices is present."
+  [consensus canonical-indices]
+  (if canonical-indices
+    (let [index-fn (fn [id] (ci/review-member-index canonical-indices id))]
       (merge consensus
              (when-let [ids (seq (:supporting-members consensus))]
-               {:supporting-member-keys (mapv key-fn ids)})
+               {:supporting-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:qualifying-members consensus))]
-               {:qualifying-member-keys (mapv key-fn ids)})
+               {:qualifying-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:dissenting-members consensus))]
-               {:dissenting-member-keys (mapv key-fn ids)})
+               {:dissenting-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:absent-members consensus))]
-               {:absent-member-keys (mapv key-fn ids)})
+               {:absent-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:not-reviewed-members consensus))]
-               {:not-reviewed-member-keys (mapv key-fn ids)})
+               {:not-reviewed-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:insufficient-information-members consensus))]
-               {:insufficient-information-member-keys (mapv key-fn ids)})
+               {:insufficient-information-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:not-applicable-members consensus))]
-               {:not-applicable-member-keys (mapv key-fn ids)})
+               {:not-applicable-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:assessed-members consensus))]
-               {:assessed-member-keys (mapv key-fn ids)})))
+               {:assessed-member-indices (mapv index-fn ids)})))
     consensus))
 
 ;; ── Certificate pre-conditions ───────────────────────────────────────────
@@ -328,16 +325,19 @@
 (defn pre-certificate-checks
   "Pre-condition checks that must pass BEFORE building a certificate.
    
-   Verifies:
-     1. Review round has a content-root
-     2. Three reports are provided
-     3. Three positions are provided (may contain absent-statuses)
-     4. All reports have consistent content-roots
-     5. All reports have outcome-hashes (required for grouping)
-     6. All positions reference the same content-root
-     7. All positions have outcome-hashes
+    Verifies:
+      1. Review round has a content-root
+      2. Three reports are provided
+      3. Three positions are provided (may contain absent-statuses)
+      4. All reports have consistent content-roots
+      5. All reports have outcome-hashes (required for grouping)
+      6. All positions reference the same content-root
+      7. All positions have outcome-hashes
    
-   Returns {:pre-certificate-valid? bool :errors [string]}."
+    The canonical-indices artifact is auto-produced by build-certificate
+    and is not checked here.
+   
+    Returns {:pre-certificate-valid? bool :errors [string]}."
   [{:keys [review-round reports positions]}]
   (let [errors (atom [])]
     ;; 1. Review round content root
@@ -369,146 +369,114 @@
 
 ;; ── Certificate builder ───────────────────────────────────────────────────
 
-;; ── Resolution quality derivation ─────────────────────────────────────────
-
-(defn- derive-resolution-quality
-  "Derive resolution quality from certificate execution facts.
-   Uses classify-resolution-quality from core trace-metadata with
-   available evidence: outcome group consistency and execution status.
-
-   Returns a keyword from resolution-outcome-values."
-  [{:keys [execution-status outcome-groups]}]
-  (let [all-same? (= 1 (count outcome-groups))
-        exec-failed? (= :failed execution-status)
-        has-dissent? (some #(= :three-way-divergent %) [execution-status])
-        _ (when (and has-dissent? all-same?)
-            (throw (ex-info "Contradictory: all outcomes same but have dissent" {})))]
-    (tm/classify-resolution-quality
-     {:authoritative-expected-outcome (when all-same? (first (first outcome-groups)))
-      :actual-outcome (first (first outcome-groups))
-      :has-unresolved-dissent? has-dissent?
-      :verification-facts-complete? (not exec-failed?)})))
-
 (defn build-certificate
   "Build a three-member research certificate.
    Runs pre-certificate-checks before building — throws on invalid input.
 
-   For keyed review rounds, :canonical-indices is REQUIRED — the system
-   must have a committed canonical ordering to bind into the certificate.
-   For legacy unkeyed rounds, :canonical-indices is prohibited.
+   ALWAYS builds and packages a review-member-canonical-indices.v1 artifact
+   for every review round (keyed or unkeyed).  The artifact body is returned
+   as :review-member-canonical-indices so it can be persisted or
+   content-addressed before the certificate hash is committed.
 
-   :canonical-indices — a review-member-canonical-indices.v1 artifact.
-   When supplied (keyed rounds), it is verified against the review round
-   and used for member-key derivation."
+   :canonical-indices — an optional externally-built artifact.  When supplied,
+   it is verified against the review round.  When absent, it is auto-produced."
   [{:keys [review-round reports positions force-authorisations disagreements canonical-indices]
     :or {force-authorisations [] disagreements []}}]
   (let [pre-checks (pre-certificate-checks {:review-round review-round
-                                             :reports reports
-                                             :positions positions})]
+                                            :reports reports
+                                            :positions positions})]
     (when-not (:pre-certificate-valid? pre-checks)
       (throw (ex-info "Certificate pre-conditions not met"
-                      {:errors (:errors pre-checks)})))
-    (when (and (rr/round-uses-member-keys? review-round) (nil? canonical-indices))
-      (throw (ex-info "Keyed review round requires canonical-indices artifact"
-                      {:review-round/id (:review-round/id review-round)})))
-    (when (and (not (rr/round-uses-member-keys? review-round)) (some? canonical-indices))
-      (throw (ex-info "Canonical-indices supplied for unkeyed legacy round"
-                      {:review-round/id (:review-round/id review-round)})))
+                      {:errors (:errors pre-checks)}))))
+  ;; Build or verify the canonical-indices artifact.
+  ;; Every certificate now includes canonical indices regardless of key presence.
+  (let [ci-artifact (or canonical-indices
+                        (ci/build-canonical-indices review-round))]
     (when canonical-indices
-      (let [verification (ci/verify-canonical-indices canonical-indices review-round)]
+      (let [verification (ci/verify-canonical-indices ci-artifact review-round)]
         (when-not (= :valid (:status verification))
           (throw (ex-info "Canonical-indices verification failed"
                           {:errors (:errors verification)
                            :status (:status verification)})))))
+    (when (nil? ci-artifact)
+      (throw (ex-info "Failed to produce canonical-indices artifact"
+                      {:review-round/id (:review-round/id review-round)})))
     (let [outcome-groups (group-outcomes reports)
           exec-status (execution-status outcome-groups)
-           rep-type (replication-type reports)
-           ci-artifact (or canonical-indices nil)
-           quality (derive-resolution-quality {:execution-status exec-status
-                                               :outcome-groups outcome-groups})
-           model-dims [:model-state :model-transitions :model-authority
+          rep-type (replication-type reports)
+          model-dims [:model-state :model-transitions :model-authority
                       :model-adversary :model-parameters :model-cases]
           incentive-dims [:incentives-participants :incentives-strategies
                           :incentives-coalitions]
           other-dims [:reproduction :evidence :claims :publication]]
-      (cond-> {:schema-version schema-version
-               :benchmark/content-root (:benchmark/content-root review-round)
-               :review-round/id (:review-round/id review-round)
-               :review-round/purpose (:review-round/purpose review-round)
-               :execution
-               {:status exec-status
-                :replication-type rep-type
-                :outcome-groups outcome-groups}
-                :resolution/quality quality
-                :resolution/confidence (tm/resolution-quality->confidence quality)
-               :model-consensus
-               (reduce (fn [m dim]
-                         (assoc m dim (enrich-consensus-with-keys
-                                       (per-dimension-consensus positions dim)
-                                       review-round ci-artifact)))
-                       {} model-dims)
-               :incentive-consensus
-               (reduce (fn [m dim]
-                         (assoc m dim (enrich-consensus-with-keys
-                                       (per-dimension-consensus positions dim)
-                                       review-round ci-artifact)))
-                       {} incentive-dims)
-               :other-consensus
-               (reduce (fn [m dim]
-                         (assoc m dim (enrich-consensus-with-keys
-                                       (per-dimension-consensus positions dim)
-                                       review-round ci-artifact)))
-                       {} other-dims)
-               :member-positions
-               (mapv (fn [pos]
-                       (let [report (some #(when (= (:researcher/id %)
-                                                    (:researcher/id pos))
-                                             %)
-                                          reports)]
-                         (when-not report
-                           (throw (ex-info "No matching report found for position"
-                                           {:researcher/id (:researcher/id pos)})))
-                         (cond-> {:researcher/id (:researcher/id pos)
-                                  :position/hash (:position/hash pos)
-                                  :outcome-hash (:position/outcome-hash pos)
-                                  :report-hash (:researcher-run-report/hash report)}
-                           (rr/round-uses-member-keys? review-round)
-                           (assoc :review-member/key
-                                  (if ci-artifact
-                                    (ci/review-member-index ci-artifact (:researcher/id pos))
-                                    (rr/member-key-for-researcher
-                                     review-round (:researcher/id pos)))))))
-                       positions)
-               :force-authorisations (vec force-authorisations)
-               :unresolved-disagreements (vec disagreements)}
-        (rr/round-uses-member-keys? review-round)
-        (assoc :theorem-consensus
-               (reduce-kv (fn [m k v]
-                            (assoc m k (enrich-consensus-with-keys v review-round ci-artifact)))
-                          {}
-                          (per-theorem-consensus positions))
-               :conclusion-consensus
-               (reduce-kv (fn [m k v]
-                            (assoc m k (enrich-consensus-with-keys v review-round ci-artifact)))
-                          {}
-                          (per-conclusion-consensus positions)))
-        (not (rr/round-uses-member-keys? review-round))
-        (assoc :theorem-consensus (per-theorem-consensus positions)
-               :conclusion-consensus (per-conclusion-consensus positions))
-        ci-artifact
-        (assoc :review-member-canonical-indices/hash
-               (:review-member-canonical-indices/hash ci-artifact))
-        :always
-        (assoc :certificate/hash nil)))))
+      {:schema-version schema-version
+       :benchmark/content-root (:benchmark/content-root review-round)
+       :review-round/id (:review-round/id review-round)
+       :review-round/purpose (:review-round/purpose review-round)
+       :execution
+       {:status exec-status
+        :replication-type rep-type
+        :outcome-groups outcome-groups}
+       :review-member-canonical-indices ci-artifact
+       :review-member-canonical-indices/hash
+       (:review-member-canonical-indices/hash ci-artifact)
+       :model-consensus
+       (reduce (fn [m dim]
+                 (assoc m dim (enrich-consensus-with-keys
+                               (per-dimension-consensus positions dim)
+                               ci-artifact)))
+               {} model-dims)
+       :incentive-consensus
+       (reduce (fn [m dim]
+                 (assoc m dim (enrich-consensus-with-keys
+                               (per-dimension-consensus positions dim)
+                               ci-artifact)))
+               {} incentive-dims)
+       :other-consensus
+       (reduce (fn [m dim]
+                 (assoc m dim (enrich-consensus-with-keys
+                               (per-dimension-consensus positions dim)
+                               ci-artifact)))
+               {} other-dims)
+       :theorem-consensus
+       (reduce-kv (fn [m k v]
+                    (assoc m k (enrich-consensus-with-keys v ci-artifact)))
+                  {}
+                  (per-theorem-consensus positions))
+       :conclusion-consensus
+       (reduce-kv (fn [m k v]
+                    (assoc m k (enrich-consensus-with-keys v ci-artifact)))
+                  {}
+                  (per-conclusion-consensus positions))
+       :member-positions
+       (mapv (fn [pos]
+               (let [report (some #(when (= (:researcher/id %)
+                                            (:researcher/id pos))
+                                     %)
+                                  reports)]
+                 (when-not report
+                   (throw (ex-info "No matching report found for position"
+                                   {:researcher/id (:researcher/id pos)})))
+                 {:researcher/id (:researcher/id pos)
+                  :position/hash (:position/hash pos)
+                  :outcome-hash (:position/outcome-hash pos)
+                  :report-hash (:researcher-run-report/hash report)
+                  :review-member/index (ci/review-member-index
+                                        ci-artifact (:researcher/id pos))}))
+             positions)
+       :force-authorisations (vec force-authorisations)
+       :unresolved-disagreements (vec disagreements)
+       :certificate/hash nil})))
 
 (defn finalise-certificate!
   "Compute the certificate hash and return the finalised certificate.
    The hash projection excludes :certificate/hash only.
-   When :review-member-canonical-indices/hash is present, it is included
-   in the projection so that a change in canonical ordering changes the
-   certificate hash deterministically."
+   The full :review-member-canonical-indices map is excluded from the
+   hash projection; only its committed hash is bound.
+   This hash projection is schema-versioned (three-member-research-certificate.v1)
+   and must not be changed without a schema version migration."
   [certificate]
-  (let [hash-input (dissoc certificate :certificate/hash)
+  (let [hash-input (dissoc certificate :certificate/hash :review-member-canonical-indices)
         c-hash (hc/domain-hash :three-member-certificate hash-input)]
     (assoc certificate :certificate/hash (str "sha256:" c-hash))))
 
@@ -548,38 +516,15 @@
         (swap! errors conj "missing :execution/status"))
       (when-not (:outcome-groups exec)
         (swap! errors conj "missing :execution/outcome-groups")))
-     (doseq [f [:model-consensus :incentive-consensus :other-consensus
-                :theorem-consensus :conclusion-consensus :member-positions]]
-       (when-not (contains? certificate f)
-         (swap! errors conj (str "missing " (name f)))))
-     (when (some? (:certificate/hash certificate))
-       (let [hash-input (dissoc certificate :certificate/hash)
-             expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
-         (when-not (= expected (:certificate/hash certificate))
-           (swap! errors conj (str "certificate/hash mismatch: declared "
-                                   (:certificate/hash certificate)
-                                   " computed " expected)))))
-      ;; Resolution quality consistency
-      (let [quality (:resolution/quality certificate)]
-        (when (and quality (not (tm/valid-resolution-quality-for-schema?
-                                (:schema-version certificate) quality)))
-          (swap! errors conj (str "invalid :resolution/quality: " quality
-                                  " for schema " (:schema-version certificate)))))
-      (when (= :correct (:resolution/quality certificate))
-        (let [exec (:execution certificate)]
-          (when (and exec (= :failed (:status exec)))
-            (swap! errors conj ":resolution/quality is :correct but execution status is :failed — inconsistent"))))
-      (when (= :contested (:resolution/quality certificate))
-        (let [exec (:execution certificate)]
-          (when (and exec (= 1 (count (:outcome-groups exec))))
-            (swap! errors conj ":resolution/quality is :contested but all outcome groups are identical — inconsistent"))))
-      ;; Resolution confidence consistency with quality
-      (let [quality (:resolution/quality certificate)
-            confidence (:resolution/confidence certificate)]
-        (when (and quality confidence)
-          (let [expected (tm/resolution-quality->confidence quality)]
-            (when (and expected (not= expected confidence))
-              (swap! errors conj (str ":resolution/confidence " confidence
-                                      " does not match derived confidence " expected
-                                      " for quality " quality))))))
-     {:valid? (empty? @errors) :errors @errors}))
+    (doseq [f [:model-consensus :incentive-consensus :other-consensus
+               :theorem-consensus :conclusion-consensus :member-positions]]
+      (when-not (contains? certificate f)
+        (swap! errors conj (str "missing " (name f)))))
+    (when (some? (:certificate/hash certificate))
+      (let [hash-input (dissoc certificate :certificate/hash :review-member-canonical-indices)
+            expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
+        (when-not (= expected (:certificate/hash certificate))
+          (swap! errors conj (str "certificate/hash mismatch: declared "
+                                  (:certificate/hash certificate)
+                                  " computed " expected)))))
+    {:valid? (empty? @errors) :errors @errors}))

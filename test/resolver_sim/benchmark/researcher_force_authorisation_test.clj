@@ -11,12 +11,16 @@
 (def ^:private mock-sig-hex
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 
+(def ^:private mock-request-root "sha256:mock-request")
+(def ^:private mock-round-hash "sha256:mock-round-hash")
+
 (defn- mock-decision
   "Build a mock signed decision reference for testing.
    Does not require real keys — uses a mock signature."
   [researcher-id decision & {:keys [dissent-reason]}]
   (with-redefs [signing/sign-hash (fn [_ _ _] mock-sig-hex)]
     (rfa/build-signed-decision researcher-id :authorisation/test-001
+                               mock-request-root mock-round-hash
                                decision "/dev/null"
                                :dissent-reason dissent-reason)))
 

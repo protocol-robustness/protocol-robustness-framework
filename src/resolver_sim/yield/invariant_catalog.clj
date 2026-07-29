@@ -44,11 +44,11 @@
 
    :yield/pro-rata-propagation-complete
    {:description "The committed allocation decision was bound to the propagation; entitlement and capacity constraints held; each committed amount was applied exactly once to a policy-authorised account class; and the accounting entries and resulting state changes reconciled."
-     :prf-tags [:pro-rata :propagation :accounting :conservation]}
+    :prf-tags [:pro-rata :propagation :accounting :conservation]}
 
    :yield/pro-rata-accounting-reconciles
-   {:description "Shared-withdrawal propagation accounting entries, application snapshots, and authoritative balances reconcile."
-    :prf-tags [:pro-rata :accounting :conservation]}})
+   {:description "The application record binds to its propagation and allocation decision; accounting entries cover all propagated movements; source, participant, and deferred-position state changes reconcile and form a continuous chain; and no active deferred position is past its policy deadline."
+    :prf-tags [:pro-rata :accounting :conservation :deadline]}})
 
 (def default-runtime-invariant-ids
   "Checked on every successful replay step (yield-v1 adapter)."

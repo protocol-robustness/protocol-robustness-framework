@@ -893,8 +893,8 @@
     (is (= :valid (:status result)))
     (let [{:keys [valid? violations]}
           (sd/verify-distribution dist
-            {:policy            all-scales-10000-policy
-             :parameter-context reward-param-500})]
+                                  {:policy            all-scales-10000-policy
+                                   :parameter-context reward-param-500})]
       (is valid? (str "unexpected violations: " (pr-str violations)))
       (is (empty? violations)))))
 
@@ -908,8 +908,8 @@
         dist (assoc-in (:distribution result) [:distribution/awards 0 :award/amount] 9999)
         {:keys [valid? violations]}
         (sd/verify-distribution dist
-          {:policy            all-scales-10000-policy
-           :parameter-context reward-param-500})]
+                                {:policy            all-scales-10000-policy
+                                 :parameter-context reward-param-500})]
     (is (not valid?))
     (is (some #(= :violation/recomputation-mismatch (:violation/id %)) violations))
     (is (some #(= "award :test.award/reward amount" (get-in % [:details :field]))
@@ -925,8 +925,8 @@
         dist (assoc-in (:distribution result) [:distribution/awards 0 :funding :test.allocation/a] 9999)
         {:keys [valid? violations]}
         (sd/verify-distribution dist
-          {:policy            all-scales-10000-policy
-           :parameter-context reward-param-500})]
+                                {:policy            all-scales-10000-policy
+                                 :parameter-context reward-param-500})]
     (is (not valid?))
     (is (some #(= :violation/recomputation-mismatch (:violation/id %)) violations))
     (is (some #(= "award :test.award/reward funding" (get-in % [:details :field]))
@@ -942,8 +942,8 @@
         dist (assoc-in (:distribution result) [:distribution/base-allocations :test.allocation/a] 9999)
         {:keys [valid? violations]}
         (sd/verify-distribution dist
-          {:policy            all-scales-10000-policy
-           :parameter-context reward-param-500})]
+                                {:policy            all-scales-10000-policy
+                                 :parameter-context reward-param-500})]
     (is (not valid?))
     (is (some #(= :violation/recomputation-mismatch (:violation/id %)) violations))
     (is (some #(= :base (get-in % [:details :field])) violations))))
@@ -958,8 +958,8 @@
         dist (assoc-in (:distribution result) [:distribution/final-allocations :test.allocation/a] 9999)
         {:keys [valid? violations]}
         (sd/verify-distribution dist
-          {:policy            all-scales-10000-policy
-           :parameter-context reward-param-500})]
+                                {:policy            all-scales-10000-policy
+                                 :parameter-context reward-param-500})]
     (is (not valid?))
     (is (some #(= :violation/recomputation-mismatch (:violation/id %)) violations))
     (is (some #(= :final-allocations (get-in % [:details :field])) violations))))
@@ -974,8 +974,8 @@
                  :context           {}})
         {:keys [valid? violations]}
         (sd/verify-distribution (:distribution result)
-          {:policy            wrong-policy
-           :parameter-context reward-param-500})]
+                                {:policy            wrong-policy
+                                 :parameter-context reward-param-500})]
     (is (not valid?))
     (is (some #(= :violation/policy-root-mismatch (:violation/id %)) violations))))
 
@@ -988,8 +988,8 @@
                  :context           {}})
         {:keys [valid? violations]}
         (sd/verify-distribution (:distribution result)
-          {:policy            all-scales-10000-policy
-           :parameter-context {:source-root "sha256:empty" :values {}}})]
+                                {:policy            all-scales-10000-policy
+                                 :parameter-context {:source-root "sha256:empty" :values {}}})]
     (is (not valid?))
     (is (some #(= :violation/missing-parameter (:violation/id %)) violations))))
 
@@ -1017,8 +1017,8 @@
     (let [;; Artifact with a fabricated but structurally valid evidence reference
           fabricated-ref "sha256:fabricated-eligibility-evidence"
           award (-> resolved-reward
-                   (assoc-in [:eligibility :evidence-reference] fabricated-ref)
-                   (assoc-in [:beneficiary :participant/id] :test.participant/eve))
+                    (assoc-in [:eligibility :evidence-reference] fabricated-ref)
+                    (assoc-in [:beneficiary :participant/id] :test.participant/eve))
           result (sd/build-slash-distribution
                   {:gross-amount      100
                    :policy            all-scales-10000-policy
@@ -1033,8 +1033,8 @@
       ;; verify-distribution (recomputation mode) also passes — same reason
       (let [{:keys [valid? violations]}
             (sd/verify-distribution dist
-              {:policy all-scales-10000-policy
-               :parameter-context reward-param-500})]
+                                    {:policy all-scales-10000-policy
+                                     :parameter-context reward-param-500})]
         (is valid? (str "recomputation mode rejected fabricated ref: " (pr-str violations))))
       ;; The stored evidence-reference is preserved and accessible
       (is (= fabricated-ref
@@ -1043,7 +1043,7 @@
 (deftest verify-distribution-rejects-missing-eligibility-reference
   (testing "verify-distribution rejects missing evidence-reference when policy requires it"
     (let [award (-> resolved-reward
-                   (assoc-in [:eligibility :evidence-reference] nil))
+                    (assoc-in [:eligibility :evidence-reference] nil))
           result (sd/build-slash-distribution
                   {:gross-amount      100
                    :policy            all-scales-10000-policy
@@ -1066,8 +1066,95 @@
                      :context           {}})]
         (is (= :valid (:status result)))
         (let [awards (:distribution/awards (:distribution result))]
-          ;; exactly one award (or zero if award-amount = 0)
           (is (<= (count awards) 1))
           (when (pos? (count awards))
             (is (= :test.award/reward (:award/id (first awards))))
             (is (pos? (:award/amount (first awards))))))))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; 19. Application receipt
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest build-receipt-has-expected-structure
+  (testing "build-application-receipt produces a valid receipt artifact"
+    (let [receipt (sd/build-application-receipt
+                   {:distribution-root "sha256:test-dist"
+                    :policy-root "sha256:test-policy"
+                    :parameter-context-root "sha256:test-params"
+                    :pre-state-root "sha256:pre"
+                    :post-state-root "sha256:post"
+                    :idempotency-key [:test-key 0]
+                    :status :applied
+                    :abstract-effects [{:allocation/id :test.allocation/a :amount 45}]
+                    :concrete-effects [{:target {:target/type :test.target/world-ledger
+                                                 :target/key :test-ledger}
+                                        :delta 45}]
+                    :obligations [{:obligation/kind :test.obligation/reward
+                                   :beneficiary "0xalice"
+                                   :amount 5
+                                   :obligation-reference "claimable:0:0xalice"}]})]
+      (is (= "slash-distribution-application-receipt.v1" (:schema-version receipt)))
+      (is (= "sha256:test-dist" (:receipt/distribution-root receipt)))
+      (is (= "sha256:pre" (:receipt/pre-state-root receipt)))
+      (is (= "sha256:post" (:receipt/post-state-root receipt)))
+      (is (= :applied (:receipt/status receipt)))
+      (is (= [{:allocation/id :test.allocation/a :amount 45}]
+             (:receipt/abstract-effects receipt)))
+      (is (= 1 (count (:receipt/concrete-effects receipt))))
+      (is (= 1 (count (:receipt/obligations receipt))))
+      (is (string? (:receipt/hash receipt)))
+      (is (= 64 (count (:receipt/hash receipt)))))))
+
+(deftest build-receipt-empty-obligations
+  (testing "receipt can be built with zero obligations (no bounty case)"
+    (let [receipt (sd/build-application-receipt
+                   {:distribution-root "sha256:test-dist"
+                    :policy-root "sha256:test-policy"
+                    :parameter-context-root "sha256:test-params"
+                    :pre-state-root "sha256:pre"
+                    :post-state-root "sha256:post"
+                    :idempotency-key [:test-key 1]
+                    :status :applied
+                    :abstract-effects [{:allocation/id :test.allocation/a :amount 50}]
+                    :concrete-effects [{:target {:target/type :test.target/world-ledger
+                                                 :target/key :test-ledger}
+                                        :delta 50}]
+                    :obligations []})]
+      (is (= :applied (:receipt/status receipt)))
+      (is (= [] (:receipt/obligations receipt)))
+      (is (string? (:receipt/hash receipt))))))
+
+(deftest build-receipt-idempotent-skip
+  (testing "receipt can represent a skipped idempotent application"
+    (let [receipt (sd/build-application-receipt
+                   {:distribution-root "sha256:existing-dist"
+                    :policy-root "sha256:policy"
+                    :parameter-context-root "sha256:params"
+                    :pre-state-root "sha256:pre"
+                    :post-state-root "sha256:pre"
+                    :idempotency-key [:test-key 2]
+                    :status :skipped
+                    :abstract-effects []
+                    :obligations []})]
+      (is (= :skipped (:receipt/status receipt)))
+      (is (= [] (:receipt/abstract-effects receipt)))
+      (is (= nil (:receipt/concrete-effects receipt)))
+      (is (string? (:receipt/hash receipt))))))
+
+(deftest build-receipt-hash-deterministic
+  (testing "same inputs produce identical receipt hash"
+    (let [inputs {:distribution-root "sha256:test-dist"
+                  :policy-root "sha256:test-policy"
+                  :parameter-context-root "sha256:test-params"
+                  :pre-state-root "sha256:pre"
+                  :post-state-root "sha256:post"
+                  :idempotency-key [:test-key 0]
+                  :status :applied
+                  :abstract-effects [{:allocation/id :test.allocation/a :amount 45}]
+                  :obligations [{:obligation/kind :test.obligation/reward
+                                 :beneficiary "0xalice"
+                                 :amount 5
+                                 :obligation-reference "claimable:0:0xalice"}]}
+          r1 (sd/build-application-receipt inputs)
+          r2 (sd/build-application-receipt inputs)]
+      (is (= (:receipt/hash r1) (:receipt/hash r2))))))

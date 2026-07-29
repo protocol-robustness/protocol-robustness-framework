@@ -6,7 +6,9 @@
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.yield.invariant-catalog :as catalog]
             [resolver-sim.pro-rata.allocation :as pro-rata]
-            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]
+            [resolver-sim.time.context]
+            [resolver-sim.time.deadlines]))
 
 (defn- propagation [entries]
   {:propagation/id "p1" :token :USDC
@@ -192,8 +194,8 @@
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/pro-rata-propagations "p1" :accounting-entry-set-hash] "bad")))))
     (is (some #(= :latest-source-balance-mismatch (:reason %))
-               (:violations (inv/check-pro-rata-accounting-reconciles
-                             (assoc-in world [:total-held :USDC] 39)))))
+              (:violations (inv/check-pro-rata-accounting-reconciles
+                            (assoc-in world [:total-held :USDC] 39)))))
     (is (some #(= :latest-authoritative-withdrawn-balance-mismatch (:reason %))
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/withdrawn :USDC "alice"] 39)))))
@@ -496,7 +498,7 @@
     {:yield/pro-rata-propagations {prop-id propagation}
      :yield/partial-fill-decisions {(:decision/id decision) decision}
      :yield/positions {"alice" {:status :withdrawn :shortfall {:deferred-amount 0}}
-                        "bob" {:status :withdrawn :shortfall {:deferred-amount 0}}}}))
+                       "bob" {:status :withdrawn :shortfall {:deferred-amount 0}}}}))
 
 (deftest outcome-preimage-mutation-detected
   (testing "Decision hash validity is verified by check-pro-rata-propagation-complete"
@@ -689,14 +691,14 @@
                                          :participant-credits-match-individually
                                          :participant-credit-set-exact
                                          :entry-set-balanced]
-                                         :accounting-state-reconciles
-                                         [:source-account-arithmetic-valid
-                                          :participant-withdrawn-arithmetic
-                                          :deferred-position-presence-valid
-                                          :deferred-position-amounts-valid
-                                          :deferred-position-identities-valid
-                                          :deferred-position-deadline-valid
-                                          :obligation-identities-valid
+                                        :accounting-state-reconciles
+                                        [:source-account-arithmetic-valid
+                                         :participant-withdrawn-arithmetic
+                                         :deferred-position-presence-valid
+                                         :deferred-position-amounts-valid
+                                         :deferred-position-identities-valid
+                                         :deferred-position-deadline-valid
+                                         :obligation-identities-valid
                                          :obligation-conservation
                                          :unsupported-obligation-outcomes-absent
                                          :obligation-after-valid
@@ -735,14 +737,14 @@
                           :position/deadline-ts 10
                           :position/root-obligation-id "oa"
                           :position/origin-propagation-id "p1"
-                          :position/round 1}}
-                :context/time {:schema-version "temporal-context.v1"
-                               :step 100
-                               :event-seq 0
-                               :block-ts 100
-                               :clock/source :discrete-step
-                               :clock/mode :discrete-step
-                               :tick-seconds 86400}}}
+                          :position/round 1}}}
+               :context/time {:schema-version "temporal-context.v1"
+                              :step 100
+                              :event-seq 0
+                              :block-ts 100
+                              :clock/source :discrete-step
+                              :clock/mode :discrete-step
+                              :tick-seconds 86400}}
         result (inv/check-pro-rata-accounting-reconciles world)]
     (is (= :fail (get-in result [:checks :deferred-position-deadline-valid]))
         "deadline check must detect expired position")
@@ -759,14 +761,14 @@
                           :position/deadline-ts 200
                           :position/root-obligation-id "oa"
                           :position/origin-propagation-id "p1"
-                          :position/round 1}}
-                :context/time {:schema-version "temporal-context.v1"
-                               :step 100
-                               :event-seq 0
-                               :block-ts 100
-                               :clock/source :discrete-step
-                               :clock/mode :discrete-step
-                               :tick-seconds 86400}}}
+                          :position/round 1}}}
+               :context/time {:schema-version "temporal-context.v1"
+                              :step 100
+                              :event-seq 0
+                              :block-ts 100
+                              :clock/source :discrete-step
+                              :clock/mode :discrete-step
+                              :tick-seconds 86400}}
         result (inv/check-pro-rata-accounting-reconciles world)]
     (is (= :pass (get-in result [:checks :deferred-position-deadline-valid]))
         "deadline check must pass for active position within deadline")))
@@ -781,14 +783,14 @@
                           :position/deadline-ts 10
                           :position/root-obligation-id "oa"
                           :position/origin-propagation-id "p1"
-                          :position/round 1}}
-                :context/time {:schema-version "temporal-context.v1"
-                               :step 100
-                               :event-seq 0
-                               :block-ts 100
-                               :clock/source :discrete-step
-                               :clock/mode :discrete-step
-                               :tick-seconds 86400}}}
+                          :position/round 1}}}
+               :context/time {:schema-version "temporal-context.v1"
+                              :step 100
+                              :event-seq 0
+                              :block-ts 100
+                              :clock/source :discrete-step
+                              :clock/mode :discrete-step
+                              :tick-seconds 86400}}
         after-keeper (ll/expire-overdue-deferred-positions world)
         dp (get-in after-keeper [:yield/positions "alice" :deferred-position])]
     (is (= :closed (:position/status dp))

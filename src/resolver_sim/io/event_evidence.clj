@@ -498,7 +498,17 @@
            ;; Check 1: content hash — re-compute hash from artifact content
            ;; Must exclude all fields added by finalize-evidence and inject-chain-fields
            ;; that were not present when the content hash was originally computed.
-           content-ok (filter (fn [a]
+          content-ok (filter (fn [a]
+                               (let [content (dissoc a :evidence/hash
+                                                     :evidence/timestamp
+                                                     :evidence/chain-self-hash
+                                                     :evidence/chain-prev-hash
+                                                     :evidence/chain-hash-scheme
+                                                     :evidence/chain-seq)
+                                     expected (hc/hash-with-intent {:hash/intent :evidence-content} content)]
+                                 (= expected (:evidence/hash a))))
+                             sorted)
+          content-bad (remove (fn [a]
                                 (let [content (dissoc a :evidence/hash
                                                       :evidence/timestamp
                                                       :evidence/chain-self-hash
@@ -506,18 +516,8 @@
                                                       :evidence/chain-hash-scheme
                                                       :evidence/chain-seq)
                                       expected (hc/hash-with-intent {:hash/intent :evidence-content} content)]
-                                  (= expected (:evidence/hash a))))
+                                  (hc/intent-hash= expected (:evidence/hash a))))
                               sorted)
-           content-bad (remove (fn [a]
-                                 (let [content (dissoc a :evidence/hash
-                                                       :evidence/timestamp
-                                                       :evidence/chain-self-hash
-                                                       :evidence/chain-prev-hash
-                                                       :evidence/chain-hash-scheme
-                                                       :evidence/chain-seq)
-                                       expected (hc/hash-with-intent {:hash/intent :evidence-content} content)]
-                                   (hc/intent-hash= expected (:evidence/hash a))))
-                               sorted)
           ;; Check 2: prev-hash links to previous artifact
           prev-results (mapv (fn [a prev]
                                {:artifact a
@@ -528,33 +528,33 @@
           prev-valid (count (filter :valid (rest prev-results)))
           prev-bad (remove :valid (rest prev-results))
            ;; Check 3: sequence gaps
-           seqs (sort (map :evidence/chain-seq sorted))
-           gaps (if (seq seqs)
-                  (let [expected (range (first seqs) (inc (last seqs)))]
-                    (remove (set seqs) expected))
-                  [])
+          seqs (sort (map :evidence/chain-seq sorted))
+          gaps (if (seq seqs)
+                 (let [expected (range (first seqs) (inc (last seqs)))]
+                   (remove (set seqs) expected))
+                 [])
            ;; Check 4: chain-hash-scheme validity
-           scheme-errors (keep (fn [a]
-                                 (let [scheme (:evidence/chain-hash-scheme a)]
-                                   (when (not= chain/chain-hash-scheme scheme)
-                                     {:chain-seq (:evidence/chain-seq a)
-                                      :reason (str "Unsupported chain-hash-scheme: "
-                                                   (pr-str scheme)
-                                                   " (expected " chain/chain-hash-scheme ")")})))
-                               sorted)
-           violations (concat
-                       (map (fn [a] {:chain-seq (:evidence/chain-seq a)
-                                     :reason "Content hash mismatch — evidence content has been modified"})
-                            content-bad)
-                       (map (fn [r] {:chain-seq (:evidence/chain-seq (:artifact r))
-                                     :reason (str "Prev-hash mismatch: "
-                                                  (:evidence/chain-prev-hash (:artifact r))
-                                                  " does not link to previous")})
-                            prev-bad)
-                       (map (fn [g] {:chain-seq g
-                                     :reason (str "Gap in chain: seq " g " missing")})
-                            gaps)
-                       scheme-errors)]
+          scheme-errors (keep (fn [a]
+                                (let [scheme (:evidence/chain-hash-scheme a)]
+                                  (when (not= chain/chain-hash-scheme scheme)
+                                    {:chain-seq (:evidence/chain-seq a)
+                                     :reason (str "Unsupported chain-hash-scheme: "
+                                                  (pr-str scheme)
+                                                  " (expected " chain/chain-hash-scheme ")")})))
+                              sorted)
+          violations (concat
+                      (map (fn [a] {:chain-seq (:evidence/chain-seq a)
+                                    :reason "Content hash mismatch — evidence content has been modified"})
+                           content-bad)
+                      (map (fn [r] {:chain-seq (:evidence/chain-seq (:artifact r))
+                                    :reason (str "Prev-hash mismatch: "
+                                                 (:evidence/chain-prev-hash (:artifact r))
+                                                 " does not link to previous")})
+                           prev-bad)
+                      (map (fn [g] {:chain-seq g
+                                    :reason (str "Gap in chain: seq " g " missing")})
+                           gaps)
+                      scheme-errors)]
       {:valid (and (empty? content-bad) (empty? prev-bad) (empty? gaps) (empty? scheme-errors))
        :artifact-count (count sorted)
        :content-hash-valid (count content-ok)

@@ -201,6 +201,17 @@
 
 (declare valid-member-key?)
 
+;; ── Identity projection ───────────────────────────────────────────────────
+
+(defn- member-identity-projection
+  "Project member maps for review-round identity hashing.
+   Excludes :review-member/key so that keyed and unkeyed rounds with
+   identical researcher membership share the same identity hash.
+   The key is a compatibility assertion for a derived index, not part
+   of the round's durable identity."
+  [members]
+  (mapv #(dissoc % :review-member/key) members))
+
 ;; ── Review-member constructor ─────────────────────────────────────────────
 
 (defn review-member
@@ -223,10 +234,14 @@
   (when-not (contains? member-roles role)
     (throw (ex-info (str "Invalid member role: " role)
                     {:member {:role role} :allowed member-roles})))
-  (when (some? review-member-key)
-    (when-not (valid-member-key? review-member-key)
-      (throw (ex-info (str "Invalid member key: " review-member-key)
-                      {:key review-member-key}))))
+      (when (and (some? review-member-key)
+                 (not (valid-member-key? review-member-key)))
+        (throw (ex-info (str "Invalid member key: " review-member-key)
+                        {:reason (if (and (integer? review-member-key)
+                                         (neg? review-member-key))
+                                   :negative-review-member-key
+                                   :invalid-review-member-key)
+                         :key review-member-key})))
   (cond-> {:researcher/id researcher-id :role role}
     (some? review-member-key) (assoc :review-member/key review-member-key)))
 
@@ -258,15 +273,20 @@
      (set (range (count members)))))
 
 (defn assign-consecutive-member-keys
-  "Assign :review-member/key 0..n-1 in caller vector order.
-   Caller declares that insertion order is semantically meaningful.
-   Does NOT modify the original member maps — returns new ones.
-   Validates each constructed member through review-member."
+  "Assign :review-member/key 0..n-1 matching the canonical-index ordering.
+   The canonical ordering is determined by lexical sort of :researcher/id,
+   so this function sorts members by :researcher/id before assigning keys.
+   The assigned keys therefore match the indices that the canonical-indices
+   artifact will derive.
+
+   Members are sorted by :researcher/id before key assignment.
+   Does NOT modify the original member maps — returns new ones."
   [members]
-  (mapv (fn [idx m]
-          (review-member (:researcher/id m) (:role m)
-                         :review-member-key idx))
-        (range) members))
+  (let [sorted (vec (sort-by :researcher/id members))]
+    (mapv (fn [idx m]
+            (review-member (:researcher/id m) (:role m)
+                           :review-member-key idx))
+          (range) sorted)))
 
 ;; ── Round builder ─────────────────────────────────────────────────────────
 
@@ -307,40 +327,39 @@
     (let [keyed? (every? :review-member/key members)]
       (when (and keyed? (not (unique-member-keys? members)))
         (throw (ex-info "Duplicate review-member keys"
-                        {:members members})))
-      (when (and keyed? (not (dense-member-key-set? members)))
-        (throw (ex-info "Non-dense review-member keys"
-                        {:keys (map :review-member/key members)})))
+                        {:reason :duplicate-review-member-key
+                         :keys (map :review-member/key members)})))
       (when (and keyed? (not (every? valid-member-key? (map :review-member/key members))))
         (throw (ex-info "Invalid review-member keys"
-                        {:keys (map :review-member/key members)})))
+                        {:reason :invalid-review-member-key
+                         :keys (map :review-member/key members)})))
       (when (some? (some :review-member/key members))
         (when-not keyed?
           (throw (ex-info "Mixed keyed and unkeyed members in review round"
-                          {:members members})))))
+                          {:reason :mixed-keyed-and-unkeyed-members
+                           :members members})))))
     (let [reqs (check-creation-requirements purpose ctx)]
       (when-not (:valid? reqs)
         (throw (ex-info (str "Review-round creation requirements not met: " (:errors reqs))
                         {:purpose purpose :errors (:errors reqs)}))))
-    (let [keyed? (every? :review-member/key members)
-          sorted-members (if keyed?
-                           (vec (sort-by :review-member/key members))
-                           (vec (sort-by :researcher/id members)))
+    (let [identity-members (member-identity-projection (vec (sort-by :researcher/id members)))
           review-round-id (str "review-round:"
-                                (hc/domain-hash :review-round-identity
-                                                {:benchmark/content-root content-root
-                                                 :members sorted-members
-                                                 :membership-frozen-at membership-frozen-at
-                                                 :policy-root policy-root
-                                                 :purpose purpose}))]
-      {:schema-version schema-version
-       :review-round/id review-round-id
-       :benchmark/content-root content-root
-       :review-round/purpose purpose
-       :review-round/members (vec members)
-       :review-round/membership-frozen-at membership-frozen-at
-       :review-round/policy-root policy-root
-       :review-round/status (or status :open)})))
+                               (hc/domain-hash :review-round-identity
+                                               {:benchmark/content-root content-root
+                                                :members identity-members
+                                                :membership-frozen-at membership-frozen-at
+                                                :policy-root policy-root
+                                                :purpose purpose}))]
+      (let [rr {:schema-version schema-version
+                :review-round/id review-round-id
+                :review-round/hash review-round-id
+                :benchmark/content-root content-root
+                :review-round/purpose purpose
+                :review-round/members (vec members)
+                :review-round/membership-frozen-at membership-frozen-at
+                :review-round/policy-root policy-root
+                :review-round/status (or status :open)}]
+        rr))))
 
 ;; ── Accessors and validation ──────────────────────────────────────────────
 
@@ -379,8 +398,7 @@
          (or (not (some? (some :review-member/key members)))
              (and (every? :review-member/key members)
                   (every? valid-member-key? (map :review-member/key members))
-                  (unique-member-keys? members)
-                  (dense-member-key-set? members))))))
+                  (unique-member-keys? members))))))
 
 (defn validate-round
   "Standalone validator for a loaded review round.
@@ -422,8 +440,6 @@
         (when (every? :review-member/key members)
           (when-not (unique-member-keys? members)
             (swap! errors conj "duplicate review-member keys"))
-          (when-not (dense-member-key-set? members)
-            (swap! errors conj (str "non-dense review-member keys: " (map :review-member/key members))))
           (doseq [m members]
             (when-not (valid-member-key? (:review-member/key m))
               (swap! errors conj (str "invalid member key: " (:review-member/key m)))))
@@ -469,4 +485,14 @@
    Returns a vector only when all members have keys."
   [round]
   (when (round-uses-member-keys? round)
-    (mapv :review-member/key (:review-round/members round))))
+        (mapv :review-member/key (:review-round/members round))))
+
+(defn member-bit-width
+  "Minimum bits needed to represent the largest member key.
+   Returns nil for legacy unkeyed rounds.
+   For a 3-member round with keys 0,1,2 this returns 2."
+  [round]
+  (when (round-uses-member-keys? round)
+    (let [max-key (apply max (map :review-member/key (:review-round/members round)))]
+      (if (<= max-key 1) 1
+          (inc (int (Math/floor (/ (Math/log max-key) (Math/log 2)))))))))

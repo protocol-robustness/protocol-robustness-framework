@@ -124,7 +124,7 @@
      - otherwise → BFS traversal"
   ([dag from-id to-id]
    (dag-reachable? dag from-id to-id nil))
-   ([dag from-id to-id _opts]
+  ([dag from-id to-id _opts]
    (let [adj (build-adjacency dag)]
      (cond
        (or (nil? from-id) (nil? to-id)) false

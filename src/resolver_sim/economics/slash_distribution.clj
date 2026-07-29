@@ -330,9 +330,9 @@
                                      :received (get-in resolved-award [:beneficiary :participant/role])}}))
             v (if (and (:requires-evidence-reference? policy-elig)
                        (nil? (:evidence-reference elig)))
-                  (conj v {:violation/id :violation/missing-eligibility-reference
-                           :details {:award/id award-id}})
-                  v)
+                (conj v {:violation/id :violation/missing-eligibility-reference
+                         :details {:award/id award-id}})
+                v)
             v (if (get-in resolved-award [:beneficiary :participant/id]) v
                   (conj v {:violation/id :violation/missing-beneficiary
                            :details {:award/id award-id}}))]
@@ -477,25 +477,25 @@
               {:status :invalid :violations (vec overdraws)}
               (let [;; aggregate settlement inflows by destination
                     settlement-inflows (reduce (fn [acc award]
-                                                (let [dest (get-in award [:settlement :allocation-id])
-                                                      amt (:award/amount award)]
-                                                  (if dest
-                                                    (update acc dest (fnil + 0) amt)
-                                                    acc)))
-                                              {}
-                                              sorted-awards)
+                                                 (let [dest (get-in award [:settlement :allocation-id])
+                                                       amt (:award/amount award)]
+                                                   (if dest
+                                                     (update acc dest (fnil + 0) amt)
+                                                     acc)))
+                                               {}
+                                               sorted-awards)
                     ;; compute final allocations
                     all-ids (into (keys base)
                                   (into (keys aggregate-deductions)
                                         (keys settlement-inflows)))
                     final-alloc (into {}
-                                     (map (fn [id]
-                                            (let [b (get base id 0)
-                                                  d (get aggregate-deductions id 0)
-                                                  s (get settlement-inflows id 0)
-                                                  f (+ b (- d) s)]
-                                              [id f]))
-                                          all-ids))
+                                      (map (fn [id]
+                                             (let [b (get base id 0)
+                                                   d (get aggregate-deductions id 0)
+                                                   s (get settlement-inflows id 0)
+                                                   f (+ b (- d) s)]
+                                               [id f]))
+                                           all-ids))
                     ;; check non-negative
                     negatives (keep (fn [[id v]]
                                       (when (neg? v)
@@ -536,10 +536,10 @@
     (let [details {:field desc :stored stored :recomputed recomputed}
           details (if (sequential? stored)
                     (assoc details :index
-                      (first (keep-indexed (fn [i s]
-                                             (when (not= s (nth recomputed i nil))
-                                               i))
-                                           stored)))
+                           (first (keep-indexed (fn [i s]
+                                                  (when (not= s (nth recomputed i nil))
+                                                    i))
+                                                stored)))
                     details)]
       (conj v {:violation/id :violation/recomputation-mismatch
                :details details}))))
@@ -614,23 +614,23 @@
         stored-by-id (when stored-awards
                        (into {} (map (fn [a] [(:award/id a) a]) stored-awards)))
         processed (mapv (fn [policy-award]
-                         (let [award-id (:award/id policy-award)
-                               stored (get stored-by-id award-id)
-                               {:keys [award-amount funding violations]}
-                               (independent-award gross-amount policy-award param-values stored)]
-                           (when (and (some? award-amount) (pos? award-amount))
-                             {:award/id award-id
-                              :award/amount award-amount
-                              :funding funding
-                              :settlement (:settlement policy-award)})))
-                       (:awards policy))
+                          (let [award-id (:award/id policy-award)
+                                stored (get stored-by-id award-id)
+                                {:keys [award-amount funding violations]}
+                                (independent-award gross-amount policy-award param-values stored)]
+                            (when (and (some? award-amount) (pos? award-amount))
+                              {:award/id award-id
+                               :award/amount award-amount
+                               :funding funding
+                               :settlement (:settlement policy-award)})))
+                        (:awards policy))
         award-violations (mapcat identity
                                  (map (fn [policy-award]
-                                       (let [award-id (:award/id policy-award)
-                                             stored (get stored-by-id award-id)
-                                             {:keys [violations]}
-                                             (independent-award gross-amount policy-award param-values stored)]
-                                         violations))
+                                        (let [award-id (:award/id policy-award)
+                                              stored (get stored-by-id award-id)
+                                              {:keys [violations]}
+                                              (independent-award gross-amount policy-award param-values stored)]
+                                          violations))
                                       (:awards policy)))
         active-awards (remove nil? processed)
         sorted-awards (vec (sort-by :award/id active-awards))]
@@ -652,12 +652,12 @@
                           (into (keys deductions)
                                 (keys settlements)))
             final (into {}
-                       (map (fn [id]
-                              (let [b (get base id 0)
-                                    d (get deductions id 0)
-                                    s (get settlements id 0)]
-                                [id (+ b (- d) s)]))
-                            all-ids))]
+                        (map (fn [id]
+                               (let [b (get base id 0)
+                                     d (get deductions id 0)
+                                     s (get settlements id 0)]
+                                 [id (+ b (- d) s)]))
+                             all-ids))]
         {:awards sorted-awards
          :base base
          :deductions deductions
@@ -693,16 +693,16 @@
                (if (nil? policy)
                  (conj v {:violation/id :violation/missing-policy
                           :details {:reason "verification context has no :policy"}})
-                  (let [computed-policy-root (policy-hash policy)
-                        stored-root (:distribution/policy-root distribution)
-                        v (if (= computed-policy-root stored-root) v
-                              (conj v {:violation/id :violation/policy-root-mismatch
-                                       :details {:computed computed-policy-root
-                                                 :stored stored-root}}))
-                        gross-amount (:distribution/gross-amount distribution)
-                        stored-awards (:distribution/awards distribution)
-                        independent (independent-distribution gross-amount policy param-values stored-awards)]
-                    (into v (:violations independent)))))
+                 (let [computed-policy-root (policy-hash policy)
+                       stored-root (:distribution/policy-root distribution)
+                       v (if (= computed-policy-root stored-root) v
+                             (conj v {:violation/id :violation/policy-root-mismatch
+                                      :details {:computed computed-policy-root
+                                                :stored stored-root}}))
+                       gross-amount (:distribution/gross-amount distribution)
+                       stored-awards (:distribution/awards distribution)
+                       independent (independent-distribution gross-amount policy param-values stored-awards)]
+                   (into v (:violations independent)))))
              v)
          ;; hash check
          computed-hash (distribution-hash distribution)
@@ -730,11 +730,11 @@
                    gross-amount (:distribution/gross-amount distribution)]
                (if (nil? policy)
                  v
-                  (let [stored-awards (:distribution/awards distribution)
-                        independent (independent-distribution gross-amount policy param-values stored-awards)]
-                    (if (seq (:violations independent))
-                      v
-                      (let [v (verify-recomputed-against-stored
+                 (let [stored-awards (:distribution/awards distribution)
+                       independent (independent-distribution gross-amount policy param-values stored-awards)]
+                   (if (seq (:violations independent))
+                     v
+                     (let [v (verify-recomputed-against-stored
                               v :base stored-base (:base independent))
                            stored-awards (:distribution/awards distribution)
                            indep-awards (:awards independent)
@@ -854,3 +854,65 @@
                    v awards)]
      {:valid? (empty? v)
       :violations (vec v)})))
+
+;; ── application receipt ─────────────────────────────────────────────────
+
+(def ^:private receipt-schema-version
+  "slash-distribution-application-receipt.v1")
+
+(defn receipt-hash-projection
+  "Return only the committed fields of an application receipt.
+   This projection is the subset used to compute :receipt/hash."
+  [receipt]
+  (select-keys receipt
+               [:schema-version
+                :receipt/distribution-root
+                :receipt/policy-root
+                :receipt/parameter-context-root
+                :receipt/pre-state-root
+                :receipt/post-state-root
+                :receipt/idempotency-key
+                :receipt/status
+                :receipt/abstract-effects
+                :receipt/obligations]))
+
+(defn receipt-hash
+  "Compute the SLASH_DISTRIBUTION_APPLICATION_RECEIPT_V1 domain hash."
+  [receipt]
+  (hc/domain-hash :slash-distribution-application-receipt-v1
+                  (receipt-hash-projection receipt)))
+
+(defn build-application-receipt
+  "Build a slash-distribution-application-receipt.v1 artifact.
+
+   Input:
+     :distribution-root   — hash of the applied distribution artifact
+     :policy-root         — hash of the policy used
+     :parameter-context-root — root reference for resolved parameters
+     :pre-state-root      — world state hash before application
+     :post-state-root     — world state hash after application
+     :idempotency-key     — key used for replay protection
+     :status              — :applied | :skipped (idempotent replay)
+     :abstract-effects    — [{:allocation/id <kw> :amount <int>} ...]
+     :concrete-effects    — [{:target {:target/type <kw> :target/key <kw>} :delta <int>} ...]
+     :obligations         — [{:obligation/kind <kw> :beneficiary <id>
+                               :amount <int> :obligation-reference <string>} ...]
+
+   Returns the completed receipt artifact with embedded :receipt/hash."
+  [{:keys [distribution-root policy-root parameter-context-root
+           pre-state-root post-state-root idempotency-key status
+           abstract-effects concrete-effects obligations]}]
+  (let [receipt (merge
+                 {:schema-version receipt-schema-version
+                  :receipt/distribution-root distribution-root
+                  :receipt/policy-root policy-root
+                  :receipt/parameter-context-root parameter-context-root
+                  :receipt/pre-state-root pre-state-root
+                  :receipt/post-state-root post-state-root
+                  :receipt/idempotency-key idempotency-key
+                  :receipt/status status
+                  :receipt/abstract-effects (vec abstract-effects)
+                  :receipt/obligations (vec obligations)}
+                 (when (seq concrete-effects)
+                   {:receipt/concrete-effects (vec concrete-effects)}))]
+    (assoc receipt :receipt/hash (receipt-hash receipt))))

@@ -10,16 +10,21 @@
      • mutable run-state and lock filenames (non-semantic)
      • file extension strings
      • directory location strings for fixtures, scenarios, results"
-  (:require [resolver-sim.io.artifacts :as arts]
+  (:require [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.io.artifacts :as arts]
             [resolver-sim.hash.reference :as hash-ref]))
 
-;; ── Filename aliases for canonical artifacts (semantics in io.artifacts) ──
+;; ── Registry-backed filename aliases for canonical artifacts ──────────
+;; Resolved from config/evidence.json at runtime with code-level fallback.
 
-(def completion           (arts/artifact-file :run/completion))
-(def artifacts-registry   (arts/artifact-file :artifacts/registry))
-(def artifacts-validation (arts/artifact-file :artifacts/validation))
-(def run-package-index    (arts/artifact-file :run/package-index))
-(def sensitivity-report   (arts/artifact-file :sensitivity/report))
+(defn- registry-file [id]
+  (or (evcfg/artifact-file id) (arts/artifact-file id)))
+
+(def completion           (registry-file :run/completion))
+(def artifacts-registry   (registry-file :artifacts/registry))
+(def artifacts-validation (registry-file :artifacts/validation))
+(def run-package-index    (registry-file :run/package-index))
+(def sensitivity-report   (registry-file :sensitivity/report))
 
 ;; ── Non-semantic path conventions ──────────────────────────────────────
 ;; Mutable run state, locks, extensions, directories, test resources.
