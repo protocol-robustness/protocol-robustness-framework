@@ -8,11 +8,12 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is]]
-            [resolver-sim.io.artifacts :as arts]))
+            [resolver-sim.io.artifacts :as arts]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (defn- load-evidence-config
   []
-  (-> (io/resource "config/evidence.json") slurp (json/read-str :key-fn keyword)))
+  (-> (io/resource hash-ref/evidence-config-path) slurp (json/read-str :key-fn keyword)))
 
 (def ^:private code-artifact-ids
   "Canonical artifact IDs that SHOULD appear in config/evidence.json."

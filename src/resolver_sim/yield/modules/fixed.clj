@@ -4,6 +4,7 @@
             [resolver-sim.yield.token :as tok]
             [resolver-sim.yield.accounting :as acct]
             [resolver-sim.yield.market-state :as market-state]
+            [resolver-sim.yield.exact-math :as m]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.evidence.capture :as evidence]))
@@ -44,7 +45,9 @@
           apy (:apy ms 0.05)
           old-index (or (get-in world [:yield/indices mid token]) 1.0)
           new-index (if-let [fixed-index (:index ms)]
-                      fixed-index
+                      (if (zero? fixed-index)
+                        (+ old-index (/ (* apy dt) time-ctx/seconds-per-year))
+                        (m/ratio fixed-index))
                       (+ old-index (/ (* apy dt) time-ctx/seconds-per-year)))
           world-after-index (assoc-in world [:yield/indices mid token] new-index)
           world' (reduce (fn [w [oid pos]]

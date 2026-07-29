@@ -10,12 +10,13 @@
      • mutable run-state and lock filenames (non-semantic)
      • file extension strings
      • directory location strings for fixtures, scenarios, results"
-  (:require [resolver-sim.io.artifacts :as arts]))
+  (:require [resolver-sim.io.artifacts :as arts]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── Filename aliases for canonical artifacts (semantics in io.artifacts) ──
 
 (def completion           (arts/artifact-file :run/completion))
-(def artifacts-suffix     (arts/artifact-file :artifacts/registry))
+(def artifacts-registry   (arts/artifact-file :artifacts/registry))
 (def artifacts-validation (arts/artifact-file :artifacts/validation))
 (def run-package-index    (arts/artifact-file :run/package-index))
 (def sensitivity-report   (arts/artifact-file :sensitivity/report))
@@ -31,9 +32,9 @@
 (def json-ext  ".json")
 (def clj-ext   ".clj")
 
-(def fixtures-dir   "data/fixtures")
-(def traces-dir     "data/fixtures/traces")
-(def golden-dir     "data/fixtures/golden")
-(def scenarios-edn-dir "scenarios/edn")
-(def artf-dir       "results/test-artifacts")
-(def runs-root      "results/runs")
+(def fixtures-dir   hash-ref/fixtures-dir)
+(def traces-dir     hash-ref/traces-dir)
+(def golden-dir     hash-ref/golden-dir)
+(def scenarios-edn-dir hash-ref/scenarios-edn-dir)
+(def artf-dir       hash-ref/test-artifacts-dir)
+(def runs-root      hash-ref/results-runs-dir)

@@ -61,7 +61,8 @@
 
 (defn- supported-award-amount-method?
   [method]
-  (= :rate-of-gross method))
+  (or (= :rate-of-gross method)
+      (= :resolved-amount method)))
 
 (defn- supported-allocation-method?
   [method]
@@ -99,12 +100,14 @@
                     (conj {:violation/id :violation/invalid-award-scale
                            :details {:award/id (:award/id award)
                                      :scale scale}})
-                    (not= :floor (:rounding amount-spec))
+                    (and (= :rate-of-gross method)
+                         (not= :floor (:rounding amount-spec)))
                     (conj {:violation/id :violation/unsupported-rounding
                            :details {:award/id (:award/id award)
                                      :rounding (:rounding amount-spec)
                                      :supported [:floor]}})
-                    (nil? (:parameter-key amount-spec))
+                    (and (= :rate-of-gross method)
+                         (nil? (:parameter-key amount-spec)))
                     (conj {:violation/id :violation/missing-parameter-key
                            :details {:award/id (:award/id award)}})))
                 (conj v {:violation/id :violation/unsupported-amount-method
@@ -264,14 +267,22 @@
     base))
 
 (defn- compute-award-amount
-  "Compute a single award amount from gross amount and a rate-of-gross parameter."
-  [gross-amount amount-spec param-values]
-  (let [{:keys [parameter-key scale rounding]} amount-spec
-        resolved (get param-values parameter-key)]
-    (when (and resolved (pos? scale))
-      (let [amount (quot (* gross-amount resolved) scale)]
-        ;; floor rounding: amount is already truncated; remainder is implicitly 0
-        amount))))
+  "Compute a single award amount from gross amount and amount spec.
+   Supports :rate-of-gross (computed from parameter) and
+   :resolved-amount (pre-computed, supplied in resolved-awards)."
+  [gross-amount amount-spec param-values resolved-award]
+  (let [method (:method amount-spec)]
+    (case method
+      :rate-of-gross
+      (let [{:keys [parameter-key scale]} amount-spec
+            resolved (get param-values parameter-key)]
+        (when (and resolved (pos? scale))
+          (quot (* gross-amount resolved) scale)))
+      :resolved-amount
+      (let [resolved (:award/amount resolved-award)]
+        (when (and (integer? resolved) (not (neg? resolved)))
+          resolved))
+      nil)))
 
 (defn- compute-award-funding
   "Compute per-source funding deductions for a single award."
@@ -300,7 +311,7 @@
   (let [award-id (:award/id resolved-award)
         v []
         amount-spec (:amount policy-award)
-        award-amount (compute-award-amount gross-amount amount-spec param-values)]
+        award-amount (compute-award-amount gross-amount amount-spec param-values resolved-award)]
     (if (zero? award-amount)
       {:award nil
        :violations v}
@@ -543,13 +554,17 @@
 
 (defn- independent-award
   "Recompute award amount and funding from policy award spec and parameters.
+   For :rate-of-gross, the amount is recomputed from the parameter.
+   For :resolved-amount, the stored award amount is accepted as given.
+
    Returns {:award-amount <int>
             :funding <map>
             :violations [...]}
    or {:award-amount nil :violations [...]} on error."
-  [gross-amount policy-award param-values]
+  [gross-amount policy-award param-values stored-award]
   (let [amount-spec (:amount policy-award)]
-    (if (= :rate-of-gross (:method amount-spec))
+    (case (:method amount-spec)
+      :rate-of-gross
       (let [param-key (:parameter-key amount-spec)
             resolved (get param-values param-key)]
         (if (nil? resolved)
@@ -557,37 +572,64 @@
            :violations [{:violation/id :violation/missing-parameter
                          :details {:award/id (:award/id policy-award)
                                    :parameter-key param-key}}]}
-          (let [award-amount (compute-award-amount gross-amount amount-spec param-values)
-                funding (compute-award-funding award-amount (:funding policy-award))]
+          (let [award-amount (compute-award-amount gross-amount amount-spec param-values nil)]
+            (when (nil? award-amount)
+              (throw (ex-info "unexpected nil award-amount from rate-of-gross"
+                              {:policy-award (:award/id policy-award)})))
+            ;; funding is recomputed from the award amount
             {:award-amount award-amount
-             :funding funding
+             :funding (compute-award-funding award-amount (:funding policy-award))
              :violations []})))
+      :resolved-amount
+      (let [award-amount (:award/amount stored-award)]
+        (if (and (integer? award-amount) (not (neg? award-amount)))
+          {:award-amount award-amount
+           :funding (compute-award-funding award-amount (:funding policy-award))
+           :violations []}
+          {:award-amount nil
+           :violations [{:violation/id :violation/invalid-parameter-value
+                         :details {:award/id (:award/id policy-award)
+                                   :reason "stored award-amount is not a non-negative integer"
+                                   :value award-amount}}]}))
       {:award-amount nil
        :violations [{:violation/id :violation/unsupported-amount-method
                      :details {:award/id (:award/id policy-award)
                                :method (:method amount-spec)}}]})))
 
 (defn- independent-distribution
-  "Independently compute a full distribution from the same inputs the builder
-   would receive: gross amount, policy, and resolved parameters.
+  "Independently compute a full distribution from policy and parameters.
+
+   For :rate-of-gross awards, the amount is recomputed from the parameter.
+   For :resolved-amount awards, the stored award amount from the distribution
+   artifact is accepted as given (it was resolved externally).
+
+   stored-awards — the :distribution/awards vector from the artifact (optional,
+   required only when any policy award uses :resolved-amount).
+
    Returns {:awards [<award-map> ...] :base <map> :deductions <map>
             :settlements <map> :final <map> :violations [...]}."
-  [gross-amount policy param-values]
+  [gross-amount policy param-values & [stored-awards]]
   (let [allocation-spec (:allocation policy)
         base (compute-allocation gross-amount allocation-spec)
+        stored-by-id (when stored-awards
+                       (into {} (map (fn [a] [(:award/id a) a]) stored-awards)))
         processed (mapv (fn [policy-award]
-                         (let [{:keys [award-amount funding violations]}
-                               (independent-award gross-amount policy-award param-values)]
+                         (let [award-id (:award/id policy-award)
+                               stored (get stored-by-id award-id)
+                               {:keys [award-amount funding violations]}
+                               (independent-award gross-amount policy-award param-values stored)]
                            (when (and (some? award-amount) (pos? award-amount))
-                             {:award/id (:award/id policy-award)
+                             {:award/id award-id
                               :award/amount award-amount
                               :funding funding
                               :settlement (:settlement policy-award)})))
                        (:awards policy))
         award-violations (mapcat identity
                                  (map (fn [policy-award]
-                                       (let [{:keys [violations]}
-                                             (independent-award gross-amount policy-award param-values)]
+                                       (let [award-id (:award/id policy-award)
+                                             stored (get stored-by-id award-id)
+                                             {:keys [violations]}
+                                             (independent-award gross-amount policy-award param-values stored)]
                                          violations))
                                       (:awards policy)))
         active-awards (remove nil? processed)
@@ -651,15 +693,16 @@
                (if (nil? policy)
                  (conj v {:violation/id :violation/missing-policy
                           :details {:reason "verification context has no :policy"}})
-                 (let [computed-policy-root (policy-hash policy)
-                       stored-root (:distribution/policy-root distribution)
-                       v (if (= computed-policy-root stored-root) v
-                             (conj v {:violation/id :violation/policy-root-mismatch
-                                      :details {:computed computed-policy-root
-                                                :stored stored-root}}))
-                       gross-amount (:distribution/gross-amount distribution)
-                       independent (independent-distribution gross-amount policy param-values)]
-                   (into v (:violations independent)))))
+                  (let [computed-policy-root (policy-hash policy)
+                        stored-root (:distribution/policy-root distribution)
+                        v (if (= computed-policy-root stored-root) v
+                              (conj v {:violation/id :violation/policy-root-mismatch
+                                       :details {:computed computed-policy-root
+                                                 :stored stored-root}}))
+                        gross-amount (:distribution/gross-amount distribution)
+                        stored-awards (:distribution/awards distribution)
+                        independent (independent-distribution gross-amount policy param-values stored-awards)]
+                    (into v (:violations independent)))))
              v)
          ;; hash check
          computed-hash (distribution-hash distribution)
@@ -687,10 +730,11 @@
                    gross-amount (:distribution/gross-amount distribution)]
                (if (nil? policy)
                  v
-                 (let [independent (independent-distribution gross-amount policy param-values)]
-                   (if (seq (:violations independent))
-                     v
-                     (let [v (verify-recomputed-against-stored
+                  (let [stored-awards (:distribution/awards distribution)
+                        independent (independent-distribution gross-amount policy param-values stored-awards)]
+                    (if (seq (:violations independent))
+                      v
+                      (let [v (verify-recomputed-against-stored
                               v :base stored-base (:base independent))
                            stored-awards (:distribution/awards distribution)
                            indep-awards (:awards independent)

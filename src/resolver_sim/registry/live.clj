@@ -20,7 +20,8 @@
    provenance metadata. register-registry! adds new registry types at runtime."
   (:require [clojure.string :as str]
             [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.logging :as log])
+            [resolver-sim.logging :as log]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.time Instant]))
 
 ;; ── Dynamic test-mode binding ────────────────────────────────────────────────
@@ -65,15 +66,15 @@
 
 (defn- resolve-concept-registry
   ([] (resolve-concept-registry nil))
-  ([_] (edn-read-path "resource:data/concepts/registry.edn")))
+  ([_] (edn-read-path (str hash-ref/resource-prefix hash-ref/concept-registry-path))))
 
 (defn- resolve-command-registry
   ([] (resolve-command-registry nil))
-  ([_] (edn-read-path "resource:prf/commands/registry.edn")))
+  ([_] (edn-read-path (str hash-ref/resource-prefix hash-ref/command-registry-path))))
 
 (defn- resolve-claim-registry
   ([] (resolve-claim-registry nil))
-  ([_] (edn-read-path "benchmarks/claim-registry.edn")))
+  ([_] (edn-read-path hash-ref/claim-registry-path)))
 
 (defn- resolve-protocol-registry
   ([] (resolve-protocol-registry nil))
@@ -134,11 +135,11 @@
          :pack        {:resolve-fn nil
                        :canonical-path nil}
          :concept     {:resolve-fn resolve-concept-registry
-                       :canonical-path "resource:data/concepts/registry.edn"}
-         :command     {:resolve-fn resolve-command-registry
-                       :canonical-path "resource:prf/commands/registry.edn"}
-         :claim       {:resolve-fn resolve-claim-registry
-                       :canonical-path "benchmarks/claim-registry.edn"}
+                       :canonical-path (str hash-ref/resource-prefix hash-ref/concept-registry-path)}
+          :command     {:resolve-fn resolve-command-registry
+                        :canonical-path (str hash-ref/resource-prefix hash-ref/command-registry-path)}
+          :claim       {:resolve-fn resolve-claim-registry
+                        :canonical-path hash-ref/claim-registry-path}
          :protocol    {:resolve-fn resolve-protocol-registry
                        :canonical-path nil}
          :evidence    {:resolve-fn resolve-evidence-registry
@@ -206,7 +207,7 @@
       (try
         (let [data (edn-read-path path)]
           {:registry/content data
-           :registry/source (if (str/starts-with? path "resource:") :classpath :file)})
+           :registry/source (if (str/starts-with? path hash-ref/resource-prefix) :classpath :file)})
         (catch Exception e
           (log/warn! "live-registry/read-failed"
                      {:registry/type registry-type :path path :error (.getMessage e)})
@@ -331,10 +332,12 @@
       true)))
 
 (defn clear-all-registries!
-  "Remove all live atom entries. Resolver configurations are preserved."
+  "Remove all live atom entries. Resolver configurations are preserved.
+   Returns the number of entries cleared."
   []
-  (reset! live-registries {})
-  :cleared)
+  (let [keys (keys @live-registries)]
+    (doseq [k keys] (clear-cache! k))
+    (count keys)))
 
 (defn list-registry-types
   "Return all registered registry type keywords."

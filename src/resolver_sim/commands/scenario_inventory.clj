@@ -137,5 +137,5 @@
                   :sensitivity_profile (name profile)
                   :export_policy (if (= :public profile) "public-scan-required" "internal-retention")
                   :artifacts entries}]
-    (atomic-write! (io/file root paths/artifacts-suffix) (json/write-str registry))
+    (atomic-write! (io/file root paths/artifacts-registry) (json/write-str registry))
     registry))

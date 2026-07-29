@@ -2,7 +2,9 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.review.three-member-certificate :as tmc]
             [resolver-sim.benchmark.researcher-position :as rp]
-            [resolver-sim.benchmark.review-round :as rr]))
+            [resolver-sim.benchmark.review-member-canonical-indices :as ci]
+            [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.trace-metadata :as tm]))
 
 (defn- make-report [id outcome-hash & {:keys [mi plan domain sampling params cases eval-policy model-root content-root]
                                        :or {content-root "sha256:cr" model-root "sha256:m"
@@ -299,10 +301,26 @@
     :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
     :review-round/policy-root "sha256:policy"}))
 
+(defn- build-with-ci
+  "Build a certificate for a keyed round, auto-deriving canonical-indices."
+  [& {:keys [round reports positions force-authorisations disagreements]
+      :or {force-authorisations [] disagreements []}}]
+  (let [r (or round (make-keyed-round))
+        indices (ci/build-canonical-indices r)]
+    (tmc/build-certificate
+     {:review-round r
+      :canonical-indices indices
+      :reports reports
+      :positions positions
+      :force-authorisations force-authorisations
+      :disagreements disagreements})))
+
 (deftest keyed-round-certificate-emits-key-vectors
   (let [round (make-keyed-round)
+        indices (ci/build-canonical-indices round)
         cert (tmc/build-certificate
               {:review-round round
+               :canonical-indices indices
                :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
                :positions [(make-pos "a") (make-pos "b") (make-pos "c")]})
         pub-cons (get-in cert [:other-consensus :publication])]
@@ -312,6 +330,7 @@
 
 (deftest keyed-round-certificate-dissent-key-vectors
   (let [round (make-keyed-round)
+        indices (ci/build-canonical-indices round)
         dim-pos [(rp/build-position
                   {:benchmark/content-root "sha256:cr"
                    :researcher/id "a"
@@ -329,6 +348,7 @@
                    :dimensions {:publication {:status :do-not-publish}}})]
         cert (tmc/build-certificate
               {:review-round round
+               :canonical-indices indices
                :reports (mapv (fn [id] (make-report id "sha256:o")) ["a" "b" "c"])
                :positions dim-pos})
         pub-cons (get-in cert [:other-consensus :publication])]
@@ -357,8 +377,310 @@
 
 (deftest keyed-round-member-positions-include-key
   (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])]
+    (is (= [0 1 2] (mapv :review-member/key (:member-positions cert))))))
+
+;; ── Resolution-quality tests ────────────────────────────────────────────────
+
+(deftest certificate-resolution-quality-present
+  (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])]
+    (is (some? (:resolution/quality cert))
+        "certificate must have resolution/quality")
+    (is (contains? tm/resolution-outcome-values (:resolution/quality cert))
+        "resolution/quality must be a valid outcome value")))
+
+(deftest certificate-resolution-confidence-present
+  (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])]
+    (is (some? (:resolution/confidence cert))
+        "certificate must have resolution/confidence")
+    (is (= (tm/resolution-quality->confidence (:resolution/quality cert))
+           (:resolution/confidence cert))
+        "resolution/confidence must match the derived confidence from resolution/quality")))
+
+(deftest certificate-all-exact-replication-is-correct
+  (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])]
+    (is (= :correct (:resolution/quality cert))
+        "three identical outcome hashes with full consensus must be :correct")))
+
+(deftest certificate-resolution-quality-survives-finalisation
+  (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])
+        final (tmc/finalise-certificate! cert)]
+    (is (= (:resolution/quality cert) (:resolution/quality final))
+        "resolution/quality must survive finalisation")
+    (is (= (:resolution/confidence cert) (:resolution/confidence final))
+        "resolution/confidence must survive finalisation")))
+
+(deftest validate-certificate-accepts-resolution-quality
+  (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])
+        final (tmc/finalise-certificate! cert)
+        result (tmc/validate-certificate final)]
+    (is (:valid? result)
+        (str "validation errors: " (:errors result)))))
+
+(deftest validate-certificate-rejects-inconsistent-quality
+  (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])
+        final (tmc/finalise-certificate! cert)
+        tampered (assoc final :resolution/quality :contested)
+        result (tmc/validate-certificate tampered)]
+    (is (not (:valid? result))
+        "must reject quality :contested when all outcome groups are identical")
+    (is (some #(re-find #"contested" %) (:errors result)))))
+
+(deftest validate-certificate-rejects-confidence-mismatch
+  (let [round (make-keyed-round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])
+        final (tmc/finalise-certificate! cert)
+        tampered (assoc final :resolution/confidence {:level :low :status :final :scope :unbounded})
+        result (tmc/validate-certificate tampered)]
+    (is (not (:valid? result))
+        "must reject confidence that does not match derived confidence from quality")
+    (is (some #(re-find #"confidence" %) (:errors result)))))
+
+;; ── Canonical-indices certificate integration tests ─────────────────────────
+
+(deftest certificate-with-canonical-indices-valid
+  (let [round (make-keyed-round)
+        indices (ci/build-canonical-indices round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])
+        final (tmc/finalise-certificate! cert)]
+    (is (tmc/certificate-valid? cert))
+    (is (:valid? (tmc/validate-certificate final))
+        "certificate must validate when canonical-indices are bound")
+    (is (some? (:review-member-canonical-indices/hash cert))
+        "certificate must reference the canonical-indices hash when supplied")))
+
+(deftest certificate-rejects-tampered-canonical-indices
+  (let [round (make-keyed-round)
+        indices (ci/build-canonical-indices round)
+        tampered (assoc indices :review-member-canonical-indices/hash
+                        "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (tmc/build-certificate
+                  {:review-round round
+                   :canonical-indices tampered
+                   :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+                   :positions [(make-pos "a") (make-pos "b") (make-pos "c")]}))
+        "must reject tampered canonical-indices artifact")))
+
+(deftest certificate-canonical-indices-hash-binds-to-certificate-hash
+  (let [round (make-keyed-round)
+        indices (ci/build-canonical-indices round)
+        cert (build-with-ci
+              :round round
+              :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+              :positions [(make-pos "a") (make-pos "b") (make-pos "c")])
+        final (tmc/finalise-certificate! cert)]
+    (is (some? (:review-member-canonical-indices/hash final))
+        "canonical-indices hash must be present in final certificate")
+    (is (not= (:review-member-canonical-indices/hash final) (:certificate/hash final))
+        "canonical-indices hash must differ from certificate hash")))
+
+(deftest certificate-member-positions-agree-with-canonical-indices
+  (let [round (make-keyed-round)
+        indices (ci/build-canonical-indices round)
         cert (tmc/build-certificate
               {:review-round round
+               :canonical-indices indices
                :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
                :positions [(make-pos "a") (make-pos "b") (make-pos "c")]})]
-    (is (= [0 1 2] (mapv :review-member/key (:member-positions cert))))))
+    (doseq [pos (:member-positions cert)]
+      (is (= (ci/review-member-index indices (:researcher/id pos))
+             (:review-member/key pos))
+          (str "member-position key " (:researcher/id pos)
+               " must agree with canonical index")))))
+
+;; ── End-to-end canonical-indices certificate tests ─────────────────────────
+
+(deftest e2e-certificate-with-canonical-indices-and-theorem-consensus
+  (let [round (make-keyed-round)
+        indices (ci/build-canonical-indices round)
+        positions [(rp/build-position
+                    {:benchmark/content-root "sha256:cr"
+                     :researcher/id "a"
+                     :outcome-hash "sha256:o"
+                     :dimensions {:model-state {:status :adequate}
+                                  :model-authority {:status :adequate}
+                                  :model-transitions {:status :adequate}
+                                  :incentives-strategies {:status :adequate}
+                                  :evidence {:status :sufficient}
+                                  :claims {:status :supported}
+                                  :publication {:status :publish}}
+                      :position/targets [{:kind :theorem :id :theorem/quota-bounded
+                                :hash "sha256:th1" :status :reproduced}
+                               {:kind :theorem :id :theorem/settlement-consistency
+                                :hash "sha256:th2" :status :reproduced}]})
+                   (rp/build-position
+                    {:benchmark/content-root "sha256:cr"
+                     :researcher/id "b"
+                     :outcome-hash "sha256:o"
+                     :dimensions {:model-state {:status :adequate}
+                                  :model-authority {:status :adequate}
+                                  :model-transitions {:status :adequate}
+                                  :incentives-strategies {:status :adequate}
+                                  :evidence {:status :sufficient}
+                                  :claims {:status :supported}
+                                  :publication {:status :publish}}
+                     :position/targets [{:kind :theorem :id :theorem/quota-bounded
+                                :hash "sha256:th1" :status :reproduced}
+                               {:kind :theorem :id :theorem/settlement-consistency
+                                :hash "sha256:th2" :status :challenged}]})
+                   (rp/build-position
+                    {:benchmark/content-root "sha256:cr"
+                     :researcher/id "c"
+                     :outcome-hash "sha256:o"
+                     :dimensions {:model-state {:status :adequate}
+                                  :model-authority {:status :adequate}
+                                  :model-transitions {:status :adequate}
+                                  :incentives-strategies {:status :adequate}
+                                  :evidence {:status :sufficient}
+                                  :claims {:status :supported}
+                                  :publication {:status :publish}}
+                     :position/targets [{:kind :theorem :id :theorem/quota-bounded
+                                :hash "sha256:th1" :status :reproduced}
+                               {:kind :theorem :id :theorem/settlement-consistency
+                                 :hash "sha256:th2" :status :reproduced}]})]
+        reports [(make-report "a" "sha256:A")
+                 (make-report "b" "sha256:A")
+                 (make-report "c" "sha256:A")]
+        cert (tmc/build-certificate
+              {:review-round round
+               :canonical-indices indices
+               :reports reports
+               :positions positions})
+        final (tmc/finalise-certificate! cert)]
+    ;; Certificate is valid
+    (is (tmc/certificate-valid? cert))
+    (is (:valid? (tmc/validate-certificate final))
+        "e2e certificate must validate")
+    ;; Canonical-indices hash is bound
+    (is (some? (:review-member-canonical-indices/hash cert))
+        "canonical-indices hash bound in certificate")
+    ;; Per-theorem consensus is computed
+    (is (contains? (:theorem-consensus cert) :theorem/quota-bounded)
+        "quota-bounded theorem consensus present")
+    (is (contains? (:theorem-consensus cert) :theorem/settlement-consistency)
+        "settlement-consistency theorem consensus present")
+    (let [qb (get-in cert [:theorem-consensus :theorem/quota-bounded])
+          sc (get-in cert [:theorem-consensus :theorem/settlement-consistency])]
+      (is (= :unanimous (:status qb)) "quota-bounded unanimous")
+      (is (= 3 (count (:supporting-members qb))) "all three support quota-bounded")
+      (is (= :majority-with-dissent (:status sc)) "settlement-consistency majority-with-dissent")
+      (is (= 2 (count (:supporting-members sc))) "two support")
+      (is (= 1 (count (:dissenting-members sc))) "one dissents"))
+    ;; Key-enriched consensus vectors are present for keyed rounds
+    (let [qb (get-in final [:theorem-consensus :theorem/quota-bounded])]
+      (is (some? (:supporting-member-keys qb)) "keyed round emits key vectors"))
+    ;; Member positions agree with canonical indices
+    (doseq [pos (:member-positions cert)]
+      (is (= (ci/review-member-index indices (:researcher/id pos))
+             (:review-member/key pos))
+          (str "member-position key " (:researcher/id pos)
+               " agrees with canonical index")))
+    ;; Certificate hash binds canonical-indices hash
+    (is (not= (:review-member-canonical-indices/hash cert)
+              (:certificate/hash final))
+        "canonical-indices hash differs from certificate hash")))
+
+(deftest e2e-certificate-rejects-canonical-indices-round-mismatch
+  (let [round-a (make-keyed-round)
+        round-b (rr/build-review-round
+                 {:benchmark/content-root "sha256:cr"
+                  :review-round/purpose :model-admission
+                  :review-round/members
+                  [{:review-member/key 0 :researcher/id "x" :role :model-steward}
+                   {:review-member/key 1 :researcher/id "y" :role :independent-reproducer}
+                   {:review-member/key 2 :researcher/id "z" :role :adversarial-reviewer}]
+                  :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                  :review-round/policy-root "sha256:policy"})
+        indices (ci/build-canonical-indices round-a)]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (tmc/build-certificate
+                  {:review-round round-b
+                   :canonical-indices indices
+                   :reports (mapv (fn [id] (make-report id "sha256:A")) ["x" "y" "z"])
+                   :positions [(make-pos "x") (make-pos "y") (make-pos "z")]}))
+        "must reject canonical-indices from different round")))
+
+(deftest e2e-certificate-rejects-ci-for-legacy-round
+  (let [legacy-round (rr/build-review-round
+                      {:benchmark/content-root "sha256:cr"
+                       :review-round/purpose :model-admission
+                       :review-round/members
+                       [{:researcher/id "a" :role :model-steward}
+                        {:researcher/id "b" :role :independent-reproducer}
+                        {:researcher/id "c" :role :adversarial-reviewer}]
+                       :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                       :review-round/policy-root "sha256:policy"})
+        keyed-round (make-keyed-round)
+        indices (ci/build-canonical-indices keyed-round)]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (tmc/build-certificate
+                  {:review-round legacy-round
+                   :canonical-indices indices
+                   :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+                   :positions [(make-pos "a") (make-pos "b") (make-pos "c")]}))
+        "must reject canonical-indices supplied for unkeyed legacy round")))
+
+(deftest e2e-legacy-round-works-without-ci
+  (let [legacy-round (rr/build-review-round
+                      {:benchmark/content-root "sha256:cr"
+                       :review-round/purpose :model-admission
+                       :review-round/members
+                       [{:researcher/id "a" :role :model-steward}
+                        {:researcher/id "b" :role :independent-reproducer}
+                        {:researcher/id "c" :role :adversarial-reviewer}]
+                       :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                       :review-round/policy-root "sha256:policy"})
+        cert (tmc/build-certificate
+              {:review-round legacy-round
+               :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
+               :positions [(make-pos "a") (make-pos "b") (make-pos "c")]})
+        final (tmc/finalise-certificate! cert)]
+    (is (tmc/certificate-valid? cert))
+    (is (:valid? (tmc/validate-certificate final))
+        "legacy unkeyed round certificate must validate")
+    (is (nil? (:review-member-canonical-indices/hash cert))
+        "legacy certificate must not have canonical-indices hash")))
+
+(deftest e2e-valid-resolution-quality-for-schema
+  (is (tm/valid-resolution-quality-for-schema? "three-member-research-certificate.v1" :correct)
+      "v1 schema accepts :correct")
+  (is (not (tm/valid-resolution-quality-for-schema? "three-member-research-certificate.v1" :low-confidence))
+      "v1 schema rejects legacy :low-confidence")
+  (is (tm/valid-resolution-quality-for-schema? "older-schema" :low-confidence)
+      "older schema accepts :low-confidence")
+  (is (tm/valid-resolution-quality-for-schema? "older-schema" :correct)
+      "older schema also accepts outcome values"))

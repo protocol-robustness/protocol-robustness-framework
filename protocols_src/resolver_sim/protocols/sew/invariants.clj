@@ -323,11 +323,14 @@
   [world]
   (if-not (get-in world [:params :held-adjustments/complete?])
     {:holds? true :violations []}
-    (let [checks ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
-                  (vals (:held-artifacts world {})))
-          failed (vec (remove #(= :pass (:status %)) checks))]
-      {:holds? (empty? failed)
-       :violations failed})))
+    (try
+      ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
+       (vals (:held-artifacts world {})))
+      {:holds? true :violations []}
+      (catch clojure.lang.ExceptionInfo e
+        (let [data (ex-data e)]
+          {:holds? false
+           :violations (:failed-checks data)})))))
 
 (defn- related-member-scope-hash [auth-id adjustment]
   (hash/domain-hash acct/force-authorisation-scope-domain

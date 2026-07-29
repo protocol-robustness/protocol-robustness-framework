@@ -9,9 +9,10 @@
    External/experimental paths use file: prefixes or bare file paths."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [resolver-sim.hash.reference :as hash-ref]))
 
-(def ^:private resource-prefix "resource:")
+(def ^:private resource-prefix hash-ref/resource-prefix)
 (def ^:private file-prefix "file:")
 
 (defn- resource-path
@@ -85,7 +86,7 @@
     (when s
       (edn/read-string s))))
 
-(def ^:const canonical-registry-path "resource:benchmarks/registry.edn")
+(def ^:const canonical-registry-path hash-ref/benchmark-registry-path)
 
 (defn path-exists?
   "Check whether a path spec is resolvable.

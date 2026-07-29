@@ -1007,3 +1007,67 @@
     (is (:valid? single-arg-result))
     (is (:valid? two-arg-result))
     (is (= (:violations single-arg-result) (:violations two-arg-result)))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; 18. Boundary: consistency verification ≠ eligibility verification
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest verify-distribution-does-not-validate-evidence-authenticity
+  (testing "verify-distribution checks evidence-reference presence, not authenticity"
+    (let [;; Artifact with a fabricated but structurally valid evidence reference
+          fabricated-ref "sha256:fabricated-eligibility-evidence"
+          award (-> resolved-reward
+                   (assoc-in [:eligibility :evidence-reference] fabricated-ref)
+                   (assoc-in [:beneficiary :participant/id] :test.participant/eve))
+          result (sd/build-slash-distribution
+                  {:gross-amount      100
+                   :policy            all-scales-10000-policy
+                   :parameter-context reward-param-500
+                   :resolved-awards   [award]
+                   :context           {}})
+          dist (:distribution result)]
+      (is (= :valid (:status result)))
+      ;; verify-distribution (consistency mode) passes — it checks presence, not truth
+      (let [{:keys [valid? violations]} (sd/verify-distribution dist)]
+        (is valid? (str "consistency mode rejected fabricated ref: " (pr-str violations))))
+      ;; verify-distribution (recomputation mode) also passes — same reason
+      (let [{:keys [valid? violations]}
+            (sd/verify-distribution dist
+              {:policy all-scales-10000-policy
+               :parameter-context reward-param-500})]
+        (is valid? (str "recomputation mode rejected fabricated ref: " (pr-str violations))))
+      ;; The stored evidence-reference is preserved and accessible
+      (is (= fabricated-ref
+             (get-in dist [:distribution/awards 0 :eligibility :evidence-reference]))))))
+
+(deftest verify-distribution-rejects-missing-eligibility-reference
+  (testing "verify-distribution rejects missing evidence-reference when policy requires it"
+    (let [award (-> resolved-reward
+                   (assoc-in [:eligibility :evidence-reference] nil))
+          result (sd/build-slash-distribution
+                  {:gross-amount      100
+                   :policy            all-scales-10000-policy
+                   :parameter-context reward-param-500
+                   :resolved-awards   [award]
+                   :context           {}})]
+      (is (= :invalid (:status result)))
+      (is (some #(= :violation/missing-eligibility-reference (:violation/id %))
+                (:violations result))))))
+
+(deftest one-award-id-one-obligation
+  (testing "each positive award produces exactly one entry in the awards vector"
+    (doseq [[amount rate] [[100 1000] [1000 500] [10000 100]]]
+      (let [params {:source-root "sha256:test" :values {:test.parameter/reward-rate rate}}
+            result (sd/build-slash-distribution
+                    {:gross-amount      amount
+                     :policy            all-scales-10000-policy
+                     :parameter-context params
+                     :resolved-awards   [resolved-reward]
+                     :context           {}})]
+        (is (= :valid (:status result)))
+        (let [awards (:distribution/awards (:distribution result))]
+          ;; exactly one award (or zero if award-amount = 0)
+          (is (<= (count awards) 1))
+          (when (pos? (count awards))
+            (is (= :test.award/reward (:award/id (first awards))))
+            (is (pos? (:award/amount (first awards))))))))))

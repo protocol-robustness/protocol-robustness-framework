@@ -48,7 +48,7 @@
     "benchmark/assertions/canonical-integrity.json"
     "benchmark/assertions/forensic-claims-status.json"
     "manifest/verdict-policy.json"
-    paths/artifacts-suffix
+    paths/artifacts-registry
     paths/artifacts-validation
     paths/run-package-index
     paths/completion paths/run-state paths/run-lock})
@@ -249,7 +249,7 @@
   (let [root (:run/root context)
         finalization-file (io/file (str root) "benchmark/finalization.json")
         package-index-file (io/file (str root) paths/run-package-index)
-        registry (io/file (str root) paths/artifacts-suffix)
+        registry (io/file (str root) paths/artifacts-registry)
         validation (io/file (str root) paths/artifacts-validation)
         required-files [finalization-file package-index-file registry validation]]
     (when-let [missing (first (remove #(.isFile %) required-files))]
@@ -272,7 +272,7 @@
         :run_package_index_sha256 (sha-ref package-index-file)
         :run_package_index_bytes (.length package-index-file)
         :input_set_root (get finalization "input_set_root")
-        :artifact_registry_ref paths/artifacts-suffix
+        :artifact_registry_ref paths/artifacts-registry
         :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))
         :registry_validation_ref paths/artifacts-validation
         :registry_validation_sha256 (str "sha256:" (lifecycle/sha256-file validation))}))))

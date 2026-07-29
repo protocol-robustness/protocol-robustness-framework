@@ -644,7 +644,7 @@
           (assoc-in [:pending-settlements workflow-id] t/empty-pending-settlement))
       world)))
 
-(declare archive-pending-on-escalation)
+(declare archive-current-pending-settlement)
 
 (defn apply-resolution-transition
   "Core resolution state transition once authorization is confirmed.
@@ -665,7 +665,7 @@
 
       :else
       (let [world          (if (:exists (t/get-pending world workflow-id))
-                              (archive-pending-on-escalation world workflow-id)
+                              (archive-current-pending-settlement world workflow-id)
                               world)
             world          (clear-pending-settlement world workflow-id)
             world          (lc/accrue-yield world workflow-id)
@@ -704,11 +704,12 @@
                                        authorization-provenance
                                        (assoc :authorization/provenance authorization-provenance)))]
         (if (or final-round? (not (pos? window-dur)))
-          (t/ok (if is-release
-                  (finalize world''' workflow-id :released
-                            :authorization-provenance authorization-provenance)
-                  (finalize world''' workflow-id :refunded
-                            :authorization-provenance authorization-provenance)))
+          (let [finalized (if is-release
+                            (finalize world''' workflow-id :released
+                                      :authorization-provenance authorization-provenance)
+                            (finalize world''' workflow-id :refunded
+                                      :authorization-provenance authorization-provenance))]
+            (t/ok (lc/cleanup-orphaned-slashes finalized workflow-id)))
           (let [pending (t/make-pending-settlement
                          {:exists          true
                           :is-release      is-release
@@ -820,13 +821,16 @@
                     :workflow-id workflow-id)
 
         ;; Yield readiness guard: block settlement if yield position has
-        ;; unrealized yield but last-accrual-time is behind current block time.
-        ;; This prevents finalizing a settlement while yield state is stale.
+        ;; positive yield but last-accrual-time is set and behind current
+        ;; block time. If last-accrual-time is nil (never accrued), allow
+        ;; settlement — the yield state is empty or not yet initialized.
         (let [owner-id (t/escrow-yield-owner-id workflow-id)
-              pos (get-in world [:yield/positions owner-id])]
+              pos (get-in world [:yield/positions owner-id])
+              last-accrual (:last-accrual-time pos)]
           (and pos
                (pos? (+ (:unrealized-yield pos 0) (:realized-yield pos 0)))
-               (< (or (:last-accrual-time pos) 0) now-ts)))
+               (some? last-accrual)
+               (< last-accrual now-ts)))
         (guard-fail :yield-position-unsettled
                     :workflow-id workflow-id
                     :block-time now-ts
@@ -858,10 +862,12 @@
    in repeated escalation/challenge cycles."
   5)
 
-(defn- archive-pending-on-escalation
+(defn- archive-current-pending-settlement
   "Archive the current pending settlement as superseded and clear active pending.
-   This preserves a fallback execution path for edge-cases where escalation/challenge
-   clears pending near the deadline but no replacement decision is produced in time.
+   Called both during normal resolution submission (when a previous pending
+   settlement exists) and during escalation/challenge.  The archived entry
+   preserves a fallback execution path for edge-cases where the replacement
+   decision is not produced in time.
    Caps retained entries to max-superseded-pending-per-workflow."
   [world workflow-id]
   (let [pending (t/get-pending world workflow-id)]
@@ -954,7 +960,7 @@
                                 (cond-> (pos? bond-amt)
                                   (acct/post-appeal-bond workflow-id caller snap (:token et) bond-amt))
                                 (assoc-in [:challengers workflow-id current-level] caller)
-                                (archive-pending-on-escalation workflow-id)
+                                (archive-current-pending-settlement workflow-id)
                                 (assoc-in [:dispute-levels workflow-id] new-level)
                                 (assoc-in [:escrow-transfers workflow-id :dispute-resolver]
                                           new-resolver)
@@ -1174,7 +1180,7 @@
                world'       (-> world-prepared
                                 (cond-> (pos? bond-amt)
                                   (acct/post-appeal-bond workflow-id caller snap (:token et) bond-amt))
-                                (archive-pending-on-escalation workflow-id)
+                                (archive-current-pending-settlement workflow-id)
                                 (assoc-in [:challengers workflow-id current-level] caller)
                                 (assoc-in [:dispute-levels workflow-id] new-level)
                                 (assoc-in [:escrow-transfers workflow-id :dispute-resolver]

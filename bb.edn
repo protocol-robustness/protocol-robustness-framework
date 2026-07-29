@@ -66,8 +66,13 @@ Example: bb cli scenario list --search yield"
   docs:scenarios {:doc "Regenerate S01–S23 table in docs/scenarios.md from doc-summaries.clj"
                   :task (clojure {:dir "."} "-M:generate-scenario-docs")}
 
-  test {:doc "Run canonical validation gate (all targets via scripts/test.sh)"
-        :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "all")}
+   test {:doc "Run canonical validation gate (all targets via scripts/test.sh)"
+         :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "all")}
+
+   test:concurrent
+   {:doc "Run canonical validation gate with a dedicated artifact dir. Can run alongside bb test, bb backstop, etc."
+    :task (shell "bash" "-c"
+            "PRF_ARTIFACT_DIR=results/test-artifacts-$(date -u +%Y%m%dT%H%M%SZ) ./scripts/test.sh all")}
 
    test:framework:parallel
    {:doc "Run framework unit tests in parallel with noop evidence capture"
@@ -330,8 +335,8 @@ test:quick
      :task (shell "PRF_ARTIFACT_DIR=results/backstop-fast-artifacts" "clojure" "-M:cli/sew" "backstop" "fast")}
 
    backstop:concurrent
-    {:doc "Run backstop with separate artifact directory. Can run alongside other tests."
-     :task (shell "PRF_ARTIFACT_DIR=results/backstop-artifacts" "scripts/with-test-artifact-lock.sh" "bb" "backstop")}
+     {:doc "Run backstop with separate artifact directory. Can run alongside other tests."
+      :task (shell "bash" "-c" "PRF_ARTIFACT_DIR=results/backstop-artifacts bb backstop")}
 
    test:medium
    {:doc "Medium coverage check (~12 min). Adds suites to the quick set."

@@ -492,6 +492,29 @@
     (is (nil? (get-in w [:escrow-transfers 0 :resolution :trace-decision])))
     (is (nil? (get-in w [:escrow-transfers 0 :resolution :decision-evidence-hash])))))
 
+(deftest emit-decision-evidence-returns-hash-on-success
+  (let [info {:decision-id "resolve-0-0"
+              :step 1000
+              :alternatives [:release :refund]
+              :selected :release
+              :reasoning "Resolver released escrow"
+              :caller "0xResolver"
+              :workflow-id 0}
+        result (#'res/emit-decision-evidence! info)]
+    (is (map? result) \"emit-decision-evidence! returns a map on success\")
+    (is (string? (:evidence-hash result)) \"evidence-hash should be a string\")))
+
+(deftest emit-decision-evidence-failure-does-not-halt-resolution
+  (testing \"The try/catch in emit-decision-evidence! catches evidence-chain failures
+            so the resolution can still complete.  Verify by calling emit-decision-evidence!
+            with nil input (which causes build-decision-evidence to throw) and
+            confirming it returns nil without propagating the exception.\"
+  (let [result (try
+                (#'res/emit-decision-evidence! nil)
+                (catch Exception e
+                  {:error (.getMessage e)}))]
+    (is (nil? result) \"emit-decision-evidence! returns nil when build-decision-evidence fails\"))))
+
 ;; ---------------------------------------------------------------------------
 ;; replay: escalate_dispute action
 ;; ---------------------------------------------------------------------------

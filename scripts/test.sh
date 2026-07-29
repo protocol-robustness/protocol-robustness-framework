@@ -42,7 +42,11 @@ FAST_MODE=false
 if [ "$MODE" = "fast" ] || [ "$MODE" = "ci" ]; then
   FAST_MODE=true
 fi
-ARTIFACT_DIR="$(python3 -c "from scripts.evidence.evidence_config import EvidenceConfig; print(EvidenceConfig().artifact_dir)" 2>/dev/null)" || ARTIFACT_DIR="results/test-artifacts"
+if [ -n "${PRF_ARTIFACT_DIR:-}" ]; then
+  ARTIFACT_DIR="$PRF_ARTIFACT_DIR"
+else
+  ARTIFACT_DIR="$(python3 -c "from scripts.evidence.evidence_config import EvidenceConfig; print(EvidenceConfig().artifact_dir)" 2>/dev/null)" || ARTIFACT_DIR="results/test-artifacts"
+fi
 ARTIFACT_FILE="$ARTIFACT_DIR/test-summary.json"
 RUN_MANIFEST_FILE="$ARTIFACT_DIR/test-run.json"
 ARTIFACT_REGISTRY_FILE="$ARTIFACT_DIR/test-artifacts.json"
@@ -814,7 +818,7 @@ case "$MODE" in
     run_yield_scenarios || FAILURES=$((FAILURES + 1))
     ;;
   yield)
-    run_yield || FAILURES=$((FAILURES + 1))
+    run_target yield run_yield || FAILURES=$((FAILURES + 1))
     ;;
   generators)
     run_generators || FAILURES=$((FAILURES + 1))

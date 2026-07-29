@@ -144,22 +144,29 @@
                                        :actual-after (:held/after artifact)}))]
               (recur (assoc state token expected-after) (next remaining) violations'))
             violations))]
-    [{:check/id :held-custody/hash-integrity
-      :status (if (empty? hash-violations) :pass :fail)
-      :details {:violations hash-violations}}
-     {:check/id :held-custody/local-delta
-      :status (if (empty? local-delta-violations) :pass :fail)
-      :details {:violations local-delta-violations}}
-     {:check/id :held-custody/non-negative-after
-      :status (if (empty? negative-after-violations) :pass :fail)
-      :details {:violations negative-after-violations}}
-     {:check/id :held-custody/predecessor-continuity
-      :status (if (empty? predecessor-violations) :pass :fail)
-      :details {:violations predecessor-violations}}
-     {:check/id :held-custody/sequence-replay
-      :status (if (empty? sequence-replay-violations) :pass :fail)
-      :details {:violations sequence-replay-violations
-                :replayed-final-state replay-state}}]))
+    (let [results [{:check/id :held-custody/hash-integrity
+                    :status (if (empty? hash-violations) :pass :fail)
+                    :details {:violations hash-violations}}
+                   {:check/id :held-custody/local-delta
+                    :status (if (empty? local-delta-violations) :pass :fail)
+                    :details {:violations local-delta-violations}}
+                   {:check/id :held-custody/non-negative-after
+                    :status (if (empty? negative-after-violations) :pass :fail)
+                    :details {:violations negative-after-violations}}
+                   {:check/id :held-custody/predecessor-continuity
+                    :status (if (empty? predecessor-violations) :pass :fail)
+                    :details {:violations predecessor-violations}}
+                   {:check/id :held-custody/sequence-replay
+                    :status (if (empty? sequence-replay-violations) :pass :fail)
+                    :details {:violations sequence-replay-violations
+                              :replayed-final-state replay-state}}]
+          failed (filterv #(= :fail (:status %)) results)]
+      (when (seq failed)
+        (throw (ex-info "Held custody closed-form checks failed"
+                 {:type :closed-form-failure
+                  :check-results results
+                  :failed-checks failed})))
+      results)))
 
 (defn replay-held-adjustment-state
   "Replay a held-adjustment ledger into replay-verified materialized custody

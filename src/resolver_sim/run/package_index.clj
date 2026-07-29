@@ -165,7 +165,10 @@
                                    :path index-file
                                    :sha256 actual-hash
                                    :bytes actual-bytes}
-                                  (catch Exception _ {:reason (reason :package/package-index-invalid-json :path path)})))
+                                   (catch Exception ex {:reason (reason :package/package-index-invalid-json
+                                                                          :path path
+                                                                          :exception (.getMessage ex)
+                                                                          :exception-class (str (class ex)))})))
               profile-reasons (when-let [index (:index index-result)]
                                 (case (:run/type index)
                                   :single-scenario
@@ -176,8 +179,16 @@
                                   :benchmark
                                   (when (or (not= "benchmark-completion.v1" (get completion "schema_version"))
                                             (not= "benchmark" (get completion "run_type")))
-                                    [(reason :package/completion-invalid :field :run_type)])))
-              all-reasons (vec (concat reasons (when-let [r (:reason index-result)] [r]) profile-reasons))]
+                                    [(reason :package/completion-invalid :field :run_type)])
+                                  [(reason :package/completion-invalid
+                                           :field :run/type
+                                           :message (str "Unrecognized run type: " (:run/type index)))]))
+              all-reasons (let [base (vec (concat reasons (when-let [r (:reason index-result)] [r]) profile-reasons))]
+                            ;; Defensive: if all validation passed but we have no index,
+                            ;; add a fallback reason rather than returning nil with empty reasons.
+                            (if (and (empty? base) (nil? index-result))
+                              [(reason :package/package-index-unavailable :path path)]
+                              base))]
           {:run-root run-root
            :completion completion
            :completion-report {:valid? (empty? all-reasons) :reasons all-reasons}
@@ -185,10 +196,14 @@
            ;; an index whose completion seal does not describe that profile.
            :package-index (when (empty? all-reasons) index-result)
            :reasons all-reasons})
-        (catch Exception _
+        (catch Exception ex
           {:run-root run-root
-           :completion-report {:valid? false :reasons [(reason :package/completion-invalid)]}
-           :reasons [(reason :package/completion-invalid)]})))))
+           :completion-report {:valid? false :reasons [(reason :package/completion-invalid
+                                                              :exception (.getMessage ex)
+                                                              :exception-class (str (class ex)))]}
+           :reasons [(reason :package/completion-invalid
+                             :exception (.getMessage ex)
+                             :exception-class (str (class ex)))]})))))
 
 (defn read-index [run-root]
   (let [file (io/file run-root paths/run-package-index)]

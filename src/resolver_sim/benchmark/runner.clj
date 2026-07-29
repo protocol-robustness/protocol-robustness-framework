@@ -4,10 +4,12 @@
             [resolver-sim.benchmark.claims :as benchmark-claims]
             [resolver-sim.benchmark.coverage :as benchmark-coverage]
             [resolver-sim.benchmark.execution-identity :as execution-identity]
+            [resolver-sim.benchmark.case-set :as case-set]
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
@@ -262,6 +264,7 @@
             :simulator/scenario-path path
             :execution/id execution-id
             :execution/descriptor descriptor
+            :case/key (case-set/case-key-for-execution ordinal)
             :benchmark/run-index repetition-index
             :benchmark/run-count run-count
             :partial-fill-decisions (->> (get-in final-world [:yield/partial-fill-decisions] {})
@@ -335,10 +338,11 @@
     (let [index-path (or benchmark-index-path
                          (str (io/file scenario-output-dir "benchmark-index.edn")))
           executions (mapv (fn [result]
-                             (let [artifacts (:scenario/artifacts result)]
-                               {:execution/id (:execution/id result)
-                                :execution/descriptor (:execution/descriptor result)
-                                :scenario/id (:scenario/id result)
+                              (let [artifacts (:scenario/artifacts result)]
+                                {:execution/id (:execution/id result)
+                                 :execution/descriptor (:execution/descriptor result)
+                                 :case/key (:case/key result)
+                                 :scenario/id (:scenario/id result)
                                 :scenario/source-path (:simulator/scenario-path result)
                                 :benchmark/run-index (:benchmark/run-index result)
                                 :benchmark/run-count (:benchmark/run-count result)
@@ -476,7 +480,7 @@
                    :results        results
                    :metrics        metrics
                    :claim-results  claim-results
-                   :reproduce      {:command (str "bb benchmark:reproduce " (or manifest-path "benchmarks/packs/sew/escrow-dispute-v1.edn"))}
+                   :reproduce      {:command (str "bb benchmark:reproduce " (or manifest-path hash-ref/escrow-dispute-pack-path))}
                    :invariant-summary {:per-invariant  inv-summary
                                        :total-checks   total-inv-checks
                                        :passed-checks  passed-inv-checks

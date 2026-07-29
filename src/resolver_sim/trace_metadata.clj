@@ -11,7 +11,7 @@
    3. Generic — no SEW action names, SEW state names, or SEW invariant IDs.
    4. Queryable — protocol integrations validate their classifiers against these
       sets to ensure cross-protocol trace compatibility."
-  (:require [resolver-sim.evidence.confidence :as confidence]))
+  )
 
 ;; ===========================================================================
 ;; Actor taxonomy
@@ -150,26 +150,129 @@
 ;; Resolution taxonomy
 ;; ===========================================================================
 
-(def resolution-quality-values
-  "How correct or reliable the resolution outcome was.
-   Legacy :low-confidence and :high-confidence keywords are trace-level descriptors.
-   Use `resolution-quality->confidence` to map into the canonical confidence vocabulary
-   (resolver-sim.evidence.confidence)."
+(def resolution-outcome-values
+  "Outcome assessment for resolution quality.
+   Requires explicit comparison against authoritative expected truth:
+     :correct    — matches authoritative expected result
+     :incorrect  — conflicts with authoritative expected result
+     :contested  — unresolved material disagreement, no authoritative truth
+     :unverified — insufficient facts to determine correctness"
   #{:correct
     :incorrect
     :contested
-    :unverified
-    :low-confidence
+    :unverified})
+
+(def resolution-confidence-legacy-values
+  "Legacy confidence-flavoured resolution descriptors.
+   These are NOT correctness claims.  They describe the trace-level
+   confidence in the resolution process, not whether the outcome was right.
+   Retained for backward compatibility with persisted trace data.
+   New code should use resolution-outcome-values for outcome assessment
+   and the canonical confidence schema (resolver-sim.evidence.confidence)
+   for confidence."
+  #{:low-confidence
     :high-confidence})
 
-(defn resolution-quality->confidence
-  "Map a resolution-quality keyword to the canonical structured confidence record.
+(def resolution-quality-values
+  "Combined resolution quality vocabulary — includes both outcome assessment
+   and legacy confidence descriptors.
+   For outcome assessment use resolution-outcome-values.
+   For confidence, use the canonical confidence schema."
+  (into resolution-outcome-values resolution-confidence-legacy-values))
 
-   :high-confidence → {:level :high  :status :final :scope :unbounded}
-   :low-confidence  → {:level :low   :status :final :scope :unbounded}
-   Other values     → {:level nil    :status :final :scope :unbounded}"
+(defn valid-resolution-quality-for-schema?
+  "Schema-aware resolution quality validation.
+   For schema-version \"three-member-research-certificate.v1\" and later,
+   only resolution-outcome-values are valid for newly produced certificates.
+   Legacy quality values (:low-confidence, :high-confidence) remain valid
+   for verification of older certificates.
+   Returns true when the quality value is acceptable for the given schema."
+  [schema-version quality]
+  (if (= schema-version "three-member-research-certificate.v1")
+    (contains? resolution-outcome-values quality)
+    (contains? resolution-quality-values quality)))
+
+;; ── Resolution-quality classifier ─────────────────────────────────────────
+
+(defn classify-resolution-quality
+  "Classify resolution quality from explicit facts.
+
+   Input map may contain:
+     :authoritative-expected-outcome — the known correct outcome keyword, or nil
+     :actual-outcome                 — the observed outcome keyword
+     :has-unresolved-dissent?        — whether material disagreement persists
+     :verification-facts-complete?   — whether evidence is sufficient for verification
+
+   Precedence:
+     1. When authoritative truth exists and matches actual → :correct
+     2. When authoritative truth exists and conflicts     → :incorrect
+     3. When unresolved material disagreement exists       → :contested
+     4. When verification facts are incomplete             → :unverified
+     5. Default                                            → :unverified
+
+   Returns the quality keyword.
+
+   Throws on contradictory input:
+     - Both matching and conflicting with authoritative truth
+     - :correct claimed without authoritative comparison"
+  [{:keys [authoritative-expected-outcome actual-outcome
+           has-unresolved-dissent? verification-facts-complete?]
+    :as facts}]
+  (let [authoritative? (some? authoritative-expected-outcome)
+        matches? (and authoritative? (= actual-outcome authoritative-expected-outcome))
+        conflicts? (and authoritative? actual-outcome
+                     (not= actual-outcome authoritative-expected-outcome))]
+    (when (and matches? conflicts?)
+      (throw (ex-info "Contradictory classifier input: both matching and conflicting with expected truth"
+                      facts)))
+    (cond
+      (and authoritative? (nil? actual-outcome))
+      (throw (ex-info "Cannot classify: authoritative truth present but no actual outcome"
+                      facts))
+
+      (and authoritative? matches?)
+      :correct
+
+      (and authoritative? conflicts?)
+      :incorrect
+
+      has-unresolved-dissent?
+      :contested
+
+      (not verification-facts-complete?)
+      :unverified
+
+      :else :unverified)))
+
+;; ── Resolution-quality-to-confidence mapping (compatibility) ──────────────
+
+(def ^:private resolution-quality->confidence-map
+  "Maps resolution-outcome keywords to canonical structured confidence records.
+   Legacy confidence-flavoured keywords (:low-confidence, :high-confidence)
+   are not outcome assessments and are NOT included in this map.
+   Use the canonical confidence schema directly for confidence values."
+  {:correct   {:level :high   :status :final      :scope :unbounded}
+   :incorrect {:level :low    :status :final      :scope :unbounded}
+   :contested {:level nil     :status :provisional :scope :unbounded}
+   :unverified{:level nil     :status :provisional :scope :bounded}})
+
+(defn resolution-quality->confidence
+  "Map a resolution-outcome keyword to a canonical structured confidence record.
+   This is a lossy mapping — it infers confidence from outcome assessment.
+
+   :correct   → {:level :high   :status :final      :scope :unbounded}
+   :incorrect → {:level :low    :status :final      :scope :unbounded}
+   :contested → {:level nil     :status :provisional :scope :unbounded}
+   :unverified→ {:level nil     :status :provisional :scope :bounded}
+
+   This function is provided for backward compatibility.
+   New code should use the canonical confidence schema directly.
+
+   NOTE: :high-confidence and :low-confidence are NOT passed through this
+   function — they are confidence descriptors, not outcome assessments.
+   Returns nil for those values."
   [quality]
-  (confidence/normalize-confidence quality))
+  (get resolution-quality->confidence-map quality nil))
 
 (def resolution-finality-values
   "The finality state of the resolution."

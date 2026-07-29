@@ -31,7 +31,10 @@
    per-dimension detail so the result is independently recomputable
    from referenced positions."
   (:require [resolver-sim.hash.canonical :as hc]
-             [resolver-sim.benchmark.review-round :as rr]))
+              [resolver-sim.benchmark.review-round :as rr]
+              [resolver-sim.benchmark.review.position-group :as pg]
+              [resolver-sim.benchmark.review-member-canonical-indices :as ci]
+              [resolver-sim.trace-metadata :as tm]))
 
 (def ^:const schema-version "three-member-research-certificate.v1")
 
@@ -105,19 +108,11 @@
 
 ;; ── Per-dimension consensus with position-groups ─────────────────────────
 
-(def ^:private absent-statuses
-  #{:not-reviewed :insufficient-information :not-applicable})
-
-(defn- member-group
-  "Classify a member into one of the position groups."
-  [status]
-  (cond
-    (nil? status) :absent
-    (contains? absent-statuses status) status
-    :else nil)) ;; non-absent: will be classified by comparison
-
 (defn- group-members
-  "Partition dimension statuses into position groups."
+  "Partition dimension statuses into position groups.
+   Returns {:positions entries :all-assessed assessed
+            :assessed-members [id] :assessed-statuses [keyword]
+            :position-group pg}."
   [positions dimension-key]
   (let [entries (mapv (fn [pos]
                         {:researcher/id (:researcher/id pos)
@@ -128,19 +123,34 @@
     (loop [remaining entries
            assessed []]
       (if (empty? remaining)
-        {:positions entries
-         :all-assessed assessed
-         :absent-members (mapv :researcher/id (filter #(= :absent (member-group (:status %))) entries))
-         :not-reviewed-members (mapv :researcher/id (filter #(= :not-reviewed (:status %)) entries))
-         :insufficient-information-members (mapv :researcher/id (filter #(= :insufficient-information (:status %)) entries))
-         :not-applicable-members (mapv :researcher/id (filter #(= :not-applicable (:status %)) entries))
-         :assessed-members (mapv :researcher/id assessed)
-         :assessed-statuses (mapv :status assessed)}
+        (let [absent (filter #(nil? (:status %)) entries)
+              nr (filter #(= :not-reviewed (:status %)) entries)
+              ii (filter #(= :insufficient-information (:status %)) entries)
+              na (filter #(= :not-applicable (:status %)) entries)]
+          {:positions entries
+           :all-assessed assessed
+           :assessed-members (mapv :researcher/id assessed)
+           :assessed-statuses (mapv :status assessed)
+           :position-group (pg/position-group
+                            :absent (mapv :researcher/id absent)
+                            :not-reviewed (mapv :researcher/id nr)
+                            :insufficient-information (mapv :researcher/id ii)
+                            :not-applicable (mapv :researcher/id na))})
         (let [entry (first remaining)
               status (:status entry)]
-          (if (or (nil? status) (contains? absent-statuses status))
+          (if (or (nil? status) (contains? pg/absent-statuses status))
             (recur (rest remaining) assessed)
             (recur (rest remaining) (conj assessed entry))))))))
+
+(defn- merge-pg
+  "Merge computed consensus values into a position-group, preserving
+   computed :supporting-members, :dissenting-members, and other groups."
+  [result pg-map]
+  (-> (select-keys pg-map
+                   [:supporting-members :qualifying-members :dissenting-members
+                    :absent-members :not-reviewed-members
+                    :insufficient-information-members :not-applicable-members])
+      (merge result)))
 
 (defn per-dimension-consensus
   "Compute consensus for one dimension, with position-group classification.
@@ -155,33 +165,17 @@
             :not-reviewed-members [id...]
             :not-applicable-members [id...]}"
   [positions dimension-key]
-  (let [{:keys [positions entries all-assessed assessed-members
-                absent-members not-reviewed-members
-                insufficient-information-members not-applicable-members
-                assessed-statuses]}
+  (let [{:keys [positions all-assessed assessed-members
+                assessed-statuses position-group]}
         (group-members positions dimension-key)
         n-assessed (count assessed-statuses)]
     (if (< n-assessed 1)
-      {:status :not-evaluable
-       :positions positions
-       :supporting-members []
-       :qualifying-members []
-       :dissenting-members []
-       :absent-members absent-members
-       :insufficient-information-members insufficient-information-members
-       :not-reviewed-members not-reviewed-members
-       :not-applicable-members not-applicable-members}
+      (merge-pg {:status :not-evaluable :positions positions} position-group)
       (let [unique-statuses (set assessed-statuses)]
         (if (= 1 (count unique-statuses))
-          {:status :unanimous
-           :positions positions
-           :supporting-members assessed-members
-           :qualifying-members []
-           :dissenting-members []
-           :absent-members absent-members
-           :insufficient-information-members insufficient-information-members
-           :not-reviewed-members not-reviewed-members
-           :not-applicable-members not-applicable-members}
+          (merge-pg {:status :unanimous :positions positions
+                     :supporting-members assessed-members}
+                    position-group)
           (let [freqs (frequencies assessed-statuses)
                 sorted (sort-by (comp - val) freqs)
                 [majority-status majority-count] (first sorted)
@@ -190,18 +184,14 @@
                                        (filter #(= (:status %) majority-status) all-assessed))
                 minority-members (mapv :researcher/id
                                        (filter #(not= (:status %) majority-status) all-assessed))]
-            {:status (cond
-                       (and (= majority-count 2) (some? minority-status)) :majority-with-dissent
-                       (= majority-count 2) :qualified-majority
-                       :else :contested)
-             :positions positions
-             :supporting-members majority-members
-             :qualifying-members []
-             :dissenting-members minority-members
-             :absent-members absent-members
-             :insufficient-information-members insufficient-information-members
-             :not-reviewed-members not-reviewed-members
-             :not-applicable-members not-applicable-members}))))))
+            (merge-pg {:status (cond
+                                 (and (= majority-count 2) (some? minority-status)) :majority-with-dissent
+                                 (= majority-count 2) :qualified-majority
+                                 :else :contested)
+                       :positions positions
+                       :supporting-members majority-members
+                       :dissenting-members minority-members}
+                      position-group)))))))
 
 ;; ── Theorem/conclusion-level consensus ────────────────────────────────────
 
@@ -239,40 +229,28 @@
             :not-applicable-members [id...]}"
   [item-id kind entries all-researcher-ids]
   (let [assessed (filter #(not (or (nil? (:status %))
-                                   (contains? absent-statuses (:status %))))
+                                   (contains? pg/absent-statuses (:status %))))
                          entries)
         assessed-statuses (mapv :status assessed)
         participant-ids (set (map :researcher/id entries))
         non-participants (remove participant-ids all-researcher-ids)
+        base-pg (pg/position-group
+                 :absent (vec non-participants)
+                 :not-reviewed (mapv :researcher/id
+                                     (filter #(= :not-reviewed (:status %)) entries))
+                 :insufficient-information (mapv :researcher/id
+                                                 (filter #(= :insufficient-information (:status %)) entries))
+                 :not-applicable (mapv :researcher/id
+                                       (filter #(= :not-applicable (:status %)) entries)))
         n-assessed (count assessed-statuses)]
     (if (< n-assessed 1)
-      {:item/id item-id
-       :item/kind kind
-       :status :not-evaluable
-       :entries entries
-       :supporting-members []
-       :qualifying-members []
-       :dissenting-members []
-       :absent-members (vec non-participants)
-       :not-reviewed-members (mapv :researcher/id
-                                   (filter #(= :not-reviewed (:status %)) entries))
-       :insufficient-information-members (mapv :researcher/id
-                                               (filter #(= :insufficient-information (:status %)) entries))
-       :not-applicable-members (mapv :researcher/id
-                                     (filter #(= :not-applicable (:status %)) entries))}
+      (merge base-pg
+             {:item/id item-id :item/kind kind :status :not-evaluable :entries entries})
       (let [unique-statuses (set assessed-statuses)]
         (if (= 1 (count unique-statuses))
-          {:item/id item-id
-           :item/kind kind
-           :status :unanimous
-           :entries entries
-           :supporting-members (mapv :researcher/id assessed)
-           :qualifying-members []
-           :dissenting-members []
-           :absent-members (vec non-participants)
-           :not-reviewed-members []
-           :insufficient-information-members []
-           :not-applicable-members []}
+          (merge base-pg
+                 {:item/id item-id :item/kind kind :status :unanimous :entries entries
+                  :supporting-members (mapv :researcher/id assessed)})
           (let [freqs (frequencies assessed-statuses)
                 sorted (sort-by (comp - val) freqs)
                 [majority-status majority-count] (first sorted)
@@ -281,20 +259,15 @@
                                        (filter #(= (:status %) majority-status) assessed))
                 minority-members (mapv :researcher/id
                                        (filter #(not= (:status %) majority-status) assessed))]
-            {:item/id item-id
-             :item/kind kind
-             :status (cond
-                       (and (= majority-count 2) (some? minority-status)) :majority-with-dissent
-                       (= majority-count 2) :qualified-majority
-                       :else :contested)
-             :entries entries
-             :supporting-members majority-members
-             :qualifying-members []
-             :dissenting-members minority-members
-             :absent-members (vec non-participants)
-             :not-reviewed-members []
-             :insufficient-information-members []
-             :not-applicable-members []}))))))
+            (merge base-pg
+                   {:item/id item-id :item/kind kind
+                    :status (cond
+                              (and (= majority-count 2) (some? minority-status)) :majority-with-dissent
+                              (= majority-count 2) :qualified-majority
+                              :else :contested)
+                    :entries entries
+                    :supporting-members majority-members
+                    :dissenting-members minority-members})))))))
 
 (defn per-theorem-consensus
   "Compute consensus for every theorem targeted across positions."
@@ -322,13 +295,15 @@
 
 (defn- enrich-consensus-with-keys
   "Add integer key vectors to a consensus result when the review round
-   has member keys.  Derives keys from the existing string-ID vectors
-   via the round's membership table.
+   has member keys.  Derives keys from the existing researcher-ID vectors
+   via canonical-indices when available, or the round's membership table.
 
    Returns the consensus map unchanged when the round is not keyed."
-  [consensus round]
+  [consensus round canonical-indices]
   (if (rr/round-uses-member-keys? round)
-    (let [key-fn (fn [id] (rr/member-key-for-researcher round id))]
+    (let [key-fn (if canonical-indices
+                   (fn [id] (ci/review-member-index canonical-indices id))
+                   (fn [id] (rr/member-key-for-researcher round id)))]
       (merge consensus
              (when-let [ids (seq (:supporting-members consensus))]
                {:supporting-member-keys (mapv key-fn ids)})
@@ -394,89 +369,144 @@
 
 ;; ── Certificate builder ───────────────────────────────────────────────────
 
+;; ── Resolution quality derivation ─────────────────────────────────────────
+
+(defn- derive-resolution-quality
+  "Derive resolution quality from certificate execution facts.
+   Uses classify-resolution-quality from core trace-metadata with
+   available evidence: outcome group consistency and execution status.
+
+   Returns a keyword from resolution-outcome-values."
+  [{:keys [execution-status outcome-groups]}]
+  (let [all-same? (= 1 (count outcome-groups))
+        exec-failed? (= :failed execution-status)
+        has-dissent? (some #(= :three-way-divergent %) [execution-status])
+        _ (when (and has-dissent? all-same?)
+            (throw (ex-info "Contradictory: all outcomes same but have dissent" {})))]
+    (tm/classify-resolution-quality
+     {:authoritative-expected-outcome (when all-same? (first (first outcome-groups)))
+      :actual-outcome (first (first outcome-groups))
+      :has-unresolved-dissent? has-dissent?
+      :verification-facts-complete? (not exec-failed?)})))
+
 (defn build-certificate
   "Build a three-member research certificate.
-   Runs pre-certificate-checks before building — throws on invalid input."
-  [{:keys [review-round reports positions force-authorisations disagreements]
+   Runs pre-certificate-checks before building — throws on invalid input.
+
+   For keyed review rounds, :canonical-indices is REQUIRED — the system
+   must have a committed canonical ordering to bind into the certificate.
+   For legacy unkeyed rounds, :canonical-indices is prohibited.
+
+   :canonical-indices — a review-member-canonical-indices.v1 artifact.
+   When supplied (keyed rounds), it is verified against the review round
+   and used for member-key derivation."
+  [{:keys [review-round reports positions force-authorisations disagreements canonical-indices]
     :or {force-authorisations [] disagreements []}}]
   (let [pre-checks (pre-certificate-checks {:review-round review-round
-                                            :reports reports
-                                            :positions positions})]
+                                             :reports reports
+                                             :positions positions})]
     (when-not (:pre-certificate-valid? pre-checks)
       (throw (ex-info "Certificate pre-conditions not met"
                       {:errors (:errors pre-checks)})))
+    (when (and (rr/round-uses-member-keys? review-round) (nil? canonical-indices))
+      (throw (ex-info "Keyed review round requires canonical-indices artifact"
+                      {:review-round/id (:review-round/id review-round)})))
+    (when (and (not (rr/round-uses-member-keys? review-round)) (some? canonical-indices))
+      (throw (ex-info "Canonical-indices supplied for unkeyed legacy round"
+                      {:review-round/id (:review-round/id review-round)})))
+    (when canonical-indices
+      (let [verification (ci/verify-canonical-indices canonical-indices review-round)]
+        (when-not (= :valid (:status verification))
+          (throw (ex-info "Canonical-indices verification failed"
+                          {:errors (:errors verification)
+                           :status (:status verification)})))))
     (let [outcome-groups (group-outcomes reports)
           exec-status (execution-status outcome-groups)
-          rep-type (replication-type reports)
-          model-dims [:model-state :model-transitions :model-authority
+           rep-type (replication-type reports)
+           ci-artifact (or canonical-indices nil)
+           quality (derive-resolution-quality {:execution-status exec-status
+                                               :outcome-groups outcome-groups})
+           model-dims [:model-state :model-transitions :model-authority
                       :model-adversary :model-parameters :model-cases]
           incentive-dims [:incentives-participants :incentives-strategies
                           :incentives-coalitions]
           other-dims [:reproduction :evidence :claims :publication]]
-      {:schema-version schema-version
-       :benchmark/content-root (:benchmark/content-root review-round)
-       :review-round/id (:review-round/id review-round)
-       :review-round/purpose (:review-round/purpose review-round)
-       :execution
-       {:status exec-status
-        :replication-type rep-type
-        :outcome-groups outcome-groups}
-       :model-consensus
-       (reduce (fn [m dim]
-                 (assoc m dim (enrich-consensus-with-keys
-                               (per-dimension-consensus positions dim)
-                               review-round)))
-               {} model-dims)
-       :incentive-consensus
-       (reduce (fn [m dim]
-                 (assoc m dim (enrich-consensus-with-keys
-                               (per-dimension-consensus positions dim)
-                               review-round)))
-               {} incentive-dims)
-       :other-consensus
-       (reduce (fn [m dim]
-                 (assoc m dim (enrich-consensus-with-keys
-                               (per-dimension-consensus positions dim)
-                               review-round)))
-               {} other-dims)
-       :theorem-consensus
-       (if (rr/round-uses-member-keys? review-round)
-         (reduce-kv (fn [m k v]
-                      (assoc m k (enrich-consensus-with-keys v review-round)))
-                    {}
-                    (per-theorem-consensus positions))
-         (per-theorem-consensus positions))
-       :conclusion-consensus
-       (if (rr/round-uses-member-keys? review-round)
-         (reduce-kv (fn [m k v]
-                      (assoc m k (enrich-consensus-with-keys v review-round)))
-                    {}
-                    (per-conclusion-consensus positions))
-         (per-conclusion-consensus positions))
-       :member-positions
-       (mapv (fn [pos]
-               (let [report (some #(when (= (:researcher/id %)
-                                            (:researcher/id pos))
-                                     %)
-                                  reports)]
-                 (when-not report
-                   (throw (ex-info "No matching report found for position"
-                                   {:researcher/id (:researcher/id pos)})))
-                 (cond-> {:researcher/id (:researcher/id pos)
-                          :position/hash (:position/hash pos)
-                          :outcome-hash (:position/outcome-hash pos)
-                          :report-hash (:researcher-run-report/hash report)}
-                   (rr/round-uses-member-keys? review-round)
-                   (assoc :review-member/key
-                          (rr/member-key-for-researcher
-                           review-round (:researcher/id pos))))))
-             positions)
-       :force-authorisations (vec force-authorisations)
-       :unresolved-disagreements (vec disagreements)
-       :certificate/hash nil})))
+      (cond-> {:schema-version schema-version
+               :benchmark/content-root (:benchmark/content-root review-round)
+               :review-round/id (:review-round/id review-round)
+               :review-round/purpose (:review-round/purpose review-round)
+               :execution
+               {:status exec-status
+                :replication-type rep-type
+                :outcome-groups outcome-groups}
+                :resolution/quality quality
+                :resolution/confidence (tm/resolution-quality->confidence quality)
+               :model-consensus
+               (reduce (fn [m dim]
+                         (assoc m dim (enrich-consensus-with-keys
+                                       (per-dimension-consensus positions dim)
+                                       review-round ci-artifact)))
+                       {} model-dims)
+               :incentive-consensus
+               (reduce (fn [m dim]
+                         (assoc m dim (enrich-consensus-with-keys
+                                       (per-dimension-consensus positions dim)
+                                       review-round ci-artifact)))
+                       {} incentive-dims)
+               :other-consensus
+               (reduce (fn [m dim]
+                         (assoc m dim (enrich-consensus-with-keys
+                                       (per-dimension-consensus positions dim)
+                                       review-round ci-artifact)))
+                       {} other-dims)
+               :member-positions
+               (mapv (fn [pos]
+                       (let [report (some #(when (= (:researcher/id %)
+                                                    (:researcher/id pos))
+                                             %)
+                                          reports)]
+                         (when-not report
+                           (throw (ex-info "No matching report found for position"
+                                           {:researcher/id (:researcher/id pos)})))
+                         (cond-> {:researcher/id (:researcher/id pos)
+                                  :position/hash (:position/hash pos)
+                                  :outcome-hash (:position/outcome-hash pos)
+                                  :report-hash (:researcher-run-report/hash report)}
+                           (rr/round-uses-member-keys? review-round)
+                           (assoc :review-member/key
+                                  (if ci-artifact
+                                    (ci/review-member-index ci-artifact (:researcher/id pos))
+                                    (rr/member-key-for-researcher
+                                     review-round (:researcher/id pos)))))))
+                       positions)
+               :force-authorisations (vec force-authorisations)
+               :unresolved-disagreements (vec disagreements)}
+        (rr/round-uses-member-keys? review-round)
+        (assoc :theorem-consensus
+               (reduce-kv (fn [m k v]
+                            (assoc m k (enrich-consensus-with-keys v review-round ci-artifact)))
+                          {}
+                          (per-theorem-consensus positions))
+               :conclusion-consensus
+               (reduce-kv (fn [m k v]
+                            (assoc m k (enrich-consensus-with-keys v review-round ci-artifact)))
+                          {}
+                          (per-conclusion-consensus positions)))
+        (not (rr/round-uses-member-keys? review-round))
+        (assoc :theorem-consensus (per-theorem-consensus positions)
+               :conclusion-consensus (per-conclusion-consensus positions))
+        ci-artifact
+        (assoc :review-member-canonical-indices/hash
+               (:review-member-canonical-indices/hash ci-artifact))
+        :always
+        (assoc :certificate/hash nil)))))
 
 (defn finalise-certificate!
-  "Compute the certificate hash and return the finalised certificate."
+  "Compute the certificate hash and return the finalised certificate.
+   The hash projection excludes :certificate/hash only.
+   When :review-member-canonical-indices/hash is present, it is included
+   in the projection so that a change in canonical ordering changes the
+   certificate hash deterministically."
   [certificate]
   (let [hash-input (dissoc certificate :certificate/hash)
         c-hash (hc/domain-hash :three-member-certificate hash-input)]
@@ -523,10 +553,33 @@
        (when-not (contains? certificate f)
          (swap! errors conj (str "missing " (name f)))))
      (when (some? (:certificate/hash certificate))
-      (let [hash-input (dissoc certificate :certificate/hash)
-            expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
-        (when-not (= expected (:certificate/hash certificate))
-          (swap! errors conj (str "certificate/hash mismatch: declared "
-                                  (:certificate/hash certificate)
-                                  " computed " expected)))))
-    {:valid? (empty? @errors) :errors @errors}))
+       (let [hash-input (dissoc certificate :certificate/hash)
+             expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
+         (when-not (= expected (:certificate/hash certificate))
+           (swap! errors conj (str "certificate/hash mismatch: declared "
+                                   (:certificate/hash certificate)
+                                   " computed " expected)))))
+      ;; Resolution quality consistency
+      (let [quality (:resolution/quality certificate)]
+        (when (and quality (not (tm/valid-resolution-quality-for-schema?
+                                (:schema-version certificate) quality)))
+          (swap! errors conj (str "invalid :resolution/quality: " quality
+                                  " for schema " (:schema-version certificate)))))
+      (when (= :correct (:resolution/quality certificate))
+        (let [exec (:execution certificate)]
+          (when (and exec (= :failed (:status exec)))
+            (swap! errors conj ":resolution/quality is :correct but execution status is :failed — inconsistent"))))
+      (when (= :contested (:resolution/quality certificate))
+        (let [exec (:execution certificate)]
+          (when (and exec (= 1 (count (:outcome-groups exec))))
+            (swap! errors conj ":resolution/quality is :contested but all outcome groups are identical — inconsistent"))))
+      ;; Resolution confidence consistency with quality
+      (let [quality (:resolution/quality certificate)
+            confidence (:resolution/confidence certificate)]
+        (when (and quality confidence)
+          (let [expected (tm/resolution-quality->confidence quality)]
+            (when (and expected (not= expected confidence))
+              (swap! errors conj (str ":resolution/confidence " confidence
+                                      " does not match derived confidence " expected
+                                      " for quality " quality))))))
+     {:valid? (empty? @errors) :errors @errors}))

@@ -157,6 +157,92 @@
 ;; 3. Invariant mapping validity
 ;; ===========================================================================
 
+;; ===========================================================================
+;; 5. Resolution-quality->confidence mapping
+;; ===========================================================================
+
+(def ^:private expected-quality->confidence
+  "Only resolution-outcome-values have confidence mappings.
+   Legacy confidence values (:high-confidence, :low-confidence) return nil."
+  {:correct   {:level :high   :status :final      :scope :unbounded}
+   :incorrect {:level :low    :status :final      :scope :unbounded}
+   :contested {:level nil     :status :provisional :scope :unbounded}
+   :unverified{:level nil     :status :provisional :scope :bounded}})
+
+(deftest resolution-quality->confidence-maps-outcome-values
+  (doseq [q core/resolution-outcome-values]
+    (let [expected (get expected-quality->confidence q)
+          actual (core/resolution-quality->confidence q)]
+      (is (= expected actual)
+          (str "resolution-quality->confidence " q " — expected " expected " got " actual)))))
+
+(deftest resolution-quality->confidence-returns-nil-for-confidence-values
+  (doseq [q core/resolution-confidence-legacy-values]
+    (is (nil? (core/resolution-quality->confidence q))
+        (str "resolution-quality->confidence " q " must return nil — it is a confidence descriptor, not an outcome assessment"))))
+
+(deftest resolution-quality->confidence-unknown-value
+  (is (nil? (core/resolution-quality->confidence :unknown-quality))
+      "unrecognized quality value must return nil"))
+
+(deftest resolution-quality->confidence-covers-all-outcome-values
+  (is (= (set (keys expected-quality->confidence)) core/resolution-outcome-values)
+      "Every resolution-outcome-value must have a mapping entry"))
+
+;; ── Classifier tests ──────────────────────────────────────────────────────
+
+(deftest classify-resolution-quality-correct-on-match
+  (is (= :correct
+         (core/classify-resolution-quality
+          {:authoritative-expected-outcome :released
+           :actual-outcome :released
+           :has-unresolved-dissent? false
+           :verification-facts-complete? true}))
+      "authoritative match must produce :correct"))
+
+(deftest classify-resolution-quality-incorrect-on-mismatch
+  (is (= :incorrect
+         (core/classify-resolution-quality
+          {:authoritative-expected-outcome :released
+           :actual-outcome :refunded
+           :has-unresolved-dissent? false
+           :verification-facts-complete? true}))
+      "authoritative mismatch must produce :incorrect"))
+
+(deftest classify-resolution-quality-contested-on-dissent
+  (is (= :contested
+         (core/classify-resolution-quality
+          {:authoritative-expected-outcome nil
+           :actual-outcome :released
+           :has-unresolved-dissent? true
+           :verification-facts-complete? true}))
+      "unresolved dissent without authoritative truth must produce :contested"))
+
+(deftest classify-resolution-quality-unverified-without-facts
+  (is (= :unverified
+         (core/classify-resolution-quality
+          {:authoritative-expected-outcome nil
+           :actual-outcome nil
+           :has-unresolved-dissent? false
+           :verification-facts-complete? false}))
+      "insufficient facts must produce :unverified"))
+
+(deftest classify-resolution-quality-no-implicit-correctness
+  (is (not= :correct
+            (core/classify-resolution-quality
+             {:authoritative-expected-outcome nil
+              :actual-outcome :released
+              :has-unresolved-dissent? false
+              :verification-facts-complete? true}))
+      "release alone must not imply :correct without authoritative truth"))
+
+(deftest classify-resolution-quality-requires-actual-outcome-with-authoritative
+  (is (thrown? Exception
+               (core/classify-resolution-quality
+                {:authoritative-expected-outcome :released
+                 :actual-outcome nil}))
+      "authoritative truth without actual outcome must be rejected"))
+
 (deftest invariant-category-values-are-valid
   (is (every? core/invariant-category-types (vals sew-meta/invariant-categories))
       "Every value in sew-meta/invariant-categories must be in core/invariant-category-types"))

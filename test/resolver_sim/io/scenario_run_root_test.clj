@@ -8,9 +8,10 @@
             [clojure.java.shell :as shell]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.commands.scenario-run :as scenario-command]))
+            [resolver-sim.commands.scenario-run :as scenario-command]
+            [resolver-sim.hash.reference :as hash-ref]))
 
-(def ^:private legacy-roots ["results/runs" "results/test-artifacts" "results/evidence" "prf-runs" "prf-artifacts" "target/run"])
+(def ^:private legacy-roots [hash-ref/results-runs-dir hash-ref/test-artifacts-dir "results/evidence" "prf-runs" "prf-artifacts" "target/run"])
 (def ^:private settlement-scenario "scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn")
 (def ^:private pro-rata-scenario "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn")
 (def ^:private settlement-slug "S-DR-084-evidence-after-settlement-rejected")
@@ -34,7 +35,7 @@
   (shell/sh "bb" "run:scenario" scenario "-a" "--run-root" (.getCanonicalPath (io/file run-root))))
 
 (defn- generated-run-roots [slug]
-  (let [runs-dir (io/file "results/runs")
+  (let [runs-dir (io/file hash-ref/results-runs-dir)
         prefix (str slug "-")]
     (if (.exists runs-dir)
       (->> (.listFiles runs-dir)

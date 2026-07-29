@@ -1201,3 +1201,96 @@
         r (inv/fraud-slash-executions-accounted? world)]
     (is (false? (:holds? r)))
     (is (= resolver (-> r :violations first :resolver)))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; Boundaries: test environment and add-held
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest empty-world-has-expected-structure
+  (testing "empty-world produces a valid initial Sew world state"
+    (let [w (t/empty-world 1000)]
+      (is (map? w))
+      (is (= {} (:escrow-transfers w)))
+      (is (= {} (:resolver-stakes w)))
+      (is (= {:insurance 0 :protocol 0 :burned 0} (:bond-distribution w)))
+      (is (= nil (:reentrancy-guard w))))
+    (let [w (t/empty-world)]
+      (is (map? w))
+      (is (nil? (:current-block w))))))
+
+(deftest empty-world-supports-held-operations
+  (testing "add-held on an empty world produces correct initial state"
+    (let [w (ac/add-held (t/empty-world 1000) usdc 100
+              {:action "test" :reason :escrow-created
+               :extra {:held/workflow-id 0 :held/actor alice}})
+          idx (:held-ledger/index w)]
+      (is (= 100 (get-in w [:total-held usdc])))
+      (is (= {usdc 100} (:by-token idx)))
+      (is (= 1 (count (:held-adjustments w))))
+      (is (string? (get-in w [:held-artifacts "held-adjustment-0" :artifact/hash]))))))
+
+(deftest add-held-zero-amount
+  (testing "add-held with zero amount is valid"
+    (let [w (ac/add-held (t/empty-world 1000) usdc 0
+              {:action "test" :reason :escrow-created
+               :extra {:held/workflow-id 0 :held/actor alice}})]
+      (is (= 0 (get-in w [:total-held usdc]))))))
+
+(deftest add-held-repeated-calls-sum
+  (testing "multiple add-held calls accumulate correctly"
+    (let [w0 (t/empty-world 1000)
+          w1 (ac/add-held w0 usdc 50 {:action "test-1" :reason :escrow-created
+                                       :extra {:held/workflow-id 0 :held/actor alice}})
+          w2 (ac/add-held w1 usdc 30 {:action "test-2" :reason :appeal-bond-posted
+                                       :extra {:held/workflow-id 0 :held/actor alice}})
+          w3 (ac/add-held w2 usdc 20 {:action "test-3" :reason :escrow-created
+                                       :extra {:held/workflow-id 0 :held/actor alice}})]
+      (is (= 100 (get-in w3 [:total-held usdc])))
+      (is (= 3 (count (:held-adjustments w3)))))))
+
+(deftest add-held-large-amount
+  (testing "add-held with very large amount works"
+    (let [large (long 1e15)
+          w (ac/add-held (t/empty-world 1000) usdc large
+              {:action "test" :reason :escrow-created
+               :extra {:held/workflow-id 0 :held/actor alice}})]
+      (is (= large (get-in w [:total-held usdc]))))))
+
+(deftest add-held-multiple-tokens
+  (testing "add-held tracks multiple token types independently"
+    (let [w0 (t/empty-world 1000)
+          w1 (ac/add-held w0 usdc 100 {:action "usdc-test" :reason :escrow-created
+                                        :extra {:held/workflow-id 0 :held/actor alice}})
+          w2 (ac/add-held w1 :0xETH 50 {:action "eth-test" :reason :escrow-created
+                                         :extra {:held/workflow-id 0 :held/actor alice}})
+          w3 (ac/add-held w2 usdc 25 {:action "usdc-extra" :reason :appeal-bond-posted
+                                       :extra {:held/workflow-id 0 :held/actor alice}})]
+      (is (= 125 (get-in w3 [:total-held usdc])))
+      (is (= 50 (get-in w3 [:total-held :0xETH])))
+      (is (= 3 (count (:held-adjustments w3)))))))
+
+(deftest add-held-regular-reason-no-auth-required
+  (testing "regular (non-exceptional) reasons do not require authorization provenance"
+    (let [w (ac/add-held (t/empty-world 1000) usdc 100
+              {:action "test" :reason :escrow-created
+               :extra {:held/workflow-id 0 :held/actor alice}})]
+      (is (= 100 (get-in w [:total-held usdc]))))))
+
+(deftest add-held-exceptional-reason-requires-auth
+  (testing "exceptional reasons require authorization provenance"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"requires authorization provenance"
+                          (ac/add-held (t/empty-world 1000) usdc 100
+                            {:action "governance-correction"
+                             :reason :governance-authorised-correction
+                             :extra {:held/workflow-id 0 :held/actor alice}})))))
+
+(deftest sub-held-consumes-held-balance
+  (testing "sub-held after add-held produces correct net state"
+    (let [w0 (t/empty-world 1000)
+          w1 (ac/add-held w0 usdc 100 {:action "add" :reason :escrow-created
+                                        :extra {:held/workflow-id 0 :held/actor alice}})
+          w2 (ac/sub-held w1 usdc 40 {:action "sub" :reason :escrow-created
+                                       :extra {:held/workflow-id 0 :held/actor alice}})]
+      (is (= 60 (get-in w2 [:total-held usdc])))
+      (is (= 2 (count (:held-adjustments w2)))))))

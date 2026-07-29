@@ -6,7 +6,8 @@
   (:require [clojure.java.io :as io]
             [clojure.data.json :as json]
             [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.vcs :as vcs]))
+            [resolver-sim.vcs :as vcs]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── Check helpers ───────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@
 (defn check-jar-metadata
   "Verify META-INF/prf-runner.edn is readable with expected fields."
   []
-  (if-let [meta (try (rp/edn-read "resource:META-INF/prf-runner.edn")
+  (if-let [meta (try (rp/edn-read (str hash-ref/resource-prefix hash-ref/prf-runner-edn-path))
                      (catch Exception _ nil))]
     (let [variant (:variant meta)
           version (:version meta)
@@ -49,12 +50,12 @@
 (defn check-embedded-resources
   "Verify all built-in resource: URIs resolve."
   []
-  (let [paths ["resource:benchmarks/registry.edn"
-               "resource:data/concepts/registry.edn"
-               "resource:data/fixtures/suites/manifest.edn"
-               "resource:config/evidence.json"
+   (let [paths [hash-ref/benchmark-registry-path
+                (str hash-ref/resource-prefix hash-ref/concept-registry-path)
+                (str hash-ref/resource-prefix hash-ref/fixture-suite-manifest-path)
+                (str hash-ref/resource-prefix hash-ref/evidence-config-path)
                "resource:scenarios/edn/S01_baseline-happy-path.edn"
-               "resource:suites/reference-validation-v1/manifest.edn"]
+               hash-ref/reference-validation-suite-manifest]
         results (mapv (fn [p] {:path p :ok? (resource-exists? p)}) paths)
         missing (filterv #(not (:ok? %)) results)]
     (if (seq missing)
@@ -143,25 +144,25 @@
 (def portability-checks
   "Resource paths that must load from classpath for portable operation.
    Each entry is {:path <path> :label <human-readable>}."
-  [{:path "resource:benchmarks/registry.edn"
+  [{:path hash-ref/benchmark-registry-path
     :label "Benchmark pack registry"}
-   {:path "resource:data/concepts/registry.edn"
+   {:path (str hash-ref/resource-prefix hash-ref/concept-registry-path)
     :label "Concept registry"}
-   {:path "resource:data/fixtures/suites/manifest.edn"
+   {:path (str hash-ref/resource-prefix hash-ref/fixture-suite-manifest-path)
     :label "Fixture suite manifest"}
    {:path "resource:data/fixtures/suites/equilibrium-validation.edn"
     :label "Equilibrium validation suite"}
    {:path "resource:data/fixtures/suites/cancellation-equilibrium-validation.edn"
     :label "Cancellation equilibrium validation suite"}
-   {:path "resource:benchmarks/scoring/robustness-dimensions-v0.edn"
+   {:path hash-ref/scoring-robustness-dimensions-path
     :label "Scoring rule: robustness dimensions"}
-   {:path "resource:benchmarks/packs/sew/registry.edn"
+   {:path (str hash-ref/resource-prefix hash-ref/sew-pack-registry-path)
     :label "Sew benchmark pack registry"}
-   {:path "resource:config/evidence.json"
+   {:path (str hash-ref/resource-prefix hash-ref/evidence-config-path)
     :label "Evidence config"}
    {:path "resource:scenarios/edn/S01_baseline-happy-path.edn"
     :label "Executable scenario"}
-   {:path "resource:suites/reference-validation-v1/manifest.edn"
+   {:path hash-ref/reference-validation-suite-manifest
     :label "Reference validation suite"}
    {:path "resource:data/concepts/use-case/ecommerce.edn"
     :label "Concept definition file"}])
@@ -188,7 +189,7 @@
         results (mapv (fn [{:keys [path label]}]
                         (let [exists? (rp/path-exists? path)
                               source (if exists?
-                                       (if (.exists (java.io.File. (subs path (count "resource:"))))
+                                       (if (.exists (java.io.File. (subs path (count hash-ref/resource-prefix))))
                                          :filesystem-fallback
                                          :classpath)
                                        :not-found)]

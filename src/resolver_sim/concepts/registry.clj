@@ -9,11 +9,12 @@
    No protocol execution changes, no scenario generation."
   (:require [clojure.set :as set]
             [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.logging :as log]))
+            [resolver-sim.logging :as log]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── Registry loading ─────────────────────────────────────────────────────────
 
-(def ^:private concept-registry-path "resource:data/concepts/registry.edn")
+(def ^:private concept-registry-path (str hash-ref/resource-prefix hash-ref/concept-registry-path))
 
 (def required-concept-keys
   #{:concept/id :concept/name :concept/summary
@@ -87,7 +88,7 @@
   (let [rel-path (:concept/file concept-entry)]
     (if (.exists (java.io.File. rel-path))
       rel-path
-      (let [resource-path (str "resource:" rel-path)]
+      (let [resource-path (str hash-ref/resource-prefix rel-path)]
         (if (rp/path-exists? resource-path)
           resource-path
           (throw (ex-info (str "Concept file not found: " rel-path)

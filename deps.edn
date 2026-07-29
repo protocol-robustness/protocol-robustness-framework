@@ -33,130 +33,141 @@
    :with-sew
    {:extra-paths ["protocols_src" "protocols_src/test"]}
 
-;; Terminal-first REPL.
+   ;; flow-storm
+;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
+;;                :extra-deps {com.github.flow-storm/clojure {:mvn/version "1.13.0-alpha6"}
+;;                             com.github.flow-storm/flow-storm-dbg {:mvn/version "4.7.0"}}}
+
+   ;; Optional plugins for flow-storm
+;;   :fs-web-plugin {:extra-deps {com.github.flow-storm/flow-storm-web-plugin {:mvn/version "1.0.0-beta"}}
+;;                   :jvm-opts ["-Dclojure.storm.instrumentOnlyPrefixes.webPlugin=org.httpkit.server,ring.adapter.jetty,next.jdbc.result-set"
+;;                              "-Dflowstorm.plugins.namespaces.webPlugin=flow-storm.plugins.web.all"]}
+
+
+   ;; Terminal-first REPL.
    ;; Best for up-arrow history, ctrl-r, multiline input, colours, completion.
-  :dev/rebel
-  {:extra-deps
-   {com.bhauman/rebel-readline {:mvn/version "0.1.4"}}
-   :main-opts
-   ["-m" "rebel-readline.main"]}
+   :dev/rebel
+   {:extra-deps
+    {com.bhauman/rebel-readline {:mvn/version "0.1.4"}}
+    :main-opts
+    ["-m" "rebel-readline.main"]}
 
-  :dev/full
-  {:extra-paths ["dev" "test" "notebooks"]
-   :extra-deps {nrepl/nrepl             {:mvn/version "1.3.1"}
-                cider/cider-nrepl       {:mvn/version "0.57.0"}
-                djblue/portal            {:mvn/version "0.59.1"}
-                clj-kondo/clj-kondo      {:mvn/version "2026.04.15"}
-                org.clojure/tools.namespace {:mvn/version "1.5.0"}
-                mvxcvi/puget                {:mvn/version "1.3.4"}
-                fipp/fipp                   {:mvn/version "0.6.27"}
-                org.clojure/tools.trace     {:mvn/version "0.7.11"}
-                org.clojure/data.json       {:mvn/version "2.5.1"}}
-   :main-opts ["-m" "nrepl.cmdline" "--bind" "localhost" "--port" "7888" "--middleware" "[cider.nrepl/cider-middleware]"]}
+   :dev/full
+   {:extra-paths ["dev" "test" "notebooks"]
+    :extra-deps {nrepl/nrepl             {:mvn/version "1.3.1"}
+                 cider/cider-nrepl       {:mvn/version "0.57.0"}
+                 djblue/portal            {:mvn/version "0.59.1"}
+                 clj-kondo/clj-kondo      {:mvn/version "2026.04.15"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/tools.trace     {:mvn/version "0.7.11"}
+                 org.clojure/data.json       {:mvn/version "2.5.1"}}
+    :main-opts ["-m" "nrepl.cmdline" "--bind" "localhost" "--port" "7888" "--middleware" "[cider.nrepl/cider-middleware]"]}
 
-  ;; Classpath-only dev environment for smoke checks and one-off evals.
-  ;; Usage: clojure -M:dev/env -e "(require 'user)"
-  :dev/env
-  {:extra-paths ["dev" "test"]
-   :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
-                cider/cider-nrepl           {:mvn/version "0.57.0"}
-                djblue/portal               {:mvn/version "0.59.1"}
-                org.clojure/tools.namespace {:mvn/version "1.5.0"}
-                mvxcvi/puget                {:mvn/version "1.3.4"}
-                fipp/fipp                   {:mvn/version "0.6.27"}
-                org.clojure/data.json       {:mvn/version "2.5.1"}}}
+   ;; Classpath-only dev environment for smoke checks and one-off evals.
+   ;; Usage: clojure -M:dev/env -e "(require 'user)"
+   :dev/env
+   {:extra-paths ["dev" "test"]
+    :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
+                 cider/cider-nrepl           {:mvn/version "0.57.0"}
+                 djblue/portal               {:mvn/version "0.59.1"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/data.json       {:mvn/version "2.5.1"}}}
 
-;; Project nREPL starting point for editor/agent use.
-  ;; Uses port 0 to avoid stale-port collisions; inspect .nrepl-port or use
-  ;; clj-nrepl-eval --discover-ports after startup.
-  ;; Usage: clojure -M:repl/nrepl
-  :repl/nrepl
-  {:extra-paths ["dev" "test"]
-   :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
-                cider/cider-nrepl           {:mvn/version "0.57.0"}
-                djblue/portal               {:mvn/version "0.59.1"}
-                org.clojure/tools.namespace {:mvn/version "1.5.0"}
-                mvxcvi/puget                {:mvn/version "1.3.4"}
-                fipp/fipp                   {:mvn/version "0.6.27"}
-                org.clojure/data.json       {:mvn/version "2.5.1"}}
-   :main-opts ["-m" "nrepl.cmdline"
-               "--bind" "localhost"
-               "--port" "7888"
-               "--middleware" "[cider.nrepl/cider-middleware]"]}
+   ;; Project nREPL starting point for editor/agent use.
+   ;; Uses port 0 to avoid stale-port collisions; inspect .nrepl-port or use
+   ;; clj-nrepl-eval --discover-ports after startup.
+   ;; Usage: clojure -M:repl/nrepl
+   :repl/nrepl
+   {:extra-paths ["dev" "test"]
+    :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
+                 cider/cider-nrepl           {:mvn/version "0.57.0"}
+                 djblue/portal               {:mvn/version "0.59.1"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/data.json       {:mvn/version "2.5.1"}}
+    :main-opts ["-m" "nrepl.cmdline"
+                "--bind" "localhost"
+                "--port" "7888"
+                "--middleware" "[cider.nrepl/cider-middleware]"]}
 
-  ;; Fully loaded terminal REPL.
-  :repl/terminal
-  {:extra-paths ["dev" "test" "notebooks"]
-   :extra-deps
-   {org.clojure/tools.namespace {:mvn/version "1.5.0"}
-    djblue/portal               {:mvn/version "0.59.1"}
-    mvxcvi/puget                {:mvn/version "1.3.4"}
-    fipp/fipp                   {:mvn/version "0.6.27"}
-    org.clojure/tools.trace     {:mvn/version "0.7.11"}
-    org.clojure/data.json       {:mvn/version "2.5.1"}
-    com.bhauman/rebel-readline  {:mvn/version "0.1.4"}}
-   :main-opts
-   ["-m" "rebel-readline.main"]}
+   ;; Fully loaded terminal REPL.
+   :repl/terminal
+   {:extra-paths ["dev" "test" "notebooks"]
+    :extra-deps
+    {org.clojure/tools.namespace {:mvn/version "1.5.0"}
+     djblue/portal               {:mvn/version "0.59.1"}
+     mvxcvi/puget                {:mvn/version "1.3.4"}
+     fipp/fipp                   {:mvn/version "0.6.27"}
+     org.clojure/tools.trace     {:mvn/version "0.7.11"}
+     org.clojure/data.json       {:mvn/version "2.5.1"}
+     com.bhauman/rebel-readline  {:mvn/version "0.1.4"}}
+    :main-opts
+    ["-m" "rebel-readline.main"]}
 
-  :monitoring
-  {:extra-deps {ring/ring-core {:mvn/version "1.12.2"}}}
+   :monitoring
+   {:extra-deps {ring/ring-core {:mvn/version "1.12.2"}}}
 
    :build
    {:extra-paths ["scripts"]
     :extra-deps {io.github.clojure/tools.build {:git/tag "v0.10.7"
-                                                :git/sha "573711e"}}
+                                                  :git/sha "573711e"}}
     :ns-default build}
 
-  :lint
-  {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
-   :main-opts ["-m" "clj-kondo.main"
+   :lint
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
+    :main-opts ["-m" "clj-kondo.main"
                 "--lint" "src:notebooks:test:dev"
                 "--fail-level" "error"]}
 
-  :lint/core
-  {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
-   :main-opts ["-m" "clj-kondo.main"
+   :lint/core
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
+    :main-opts ["-m" "clj-kondo.main"
                 "--lint" "src:test"
                 "--fail-level" "error"]}
 
-  :regenerate-goldens
-  {:extra-paths ["scripts"]
-   :main-opts ["-m" "scripts.scenarios.regenerate-goldens"]}
+   :regenerate-goldens
+   {:extra-paths ["scripts"]
+    :main-opts ["-m" "scripts.scenarios.regenerate-goldens"]}
 
-  :sync-trace-fixtures
-  {:extra-paths ["scripts"]
-   :main-opts ["-m" "scripts.scenarios.sync-invariant-trace-fixtures"]}
+   :sync-trace-fixtures
+   {:extra-paths ["scripts"]
+    :main-opts ["-m" "scripts.scenarios.sync-invariant-trace-fixtures"]}
 
-  :generate-missing-traces
-  {:extra-paths ["scripts"]
-   :main-opts ["-m" "scripts.scenarios.generate-missing-traces"]}
+   :generate-missing-traces
+   {:extra-paths ["scripts"]
+    :main-opts ["-m" "scripts.scenarios.generate-missing-traces"]}
 
-  :generate-scenario-docs
-  {:extra-paths ["scripts"]
-   :main-opts ["-m" "scripts.generate-scenario-index-docs"]}
+   :generate-scenario-docs
+   {:extra-paths ["scripts"]
+    :main-opts ["-m" "scripts.generate-scenario-index-docs"]}
 
-  :export-s62-traces
-  {:extra-paths ["scripts"]
-   :main-opts ["-m" "scripts.export-s62-traces"]}
+   :export-s62-traces
+   {:extra-paths ["scripts"]
+    :main-opts ["-m" "scripts.export-s62-traces"]}
 
-  :eastwood
-  {:extra-deps {jonase/eastwood {:mvn/version "1.4.3"}}
-   :main-opts ["-m" "eastwood.lint"
-               "{:source-paths [\"src\" \"notebooks\" \"test\"]}"]}
+   :eastwood
+   {:extra-deps {jonase/eastwood {:mvn/version "1.4.3"}}
+    :main-opts ["-m" "eastwood.lint"
+                "{:source-paths [\"src\" \"notebooks\" \"test\"]}"]}
 
-  :ci
-  {:extra-paths ["test"]
-   :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}}
+   :ci
+   {:extra-paths ["test"]
+    :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}}
 
-  :fmt
-  {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
-   :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
-   :main-opts ["-m" "cljfmt.main" "fix" "src" "test"]}
+   :fmt
+   {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
+    :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
+    :main-opts ["-m" "cljfmt.main" "fix" "src" "test"]}
 
-  :fmt/check
-  {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
-   :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
-   :main-opts ["-m" "cljfmt.main" "check" "src" "test"]}
+   :fmt/check
+   {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
+    :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
+    :main-opts ["-m" "cljfmt.main" "check" "src" "test"]}
 
    :run
    {:main-opts ["-m" "resolver-sim.core"]}
@@ -168,45 +179,45 @@
    {:main-opts ["-m" "resolver-sim.cli.main"]
     :extra-paths ["protocols_src" "protocols_src/test"]}
 
-  :diff-traces
-  {:main-opts ["-m" "resolver-sim.io.diff-runner"]}
+   :diff-traces
+   {:main-opts ["-m" "resolver-sim.io.diff-runner"]}
 
-  :trace-export
-  {:extra-paths ["protocols_src"]
-   :main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
+   :trace-export
+   {:extra-paths ["protocols_src"]
+    :main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
 
-  :reference-validation
-  {:extra-paths ["protocols_src" "protocols_src/test"]
-   :main-opts ["-m" "resolver-sim.sim.reference-validation"]}
+   :reference-validation
+   {:extra-paths ["protocols_src" "protocols_src/test"]
+    :main-opts ["-m" "resolver-sim.sim.reference-validation"]}
 
-  :sign-manifest
-  {:main-opts ["-m" "resolver-sim.scripts.sign-manifest"]}
+   :sign-manifest
+   {:main-opts ["-m" "resolver-sim.scripts.sign-manifest"]}
 
-  ;; Promote all stored adversarial traces into Forge regression suite:
-  ;;   clojure -M:trace-regress [store-dir] [regression-dir]
-  :trace-regress
-  {:extra-paths ["protocols_src"]
-   :main-opts ["-m" "resolver-sim.io.trace-store"]}
+   ;; Promote all stored adversarial traces into Forge regression suite:
+   ;;   clojure -M:trace-regress [store-dir] [regression-dir]
+   :trace-regress
+   {:extra-paths ["protocols_src"]
+    :main-opts ["-m" "resolver-sim.io.trace-store"]}
 
-  ;; Run Phase Z adversarial scenarios, score them, persist top 1%:
-  ;;   clojure -M:phase-z-persist [store-dir]
-  :phase-z-persist
-  {:extra-paths ["protocols_src"]
-   :main-opts ["-m" "resolver-sim.io.phase-z-persist"]}
+   ;; Run Phase Z adversarial scenarios, score them, persist top 1%:
+   ;;   clojure -M:phase-z-persist [store-dir]
+   :phase-z-persist
+   {:extra-paths ["protocols_src"]
+    :main-opts ["-m" "resolver-sim.io.phase-z-persist"]}
 
-  :clerk
-  {:exec-fn nextjournal.clerk/serve!
-   :exec-args {:browse true
-               :watch-paths ["src" "notebooks"]}}
+   :clerk
+   {:exec-fn nextjournal.clerk/serve!
+    :exec-args {:browse true
+                :watch-paths ["src" "notebooks"]}}
 
-  :build-clerk
-  {:exec-fn nextjournal.clerk/build!
-   :exec-args {:paths ["notebooks/report.clj"]}}
+   :build-clerk
+   {:exec-fn nextjournal.clerk/build!
+    :exec-args {:paths ["notebooks/report.clj"]}}
 
-  :observability
-  {:git/url "https://github.com/nextjournal/clerk"
-   :git/sha "8772a0889218274384a30e79165b4c194b59560f"
-   :main-opts ["-m" "notebooks.serve"]}
+   :observability
+   {:git/url "https://github.com/nextjournal/clerk"
+    :git/sha "8772a0889218274384a30e79165b4c194b59560f"
+    :main-opts ["-m" "notebooks.serve"]}
 
    :telemetry-seed
    {:main-opts ["-m" "resolver-sim.db.telemetry-seed"]}
@@ -233,13 +244,23 @@
            metosin/malli                     {:mvn/version "0.17.0"}}
     :paths ["src" "protocols_src" "resources" "scenarios"]}
 
-  :speds-comparator-shadow
-  {:extra-paths ["scripts"]
-   :main-opts ["-m" "scripts.scenarios.speds-generate-comparator-shadow"]}
+   :speds-comparator-shadow
+   {:extra-paths ["scripts"]
+    :main-opts ["-m" "scripts.scenarios.speds-generate-comparator-shadow"]}
 
-  :notebooks
-  {:extra-paths ["."]}
+   :notebooks
+   {:extra-paths ["."]}
 
-  :search-docs
-  {:extra-paths ["scripts"]
-   :main-opts ["-m" "scripts.search_docs_sentinel.run"]}}}
+   :search-docs
+   {:extra-paths ["scripts"]
+    :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
+
+   ;; MCP (Model Context Protocol) support for LLM integration
+   ;; Usage: clojure -Tmcp start :config-profile :cli-assist
+   ;; Or: clojure -Tmcp start :config-profile :nrepl
+   :mcp
+   {:extra-deps {io.github.mschmitt/clojure-mcp {:mvn/version "0.2.0"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 org.clojure/tools.trace {:mvn/version "0.7.11"}}
+    :extra-paths ["src" "dev" "test" "protocols_src" "protocols_src/test"]
+    :main-opts ["-m" "clojure-mcp.main"]}}}

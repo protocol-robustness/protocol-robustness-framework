@@ -13,6 +13,7 @@
   (:require [clojure.string :as str]
             [resolver-sim.claims.engine :as evidence-claims]
             [resolver-sim.definitions.passive-registries :as passive-registries]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.yield.partial-fill :as partial-fill]))
 
@@ -120,14 +121,18 @@
        :witnesses []}
       (let [failures (->> decisions
                           (mapcat (fn [decision]
-                                    (->> (partial-fill/partial-fill-closed-form-checks decision)
-                                         (filter #(and (contains? check-ids (:check/id %))
-                                                       (= :fail (:status %))))
-                                         (map (fn [check]
-                                                {:type :closed-form-failure
-                                                 :decision-id (:decision/id decision)
-                                                 :check-id (:check/id check)
-                                                 :details (:details check)})))))
+                                    (let [checks (try
+                                                   (partial-fill/partial-fill-closed-form-checks decision)
+                                                   (catch clojure.lang.ExceptionInfo e
+                                                     (:check-results (ex-data e))))]
+                                      (->> checks
+                                           (filter #(and (contains? check-ids (:check/id %))
+                                                         (= :fail (:status %))))
+                                           (map (fn [check]
+                                                  {:type :closed-form-failure
+                                                   :decision-id (:decision/id decision)
+                                                   :check-id (:check/id check)
+                                                   :details (:details check)}))))))
                           vec)
             witnesses (mapv (fn [i decision]
                               {:decision/index i
@@ -663,11 +668,11 @@
              (reversal-claim-check :claim/governance-force-reversal-authorized (:benchmark/results ctx)))}})
 
 (def ^:private scoring-rule-paths
-  {:scoring/robustness-dimensions-v0 "resource:benchmarks/scoring/robustness-dimensions-v0.edn"
-   :scoring/binary-claims-v1 "resource:benchmarks/scoring/binary-claims-v1.edn"
-   :scoring/severity-weighted-robustness-v1 "resource:benchmarks/scoring/severity-weighted-robustness-v1.edn"
-   :scoring/severity-weighted-v1 "resource:benchmarks/scoring/severity-weighted-robustness-v1.edn"
-   :scoring/shortfall-allocation-v0 "resource:benchmarks/scoring/shortfall-allocation-v0.edn"})
+  {:scoring/robustness-dimensions-v0 hash-ref/scoring-robustness-dimensions-path
+   :scoring/binary-claims-v1 hash-ref/scoring-binary-claims-path
+   :scoring/severity-weighted-robustness-v1 hash-ref/scoring-severity-weighted-path
+   :scoring/severity-weighted-v1 hash-ref/scoring-severity-weighted-path
+   :scoring/shortfall-allocation-v0 hash-ref/scoring-shortfall-allocation-path})
 
 (defn- load-scoring
   [scoring-id]

@@ -199,6 +199,37 @@
                      (conj (str "Missing finalisation outputs for purpose " purpose ": " missing)))]
         {:valid? (empty? errors) :purpose purpose :errors errors}))))
 
+(declare valid-member-key?)
+
+;; ── Review-member constructor ─────────────────────────────────────────────
+
+(defn review-member
+  "Construct a review-member map.
+
+   Required:
+     :researcher/id   — qualified keyword identifying the researcher
+     :role             — member role keyword from member-roles
+
+   Optional:
+     :review-member/key — non-negative integer key for keyed rounds.
+                          When absent, the member is unkeyed (legacy).
+
+   Validates local member shape only.  Collection-level properties
+   (duplicate IDs, duplicate keys, dense keys, mixed keyed/unkeyed)
+   are enforced by build-review-round and validate-round.
+
+   Returns a member map with the serialized shape preserved."
+  [researcher-id role & {:keys [review-member-key]}]
+  (when-not (contains? member-roles role)
+    (throw (ex-info (str "Invalid member role: " role)
+                    {:member {:role role} :allowed member-roles})))
+  (when (some? review-member-key)
+    (when-not (valid-member-key? review-member-key)
+      (throw (ex-info (str "Invalid member key: " review-member-key)
+                      {:key review-member-key}))))
+  (cond-> {:researcher/id researcher-id :role role}
+    (some? review-member-key) (assoc :review-member/key review-member-key)))
+
 ;; ── Member-key predicates ─────────────────────────────────────────────────
 
 (defn valid-member-key?
@@ -229,9 +260,12 @@
 (defn assign-consecutive-member-keys
   "Assign :review-member/key 0..n-1 in caller vector order.
    Caller declares that insertion order is semantically meaningful.
-   Does NOT modify the original member maps — returns new ones."
+   Does NOT modify the original member maps — returns new ones.
+   Validates each constructed member through review-member."
   [members]
-  (mapv (fn [idx m] (assoc m :review-member/key idx))
+  (mapv (fn [idx m]
+          (review-member (:researcher/id m) (:role m)
+                         :review-member-key idx))
         (range) members))
 
 ;; ── Round builder ─────────────────────────────────────────────────────────
@@ -266,13 +300,10 @@
     (when (nil? membership-frozen-at)
       (throw (ex-info "Review-round requires :membership-frozen-at" {})))
     (doseq [m members]
-      (when-not (contains? member-roles (:role m))
-        (throw (ex-info (str "Invalid member role: " (:role m))
-                        {:member m :allowed member-roles})))
-      (when (and (some? (:review-member/key m))
-                 (not (valid-member-key? (:review-member/key m))))
-        (throw (ex-info (str "Invalid member key: " (:review-member/key m))
-                        {:member m}))))
+      ;; Validate each member through the review-member constructor.
+      ;; This ensures local member shape is consistent without
+      ;; duplicating validation logic.
+      (review-member (:researcher/id m) (:role m) :review-member-key (:review-member/key m)))
     (let [keyed? (every? :review-member/key members)]
       (when (and keyed? (not (unique-member-keys? members)))
         (throw (ex-info "Duplicate review-member keys"

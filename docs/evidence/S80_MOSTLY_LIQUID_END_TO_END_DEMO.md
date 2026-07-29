@@ -173,7 +173,7 @@ bb notebook
 
 Then open:
 
-- `http://localhost:7777/notebooks/workbench_production`
+- `http://localhost:7777/notebooks/workbench_v2`
 
 ### 6.2 Generate a scenario snapshot card
 

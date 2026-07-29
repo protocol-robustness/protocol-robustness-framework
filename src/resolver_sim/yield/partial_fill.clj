@@ -1571,14 +1571,22 @@
                                (check-result :partial-fill/decision-artifact-format
                                              (if (empty? decision-artifact-violations) :pass :fail)
                                              {:violations decision-artifact-violations}))]
-      (mapv deref [conservation-ch capacity-ch per-claim-ch per-claim-conservation-ch
-                   claim-key-ch non-negative-ch settlement-mode-ch settlement-mode-valid-ch
-                   mode-valid-ch overlap-ch deferred-haircut-sum-ch evidence-ch unrealized-ch artifact-format-ch
-                   cross-product-ch rounding-fairness-ideal-ch rounding-remainder-ch
-                   principal-first-ch waterfall-ch
-                   residual-ch]))))
+      (let [results (mapv deref [conservation-ch capacity-ch per-claim-ch per-claim-conservation-ch
+                                 claim-key-ch non-negative-ch settlement-mode-ch settlement-mode-valid-ch
+                                 mode-valid-ch overlap-ch deferred-haircut-sum-ch evidence-ch unrealized-ch artifact-format-ch
+                                 cross-product-ch rounding-fairness-ideal-ch rounding-remainder-ch
+                                 principal-first-ch waterfall-ch
+                                 residual-ch])
+            failed (filterv #(= :fail (:status %)) results)]
+        (when (seq failed)
+          (throw (ex-info "Partial-fill closed-form checks failed"
+                   {:type :closed-form-failure
+                    :check-results results
+                    :failed-checks failed})))
+        results))))
 
 (defn partial-fill-application-deltas
+
   "Return the source-bucket deductions implied by a partial-fill decision."
   [decision]
   {:principal (+ (long (get-in decision [:filled :principal] 0))
@@ -1779,7 +1787,12 @@
                             :check-count n
                             :passed? bool} ...]}"
   [decisions]
-  (let [checks (mapv partial-fill-closed-form-checks decisions)
+  (let [checks (mapv (fn [d]
+                        (try
+                          (partial-fill-closed-form-checks d)
+                          (catch clojure.lang.ExceptionInfo e
+                            (:check-results (ex-data e)))))
+                      decisions)
         indexed (map-indexed (fn [i cs]
                                {:decision-index i
                                 :pass? (every? #(#{:pass :not-applicable} (:status %)) cs)

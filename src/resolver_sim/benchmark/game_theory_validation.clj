@@ -161,8 +161,11 @@
                            [])
                        (sort-by :held-adjustment/id)
                        vec)
-        check-results ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
-                       artifacts)
+        check-results (try
+                        ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
+                         artifacts)
+                        (catch clojure.lang.ExceptionInfo e
+                          (:check-results (ex-data e))))
         verdict (if (every? #(= :pass (:status %)) check-results) :pass :fail)
         artifact {:artifact/kind :game-theoretic-validation
                   :artifact/version "game-theoretic-validation.artifact.v1"

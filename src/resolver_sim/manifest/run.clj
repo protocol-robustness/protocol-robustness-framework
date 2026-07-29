@@ -9,6 +9,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.manifest.common :as common]))
 
 (def runs-root (evcfg/runs-root))
@@ -101,7 +102,7 @@
   "Load the run specified in results/.notebook-focus (contains a run-id),
   falling back to load-latest if the file is absent or the run-id not found."
   []
-  (let [focus-file (io/file "results" ".notebook-focus")]
+  (let [focus-file (io/file hash-ref/notebook-focus-path)]
     (if (.exists focus-file)
       (let [run-id (str/trim (slurp focus-file))]
         (or (load-run run-id)

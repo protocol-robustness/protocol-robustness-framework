@@ -23,7 +23,8 @@
    All consumers should read from this namespace rather than hardcoding paths or versions."
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:private config
   (delay
@@ -32,14 +33,14 @@
                (catch Exception e
                  (.println *err* (str "CONFIG-FAILURE: PRF_EVIDENCE_CONFIG_PATH=" path " — " (.getMessage e)))
                  nil)))
-        (when-let [r (io/resource "config/evidence.json")]
+        (when-let [r (io/resource hash-ref/evidence-config-path)]
           (try (-> r slurp (json/read-str :key-fn keyword))
                (catch Exception e
-                 (.println *err* (str "CONFIG-FAILURE: resource config/evidence.json — " (.getMessage e)))
+                 (.println *err* (str "CONFIG-FAILURE: resource " hash-ref/evidence-config-path " — " (.getMessage e)))
                  nil)))
-        (try (-> "config/evidence.json" io/file slurp (json/read-str :key-fn keyword))
+        (try (-> hash-ref/evidence-config-path io/file slurp (json/read-str :key-fn keyword))
              (catch Exception e
-               (.println *err* (str "CONFIG-FAILURE: config/evidence.json — " (.getMessage e)))
+               (.println *err* (str "CONFIG-FAILURE: " hash-ref/evidence-config-path " — " (.getMessage e)))
                nil)))))
 
 (defn get-config
@@ -81,7 +82,7 @@
   (or *artifact-dir*
       (System/getenv "PRF_ARTIFACT_DIR")
       (get (get-config) :artifact_dir)
-      "results/test-artifacts"))
+      hash-ref/test-artifacts-dir))
 
 (defn artifact-file
   "Resolve an artifact id to its filename, e.g. (artifact-file :test-summary) → \"test-summary.json\"."
@@ -107,12 +108,12 @@
 (defn runs-root []
   (or (System/getenv "PRF_RUNS_ROOT")
       (get (get-config) :runs_root)
-      "results/runs"))
+      hash-ref/results-runs-dir))
 
 (defn evidence-bundle-dir []
   (or (System/getenv "PRF_BUNDLE_DIR")
       (get (get-config) :evidence_bundle_dir)
-      "results/evidence-bundle"))
+      hash-ref/evidence-bundle-dir))
 
 (defn strict-mode?
   "Return true when strict validation mode is enabled in config.
@@ -132,16 +133,16 @@
                  (.println *err* (str "CONFIDENCE-POLICY-FAILURE: PRF_CONFIDENCE_POLICY_PATH="
                                       path " — " (.getMessage e)))
                  nil)))
-        (when-let [r (io/resource "config/confidence.edn")]
+        (when-let [r (io/resource hash-ref/confidence-config-path)]
           (try (-> r slurp edn/read-string)
                (catch Exception e
-                 (.println *err* (str "CONFIDENCE-POLICY-FAILURE: resource config/confidence.edn — "
-                                      (.getMessage e)))
+                 (.println *err* (str "CONFIDENCE-POLICY-FAILURE: resource " hash-ref/confidence-config-path
+                                      " — " (.getMessage e)))
                  nil)))
-        (try (-> "config/confidence.edn" io/file slurp edn/read-string)
+        (try (-> hash-ref/confidence-config-path io/file slurp edn/read-string)
              (catch Exception e
-               (.println *err* (str "CONFIDENCE-POLICY-FAILURE: config/confidence.edn — "
-                                    (.getMessage e)))
+               (.println *err* (str "CONFIDENCE-POLICY-FAILURE: " hash-ref/confidence-config-path
+                                    " — " (.getMessage e)))
                nil)))))
 
 (defn confidence-policy

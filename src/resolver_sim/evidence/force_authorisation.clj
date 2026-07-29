@@ -52,11 +52,13 @@
 (defn grant-before-execution?
   "True when the evidence grant timestamp precedes the execution timestamp."
   [envelope]
-  (when (and (:evidence/grant-time envelope) (:evidence/execution-time envelope))
-    (<= (:evidence/grant-time envelope) (:evidence/execution-time envelope))))
+  (if (and (:evidence/grant-time envelope) (:evidence/execution-time envelope))
+    (<= (:evidence/grant-time envelope) (:evidence/execution-time envelope))
+    false))
 
 (defn execution-before-consumption?
   "True when execution precedes consumption (or they are simultaneous)."
   [envelope]
-  (when (and (:evidence/execution-time envelope) (:evidence/consumption-time envelope))
-    (<= (:evidence/execution-time envelope) (:evidence/consumption-time envelope))))
+  (if (and (:evidence/execution-time envelope) (:evidence/consumption-time envelope))
+    (<= (:evidence/execution-time envelope) (:evidence/consumption-time envelope))
+    false))

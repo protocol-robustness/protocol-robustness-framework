@@ -142,7 +142,7 @@
           finalization-file (io/file root "benchmark/finalization.json")
           assurance-file (io/file root "benchmark/assertions/benchmark-assurance.json")
           conservation-file (io/file root "benchmark/assertions/conservation.json")
-          registry-file (io/file root paths/artifacts-suffix)
+          registry-file (io/file root paths/artifacts-registry)
           validation-file (io/file root paths/artifacts-validation)
           content-registry-file (io/file root "benchmark/evidence/content-registry.json")
           canonical-integrity-file (io/file root "benchmark/assertions/canonical-integrity.json")

@@ -16,6 +16,14 @@
 ;; Property 4 — calculated decisions satisfy closed-form checks
 ;; ============================================================================
 
+(defn- closed-form-checks
+  "Call closed-form checks, returning results even when checks fail."
+  [decision]
+  (try
+    (pf/partial-fill-closed-form-checks decision)
+    (catch clojure.lang.ExceptionInfo e
+      (:check-results (ex-data e)))))
+
 (defn- gen-position
   "Generate a yield position with principal and yield buckets."
   []
@@ -50,7 +58,7 @@
                             rounding (gen/elements [:floor-and-carry :largest-remainder])]
                            (let [policy {:mode mode :rounding-policy rounding}
                                  decision (pf/calculate-fulfillment liquidity pos policy)
-                                 checks (pf/partial-fill-closed-form-checks decision)
+                                 checks (closed-form-checks decision)
                                  algebraic-ids #{:partial-fill/conservation
                                                  :partial-fill/capacity-bound
                                                  :partial-fill/per-claim-bound
@@ -80,7 +88,7 @@
         pos (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
                                 :principal 100 :realized-yield 60 :deferred-yield 0})
         decision (pf/calculate-fulfillment 80 pos {:mode :pro-rata})
-        checks (pf/partial-fill-closed-form-checks decision)
+        checks (closed-form-checks decision)
         cross-prod (first (filter #(= :partial-fill/pro-rata-cross-product (check-id %)) checks))]
     (is (check-pass? cross-prod)
         (str "Cross-product check failed: " cross-prod))))
@@ -91,7 +99,7 @@
   (let [pos (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
                                 :principal 200 :realized-yield 100 :deferred-yield 0})
         decision (pf/calculate-fulfillment 150 pos {:mode :principal-first})
-        checks (pf/partial-fill-closed-form-checks decision)
+        checks (closed-form-checks decision)
         priority (first (filter #(= :partial-fill/principal-first-priority (check-id %)) checks))]
     (is (check-pass? priority)
         (str "Principal-first priority failed: " priority))))
@@ -102,7 +110,7 @@
   (let [pos (pos/make-position {:owner/id :test :module/id :fixed-rate :token :USDC
                                 :principal 300 :realized-yield 100 :deferred-yield 50})
         decision (pf/calculate-fulfillment 200 pos {:mode :waterfall})
-        checks (pf/partial-fill-closed-form-checks decision)
+        checks (closed-form-checks decision)
         priority (first (filter #(= :partial-fill/waterfall-priority (check-id %)) checks))]
     (is (check-pass? priority)
         (str "Waterfall priority failed: " priority))))
@@ -116,7 +124,7 @@
                                  liquidity (max 0 (- total shortfall))
                                  decision (pf/calculate-fulfillment liquidity pos
                                                                     {:mode :pro-rata :rounding-policy :largest-remainder})
-                                 checks (pf/partial-fill-closed-form-checks decision)
+                                 checks (closed-form-checks decision)
                                  residual (first (filter #(= :partial-fill/rounding-residual-bounded (check-id %)) checks))]
                              (and (= :partial-fill (:settlement-mode decision))
                                   (check-pass? residual))))
@@ -132,7 +140,7 @@
                                  liquidity (max 0 (- total shortfall))
                                  decision (pf/calculate-fulfillment liquidity pos
                                                                     {:mode :pro-rata :rounding-policy :floor-and-carry})
-                                 checks (pf/partial-fill-closed-form-checks decision)
+                                 checks (closed-form-checks decision)
                                  residual (first (filter #(= :partial-fill/rounding-residual-bounded (check-id %)) checks))]
                              (and (= :partial-fill (:settlement-mode decision))
                                   (check-pass? residual))))

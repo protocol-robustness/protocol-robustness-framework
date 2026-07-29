@@ -27,7 +27,7 @@
    :message "Specify --run-root for a canonical bundle or --artifact-dir for a legacy evidence directory"})
 
 (defn- canonical-registry-file [dir]
-  (io/file dir paths/artifacts-suffix))
+  (io/file dir paths/artifacts-registry))
 
 (defn- load-registry
   "Load or build the evidence registry for an artifact directory."

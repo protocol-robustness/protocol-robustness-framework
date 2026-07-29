@@ -842,41 +842,73 @@
     world')))
 
 (defn distribute-slashed-funds
-  "Internal: distribute slashed funds according to configurable split.
-   Default split (50/30/20) can be overridden via :insurance-cut-bps and
-   :protocol-retained-bps in world params (basis points).
+  "Distribute slashed funds according to the Sew default slash-distribution policy.
+
+   Uses the generic distribution engine (resolver-sim.economics.slash-distribution)
+   with the Sew default policy (50/30/20 base, 50/50 bounty funding).
+
+   :insurance-cut-bps and :protocol-retained-bps in world params override
+   the default allocation weights.
+
    If a challenger is provided (Phase L), they receive a bounty from the slashed amount.
-   Bounty is subtracted from the 'insurance' and 'protocol' portions.
+   Creates exactly one bounty obligation (claimable) for each successfully applied
+   positive-valued award. The application is idempotent: replaying with the same
+   distribution hash is a no-op.
+
    Returns updated world."
   ([world amount] (distribute-slashed-funds world amount nil 0 nil))
   ([world amount challenger bounty-bps]
    (distribute-slashed-funds world amount challenger bounty-bps nil))
   ([world amount challenger bounty-bps workflow-id]
    (let [bounty (sew-econ/calculate-bounty amount bounty-bps)
-         split-opts (select-keys (:params world) [:insurance-cut-bps :protocol-retained-bps])
-         dist   (sew-econ/calculate-slashing-distribution amount bounty split-opts)
-         world' (-> world
-                    (update-in [:bond-distribution :insurance] (fnil + 0) (:insurance dist))
-                    (update-in [:bond-distribution :protocol]  (fnil + 0) (:protocol dist))
-                    (update-in [:retained-slash-reserves]      (fnil + 0) (:retained dist))
-                    (cond-> (and challenger (pos? bounty) (some? workflow-id))
-                      (record-claimable-v2 workflow-id :liability/challenge-bounty challenger bounty)))]
-
-     (when (and challenger (pos? bounty))
-       (attr/with-attribution
-         {:subject/type :challenger
-          :subject/id   challenger
-          :action/type  :reward-bounty
-          :evidence/reason :incentive-payout}
-         (cap/capture-event-evidence! :incentive-payout
-                                      {:bounty-claimable 0}
-                                      {:bounty-claimable bounty}
-                                      {:slash-amount amount :bounty-bps bounty-bps}
-                                      {:formula "sew-econ/calculate-bounty"}
-                                      {:world-before world
-                                       :world-after world'})))
-
-     world')))
+         insurance-bps (get-in world [:params :insurance-cut-bps] 5000)
+         protocol-bps  (get-in world [:params :protocol-retained-bps] 3000)
+         result (sew-econ/build-sew-slash-distribution
+                  amount bounty-bps
+                  :challenger challenger
+                  :workflow-reference workflow-id
+                  :evidence-reference (str "sew:slash:" (or workflow-id "unknown"))
+                  :insurance-cut-bps insurance-bps
+                  :protocol-retained-bps protocol-bps)
+         _ (when (= :invalid (:status result))
+             (throw (ex-info "distribute-slashed-funds: invalid distribution"
+                             {:violations (:violations result)
+                              :amount amount :bounty-bps bounty-bps
+                              :challenger challenger :workflow-id workflow-id
+                              :insurance-cut-bps insurance-bps
+                              :protocol-retained-bps protocol-bps})))
+         dist   (:distribution result)
+         final  (:distribution/final-allocations dist)
+         dist-hash (:distribution/hash dist)
+         app-key [:slash-distribution-applied (or workflow-id 0) (or challenger 0)]
+         app-hash (get-in world app-key)]
+     (if (and (some? app-hash) (= app-hash dist-hash))
+       ;; Idempotent: same hash already applied → no-op
+       world
+       (let [world' (-> world
+                        (update-in [:bond-distribution :insurance] (fnil + 0)
+                                   (get final :sew.allocation/insurance 0))
+                        (update-in [:bond-distribution :protocol] (fnil + 0)
+                                   (get final :sew.allocation/protocol 0))
+                        (update-in [:retained-slash-reserves] (fnil + 0)
+                                   (get final :sew.allocation/retained 0))
+                        (cond-> (and challenger (pos? bounty) (some? workflow-id))
+                          (record-claimable-v2 workflow-id :liability/challenge-bounty challenger bounty))
+                        (assoc-in app-key dist-hash))]
+         (when (and challenger (pos? bounty))
+           (attr/with-attribution
+             {:subject/type :challenger
+              :subject/id   challenger
+              :action/type  :reward-bounty
+              :evidence/reason :incentive-payout}
+             (cap/capture-event-evidence! :incentive-payout
+               {:bounty-claimable 0}
+               {:bounty-claimable bounty}
+               {:slash-amount amount :bounty-bps bounty-bps :distribution-hash dist-hash}
+               {:formula "slash-distribution.v1 via build-sew-slash-distribution"}
+               {:world-before world
+                :world-after world'})))
+         world')))))
 
 (defn- reject-bond-evidence!
   "Capture evidence for a rejected bond operation."

@@ -28,6 +28,138 @@
 
 (def ^:const sha256-ref-prefix "sha256:")
 
+(def ^:const sha256-algorithm
+  "Algorithm name for SHA-256 MessageDigest."
+  "SHA-256")
+
+(def ^:const prf-runner-edn-path
+  "JAR entry path for the PRF runner metadata file."
+  "META-INF/prf-runner.edn")
+
+(def ^:const provenance-sidecar-suffix
+  "Filename suffix for the distribution provenance JSON sidecar."
+  ".provenance.json")
+
+(def ^:const provenance-schema-version
+  "Current schema version for distribution provenance records."
+  "prf-distribution-provenance.v1")
+
+(def ^:const nonexistent-file-path
+  "Path guaranteed not to exist, used for missing-file test assertions."
+  "/nonexistent/path/file.txt")
+
+(def ^:const evidence-config-path
+  "Evidence chain configuration file path (resource or filesystem)."
+  "config/evidence.json")
+
+(def ^:const confidence-config-path
+  "Confidence derivation policy configuration file path."
+  "config/confidence.edn")
+
+(def ^:const results-runs-dir
+  "Default root directory for run results."
+  "results/runs")
+
+(def ^:const test-artifacts-dir
+  "Default root directory for test artifacts."
+  "results/test-artifacts")
+
+(def ^:const notebook-focus-path
+  "Clerk notebook focus file path (contains a run-id)."
+  "results/.notebook-focus")
+
+(def ^:const resource-prefix
+  "Prefix for classpath resource references."
+  "resource:")
+
+(def ^:const fixture-suite-manifest-path
+  "Fixture suite manifest file path (bare — use resource-prefix for classpath)."
+  "data/fixtures/suites/manifest.edn")
+
+(def ^:const concept-registry-path
+  "Concept registry file path (bare — use resource-prefix for classpath)."
+  "data/concepts/registry.edn")
+
+(def ^:const benchmark-registry-path
+  "Benchmark pack registry resource path (with resource: prefix for classpath)."
+  "resource:benchmarks/registry.edn")
+
+(def ^:const benchmark-registry-bare-path
+  "Benchmark pack registry filesystem path (no prefix for direct filesystem access)."
+  "benchmarks/registry.edn")
+
+(def ^:const scoring-robustness-dimensions-path
+  "Scoring rule: robustness dimensions."
+  "resource:benchmarks/scoring/robustness-dimensions-v0.edn")
+
+(def ^:const scoring-binary-claims-path
+  "Scoring rule: binary claims."
+  "resource:benchmarks/scoring/binary-claims-v1.edn")
+
+(def ^:const scoring-severity-weighted-path
+  "Scoring rule: severity-weighted robustness."
+  "resource:benchmarks/scoring/severity-weighted-robustness-v1.edn")
+
+(def ^:const scoring-shortfall-allocation-path
+  "Scoring rule: shortfall allocation."
+  "resource:benchmarks/scoring/shortfall-allocation-v0.edn")
+
+(def ^:const claim-registry-path
+  "Benchmark claim registry file path."
+  "benchmarks/claim-registry.edn")
+
+(def ^:const command-registry-path
+  "CLI command dispatch registry resource path."
+  "prf/commands/registry.edn")
+
+(def ^:const sew-pack-registry-path
+  "Sew benchmark pack registry file path."
+  "benchmarks/packs/sew/registry.edn")
+
+(def ^:const prf-core-pack-registry-path
+  "PRF-core benchmark pack registry file path."
+  "benchmarks/packs/prf-core/registry.edn")
+
+(def ^:const evidence-bundle-dir
+  "Default directory for evidence bundles."
+  "results/evidence-bundle")
+
+(def ^:const fixtures-dir
+  "Root directory for fixture data."
+  "data/fixtures")
+
+(def ^:const traces-dir
+  "Directory for fixture trace files."
+  "data/fixtures/traces")
+
+(def ^:const golden-dir
+  "Directory for golden fixture files."
+  "data/fixtures/golden")
+
+(def ^:const scenarios-edn-dir
+  "Directory for EDN scenario files."
+  "scenarios/edn")
+
+(def ^:const trace-file-ext
+  "File extension for trace files."
+  ".trace.json")
+
+(def ^:const deps-edn-path
+  "Project deps.edn file path."
+  "deps.edn")
+
+(def ^:const bb-edn-path
+  "Babashka project file path."
+  "bb.edn")
+
+(def ^:const reference-validation-suite-manifest
+  "Reference validation suite manifest resource path."
+  "resource:suites/reference-validation-v1/manifest.edn")
+
+(def ^:const escrow-dispute-pack-path
+  "Sew escrow dispute benchmark pack path (bare — add resource-prefix for classpath)."
+  "benchmarks/packs/sew/escrow-dispute-v1.edn")
+
 (def ^:const sha256-ref-pattern
   "Regex matching a canonical sha256 reference: sha256:<64 hex chars>."
   #"^sha256:[0-9a-f]{64}$")
@@ -76,7 +208,7 @@
   [path]
   (let [f (java.io.File. path)]
     (when (.isFile f)
-      (let [digest (MessageDigest/getInstance "SHA-256")]
+      (let [digest (MessageDigest/getInstance sha256-algorithm)]
         (.update digest (java.nio.file.Files/readAllBytes (.toPath f)))
         (str sha256-ref-prefix
              (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest digest))))))))

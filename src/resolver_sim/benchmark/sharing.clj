@@ -5,6 +5,7 @@
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.benchmark.dag :as dag]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
             [clojure.java.shell :as shell]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
@@ -56,7 +57,7 @@
     ;; We need to make sure we use the same manifest. 
     ;; Manifest might have changed, so ideally we'd use the one in evidence.
     ;; But for now let's use manifest-path if available.
-    (let [new-evidence (runner/run-benchmark (or manifest-path "benchmarks/packs/sew/escrow-dispute-v1.edn"))
+    (let [new-evidence (runner/run-benchmark (or manifest-path hash-ref/escrow-dispute-pack-path))
           new-hash (:evidence/hash new-evidence)
           old-hash (:evidence/hash evidence)]
       (println "Recomputed Hash: " new-hash)

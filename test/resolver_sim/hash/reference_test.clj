@@ -89,7 +89,7 @@
       (is (= (hr/sha256-ref (hr/parse-sha256-ref ref)) ref)))))
 
 (deftest file-ref-missing-returns-nil
-  (is (nil? (hr/sha256-ref-file "/nonexistent/path/file.txt"))))
+  (is (nil? (hr/sha256-ref-file hr/nonexistent-file-path))))
 
 (deftest file-ref-directory-returns-nil
   (let [tmp (doto (io/file (System/getProperty "java.io.tmpdir") "prf-ref-test-dir")

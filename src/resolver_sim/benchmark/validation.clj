@@ -3,7 +3,8 @@
    All checks use explicit resource: URIs — no CWD-relative filesystem access.
    Each check returns {:check <keyword> :passed? <bool> :details <string>}."
   (:require [resolver-sim.concepts.registry :as concepts]
-            [resolver-sim.io.resource-path :as rp]))
+            [resolver-sim.io.resource-path :as rp]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@
   (try
     (let [{:keys [registry concepts]} (concepts/load-registry)
           concept-files (map :concept/file (:concepts registry))
-          missing (remove #(resource-exists? (str "resource:" %)) concept-files)]
+          missing (remove #(resource-exists? (str hash-ref/resource-prefix %)) concept-files)]
       (if (seq missing)
         (fail :concept-registry (str "Missing concept files: " (pr-str missing)))
         (pass :concept-registry (str (count concepts) " concepts loaded, all files present"))))
@@ -74,10 +75,10 @@
 (defn check-scoring-rules
   "Verify all scoring rule files exist."
   []
-  (let [scoring-files ["resource:benchmarks/scoring/robustness-dimensions-v0.edn"
-                       "resource:benchmarks/scoring/binary-claims-v1.edn"
-                       "resource:benchmarks/scoring/severity-weighted-robustness-v1.edn"
-                       "resource:benchmarks/scoring/shortfall-allocation-v0.edn"]
+  (let [scoring-files [hash-ref/scoring-robustness-dimensions-path
+                        hash-ref/scoring-binary-claims-path
+                        hash-ref/scoring-severity-weighted-path
+                        hash-ref/scoring-shortfall-allocation-path]
         missing (remove resource-exists? scoring-files)]
     (if (seq missing)
       (fail :scoring-rules (str "Missing scoring rules: " (pr-str missing)))
@@ -87,9 +88,9 @@
   "Load fixture suite manifest and verify all suite files exist."
   []
   (try
-    (let [manifest (rp/edn-read "resource:data/fixtures/suites/manifest.edn")
+    (let [manifest (rp/edn-read (str hash-ref/resource-prefix hash-ref/fixture-suite-manifest-path))
           suite-files (keep :file (vals manifest))
-          missing (remove #(resource-exists? (str "resource:data/fixtures/suites/" %))
+          missing (remove #(resource-exists? (str hash-ref/resource-prefix hash-ref/fixtures-dir "/suites/" %))
                           suite-files)]
       (if (seq missing)
         (fail :fixture-suites (str "Missing fixture suites: " (pr-str missing)))
@@ -134,10 +135,10 @@
    This check does NOT require CWD to be the repo root."
   []
   (let [required-resources
-        ["resource:benchmarks/registry.edn"
-         "resource:data/concepts/registry.edn"
-         "resource:data/fixtures/suites/manifest.edn"
-         "resource:config/evidence.json"]
+        [hash-ref/benchmark-registry-path
+         (str hash-ref/resource-prefix hash-ref/concept-registry-path)
+         (str hash-ref/resource-prefix hash-ref/fixture-suite-manifest-path)
+         (str hash-ref/resource-prefix hash-ref/evidence-config-path)]
         results (mapv (fn [path]
                         {:path path :present? (resource-exists? path)})
                       required-resources)

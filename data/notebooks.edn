@@ -392,4 +392,18 @@
    :status         :verified
    :risk           :low
    :protocol-areas [:evidence]
-   :tags           ["graph" "D3" "evidence" "visualization" "attestation"]}]}
+   :tags           ["graph" "D3" "evidence" "visualization" "attestation"]}
+
+  ;; ── archived / migrated notebooks ──────────────────────────────────────────────
+  {:id             :workbench-production
+   :notebook/status :archived
+   :notebook/replaced-by :workbench-v2
+   :path           "notebooks/workbench_production.clj"
+   :title          "Production Evidence Workbench (v1, archived)"
+   :summary        "Replaced by workbench-v2. Retained for migration metadata and historical reference."
+   :categories     [:tooling]
+   :audience       [:researcher]
+   :status         :archived
+   :risk           :informational
+   :protocol-areas []
+   :tags           ["workbench" "archived"]}]}

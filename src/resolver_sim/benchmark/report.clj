@@ -10,6 +10,7 @@
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.concepts.ecommerce-reporting :as ecommerce-reporting]
             [resolver-sim.benchmark.claims :refer [normalize-claim-refs]]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.resource-path :as rp]))
 
 ;; ── Path resolution ────────────────────────────────────────────────────────────
@@ -17,11 +18,11 @@
 
 (def benchmark-scoring-paths
   "Scoring rule ID → scoring file path."
-  {:scoring/robustness-dimensions-v0 "resource:benchmarks/scoring/robustness-dimensions-v0.edn"
-   :scoring/binary-claims-v1 "resource:benchmarks/scoring/binary-claims-v1.edn"
-   :scoring/severity-weighted-robustness-v1 "resource:benchmarks/scoring/severity-weighted-robustness-v1.edn"
-   :scoring/severity-weighted-v1 "resource:benchmarks/scoring/severity-weighted-robustness-v1.edn"
-   :scoring/shortfall-allocation-v0 "resource:benchmarks/scoring/shortfall-allocation-v0.edn"})
+  {:scoring/robustness-dimensions-v0 hash-ref/scoring-robustness-dimensions-path
+   :scoring/binary-claims-v1 hash-ref/scoring-binary-claims-path
+   :scoring/severity-weighted-robustness-v1 hash-ref/scoring-severity-weighted-path
+   :scoring/severity-weighted-v1 hash-ref/scoring-severity-weighted-path
+   :scoring/shortfall-allocation-v0 hash-ref/scoring-shortfall-allocation-path})
 
 ;; ── Data loading ──────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@
   (try
     (into {}
           (map (juxt :domain/id identity))
-          (:domains (rp/edn-read "resource:benchmarks/registry.edn")))
+          (:domains (rp/edn-read hash-ref/benchmark-registry-path)))
     (catch Exception _
       {})))
 
@@ -57,7 +58,7 @@
 
 (defn- reference-validation-path-by-id
   [scenario-id]
-  (when-let [manifest (try (rp/edn-read "resource:suites/reference-validation-v1/manifest.edn")
+  (when-let [manifest (try (rp/edn-read hash-ref/reference-validation-suite-manifest)
                            (catch Exception _ nil))]
     (some (fn [scenario]
             (when (= scenario-id (:id scenario))

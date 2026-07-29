@@ -20,8 +20,7 @@
                                        :value "ok"
                                        :source-artifact "script"
                                        :source-path [:sample :path]}]}]
-                   :files ["notebooks/workbench_production.clj"
-                           "src/resolver_sim/notebook_support/speds/story.clj"
+                    :files ["src/resolver_sim/notebook_support/speds/story.clj"
                            "notebooks/golden_artifact.clj"
                            "notebooks/dispute_artifact.clj"
                            "notebooks/atlas_artifact.clj"]

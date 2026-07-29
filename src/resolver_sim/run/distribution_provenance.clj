@@ -6,7 +6,7 @@
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def schema-version "prf-distribution-provenance.v1")
+(def schema-version hash-ref/provenance-schema-version)
 
 (defn- jar-entry []
   (some (fn [entry]
@@ -15,14 +15,14 @@
                        (.endsWith (.getName file) ".jar"))
               (try
                 (with-open [jar (java.util.jar.JarFile. file)]
-                  (when (.getJarEntry jar "META-INF/prf-runner.edn") file))
+                  (when (.getJarEntry jar hash-ref/prf-runner-edn-path) file))
                 (catch Exception _ nil)))))
         (str/split (System/getProperty "java.class.path" "")
                    (re-pattern (java.util.regex.Pattern/quote java.io.File/pathSeparator)))))
 
 (defn distribution-identity []
   (if-let [jar (jar-entry)]
-    (let [sidecar (io/file (str (.getPath jar) ".provenance.json"))]
+    (let [sidecar (io/file (str (.getPath jar) hash-ref/provenance-sidecar-suffix))]
       (if (.isFile sidecar)
         (let [manifest (json/read-str (slurp sidecar))
               jar-sha (or (hash-ref/sha256-ref-file (.getPath jar))

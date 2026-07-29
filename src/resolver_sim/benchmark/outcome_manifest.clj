@@ -449,6 +449,9 @@
       (swap! errors conj "missing :benchmark/content-root"))
     (when-not (some? (:benchmark/model-root manifest))
       (swap! errors conj "missing :benchmark/model-root"))
+    (let [mr (:benchmark/model-root manifest)]
+      (when (and (some? mr) (not (hash-prefix-valid? mr)))
+        (swap! errors conj (str ":benchmark/model-root is not a valid sha256: hash: " mr))))
     ;; ── Reject unknown top-level keys ───────────────────────────────
     (doseq [k (keys manifest)
             :when (not (contains? valid-manifest-keys k))]

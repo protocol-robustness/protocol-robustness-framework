@@ -23,8 +23,14 @@
 (def ^:private allowlist
   "Namespace-qualified fully qualified function names that are allowed
    to write to the protected keys.  Each entry is a string like
-   'namespace/fn-name' matching the canonical ns/fn form."
-  '#{resolver-sim.protocols.sew.accounting/update-ledger-index
+   'namespace/fn-name' matching the canonical ns/fn form.
+
+   Only canonical custody mutation entry points should be listed.
+   Internal derived-index helpers (e.g. update-ledger-index) must not
+   appear here — their writing is downstream of an authorised mutation,
+   not independently authorised."
+  '#{resolver-sim.protocols.sew.accounting/add-held
+     resolver-sim.protocols.sew.accounting/sub-held
      resolver-sim.assurance.custody/replay-held-adjustment-state
      resolver-sim.protocols.sew.registry/register-stake
      resolver-sim.protocols.sew.registry/withdraw-stake
@@ -164,19 +170,63 @@
        (filter #(.endsWith (.getName ^java.io.File %) ".clj"))
        (remove #(.contains (.getPath ^java.io.File %) "/test/"))))
 
+(defn- validate-allowlist-entry
+  "Check that an allowlisted symbol resolves to an existing function.
+   Returns nil on success, or a failure map on error."
+  [sym]
+  (let [s (str sym)
+        sep-idx (.lastIndexOf s (int \/))]
+    (if (neg? sep-idx)
+      {:check/status :failed
+       :reason :allowlisted-var-no-namespace
+       :symbol sym
+       :message (str "Allowlisted symbol " sym " has no namespace separator")}
+      (let [ns-name (subs s 0 sep-idx)
+            fn-name (subs s (inc sep-idx))
+            ns-sym (symbol ns-name)]
+        (try
+          (require ns-sym)
+          (if-let [v (resolve (symbol (str ns-name "/" fn-name)))]
+            (if (fn? @v)
+              nil
+              {:check/status :failed
+               :reason :allowlisted-var-not-a-function
+               :symbol sym
+               :var v
+               :type (type @v)})
+            {:check/status :failed
+             :reason :allowlisted-var-unresolvable
+             :symbol sym
+             :message (str "Var " fn-name " not found in " ns-name)})
+          (catch Exception e
+            {:check/status :failed
+             :reason :allowlisted-ns-unresolvable
+             :symbol sym
+             :message (str "Namespace " ns-name " cannot be required: " (.getMessage e))}))))))
+
 (defn -main
   [& args]
   (let [roots (or (seq args) ["src" "protocols_src"])
         files (mapcat source-files roots)
+        ;; Validate every allowlisted entry resolves to an existing function
+        allowlist-errors (vec (keep validate-allowlist-entry allowlist))
         violations (vec (mapcat check-file files))]
-    (if (empty? violations)
-      (do (println (format "Direct-write check passed (%d files scanned)."
-                           (count files)))
-          (System/exit 0))
-      (do (println "Direct-write violations (bypass canonical accounting):")
-          (doseq [{:keys [file ns fn line text]} violations]
-            (println (format "  %s/%s (%s:%d) — %s" ns fn file line text)))
-          (println (format "\n%d violation(s) found. Add to allowlist in %s"
-                           (count violations)
+    (if (seq allowlist-errors)
+      (do (println "Direct-write allowlist validation FAILED — stale or unresolvable entries:")
+          (doseq [e allowlist-errors]
+            (println (format "  %s — %s" (:symbol e) (:message e))))
+          (println (format "\n%d allowlist error(s) found. Update the allowlist in %s"
+                           (count allowlist-errors)
                            "scripts/scenarios/check_direct_writes.clj"))
-          (System/exit 1)))))
+          (System/exit 1))
+      (if (empty? violations)
+        (do (println (format "Direct-write check passed (%d files scanned, %d allowlisted functions valid)."
+                             (count files) (count allowlist)))
+            (System/exit 0))
+        (do (println "Direct-write violations (bypass canonical accounting):")
+            (doseq [{:keys [file ns fn line text]} violations]
+              (println (format "  %s/%s (%s:%d) — %s" ns fn file line text)))
+            (println (format "\n%d violation(s) found. Add to allowlist in %s"
+                             (count violations)
+                             "scripts/scenarios/check_direct_writes.clj"))
+            (System/exit 1))))))

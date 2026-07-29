@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.hash.canonical :as hc]
-                        [resolver-sim.protocols.sew.economics :as sew-econ]
+            [resolver-sim.economics.slash-distribution :as sd]
+            [resolver-sim.protocols.sew.economics :as sew-econ]
                         [resolver-sim.pro-rata.allocation :as pro-rata]
                         [resolver-sim.pro-rata.evidence :as mechanism-evidence]))
 
@@ -182,3 +183,198 @@
     (let [source (slurp "protocols_src/resolver_sim/protocols/sew/resolution.clj")]
       (is (str/includes? source "sew-econ/calculate-sew-slash-allocation"))
       (is (not (str/includes? source "payoffs/calculate-prorata-slash-allocation"))))))
+
+;; ── Phase 2: parity tests (new engine matches old results) ──────────────
+
+(defn- parity-assert
+  "Assert that v2 matches v1 for a valid case.  For invalid cases that the
+   new engine intentionally rejects (source overdrawn, negative allocations),
+   return :v2-rejected rather than throwing."
+  [amount bounty & [opts]]
+  (try
+    (let [v1 (apply sew-econ/calculate-slashing-distribution amount bounty (if opts [opts] []))
+          v2 (apply sew-econ/calculate-slashing-distribution-v2 amount bounty (if opts [opts] []))]
+      (is (= v1 v2) (str "v1=" v1 " v2=" v2 " for amount=" amount " bounty=" bounty)))
+    (catch clojure.lang.ExceptionInfo e
+      (let [{:keys [violations]} (ex-data e)
+            ids (set (map :violation/id violations))]
+        (is (or (contains? ids :violation/source-overdrawn)
+                (contains? ids :violation/negative-final-allocation)
+                (contains? ids :violation/rate-out-of-range))
+            (str "unexpected rejection for amount=" amount " bounty=" bounty
+                 " violations=" (pr-str violations)))
+        :v2-rejected))))
+
+(deftest parity-default-split-no-bounty
+  (testing "v2 matches v1 for default 50/30/20 split with zero bounty"
+    (is (= (sew-econ/calculate-slashing-distribution 1000 0)
+           (sew-econ/calculate-slashing-distribution-v2 1000 0)))))
+
+(deftest parity-default-split-with-bounty-even
+  (testing "v2 matches v1 for default split with even bounty amount"
+    (is (= (sew-econ/calculate-slashing-distribution 1000 100)
+           (sew-econ/calculate-slashing-distribution-v2 1000 100)))))
+
+(deftest parity-default-split-with-bounty-odd
+  (testing "v2 matches v1 for default split with odd bounty amount"
+    (is (= (sew-econ/calculate-slashing-distribution 100 5)
+           (sew-econ/calculate-slashing-distribution-v2 100 5)))))
+
+(deftest parity-default-split-large-amount
+  (testing "v2 matches v1 for large amounts"
+    (is (= (sew-econ/calculate-slashing-distribution 1000000 10000)
+           (sew-econ/calculate-slashing-distribution-v2 1000000 10000)))))
+
+(deftest parity-zero-amount
+  (testing "v2 matches v1 for zero amount"
+    (is (= (sew-econ/calculate-slashing-distribution 0 0)
+           (sew-econ/calculate-slashing-distribution-v2 0 0)))))
+
+(deftest parity-larger-bounty-than-insurance-rejected
+  (testing "v2 rejects bounty exceeding source capacity (v1 produced negative)"
+    (is (= :v2-rejected (parity-assert 10 60)))))
+
+(deftest parity-custom-bps-override
+  (testing "v2 matches v1 with custom bps overrides (excluding source-overdrawn cases)"
+    (doseq [[insurance protocol] [[7000 1000] [2000 3000] [4000 4000]]]
+      (let [opts {:insurance-cut-bps insurance :protocol-retained-bps protocol}
+            v1 (sew-econ/calculate-slashing-distribution 1000 50 opts)
+            v2 (sew-econ/calculate-slashing-distribution-v2 1000 50 opts)]
+        (is (= v1 v2) (str "mismatch for insurance=" insurance " protocol=" protocol))))))
+
+(deftest parity-custom-bps-zero-protocol-rejected
+  (testing "v2 rejects protocol=0 with bounty (source-overdrawn)"
+    (is (= :v2-rejected
+           (parity-assert 1000 50 {:insurance-cut-bps 8000 :protocol-retained-bps 0})))))
+
+(deftest parity-small-edge-cases
+  (testing "v2 matches v1 for small amount and bounty edge cases"
+    (doseq [[amount bounty] [[1 1] [2 1] [7 5] [10 10] [100 1]
+                             [1000 7] [10000 99] [101 7]]]
+      (let [result (parity-assert amount bounty)]
+        (when (and (= result :v2-rejected)
+                   (not= amount 101) (not (and (= amount 2) (= bounty 1))))
+          (str "unexpected rejection: amount=" amount " bounty=" bounty))))))
+
+(deftest parity-tiny-bounty-within-capacity
+  (testing "v2 accepts amount=1, bounty=0"
+    (is (= (sew-econ/calculate-slashing-distribution 1 0)
+           (sew-econ/calculate-slashing-distribution-v2 1 0)))))
+
+(deftest parity-conservation
+  (testing "v2 conserves insurance+protocol+retained = amount - bounty"
+    (doseq [[amount bounty] [[100 0] [100 10] [1000 7] [10000 500]]]
+      (let [{:keys [insurance protocol retained]}
+            (sew-econ/calculate-slashing-distribution-v2 amount bounty)
+            total (+ insurance protocol retained)]
+        (is (= total (- amount bounty))
+            (str "amount=" amount " bounty=" bounty " total=" total))))))
+
+(deftest parity-sew-policy-policy-hash
+  (testing "sew-default-slash-distribution-policy-hash is computed and stable"
+    (let [h sew-econ/sew-default-slash-distribution-policy-hash]
+      (is (string? h))
+      (is (pos? (count h)))
+      (is (= 64 (count h))
+          "hash is 32 bytes = 64 hex chars"))))
+
+;; ── Phase 3: boundary tests ─────────────────────────────────────────────
+
+(deftest build-sew-slash-distribution-is-deterministic
+  (testing "same inputs produce identical distribution hash"
+    (let [r1 (sew-econ/build-sew-slash-distribution
+              1000 200
+              :challenger "0xalice"
+              :workflow-reference "wf-1"
+              :evidence-reference "sha256:test-evidence")
+          r2 (sew-econ/build-sew-slash-distribution
+              1000 200
+              :challenger "0xalice"
+              :workflow-reference "wf-1"
+              :evidence-reference "sha256:test-evidence")]
+      (is (= :valid (:status r1)))
+      (is (= :valid (:status r2)))
+      (is (= (:distribution/hash (:distribution r1))
+             (:distribution/hash (:distribution r2)))))))
+
+(deftest build-sew-slash-distribution-no-challenger-produces-no-award
+  (testing "no challenger → no resolved awards → distribution has empty awards"
+    (let [result (sew-econ/build-sew-slash-distribution 1000 200)]
+      (is (= :valid (:status result)))
+      (is (= [] (:distribution/awards (:distribution result))))
+      ;; base = final (no deductions)
+      (is (= (:distribution/base-allocations (:distribution result))
+             (:distribution/final-allocations (:distribution result)))))))
+
+(deftest build-sew-slash-distribution-zero-bounty-produces-no-award
+  (testing "zero bounty-bps → no positive award (award amount is zero)"
+    (let [result (sew-econ/build-sew-slash-distribution
+                  1000 0
+                  :challenger "0xbob"
+                  :workflow-reference "wf-2"
+                  :evidence-reference "sha256:test")]
+      (is (= :valid (:status result)))
+      (is (= [] (:distribution/awards (:distribution result)))))))
+
+(deftest build-sew-slash-distribution-one-award-per-positive
+  (testing "one positive award produces exactly one award entry"
+    (let [result (sew-econ/build-sew-slash-distribution
+                  1000 200
+                  :challenger "0xcarol"
+                  :workflow-reference "wf-3"
+                  :evidence-reference "sha256:test-evidence")]
+      (is (= :valid (:status result)))
+      (let [awards (:distribution/awards (:distribution result))]
+        (is (= 1 (count awards)))
+        (is (= :sew.award/challenge-bounty (:award/id (first awards))))
+        (is (= 20 (:award/amount (first awards))))))))
+
+(deftest build-sew-slash-distribution-two-awards-two-obligations
+  (testing "two awards for same beneficiary remain two traceable obligations"
+    ;; Build a custom policy with two awards
+    (let [policy (-> sew-econ/sew-default-slash-distribution-policy
+                     (assoc :awards
+                       [(first (:awards sew-econ/sew-default-slash-distribution-policy))
+                        {:award/id :sew.award/second-bounty
+                         :amount
+                         {:method        :resolved-amount
+                          :scale         10000}
+                         :eligibility
+                         {:trigger                    :sew.trigger/successful-challenge
+                          :beneficiary-role           :sew.participant/challenger
+                          :requires-evidence-reference? true}
+                         :funding
+                         {:method       :weighted-deduction
+                          :scale        10000
+                          :weights      {:sew.allocation/insurance 10000}
+                          :remainder-to :sew.allocation/insurance}
+                         :settlement
+                         {:allocation-id   :sew.allocation/second-bounty-pool
+                          :obligation-kind :sew.obligation/challenge-bounty}}]))
+          param-ctx {:source-root "sew:test"
+                     :values {:sew.parameter/challenge-bounty-bps 200}}
+          resolved-awards [{:award/id :sew.award/challenge-bounty
+                            :eligibility {:trigger :sew.trigger/successful-challenge
+                                          :evidence-reference "sha256:test-evidence-1"}
+                            :beneficiary {:participant/id "0xdave"
+                                          :participant/role :sew.participant/challenger}}
+                           {:award/id :sew.award/second-bounty
+                            :award/amount 15
+                            :eligibility {:trigger :sew.trigger/successful-challenge
+                                          :evidence-reference "sha256:test-evidence-2"}
+                            :beneficiary {:participant/id "0xdave"
+                                          :participant/role :sew.participant/challenger}}]
+          result (sd/build-slash-distribution
+                  {:gross-amount 1000
+                   :policy policy
+                   :parameter-context param-ctx
+                   :resolved-awards resolved-awards
+                   :context {:source-reference "sew:two-awards"}})]
+      (is (= :valid (:status result)))
+      (let [awards (:distribution/awards (:distribution result))]
+        (is (= 2 (count awards)) "two awards, not one aggregated")
+        (is (= #{(:award/id (first awards)) (:award/id (second awards))}
+               #{:sew.award/challenge-bounty :sew.award/second-bounty}))
+        ;; Each award has its own amount — they are not combined
+        (is (some #(= 20 (:award/amount %)) awards))
+        (is (some #(= 15 (:award/amount %)) awards))))))

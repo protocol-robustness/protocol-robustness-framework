@@ -401,3 +401,68 @@
         (is (some #(= :package/missing-artifact-byte-length (:code %))
                   (:reasons (package-index/validate-integrity r)))))
       (finally (delete-tree! r)))))
+
+;; ── Profile consistency tests ─────────────────────────────────────────────
+
+(deftest completion-profile-rejects-benchmark-index-with-scenario-completion
+  (let [r (root)]
+    (try
+      (write-dag! r (valid-dag))
+      (let [index-result (package-index/write! (io/file r "manifest/run-package-index.json")
+                                               {:run-id "run-bm-1" :scenario-id "bm-scenario-1"
+                                                :execution-id "execution:run-bm-1"
+                                                :run-type :benchmark
+                                                :bundle-root-hash "bundle"
+                                                :artifacts {:execution-dag (artifact-ref r "execution/execution-dag.json")}})
+            index-file (:path index-result)]
+        (spit (io/file r "completion.json")
+              (clojure.data.json/write-str
+               {"schema_version" "run-completion.v1"
+                "run_id" "run-bm-1"
+                "lifecycle_status" "completed"
+                "run_package_index_ref" "manifest/run-package-index.json"
+                "run_package_index_sha256" (str "sha256:" (lifecycle/sha256-file index-file))
+                "run_package_index_bytes" (.length index-file)}))
+        (let [ctx (package-index/resolve-completion-context r)]
+          (is (some #(= :package/completion-invalid (:code %)) (:reasons ctx))
+              "benchmark index with run-completion.v1 schema must be rejected")
+          (is (nil? (get-in ctx [:package-index :index])))))
+      (finally (delete-tree! r)))))
+
+(deftest completion-profile-rejects-scenario-index-with-benchmark-schema
+  (let [r (root)]
+    (try
+      (write-dag! r (valid-dag))
+      (let [index-result (package-index/write! (io/file r "manifest/run-package-index.json")
+                                               {:run-id "run-sc-1" :scenario-id "sc-1"
+                                                :execution-id "execution:run-sc-1"
+                                                :run-type :single-scenario
+                                                :bundle-root-hash "bundle"
+                                                :artifacts {:execution-dag (artifact-ref r "execution/execution-dag.json")}})
+            index-file (:path index-result)]
+        (spit (io/file r "completion.json")
+              (clojure.data.json/write-str
+               {"schema_version" "benchmark-completion.v1"
+                "run_id" "run-sc-1"
+                "lifecycle_status" "completed"
+                "run_type" "benchmark"
+                "run_package_index_ref" "manifest/run-package-index.json"
+                "run_package_index_sha256" (str "sha256:" (lifecycle/sha256-file index-file))
+                "run_package_index_bytes" (.length index-file)}))
+        (let [ctx (package-index/resolve-completion-context r)]
+          (is (some #(= :package/completion-invalid (:code %)) (:reasons ctx))
+              "scenario index with benchmark-completion.v1 schema must be rejected")
+          (is (nil? (get-in ctx [:package-index :index])))))
+      (finally (delete-tree! r)))))
+
+;; ── Edge-case completion file tests ──────────────────────────────────────
+
+(deftest completion-context-handles-empty-completion-file
+  (let [r (root)]
+    (try
+      (spit (io/file r "completion.json") "")
+      (let [ctx (package-index/resolve-completion-context r)
+            reason (first (filter #(= :package/completion-invalid (:code %)) (:reasons ctx)))]
+        (is (some? reason) "empty completion file must produce a rejection reason")
+        (is (some? (:exception reason)) "exception detail must be present in the reason map"))
+      (finally (delete-tree! r)))))

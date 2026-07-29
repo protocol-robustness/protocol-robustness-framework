@@ -8,7 +8,7 @@
            [java.nio.file Files Path StandardCopyOption]
            [java.security MessageDigest]))
 
-(def ^:private excluded #{paths/artifacts-suffix paths/artifacts-validation
+(def ^:private excluded #{paths/artifacts-registry paths/artifacts-validation
                           paths/completion paths/run-state paths/run-lock})
 
 (def ^:private known
@@ -70,7 +70,7 @@
         ids (map :id entries)]
     (when-not (= (count ids) (count (set ids)))
       (throw (ex-info "Benchmark inventory generated duplicate artifact IDs" {:ids ids})))
-    (let [target (io/file root paths/artifacts-suffix)
+    (let [target (io/file root paths/artifacts-registry)
           temp (io/file (str (.getPath target) ".tmp"))
           registry {:schema_version "benchmark-artifacts.v1"
                     :contract_version "evidence-contract.v1"

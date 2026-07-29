@@ -1,0 +1,36 @@
+{:schema-version "slash-distribution-policy.v1"
+ :policy/id      :sew.policy/default-slash-distribution
+ :policy/version 1
+
+ :allocation
+ {:method       :weighted
+  :scale        10000
+  :weights      {:sew.allocation/insurance 5000
+                 :sew.allocation/protocol  3000
+                 :sew.allocation/retained  2000}
+  :remainder-to :sew.allocation/retained}
+
+ :awards
+ [{:award/id :sew.award/challenge-bounty
+
+   :amount
+   {:method        :rate-of-gross
+    :parameter-key :sew.parameter/challenge-bounty-bps
+    :scale         10000
+    :rounding      :floor}
+
+   :eligibility
+   {:trigger                    :sew.trigger/successful-challenge
+    :beneficiary-role           :sew.participant/challenger
+    :requires-evidence-reference? true}
+
+   :funding
+   {:method       :weighted-deduction
+    :scale        10000
+    :weights      {:sew.allocation/insurance 5000
+                   :sew.allocation/protocol  5000}
+    :remainder-to :sew.allocation/protocol}
+
+   :settlement
+   {:allocation-id   :sew.allocation/challenge-bounty
+    :obligation-kind :sew.obligation/challenge-bounty}}]}

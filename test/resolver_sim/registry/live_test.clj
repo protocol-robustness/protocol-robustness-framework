@@ -134,14 +134,19 @@
       (is (contains? (:registry/content result) :claims)))))
 
 (deftest clear-all-registries
-  (testing "clear-all-registries! wipes all live entries"
-    (live/register-registry! :test-a {})
-    (live/register-registry! :test-b {})
+  (testing "clear-all-registries! wipes all live entries, preserves config"
+    (live/register-registry! :test-a {:canonical-path "some/path.edn"})
+    (live/register-registry! :test-b {:resolve-fn (fn [_] {})})
     (live/update-live-registry! :test-a {:a 1})
     (live/update-live-registry! :test-b {:b 2})
-    (live/clear-all-registries!)
-    (let [info-a (live/registry-info :test-a)]
-      (is (false? (:live? info-a))))))
+    (let [cleared (live/clear-all-registries!)]
+      (is (>= cleared 2) (str "returns count of cleared entries (≥2): " cleared))
+      (let [info-a (live/registry-info :test-a)
+            info-b (live/registry-info :test-b)]
+        (is (false? (:live? info-a)))
+        (is (false? (:live? info-b)))
+        (is (= "some/path.edn" (get-in info-a [:config :canonical-path]))
+            "resolver config preserved")))))
 
 ;; ── Force refresh ────────────────────────────────────────────────────────────
 

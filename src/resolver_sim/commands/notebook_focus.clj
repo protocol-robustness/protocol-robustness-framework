@@ -1,8 +1,9 @@
 (ns resolver-sim.commands.notebook-focus
-  "Manage the Clerk notebook focus file (results/.notebook-focus).")
+  "Manage the Clerk notebook focus file (results/.notebook-focus)."
+  (:require [resolver-sim.hash.reference :as hash-ref]))
 
-(def ^:private focus-file "results/.notebook-focus")
-(def ^:private runs-root "results/runs")
+(def ^:private focus-file hash-ref/notebook-focus-path)
+(def ^:private runs-root hash-ref/results-runs-dir)
 
 (defn- available-run-ids
   "Return sorted list of run directory names under runs-root."

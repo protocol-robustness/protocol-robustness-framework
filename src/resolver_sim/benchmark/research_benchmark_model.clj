@@ -195,12 +195,12 @@
    
    Review the diff carefully: a changed hash means old model roots
    with the previous serialisation become unverifiable."
-  [{:description "Minimal model with all optional fields absent"
+  [   {:description "Minimal model with all optional fields absent"
     :model
     {:schema-version "research-benchmark-model.v1"
      :model/id :test/minimal
      :model/version 1}
-    :expected-hash nil}
+    :expected-hash "sha256:3e13e9db9d6a88f54820a9e4c22767f01bb99907c87d8abed53bbc1d602b8345"}
 
    {:description "Full model with canonical ordering"
     :model
@@ -232,7 +232,7 @@
          :predicate
          {:state {:query [:yield/position :status] :op := :value :withdrawn}}}]}]
      :model/invariants [:yield/conservation]}
-    :expected-hash nil}])
+    :expected-hash "sha256:45108d12717b50e474e3ef0d20640c9618f5ba73af62b4e65c440a6a526a3589"}])
 
 (def ^:const negative-golden-vectors
   "Malformed model maps that must fail validation.

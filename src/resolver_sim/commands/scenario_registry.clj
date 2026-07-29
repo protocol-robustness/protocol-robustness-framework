@@ -7,7 +7,7 @@
            [java.security MessageDigest]
            [java.math BigInteger]))
 
-(def ^:private excluded #{paths/artifacts-suffix
+(def ^:private excluded #{paths/artifacts-registry
                           "manifest/artifact-registry-validation.json"
                           paths/artifacts-validation
                           paths/completion paths/run-state paths/run-lock})
@@ -37,7 +37,7 @@
 
 (defn finalize! [run-root]
   (let [root (.toAbsolutePath (.normalize (Paths/get (str run-root) (make-array String 0))))
-        registry-file (.toFile (.resolve root paths/artifacts-suffix))
+        registry-file (.toFile (.resolve root paths/artifacts-registry))
         registry (json/read-str (slurp registry-file) :key-fn keyword)
         seen (atom #{})
         entries (mapv (fn [entry]

@@ -222,14 +222,18 @@
           :status :not-exercised
           :details {:reason :no-partial-fill-decision-artifacts}}]
         (mapcat (fn [decision]
-                  (->> (partial-fill/partial-fill-closed-form-checks decision)
-                       (filter #(contains? check-ids (:check/id %)))
-                       (map (fn [check]
-                              (cond-> (assoc check :decision/id (:decision/id decision))
-                                (= :not-applicable (:status check))
-                                (assoc :status :not-exercised
-                                       :details (assoc (:details check)
-                                                       :reason :allocation-mode-not-exercised)))))))
+                  (let [checks (try
+                                 (partial-fill/partial-fill-closed-form-checks decision)
+                                 (catch clojure.lang.ExceptionInfo e
+                                   (:check-results (ex-data e))))]
+                    (->> checks
+                         (filter #(contains? check-ids (:check/id %)))
+                         (map (fn [check]
+                                (cond-> (assoc check :decision/id (:decision/id decision))
+                                  (= :not-applicable (:status check))
+                                  (assoc :status :not-exercised
+                                         :details (assoc (:details check)
+                                                         :reason :allocation-mode-not-exercised))))))))
                 decisions)))))
 
 (defn- scenario-check-results

@@ -8,6 +8,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [resolver-sim.benchmark.coverage :as coverage]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.scenario.suites :as suites]))
@@ -186,7 +187,7 @@
 
 (defn- validate-claim-registry
   [errors]
-  (let [path "benchmarks/claim-registry.edn"]
+  (let [path hash-ref/claim-registry-path]
     (if-not (file-exists? path)
       (swap! errors conj "Claim registry not found: " path)
       (let [data (read-edn path)]
@@ -311,7 +312,7 @@
                 (when-not (contains? (set (:benchmark/concepts manifest)) dim)
                   (swap! errors conj (str "Scenario dimension " dim " not declared in :benchmark/concepts in " manifest-path))))))))
     ;; Claim references validate against claim registry
-      (let [claim-reg (claim-registry-map "benchmarks/claim-registry.edn")]
+      (let [claim-reg (claim-registry-map hash-ref/claim-registry-path)]
         (when claim-reg
           (let [deferred (or (:benchmark/deferred-scenario-claims manifest) #{})
                 all-registered-ids (set (keys claim-reg))
@@ -343,8 +344,8 @@
 
 (defn- validate-pack-capabilities
   [errors]
-  (doseq [reg-path ["benchmarks/packs/prf-core/registry.edn"
-                    "benchmarks/packs/sew/registry.edn"]]
+  (doseq [reg-path [hash-ref/prf-core-pack-registry-path
+                    hash-ref/sew-pack-registry-path]]
     (when-let [pack (read-edn reg-path)]
       (let [pack-dir (.getParent (io/file reg-path))
             manifests-by-id (into {}
@@ -353,7 +354,7 @@
                                             [(:benchmark/id benchmark-ref)
                                              (assoc m :benchmark/status (:benchmark/status benchmark-ref))])))
                                   (:benchmarks pack))
-            claim-reg (claim-registry-map "benchmarks/claim-registry.edn")
+            claim-reg (claim-registry-map hash-ref/claim-registry-path)
             known-ids (if claim-reg (set (keys claim-reg)) #{})]
         (doseq [error-id (coverage/pack-capability-errors pack manifests-by-id known-ids)]
           (swap! errors conj (str "Pack capability violation " error-id " in " reg-path)))))))
@@ -365,8 +366,8 @@
 (defn- validate-duplicates
   [errors]
   (let [active-manifests (atom [])]
-    (doseq [reg-path ["benchmarks/packs/prf-core/registry.edn"
-                      "benchmarks/packs/sew/registry.edn"]]
+    (doseq [reg-path [hash-ref/prf-core-pack-registry-path
+                      hash-ref/sew-pack-registry-path]]
       (when-let [pack (read-edn reg-path)]
         (let [pack-dir (.getParent (io/file reg-path))]
           (doseq [ref (:benchmarks pack)]
@@ -391,9 +392,9 @@
 
 (defn- validate-no-bare-filesystem-paths
   [errors]
-  (let [scenario-dir "scenarios/edn"]
-    (doseq [reg-path ["benchmarks/packs/prf-core/registry.edn"
-                      "benchmarks/packs/sew/registry.edn"]]
+  (let [scenario-dir hash-ref/scenarios-edn-dir]
+    (doseq [reg-path [hash-ref/prf-core-pack-registry-path
+                      hash-ref/sew-pack-registry-path]]
       (when-let [pack (read-edn reg-path)]
         (let [pack-dir (.getParent (io/file reg-path))]
           (doseq [ref (:benchmarks pack)]
@@ -405,7 +406,7 @@
                     (let [paths (suites/suite-paths suite-key)]
                       (doseq [p paths]
                         (when (and (string? p)
-                                   (not (str/starts-with? p "resource:"))
+                                   (not (str/starts-with? p hash-ref/resource-prefix))
                                    (not (str/starts-with? p "file:"))
                                    (not (str/starts-with? p scenario-dir))
                                    (.exists (io/file p)))
@@ -422,7 +423,7 @@
   [_]
   (println "Validating benchmarks...")
   (let [errors (atom [])
-        registry-file "benchmarks/registry.edn"]
+        registry-file hash-ref/benchmark-registry-bare-path]
     (if-not (file-exists? registry-file)
       (swap! errors conj "Benchmark registry not found: benchmarks/registry.edn")
       (if-let [registry-data (read-edn registry-file)]

@@ -6,9 +6,10 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.test :refer [deftest is testing]]))
+            [clojure.test :refer [deftest is testing]]
+            [resolver-sim.hash.reference :as hash-ref]))
 
-(def concept-registry-path "data/concepts/registry.edn")
+(def concept-registry-path hash-ref/concept-registry-path)
 (def force-auth-concept-path "data/concepts/security/force_authorisation.edn")
 (def claims-path "data/claims/force_authorisation_claims.edn")
 

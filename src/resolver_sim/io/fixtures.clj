@@ -15,7 +15,8 @@
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.util.deep-merge :as dm])
+            [resolver-sim.util.deep-merge :as dm]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.security MessageDigest]))
 
 ;; ---------------------------------------------------------------------------
@@ -41,8 +42,8 @@
                   (= ns "suite") "suites"
                   :else ns)]
     (if dir
-      (str "data/fixtures/" dir "/" nm ext)
-      (str "data/fixtures/" nm ext))))
+      (str hash-ref/fixtures-dir "/" dir "/" nm ext)
+      (str hash-ref/fixtures-dir "/" nm ext))))
 
 (def allowed-fixture-namespaces
   "Set of valid fixture namespace strings.
@@ -67,7 +68,7 @@
   [k]
   (boolean (when (valid-fixture-ref? k)
              (let [path          (fixture-key->path k)
-                   resource-path (str "resource:" path)]
+                   resource-path (str hash-ref/resource-prefix path)]
                (or (rp/path-exists? resource-path)
                    (.exists (io/file path)))))))
 
@@ -88,7 +89,7 @@
    Returns the parsed Clojure data."
   [k]
   (let [path          (fixture-key->path k)
-        resource-path (str "resource:" path)]
+        resource-path (str hash-ref/resource-prefix path)]
     (if (rp/path-exists? resource-path)
       (let [content (rp/slurp-path resource-path)]
         (if (.endsWith path ".json")
@@ -128,7 +129,7 @@
    Returns nil if the file cannot be read."
   [path]
   (try
-    (let [content (rp/slurp-path (str "resource:" path))
+    (let [content (rp/slurp-path (str hash-ref/resource-prefix path))
           digest  (MessageDigest/getInstance "SHA-256")]
       (.update digest (.getBytes content "UTF-8"))
       (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest digest))))
@@ -204,14 +205,14 @@
   "Read the suite registry and return a map of suite-key → metadata.
    Tries classpath resource first, then filesystem."
   []
-  (let [manifest (or (try (rp/edn-read "resource:data/fixtures/suites/manifest.edn")
+  (let [manifest (or (try (rp/edn-read (str hash-ref/resource-prefix hash-ref/fixture-suite-manifest-path))
                           (catch Exception _ nil))
-                     (edn/read-string (slurp "data/fixtures/suites/manifest.edn")))]
+                     (edn/read-string (slurp hash-ref/fixture-suite-manifest-path)))]
     (reduce-kv (fn [m k v]
                  (let [suite-file (:file v)
-                       suite-data (or (try (rp/edn-read (str "resource:data/fixtures/suites/" suite-file))
+                       suite-data (or (try (rp/edn-read (str hash-ref/resource-prefix hash-ref/fixtures-dir "/suites/" suite-file))
                                            (catch Exception _ nil))
-                                      (edn/read-string (slurp (str "data/fixtures/suites/" suite-file))))]
+                                      (edn/read-string (slurp (str hash-ref/fixtures-dir "/suites/" suite-file))))]
                    (assoc m k (select-keys suite-data [:suite/id :suite/title :suite/purpose
                                                        :suite/class :suite/criticality
                                                        :suite/prevents]))))

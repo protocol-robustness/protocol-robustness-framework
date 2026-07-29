@@ -74,7 +74,7 @@
 (defn default-finalize-registry! [c _] (registry/finalize! (:run/root c)))
 (defn default-validate-registry! [c _]
   (let [registry-file (io/file (str (p (:manifest/dir c)) "/artifacts.json"))
-        registry-ref paths/artifacts-suffix
+        registry-ref paths/artifacts-registry
         result (artifact-registry/validate-artifact-registry-from-file (.getPath registry-file))
         ;; The persisted validation result explicitly commits to the exact
         ;; registry bytes it evaluated. The package index separately commits to
@@ -364,7 +364,7 @@
                    :runner_finalization {:ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json")
                                          :sha256 (when (.isFile runner-finalization-file)
                                                    (str "sha256:" (lifecycle/sha256-file runner-finalization-file)))}
-                   :outer_registry {:ref paths/artifacts-suffix
+                   :outer_registry {:ref paths/artifacts-registry
                                     :verification "verified-by-verify-scenario-after-inventory"}
                    :checks {:run_finalization_verified (= "verified" (get-in finalization [:verification :status]))
                             :runner_finalization_present (.isFile runner-finalization-file)
@@ -440,7 +440,7 @@
         :run-finalization (ref "evidence/finalizations/run/evidence-finalization.json")
         :canonical-assurance (ref "manifest/canonical-integrity.json")
         :verdict-policy (ref "manifest/verdict-policy.json")
-        :artifact-registry (ref paths/artifacts-suffix)
+        :artifact-registry (ref paths/artifacts-registry)
         :registry-validation (ref "manifest/artifact-registry-validation.json")
         :execution-dag (ref (str "scenarios/" (:scenario/slug c) "/execution/execution-dag.json"))
         :pro-rata-mechanism-nodes (when (.isFile (io/file root "manifest/pro-rata-mechanism-nodes.json"))
@@ -482,7 +482,7 @@
                             {:code :package/completion-gate-failed
                              :reasons (:reasons gate)})))
         root (:run/root c)
-        registry (io/file (str root) paths/artifacts-suffix)
+        registry (io/file (str root) paths/artifacts-registry)
         validation (io/file (str root) "manifest/artifact-registry-validation.json")
         runner-finalization (io/file (str (:execution/dir c)) "runner-finalization.json")
         outcome (if (zero? (:exit-code e)) "pass" "fail")]
@@ -507,7 +507,7 @@
                                     (str "sha256:" (lifecycle/sha256-file package-index))))
       :run_package_index_bytes (let [package-index (io/file (str root) paths/run-package-index)]
                                  (when (.isFile package-index) (.length package-index)))
-      :artifact_registry_ref paths/artifacts-suffix
+      :artifact_registry_ref paths/artifacts-registry
       :artifact_registry_sha256 (when (.isFile registry) (str "sha256:" (lifecycle/sha256-file registry)))
       :registry_validation_ref "manifest/artifact-registry-validation.json"
       :registry_validation_sha256 (when (.isFile validation) (str "sha256:" (lifecycle/sha256-file validation)))})

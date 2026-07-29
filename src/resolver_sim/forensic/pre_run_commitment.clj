@@ -7,6 +7,7 @@
             [resolver-sim.forensic.source-hash :as src-hash]
             [resolver-sim.forensic.deps-hash :as deps-hash]
             [resolver-sim.forensic.corpus-hash :as corpus-hash]
+            [resolver-sim.hash.reference :as hash-ref]
             [clojure.data.json :as json])
   (:import [java.security MessageDigest]
            [java.time Instant]))
@@ -39,7 +40,7 @@
                       {:runner/binary-path runner-jar-path
                        :runner/binary-size (.length (java.io.File. runner-jar-path))
                        :runner/binary-sha256 (sha256-file runner-jar-path)})
-         config-hash (sha256-file "config/evidence.json")
+         config-hash (sha256-file hash-ref/evidence-config-path)
          commitment {:pre-run/schema-version "pre-run-commitment.v1"
                      :pre-run/generated-at (str (Instant/now))
                      :pre-run/run-id run-id
@@ -64,7 +65,7 @@
    (write-commitment! commitment nil))
   ([commitment execution-dir]
    (let [run-id (or (:pre-run/run-id commitment) "unknown")
-         dir (or execution-dir (str (io/file "results" "runs" run-id)))
+         dir (or execution-dir (str (io/file hash-ref/results-runs-dir run-id)))
          f (io/file dir "pre-run-commitment.json")]
      (.mkdirs (io/file dir))
      (spit f (json/write-str commitment {:indent true}))

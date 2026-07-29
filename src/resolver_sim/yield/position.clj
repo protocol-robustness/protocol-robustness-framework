@@ -175,7 +175,7 @@
   [pos & {:keys [workflow-id settlement-mode accrual-mode short-circuits]}]
   (let [module-id (or (:module/id pos) (get-in pos [:position/id 2]))
         token (or (:token pos) (get-in pos [:position/id 3]))]
-    {:workflow_id (or workflow-id (get-in pos [:position/id 1]))
+    {:workflow_id (or workflow-id (get-in pos [:position/workflow-id] 0))
      :module_id module-id
      :token token
      :settlement_mode (or settlement-mode :none)

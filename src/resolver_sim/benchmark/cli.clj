@@ -8,6 +8,7 @@
             [resolver-sim.benchmark.diagnostics :as diagnostics]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.evidence.timestamping :as ts]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.logging :as log]
@@ -55,7 +56,7 @@
     (do (log/warn! :pack-registry-not-found {:path pack-reg-path}) [])))
 
 (def ^:private default-benchmark-manifest
-  "resource:benchmarks/packs/sew/escrow-dispute-v1.edn")
+  (str hash-ref/resource-prefix hash-ref/escrow-dispute-pack-path))
 
 (defn- load-index
   "Read benchmarks/registry.edn, walk the pack hierarchy, and return

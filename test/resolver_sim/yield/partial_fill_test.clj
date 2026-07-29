@@ -6,6 +6,14 @@
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.position :as pos]))
 
+(defn- closed-form-checks
+  "Call closed-form checks, returning results even when checks fail."
+  [decision]
+  (try
+    (pf/partial-fill-closed-form-checks decision)
+    (catch clojure.lang.ExceptionInfo e
+      (:check-results (ex-data e)))))
+
 (def base-position
   (pos/normalize-position
    {:owner/id "user1"
@@ -198,7 +206,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)]
+          checks (closed-form-checks decision)]
       (is (= #{:pass :not-applicable}
              (set (map :status checks)))))))
 
@@ -210,7 +218,7 @@
                   :haircut {}
                   :policy {:mode :pro-rata :rounding-policy :largest-remainder}
                   :evidence {:available-liquidity 10}}
-        checks (pf/partial-fill-closed-form-checks decision)
+        checks (closed-form-checks decision)
         by-id (into {} (map (juxt :check/id identity) checks))]
     (is (= :not-applicable (:status (get by-id :partial-fill/pro-rata-cross-product))))
     (is (= :pass (:status (get by-id :partial-fill/rounding-fairness-ideal))))
@@ -225,7 +233,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           fairness (first (filter #(= :partial-fill/pro-rata-cross-product
                                       (:check/id %))
                                   checks))]
@@ -241,7 +249,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           per-claim (first (filter #(= :partial-fill/per-claim-conservation
                                        (:check/id %))
                                    checks))]
@@ -257,7 +265,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           integrity (first (filter #(= :partial-fill/claim-key-consistency
                                        (:check/id %))
                                    checks))]
@@ -273,7 +281,7 @@
                     :haircut {}
                     :policy {:mode :principal-first}
                     :evidence {:available-liquidity 130}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           priority (first (filter #(= :partial-fill/principal-first-priority
                                       (:check/id %))
                                   checks))]
@@ -288,7 +296,7 @@
                     :haircut {}
                     :policy {:mode :principal-first}
                     :evidence {:available-liquidity 100}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           priority (first (filter #(= :partial-fill/principal-first-priority
                                       (:check/id %))
                                   checks))]
@@ -304,7 +312,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 100}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           priority (first (filter #(= :partial-fill/principal-first-priority
                                       (:check/id %))
                                   checks))]
@@ -320,7 +328,7 @@
                     :policy {:mode :waterfall
                              :fill-order [:principal :realized-yield :deferred-yield]}
                     :evidence {:available-liquidity 150}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           priority (first (filter #(= :partial-fill/waterfall-priority
                                       (:check/id %))
                                   checks))]
@@ -336,7 +344,7 @@
                     :policy {:mode :waterfall
                              :fill-order [:principal :realized-yield :deferred-yield]}
                     :evidence {:available-liquidity 90}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           priority (first (filter #(= :partial-fill/waterfall-priority
                                       (:check/id %))
                                   checks))]
@@ -352,7 +360,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 100}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           priority (first (filter #(= :partial-fill/waterfall-priority
                                       (:check/id %))
                                   checks))]
@@ -367,7 +375,7 @@
                     :haircut {}
                     :policy {:mode :waterfall}
                     :evidence {:available-liquidity 80}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           fairness (first (filter #(= :partial-fill/pro-rata-cross-product
                                       (:check/id %))
                                   checks))]
@@ -382,7 +390,7 @@
                     :haircut {:a -5}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           neg (first (filter #(= :partial-fill/non-negative-amounts
                                  (:check/id %))
                              checks))]
@@ -398,7 +406,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           sm (first (filter #(= :partial-fill/settlement-mode-consistency
                                 (:check/id %))
                             checks))]
@@ -414,7 +422,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 100}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           sm (first (filter #(= :partial-fill/settlement-mode-consistency
                                 (:check/id %))
                             checks))]
@@ -429,7 +437,7 @@
                     :haircut {}
                     :policy {:mode :unknown-mode}
                     :evidence {:available-liquidity 20}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           mv (first (filter #(= :partial-fill/mode-valid
                                 (:check/id %))
                             checks))]
@@ -445,7 +453,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           pc (first (filter #(= :partial-fill/per-claim-bound
                                 (:check/id %))
                             checks))]
@@ -461,7 +469,7 @@
                     :haircut {:b 70}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           pc (first (filter #(= :partial-fill/per-claim-bound
                                 (:check/id %))
                             checks))]
@@ -477,7 +485,7 @@
                     :haircut {:b 50}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           overlap (first (filter #(= :partial-fill/deferred-haircut-overlap
                                      (:check/id %))
                                  checks))]
@@ -493,7 +501,7 @@
                     :haircut {:b 30}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           overlap (first (filter #(= :partial-fill/deferred-haircut-overlap
                                      (:check/id %))
                                  checks))]
@@ -509,7 +517,7 @@
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50
                                :shortage 0}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           ec (first (filter #(= :partial-fill/evidence-self-consistency
                                 (:check/id %))
                             checks))]
@@ -527,7 +535,7 @@
                     :evidence {:available-liquidity 50
                                :shortage 50
                                :fill-mode :waterfall}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           ec (first (filter #(= :partial-fill/evidence-self-consistency
                                 (:check/id %))
                             checks))]
@@ -543,7 +551,7 @@
                     :haircut {}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 20}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           smv (first (filter #(= :partial-fill/settlement-mode-valid
                                  (:check/id %))
                              checks))]
@@ -560,7 +568,7 @@
                     :unrealized {:c 10}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           ub (first (filter #(= :partial-fill/unrealized-bucket-valid
                                 (:check/id %))
                             checks))]
@@ -1065,7 +1073,7 @@
                     :evidence {:available-liquidity 20}
                     :decision/hash (str "sha256:" (apply str (repeat 64 "a")))
                     :decision/id "partial-fill-aaaa"}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           fmt (first (filter #(= :partial-fill/decision-artifact-format (:check/id %)) checks))]
       (is (= :pass (:status fmt))))))
 
@@ -1079,7 +1087,7 @@
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 20}
                     :decision/hash "not-a-valid-hash"}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           fmt (first (filter #(= :partial-fill/decision-artifact-format (:check/id %)) checks))]
       (is (= :fail (:status fmt)))
       (is (seq (get-in fmt [:details :violations]))))))
@@ -1118,7 +1126,7 @@
                     :haircut {:a 20}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           sc (first (filter #(= :partial-fill/deferred-haircut-sum-bound
                                 (:check/id %))
                             checks))]
@@ -1134,7 +1142,7 @@
                     :haircut {:a 10}
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
-          checks (pf/partial-fill-closed-form-checks decision)
+          checks (closed-form-checks decision)
           sc (first (filter #(= :partial-fill/deferred-haircut-sum-bound
                                 (:check/id %))
                             checks))]

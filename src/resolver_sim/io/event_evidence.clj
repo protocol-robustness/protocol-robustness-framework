@@ -835,11 +835,18 @@
      (when-let [sid (:subject/id data)] {:subject/id sid})
      (when-let [stype (:subject/type data)] {:subject/type stype})
       ;; Include any workflow-id from domain payload
+      ;; Check both kebab-case (Clojure origin) and snake_case (JSON origin)
      (some (fn [k] (when-let [v (get data k)] {k v}))
-           [:escrow/workflow-id :finalize/workflow-id :bond/workflow-id
-            :dispute/workflow-id :appeal/slash-id :appeal-resolution/slash-id
-            :proposal/workflow-id :unfreeze/resolver
-            :challenge/workflow-id :escalation/workflow-id]))))
+           [:escrow/workflow-id :escrow/workflow_id
+            :finalize/workflow-id :finalize/workflow_id
+            :bond/workflow-id :bond/workflow_id
+            :dispute/workflow-id :dispute/workflow_id
+            :appeal/slash-id :appeal/slash_id
+            :appeal-resolution/slash-id :appeal-resolution/slash_id
+            :proposal/workflow-id :proposal/workflow_id
+            :unfreeze/resolver
+            :challenge/workflow-id :challenge/workflow_id
+            :escalation/workflow-id :escalation/workflow_id]))))
 
 (defn- matches-filter?
   "Check a single evidence artifact map against one filter."
@@ -854,9 +861,13 @@
     :by-workflow
     (let [w (and (number? filter-val) filter-val)]
       (some (fn [k] (= w (get data k)))
-            [:escrow/workflow-id :finalize/workflow-id :bond/workflow-id
-             :dispute/workflow-id :appeal/slash-id :appeal-resolution/slash-id
-             :proposal/workflow-id]))
+            [:escrow/workflow-id :escrow/workflow_id
+             :finalize/workflow-id :finalize/workflow_id
+             :bond/workflow-id :bond/workflow_id
+             :dispute/workflow-id :dispute/workflow_id
+             :appeal/slash-id :appeal/slash_id
+             :appeal-resolution/slash-id :appeal-resolution/slash_id
+             :proposal/workflow-id :proposal/workflow_id]))
 
     :by-group-id
     (= filter-val (:evidence/group-id data))

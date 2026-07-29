@@ -345,7 +345,10 @@
 
 (defn classify-resolution
   "Return a fully-typed resolution map for a workflow in the given world.
-   All :resolution/* values are members of the core resolution-*-values sets."
+   All :resolution/* values are members of the core resolution-*-values sets.
+   :resolution/quality defaults to :unverified when authoritative expected
+   outcome is not available.  To classify with ground truth, call
+   enrich-resolution-quality on the result."
   [world workflow-id]
   (let [id       (clean-id workflow-id)
         state    (or (get-in world [:escrow-transfers id :escrow-state])
@@ -393,7 +396,9 @@
        (contains? t/terminal-states state) :fully-reconciled
        (and (= :disputed state) pending)                  :missing-effects
        (= :disputed state)                                :accounting-mismatch
-       :else                                              :leakage)}))
+       :else                                              :leakage)
+
+     :resolution/quality :unverified}))
 
 ;; ---------------------------------------------------------------------------
 ;; C4. Issue / failure classifier

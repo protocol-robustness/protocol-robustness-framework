@@ -276,6 +276,12 @@
       (swap! errors conj "missing :benchmark/id"))
     (when-not (some? (:benchmark/model-root entry))
       (swap! errors conj "missing :benchmark/model-root"))
+    (let [mr (:benchmark/model-root entry)]
+      (when (and (some? mr) (not (re-matches #"sha256:[0-9a-f]{64}" mr)))
+        (swap! errors conj (str ":benchmark/model-root is not a valid sha256: hash: " mr))))
+    (let [ms (:benchmark/model-schema entry)]
+      (when (and (some? ms) (not= ms "research-benchmark-model.v1"))
+        (swap! errors conj (str ":benchmark/model-schema \"" ms "\" — expected \"research-benchmark-model.v1\""))))
     ;; Validate each component
     (doseq [component-key [:benchmark/model-root
                            :benchmark/incentive-model-root

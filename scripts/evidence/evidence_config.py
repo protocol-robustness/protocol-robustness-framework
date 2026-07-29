@@ -42,14 +42,14 @@ class EvidenceConfig:
         p = Path(path) if path else _find_config()
         with open(p) as f:
             self._data = json.load(f)
-        self._artifact_dir = Path(self._data["artifact_dir"])
+        self._artifact_dir = Path(self.artifact_dir)
         self._artifacts_by_id = {a["id"]: a for a in self._data.get("artifacts", [])}
 
     # ── top-level scalars ────────────────────────────────────────────────
 
     @property
     def artifact_dir(self) -> str:
-        return self._data["artifact_dir"]
+        return os.environ.get("PRF_ARTIFACT_DIR") or self._data["artifact_dir"]
 
     @property
     def contract_version(self) -> str:
