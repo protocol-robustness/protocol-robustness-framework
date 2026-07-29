@@ -252,18 +252,19 @@
                                   (try (let [data (json/read-str (slurp f) :key-fn keyword)]
                                          (when (:attestation/id data) data))
                                        (catch Exception e
-                                         (log/warn! :attestation-bundle-read-error
-                                                    "Failed to read attestation evidence file"
-                                                    {:path (str f) :error (.getMessage e)})
+                                         (log/warn! "Failed to read attestation evidence file"
+                                                    {:event  :attestation-bundle-read-error
+                                                     :path   (str f)
+                                                     :error  (.getMessage e)})
                                          nil)))
                                 evidence-files))
         evidence-nodes (vec (keep (fn [f]
                                     (try (let [data (edn/read-string (slurp f))]
                                            (when (:node-hash data) data))
                                          (catch Exception e
-                                           (log/warn! :attestation-bundle-read-error
-                                                      "Failed to read evidence node file"
-                                                      {:path (str f) :error (.getMessage e)})
+                                           (log/warn! "Failed to read evidence node file"
+                                                      {:event :attestation-bundle-read-error
+                                                       :path (str f) :error (.getMessage e)})
                                            nil)))
                                   evidence-node-files))
         registries {:attestors (get-in bundle-root [:registry/snapshot :attestors] {})
@@ -274,13 +275,13 @@
         (if (.isFile sensitivity-report-file)
           (try (json/read-str (slurp sensitivity-report-file) :key-fn keyword)
                (catch Exception e
-                 (log/warn! :attestation-bundle-sensitivity-read-error
-                            "Failed to read sensitivity report; defaulting to allowed"
-                            {:path (str sensitivity-report-file) :error (.getMessage e)})
+                 (log/warn! "Failed to read sensitivity report; defaulting to allowed"
+                            {:event :attestation-bundle-sensitivity-read-error
+                             :path (str sensitivity-report-file) :error (.getMessage e)})
                  {:decision "allowed"}))
-          (do (log/warn! :attestation-bundle-sensitivity-not-found
-                         "No sensitivity report found at expected path; defaulting to allowed"
-                         {:path (str sensitivity-report-file)})
+          (do (log/warn! "No sensitivity report found at expected path; defaulting to allowed"
+                         {:event :attestation-bundle-sensitivity-not-found
+                          :path (str sensitivity-report-file)})
               {:decision "allowed"}))
         ;; Derive provenance from the persisted report, not from the
         ;; bundle root summary. The report is the canonical authority.
@@ -315,13 +316,13 @@
                      :claim-results (persisted-value (get-in execution [:run-result :results] []))
                      :evidence-nodes (persisted-value evidence-nodes)}
         _ (when (and (seq evidence-files) (empty? attestations))
-            (log/warn! :attestation-bundle-no-attestations
-                       "Evidence files found but no attestations with :attestation/id extracted"
-                       {:evidence-file-count (count evidence-files)}))
+            (log/warn! "Evidence files found but no attestations with :attestation/id extracted"
+                       {:event :attestation-bundle-no-attestations
+                        :evidence-file-count (count evidence-files)}))
         _ (when (and (seq evidence-node-files) (empty? evidence-nodes))
-            (log/warn! :attestation-bundle-no-evidence-nodes
-                       "Evidence node files found but none with :node-hash extracted"
-                       {:evidence-node-file-count (count evidence-node-files)}))
+            (log/warn! "Evidence node files found but none with :node-hash extracted"
+                       {:event :attestation-bundle-no-evidence-nodes
+                        :evidence-node-file-count (count evidence-node-files)}))
         bundle-dir (str (io/file (p (:run/root c)) "evidence" "attestation-bundle"))
         result (ab/build-attestation-bundle
                 {:attestations attestations

@@ -14,8 +14,7 @@
    Hashing uses resolver-sim.hash.canonical with :world-structure intent.
    Structural diff uses clojure.data/diff on sorted-map representations."
   (:require [clojure.data :as data]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.protocols.sew.invariants.accounting :as acct-inv]))
+            [resolver-sim.hash.canonical :as hc]))
 
 ;; ---------------------------------------------------------------------------
 ;; Canonical form
@@ -67,49 +66,134 @@
 
 (defn evm-world-skeleton
   "Return the keys that an EVM state adapter must populate to produce a world
-   map comparable by (world-hash).
+   map comparable by (diff-worlds).
 
    The Anvil adapter (to be built) must read these fields from contract storage:
-     :escrow-transfers    — {wf-id {:escrow-state :amount-after-fee :token ...}}
-     :total-held          — {token-addr nat-int}  from EscrowVault.totalHeldPerToken
-     :total-fees          — {token-addr nat-int}  from EscrowVault.totalFeesPerToken
-     :pending-settlements — {wf-id {:exists :is-release :appeal-deadline}}
-     :dispute-levels      — {wf-id nat-int}        from DR module dm.currentRound
-     :block-time          — nat-int               from block.timestamp
+     :escrow-transfers     — {wf-id {:escrow-state :amount-after-fee :token ...}}
+     :total-held           — {token-addr nat-int}  from EscrowVault.totalHeldPerToken
+     :total-fees           — {token-addr nat-int}  from EscrowVault.totalFeesPerToken
+     :pending-settlements  — {wf-id {:exists :is-release :appeal-deadline}}
+     :dispute-levels       — {wf-id nat-int}        from DR module dm.currentRound
+     :block-time           — nat-int               from block.timestamp
+     :resolver-stakes      — {resolver-addr nat-int}  from ResolverStakingModuleV1
+     :resolver-frozen-until — {resolver-addr nat-int}  from ResolverSlashingModuleV1.frozenUntil
+     :dispute-timestamps   — {wf-id nat-int}        from escrow struct dispute timestamp
 
-   Fields that exist in the sim world but have no direct EVM equivalent
-   (:escrow-settings, :module-snapshots, :claimable, :dispute-timestamps)
-   should be omitted from both sides before comparison by projecting to a
-   common subset with (select-keys world comparable-keys).
+   Procedure for cross-domain comparison:
+     1. Populate all fields above on the EVM side.
+     2. Use (select-keys world diff/comparable-keys) on BOTH simulation and
+        EVM worlds to restrict comparison to only the fields above.
+     3. Call (diff-worlds sim-projection evm-projection) to compare.
+        The only-in-a / only-in-b keys reveal the first divergence.
+
+   Fields that exist only in the sim world and have NO direct EVM equivalent:
+     :escrow-settings, :module-snapshots, :claimable, :pending-fraud-slashes,
+     :previous-decisions, :yield/positions
+
+   :pending-fraud-slashes has a canonical projection via slash-registry->canonical
+   (types.clj:369).  See the evm-slash-registry design below for the exact
+   contract queries and format expected from the EVM adapter.
 
    See docs/differential-testing.md (to be created) for the full mapping."
   []
-  {:escrow-transfers    {}
-   :total-held          {}
-   :total-fees          {}
-   :pending-settlements {}
-   :dispute-levels      {}
-   :block-time          0})
+  {:escrow-transfers     {}
+   :total-held           {}
+   :total-fees           {}
+   :pending-settlements  {}
+   :dispute-levels       {}
+   :block-time           0
+   :resolver-stakes      {}
+   :resolver-frozen-until {}
+   :dispute-timestamps   {}})
 
 (defn comparable-keys
   "The world-state keys that have a direct EVM equivalent and should be used
    when comparing model state against Anvil state.
 
    Use (select-keys world (comparable-keys)) on BOTH sides before hashing to
-   avoid false positives from fields that don't exist on-chain."
+   avoid false positives from fields that don't exist on-chain.
+
+   NOTE: Some on-chain state has no direct simulation equivalent in a single
+   key — e.g. :pending-fraud-slashes (slash lifecycle) and :previous-decisions
+   (resolution history) are spread across multiple contracts.  They are omitted
+   from comparable-keys for now.  Add them as the EVM adapter matures."
   []
   #{:escrow-transfers :total-held :total-fees :pending-settlements
-    :dispute-levels :block-time})
+    :dispute-levels :block-time :resolver-stakes :resolver-frozen-until
+    :dispute-timestamps})
 
 (defn projection
   "Project world to only the fields that can be compared against EVM state."
   [world]
   (select-keys world (comparable-keys)))
 
+;; ---------------------------------------------------------------------------
+;; EVM slash registry adapter design
+;;
+;; The slash registry (:pending-fraud-slashes) has no single Solidity mapping
+;; equivalent — slash state is distributed across ResolverSlashingModuleV1
+;; (fraud proposals, appeals, executions), the BaseEscrow/DR module (reversal
+;; slashes created during resolution), and pending/reversal slash lifecycle.
+;;
+;; The EVM adapter must reconstruct the canonical vector by aggregating all
+;; three sources.  The expected output matches slash-registry->canonical:
+;;
+;;   [{:slash/id                       nat-int     — slash identity
+;;     :slash/workflow-id              nat-int     — workflow this slash belongs to
+;;     :slash/kind                     keyword     — :reversal :fraud :force-reversal
+;;     :slash/level                    nat-int     — dispute level (0-2)
+;;     :resolver                       string      — slashed resolver address
+;;     :amount                         nat-int     — slash amount in :token units
+;;     :token                          string      — token address
+;;     :status                         keyword     — :pending :executed :appealed
+;;                                                   :reversed :reversed-with-credit
+;;                                                   :expired-cleaned-up
+;;     :reason                         keyword     — :reversal :fraud
+;;     :proposed-at                    nat-int     — timestamp
+;;     :appeal-deadline                nat-int     — deadline for resolver appeal
+;;     :appeal-bond-held               nat-int     — bond posted for appeal
+;;     ;; Optional fields present when applicable:
+;;     :basis-amount                   nat-int     — stake at time of slash
+;;     :basis-kind                     keyword     — :stake
+;;     :slash-bps                      nat-int     — basis points of slash
+;;     :reversal-detection-probability double      — probability of reversal detection
+;;     :proposal-evidence-hash         string      — evidence hash (sim-only, omit in EVM)}
+;;
+;; Source mapping — ResolverSlashingModuleV1 (fraud slashes):
+;;   - slash ID:    proposal counter (first arg to slashForFraud)
+;;   - workflow:    escrow/workflow id (second arg)
+;;   - resolver:    target resolver address
+;;   - amount:      slash amount proposed
+;;   - status:      :pending initially, → :appealed if appealed, → :executed after timelock
+;;   - proposed-at: block.timestamp of proposal
+;;   - deadline:    proposed-at + appeal-window-duration
+;;   - appeal-bond: 0 if not appealed, bond amount if appealed
+;;
+;; Source mapping — BaseEscrow/DR module (reversal slashes):
+;;   - slash ID:    deterministic from (workflow-id, :reversal, level) via slash-context-key
+;;   - workflow:    escrow id
+;;   - resolver:    resolver whose decision was reversed
+;;   - amount:      reversal-slash-bps × resolver-stake
+;;   - status:      :executed (Track 1, immediate) or :pending (Track 2, new evidence)
+;;   - proposed-at: block.timestamp of the reversing resolution
+;;   - deadline:    proposed-at + appeal-window (Track 2 only)
+;;
+;; The adapter queries three contract views:
+;;   1. ResolverSlashingModuleV1.getFraudSlash(id)      -> fraud slash entry
+;;   2. ResolverSlashingModuleV1.getFraudSlashCount()    -> iterate all fraud slashes
+;;   3. BaseEscrow.getReversalSlash(workflowId, level)   -> reversal slash entry
+;;
+;; If these views don't exist, the adapter must derive them from:
+;;   - SlashProposed / SlashExecuted / SlashAppealed events
+;;   - The DR module's previous-decisions mapping (reversal status per level)
+;; ---------------------------------------------------------------------------
+
 (defn projection-hash
   "Hash of the EVM-comparable projection of world with :evm-projection intent.
-   Uses :evm-projection domain tag for cross-domain isolation."
+   Uses :evm-projection domain tag for cross-domain isolation.
+   Only includes fields that the EVM adapter can populate (see comparable-keys).
+   Does NOT include simulation-only invariants (e.g. accounting-consistent?)
+   because no on-chain adapter can reproduce them."
   [world]
-  (let [proj (-> (projection world)
-                 (assoc :accounting-consistent? (acct-inv/accounting-consistent? world)))]
+  (let [proj (projection world)]
     (hc/hash-with-intent {:hash/intent :evm-projection} proj)))
