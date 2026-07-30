@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s11-zero-fee-edge-case",
  :final-state-hash
- "80f9566f27495e33d397ca62a2a6e200a8c6ed39a8ca379c2009cec0aacae3b6",
+ "4e045444be509ef2c1288bc68be2736691adedddc1625a69eb51ddd5ef04c606",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

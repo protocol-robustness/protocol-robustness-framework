@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-accounting-min,
  :trace-id "s53-pending-create-clear-balance-consistency",
  :final-state-hash
- "f17c3404d59b8f3ade9482c0b57b86b6ba8b15943762dc41fcf79b486c4e9c9b",
+ "a5e299cc13b79a0d689914c11bde9a41cd09083404825c183e2bfe3dda7a3be9",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

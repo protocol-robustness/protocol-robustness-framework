@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s02-dr3-dispute-release",
  :final-state-hash
- "04173835ae3b8ca780ede1745782dba7044ebf3fac989cae39c819c0e34c5347",
+ "9dd682d20ad86488802f6af0989baf1a75c51084eb69afb9de03c133b8c94aa3",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

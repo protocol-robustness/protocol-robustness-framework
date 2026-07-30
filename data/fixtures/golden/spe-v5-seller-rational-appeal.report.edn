@@ -2,7 +2,7 @@
  :suite-id :suites/spe-validation,
  :trace-id "spe-v5-seller-rational-appeal",
  :final-state-hash
- "621341c3c4f8dac2567ecf1a1a8b9cac1507ebe5925180c65e9685025ee20c96",
+ "9d4527052602084fad77a5ea06f1f419d2658da5debfe5bc113e46fa88561e46",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

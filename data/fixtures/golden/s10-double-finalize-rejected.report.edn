@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s10-double-finalize-rejected",
  :final-state-hash
- "2ef0d8d5143d2fd2f999f91de59f871982caa70cca076075fee56e6d1646d538",
+ "6ba4eaad0f4de8d61f061d2ae970fa878ac5e3307c2bbd9f5eeb9016b7f02753",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

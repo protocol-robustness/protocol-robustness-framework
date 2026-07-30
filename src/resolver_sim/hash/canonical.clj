@@ -316,6 +316,12 @@
           len (encode-varuint (count bs))]
       (ba-concat (ba-of tag-keyword) len bs))
 
+    (instance? java.time.temporal.TemporalAccessor v)
+    (let [s (str v)
+          bs (utf8-bytes s)
+          len (encode-varuint (count bs))]
+      (ba-concat (ba-of tag-string) len bs))
+
     (instance? java.math.BigDecimal v)
     (let [double-bytes (canonical-bytes (double v))]
       double-bytes)

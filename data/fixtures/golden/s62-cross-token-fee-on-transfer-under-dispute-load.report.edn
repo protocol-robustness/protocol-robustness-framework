@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-economic-stress,
  :trace-id "s62-cross-token-fee-on-transfer-under-dispute-load",
  :final-state-hash
- "c7c435c2f8b95873ee5d8302d2c98e332126b1c4c0aa77d2a312834ff5a07b91",
+ "7d7c3e48f68bfe8c0b0a328c39f7613aea7b57c9dc2479e04cc2bba3d1809708",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

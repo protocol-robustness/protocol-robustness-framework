@@ -2,7 +2,7 @@
  :suite-id :suites/spe-regression,
  :trace-id "spe-reg-v2-inconclusive-no-dispute",
  :final-state-hash
- "2c38d6c8a1bfa89930b0a2ad58007864db7b3b6149deac32267d3bfa61837585",
+ "f925203e269e3986dc618e0acda6febfa3c57f352aa434e62cbaa53daf46a897",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

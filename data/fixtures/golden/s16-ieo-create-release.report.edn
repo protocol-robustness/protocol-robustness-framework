@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s16-ieo-create-release",
  :final-state-hash
- "0de022f563236c58bf78782cb876f0185566da8161ae50fcd689e75869d18218",
+ "75431dafa4d17554ef2e54bd90e6124cd2c47bf43c43dea0e9ed99cb656c4ca4",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

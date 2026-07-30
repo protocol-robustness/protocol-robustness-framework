@@ -2,7 +2,7 @@
  :suite-id :suites/forking-strategist,
  :trace-id "s30-forking-strategist-double-loss",
  :final-state-hash
- "c79d3c0562998378636d2187bcd7c2f7c644b0969ff19de10780f34fed20b7e8",
+ "4e2b472e916ce5f20bda7000b2292ad3bd564e9e191301b339b82b89988b9a94",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

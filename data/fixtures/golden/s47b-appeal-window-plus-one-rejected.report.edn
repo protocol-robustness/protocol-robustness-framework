@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-race-pairs,
  :trace-id "s47b-appeal-window-plus-one-rejected",
  :final-state-hash
- "f2be12da323477f129c3b4c9ad2f46aa6c0156b6c720271f961e37c419e2309d",
+ "b9a3ff67ceb194f9775cb8100bb34f28dadebddcb537e3f8dcbcf42bf70ca877",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

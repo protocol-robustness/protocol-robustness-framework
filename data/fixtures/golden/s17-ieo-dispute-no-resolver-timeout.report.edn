@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s17-ieo-dispute-no-resolver-timeout",
  :final-state-hash
- "d59cac0ff75defccdf8488c3d968df2080819ed793131839e412d9f8a5f49389",
+ "36dffe9d4930db8546b2a85551bfee40608f73f571dd6e130ad695c8149c22d4",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

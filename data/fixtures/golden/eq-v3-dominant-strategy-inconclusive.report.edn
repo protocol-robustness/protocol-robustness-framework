@@ -2,7 +2,7 @@
  :suite-id :suites/equilibrium-validation,
  :trace-id "eq-v3-dominant-strategy-inconclusive",
  :final-state-hash
- "300069d4ba68969cd84da3621352235fc643ef85f20386f318be33e12b3d734c",
+ "55035e6a6ac9c45dae8fb90e7252ec2540fd943ee5317e40d9358fe0d5a4197b",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

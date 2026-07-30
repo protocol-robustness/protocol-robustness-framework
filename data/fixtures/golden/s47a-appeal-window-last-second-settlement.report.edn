@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-race-pairs,
  :trace-id "s47a-appeal-window-last-second-settlement",
  :final-state-hash
- "c663474dfdeb1e3760abceaffe642f236d3a12a2d93089d02eb69bd82da6d46b",
+ "4321bd5ea11150a6f1521e15ee6ca366eb5413016cda5ed2ee6083bc674eeca8",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

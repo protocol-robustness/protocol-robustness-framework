@@ -51,7 +51,10 @@
 (deftest register-evidence-concurrent-idempotent
   (chain/reset-registry!)
   (let [evidence (make-sample-evidence 1)
-        futures (repeatedly 10 #(future (chain/register-evidence! evidence)))]
+        registry-atom chain/evidence-registry-atom
+        futures (repeatedly 10 #(future
+                                  (binding [chain/evidence-registry-atom registry-atom]
+                                    (chain/register-evidence! evidence))))]
     (doseq [f futures] @f)
     (is (= 1 (:evidence-count (chain/registry-status)))
         "Concurrent duplicate calls should not create duplicates")))

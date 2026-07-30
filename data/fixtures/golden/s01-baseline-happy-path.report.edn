@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s01-baseline-happy-path",
  :final-state-hash
- "bb2d004cf609e0597671e37588361c748c65436e56044162752755860bf2ba52",
+ "888c1959efaa641de7c87cd59a69e60e38689e811232617ee5e9b4517a9f5050",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

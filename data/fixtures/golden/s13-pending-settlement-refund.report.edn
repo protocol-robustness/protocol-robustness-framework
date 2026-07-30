@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s13-pending-settlement-refund",
  :final-state-hash
- "6af888f260d09d1f320cde3b92b4334db61cc9f85b2d0735ce5920c34dbcf041",
+ "c0b650cfd0bb7126be30617e3a833eb44622475e3b37b94eb94090505cd7f014",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

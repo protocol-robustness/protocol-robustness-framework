@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-accounting-min,
  :trace-id "s52-fee-delta-monotonic-under-fot",
  :final-state-hash
- "4925290af3454cda56afbf97308973ede7dd6378611b0eb1d7877efe4f63bbae",
+ "fa4e0acb67d7e38d959bd409d7c3ce4a4406928d6bd84fba3c2532e015ce7e16",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

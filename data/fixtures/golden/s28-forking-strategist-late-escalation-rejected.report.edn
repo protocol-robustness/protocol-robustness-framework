@@ -2,7 +2,7 @@
  :suite-id :suites/forking-strategist,
  :trace-id "s28-forking-strategist-late-escalation-rejected",
  :final-state-hash
- "9367bf329eed8443ad69656c651284db0011c5488735ab20964ed3d8678012a8",
+ "3e73e410b58f279d84d98f4a7ddccd762cd518ba577bcf34b7744607f92a5ce2",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

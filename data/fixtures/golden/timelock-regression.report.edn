@@ -2,7 +2,7 @@
  :suite-id :suites/timelock-regression,
  :trace-id "timelock-regression",
  :final-state-hash
- "29fb41881c4cab191c11a82f9bc8598b01415db7fa0a595490ed32b4a93c8fca",
+ "3865c56de5a3473f971e351e895da53cde837a69dd941c0f273ff0b0a59bd7d7",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

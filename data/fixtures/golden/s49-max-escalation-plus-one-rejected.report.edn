@@ -2,7 +2,7 @@
  :suite-id :suites/dr3-critical,
  :trace-id "s49-max-escalation-plus-one-rejected",
  :final-state-hash
- "fa95e081ce677da694efe20d4456febd33d5cb9d6795e7bd899cdc6c84fd2738",
+ "1f31a95ea7f99734b202cc560de8870c0523c06c3d6588e0d9d9402e630eb9f3",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

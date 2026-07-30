@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-economic-stress,
  :trace-id "s60-partial-withdraw-then-slash-ordering",
  :final-state-hash
- "6984c2cad2a349bbba6dca7a93f539a37c92c91f4dc053db1709d175c08fce55",
+ "5ed70838ba5b4538eccb838ebb7c80806815d80888391afa6e79a16a7719b892",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s09-multi-escrow-solvency",
  :final-state-hash
- "b647ed7d3f4bd81318a3b90a28321e3a98271a2e22bfcaf4d51d8bc23f3aa494",
+ "f59750da4e8efee07b1124249a9ce833c76bc4e83839ebca666b45ac93baa2e3",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

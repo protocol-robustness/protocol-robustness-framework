@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s19-dr3-kleros-escalation-rejected-l0-resolves",
  :final-state-hash
- "5ba37dde1c2fad210241d14fc63ef20be5e46ff98f167375c11549c0a1ee6085",
+ "08f87333ef8e9798495ce2ad7eefc46d89ddf720201ede31ba7199a3977fc1e5",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

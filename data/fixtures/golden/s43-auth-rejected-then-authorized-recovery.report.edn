@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-auth-paths,
  :trace-id "s43-auth-rejected-then-authorized-recovery",
  :final-state-hash
- "2582eb4535a864c2b1b4576b5b70cec99c48bec7c2fba604d57b3f1427e4138f",
+ "76edf7bdcb7b7916e2347d4a07869025afde3b97fe0dfc7a5cbbce5325bb3eb3",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

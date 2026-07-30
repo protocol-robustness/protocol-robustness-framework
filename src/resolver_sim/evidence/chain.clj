@@ -59,13 +59,17 @@
 
 (defn- registry-lock
   "Get or create a lock for the given registry atom.
-   Locks are stored in evidence-registry-locks map keyed by atom identity."
+   Locks are stored in evidence-registry-locks map keyed by atom identity.
+   Atomic swap! with the creation fn prevents a TOCTOU race where two threads
+   both see nil, create separate locks, and defeat locking-based synchronization."
   [reg-atom]
-  (or (get @evidence-registry-locks (System/identityHashCode reg-atom))
-      (let [lock (Object.)]
-        (swap! evidence-registry-locks
-               (fn [m] (assoc m (System/identityHashCode reg-atom) lock)))
-        lock)))
+  (let [id (System/identityHashCode reg-atom)]
+    (get (swap! evidence-registry-locks
+                (fn [m]
+                  (if (contains? m id)
+                    m
+                    (assoc m id (Object.)))))
+         id)))
 
 (defn reset-registry!
   "Clear the registry atom for a new run.

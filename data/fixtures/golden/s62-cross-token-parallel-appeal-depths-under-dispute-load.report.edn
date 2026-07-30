@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-economic-stress,
  :trace-id "s62-cross-token-parallel-appeal-depths-under-dispute-load",
  :final-state-hash
- "f15dc4da4886c087e59d84f2365c33890c480285704b94e7a8e3e7141c5157f7",
+ "2b4e2dca6c359e0601385beb2158e15208c9103f3832aaf3469a417edae9f073",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

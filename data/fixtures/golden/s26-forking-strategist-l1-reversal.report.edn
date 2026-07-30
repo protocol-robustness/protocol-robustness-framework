@@ -2,7 +2,7 @@
  :suite-id :suites/forking-strategist,
  :trace-id "s26-forking-strategist-l1-reversal",
  :final-state-hash
- "ca4565af673d0109cb0cde24f524313b9db510e562b3e255268035b03fb826e5",
+ "fb3bd0c9befbe6a23306629e2322af9442e8f808a2216941a7b78926db8518ad",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

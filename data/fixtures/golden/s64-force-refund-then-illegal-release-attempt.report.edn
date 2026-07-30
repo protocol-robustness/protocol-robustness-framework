@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-money-path-integrity,
  :trace-id "s64-force-refund-then-illegal-release-attempt",
  :final-state-hash
- "ca6e8ab71b522a28a7620dc87652c81f1d6ae90e9a03c2eaee7088c7732da139",
+ "52140874bebc31ea5b9ee3fab85867271a5ff42f6edf6d66147594f86df2358a",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

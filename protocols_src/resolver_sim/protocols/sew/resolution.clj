@@ -1730,19 +1730,27 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                                          (acct/record-claimable-v2 workflow-id :bond/refund member amount))
                         :always (assoc-in [:pending-fraud-slashes slash-id :appeals member :status] :upheld)
                         :always (assoc-in [:pending-fraud-slashes slash-id :appeals member :appeal-bond-held] 0))
-                      (cond-> (-> world-base
-                                                        (assoc-in [:pending-fraud-slashes slash-id :appeals member :status] :rejected)
-                                                        (assoc-in [:pending-fraud-slashes slash-id :appeals member :appeal-bond-held] 0))
-                                             (pos? amount) (-> (acct/sub-held token amount)
-                                                           {:action "resolve-fraud-group-appeal"
-                                                            :reason :appeal-bond-forfeited
-                                                            :authorization-provenance authorization-provenance
-                                                            :extra {:held/action "resolve-fraud-group-appeal"
-                                                                    :held/workflow-id workflow-id
-                                                                    :held/slash-id slash-id
-                                                                    :held/actor member}})
-                                         (update-in [:appeal-bond-distributions-by-token token] (fnil + 0) amount)
-                                          (update :appeal-bonds-forfeited-insurance (fnil + 0) amount)))]
+                       (let [rejected-base (-> world-base
+                                                              (assoc-in [:pending-fraud-slashes slash-id :appeals member :status] :rejected)
+                                                              (assoc-in [:pending-fraud-slashes slash-id :appeals member :appeal-bond-held] 0))
+                                   after-sub-held (if (pos? amount)
+                                                    (acct/sub-held rejected-base token amount
+                                                                   {:action "resolve-fraud-group-appeal"
+                                                                    :reason :appeal-bond-forfeited
+                                                                    :authorization-provenance authorization-provenance
+                                                                    :extra {:held/action "resolve-fraud-group-appeal"
+                                                                            :held/workflow-id workflow-id
+                                                                            :held/slash-id slash-id
+                                                                            :held/actor member}})
+                                                    rejected-base)
+                                   after-distrib (if (pos? amount)
+                                                   (let [current (get-in after-sub-held [:appeal-bond-distributions-by-token token] 0)]
+                                                     (assoc-in after-sub-held [:appeal-bond-distributions-by-token token] (+ current amount)))
+                                                   after-sub-held)
+                                    result (if (pos? amount)
+                                              (update after-distrib :appeal-bonds-forfeited-insurance (fnil + 0) amount)
+                                              after-distrib)]
+                                result))]
          (t/ok world')))))
 
 (defn execute-fraud-group-slash
@@ -2247,3 +2255,7 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
   "Monadic version of escalate-dispute."
   [workflow-id caller escalation-fn]
   (am/update-with-result escalate-dispute workflow-id caller escalation-fn))
+
+(comment
+  ;; Debug: add a temp version that prints
+  )

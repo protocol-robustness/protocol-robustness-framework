@@ -2,7 +2,7 @@
  :suite-id :suites/all-invariants,
  :trace-id "s15-dr3-module-unauthorized-rejected",
  :final-state-hash
- "4553e718f6a077f81eec2a3f67de66b9837e6f8c113a138870ef527ab183ef1d",
+ "0feb4476b9a084399b6b847435a417ca034bf2f821359cdf82ba6359e9bc3195",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

@@ -2,7 +2,7 @@
  :suite-id :suites/equilibrium-validation,
  :trace-id "eq-v9-nash-fail-attack-success",
  :final-state-hash
- "af6e69255d1d14ca200c667bee09380b31e24d342bc308a5052961b5cf9d9090",
+ "56c16d515e1302ec71bddc2027b5ab0163faf3db323e332a6a5faa21018d8a9a",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

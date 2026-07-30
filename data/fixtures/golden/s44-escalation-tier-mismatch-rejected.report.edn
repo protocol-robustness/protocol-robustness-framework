@@ -2,7 +2,7 @@
  :suite-id :suites/dr3-critical,
  :trace-id "s44-escalation-tier-mismatch-rejected",
  :final-state-hash
- "5f9555b169f4c978fb3c8f12c49e1dfaf11d9160b3fb203291986d7d8f7d099a",
+ "207457c27d6a4e61fbfb9a70625e83428a8565367e27e9d5a087b4025f23a8b6",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

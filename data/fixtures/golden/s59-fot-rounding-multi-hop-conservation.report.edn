@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-economic-stress,
  :trace-id "s59-fot-rounding-multi-hop-conservation",
  :final-state-hash
- "ed80459a53c668d41502f62aedd78ba8778cbf43650c8ca75f8f2703369d25d0",
+ "f53363ce9ddf874071849fef37a1076cc5a742f16836e45567c9683f9d5f5daa",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

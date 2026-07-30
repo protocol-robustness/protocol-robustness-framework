@@ -2,7 +2,7 @@
  :suite-id :suites/equivalence-auth-paths,
  :trace-id "s45-stale-module-snapshot-rejects-legacy-resolver",
  :final-state-hash
- "82faa1ff3c4de7127bec9a8d68e0d93b6c92f0c71febb48903eaf82e2078ec4a",
+ "b78ff564816113f7d88257cebb19dc1437758a03189f4aeebc609bea4b52ba85",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

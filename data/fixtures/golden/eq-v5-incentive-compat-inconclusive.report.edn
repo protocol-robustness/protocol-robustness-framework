@@ -2,7 +2,7 @@
  :suite-id :suites/equilibrium-validation,
  :trace-id "eq-v5-incentive-compat-inconclusive",
  :final-state-hash
- "d4c1bf3f05e606362c08d99de245b6582242cb476524c0933274faf13f4970ac",
+ "a3ff56019d837c74622b03aae537de7f278023f70207456eb5d4eee56255cfc1",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

@@ -2,7 +2,7 @@
  :suite-id :suites/forking-strategist,
  :trace-id "s33-forking-strategist-two-escrow-fork-isolation",
  :final-state-hash
- "2408135aa2e66e547ec18ac5ef5a57bf506f9a7932a1983139cd88619d3e2ea8",
+ "c9a6023d0de1b261f03156bfa6dd2116501bfd1fb0066a6ea236c19e9a273bd7",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,

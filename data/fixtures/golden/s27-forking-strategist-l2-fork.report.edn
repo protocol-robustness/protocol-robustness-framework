@@ -2,7 +2,7 @@
  :suite-id :suites/forking-strategist,
  :trace-id "s27-forking-strategist-l2-fork",
  :final-state-hash
- "1a302113417070b69d67edb3e8f747ca5d52cb577cb5062f4a76f49f3b8b94d3",
+ "4b0bfceaba8d3a287cab55434abef28b433984915f13ef5a35701a8aa406ccf7",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,
