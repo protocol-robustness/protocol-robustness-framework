@@ -1826,7 +1826,7 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                       ;; Do not reallocate a stayed debit: the proposal-time allocation is final.
                       (update acc :payments conj (assoc allocation-row :actual-paid 0
                                                         :execution-status :stayed
-                                                        :appeal-status :upheld)
+                                                        :appeal-status :upheld))
 
                        (pos? paid)
                        (let [r (reg/slash-resolver-stake world id paid nil 0 workflow-id)
@@ -1848,7 +1848,7 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                                 :stake-evidence-hashes (conj stake-evidence-hashes (:stake-evidence-hash r))
                                 :payments (conj payments (assoc allocation-row :actual-paid paid
                                                                 :execution-status :paid
-                                                                :appeal-status (:status appeal))))))
+                                                                :appeal-status (:status appeal)))))
 
                       :else
                       (update acc :payments conj (assoc allocation-row :actual-paid 0

@@ -178,8 +178,8 @@
    (slash-resolver-stake world resolver-addr amount challenger bounty-bps workflow-id false))
   ([world resolver-addr amount challenger bounty-bps workflow-id skip-sub-held?]
    (let [current (get-stake world resolver-addr)
-          actual  (bigint (min (double current) (double amount)))
-         token   (if workflow-id
+           actual  (bigint (min (double current) (double amount)))
+           token   (if workflow-id
                    (keyword (or (:token (t/get-transfer world workflow-id)) "USDC"))
                    :USDC)
           ;; Check position-level held balance for this resolver's slash-custody
@@ -196,7 +196,7 @@
           from-coverage (if coverage-remaining
                           (min actual (long coverage-remaining))
                           0)
-          from-stake (- actual from-coverage)
+           from-stake (- actual from-coverage)
            ;; Reduce held only when the specific resolver-slash-custody position has balance
            ;; (avoids position-level underflow).  Reversal slashes (skip-sub-held?=true)
            ;; bypass sub-held because the penalty comes from resolver stakes, not held custody.

@@ -544,6 +544,62 @@
                [:deferred-position :position/root-obligation-id])
        (base-position-id owner-id position))})
 
+(defn- lineage-root
+  "Return the genesis lineage root hash for this deferred lineage.
+   For the first deferral the root is the hash of the base position.
+   For subsequent deferrals the root is inherited from the prior deferred."
+  [position current-deferred]
+  (if current-deferred
+    (get current-deferred :deferred/lineage-root)
+    (let [base-state (position-state-commitment (or (:owner/id position)
+                                                    (:position/participant-id position))
+                                                position)]
+      (:position-hash base-state))))
+
+(defn- predecessor-hash
+  "Return the immediate predecessor hash for the deferred position chain.
+   For the first deferral: hash of the base position commitment.
+   For subsequent deferrals: hash of the prior deferred position."
+  [position current-deferred]
+  (if current-deferred
+    (canonical-hash-safe current-deferred)
+    (let [base-state (position-state-commitment (or (:owner/id position)
+                                                    (:position/participant-id position))
+                                                position)]
+      (:position-hash base-state))))
+
+(defn- check-max-lineage-round!
+  "Reject position creation when the attempted next round exceeds the
+   policy's max-lineage-round.  Uses strictly greater-than so the max
+   value itself is an admissible round number."
+  [attempted-round policy-snapshot]
+  (let [max-round (get-in policy-snapshot [:deferred :max-lineage-round])]
+    (when (and (some? max-round) (> attempted-round max-round))
+      (fail! (str "Deferred position lineage round " attempted-round
+                  " exceeds policy max " max-round)
+             :exceeded-max-lineage-round
+             {:attempted-round attempted-round
+              :max-lineage-round max-round}))))
+
+(defn- validate-deferred-position!
+  "Strict validation for newly created deferred positions.
+   Rejects positions that are missing required deferred-specific fields
+   or have nil values for fields that must be present."
+  [deferred-pos]
+  (let [required-fields [:deferred/class :deferred/lineage-root :deferred/predecessor-hash
+                         :position/round :position/original-priority
+                         :position/current-amount :position/type]
+        missing (remove (fn [f] (contains? deferred-pos f)) required-fields)
+        nil-fields (keep (fn [f] (when (nil? (get deferred-pos f)) f)) required-fields)]
+    (when (seq missing)
+      (fail! "New deferred position is missing required fields"
+             :deferred-position-missing-fields
+             {:missing (vec missing)}))
+    (when (seq nil-fields)
+      (fail! "New deferred position has nil required fields"
+              :deferred-position-nil-fields
+              {:nil-fields (vec nil-fields)}))))
+
 (defn- build-application-preconditions
   [world module-id token owners requested-by-owner]
   (mapv
@@ -921,8 +977,11 @@
                      deferred (long (:deferred participant 0))
                      fulfilled (long (:fulfilled participant 0))
                      original-priority (:original-priority precondition)
-                     round (next-lineage-round position)
-                     transition-hash
+                      round (next-lineage-round position)
+                      _ (check-max-lineage-round!
+                         round
+                         (get-in propagation [:propagation-policy :policy/snapshot]))
+                      transition-hash
                      (transition-commitment
                       propagation
                       participant
@@ -936,66 +995,78 @@
                           "/via/"
                           propagation-id)
                      successor
-                     {:position/id successor-id
-                      :position/type :deferred-withdrawal
-                      :position/token token
-                      :position/participant-id participant-id
-                      :position/root-obligation-id
-                      (or (:position/root-obligation-id current-deferred)
-                          obligation-id)
-                      :position/parent-id
-                      (or (:position/id current-deferred)
-                          (:position-id current-commitment))
-                      :position/parent-hash
-                      (or (:deferred-position-hash current-commitment)
-                          (:position-hash current-commitment))
-                      :position/origin-propagation-id propagation-id
-                      :position/created-by-transition-hash transition-hash
-                      :position/created-order application-order
-                      :position/created-event-time event-time
-                      :position/deadline-ts
-                      (let [dur (get-in propagation
-                                        [:propagation-policy
-                                         :policy/snapshot
-                                         :shortfall
-                                         :deferral-duration-seconds]
-                                        0)]
-                        (when (pos? dur)
-                          (dl/deadline event-time dur)))
-                      :position/round round
-                      :position/original-priority
-                      (or (:position/original-priority current-deferred)
-                          original-priority)
-                      :position/original-priority-source
-                      (if current-deferred :inherited-from-prior-lineage :from-precondition)
-                      :position/original-obligation
-                      (or (:position/original-obligation current-deferred)
-                          (:eligible-obligation participant))
-                      :position/current-amount deferred
-                      :position/cumulative-fulfilled
-                      (+ (long (:cumulative-fulfilled position 0)) fulfilled)
-                      :position/eligibility :later-liquidity
-                      :position/status :active}
-                     closed-prior
-                     (when current-deferred
-                       (assoc current-deferred
-                              :position/status :closed
-                              :position/closed-from-amount
-                              (:position/current-amount current-deferred)
-                              :position/current-amount 0
-                              :position/closed-by-propagation-id propagation-id
-                              :position/closed-by-transition-hash transition-hash
-                              :position/closed-order application-order
-                              :position/closed-event-time event-time
-                              :position/successor-id
-                              (when (pos? deferred) successor-id)))
-                     shortfall
-                     (when (pos? deferred)
-                       {:reason :liquidity-shortfall
-                        :basis-amount (+ fulfilled deferred)
-                        :fulfilled-amount fulfilled
-                        :deferred-amount deferred
-                        :haircut-amount 0})
+                     (let [m {:position/id successor-id
+                              :position/type :deferred-withdrawal
+                              :position/token token
+                              :position/participant-id participant-id
+                              :position/root-obligation-id
+                              (or (:position/root-obligation-id current-deferred)
+                                  obligation-id)
+                              :position/parent-id
+                              (or (:position/id current-deferred)
+                                  (:position-id current-commitment))
+                              :position/parent-hash
+                              (or (:deferred-position-hash current-commitment)
+                                  (:position-hash current-commitment))
+                              :position/origin-propagation-id propagation-id
+                              :position/created-by-transition-hash transition-hash
+                              :position/created-order application-order
+                              :position/created-event-time event-time
+                              :position/deadline-ts
+                              (let [dur (get-in propagation
+                                                [:propagation-policy
+                                                 :policy/snapshot
+                                                 :shortfall
+                                                 :deferral-duration-seconds]
+                                                0)]
+                                (when (pos? dur)
+                                  (dl/deadline event-time dur)))
+                              :position/round round
+                              :position/original-priority
+                              (or (:position/original-priority current-deferred)
+                                  original-priority)
+                              :position/original-priority-source
+                              (if current-deferred :inherited-from-prior-lineage :from-precondition)
+                              :position/original-obligation
+                              (or (:position/original-obligation current-deferred)
+                                  (:eligible-obligation participant))
+                              :position/current-amount deferred
+                              :position/cumulative-fulfilled
+                              (+ (long (:cumulative-fulfilled position 0)) fulfilled)
+                              :position/eligibility :later-liquidity
+                              :position/status :active
+                              :deferred/class (when (pos? deferred)
+                                                (propagation-policy/derive-deferred-class
+                                                 {:reason :liquidity-shortfall
+                                                  :basis-amount (+ fulfilled deferred)
+                                                  :fulfilled-amount fulfilled
+                                                  :deferred-amount deferred
+                                                  :haircut-amount 0}))
+                              :deferred/lineage-root (lineage-root position current-deferred)
+                              :deferred/predecessor-hash (predecessor-hash position current-deferred)}]
+                       (when (pos? deferred)
+                         (validate-deferred-position! m))
+                       m)
+                      closed-prior
+                      (when current-deferred
+                        (assoc current-deferred
+                               :position/status :closed
+                               :position/closed-from-amount
+                               (:position/current-amount current-deferred)
+                               :position/current-amount 0
+                               :position/closed-by-propagation-id propagation-id
+                               :position/closed-by-transition-hash transition-hash
+                               :position/closed-order application-order
+                               :position/closed-event-time event-time
+                               :position/successor-id
+                               (when (pos? deferred) successor-id)))
+                      shortfall
+                      (when (pos? deferred)
+                        {:reason :liquidity-shortfall
+                         :basis-amount (+ fulfilled deferred)
+                         :fulfilled-amount fulfilled
+                         :deferred-amount deferred
+                         :haircut-amount 0})
                      updated-position
                      (cond->
                       (assoc position

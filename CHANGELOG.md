@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **`reverse-reversal-slash-on-vindication` no longer throws on invalid state.** Two `throw` calls for non-positive amount and slash-total underflow replaced with `log/warn!` + return `world` unchanged, matching the defensive pattern used by `handle-reversal-slashing`. Tests updated to assert no-crash instead of catch-and-verify-exception. (`protocols_src/resolver_sim/protocols/sew/resolution.clj`, `protocols_src/test/resolver_sim/protocols/sew/slashing_test.clj`)
+
 - **`benchmark-outcome.v1` hash projection corrected (hash-breaking).** The singular `:benchmark-outcome/hash` previously committed to both `:outcomes/theorems`/`:outcomes/conclusions` (the raw reference lists) and their aggregate `:theorem-root`/`:conclusion-root` inside `:outcome-hashes` — double-counting the same information. Now the hash projection excludes the mirrored top-level fields (`:execution/command-root`, `:outcomes/operational-root`, `:outcomes/incentive-root`, `:outcomes/incentive-compatibility-root`, `:outcomes/theorems`, `:outcomes/conclusions`) and commits only through `:outcome-hashes`. The `derive-outcome-hashes` function is the sole authoritative source. `validate-manifest` enforces exact equality between `(:outcome-hashes manifest)` and `(derive-outcome-hashes manifest)`. `pre-application-checks` validates hash-prefix encoding and derived-map consistency. `build-manifest` un-gates `:outcomes/incentive-root` and `:outcomes/incentive-compatibility-root` from `:outcomes/operational-root` — each is now independently optional. (`src/resolver_sim/benchmark/outcome_manifest.clj`)
 
 - **Centralised SHA-256 reference construction and validation through `resolver-sim.hash.reference`.** Replaced two raw-prefix bypasses (`run/package-index.clj:42`, `benchmark/verify.clj:14`) that used `(str "sha256:" digest)` with the authoritative `hash-ref/sha256-ref`. Removed the duplicated `sha256-ref-pattern` regex and seven validation gates in `package_index.clj`; all now delegate to `hash-ref/valid-sha256-ref?`. The change is representation-preserving: package references, content roots, fixtures, schemas, and persisted artifact shapes remain unchanged.
@@ -15,6 +17,16 @@
 - **`verify-chain-integrity` content hash recomputation fixed:** Was missing `:evidence/chain-hash-scheme`, `:evidence/chain-seq`, and `:evidence/timestamp` from its dissoc list — these fields are added by `inject-chain-fields`/`finalize-evidence` AFTER the content hash is computed, so including them in the recomputation caused false hash mismatches. Also added scheme validation (Check 4) that verifies every artifact uses `chain/chain-hash-scheme`. (`src/resolver_sim/io/event_evidence.clj`)
 
 ### Added
+
+- **`execute-resolution-refused` (Kleros ruling 0) resolution path.** New `execute-resolution-refused` function records an arbitrator's refusal to rule without finalizing the escrow. The escrow stays `:disputed` until the `max-dispute-duration` timeout triggers auto-cancel via a new Priority 2.5 in `automate-timed-actions`. Action dispatch `apply-action "execute-resolution"` accepts `:resolution-outcome "cannot-resolve"` to trigger this path. (`protocols_src/resolver_sim/protocols/sew/resolution.clj`, `protocols_src/resolver_sim/protocols/sew/state_machine.clj`, `protocols_src/resolver_sim/protocols/sew.clj`)
+
+- **`set-resolution-module` governance action.** Governance can update `world[:params :resolution-module]` mid-simulation via the `"set-resolution-module"` action. Existing in-flight escrows are unaffected (module snapshots are immutable per existing invariant). New escrows use the updated module. (`protocols_src/resolver_sim/protocols/sew.clj`)
+
+- **`refused-resolution-timeout?` state machine predicate.** Checks whether a `:resolution/refused` escrow has exceeded `max-dispute-duration`, enabling the keeper timeout path. (`protocols_src/resolver_sim/protocols/sew/state_machine.clj`)
+
+- **S114–S116 invariant scenarios.** Three new replay scenarios: `s114-resolution-module-mutation` (governance changes module mid-dispute), `s115-resolution-refused-timeout` (ruling 0 → timeout → auto-cancel), `s116-resolution-refused-then-resolved` (ruling 0 → governance rotates resolver → normal release). (`protocols_src/resolver_sim/protocols/sew/invariant_scenarios/extended.clj`, `protocols_src/resolver_sim/protocols/sew/invariant_scenarios.clj`)
+
+- **Evidence-chain best-effort test.** Verifies `emit-decision-evidence!` returns a hash on the happy path and handles nil input gracefully (defensive try/catch no-ops). (`protocols_src/test/resolver_sim/protocols/sew/resolution_test.clj`)
 
 - **`pre-application-checks` CLI command and backstop entry.** Registered as a `:default`-tier backstop command at `["pre-application" "checks"]`. Validates an outcome manifest — reads from `--manifest` path or uses a canonical fixture. Wraps `outcome_manifest.clj:pre-application-checks`. (`src/resolver_sim/commands/pre_application_checks.clj`, `resources/prf/commands/registry.edn`, `src/resolver_sim/cli/dispatch.clj`)
 

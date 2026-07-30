@@ -14,13 +14,14 @@
 
  :concept/protocols #{:protocol/sew-v1 :protocol/prf}
 
-  :concept/related
-  [:allocation/partial-fill
-   :allocation/shortfall
-   :allocation/pro-rata-fairness
-   :allocation/redistribution-fairness
-   :consensus/finality
-   :verifiable-assurance/forensic-confidence]
+ :concept/related
+   [:allocation/partial-fill
+    :allocation/shortfall
+    :allocation/deferred-class
+    :allocation/pro-rata-fairness
+    :allocation/redistribution-fairness
+    :consensus/finality
+    :verifiable-assurance/forensic-confidence]
 
  :concept/roles
  {:claimant
@@ -70,15 +71,23 @@
    :maps-to [:protocol.outcome/stuck]}}
 
  :concept/failure-modes
- [{:failure/id :deferred-claim-missing
-   :failure/name "Deferred claim missing"
-   :failure/summary
-   "A partial fill occurs but the unpaid remainder is not recorded."
-   :protocol-mechanisms [:deferred-claims :shortfall-accounting]
-   :stakeholder-impact
-   "Claimants lose visibility into what they are still owed."}
+  [{:failure/id :deferred-claim-unclassified
+    :failure/name "Deferred claim unclassified"
+    :failure/summary
+    "A deferred claim exists but the deferred-position state does not carry a deferred class."
+    :protocol-mechanisms [:deferred-class :position-validation]
+    :stakeholder-impact
+    "Claimants and auditors cannot determine the cause of deferral from committed state."}
 
-  {:failure/id :deferred-claim-miscalculated
+   {:failure/id :deferred-claim-missing
+    :failure/name "Deferred claim missing"
+    :failure/summary
+    "A partial fill occurs but the unpaid remainder is not recorded."
+    :protocol-mechanisms [:deferred-claims :shortfall-accounting]
+    :stakeholder-impact
+    "Claimants lose visibility into what they are still owed."}
+
+   {:failure/id :deferred-claim-miscalculated
    :failure/name "Deferred claim miscalculated"
    :failure/summary
    "Recorded deferred amount does not match claim basis minus fulfilled amount."
