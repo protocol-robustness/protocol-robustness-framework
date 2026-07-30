@@ -28,10 +28,14 @@
      :claims    [:evidence-root-present :replay-result-present]
      :invariants ["slashable-liability-preserved"]
      :evidence  [:evidence/dispute-decision :evidence/economic-transfer]}
-   :concept/why-it-matters
-   "Resolver accountability is the primary safeguard against
-    capture. Without economic bounds, a resolver can extract value
-    at will, making escrow meaningless."}
+    :concept/out-of-scope
+    ["Correctness of the resolver-selection policy."
+     "Availability of resolver slashable stake."
+     "Equivalence between the observed economic bounds and the intended policy."]
+    :concept/why-it-matters
+    "Resolver accountability is the primary safeguard against
+     capture. Without economic bounds, a resolver can extract value
+     at will, making escrow meaningless."}
 
   {:concept/id :robustness/liveness-under-load
    :concept/title "Liveness under adversarial load"
@@ -47,10 +51,14 @@
      :claims    [:evidence-root-present :replay-result-present]
      :invariants ["bounded-progress-under-load"]
      :evidence  [:evidence/dispute-count :evidence/timing]}
-   :concept/why-it-matters
-   "Liveness failures are invisible to casual observers but can
-    lock user funds indefinitely. This is the most practical
-    denial-of-service vector for escrow protocols."}
+    :concept/out-of-scope
+    ["Correctness of the dispute-queue ordering policy."
+     "Availability of resolver capacity or external module liveness."
+     "Economic viability of the flooding attack under real gas costs."]
+    :concept/why-it-matters
+    "Liveness failures are invisible to casual observers but can
+     lock user funds indefinitely. This is the most practical
+     denial-of-service vector for escrow protocols."}
 
   {:concept/id :robustness/escrow-fund-safety
    :concept/title "Escrow fund safety"
@@ -67,9 +75,13 @@
      :claims    [:evidence-root-present :replay-result-present]
      :invariants ["pull-first-value-flow"]
      :evidence  [:evidence/settlement-path :evidence/value-transfer]}
-   :concept/why-it-matters
-   "Pull-first settlement is a fundamental safety pattern. Without
-    it, a compromised resolver or governance action could drain
-    escrows in a single transaction."}
+    :concept/out-of-scope
+    ["Correctness of the escrow custody policy."
+     "Availability of a pull-path settlement mechanism."
+     "Equivalence between the observed pull-path and the intended security model."]
+    :concept/why-it-matters
+    "Pull-first settlement is a fundamental safety pattern. Without
+     it, a compromised resolver or governance action could drain
+     escrows in a single transaction."}
 
    ]}

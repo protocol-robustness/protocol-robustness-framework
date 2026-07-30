@@ -1,0 +1,61 @@
+{:concept/id :allocation/slash-distribution
+ :concept/type :allocation
+ :concept/layer :stakeholder
+ :concept/name "Slash distribution"
+ :concept/summary
+ "Slash distribution describes how a slash obligation is allocated among liable parties. It covers the computation of shares but not the concrete application to a protocol ledger or the creation of payable liabilities."
+
+ :concept/stakeholder-question
+ "Is the slash amount correctly distributed among liable parties according to the declared policy, separate from whether funds are available or the distribution was applied?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:distribution-engine {:description "Protocol logic that computes distribution shares."
+                        :maps-to [:protocol.actor/resolution-module]}
+  :liable-party {:description "Party subject to the slash distribution."
+                 :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+
+ :concept/entities
+ {:distribution-table {:description "Mapping from liable parties to their assigned amounts."
+                       :maps-to [:protocol.entity/allocation]}
+  :slash-obligation {:description "The total slash amount to be distributed."
+                     :maps-to [:protocol.entity/obligation]}}
+
+ :concept/actions
+ {:compute-distribution {:description "Compute distribution shares for liable parties."
+                         :maps-to [:protocol.action/calculate-pro-rata-allocation]}
+  :verify-distribution {:description "Verify distribution correctness against policy."
+                        :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:distribution-verified {:description "Distribution matches declared policy."
+                          :maps-to [:protocol.outcome/released]}
+  :distribution-mismatch {:description "Distribution deviates from declared policy."
+                          :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :distribution-inequitable
+   :failure/name "Distribution inequitable"
+   :failure/summary "Slash shares do not follow the declared distribution policy."
+   :protocol-mechanisms [:pro-rata-allocation :verification]
+   :stakeholder-impact "Liable parties bear incorrect slash amounts."}]
+
+ :concept/assumptions
+ ["Liable parties and their slashable stakes are known before distribution."
+  "The distribution policy is declared and traceable."
+  "Distribution is independent of custody availability."]
+
+ :concept/out-of-scope
+ ["Concrete application to a protocol ledger."
+  "Creation of a payable liability."
+  "Availability of funds in custody."
+  "Beneficiary identity legitimacy beyond supplied evidence."
+  "Payment or withdrawal execution."
+  "Protocol-specific reserve representation."]
+
+ :concept/metrics
+ {:distribution-count {:description "Number of distributions computed."
+                       :source :derived-from-trace}
+  :distribution-verification-count {:description "Number of distribution verifications."
+                                    :source :derived-from-invariant-results}}}

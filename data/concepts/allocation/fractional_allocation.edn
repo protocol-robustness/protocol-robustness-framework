@@ -1,0 +1,56 @@
+{:concept/id :allocation/fractional-remainder
+ :concept/type :evidence
+ :concept/layer :framework-explanation
+ :concept/version 1
+ :concept/display-name "Fractional Remainder"
+ :concept/description "The total of all per-claimant fractional remainders from pro-rata floor rounding, recorded at the allocation result level. This is the numerator/denominator sum that the largest-remainder method redistributes as unit awards. The total is not itself an allocation primitive — it is an evidence-layer summary of how much was distributable via remainder-ranking but was not floor-allocated."
+
+ :concept/entities
+ [{:entity/id :allocation/fractional-remainder-total
+   :entity/type :allocation-result-field
+   :entity/description "Sum of all per-claimant fractional remainders, expressed as {:rational/numerator N :rational/denominator D}. Present in the allocation result when rounding-policy is :largest-remainder. When all denominators match, the total numerator is the sum of per-row remainder-numerators over the common denominator. When denominators differ, the total is computed over a common denominator."}
+  {:entity/id :allocation/fractional-remainder-row
+   :entity/type :witness-row-field
+   :entity/description "Per-claimant fractional remainder already present in witness rows as :fractional-remainder {:remainder-numerator N :remainder-denominator D}. The row-level remainder is the quota numerator modulo the quota denominator, representing the sub-unit amount lost to floor rounding for that claimant."}]
+
+ :concept/relations
+ [{:relation "summarizes"
+   :from :allocation/fractional-remainder-total
+   :to :allocation/fractional-remainder-row
+   :description "The total is the sum (over common denominator) of all per-row remainders."}
+  {:relation "complements"
+   :from :allocation/fractional-remainder-total
+   :to :allocation/partial-fill
+   :description "The fractional remainder total explains the unallocated residual when residual-reason is floor-rounding; it is the amount distributable via largest-remainder before unit awards are assigned."}]
+
+ :concept/primitives
+ [:allocation/fractional-remainder-total
+  :allocation/fractional-remainder-row]
+
+ :concept/out-of-scope
+  ["Fractional remainders from non-pro-rata mechanisms are not covered."
+   "The exact-math layer (exact_math.clj) owns quantize-with-carry and floor-and-carry-alloc; the allocation result field is a summary, not a primitive operation."
+   "Per-claimant remainder ranking and award assignment are covered by :allocation/pro-rata-fairness."
+   "The field is dimensionless unless its scale is committed elsewhere. Summed fractional shares are not necessarily token-denominated amounts."]
+
+ :concept/compatibility
+ [{:artifact "Allocation result"
+   :new-field-committed? "No — excluded from canonical :allocation/hash projection"
+   :version-change "None — field is additive diagnostic, not a schema change"
+   :existing-hashes-preserved? "Yes — canonical hash is computed from result-base without the new field"}
+  {:artifact "Allocation mechanism evidence"
+   :new-field-committed? "Yes — field appears on the result embedded in the evidence envelope"
+   :version-change "None — schema-version remains pro-rata-mechanism-evidence.v1; evidence/hash changes for new allocations because the envelope commits to :mechanism/result which now includes the field"
+   :existing-hashes-preserved? "Historical evidence unchanged — no re-computation of old artifacts. New allocations produce updated evidence/hash."}
+  {:artifact "Deferred claim"
+   :new-field-committed? "No"
+   :version-change "No"
+   :existing-hashes-preserved? "Yes"}
+  {:artifact "Attestation"
+   :new-field-committed? "No"
+   :version-change "Pending integrity fixes — see attestation security regression"
+   :existing-hashes-preserved? "Yes — subject-hash and claim-result-hash unchanged"}
+  {:artifact "Registry entry"
+   :new-field-committed? "No"
+   :version-change "Pending idempotency fixes — see registry idempotency matrix"
+   :existing-hashes-preserved? "Yes — attestation IDs are content-derived from attestation body, unchanged by registry fix"}]}

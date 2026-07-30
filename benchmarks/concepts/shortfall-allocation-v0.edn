@@ -22,9 +22,13 @@
     :claims [:evidence-root-present :replay-result-present]
     :invariants [:yield/shortfall-splits :yield/value-conservation :allocation-complete]
     :evidence [:evidence/settlement-path :evidence/value-transfer]}
-   :concept/why-it-matters
-   "This is the visible part of the benchmark's shortfall behavior: partial
-    recovery should remain fair and reproducible."}
+    :concept/out-of-scope
+    ["Shortfall recovery in later epochs (covered by yield-shortfall-v1)."
+     "Economic fairness of the partial-fill policy."
+     "Liquidity or custody sufficiency for the available amount."]
+    :concept/why-it-matters
+    "This is the visible part of the benchmark's shortfall behavior: partial
+     recovery should remain fair and reproducible."}
 
   {:concept/id :allocation/shortfall
     :concept/shadows-global? true
@@ -40,9 +44,13 @@
     :claims [:evidence-root-present :replay-result-present]
     :invariants [:yield/shortfall-splits :yield/value-conservation :conservation]
     :evidence [:evidence/shortfall :evidence/metrics]}
-   :concept/why-it-matters
-   "If shortfall is not detected, later recovery logic cannot make a fair or
-    auditable allocation."}
+    :concept/out-of-scope
+    ["Resolution of the detected shortfall."
+     "Recovery or reallocation of shortfall amounts in later processing."
+     "Economic fairness of the shortfall classification policy."]
+    :concept/why-it-matters
+    "If shortfall is not detected, later recovery logic cannot make a fair or
+     auditable allocation."}
 
   {:concept/id :allocation/stake-liquidity-blocking
     :concept/title "Stake liquidity blocking"
@@ -58,7 +66,11 @@
     :claims [:evidence-root-present :replay-result-present]
     :invariants [:yield/shortfall-splits :yield/position-consistency :yield/exposure]
     :evidence [:evidence/settlement-path :evidence/invariant-results]}
-   :concept/why-it-matters
-   "If shortfall-affected stake is treated as fully liquid, resolvers can take
-    actions that exceed their actual backing, undermining the safety of the
-    resolution system."}]}
+    :concept/out-of-scope
+    ["Availability of external liquidity to restore resolver stake."
+     "Economic fairness of the stake-blocking policy."
+     "Resolution of the underlying yield shortfall."]
+    :concept/why-it-matters
+    "If shortfall-affected stake is treated as fully liquid, resolvers can take
+     actions that exceed their actual backing, undermining the safety of the
+     resolution system."}]}

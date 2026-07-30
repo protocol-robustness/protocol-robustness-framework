@@ -17,6 +17,7 @@
             [resolver-sim.sensitivity.sentinel :as sentinel]
             [resolver-sim.sensitivity.propagation :as prop]
             [resolver-sim.evidence.attestation-bundle :as ab]
+            [resolver-sim.evidence.attestation-completeness-profile :as acp]
             [resolver-sim.run.runner-finalization :as runner-finalization]
             [resolver-sim.run.package-index :as package-index]
             [resolver-sim.run.verdict-policy :as verdict-policy]
@@ -229,114 +230,134 @@
         :else
         written))))
 
+(defn- normalize-for-persistence
+  "Walk a value and convert runtime-specific types to canonical persisted
+   representations.  Hard-fails on types that cannot be safely persisted.
+   Permits: nil, Boolean, string, keyword, integer, vector, map, set.
+   Rejects: Double, Float, decimal, Ratio, temporal, fn, Var, and any
+   unrecognized type."
+  [value]
+  (letfn [(walk [x]
+            (cond
+              (or (nil? x)
+                  (instance? Boolean x)
+                  (string? x)
+                  (keyword? x)
+                  (integer? x))
+              x
+              (instance? Double x)
+              (throw (ex-info "Cannot persist Double — convert to canonical representation"
+                              {:type (type x) :value x}))
+              (instance? Float x)
+              (throw (ex-info "Cannot persist Float — convert to canonical representation"
+                              {:type (type x) :value x}))
+              (decimal? x)
+              (throw (ex-info "Cannot persist decimal — convert to rational or integer"
+                              {:type (type x) :value x}))
+              (instance? clojure.lang.Ratio x)
+              (throw (ex-info "Cannot persist Ratio — convert to {:rational/numerator N :rational/denominator D}"
+                              {:type (type x) :value x}))
+              (instance? java.time.temporal.TemporalAccessor x)
+              (throw (ex-info "Cannot persist temporal — convert to epoch millis or ISO string"
+                              {:type (type x) :value x}))
+              (fn? x)
+              (throw (ex-info "Cannot persist function reference"
+                              {:type (type x)}))
+              (instance? clojure.lang.Var x)
+              (throw (ex-info "Cannot persist Var reference"
+                              {:type (type x) :value (str x)}))
+              ;; Sequence types (LazySeq, PersistentList, Cons, ...) are not
+              ;; canonical-bytes encodable. Realize them as vectors so claim
+              ;; results / attestations can be hashed and persisted.
+              (instance? clojure.lang.ISeq x) (vec x)
+              (instance? clojure.lang.IPersistentCollection x) x
+              :else
+              (throw (ex-info (str "Cannot persist unsupported type: " (type x))
+                              {:type (type x) :value (str x)}))))]
+    (walk/postwalk (fn [x]
+                     (if (instance? clojure.lang.IPersistentCollection x)
+                       x
+                       (walk x)))
+                   value)))
+
 (defn default-build-attestation-bundle!
   "Build an attestation verification bundle with sensitivity provenance.
-   Runs after finalize-run-evidence so all attestations are persisted."
+   Runs after finalize-run-evidence so all attestations are persisted.
+   Evidence membership is determined by the committed finalization output,
+   not by scanning the filesystem."
   [c execution]
   (let [run-root (io/file (p (:run/root c)))
         bundle-root (:bundle-root execution)
-        forensic-dirs (->> (file-seq (io/file run-root "scenarios"))
-                           (filter #(.isDirectory %))
-                           (filter #(= "forensic" (.getName %))))
-        evidence-files (->> forensic-dirs
-                            (mapcat #(or (.listFiles (io/file % "event-evidence")) []))
-                            (filter #(.isFile %))
-                            (filter #(.endsWith (.getName %) ".json"))
-                            vec)
-        evidence-node-files (->> forensic-dirs
-                                 (mapcat #(or (.listFiles (io/file % "evidence-nodes")) []))
-                                 (filter #(.isFile %))
-                                 (filter #(.endsWith (.getName %) ".edn"))
-                                 vec)
-        attestations (vec (keep (fn [f]
-                                  (try (let [data (json/read-str (slurp f) :key-fn keyword)]
-                                         (when (:attestation/id data) data))
-                                       (catch Exception e
-                                         (log/warn! "Failed to read attestation evidence file"
-                                                    {:event  :attestation-bundle-read-error
-                                                     :path   (str f)
-                                                     :error  (.getMessage e)})
-                                         nil)))
-                                evidence-files))
-        evidence-nodes (vec (keep (fn [f]
-                                    (try (let [data (edn/read-string (slurp f))]
-                                           (when (:node-hash data) data))
-                                         (catch Exception e
-                                           (log/warn! "Failed to read evidence node file"
-                                                      {:event :attestation-bundle-read-error
-                                                       :path (str f) :error (.getMessage e)})
-                                           nil)))
-                                  evidence-node-files))
+        run-result (:run-result execution)
+        profile-mode :review
+        fail-closed? true
+        ;; Evidence entries from committed run output (not filesystem scan)
+        attestations (let [raw (:attestations run-result [])]
+                       (doseq [a raw]
+                         (when (nil? (:attestation/id a))
+                           (if fail-closed?
+                             (throw (ex-info "Attestation without :attestation/id in run-result"
+                                             {:event :attestation-bundle-missing-id
+                                              :attestation (dissoc a :attestation/signature)
+                                              :profile-mode profile-mode}))
+                             (log/warn! "Attestation without :attestation/id in run-result"
+                                        {:event :attestation-bundle-missing-id
+                                         :attestation (dissoc a :attestation/signature)}))))
+                       (vec (keep (fn [a] (when (:attestation/id a) a)) raw)))
+        claim-results (vec (:results run-result []))
+        evidence-nodes (let [raw (:evidence-nodes run-result [])]
+                         (doseq [n raw]
+                           (when (nil? (:node-hash n))
+                             (if fail-closed?
+                               (throw (ex-info "Evidence node without :node-hash in run-result"
+                                               {:event :attestation-bundle-missing-node-hash
+                                                :node n
+                                                :profile-mode profile-mode}))
+                               (log/warn! "Evidence node without :node-hash in run-result"
+                                          {:event :attestation-bundle-missing-node-hash
+                                           :node n}))))
+                         (vec (keep (fn [n] (when (:node-hash n) n)) raw)))
         registries {:attestors (get-in bundle-root [:registry/snapshot :attestors] {})
                     :claim-definitions (get-in bundle-root [:registry/snapshot :claim-definitions] {})
                     :hash-intents (get-in bundle-root [:registry/snapshot :hash-intents] {})}
+        ;; Sensitivity report
         sensitivity-report-file (io/file (p (:manifest/dir c)) "sensitivity-report.json")
+        _ (when-not (.isFile sensitivity-report-file)
+            (throw (ex-info "Sensitivity report is required for attestation bundle build"
+                            {:path (str sensitivity-report-file)
+                             :reason :sensitivity-report-missing
+                             :hint "Run sensitivity scanning before attestation bundling"})))
         sensitivity-report
-        (if (.isFile sensitivity-report-file)
-          (try (json/read-str (slurp sensitivity-report-file) :key-fn keyword)
-               (catch Exception e
-                 (log/warn! "Failed to read sensitivity report; defaulting to allowed"
-                            {:event :attestation-bundle-sensitivity-read-error
-                             :path (str sensitivity-report-file) :error (.getMessage e)})
-                 {:decision "allowed"}))
-          (do (log/warn! "No sensitivity report found at expected path; defaulting to allowed"
-                         {:event :attestation-bundle-sensitivity-not-found
-                          :path (str sensitivity-report-file)})
-              {:decision "allowed"}))
-        ;; Derive provenance from the persisted report, not from the
-        ;; bundle root summary. The report is the canonical authority.
+        (try (json/read-str (slurp sensitivity-report-file) :key-fn keyword)
+             (catch Exception e
+               (throw (ex-info "Failed to read sensitivity report"
+                               {:path (str sensitivity-report-file)
+                                :reason :sensitivity-report-read-error
+                                :error (.getMessage e)}))))
         sensitivity-provenance (when sensitivity-report
                                  (let [prov (:provenance sensitivity-report)
                                        rh (:report-hash sensitivity-report)]
                                    {:report-hash rh
                                     :source "sensitivity-report.v2"
                                     :provenance prov}))
-        persisted-value (fn [value]
-                          (walk/postwalk (fn [x]
-                                           (cond
-                                             (or (nil? x)
-                                                 (instance? Boolean x)
-                                                 (string? x)
-                                                 (keyword? x)
-                                                 (integer? x))
-                                             x
-                                             (or (instance? Double x)
-                                                 (instance? Float x)
-                                                 (decimal? x)
-                                                 (instance? clojure.lang.Ratio x)
-                                                 (instance? java.time.temporal.TemporalAccessor x)
-                                                 (fn? x))
-                                             (str x)
-                                             ;; Sequence types (LazySeq, PersistentList, Cons, ...) are not
-                                             ;; canonical-bytes encodable. Realize them as vectors so claim
-                                             ;; results / attestations can be hashed and persisted. This only
-                                             ;; affects previously-failing serialization: no valid evidence
-                                             ;; existed for values that reached this branch.
-                                             (instance? clojure.lang.ISeq x) (vec x)
-                                             (instance? clojure.lang.IPersistentCollection x) x
-                                             :else (str x)))
-                                         value))
-        ;; Attestation files and their canonical commitments are persisted data;
-        ;; normalize runtime temporal objects before hashing/serialization.
-        objects-map {:attestations (persisted-value attestations)
-                     :claim-results (persisted-value (get-in execution [:run-result :results] []))
-                     :evidence-nodes (persisted-value evidence-nodes)}
-        _ (when (and (seq evidence-files) (empty? attestations))
-            (log/warn! "Evidence files found but no attestations with :attestation/id extracted"
-                       {:event :attestation-bundle-no-attestations
-                        :evidence-file-count (count evidence-files)}))
-        _ (when (and (seq evidence-node-files) (empty? evidence-nodes))
-            (log/warn! "Evidence node files found but none with :node-hash extracted"
-                       {:event :attestation-bundle-no-evidence-nodes
-                        :evidence-node-file-count (count evidence-node-files)}))
+        ;; Normalize for persistence (hard-fails on unsupported types);
+        ;; lazy sequences are realized to vectors so claim results /
+        ;; attestations remain canonical-bytes encodable.
+        objects-map {:attestations (normalize-for-persistence attestations)
+                     :claim-results (normalize-for-persistence claim-results)
+                     :evidence-nodes (normalize-for-persistence evidence-nodes)}
+        _ (when (and (seq (:attestations run-result)) (empty? attestations))
+            (log/warn! "Attestations in run-result but none with :attestation/id"
+                       {:event :attestation-bundle-no-attestation-ids}))
         bundle-dir (str (io/file (p (:run/root c)) "evidence" "attestation-bundle"))
         result (ab/build-attestation-bundle
                 {:attestations attestations
-                 :claim-results (:claim-results objects-map)
+                 :claim-results claim-results
                  :evidence-nodes evidence-nodes
                  :registries registries
                  :sensitivity-report sensitivity-report
                  :sensitivity-provenance sensitivity-provenance
+                 :completeness-profile acp/review-profile
                  :options {:bundle-dir bundle-dir}})]
     (ab/write-attestation-bundle! result objects-map bundle-dir)
     result))

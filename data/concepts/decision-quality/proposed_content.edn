@@ -1,0 +1,60 @@
+{:concept/id :governance/proposed-content
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Proposed content"
+ :concept/summary
+ "A proposed content package represents candidate model or policy content submitted for review, approval, or force-authorisation. It is a commitment to a specific projection of content under consideration, not an accepted revision."
+
+ :concept/stakeholder-question
+ "Is the proposed content package a faithful representation of what was submitted for review, separate from whether it was approved, executed, or found correct?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:proposer {:description "Entity submitting the proposed content."
+             :maps-to [:protocol.actor/governance]}
+  :reviewer {:description "Entity evaluating the proposed content."
+             :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:proposal-package {:description "The submitted content under consideration."
+                     :maps-to [:protocol.entity/proposal]}
+  :proposal-root {:description "Content-addressed hash of the proposal."
+                  :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:submit-proposal {:description "Submit a candidate content package for review."
+                    :maps-to [:protocol.action/submit-proposal]}
+  :withdraw-proposal {:description "Withdraw a proposal before resolution."
+                      :maps-to [:protocol.action/withdraw-proposal]}}
+
+ :concept/outcomes
+ {:proposal-submitted {:description "Proposal was recorded and is pending review."
+                       :maps-to [:protocol.outcome/released]}
+  :proposal-withdrawn {:description "Proposal was withdrawn before resolution."
+                       :maps-to [:protocol.outcome/deferred]}}
+
+ :concept/failure-modes
+ [{:failure/id :proposal-content-mismatch
+   :failure/name "Proposal content mismatch"
+   :failure/summary "The submitted content does not match the declared root."
+   :protocol-mechanisms [:content-addressing :canonical-hashing]
+   :stakeholder-impact "The content under review differs from what was committed."}]
+
+ :concept/assumptions
+ ["A proposed content package is a candidate under consideration, not an accepted revision."
+  "Multiple proposals may coexist without implying endorsement of any."
+  "The projection used for the proposal commitment is known and stable."]
+
+ :concept/out-of-scope
+ ["Approval or authorisation of the proposed content."
+  "Correctness, safety or suitability of the proposed content."
+  "Successful execution, deployment or application of the proposal."
+  "Equivalence to the baseline content."
+  "Availability or retrievability of the underlying content when only a root is supplied."]
+
+ :concept/metrics
+ {:proposal-count {:description "Number of active proposals."
+                   :source :derived-from-trace}
+  :proposal-age {:description "Time since proposal submission."
+                 :source :derived-from-trace}}}

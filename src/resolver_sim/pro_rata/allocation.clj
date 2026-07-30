@@ -285,6 +285,24 @@
           by-id (into {} (map (juxt :id identity) (:allocations allocation)))
           witness (witness-rows available rows rounding-policy redistribution-policy)
           witness-by-id (into {} (map (juxt :row/id identity) (:rows witness)))
+          fractional-total (let [remainder-rows (keep :fractional-remainder (vals witness-by-id))
+                                 total-ratio (reduce (fn [r {:keys [remainder-numerator remainder-denominator]}]
+                                                       (if (zero? remainder-denominator)
+                                                         r
+                                                         (+ r (/ remainder-numerator remainder-denominator))))
+                                                     0
+                                                     remainder-rows)]
+                             (cond
+                               (zero? total-ratio)
+                               {:rational/numerator 0 :rational/denominator 1}
+                               (instance? clojure.lang.Ratio total-ratio)
+                               {:rational/numerator (numerator total-ratio)
+                                :rational/denominator (denominator total-ratio)}
+                               (integer? total-ratio)
+                               {:rational/numerator total-ratio :rational/denominator 1}
+                               :else
+                               (throw (ex-info "Unexpected fractional-remainder-total type"
+                                               {:type (type total-ratio) :value total-ratio}))))
           result-base
           {:schema-version "pro-rata-allocation-result.v1"
            :mechanism {:id :mechanism/pro-rata-allocation :version 1}
@@ -302,20 +320,23 @@
            :residual-reason (if (pos? (:remainder allocation))
                               (:residual-reason witness)
                               :none)
-           :rows (mapv (fn [row]
-                         (let [{:keys [allocated unmet]} (get by-id (:row/id row))]
-                           (assoc (get witness-by-id (:row/id row))
-                                  :allocated allocated
-                                  :unmet (or unmet 0))))
-                       rows)}
+             :rows (mapv (fn [row]
+                           (let [{:keys [allocated unmet]} (get by-id (:row/id row))]
+                             (assoc (get witness-by-id (:row/id row))
+                                    :allocated allocated
+                                    :unmet (or unmet 0))))
+                         rows)}
           allocation-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
-                                               result-base)]
-      (assoc result-base :allocation/hash allocation-hash))))
+                                                result-base)]
+      (assoc result-base :allocation/hash allocation-hash
+             :allocation/fractional-remainder-total fractional-total))))
 
 (defn allocation-hash-valid?
   "Return true only when the persisted result hash commits to every witness
-   field and final allocation row."
+   field and final allocation row.  Non-canonical diagnostic fields
+   (:allocation/fractional-remainder-total) are excluded from recomputation."
   [result]
   (= (:allocation/hash result)
      (hc/hash-with-intent {:hash/intent :projection-artifact}
-                          (dissoc result :allocation/hash))))
+                          (dissoc result :allocation/hash
+                                  :allocation/fractional-remainder-total))))

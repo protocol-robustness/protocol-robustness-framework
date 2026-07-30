@@ -43,10 +43,13 @@
   :hidden-residual-loss
   :direct-projection-divergence]
 
- :concept/excludes
- [:account-selection
-  :accounting-entry-generation
-  :shortfall-classification
-  :deferred-position-semantics
-  :slash-lifecycle
-  :authoritative-state-mutation]}
+ :concept/out-of-scope
+ ["Concrete ledger mutation."
+  "Creation or payment of claimable balances."
+  "Custody and reserve sufficiency."
+  "Token-transfer execution."
+  "Bounty, slash or incentive distribution unless explicitly incorporated by policy."
+  "Evidence that the allocation was applied."
+  "Settlement liveness."
+  "External module availability."
+  "Historical reconstruction of how the distributable amount arose."]}

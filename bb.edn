@@ -125,12 +125,20 @@ Example: bb cli scenario list --search yield"
                  "resolver-sim.evidence.attestation-dag-test"
                  "resolver-sim.evidence.attestation-test"
                  "resolver-sim.evidence.attestation-node-test"
-                 "resolver-sim.evidence.attestation-registry-test"
-                 "resolver-sim.evidence.attestation-policy-test"
-                 "resolver-sim.evidence.timestamping-test"
-                 "resolver-sim.evidence.revocation-test"
-                 "resolver-sim.evidence.commitment-root-test")}
+                  "resolver-sim.evidence.attestation-registry-test"
+                  "resolver-sim.evidence.attestation-adversarial-test"
+                  "resolver-sim.evidence.attestation-policy-test"
+                  "resolver-sim.evidence.timestamping-test"
+                  "resolver-sim.evidence.revocation-test"
+                   "resolver-sim.evidence.commitment-root-test")}
 
+   test:evidence-known-gaps
+   {:doc "Run attestation known-gap characterisation tests (non-gating). These tests document
+          places where the current implementation accepts inputs a hardened system should reject.
+          They assert the current insecure behaviour and are not part of any CI gate."
+    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
+                 "resolver-sim.evidence.attestation-known-gaps-test")}
+    
    test:unit
    {:doc "Run all unit tests (framework + Sew) with noop capture (single JVM)"
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.run-sew-tests" "unit")}
@@ -321,6 +329,7 @@ test:quick
                   "resolver-sim.evidence.attestation-test"
                   "resolver-sim.evidence.attestation-node-test"
                   "resolver-sim.evidence.attestation-registry-test"
+                  "resolver-sim.evidence.attestation-adversarial-test"
                   "resolver-sim.evidence.attestation-policy-test"
                   "resolver-sim.evidence.timestamping-test"
                   "resolver-sim.evidence.revocation-test"

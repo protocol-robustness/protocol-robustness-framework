@@ -12,6 +12,9 @@
             [resolver-sim.logging :as log]
             [resolver-sim.hash.reference :as hash-ref]))
 
+(def standard-concept-types
+  #{:use-case :decision-quality :assurance :allocation :yield :framework :security})
+
 ;; ── Registry loading ─────────────────────────────────────────────────────────
 
 (def ^:private concept-registry-path (str hash-ref/resource-prefix hash-ref/concept-registry-path))
@@ -99,29 +102,35 @@
   "Validate a single concept definition."
   [concept]
   (let [id (:concept/id concept)
-        missing (set/difference required-concept-keys
-                                (set (keys concept)))]
-    (when (seq missing)
-      (log/warn! "concept/missing-keys" {:concept-id id :missing missing}))
-    (when (= :use-case (:concept/type concept))
+        ctype (:concept/type concept)
+        is-standard (contains? standard-concept-types ctype)]
+    (when is-standard
+      (let [missing (set/difference required-concept-keys
+                                    (set (keys concept)))]
+        (when (seq missing)
+          (log/warn! "concept/missing-keys" {:concept-id id :missing missing}))))
+    (when (= :use-case ctype)
       (let [missing-use-case (set/difference use-case-required-keys
                                              (set (keys concept)))]
         (when (seq missing-use-case)
           (log/warn! "concept/missing-use-case-contract"
                      {:concept-id id :missing missing-use-case}))))
     ;; Validate mapping references and any explicitly declared status.
-    (doseq [category [:concept/roles :concept/entities :concept/actions :concept/outcomes]
-            [mapping-key mapping] (get concept category)]
-      (when-not (vector? (:maps-to mapping))
-        (log/warn! "concept/invalid-maps-to"
-                   {:concept-id id :category category :mapping mapping-key
-                    :maps-to (:maps-to mapping)}))
-      (when (and (:mapping/status mapping)
-                 (not (contains? mapping-statuses (:mapping/status mapping))))
-        (log/warn! "concept/invalid-mapping-status"
-                   {:concept-id id :category category :mapping mapping-key
-                    :mapping/status (:mapping/status mapping)})))
-    (normalize-concept concept)))
+    (when is-standard
+      (doseq [category [:concept/roles :concept/entities :concept/actions :concept/outcomes]
+              [mapping-key mapping] (get concept category)]
+        (when-not (vector? (:maps-to mapping))
+          (log/warn! "concept/invalid-maps-to"
+                     {:concept-id id :category category :mapping mapping-key
+                      :maps-to (:maps-to mapping)}))
+        (when (and (:mapping/status mapping)
+                   (not (contains? mapping-statuses (:mapping/status mapping))))
+          (log/warn! "concept/invalid-mapping-status"
+                     {:concept-id id :category category :mapping mapping-key
+                      :mapping/status (:mapping/status mapping)}))))
+    (if is-standard
+      (normalize-concept concept)
+      concept)))
 
 ;; ── Public API ───────────────────────────────────────────────────────────────
 

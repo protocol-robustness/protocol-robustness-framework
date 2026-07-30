@@ -612,6 +612,58 @@
     (is (false? (:pass? key-check))
         (str "Unknown key should not be authorized, got: " (pr-str key-check)))))
 
+(deftest verify-unavailable-never-produces-fully-verified-with-other-failures
+  (let [attestation (att/build-attestation (unknown-attestor) (valid-subject) :verified
+                                           {:signing-key-id "ci-validation-placeholder"
+                                            :signing-fn (fn [_]
+                                                          {:algorithm :ed25519
+                                                           :public-key-id "ci-validation-placeholder"
+                                                           :signature-bytes "deadbeef"})})
+        attestation (attestation->old-shape attestation)
+        result (att/verify-attestation attestation)
+        {:keys [valid? checks]} result
+        sig-check (first (filter #(= :signature-verified (:check %)) checks))]
+    (is (= :unavailable (:pass? sig-check))
+        "signature check is :unavailable without verify-fn")
+    (is (false? valid?)
+        "attestation with unknown attestor is not valid even if signature is :unavailable")
+    (is (not= :verified (att/verify-attestation-summary attestation))
+        ":unavailable signature does not produce :verified when other checks fail")))
+
+(deftest verify-unavailable-alone-prevents-verified
+  (let [attestation (att/build-attestation (registry-attestor) (valid-subject) :verified
+                                           {:signing-key-id "ci-validation-placeholder"
+                                            :signing-fn (fn [_]
+                                                          {:algorithm :ed25519
+                                                           :public-key-id "ci-validation-placeholder"
+                                                           :signature-bytes "deadbeef"})})
+        attestation (attestation->old-shape attestation)
+        result (att/verify-attestation attestation)
+        {:keys [valid? checks]} result
+        sig-check (first (filter #(= :signature-verified (:check %)) checks))]
+    ;; All other checks pass (known attestor, active, key authorized)
+    (is (= :unavailable (:pass? sig-check))
+        "signature check is :unavailable without verify-fn even when all other checks pass")
+    (is (true? valid?)
+        "valid? is true — :unavailable is not a Boolean false failure")
+    ;; But the summary does NOT claim :verified — it returns nil/falls through
+    (is (= :signature-unverifiable (att/verify-attestation-summary attestation))
+        "verify-attestation-summary returns :signature-unverifiable when signature is unavailable")
+    ;; Confirm :signature-verified is :unavailable even when all other registry checks pass
+    (let [sig-check (first (filter #(= :signature-verified (:check %)) checks))]
+      (is (= :unavailable (:pass? sig-check))
+          "signature check is :unavailable"))
+    ;; Confirm that :signature-unverifiable is preferred over :verified when
+    ;; the only non-Boolean-false check is an unavailable signature
+    (let [sig-check (first (filter #(= :signature-verified (:check %)) checks))
+          other-non-false (filterv (fn [c] (and (not= true (:pass? c))
+                                                (not= :signature-verified (:check c))))
+                                   checks)]
+      (is (every? #{:unavailable} (map :pass? other-non-false))
+          "other non-pass checks are :unavailable (subject-exists, revocation-status)")
+      (is (= :unavailable (:pass? sig-check))
+          "signature is :unavailable — unverifiable rather than unsigned"))))
+
 (deftest verify-signature-check-reports-unavailable-without-verify-fn
   (let [attestation (att/build-attestation (registry-attestor) (valid-subject) :verified
                                            {:signing-key-id "ci-validation-placeholder"
@@ -759,3 +811,66 @@
         a (attestation->old-shape a)]
     (is (= :subject-unknown (att/verify-attestation-summary a
                                                             {:subject-resolver (fn [_] false)})))))
+
+;; ── Signature Projection Security Fields ─────────────────────────────────────
+
+(def ^:private security-relevant-projection-fields
+  "The canonical projection must bind all fields whose tampering would
+   change the meaning of an attestation.  These are:
+     schema-version       — which schema/rules apply
+     subject-hash         — what is being attested about
+     subject-kind         — what type of subject
+     claim-id             — which claim definition (if applicable)
+     claim-result         — the attested outcome
+     attestor-id          — who attested
+     signing-key-id       — which key (if any) was used
+     signed-at            — when the attestation was created
+     provenance           — context of the attestation run
+
+   Excluded from the projection by design:
+     :attestation/id      — self-referential (derived from this projection)
+     :attestation/hash    — same as id
+     :attestation/signature  — the signature itself (can't sign self)
+     :attestation/metadata  — explicitly ephemeral, excluded from content identity"
+  [:schema-version
+   :attestation/subject-hash
+   :attestation/subject-kind
+   :attestation/claim-id
+   :attestation/claim-result
+   :attestation/attestor-id
+   :attestation/signing-key-id
+   :attestation/signed-at
+   :attestation/provenance])
+
+(deftest signature-projection-binds-security-relevant-fields
+  (let [a (att/build-attestation (valid-attestor) (valid-subject) :verified
+                                 {:claim-id :claim/consistency
+                                  :signing-key-id "k1"
+                                  :provenance {:run-id "r1"}})
+        projected (hc/project-attestation-record a :attestation-record)
+        projected-keys (set (keys (:artifact projected)))]
+    (testing "all documented security-relevant fields are included in projection"
+      (doseq [k security-relevant-projection-fields]
+        (is (contains? projected-keys k)
+            (str "projection must include " k))))
+    (testing "no extra fields leak into projection"
+      (is (= (set security-relevant-projection-fields) projected-keys)
+          "projection is exactly the documented set — no more, no less"))
+    (testing "projection is deterministic and reusable for verification"
+      (let [reprojected (hc/project-attestation-record a :attestation-record)]
+        (is (= projected reprojected) "projection is idempotent"))
+      (is (= :attestation-record (:intent projected))
+          "intent domain tag is bound"))))
+
+(deftest signing-payload-equals-hash-projection
+  (let [a (att/build-attestation (valid-attestor) (valid-subject) :verified
+                                 {:claim-id :claim/consistency
+                                  :signing-key-id "k1"
+                                  :provenance {:run-id "r1"}})
+        payload (att/signing-payload a)
+        projected (hc/project-attestation-record a :attestation-record)]
+    (is (= projected payload)
+        "signing-payload and project-attestation-record produce identical output")
+    (is (= (hc/hash-with-intent {:hash/intent :attestation-record} (:artifact projected))
+           (:attestation/hash a))
+        "the hash of the projection equals the attestation's content hash")))

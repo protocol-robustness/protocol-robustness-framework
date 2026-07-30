@@ -219,6 +219,25 @@
              :message "Subject hash is missing"
              :attestation attestation}))))
 
+(defn- validate-schema-version
+  [attestation]
+  (let [sv (:schema-version attestation)]
+    (when (and (some? sv) (not= "attestation.v1" sv))
+      [{:type :attestation/unsupported-schema-version
+        :message (str "Expected attestation.v1, got " (pr-str sv))
+        :schema-version sv}])))
+
+(defn- validate-id-hash-consistency
+  "For new-shape attestation, :attestation/id must equal :attestation/hash."
+  [attestation]
+  (let [id (:attestation/id attestation)
+        h (:attestation/hash attestation)]
+    (when (and (some? id) (some? h) (not= id h))
+      [{:type :attestation/id-hash-mismatch
+        :message (str ":attestation/id and :attestation/hash must be equal, got "
+                      (pr-str id) " and " (pr-str h))
+        :attestation/id id :attestation/hash h}])))
+
 (defn validate-attestation-shape
   "Validate that an attestation map conforms to ATTESTATION_SPEC_V1 §9.
    Returns {:valid? true} or {:valid? false :errors [...]}.
@@ -233,16 +252,22 @@
    - Required fields present (:schema-version, :attestation/id, :attestation/hash,
      :attestation/subject-hash, :attestation/subject-kind, :attestation/claim-result,
      :attestation/attestor-id, :attestation/signed-at)
+   - Schema version is exactly \"attestation.v1\"
+   - :attestation/id equals :attestation/hash
    - Subject kind is valid (:evidence-node or :claim)
+   - Subject hash is non-nil
    - Signature is correctly structured (if present)"
   [attestation]
   (if (:attestation/subject-kind attestation)
     ;; New shape
     (let [required-errors (validate-required-fields attestation)
+          schema-version-errors (validate-schema-version attestation)
+          id-hash-errors (validate-id-hash-consistency attestation)
           attestor-errors (validate-new-shape-attestor attestation)
           subject-errors (validate-new-shape-subject attestation)
           signature-errors (validate-signature (:attestation/signature attestation))
-          all-errors (vec (concat required-errors attestor-errors subject-errors signature-errors))]
+          all-errors (vec (concat required-errors schema-version-errors id-hash-errors
+                                  attestor-errors subject-errors signature-errors))]
       (if (seq all-errors)
         {:valid? false :errors all-errors}
         {:valid? true}))
@@ -357,7 +382,25 @@
 (defn- check-signature
   "Cryptographic signature verification. Purely cryptographic — does not
    check key authorization. Authorization is handled by check-key-authorized
-   via the attestor registry. Without verify-fn, reports :unavailable."
+   via the attestor registry.
+
+   Assurance states (:pass? value):
+     true         — verify-fn was provided and returned true.
+                    The signature has been cryptographically verified.
+     :unsigned    — the attestation has no signature field.
+                    No authenticity claim is made — this is not a failure.
+     :unavailable — the attestation has a signature but no verify-fn was
+                    provided. A signature was claimed but could not be
+                    verified in this context.  This is materially different
+                    from :unsigned (which makes no authenticity claim).
+     false        — verify-fn was provided and returned false, or threw.
+                    The signature failed cryptographic verification.
+
+   valid? treats :unsigned and :unavailable as non-failures (they are not
+   Boolean false).  They do NOT imply cryptographic verification passed.
+   A caller that requires cryptographic assurance must check for pass? true
+   explicitly, or use a completeness profile that requires signatures.
+   See verify-attestation for the full assurance model."
   [attestation verify-fn]
   (let [signature (or (:attestation/signature attestation) (:signature attestation))]
     (cond
@@ -377,7 +420,9 @@
                      (verify-fn data signature)
                      (catch Exception e
                        {:pass? false :error (.getMessage e)}))
-            pass? (if (map? result) (:pass? result) (boolean result))]
+            pass? (if (map? result)
+                    (true? (:pass? result))
+                    (true? result))]
         {:check :signature-verified
          :pass? pass?
          :detail (if (map? result) result {:raw-result result})}))))
@@ -408,17 +453,17 @@
 
       :else
       (let [exists? (try
-                      (subject-resolver subject)
-                      (catch Exception e
-                        (do
-                          (.println *err* "subject-resolver failed:" (.getMessage e))
-                          nil)))]
+                       (subject-resolver subject)
+                       (catch Exception e
+                         (do
+                           (.println *err* "subject-resolver failed:" (.getMessage e))
+                           nil)))]
         (cond
           (nil? exists?)
           {:check :subject-exists
            :pass? :error
            :detail {:reason :resolver-threw :subject subject}}
-          exists?
+          (true? exists?)
           {:check :subject-exists
            :pass? true
            :detail {:subject subject}}
@@ -450,16 +495,16 @@
 
       :else
       (let [revoked? (try
-                       (boolean (revocation-resolver id))
-                       (catch Exception e
-                         (do (.println *err* "revocation-resolver failed:" (.getMessage e))
-                             nil)))]
+                        (revocation-resolver id)
+                        (catch Exception e
+                          (do (.println *err* "revocation-resolver failed:" (.getMessage e))
+                              nil)))]
         (cond
           (nil? revoked?)
           {:check :revocation-status
            :pass? :error
            :detail {:reason :resolver-threw :attestation-id id}}
-          revoked?
+          (true? revoked?)
           {:check :revocation-status
            :pass? true
            :detail {:revoked? true :attestation-id id}}
@@ -485,10 +530,32 @@
 
    Layers are independent. Registry checks do not involve cryptography.
    The verify-fn does pure cryptographic work — it does not consult the registry.
-   Unless all applicable checks pass, :valid? is false.
-   Checks returning :unavailable, :unsigned, :error do not count as failures.
-   The :revocation-status check is informational — revocation does not invalidate
-   the cryptographic attestation.
+
+   SEMANTIC DISTINCTION: valid? vs verified
+     valid?  means \"no check returned Boolean false\" — the attestation is
+             structurally sound and contains no demonstrated failures.  This
+             is the default interpretation of verify-attestation.
+     verified means \"all applicable checks passed cryptographic or registry
+             scrutiny.\"  verify-attestation does NOT return :verified by
+             itself — use verify-attestation-summary for that distinction.
+
+     Checks returning :unsigned or :unavailable do NOT count as failures
+     for valid?, but they do NOT satisfy a verified requirement either.
+     A caller that needs verified must require signatures via the
+     completeness profile and confirm that every :signature-verified check
+     has :pass? true.
+
+   Assurance states for :signature-verified:
+     true         — cryptographically verified
+     :unsigned    — no signature claimed
+     :unavailable — signature claimed but not verifiable in this context
+     false        — verification attempted and failed
+
+   Pass/fail rule for resolver functions (verify-fn, subject-resolver,
+   revocation-resolver): only explicit Boolean true counts as pass.
+   nil, {}, [], or any non-map non-boolean result is treated as failure.
+   Checks returning :unsigned or :unavailable are documented contract
+   states — they indicate the check was not applicable, not failure.
 
    opts:
      :verify-fn             — (fn [data-to-verify signature-map]) -> boolean or {:pass? bool}
@@ -510,17 +577,31 @@
 (defn verify-attestation-summary
   "Single-keyword summary of attestation verification.
    Returns one of:
-     :verified             — all applicable checks pass
-     :no-such-attestor     — attestor not in registry
-     :attestor-revoked     — attestor status is :revoked or :retired
-     :key-not-authorized   — signing key not authorized for attestor
-     :signature-mismatch   — cryptographic signature verification failed
-     :subject-unknown      — subject does not resolve
-     :no-signature         — attestation has no signature"
+     :verified                — all applicable checks pass
+     :no-such-attestor        — attestor not in registry
+     :attestor-revoked        — attestor status is :revoked or :retired
+     :key-not-authorized      — signing key not authorized for attestor
+     :signature-mismatch      — cryptographic signature verification failed
+     :signature-unverifiable  — signature present but no verifier available
+     :subject-unknown         — subject does not resolve
+     :verification-failed     — failed checks without a specific summary mapping
+
+   :verified means no check returned Boolean false.  It does NOT imply
+   cryptographic verification — use :signature-verified check's :pass?
+   value to distinguish unsigned (:unsigned) from cryptographically
+   verified (true).
+   A :signature-unverifiable result means the attestation carries a
+   signature that could not be verified in this context (no verify-fn).
+   This is materially different from :signature-mismatch (verification
+   attempted and failed)."
   [attestation & opts]
   (let [{:keys [valid? checks]} (apply verify-attestation attestation opts)]
     (if valid?
-      :verified
+      ;; All checks non-false — check for unverifiable signatures
+      (let [sig-check (first (filter #(= :signature-verified (:check %)) checks))]
+        (if (= :unavailable (:pass? sig-check))
+          :signature-unverifiable
+          :verified))
       (let [fail->summary {:attestor-exists :no-such-attestor
                            :attestor-active :attestor-revoked
                            :key-authorized :key-not-authorized

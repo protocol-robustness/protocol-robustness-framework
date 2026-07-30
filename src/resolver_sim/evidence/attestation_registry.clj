@@ -10,7 +10,8 @@
      register-attestation! stores the attestation in-memory and optionally
      registers it as a chain artifact via chain/register-additional-artifact!
      when called with :register-in-chain? true."
-  (:require [resolver-sim.evidence.chain :as chain]))
+  (:require [resolver-sim.evidence.chain :as chain]
+            [resolver-sim.hash.canonical :as hc]))
 
 ;; ── Registry Atom ────────────────────────────────────────────────────────────
 
@@ -69,15 +70,51 @@
   "Register an attestation record in the in-memory registry.
    The attestation is stored keyed by :attestation/id (the content hash).
 
+   Rejects nil :attestation/id. Rejects registration when an existing entry
+   with the same :attestation/id has different canonical content.
+   When canonical content is identical, returns the existing record without
+   mutation — avoids unnecessary writes preserves non-canonical metadata.
+
    When opts includes :register-in-chain? true, also registers the attestation
-   as a chain artifact via chain/register-additional-artifact!.
+   as a chain artifact via chain/register-additional-artifact!.  Registry
+   mutation is authoritative and happens first; chain registration is auxiliary
+   and best-effort.  The chain recovery contract guarantees:
+     (1) Failure to register the chain artifact does not invalidate the
+         primary attestation — the registry is authoritative.
+     (2) Verification does not assume every registered attestation has a
+         chain artifact.
+     (3) The chain artifact is deterministically derivable from the
+         attestation record — it can be rebuilt without loss.
+     (4) Failure is silently surfaced (chain/register-additional-artifact!
+         returns nil); the caller may verify via chain/registry-snapshot.
+     (5) Retrying appends a duplicate chain artifact — deduplication is
+         the caller's responsibility (see chain/register-additional-artifact! doc).
 
    Returns the attestation (for threading)."
   [attestation & [{:keys [register-in-chain?]}]]
-  (swap! *attestation-registry* assoc (:attestation/id attestation) attestation)
-  (when register-in-chain?
-    (chain/register-additional-artifact! (attestation->artifact-entry attestation)))
-  attestation)
+  (let [id (:attestation/id attestation)]
+    (when (nil? id)
+      (throw (ex-info "Cannot register attestation without :attestation/id"
+                      {:attestation (dissoc attestation :attestation/signature)
+                       :reason :nil-attestation-id})))
+    (let [existing (get @*attestation-registry* id)]
+      (if existing
+        (let [canon-existing (hc/project-attestation-record existing :attestation-record)
+              canon-new (hc/project-attestation-record attestation :attestation-record)]
+          (if (not= canon-existing canon-new)
+            (throw (ex-info "Attestation ID conflict: existing entry has different canonical content"
+                            {:attestation/id id
+                             :existing (dissoc existing :attestation/signature)
+                             :conflicting (dissoc attestation :attestation/signature)
+                             :reason :attestation-id-conflict}))
+            existing))
+        ;; No existing entry: authoritative mutation (registry) first,
+        ;; auxiliary mutation (chain) second.
+        (do
+          (swap! *attestation-registry* assoc id attestation)
+          (when register-in-chain?
+            (chain/register-additional-artifact! (attestation->artifact-entry attestation)))
+          attestation)))))
 
 ;; ── Lookup ───────────────────────────────────────────────────────────────────
 

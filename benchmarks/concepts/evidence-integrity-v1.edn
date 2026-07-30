@@ -29,12 +29,17 @@
    "Evidence integrity is what separates a reproducible benchmark
     from a slide deck. Without it, stakeholders cannot independently
     verify claims about deterministic replay."
-   :concept/note
-   "The claims listed here (replay-identical-results,
-    hash-consistency-across-runs, no-nondeterminism) are registered
-    in claim-registry.edn with Level 1 mechanical evaluators. These
-    are NOT Level 3 deferred claims — they are evaluated during every
-    benchmark run. The evidence-integrity-v1 benchmark itself is
-    deprecated (superseded by deterministic-replay-v1), but this
-    concept file serves as the canonical definition of the evidence
-    integrity dimension."}]}
+    :concept/out-of-scope
+    ["Correctness of the underlying scenario outcomes."
+     "Approval or authorisation status of the evidence producer."
+     "Availability of the referenced evidence artifacts outside the bundle."
+     "Semantic validity of opaque external dependencies referenced by evidence."]
+    :concept/note
+    "The claims listed here (replay-identical-results,
+     hash-consistency-across-runs, no-nondeterminism) are registered
+     in claim-registry.edn with Level 1 mechanical evaluators. These
+     are NOT Level 3 deferred claims — they are evaluated during every
+     benchmark run. The evidence-integrity-v1 benchmark itself is
+     deprecated (superseded by deterministic-replay-v1), but this
+     concept file serves as the canonical definition of the evidence
+     integrity dimension."}]}

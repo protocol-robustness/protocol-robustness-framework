@@ -229,9 +229,89 @@
    :concept/protocols #{:protocol/sew-v1}}
 
   {:concept/id    :security/force-authorisation
-   :concept/type  :security
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/security/force_authorisation.edn"
-   :concept/name  "Force-authorisation"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1 :protocol/prf}}]}
+    :concept/type  :security
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/security/force_authorisation.edn"
+    :concept/name  "Force-authorisation"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :governance/proposed-content
+    :concept/type  :decision-quality
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/decision-quality/proposed_content.edn"
+    :concept/name  "Proposed content"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :governance/proposed-content-root
+    :concept/type  :decision-quality
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/decision-quality/proposed_content_root.edn"
+    :concept/name  "Proposed content root"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/content-root
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/content_root.edn"
+    :concept/name  "Content root"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/registry-entry-hash
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/registry_entry_hash.edn"
+    :concept/name  "Registry entry hash"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :allocation/slash-distribution
+    :concept/type  :allocation
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/allocation/slash_distribution.edn"
+    :concept/name  "Slash distribution"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :allocation/bounty-payable
+    :concept/type  :allocation
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/allocation/bounty_payable.edn"
+    :concept/name  "Bounty payable"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :allocation/bounty-payable-reserve
+    :concept/type  :allocation
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/allocation/bounty_payable_reserve.edn"
+    :concept/name  "Bounty payable reserve"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :allocation/deferred-class
+    :concept/type  :allocation
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/allocation/deferred_class.edn"
+    :concept/name  "Deferred position classification"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1}}
+
+   {:concept/id    :mechanism/pro-rata-allocation
+    :concept/type  :mechanism
+    :concept/layer :protocol
+    :concept/file  "data/concepts/mechanism/pro_rata_allocation.edn"
+    :concept/name  "Deterministic pro-rata allocation"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1}}
+
+   {:concept/id    :allocation/fractional-remainder
+    :concept/type  :evidence
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/allocation/fractional_allocation.edn"
+    :concept/name  "Fractional Remainder"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1}}]}

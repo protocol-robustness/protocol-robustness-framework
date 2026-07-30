@@ -568,38 +568,6 @@
                                                 position)]
       (:position-hash base-state))))
 
-(defn- check-max-lineage-round!
-  "Reject position creation when the attempted next round exceeds the
-   policy's max-lineage-round.  Uses strictly greater-than so the max
-   value itself is an admissible round number."
-  [attempted-round policy-snapshot]
-  (let [max-round (get-in policy-snapshot [:deferred :max-lineage-round])]
-    (when (and (some? max-round) (> attempted-round max-round))
-      (fail! (str "Deferred position lineage round " attempted-round
-                  " exceeds policy max " max-round)
-             :exceeded-max-lineage-round
-             {:attempted-round attempted-round
-              :max-lineage-round max-round}))))
-
-(defn- validate-deferred-position!
-  "Strict validation for newly created deferred positions.
-   Rejects positions that are missing required deferred-specific fields
-   or have nil values for fields that must be present."
-  [deferred-pos]
-  (let [required-fields [:deferred/class :deferred/lineage-root :deferred/predecessor-hash
-                         :position/round :position/original-priority
-                         :position/current-amount :position/type]
-        missing (remove (fn [f] (contains? deferred-pos f)) required-fields)
-        nil-fields (keep (fn [f] (when (nil? (get deferred-pos f)) f)) required-fields)]
-    (when (seq missing)
-      (fail! "New deferred position is missing required fields"
-             :deferred-position-missing-fields
-             {:missing (vec missing)}))
-    (when (seq nil-fields)
-      (fail! "New deferred position has nil required fields"
-              :deferred-position-nil-fields
-              {:nil-fields (vec nil-fields)}))))
-
 (defn- build-application-preconditions
   [world module-id token owners requested-by-owner]
   (mapv
@@ -978,7 +946,7 @@
                      fulfilled (long (:fulfilled participant 0))
                      original-priority (:original-priority precondition)
                       round (next-lineage-round position)
-                      _ (check-max-lineage-round!
+                      _ (propagation-policy/check-max-lineage-round!
                          round
                          (get-in propagation [:propagation-policy :policy/snapshot]))
                       transition-hash
@@ -1044,8 +1012,8 @@
                                                   :haircut-amount 0}))
                               :deferred/lineage-root (lineage-root position current-deferred)
                               :deferred/predecessor-hash (predecessor-hash position current-deferred)}]
-                       (when (pos? deferred)
-                         (validate-deferred-position! m))
+                        (when (pos? deferred)
+                          (propagation-policy/validate-deferred-position-schema m))
                        m)
                       closed-prior
                       (when current-deferred

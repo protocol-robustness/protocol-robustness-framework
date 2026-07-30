@@ -87,15 +87,20 @@
      :equation/applies-to [:claim/appeal-bond-adequacy
                            :claim/solvency-status]}]
    :concept/failure-modes
-   [:failure/unmodelled-sink
-    :failure/unmodelled-source
-    :failure/double-counted-liability
-    :failure/false-conservation-failure
-    :failure/rounding-dust-unaccounted
-    :failure/wrong-claimant-allocation
-    :failure/hidden-shortfall
-    :failure/stale-claimable-after-cancel]
-   :concept/note
+    [:failure/unmodelled-sink
+     :failure/unmodelled-source
+     :failure/double-counted-liability
+     :failure/false-conservation-failure
+     :failure/rounding-dust-unaccounted
+     :failure/wrong-claimant-allocation
+     :failure/hidden-shortfall
+     :failure/stale-claimable-after-cancel]
+    :concept/out-of-scope
+    ["Allocation-rule correctness beyond the declared equations."
+     "Liquidity availability or custody sufficiency."
+     "Economic fairness or subjective distribution preferences."
+     "Cryptographic evidence packaging outside the declared evidence types."]
+    :concept/note
    "This benchmark concept is not the canonical definition of conservation.
     The canonical reusable definition lives in
     data/concepts/framework/conservation.edn. This file explains how that
@@ -112,9 +117,12 @@
    "Cross-epoch claim recovery is critical for long-duration escrows and yield accrual. If deferred claims are lost or misallocated during epoch transitions, the protocol fails to deliver on its commitment to users."
    :concept/protocols [:protocol/prf]
    :concept/actions [:action/defer-claim :action/recover-claim]
-   :concept/out-of-scope []
-   :concept/roles [:role/claimant :role/resolver]
-   :concept/entities [:entity/escrow :entity/claim]
+    :concept/out-of-scope
+    ["Epoch-level availability of the yield module."
+     "Correctness of the underlying deferred-claim accounting policy."
+     "Equivalence between deferred-claim value and the baseline content."]
+    :concept/roles [:role/claimant :role/resolver]
+    :concept/entities [:entity/escrow :entity/claim]
    :concept/assumptions []
    :concept/failure-modes [:failure/deferred-claim-lost
                             :failure/deferred-claim-misallocated
@@ -147,9 +155,12 @@
    "Incorrect cascade behavior can lead to value leakage, unfair distribution, or protocol insolvency. Proper cascade ensures all value is correctly allocated across priority levels."
    :concept/protocols [:protocol/prf]
    :concept/actions [:action/settle :action/cascade]
-   :concept/out-of-scope []
-   :concept/roles [:role/claimant :role/resolver]
-   :concept/entities [:entity/position :entity/shortfall]
+    :concept/out-of-scope
+    ["Correctness of the cascade policy or priority-level design."
+     "Availability of liquidity at the target level."
+     "Settlement liveness of external modules."]
+    :concept/roles [:role/claimant :role/resolver]
+    :concept/entities [:entity/position :entity/shortfall]
    :concept/assumptions []
    :concept/failure-modes [:failure/cascade-to-wrong-level
                             :failure/cascade-value-lost
@@ -177,9 +188,12 @@
    "Pool boundaries are fundamental to risk isolation. If pools are not properly segregated during shortage, users' funds may be at risk and the protocol's risk model breaks down."
    :concept/protocols [:protocol/prf]
    :concept/actions [:action/settle :action/withdraw :action/shortfall]
-   :concept/out-of-scope []
-   :concept/roles [:role/claimant :role/resolver]
-   :concept/entities [:entity/pool :entity/escrow]
+    :concept/out-of-scope
+    ["Correctness of the pool-segregation policy."
+     "Availability of escrow liquidity within each pool."
+     "Semantic equivalence between cross-pool values across different pool domains."]
+    :concept/roles [:role/claimant :role/resolver]
+    :concept/entities [:entity/pool :entity/escrow]
    :concept/assumptions []
    :concept/failure-modes [:failure/pool-boundary-breach
                             :failure/cross-pool-transfer

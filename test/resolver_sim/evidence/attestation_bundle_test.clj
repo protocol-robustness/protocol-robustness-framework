@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-bundle :as ab]
+            [resolver-sim.evidence.attestation-completeness-profile :as acp]
             [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.hash.canonical :as hc])
   (:import [java.util UUID]))
@@ -295,3 +296,116 @@
     (.mkdirs (io/file tmp-dir))
     (is (thrown? Exception (ab/read-attestation-bundle tmp-dir)))
     (io/delete-file (io/file tmp-dir) true)))
+
+;; ── Profile combination tests ───────────────────────────────────────────────
+
+(deftest signature-required-affects-profile-hash
+  (let [p-default (acp/make-profile :review {})
+        p-required (acp/make-profile :review {:signature-required true})]
+    (is (not= (:profile/hash p-default) (:profile/hash p-required))
+        ":signature/required changes the committed profile hash")))
+
+(deftest profile-mode-determines-completeness-check
+  (let [a (build-a)
+        dev-profile (acp/make-profile :development {})
+        review-profile (acp/make-profile :review {})
+        make-bundle (fn [profile]
+                      (ab/build-attestation-bundle
+                       {:attestations [a]
+                        :registries {:attestors registries/attestor-registry
+                                     :claim-definitions registries/claim-definition-registry
+                                     :hash-intents hc/hash-intents}
+                        :completeness-profile profile
+                        :sensitivity-report {:decision :allowed
+                                             :report-hash "sha256:sr"}}))
+        dev-bundle (make-bundle dev-profile)
+        review-bundle (make-bundle review-profile)
+        dev-result (ab/verify-attestation-bundle dev-bundle)
+        review-result (ab/verify-attestation-bundle review-bundle)]
+    ;; Both profiles allow unsigned (no :signature? option, default is nil)
+    ;; But they differ in evidence requirements
+    (is (some? (:valid? dev-result))
+        "development profile bundle can be verified")
+    (is (some? (:valid? review-result))
+        "review profile bundle can be verified")))
+
+(deftest profile-signature-required-via-committed-policy
+  (let [tmp-dir (str (System/getProperty "java.io.tmpdir") "/ab-combo-"
+                     (java.util.UUID/randomUUID))
+        a (build-a :signed-at "2025-01-01T00:00:00Z")
+        registry registries/attestor-registry
+        strict-profile (acp/make-profile :review {:signature-required true})
+        bundle (ab/build-attestation-bundle
+                {:attestations [a]
+                 :registries {:attestors registry
+                              :claim-definitions registries/claim-definition-registry
+                              :hash-intents hc/hash-intents}
+                 :completeness-profile strict-profile
+                 :sensitivity-report {:decision :allowed
+                                      :report-hash "sha256:sr"}
+                 :options {:bundle-dir tmp-dir}})]
+    ;; Write to disk so files exist for verification
+    (ab/write-attestation-bundle! bundle {:attestations [a]
+                                          :attestors registry
+                                          :claim-definitions registries/claim-definition-registry
+                                          :hash-intents hc/hash-intents} tmp-dir)
+    (let [read-back (ab/read-attestation-bundle tmp-dir)
+          result (ab/verify-attestation-bundle read-back {:trusted-attestor-registry-hashes
+                                                         #{(str "sha256:"
+                                                                (get-in bundle [:bundle/registries :attestors :registry/hash]))}})]
+      ;; Profile with :signature/required true — unsigned fails
+      (is (false? (:valid? result))
+          "committed profile with :signature/required true rejects unsigned on-disk")
+      (is (some #(and (= :attestation-signature-valid (:check/id %))
+                      (= :fail (:check/status %)))
+                (:checks result))
+          "signature check fails when profile requires signatures"))
+    (io/delete-file (io/file tmp-dir) true)))
+
+(deftest explicit-signature-option-overrides-profile-in-verification
+  (let [tmp-dir (str (System/getProperty "java.io.tmpdir") "/ab-override-"
+                     (java.util.UUID/randomUUID))
+        a (build-a :signed-at "2025-01-01T00:00:00Z")
+        registry registries/attestor-registry
+        dev-profile (acp/make-profile :development {})
+        ;; Development profile with explicit :signature? true overrides
+        bundle (ab/build-attestation-bundle
+                {:attestations [a]
+                 :registries {:attestors registry
+                              :claim-definitions registries/claim-definition-registry
+                              :hash-intents hc/hash-intents}
+                 :completeness-profile dev-profile
+                 :sensitivity-report {:decision :allowed
+                                      :report-hash "sha256:sr"}
+                 :options {:bundle-dir tmp-dir
+                           :signature? true}})]
+    (ab/write-attestation-bundle! bundle {:attestations [a]
+                                          :attestors registry
+                                          :claim-definitions registries/claim-definition-registry
+                                          :hash-intents hc/hash-intents} tmp-dir)
+    (let [read-back (ab/read-attestation-bundle tmp-dir)
+          result (ab/verify-attestation-bundle read-back {:trusted-attestor-registry-hashes
+                                                         #{(str "sha256:"
+                                                                (get-in bundle [:bundle/registries :attestors :registry/hash]))}})]
+      (is (false? (:valid? result))
+          "explicit :signature? true overrides dev profile — unsigned rejected on-disk")
+      (is (= :invalid (:bundle/status result))
+          "explicit signature requirement makes unsigned bundle :invalid"))
+    (io/delete-file (io/file tmp-dir) true)))
+
+(deftest evaluate-evidence-status-mode-difference
+  (let [dev-profile (acp/make-profile :development {})
+        review-profile (acp/make-profile :review {})
+        ;; Empty objects — review profile rejects empty, dev permits with warning
+        review-status (acp/evaluate-evidence-status
+                       review-profile
+                       {:bundle/objects []
+                        :sensitivity/decision :allowed})
+        dev-status (acp/evaluate-evidence-status
+                    dev-profile
+                    {:bundle/objects []
+                     :sensitivity/decision :allowed})]
+    (is (= :invalid review-status)
+        "review profile: empty evidence → :invalid (empty-set decision :fail)")
+    (is (not= :invalid dev-status)
+        "development profile: empty evidence → not :invalid (empty-set decision :warn)")))

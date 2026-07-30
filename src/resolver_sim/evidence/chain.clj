@@ -686,8 +686,22 @@
 (defn register-additional-artifact!
   "Register an additional artifact entry in the evidence registry.
    Useful for index files produced after the main registry is built.
-   The entry is persisted alongside the registry entries.
-   Returns the registry atom's current state."
+   The entry is appended to the artifacts vector.
+   Returns nil.
+
+   Recovery contract (auxiliary artifacts):
+     (1) Failure to register does not invalidate any authoritative state.
+         Authortative state (attestation registry, run results) is
+         established independently and does not depend on chain artifacts.
+     (2) Verification does not assume every registered record has a
+         chain artifact.  Verification checks the authoritative registry,
+         not the chain artifact index.
+     (3) The artifact entry is deterministically derivable from the
+         source record — it can be rebuilt without loss.
+     (4) Failure is silently ignored (returns nil).  Callers that require
+         confirmation should verify artifact presence via registry-snapshot.
+     (5) Retrying appends a duplicate entry.  The chain is append-only;
+         deduplication is the caller's responsibility."
   [entry]
   (when entry
     (swap! evidence-registry-atom update :artifacts conj entry))

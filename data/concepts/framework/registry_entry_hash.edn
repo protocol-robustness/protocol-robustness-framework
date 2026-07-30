@@ -1,0 +1,57 @@
+{:concept/id :framework/registry-entry-hash
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Registry entry hash"
+ :concept/summary
+ "A registry entry hash is a content-address that refers to a specific registry entry. It is computed over the canonical projection of the entry fields, making incidental extension keys non-conflicting."
+
+ :concept/stakeholder-question
+ "Does the registry entry hash uniquely identify the entry's canonical content, separate from the semantic identity of the underlying model package?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:registrant {:description "Entity that registered the entry."
+               :maps-to [:protocol.actor/governance]}
+  :registry-reader {:description "Entity that reads and verifies entries."
+                    :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:entry-hash {:description "Canonical hash of the registry entry."
+               :maps-to [:protocol.entity/canonical-hash]}
+  :entry-fields {:description "The canonical projection of entry fields included in the hash."
+                 :maps-to [:protocol.entity/evidence]}}
+
+ :concept/actions
+ {:compute-hash {:description "Compute the canonical hash for a registry entry."
+                 :maps-to [:protocol.action/verify-allocation]}
+  :verify-hash {:description "Verify that an entry matches its canonical hash."
+                :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:hash-verified {:description "Entry hash matches its canonical computation."
+                  :maps-to [:protocol.outcome/released]}
+  :hash-mismatch {:description "Entry hash does not match canonical computation."
+                  :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :entry-hash-collision
+   :failure/name "Entry hash collision"
+   :failure/summary "Two entries with different canonical content produce the same hash."
+   :protocol-mechanisms [:canonical-hashing]
+   :stakeholder-impact "Registry integrity is compromised."}]
+
+ :concept/assumptions
+ ["The canonical projection defines which entry fields are included in the hash."
+  "Incidental extension keys do not affect the canonical hash."
+  "Registry entries with the same hash under the same projection are identical."]
+
+ :concept/out-of-scope
+ ["Semantic identity of the underlying model package."
+  "Equivalence between two packages."
+  "Approval or acceptance of registered content."
+  "Correctness of provenance claims."]
+
+ :concept/metrics
+ {:hash-verification-count {:description "Number of hash verifications performed."
+                            :source :derived-from-trace}}}

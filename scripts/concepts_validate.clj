@@ -6,7 +6,7 @@
 (def concept-root (io/file "data/concepts"))
 (def registry-path (io/file concept-root "registry.edn"))
 (def known-protocols #{:protocol/sew-v1 :protocol/prf})
-(def supported-maps-to-types #{:protocol.actor :protocol.role :protocol.entity :protocol.action :protocol.outcome})
+(def supported-maps-to-types #{:protocol.actor :protocol.role :protocol.entity :protocol.action :protocol.outcome :protocol.guard :protocol.parameter})
 
 (def required-keys
   #{:concept/id :concept/name :concept/summary :concept/stakeholder-question
@@ -20,7 +20,15 @@
    :assurance "assurance"
    :allocation "allocation"
    :yield "yield"
-   :framework "framework"})
+   :framework "framework"
+   :security "security"
+   :mechanism "mechanism"})
+
+(def standard-concept-types
+  #{:use-case :decision-quality :assurance :allocation :yield :framework :security})
+
+(def known-gap-patterns
+  #"(?i)(currently unsupported|not yet checked|temporarily excluded|not yet implemented|not yet supported|future work|to be done)")
 
 (defn edn-files [dir]
   (filter #(and (.endsWith (.getName %) ".edn") (not (.isDirectory %)))
@@ -85,6 +93,25 @@
     (sequential? obj)
     (doseq [v obj] (check-mapping-statuses path v errors))))
 
+(defn check-out-of-scope [path concept errors]
+  (let [oos (:concept/out-of-scope concept)]
+    (when (nil? oos)
+      (swap! errors conj (str path " :concept/out-of-scope is required")))
+    (when (and (some? oos) (not (vector? oos)))
+      (swap! errors conj (str path " :concept/out-of-scope must be a vector, got " (type oos))))
+    (when (and (vector? oos) (empty? oos))
+      (swap! errors conj (str path " :concept/out-of-scope must be non-empty for production concepts")))
+    (when (vector? oos)
+      (doseq [s oos]
+        (when-not (string? s)
+          (swap! errors conj (str path " :concept/out-of-scope entry " (pr-str s) " is not a string"))))
+      (let [duplicates (set (for [[id freq] (frequencies oos) :when (> freq 1)] id))]
+        (doseq [d duplicates]
+          (swap! errors conj (str path " :concept/out-of-scope has duplicate entry: " (pr-str d)))))
+      (doseq [s oos]
+        (when (and (string? s) (re-find known-gap-patterns s))
+          (swap! errors conj (str path " :concept/out-of-scope entry appears to describe a temporary known gap rather than a permanent boundary: " (pr-str s))))))))
+
 (defn check-evidence [path concept errors]
   (when (= :use-case (:concept/type concept))
     (let [evidence (:concept/evidence concept)]
@@ -142,10 +169,12 @@
             (if parse-err
               (do (swap! errors conj (str rel ": " parse-err))
                   (println "    FAIL" rel "-" parse-err))
-              (let [missing (missing-keys data)]
-                (if missing
-                  (do (swap! errors conj (str rel ": missing keys " (pr-str missing)))
-                      (println "    FAIL" rel "missing keys:" (pr-str missing)))
+              (let [ctype (:concept/type data)
+                         is-standard (contains? standard-concept-types ctype)
+                         missing (when is-standard (missing-keys data))]
+                 (if missing
+                   (do (swap! errors conj (str rel ": missing keys " (pr-str missing)))
+                       (println "    FAIL" rel "missing keys:" (pr-str missing)))
                   (let [cid (:concept/id data)
                         ctype (:concept/type data)
                         reg-entry (get reg-by-id cid)]
@@ -179,9 +208,10 @@
                           (swap! errors conj (str rel ": unknown protocol " p))
                           (println "    FAIL" rel "unknown protocol" p))))
                     (check-value-maps-to rel data errors)
-                    (check-use-case-contract rel data errors)
-                    (check-evidence rel data errors)
-                    (check-mapping-statuses rel data errors))))))))
+                     (check-use-case-contract rel data errors)
+                     (check-evidence rel data errors)
+                     (check-mapping-statuses rel data errors)
+                     (check-out-of-scope rel data errors))))))))
       (println "  Checking related concept references...")
       (doseq [{:keys [from to]} (concepts-registry/missing-related-concepts @loaded-concepts)]
         (swap! errors conj (str "concept " from " references missing related concept " to))

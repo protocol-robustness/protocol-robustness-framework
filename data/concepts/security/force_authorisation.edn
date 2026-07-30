@@ -142,7 +142,9 @@
   "Evidence ordering (grant before execution) is independently verifiable."]
 
  :concept/out-of-scope
- ["Legitimacy of the governance actor that granted the authorisation."
-  "Correctness of the dispute resolution underlying the workflow."
-  "Runtime security of the governance key infrastructure."
-  "Economic analysis of when force-authorisation should be used."]}
+ ["Safety or correctness of the authorised change."
+  "Guarantee of successful execution."
+  "Guarantee that execution will produce the intended result."
+  "Approval of content outside the committed target."
+  "Permission after expiry or consumption."
+  "Resolution of unrelated known gaps."]}

@@ -1,0 +1,60 @@
+{:concept/id :framework/content-root
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Content root"
+ :concept/summary
+ "A content root is a content-addressed hash that uniquely identifies a package version via its canonical projection. It provides deterministic reference to committed content without implying correctness, approval, or availability."
+
+ :concept/stakeholder-question
+ "Does the content root provide a unique, deterministic reference to a specific content version, separate from whether the content is available or correct?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:publisher {:description "Entity that publishes the content and its root."
+              :maps-to [:protocol.actor/governance]}
+  :consumer {:description "Entity that uses the root to reference content."
+             :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+
+ :concept/entities
+ {:content-hash {:description "Canonical hash of the content package."
+                 :maps-to [:protocol.entity/canonical-hash]}
+  :projection-spec {:description "Specification of which fields are included in the hash."
+                    :maps-to [:protocol.entity/projection]}}
+
+ :concept/actions
+ {:publish-root {:description "Publish a content root for a package."
+                 :maps-to [:protocol.action/commit-root]}
+  :verify-content {:description "Verify content against its declared root."
+                   :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:root-verified {:description "Content matches its declared root."
+                  :maps-to [:protocol.outcome/released]}
+  :root-failed {:description "Content does not match its declared root."
+                :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :content-root-mismatch
+   :failure/name "Content root mismatch"
+   :failure/summary "Computed hash does not match the declared root."
+   :protocol-mechanisms [:content-addressing :canonical-hashing]
+   :stakeholder-impact "Cannot trust the integrity of the referenced content."}]
+
+ :concept/assumptions
+ ["The canonical projection is known and stable for the content domain."
+  "Two packages with the same root under the same projection are semantically identical."
+  "Fields outside the canonical projection are incidental and do not affect identity."]
+
+ :concept/out-of-scope
+ ["Registration metadata."
+  "Registrant identity."
+  "Provenance."
+  "Review status."
+  "Incidental extension keys outside the canonical projection."
+  "Availability of the content package."
+  "Semantic correctness."]
+
+ :concept/metrics
+ {:root-count {:description "Number of active content roots."
+               :source :derived-from-trace}}}

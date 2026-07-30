@@ -5,6 +5,13 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.allocation :as allocation]))
 
+(defn- gcd
+  "Greatest common divisor of two non-negative integers."
+  [a b]
+  (if (zero? b)
+    a
+    (recur b (mod a b))))
+
 (defn cap-respecting-violations
   [result]
   (vec
@@ -145,6 +152,93 @@
                    [{:reason :pro-rata/final-round-binding-mismatch
                      :expected final-active :observed witness-active}])))))
 
+(defn fractional-remainder-violations
+  "Validate :allocation/fractional-remainder-total structure and semantics.
+
+   Structural checks:
+   - Map with :rational/numerator (integer, non-negative) and
+     :rational/denominator (positive integer)
+   - The fraction is reduced to canonical form: (gcd (abs num) den) = 1
+   - Zero is represented as 0/1
+
+   Per-row semantic checks:
+   - Each per-row fractional remainder is >= 0 and < 1
+     (numerator < denominator, unless numerator is 0)
+   - The reported total equals the exact rational sum of per-row remainders"
+  [result]
+  (let [frt (:allocation/fractional-remainder-total result)]
+    (cond
+      (nil? frt)
+      [{:reason :pro-rata/missing-fractional-remainder-total}]
+
+      (not (map? frt))
+      [{:reason :pro-rata/invalid-fractional-remainder-total-type
+        :observed (type frt)}]
+
+      :else
+      (let [num (:rational/numerator frt)
+            den (:rational/denominator frt)
+            errors (atom [])]
+        ;; Numerator must be integer
+        (when-not (integer? num)
+          (swap! errors conj {:reason :pro-rata/fractional-remainder-numerator-not-integer
+                              :observed num}))
+        ;; Numerator must be non-negative
+        (when (and (integer? num) (neg? num))
+          (swap! errors conj {:reason :pro-rata/fractional-remainder-numerator-negative
+                              :numerator num}))
+        ;; Denominator must be positive integer
+        (when-not (and (integer? den) (pos? den))
+          (swap! errors conj {:reason :pro-rata/fractional-remainder-denominator-not-positive
+                              :observed den}))
+        ;; Canonical form: gcd(|num|, den) = 1
+        (when (and (integer? num) (integer? den) (pos? den))
+            (let [g (gcd (Math/abs (long num)) (long den))]
+            (when (> g 1)
+              (swap! errors conj {:reason :pro-rata/fractional-remainder-not-reduced
+                                  :numerator num :denominator den
+                                  :gcd g}))))
+        ;; Zero must be represented as 0/1
+        (when (and (integer? num) (zero? num) (integer? den) (not= 1 den))
+          (swap! errors conj {:reason :pro-rata/fractional-remainder-zero-not-canonical
+                              :numerator num :denominator den
+                              :expected {:rational/numerator 0 :rational/denominator 1}}))
+        ;; Per-row remainders must be < 1
+        (doseq [row (:rows result)]
+          (when-let [fr (:fractional-remainder row)]
+            (let [rn (:remainder-numerator fr)
+                  rd (:remainder-denominator fr)]
+              (when (and (integer? rn) (integer? rd) (pos? rd) (>= rn rd))
+                (swap! errors conj {:reason :pro-rata/per-row-remainder-not-less-than-one
+                                    :row/id (:row/id row)
+                                    :remainder-numerator rn
+                                    :remainder-denominator rd})))))
+        ;; Total must equal the exact sum of per-row remainders
+        (when (and (integer? num) (integer? den) (pos? den)
+                   (seq (:rows result)))
+          (let [row-remainders (keep :fractional-remainder (:rows result))
+                sum-ratio (reduce (fn [r {:keys [remainder-numerator remainder-denominator]}]
+                                    (if (and (integer? remainder-numerator)
+                                             (integer? remainder-denominator)
+                                             (pos? remainder-denominator))
+                                      (+ r (/ remainder-numerator remainder-denominator))
+                                      r))
+                                  0
+                                  row-remainders)
+                [expected-num expected-den]
+                (cond
+                  (zero? sum-ratio) [0 1]
+                  (instance? clojure.lang.Ratio sum-ratio) [(numerator sum-ratio) (denominator sum-ratio)]
+                  (integer? sum-ratio) [sum-ratio 1]
+                  :else [nil nil])]
+            (when (and expected-num expected-den
+                       (or (not= num expected-num) (not= den expected-den)))
+              (swap! errors conj {:reason :pro-rata/fractional-remainder-sum-mismatch
+                                  :actual {:rational/numerator num :rational/denominator den}
+                                  :expected {:rational/numerator expected-num
+                                             :rational/denominator expected-den}}))))
+        @errors))))
+
 (defn residual-violations
   "Validate that a non-zero residual has a declared, mechanically provable
    cause. Residual is availability that the mechanism did not allocate; cap
@@ -198,21 +292,22 @@
 (defn result-violations
   [result]
   (vec (concat (when-not (= (:request/hash result)
-                            (hc/hash-with-intent {:hash/intent :projection-artifact}
-                                                 (:canonical-request result)))
-                 [{:reason :pro-rata/request-hash-mismatch
-                   :expected :recomputed-hash
-                   :observed (:request/hash result)}])
-               (when-not (allocation/allocation-hash-valid? result)
-                 [{:reason :pro-rata/allocation-hash-mismatch
-                   :expected :recomputed-hash
-                   :observed (:allocation/hash result)}])
-               (cap-respecting-violations result)
-               (residual-violations result)
-               (round-trace-violations result)
-               (quota-bounded-violations result)
-               (when (= :largest-remainder (:rounding-policy result))
-                 (canonical-remainder-assignment-violations result)))))
+                             (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                                  (:canonical-request result)))
+                  [{:reason :pro-rata/request-hash-mismatch
+                    :expected :recomputed-hash
+                    :observed (:request/hash result)}])
+                (when-not (allocation/allocation-hash-valid? result)
+                  [{:reason :pro-rata/allocation-hash-mismatch
+                    :expected :recomputed-hash
+                    :observed (:allocation/hash result)}])
+                (cap-respecting-violations result)
+                (residual-violations result)
+                (round-trace-violations result)
+                (quota-bounded-violations result)
+                (fractional-remainder-violations result)
+                (when (= :largest-remainder (:rounding-policy result))
+                  (canonical-remainder-assignment-violations result)))))
 
 (defn remainder-assignment-status
   [result]

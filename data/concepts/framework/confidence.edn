@@ -92,7 +92,8 @@
  :concept/out-of-scope
  ["This concept does not define a minimum confidence threshold for protocol acceptance."
   "This concept does not assign trust scores to individual actors or oracles."
-  "This concept does not address statistical or Bayesian confidence intervals."]
+  "This concept does not address statistical or Bayesian confidence intervals."
+  "Canonical hashing concatenation order for confidence levels in evidence or attestation bundles — concatenation semantics are owned by the evidence-chain or registry-entry concept, not by the confidence concept."]
  :concept/subconcepts
  [{:concept/id :concept/claim-confidence
    :concept/name "Claim confidence"

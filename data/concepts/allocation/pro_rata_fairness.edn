@@ -162,6 +162,11 @@
    "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
- ["Real-world bankruptcy law or legal creditor priority."
-  "Subjective fairness beyond the protocol's declared allocation rule."
-  "Off-chain negotiation or side agreements between claimants."]}
+ ["Selection of eligible participants."
+  "Selection or validation of the allocation basis."
+  "Availability or custody of distributable liquidity."
+  "Caps, floors, rounding and residual handling unless defined by the applicable policy."
+  "Shortfall precedence unless defined by the applicable policy."
+  "Creation of claims or concrete transfers."
+  "Fairness outside the declared allocation basis."
+  "Settlement liveness or availability of external modules."]}

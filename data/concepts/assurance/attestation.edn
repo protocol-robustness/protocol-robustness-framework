@@ -155,6 +155,15 @@
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
- ["Real-world legal notarization or witness certification."
-  "Identity verification or KYC for attestors."
-  "Reputation scoring or trust ranking of attestors."]}
+ ["Correctness of signed claims."
+  "Authority of the signer unless established separately."
+  "Fields omitted from the signed projection."
+  "Completeness of the evidence package."
+  "Approval merely because a signature is cryptographically valid."
+  "A validity conclusion when no verification function is available."
+  "Checks not included in the bundle."
+  "Correctness of unavailable external dependencies."
+  "Production safety beyond the declared checks."
+  "Resolution of documented known gaps."
+  "Authenticity when required signatures are unavailable or invalid."
+  "Semantic validity of opaque external evidence."]}

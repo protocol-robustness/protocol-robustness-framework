@@ -1,0 +1,60 @@
+{:concept/id :allocation/bounty-payable
+ :concept/type :allocation
+ :concept/layer :stakeholder
+ :concept/name "Bounty payable"
+ :concept/summary
+ "A bounty payable is a recognised obligation to pay a bounty award. It represents an accounting classification of an amount owed, not proof that the obligation is funded or paid."
+
+ :concept/stakeholder-question
+ "Is the bounty correctly recognised as a payable obligation, separate from whether funds are available or the payment has been executed?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:bounty-obligor {:description "Entity that recognises the payable obligation."
+                   :maps-to [:protocol.actor/governance]}
+  :bounty-recipient {:description "Entity entitled to the bounty payment."
+                     :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+
+ :concept/entities
+ {:payable-obligation {:description "The recognised amount owed as a bounty."
+                       :maps-to [:protocol.entity/obligation]}
+  :bounty-policy {:description "The policy governing bounty recognition."
+                  :maps-to [:protocol.entity/governance-policy]}}
+
+ :concept/actions
+ {:recognise-payable {:description "Recognise a bounty as a payable obligation."
+                      :maps-to [:protocol.action/record-obligation]}
+  :verify-payable {:description "Verify that a payable is correctly recognised."
+                   :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:payable-recognised {:description "Bounty payable was correctly recorded."
+                       :maps-to [:protocol.outcome/released]}
+  :payable-rejected {:description "Bounty recognition was invalid."
+                     :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :incorrect-payable-amount
+   :failure/name "Incorrect payable amount"
+   :failure/summary "The recognised payable amount does not match the bounty policy."
+   :protocol-mechanisms [:bounty-policy :verification]
+   :stakeholder-impact "Recipient may receive more or less than entitled."}]
+
+ :concept/assumptions
+ ["A payable is a recognised obligation, not proof that the obligation is funded or paid."
+  "Recognition follows the applicable bounty or incentive policy."
+  "Multiple payables may coexist without implying total liquidity."]
+
+ :concept/out-of-scope
+ ["Proof that sufficient liquid assets exist."
+  "Segregated custody."
+  "Immediate withdrawability."
+  "Payment completion."
+  "Finality of the underlying finding if appeals remain possible."]
+
+ :concept/metrics
+ {:payable-count {:description "Number of recognised bounty payables."
+                  :source :derived-from-trace}
+  :total-payable-amount {:description "Aggregate bounty payable amount."
+                         :source :derived-from-world-state}}}
