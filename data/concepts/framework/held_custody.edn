@@ -1,0 +1,118 @@
+{:concept/id :framework/held-custody
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Held custody"
+ :concept/summary
+  "Held custody captures the abstract classification and state of value as held, together with the content-addressed record of custody balance adjustments (held-adjustments) and their derived, replay-consistent artifacts. A held-adjustment is the canonical source of truth; first-class held-custody artifacts are a stable, content-addressed consumer surface whose integrity, local deltas, non-negativity, predecessor continuity, and sequence replay can be verified by closed-form checks."
+
+ :concept/note
+   "add-held expresses an abstract increase to the amount classified as held under an already-selected policy/accounting interpretation. At the concept layer it records that the held classification of an asset increased; it does not perform the concrete protocol-world mutation. The concrete ledger write with the same name (resolver-sim.protocols.sew.accounting/add-held) is a protocol-accounting implementation of this abstract intent, not the concept itself. The economic reason for holding, the source account, and whether funds actually exist in custody are decided by protocol policy and application/adapter layers, not by this concept.
+   An economic-application semantic commitment for held custody binds the policy/economic reason (via its authoritative artifact), the abstract held adjustment, and application/state evidence where applicable. It does not claim that add-held itself performed protocol-ledger mutation; that remains owned by the protocol accounting layer."
+
+ :concept/stakeholder-question
+ "Can a researcher verify, from first-class artifacts alone, that held custody balances were adjusted consistently, never underflowed, and replay to the same final state without trusting the raw ledger?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+  [:framework/content-root
+   :framework/research-command
+   :framework/semantic-commitments
+   :concept/conservation
+   :yield/yield-bearing]
+
+ :concept/roles
+ {:custody-observer {:description "Entity that examines held-custody artifacts to verify custody integrity."
+                     :maps-to [:protocol.role/verifier]}
+  :custody-producer {:description "Entity that emits held-adjustments and builds first-class held-custody artifacts."
+                     :maps-to [:protocol.actor/resolution-module]}
+  :researcher {:description "Entity that assesses held-custody integrity in a benchmark or review position."
+               :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:held-adjustment {:description "Canonical, authoritative record of one custody balance change. Not itself a consumer artifact; the ledger is the source of truth."
+                    :maps-to [:protocol.entity/held-adjustment]}
+  :held-custody-artifact {:description "First-class, content-addressed consumer surface derived from a held-adjustment, with a stable schema and self-hash. The adjustment remains authoritative; the artifact is the verifiable surface."
+                          :maps-to [:protocol.entity/evidence]}
+  :held-adjustment-ledger {:description "Ordered canonical sequence of held-adjustments used to derive indexes and replay final balances."
+                           :maps-to [:protocol.entity/ledger]}
+  :held-ledger-index {:description "Derived views: by-token, by-position, by-account, by-owner, by-workflow. Always non-negative for token/position/account/workflow; by-owner is net custody-flow attribution and may be negative."
+                      :maps-to [:protocol.entity/evidence]}
+  :held-custody-artifact-hash {:description "Canonical content hash of a held-custody artifact under :hash/intent :evidence-record."
+                               :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+  {:add-held {:description "Abstractly increase the amount classified as held under an already-selected policy/accounting interpretation. Required inputs: asset/unit, amount, custody subject (account/position/owner), and reason/adjustment type; optional authorization-provenance for exceptional reasons. This records an abstract held increase; concrete ledger mutation is owned by the protocol accounting layer."
+              :maps-to [:protocol.action/record-held-adjustment]}
+   :build-held-artifact {:description "Derive a content-addressed held-custody artifact from a canonical held-adjustment."
+                         :maps-to [:protocol.action/build-registry]}
+   :rebuild-held-artifacts {:description "Re-derive the full artifact map from the canonical held-adjustment ledger."
+                            :maps-to [:protocol.action/build-registry]}
+   :replay-held-adjustments {:description "Replay the ledger into token=>amount and structured indexes to reconstruct final held balances."
+                             :maps-to [:protocol.action/reconcile-evidence]}
+   :check-held-custody-closed-form {:description "Run deterministic closed-form checks: hash-integrity, local-delta, non-negative-after, predecessor-continuity, sequence-replay."
+                                    :maps-to [:protocol.action/check-invariant]}
+   :final-held-summary {:description "Produce a derived reporting summary (by-token, by-workflow) with reconstruction validity."
+                        :maps-to [:protocol.action/capture-evidence]}}
+
+ :concept/outcomes
+ {:held-custody-consistent {:description "All closed-form checks pass; held artifacts replay to a consistent final state."
+                            :maps-to [:protocol.outcome/released]}
+  :held-custody-inconsistent {:description "A hash, delta, non-negativity, predecessor, or sequence-replay check failed."
+                              :maps-to [:protocol.outcome/adversarial-resolution]}
+  :held-custody-underflow {:description "A replay produced a negative held balance for a non-owner partition."
+                           :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :held-custody-hash-integrity
+   :failure/name "Held-custody hash integrity failure"
+   :failure/summary "An artifact's declared hash does not recompute from its body."
+   :protocol-mechanisms [:canonical-hashing]
+   :stakeholder-impact "Held custody evidence cannot be verified as authentic."}
+  {:failure/id :held-custody-local-delta
+   :failure/name "Held-custody local delta mismatch"
+   :failure/summary "The after balance does not equal before plus/minus amount for the declared direction."
+   :protocol-mechanisms [:held-adjustment :replay]
+   :stakeholder-impact "A single adjustment is internally inconsistent."}
+  {:failure/id :held-custody-non-negative-after
+   :failure/name "Held-custody non-negative violation"
+   :failure/summary "A non-owner partition (token/position/account/workflow) underflowed below zero."
+   :protocol-mechanisms [:held-ledger-index :replay]
+   :stakeholder-impact "Custody accounting is invalid; funds appear or vanish."}
+  {:failure/id :held-custody-predecessor-continuity
+   :failure/name "Held-custody predecessor discontinuity"
+   :failure/summary "An artifact's previous-artifact-hash does not match the prior artifact hash, breaking chain continuity."
+   :protocol-mechanisms [:chain-linking :artifact-hashing]
+   :stakeholder-impact "The custody artifact chain has a gap."}
+  {:failure/id :held-custody-sequence-replay
+   :failure/name "Held-custody sequence replay mismatch"
+   :failure/summary "Replaying the ordered sequence does not reproduce the declared before/after balances."
+   :protocol-mechanisms [:replay :held-ledger-index]
+   :stakeholder-impact "The ledger cannot be reconstructed to a consistent final state."}]
+
+ :concept/assumptions
+ ["The held-adjustment ledger is canonical; derived artifacts and indexes are a stable, verifiable consumer surface, not an alternate source of truth."
+  "Closed-form checks verify the first-class artifact surface and replay consistency; they do not replace the canonical ledger."
+  "Replaying held-adjustments is only authoritative for forensic reconstruction when a world declares its held adjustments complete."
+  "Non-owner partitions are always non-negative by invariant; by-owner is a net custody-flow attribution and may be negative."
+  "A held-custody artifact hash commits to the canonical evidence-record projection; incidental fields are excluded."
+  "An abstract add-held is determined by its asset/unit, amount, custody subject, and reason/adjustment type under an already-selected policy interpretation; it does not by itself select that policy or decide the economic event justifying the increase."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+   ["Definition or modification of protocol-specific custody rules."
+    "Solvency or whole-protocol balance-sheet assertions."
+    "External custody provider holdings or off-ledger balances."
+    "Force-authorisation governance semantics, which are owned by the force-authorisation concept."
+    "Concrete protocol-ledger mutation and protocol-specific balance representation (the world-state write behind add-held/sub-held) — owned by the protocol accounting/application layer (see core-protocol-boundary). Held custody derives and verifies first-class artifacts; it does not perform authoritative ledger writes."
+    "Protocol-specific scope-authorisation validation — outside this concept and enforced by the protocol accounting layer. Held-custody mutation nevertheless requires that validation to have succeeded before the ledger or derived index is changed. Low-level ledger/index updates are internal implementation details downstream of an authorised adjustment, not independent mutation surfaces."
+    "Selection of the economic event, policy rule, or entitlement that causes a held adjustment (the reason/meaning of add-held) — owned by protocol policy."
+    "Transfer of tokens or actual movement of custody, and establishment of solvency or real asset custody — owned by the application or adapter layer."]
+
+ :concept/metrics
+ {:held-custody-artifact-count {:description "Number of held-custody artifacts produced."
+                                :source :derived-from-trace}
+  :held-custody-check-pass-count {:description "Number of closed-form checks that passed."
+                                  :source :derived-from-invariant-results}
+  :held-custody-total-held {:description "Replayed final total held per token."
+                            :source :derived-from-world-state}}}

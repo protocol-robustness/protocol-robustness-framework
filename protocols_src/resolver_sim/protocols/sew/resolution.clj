@@ -885,15 +885,25 @@
       world)))
 
 (defn- pick-eligible-superseded-pending
-  "Select the latest superseded pending that is executable at now-ts.
-   Returns a pending-settlement map or nil."
-  [world workflow-id now-ts]
-  (->> (get-in world [:superseded-pending-settlements workflow-id] [])
-       (map :pending)
-       (filter :exists)
-       (filter #(<= (:appeal-deadline %) now-ts))
-       (sort-by :appeal-deadline)
-       last))
+  "Select the superseded pending that remains the authoritative executable
+   decision for the CURRENT escrow state. Returns a pending-settlement map or nil.
+
+   A superseded decision is authoritative only while the dispute remains at the
+   level at which it was superseded: escalation/challenge cancel the pending and
+   advance the dispute level, so an entry archived at a lower level is stale and
+   must never be recovered. Among same-level entries only the most recently
+   superseded decision is authoritative (older ones were cancelled by it); an
+   older decision must not execute just because its deadline has already passed.
+   The caller's deadline guard then rejects the selected decision until its own
+   appeal deadline has passed."
+  [world workflow-id _now-ts]
+  (let [current-level (t/dispute-level world workflow-id)
+        same-level    (filter #(= current-level (:level %))
+                              (get-in world [:superseded-pending-settlements workflow-id] []))]
+    (when (seq same-level)
+      (:pending (last (sort-by (fn [e] [(:superseded-at e 0)
+                                        (:appeal-deadline (:pending e) 0)])
+                               same-level))))))
 
 ;; ---------------------------------------------------------------------------
 ;; challenge-resolution (Phase L)

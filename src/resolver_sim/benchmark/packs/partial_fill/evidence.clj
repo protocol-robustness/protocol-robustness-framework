@@ -104,36 +104,41 @@
 ;; ── Semantic commitments root ─────────────────────────────────────────────
 
 (defn semantic-commitments
-  "Build the evidence/semantic-commitments section for a benchmark outcome
+  "Build the :evidence/semantic-commitments section for a benchmark outcome
    manifest from a final world state and optionally collected evidence maps.
-   
+
+   The partial-fill roots are committed under the :semantic/economic-application
+   category, consistent with the generic semantic-commitments concept model
+   (decision -> computed economic effect -> application -> resulting state).
+
    Returns nil when no partial-fill activity occurred."
   [final-world & {:keys [state-write-back-evidence continuity-evidence]}]
   (let [decisions (get-in final-world [:yield/partial-fill-decisions] {})
         prop-refs (collect-propagation-refs final-world)
         app-refs (collect-application-refs final-world)]
     (when (or (seq decisions) (seq prop-refs) (seq app-refs))
-      (cond-> {}
-        (seq decisions)
-        (assoc :partial-fill-decisions-root
-               (hc/domain-hash :evidence-collection
-                               (vec (sort (map :decision/hash (vals decisions))))))
-        (seq prop-refs)
-        (assoc :propagation-refs-root
-               (hc/domain-hash :evidence-collection
-                               (vec (sort (map :propagation/hash (remove nil? prop-refs))))))
-        (seq app-refs)
-        (assoc :application-refs-root
-               (hc/domain-hash :evidence-collection
-                               (vec (sort (map :application/hash (remove nil? app-refs))))))
-        state-write-back-evidence
-        (assoc :state-write-back-root
-               (hc/domain-hash :evidence-collection
-                               (vec (sort-by :participant/id state-write-back-evidence))))
-        continuity-evidence
-        (assoc :continuity-root
-               (hc/domain-hash :evidence-collection
-                               (vec (sort-by :participant/id continuity-evidence))))))))
+      {:semantic/economic-application
+       (cond-> {}
+         (seq decisions)
+         (assoc :partial-fill-decisions-root
+                (hc/domain-hash :evidence-collection
+                                (vec (sort (map :decision/hash (vals decisions))))))
+         (seq prop-refs)
+         (assoc :propagation-refs-root
+                (hc/domain-hash :evidence-collection
+                                (vec (sort (map :propagation/hash (remove nil? prop-refs))))))
+         (seq app-refs)
+         (assoc :application-refs-root
+                (hc/domain-hash :evidence-collection
+                                (vec (sort (map :application/hash (remove nil? app-refs))))))
+         state-write-back-evidence
+         (assoc :state-write-back-root
+                (hc/domain-hash :evidence-collection
+                                (vec (sort-by :participant/id state-write-back-evidence))))
+         continuity-evidence
+         (assoc :continuity-root
+                (hc/domain-hash :evidence-collection
+                                (vec (sort-by :participant/id continuity-evidence)))))})))
 
 ;; ── Continuity evidence ───────────────────────────────────────────────────
 

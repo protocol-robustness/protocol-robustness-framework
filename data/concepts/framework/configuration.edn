@@ -71,13 +71,15 @@
   {:description "Number of detected parameter differences between two configuration snapshots."
    :source :derived-from-trace}}
  :concept/assumptions
- ["A result is valid only under the configuration that produced it. Claims of general protocol safety must be qualified by the configuration space explored."
-  "Configuration includes protocol parameters, module selections, benchmark definitions, execution options, and temporal assumptions."
-  "Configuration should be explicitly hashed and recorded in the artifact registry for every run that produces a claim result."]
+  ["A result is valid only under the configuration that produced it. Claims of general protocol safety must be qualified by the configuration space explored."
+   "Configuration includes protocol parameters, module selections, benchmark definitions, execution options, and temporal assumptions."
+   "Configuration should be explicitly hashed and recorded in the artifact registry for every run that produces a claim result."
+   "This concept defines which configuration parameters enter a configuration hash projection. The canonical encoding of those fields into a hash-preimage follows the verifiable-assurance canonical serialization rules."]
  :concept/out-of-scope
- ["This concept does not prescribe which configuration parameters should be varied in a sensitivity analysis."
-  "This concept does not define a canonical configuration for production deployment."
-  "This concept does not address environmental configuration outside the protocol and execution layers (e.g., hardware, OS, network)."]
+  ["Which configuration parameters should be varied in a sensitivity analysis."
+   "A canonical configuration for production deployment."
+   "Environmental configuration outside the protocol and execution layers (e.g., hardware, OS, network)."
+   "Canonical serialization encoding of configuration fields — encoding rules are owned by the verifiable-assurance concept."]
  :concept/subconcepts
  [{:concept/id :concept/protocol-configuration
    :concept/name "Protocol configuration"

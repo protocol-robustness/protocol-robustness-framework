@@ -225,8 +225,10 @@
     (is (= :no-pending-settlement (:error r)))))
 
 (deftest execute-pending-falls-back-to-eligible-superseded
-  "If active pending was cleared by escalation/challenge, execution should fall back
-   to an eligible superseded pending at/after its deadline."
+  "Fallback recovery must select the authoritative decision for the CURRENT
+   dispute level: a superseded decision archived at a higher level than the
+   current dispute level is stale and must not execute. Among same-level entries
+   the most recently superseded decision is authoritative."
   (let [w (-> (base-world 0)
               (time-ctx/advance-time {:to 5000})
               (assoc :pending-settlements {})
@@ -245,8 +247,60 @@
                           :level 1}]))
         r (res/execute-pending-settlement w 0)]
     (is (true? (:ok r)))
-    (is (= :released (t/escrow-state (:world r) 0))
-        "latest eligible superseded pending (deadline 5000) should be executed")))
+    (is (= :refunded (t/escrow-state (:world r) 0))
+        "level-1 superseded decision is stale at dispute level 0; level-0 decision (refund) is authoritative")))
+
+(deftest execute-pending-superseded-newest-same-level-decision-wins
+  "When two same-level superseded decisions exist, the most recently superseded
+   one is authoritative — an older decision must not execute just because its
+   deadline passed earlier."
+  (let [w (-> (base-world 0)
+              (time-ctx/advance-time {:to 5000})
+              (assoc :pending-settlements {})
+              (assoc-in [:superseded-pending-settlements 0]
+                        [{:pending (t/make-pending-settlement {:exists true
+                                                               :is-release true
+                                                               :appeal-deadline 4500
+                                                               :resolution-hash "older-decision"})
+                          :superseded-at 4600
+                          :level 0}
+                         {:pending (t/make-pending-settlement {:exists true
+                                                               :is-release false
+                                                               :appeal-deadline 5000
+                                                               :resolution-hash "newest-decision"})
+                          :superseded-at 4999
+                          :level 0}]))
+        r (res/execute-pending-settlement w 0)]
+    (is (true? (:ok r)))
+    (is (= :refunded (t/escrow-state (:world r) 0))
+        "newest same-level decision (refund) is authoritative, not the older release")))
+
+(deftest execute-pending-superseded-newest-decision-not-yet-executable
+  "The authoritative (most recently superseded) same-level decision gates
+   execution: when only an OLDER same-level decision's deadline has passed,
+   settlement must wait rather than execute the stale older decision."
+  (let [w (-> (base-world 0)
+              (time-ctx/advance-time {:to 4800})
+              (assoc :pending-settlements {})
+              (assoc-in [:superseded-pending-settlements 0]
+                        [{:pending (t/make-pending-settlement {:exists true
+                                                               :is-release true
+                                                               :appeal-deadline 4500
+                                                               :resolution-hash "older-decision"})
+                          :superseded-at 4600
+                          :level 0}
+                         {:pending (t/make-pending-settlement {:exists true
+                                                               :is-release false
+                                                               :appeal-deadline 5000
+                                                               :resolution-hash "newest-decision"})
+                          :superseded-at 4999
+                          :level 0}]))
+        r (res/execute-pending-settlement w 0)]
+    (is (false? (:ok r)))
+    (is (= :appeal-window-not-expired (:error r))
+        "authoritative decision's deadline (5000) not yet passed at 4800")
+    (is (= :disputed (t/escrow-state w 0))
+        "escrow remains :disputed; the stale older decision was not executed")))
 
 (deftest execute-pending-superseded-fallback-single-finalization
   "Superseded fallback must still be single-shot: second keeper execution cannot re-finalize."
@@ -266,6 +320,46 @@
     (is (= :released (t/escrow-state (:world r1) 0)))
     (is (false? (:ok r2)))
     (is (= :transfer-not-in-dispute (:error r2)))))
+
+(deftest execute-pending-refuses-stale-superseded-after-escalation
+  "REGRESSION: after escalation, the superseded pending is no longer the
+   authoritative decision for the current escrow state.
+
+   State machine: level-0 resolution creates pending P0; escalation cancels P0
+   (per _validateAndPrepareEscalation) and advances the dispute to level 1. No
+   level-1 resolution has been submitted, so there is NO authoritative decision.
+   Once P0's deadline passes, a keeper must NOT be able to finalize on the
+   cancelled level-0 decision."
+  (let [w0        (base-world 1800)                 ;; block 1000, level 0
+        esc-fn    (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
+        r0        (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
+        w1        (:world r0)
+        pending-l0 (t/get-pending w1 0)
+        w1'       (time-ctx/advance-time w1 {:to 2000})
+        r-esc     (res/escalate-dispute w1' 0 bob esc-fn)
+        w2        (:world r-esc)
+        archived  (first (get-in w2 [:superseded-pending-settlements 0]))
+        w3        (time-ctx/advance-time w2 {:to 3000})   ;; P0 deadline (2800) passed
+        r-exec    (res/execute-pending-settlement w3 0)]
+    (is (:ok r0) "level-0 resolution accepted")
+    (is (:exists pending-l0) "level-0 pending created")
+    (is (= 2800 (:appeal-deadline pending-l0)) "P0 deadline = 1000 + 1800")
+    (is (:ok r-esc) "escalation accepted")
+    (is (= 1 (t/dispute-level w2 0)) "dispute advanced to level 1")
+    (is (false? (:exists (t/get-pending w2 0))) "active pending cleared by escalation")
+    (is (= 0 (:level archived)) "archived decision was made at level 0")
+    (is (= 2800 (:appeal-deadline (:pending archived))) "archived P0 deadline")
+    (is (false? (:exists (t/get-pending w3 0))) "still no authoritative pending at level 1")
+    ;; The cancelled level-0 decision must NOT be recovered as the executable
+    ;; decision for a level-1 dispute that has not yet been resolved.
+    (is (false? (:ok r-exec))
+        "superseded level-0 decision must not execute at level 1")
+    (is (= :no-pending-settlement (:error r-exec))
+        "no authoritative decision exists -> no-pending-settlement")
+    (is (nil? (:world r-exec))
+        "guard rejection returns no world; no state change occurred")
+    (is (= :disputed (t/escrow-state w3 0))
+        "escrow remained :disputed before the rejected execution")))
 
 ;; ---------------------------------------------------------------------------
 ;; Yield-liveness freeze: execute-pending-settlement blocked by yield guard

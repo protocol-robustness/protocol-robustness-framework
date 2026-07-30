@@ -154,7 +154,8 @@
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
- ["Blockchain-level anchoring (L1 transaction inclusion)."
-  "Merkle tree inclusion proofs or sparse Merkle trees."
-  "IPFS/IPLD content-addressed publication."
-  "Multi-party witness cosignature protocols."]}
+  ["Blockchain-level anchoring (L1 transaction inclusion)."
+   "Merkle tree inclusion proofs or sparse Merkle trees."
+   "IPFS/IPLD content-addressed publication."
+   "Multi-party witness cosignature protocols."
+   "Canonical encoding and field selection within an individual evidence artifact — the artifact concept defines its hash projection, while canonical serialization follows the verifiable-assurance rules. This concept owns ordering and linkage between artifact references in the evidence chain."]}

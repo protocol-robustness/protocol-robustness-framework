@@ -82,7 +82,11 @@
 (deftest semantic-commitments-with-decisions
   (let [world {:yield/partial-fill-decisions
                {"d1" {:decision/id "d1" :decision/hash "sha256:d1"}}}]
-    (is (some? (pfev/semantic-commitments world)))))
+    (let [commitments (pfev/semantic-commitments world)]
+      (is (some? commitments))
+      (is (map? (:semantic/economic-application commitments)))
+      (is (some? (get-in commitments [:semantic/economic-application
+                                      :partial-fill-decisions-root]))))))
 
 (deftest application-evidence-ladder-basic
   (let [world {:yield/pro-rata-propagations

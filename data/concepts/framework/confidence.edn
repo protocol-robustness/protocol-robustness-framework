@@ -90,10 +90,10 @@
  ["Confidence is distinct from pass/fail. A claim can pass with low confidence if coverage is thin. A claim can fail with high confidence if the failure is deterministic and well evidenced."
   "Confidence is dimensional, not scalar. Evidence confidence, coverage confidence, determinism confidence, and attestation confidence should be reported separately before any aggregate label is derived."]
  :concept/out-of-scope
- ["This concept does not define a minimum confidence threshold for protocol acceptance."
-  "This concept does not assign trust scores to individual actors or oracles."
-  "This concept does not address statistical or Bayesian confidence intervals."
-  "Canonical hashing concatenation order for confidence levels in evidence or attestation bundles — concatenation semantics are owned by the evidence-chain or registry-entry concept, not by the confidence concept."]
+  ["A minimum confidence threshold for protocol acceptance."
+   "Trust scores for individual actors or oracles."
+   "Statistical or Bayesian confidence intervals."
+   "Selection and interpretation of confidence fields are defined by this concept. When confidence values are included in a hashable evidence or attestation structure, their canonical encoding follows the verifiable-assurance canonical serialization rules; the containing artifact concept defines whether and where those fields enter its hash projection."]
  :concept/subconcepts
  [{:concept/id :concept/claim-confidence
    :concept/name "Claim confidence"

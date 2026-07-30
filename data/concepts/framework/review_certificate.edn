@@ -1,0 +1,89 @@
+{:concept/id :framework/review-certificate
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Review certificate"
+ :concept/summary
+ "A review certificate (three-member research certificate) aggregates three independently produced researcher run reports and positions into a content-addressed review-round package. It reports execution reproducibility status, replication type, per-dimension and per-theorem consensus, and member-level detail so the result is independently recomputable from referenced positions."
+
+ :concept/stakeholder-question
+ "Did three researchers independently reach consistent conclusions over a defined benchmark scope, and is that consensus verifiable from referenced positions?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/review-member-canonical-indices
+  :framework/research-assignment
+  :framework/content-root
+  :framework/incentive]
+
+ :concept/roles
+ {:certificate-builder {:description "Entity that aggregates reports and positions into a certificate."
+                        :maps-to [:protocol.actor/verifier]}
+  :certificate-verifier {:description "Entity that recomputes consensus and validates the certificate hash."
+                         :maps-to [:protocol.role/verifier]}
+  :review-member {:description "A researcher whose report and position feed the certificate."
+                  :maps-to [:protocol.actor/verifier]}}
+
+ :concept/entities
+ {:research-certificate {:description "Content-addressed three-member-research-certificate.v1 package aggregating reports and positions."
+                         :maps-to [:protocol.entity/evidence]}
+  :certificate-hash {:description "Canonical hash committing the certificate; excludes the full canonical-indices map, binding only its committed hash."
+                     :maps-to [:protocol.entity/canonical-hash]}
+  :consensus-result {:description "Per-dimension or per-theorem consensus with position-group classification (supporting, qualifying, dissenting, absent, etc.)."
+                     :maps-to [:protocol.entity/evidence]}
+  :replication-type {:description "Comparison scope: exact-replication, independent-sampling, model-corroboration, or incompatible-scope."
+                     :maps-to [:protocol.entity/classification]}}
+
+ :concept/actions
+ {:build-certificate {:description "Run pre-checks and aggregate three reports and positions into a certificate, packaging canonical indices."
+                      :maps-to [:protocol.action/build-registry]}
+  :finalise-certificate {:description "Compute and commit the certificate hash."
+                         :maps-to [:protocol.action/commit-root]}
+  :validate-certificate {:description "Recompute consensus and hash to validate a loaded certificate."
+                         :maps-to [:protocol.action/check-invariant]}
+  :per-dimension-consensus {:description "Compute consensus for one assessed dimension across positions."
+                            :maps-to [:protocol.action/verify-allocation]}
+  :per-theorem-consensus {:description "Compute consensus for targeted theorem and conclusion hashes."
+                          :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:certificate-replicated {:description "Three members reproduced the outcome (exact or corroborated)."
+                           :maps-to [:protocol.outcome/released]}
+  :certificate-divergent {:description "Members reached divergent outcomes or consensus is contested."
+                          :maps-to [:protocol.outcome/adversarial-resolution]}
+  :certificate-not-evaluable {:description "Insufficient assessed members to reach a consensus."
+                              :maps-to [:protocol.outcome/deferred]}}
+
+ :concept/failure-modes
+ [{:failure/id :certificate-hash-mismatch
+   :failure/name "Certificate hash mismatch"
+   :failure/summary "Recomputing the certificate hash disagrees with the declared hash."
+   :protocol-mechanisms [:canonical-hashing]
+   :stakeholder-impact "The certificate cannot be trusted as authentic."}
+  {:failure/id :certificate-inconsistent-scope
+   :failure/name "Inconsistent review scope"
+   :failure/summary "Reports or positions reference different content roots or cannot be compared."
+   :protocol-mechanisms [:content-root :replication-type]
+   :stakeholder-impact "Consensus is computed over incomparable scopes."}]
+
+ :concept/assumptions
+ ["A certificate aggregates three independent reports and positions; it is recomputable from the referenced positions."
+  "Absent statuses are not folded into majority disagreement."
+  "The certificate hash excludes the full canonical-indices map, binding only its committed hash."
+  "Consensus is evidence of agreement over a defined artifact and scope, not proof that no vulnerability exists."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Objective truth of the reviewed claims."
+  "Security of production deployment."
+  "Completeness of testing outside the declared review scope."
+  "Authority beyond the referenced review policy."
+  "Future revisions of the content."
+  "Unreviewed dimensions."
+  "Researcher agreement is evidence of consensus over a defined artifact and scope, not proof that no vulnerability exists."]
+
+ :concept/metrics
+ {:certificate-member-count {:description "Number of members feeding the certificate."
+                             :source :derived-from-world-state}
+  :consensus-dimension-count {:description "Number of dimensions with assessed consensus."
+                              :source :derived-from-trace}}}

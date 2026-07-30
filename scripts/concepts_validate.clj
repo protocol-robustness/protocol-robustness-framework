@@ -93,6 +93,15 @@
     (sequential? obj)
     (doseq [v obj] (check-mapping-statuses path v errors))))
 
+(defn- normalise-for-overlap
+  "Normalise a string for near-duplicate comparison: lowercase, strip
+   non-alphanumeric, collapse whitespace."
+  [s]
+  (-> s
+      (clojure.string/lower-case)
+      (clojure.string/replace #"[^a-z0-9]+" " ")
+      (clojure.string/trim)))
+
 (defn check-out-of-scope [path concept errors]
   (let [oos (:concept/out-of-scope concept)]
     (when (nil? oos)
@@ -108,9 +117,71 @@
       (let [duplicates (set (for [[id freq] (frequencies oos) :when (> freq 1)] id))]
         (doseq [d duplicates]
           (swap! errors conj (str path " :concept/out-of-scope has duplicate entry: " (pr-str d)))))
+      ;; Semantic-overlap lint: flag distinct entries that normalise to the same
+      ;; canonical form (trivially reworded duplicates).
+      (let [normalised (mapv (fn [s] [(normalise-for-overlap s) s]) (filter string? oos))
+            by-norm (group-by first normalised)
+            overlaps (keep (fn [[k vs]]
+                             (when (> (count vs) 1)
+                               [k (mapv second vs)]))
+                           by-norm)]
+        (doseq [[_ vs] overlaps]
+          (swap! errors conj (str path " :concept/out-of-scope has semantically overlapping entries: " (pr-str vs)))))
       (doseq [s oos]
         (when (and (string? s) (re-find known-gap-patterns s))
           (swap! errors conj (str path " :concept/out-of-scope entry appears to describe a temporary known gap rather than a permanent boundary: " (pr-str s))))))))
+
+(def known-gaps-root (io/file "data/known-gaps"))
+(def known-gap-required-keys
+  #{:issue/id :current-behaviour :intended-contract
+    :reason-non-gating :removal-or-conversion-condition})
+
+(defn load-known-gap-registry
+  "Load all known-gap issue maps under data/known-gaps/ into a flat vector.
+   Returns {:issues [map...] :errors [string...]}."
+  []
+  (let [files (edn-files known-gaps-root)
+        issues (atom [])
+        errors (atom [])]
+    (doseq [f (sort files)]
+      (let [rel (str (.relativize (.toPath (.getCanonicalFile known-gaps-root))
+                                  (.toPath (.getCanonicalFile f))))
+            [data parse-err] (parse-edn f)]
+        (if parse-err
+          (swap! errors conj (str "data/known-gaps/" rel ": " parse-err))
+          (doseq [issue data]
+            (swap! issues conj (assoc issue :known-gap/file rel))))))
+    {:issues @issues :errors @errors}))
+
+(defn- canonical-gap-ref
+  "Canonical key for a known-gap reference. Returns the keyword name (string)
+   when the ref is an id-like keyword or string, else nil (free-text prose)."
+  [ref]
+  (when (or (keyword? ref) (string? ref))
+    (let [s (if (keyword? ref) (name ref) ref)]
+      (when (re-matches #"[a-z][a-z0-9-]*" s)
+        s))))
+
+(defn check-known-gaps [path concept known-gaps-by-id known-gap-ids errors]
+  (let [refs (:concept/known-gaps concept)
+        refs (if (keyword? refs) [refs] refs)]
+    (when refs
+      (when-not (vector? refs)
+        (swap! errors conj (str path " :concept/known-gaps must be a vector")))
+      (let [refs (vec (if (vector? refs) refs [refs]))
+            id-refs (keep canonical-gap-ref refs)
+            ;; known-gap-ids is a set of keyword-name strings
+            missing (set/difference (set id-refs) known-gap-ids)]
+        (doseq [m (sort missing)]
+          (swap! errors conj (str path " references unknown known-gap :issue/id " (pr-str m)
+                                  " — no such gap exists under data/known-gaps/")))
+        (doseq [r id-refs]
+          (let [issue (get known-gaps-by-id r)]
+            (when issue
+              (let [missing-keys (set/difference known-gap-required-keys (set (keys issue)))]
+                (when (seq missing-keys)
+                  (swap! errors conj (str path " known-gap " (pr-str r)
+                                          " is missing canonical keys " (pr-str missing-keys))))))))))))
 
 (defn check-evidence [path concept errors]
   (when (= :use-case (:concept/type concept))
@@ -141,7 +212,12 @@
           reg-by-id (into {} (map (fn [e] [(:concept/id e) e]) reg-entries))
           errors (atom [])
           files-ok (atom 0)
-          loaded-concepts (atom [])]
+          loaded-concepts (atom [])
+          {kg-issues :issues kg-errors :errors} (load-known-gap-registry)
+          known-gaps-by-id (into {} (map (fn [i] [(name (:issue/id i)) i]) kg-issues))
+          known-gap-ids (set (keys known-gaps-by-id))
+          kg-dup-ids (set (for [[id freq] (frequencies (map #(name (:issue/id %)) kg-issues))
+                                :when (> freq 1)] id))]
       (println "    OK" (count reg-entries) "entries")
       (println "  Checking registry...")
       (doseq [[cid entry] reg-by-id]
@@ -161,6 +237,14 @@
               (when-not (known-protocols p)
                 (swap! errors conj (str "entry " (:concept/id entry) " unknown protocol " p))
                 (println "    FAIL entry" (:concept/id entry) "unknown protocol" p))))))
+      (println "  Parsing known-gaps registry...")
+      (doseq [e kg-errors]
+        (swap! errors conj e)
+        (println "    FAIL" e))
+      (println "    OK" (count kg-issues) "issues across" (count (distinct (map :known-gap/file kg-issues))) "files")
+      (doseq [id (sort kg-dup-ids)]
+        (swap! errors conj (str "duplicate known-gap :issue/id " (pr-str id) " across data/known-gaps/"))
+        (println "    FAIL duplicate known-gap :issue/id" id))
       (println "  Parsing concept files...")
       (doseq [f (sort (edn-files concept-root))]
         (when-not (= (.getName f) "registry.edn")
@@ -211,7 +295,8 @@
                      (check-use-case-contract rel data errors)
                      (check-evidence rel data errors)
                      (check-mapping-statuses rel data errors)
-                     (check-out-of-scope rel data errors))))))))
+                     (check-out-of-scope rel data errors)
+                     (check-known-gaps rel data known-gaps-by-id known-gap-ids errors))))))))
       (println "  Checking related concept references...")
       (doseq [{:keys [from to]} (concepts-registry/missing-related-concepts @loaded-concepts)]
         (swap! errors conj (str "concept " from " references missing related concept " to))

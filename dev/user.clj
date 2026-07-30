@@ -4,6 +4,7 @@
    [clojure.tools.namespace.repl :as tn]
    [dev.explore :as explore]
    [dev.pro-rata :as pro-rata]
+   [dev.repl :refer [preload-framework! pp spy keys+ select-keys+ summarize-map tap-summary]]
    [dev.scenarios :as scenarios]
    [dev.tests :as tests]
    [portal.api :as p]))

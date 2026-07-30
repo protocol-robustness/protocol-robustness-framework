@@ -314,4 +314,76 @@
     :concept/file  "data/concepts/allocation/fractional_allocation.edn"
     :concept/name  "Fractional Remainder"
     :concept/status :draft
-    :concept/protocols #{:protocol/sew-v1}}]}
+    :concept/protocols #{:protocol/sew-v1}}
+
+   {:concept/id    :framework/research-command
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/research_command.edn"
+    :concept/name  "Research command"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/incentive
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/incentive.edn"
+    :concept/name  "Incentive"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/held-custody
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/held_custody.edn"
+    :concept/name  "Held custody"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/research-assignment
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/research_assignment.edn"
+    :concept/name  "Research assignment"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/review-member-canonical-indices
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/review_member_canonical_indices.edn"
+    :concept/name  "Review-member canonical indices"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/review-certificate
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/review_certificate.edn"
+    :concept/name  "Review certificate"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/procedure-execution-witness
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/procedure_execution_witness.edn"
+    :concept/name  "Procedure execution witness"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/core-protocol-boundary
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/core_protocol_boundary.edn"
+    :concept/name  "Core–protocol ownership boundary"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :framework/semantic-commitments
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/semantic_commitments.edn"
+    :concept/name  "Semantic commitments"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}]}

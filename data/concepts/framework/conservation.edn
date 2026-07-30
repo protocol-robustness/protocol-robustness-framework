@@ -91,9 +91,9 @@
   "Integer rounding residuals are acceptable only when explicitly accounted for and bounded."
   "A protocol-backed deferred claim is a recognised liability, not a balance to be immediately settled."]
  :concept/out-of-scope
- ["This concept does not define the economic fairness of an allocation."
-  "This concept does not require every claimant to be made whole."
-  "This concept does not address liquidity -- a solvent protocol may still be unable to honour a withdrawal request."]
+  ["The economic fairness of an allocation."
+   "Requiring every claimant to be made whole."
+   "Liquidity -- a solvent protocol may still be unable to honour a withdrawal request."]
  :concept/subconcepts
  [{:concept/id :concept/token-conservation
    :concept/name "Token conservation"

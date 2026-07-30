@@ -47,10 +47,11 @@
   "Registry entries with the same hash under the same projection are identical."]
 
  :concept/out-of-scope
- ["Semantic identity of the underlying model package."
-  "Equivalence between two packages."
-  "Approval or acceptance of registered content."
-  "Correctness of provenance claims."]
+  ["Semantic identity of the underlying model package."
+   "Equivalence between two packages."
+   "Approval or acceptance of registered content."
+   "Correctness of provenance claims."
+   "The canonical projection defined here is specific to registry entries and does not define canonical encoding or hash projections for general evidence, attestation, or confidence bundles."]
 
  :concept/metrics
  {:hash-verification-count {:description "Number of hash verifications performed."

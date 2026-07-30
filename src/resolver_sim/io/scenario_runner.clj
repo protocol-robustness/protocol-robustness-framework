@@ -547,15 +547,16 @@
 (defn run-registry-scenario
   "Run a single scenario from the in-process invariant registry.
 
-   Takes a scenario map (as found in e.g. inv-sc/all-scenarios) and runs it
-   through the same replay pipeline used by run-registry-suite.  Returns the
-   entry result map from scenario.runner/build-entry-result.
+   Takes a registry entry `[display-name scenario-or-pair]` (as found in e.g.
+   inv-sc/all-scenarios) and runs it through the same replay pipeline used by
+   run-registry-suite.  Returns the entry result map from
+   scenario.runner/build-entry-result.
 
    This is the public entry point for dev REPL helpers that need to run one
    in-process scenario without going through file-backed dispatch."
-  [scenario replay-fn]
+  [[name data] replay-fn]
   (let [summary (runner/run-collection
-                 {:entries [(if (map? scenario) scenario {:pair scenario})]
+                 {:entries [[name data]]
                   :replay-fn replay-fn}
                  {:normalize? false})]
     (first (:results summary))))

@@ -24,6 +24,16 @@
 
 (def ^:const schema-version 1)
 
+(def ^:const supported-subject-kinds
+  "The set of valid attestation subject kinds."
+  #{:evidence-node :claim})
+
+(def ^:const supported-signature-algorithms
+  "The set of signature algorithms admitted by the attestation-signature.v1
+   envelope format. This is the attestation-format admission set, distinct
+   from what any underlying crypto library supports."
+  #{:ed25519})
+
 ;; ── Attestation Builder ──────────────────────────────────────────────────────
 
 (defn- default-timestamp
@@ -150,7 +160,7 @@
     (conj {:type :attestation/invalid-subject
            :message "Subject missing required :type field"
            :subject subject})
-    (not (#{:evidence-node :claim} (:type subject)))
+    (not (contains? supported-subject-kinds (:type subject)))
     (conj {:type :attestation/invalid-subject-type
            :message (str "Subject :type must be :evidence-node or :claim, got " (pr-str (:type subject)))
            :subject subject})
@@ -210,7 +220,7 @@
       (conj {:type :attestation/invalid-subject
              :message "Subject kind is missing"
              :attestation attestation})
-      (not (#{:evidence-node :claim} kind))
+      (not (contains? supported-subject-kinds kind))
       (conj {:type :attestation/invalid-subject-type
              :message (str "Subject :type must be :evidence-node or :claim, got " (pr-str kind))
              :attestation attestation})

@@ -1,0 +1,86 @@
+{:concept/id :framework/core-protocol-boundary
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Core–protocol ownership boundary"
+ :concept/summary
+ "The core–protocol ownership boundary distinguishes responsibilities between the generic protocol-independent core, protocol-specific adapters, and concrete accounting layers. It records where abstract policies and artifacts live, where protocol-state translation happens, and where concrete ledger mutation occurs, so that the generic core is not conflated with a protocol-specific implementation."
+
+ :concept/stakeholder-question
+ "Which layer owns abstract policies and verification, which owns protocol-state translation, and which owns concrete ledger mutation?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/held-custody
+  :framework/research-command
+  :framework/review-certificate
+  :concept/conservation]
+
+ :concept/note
+  "Ownership boundaries:
+   - Generic core owns abstract policies, artifacts, and verification.
+   - Protocol-specific adapters own translation between protocol state and generic inputs/effects.
+   - Concrete accounting owns protocol-ledger mutation.
+   - Receipts bind abstract effects to concrete state changes.
+   Concrete-accounting ledger mutation is scope-authorised: the low-level ledger/index write runs only after the applicable scope (position/account partitioning, and force-authorisation status/scope for exceptional reasons) has been validated. The low-level write is an internal implementation detail, not an independent public mutation surface.
+   A source-code import prohibition (e.g. generic core must not import a specific protocol) is an architectural direction; it does not by itself prove the generic core is protocol-independent."
+
+ :concept/roles
+ {:core-owner {:description "Entity or layer responsible for generic policies, artifacts, and verification."
+               :maps-to [:protocol.actor/resolution-module]}
+  :adapter-owner {:description "Layer responsible for translating protocol state to/from generic inputs and effects."
+                  :maps-to [:protocol.actor/resolution-module]}
+  :accounting-owner {:description "Layer responsible for concrete protocol-ledger mutation."
+                     :maps-to [:protocol.actor/resolution-module]}}
+
+ :concept/entities
+ {:generic-core {:description "Protocol-independent layer owning abstract policies, artifacts, and verification."
+                 :maps-to [:protocol.entity/module]}
+  :protocol-adapter {:description "Layer translating protocol-specific state to/from generic inputs and effects."
+                     :maps-to [:protocol.entity/module]}
+  :concrete-accounting {:description "Layer owning concrete protocol-ledger mutation."
+                        :maps-to [:protocol.entity/module]}
+  :binding-receipt {:description "Artifact binding an abstract effect to a concrete state change."
+                    :maps-to [:protocol.entity/evidence]}}
+
+ :concept/actions
+ {:enforce-boundary {:description "Enforce the import/ownership boundary between layers."
+                     :maps-to [:protocol.action/check-invariant]}
+  :verify-ownership {:description "Verify that each responsibility is held by the correct layer."
+                     :maps-to [:protocol.action/verify-allocation]}
+  :translate-state {:description "Translate protocol state to/from generic inputs and effects via an adapter."
+                    :maps-to [:protocol.action/parameterise]}}
+
+ :concept/outcomes
+ {:boundary-respected {:description "Responsibilities are held by the intended layers."
+                       :maps-to [:protocol.outcome/released]}
+  :boundary-violated {:description "A layer took on a responsibility outside its ownership."
+                      :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :core-protocol-coupling
+   :failure/name "Core–protocol coupling"
+   :failure/summary "The generic core depends on a protocol-specific implementation, breaking protocol independence."
+   :protocol-mechanisms [:import-boundary :adapter]
+   :stakeholder-impact "The generic core can no longer serve other protocols independently."}]
+
+ :concept/assumptions
+ ["The generic core owns abstract policies, artifacts, and verification."
+  "Protocol-specific adapters own translation between protocol state and generic inputs/effects."
+  "Concrete accounting owns protocol-ledger mutation."
+  "Receipts bind abstract effects to concrete state changes."
+  "An import prohibition is an architectural direction, not proof of protocol independence by itself."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Runtime process isolation."
+  "Permission or authorisation enforcement."
+  "Deployment-level sandboxing."
+  "Absence of semantic coupling through shared data structures."
+  "Dependency integrity or package pinning."
+  "Protocol-specific behaviour implemented in adapters."
+  "External services called dynamically or through configuration."]
+
+ :concept/metrics
+ {:adapter-count {:description "Number of protocol adapters bound to the generic core."
+                  :source :derived-from-trace}}}

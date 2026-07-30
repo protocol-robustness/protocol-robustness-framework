@@ -214,6 +214,32 @@
         result (ab/verify-attestation-bundle bundle)]
     (is (= :blocked-by-sensitivity-policy (:bundle/status result)))))
 
+;; ── Assurance contract: :valid? vs :verified? ────────────────────────────────
+
+(deftest verified?-true-only-for-fully-verified
+  (let [a (build-a :signed-at "2025-01-01T00:00:00Z")
+        base-bundle (ab/build-attestation-bundle
+                     {:attestations [a]
+                      :registries {:attestors registries/attestor-registry
+                                   :claim-definitions registries/claim-definition-registry
+                                   :hash-intents hc/hash-intents}
+                      :sensitivity-report {:decision :allowed
+                                           :report-hash "sha256:ok"}})
+        hash-linked (ab/verify-attestation-bundle base-bundle)
+        invalid (ab/verify-attestation-bundle (assoc base-bundle :bundle/version "bad"))]
+    (testing "assurance boolean is false for any non-fully-verified status"
+      (is (= :hash-linked (:bundle/status hash-linked)))
+      (is (true? (:valid? hash-linked)))
+      (is (false? (:verified? hash-linked))
+          "hash-linked is structurally valid but NOT assured")
+      (is (false? (:verified? invalid))))
+    (testing "only :fully-verified is treated as assured"
+      (is (contains? ab/fully-verified-statuses :fully-verified))
+      (doseq [s ab/verification-statuses]
+        (is (= (contains? ab/fully-verified-statuses s)
+               (= s :fully-verified))
+            (str "status " s " assurance classification is inconsistent"))))))
+
 ;; ── I/O tests ────────────────────────────────────────────────────────────────
 
 (deftest write-and-read-bundle

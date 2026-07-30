@@ -1,0 +1,96 @@
+{:concept/id :framework/incentive
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Incentive"
+ :concept/summary
+ "Incentive concepts describe the reward, penalty, and payoff structures that govern participant behaviour within a research benchmark, and the evaluation of whether protocol mechanisms produce aligned incentives."
+
+ :concept/stakeholder-question
+ "Does the protocol provide correct incentives for participants to behave honestly, and how is this verified?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/research-command
+  :framework/content-root
+  :verifiable-assurance/forensic-confidence
+  :consensus/evidence]
+
+ :concept/roles
+ {:incentive-evaluator {:description "Entity that runs incentive evaluation and interprets results."
+                        :maps-to [:protocol.role/verifier]}
+  :incentive-designer {:description "Entity that defines the incentive model for a benchmark."
+                       :maps-to [:protocol.actor/resolution-module]}
+  :reviewer {:description "Entity that assesses incentive dimensions in a researcher position."
+             :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:incentive-model {:description "Content-addressed artifact describing reward, penalty, and payoff structures that govern participant behaviour. Definition and registration are not yet implemented — the artifact schema and content-root binding are defined but creation and hashing are not yet operational."
+                    :maps-to [:protocol.entity/model]}
+  :incentive-evaluation {:description "Result of evaluating incentive-relevant properties from scenario outcomes. Produces participant, strategy, and coalition assessments."
+                         :maps-to [:protocol.entity/evidence]}
+  :incentive-root {:description "Content root for the incentive evaluation result, committed as :outcomes/incentive-root in the benchmark outcome manifest. The incentive root is produced by a research command that includes :incentive and is committed in combination with that command's command-root (:execution/command-root) in the same :outcome-hashes projection. The incentive concept owns which fields and values enter this root's canonical projection; the generic canonical encoding of the resulting hash-preimage follows the verifiable-assurance canonical serialization rules."
+                   :maps-to [:protocol.entity/canonical-hash]}
+  :incentive-assessment {:description "Structured assessment of one incentive dimension — participants, strategies, or coalitions — used in researcher position review."
+                         :maps-to [:protocol.entity/evidence]}}
+
+ :concept/actions
+ {:evaluate-incentives {:description "Evaluate incentive-relevant properties from scenario outcomes, producing participant, strategy, and coalition assessments."
+                        :maps-to [:protocol.action/evaluate-claim]}
+  :compute-incentive-margin {:description "Compute U_honest - max(U_deviation) over the declared deviation types actually supplied to the evaluation (e.g. malicious, lazy, collusive). The margin is relative to that declared deviation domain only; a positive margin does not by itself establish incentive compatibility across all possible deviations."
+                             :maps-to [:protocol.action/check-invariant]}
+  :define-incentive-model {:description "Define, register, and hash an incentive model artifact. Definition and registration are not yet implemented; this action is architectural only."
+                           :maps-to [:protocol.action/commit-root]}}
+
+ :concept/outcomes
+ {:incentives-aligned {:description "All evaluated incentive properties are satisfied; honest behaviour is strictly or weakly preferred."
+                       :maps-to [:protocol.outcome/released]}
+  :incentives-misaligned {:description "A deviation produces equal or better payoff than honest behaviour."
+                          :maps-to [:protocol.outcome/adversarial-resolution]}
+  :incentives-inconclusive {:description "Incentive evaluation could not determine alignment due to missing or ambiguous evidence."
+                            :maps-to [:protocol.outcome/deferred]}
+  :incentive-root-committed {:description "Incentive evaluation result root is committed in the outcome manifest."
+                             :maps-to [:protocol.outcome/released]}}
+
+ :concept/failure-modes
+ [{:failure/id :incentive-model-not-implemented
+   :failure/name "Incentive model not implemented"
+   :failure/summary "The incentive model artifact is defined but definition, registration, and hashing are not yet implemented."
+   :protocol-mechanisms [:incentive-model :content-root]
+   :stakeholder-impact "Incentive model evaluation relies on ad-hoc or implicit definitions."}
+  {:failure/id :incentive-evaluation-incomplete
+   :failure/name "Incentive evaluation incomplete"
+   :failure/summary "Some incentive dimensions (participants, strategies, coalitions) were not evaluated or reported."
+   :protocol-mechanisms [:incentive-evaluation]
+   :stakeholder-impact "Reviewers cannot assess the full incentive landscape."}
+  {:failure/id :incentive-root-unavailable
+   :failure/name "Incentive root unavailable"
+   :failure/summary "The :outcomes/incentive-root is missing from the outcome manifest."
+   :protocol-mechanisms [:outcome-manifest :content-root]
+   :stakeholder-impact "Incentive results cannot be independently referenced or verified."}]
+
+ :concept/assumptions
+ ["Incentive evaluation is distinct from pass/fail operational evaluation. A benchmark can pass operational checks while having misaligned incentives."
+  "Incentive assessment has three distinct dimensions: participants (who is affected), strategies (what deviations are considered), and coalitions (whether collusion is profitable). These correspond to the review dimensions in researcher-position assessments."
+  "The three dimensions are not interchangeable indicators of one overall incentives verdict. Each must be reported and assessed independently."
+  "The incentive-root follows the content-root integrity pattern. The incentive concept owns the semantic projection (which fields and values enter the root) and the semantic contents; the generic canonical serialization and hashing of the resulting hash-preimage is owned by the verifiable-assurance concept. These are distinct ownership responsibilities."
+  "An incentive evaluation is only valid in combination with the research command that requested it. The incentive-root and the producing command-root are committed together in the same outcome-manifest projection; incentive results must not be presented as standalone evidence without the command-root that produced them."
+  "The incentive-compatibility-root is a specialised incentive-evaluation root. Its full semantic owner will be a separate incentive-compatibility concept; this document does not define its projection."
+  "Define-incentive-model is architectural only — definition, registration, and hashing of incentive model artifacts are not yet implemented."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+  ["Concrete incentive-compatibility criteria and evaluation — outside this concept; intended for a dedicated incentive-compatibility concept."
+   "Equilibrium computation algorithms or strategy-space enumeration."
+   "Payoff simulation engine or terminal-payoff computation internals."
+   "Budget balance, individual rationality, sybil resistance, or collusion resistance verification — these are distinct mechanism properties owned by their respective evaluation concepts."
+   "Dominant-strategy or Nash-equilibrium verification — these require a dedicated concept."
+   "Bounty-award decision semantics — outside this concept; intended for a dedicated bounty-award concept."]
+
+ :concept/metrics
+ {:incentive-evaluation-count {:description "Number of incentive evaluations performed."
+                               :source :derived-from-trace}
+  :incentive-dimensions-reported {:description "Number of incentive dimensions reported (0-3)."
+                                  :source :derived-from-trace}
+  :incentive-margin {:description "Computed incentive margin U_honest - max(U_deviation) over the declared deviation types supplied, if evaluated. Relative to the evaluated deviation domain only; does not imply overall incentive compatibility."
+                     :source :derived-from-invariant-results}}}

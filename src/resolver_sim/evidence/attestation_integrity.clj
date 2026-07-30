@@ -18,7 +18,8 @@
 
      ;; Get a full integrity report
      (ai/integrity-report (ar/all-attestations))"
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.evidence.attestation :as att]))
 
 ;; ── Single attestation integrity ─────────────────────────────────────────────
 
@@ -52,7 +53,7 @@
                                (:attestation/hash attestation))))
     ;; Valid subject kind
     (when-let [kind (:attestation/subject-kind attestation)]
-      (when-not (#{:evidence-node :claim} kind)
+      (when-not (contains? att/supported-subject-kinds kind)
         (vswap! errors conj (str "Invalid :attestation/subject-kind: " kind))))
     ;; Valid claim result
     (when-let [cr (:attestation/claim-result attestation)]

@@ -10,10 +10,9 @@
             [resolver-sim.yield.invariants :as yinv]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
-            [resolver-sim.pro-rata.allocation :as pro-rata]
-            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]
             [resolver-sim.accounting.held-ledger-index :as hli]
             [resolver-sim.protocols.sew.accounting :as sew-acc]
+            [resolver-sim.assurance.force-authorisation :as fass]
             [resolver-sim.benchmark.review.three-member-certificate :as tmc]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.researcher-position :as rp]
@@ -22,8 +21,7 @@
             [resolver-sim.benchmark.outcome-manifest :as om]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.yield.exact-math :as ym]
-            [resolver-sim.yield.invariants-transition :as ytran]
-            [resolver-sim.benchmark.outcome-manifest :as om]))
+            [resolver-sim.yield.invariants-transition :as ytran]))
 
 ;; # Not Admitted
 ;; ## Evidence Chain Ordering, Verification, and Invariant-Based Admission
@@ -246,50 +244,153 @@
 ;; persisted shared pro-rata outcome has been applied exactly once and that
 ;; entitlement, capacity, and accounting are conserved.
 
-;; Build a minimal valid world using production functions:
+;; Build a canonical, internally-consistent world using the same production
+;; construction demonstrated by the tested `build-propagations-from-case`
+;; helper (resolver-sim.yield.pro-rata-propagation-helpers).  The committed
+;; propagation (including per-participant application accounting), its matching
+;; application record, withdrawn tracking, and positions are mutually
+;; consistent, so both `:yield/pro-rata-propagation-complete` and
+;; `:yield/pro-rata-accounting-reconciles` hold on the result:
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- build-minimal-propagation-world
-  "Construct a world state with one valid pro-rata propagation, its matching
-   decision, and the involved positions. Returns a map ready for invariant checks."
-  []
-  (let [;; Minimal allocation via the canonical pro-rata engine
-        alloc (pro-rata/allocate
-               {:allocation/id [:demo]
-                :rows [{:row/id [:row "alice"]
-                        :obligation/id "obl-1"
-                        :requested 200
-                        :weight 200
-                        :cap 200}]
-                :available 200
-                :rounding-policy :largest-remainder
-                :tie-break-policy :canonical-row-id
-                :redistribution-policy :unallocated})
-        mechanism-evidence (pro-rata-evidence/mechanism-evidence-artifact alloc)
-        alloc-row {:key "alice" :obligation-id "obl-1" :source-position-id "pos-1"
-                   :filled 200 :deferred 0 :effective-cap 200 :owed 200}
-        decision-id "demo-decision-1"
-        decision {:decision/id decision-id
-                  :decision/hash (hc/domain-hash "DECISION_V1" {:id decision-id})
-                  :evidence {:allocation-rows [alloc-row]
-                             :allocation-mechanism {:allocation/id (:allocation/id alloc)
-                                                   :allocation/hash (:allocation/hash alloc)
-                                                   :mechanism (:mechanism alloc)}
-                             :allocation-mechanism-evidence mechanism-evidence
-                             :available-liquidity 200}
-                  :allocation/invocation-context {:step 1 :scenario-id "demo"}
-                  :token :USDC
-                  :module/id :demo-module}
-        raw-policy propagation-policy/shared-withdrawal-policy
-        policy-selection {:policy-source :default}
-        propagation (pf/pro-rata-propagation-artifact decision raw-policy policy-selection)
-        prop-id (:propagation/id propagation)]
-    {:yield/pro-rata-propagations {prop-id propagation}
-     :yield/partial-fill-decisions {decision-id decision}
-     :yield/positions {"alice" {:status :withdrawn :shortfall {:deferred-amount 0}}}}))
+(defn- normalize-propagation-participant
+  [p]
+  (let [fulfilled (long (:fulfilled p 0))
+        deferred (long (:deferred p 0))
+        eligible (long (:eligible-obligation p fulfilled))]
+    {:participant-id (:participant-id p)
+     :eligible-obligation eligible
+     :fulfilled fulfilled
+     :deferred deferred
+     :unmet 0 :waived 0
+     :obligation-after deferred
+     :origin (:origin p
+                      {:obligation-id (keyword (str "obl-" (:participant-id p)))
+                       :participant-id (:participant-id p)
+                       :sequence 1})}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- build-propagation-happy-world
+  "Build a world with one committed shared pro-rata propagation plus its
+   matching application record, withdrawn tracking, and positions.  Mirrors
+   the tested construction in pro-rata-propagation-helpers so that both
+   invariants hold on the result."
+  [{:keys [token-id source-balance participants]
+    :or {token-id :USDC}}]
+  (let [norm-ps (mapv normalize-propagation-participant participants)
+        total-allocated (reduce + 0 (map :fulfilled norm-ps))
+        residual (- source-balance total-allocated)
+        policy (propagation-policy/normalize-and-validate
+                propagation-policy/shared-withdrawal-policy)
+        policy-hash (:policy/hash policy)
+        calc-id "propagation-demo-c1"
+        outcome-hash "propagation-demo-o1"
+        id-key [:pro-rata-propagation calc-id outcome-hash policy-hash]
+        accounting-entries
+        (vec (concat
+              [{:entry/type :debit :account :shared-liquidity
+                :token token-id :delta (- total-allocated)}]
+              (mapv (fn [p]
+                      {:entry/type :credit :account :withdrawn
+                       :token token-id
+                       :participant-id (:participant-id p)
+                       :obligation-id (get-in p [:origin :obligation-id])
+                       :delta (:fulfilled p)})
+                    norm-ps)))
+        entry-hash (pf/accounting-entry-set-hash accounting-entries)
+        propagation {:propagation/id "p1"
+                     :calculation-ref calc-id
+                     :outcome-ref outcome-hash
+                     :token token-id
+                     :propagation/hash outcome-hash
+                     :propagation/content-hash entry-hash
+                     :propagation-policy (propagation-policy/policy-reference policy)
+                     :summary {:available source-balance
+                               :allocated total-allocated
+                               :unallocated-residual residual}
+                     :residual {:destination :remain-in-shared-liquidity}
+                     :participants norm-ps
+                     :applications (mapv (fn [p]
+                                           {:participant-id (:participant-id p)
+                                            :apparent-application {:application-key id-key
+                                                                   :accounting-delta (:fulfilled p)}
+                                            :fulfilled (:fulfilled p)
+                                            :accounting-entry {:delta (:fulfilled p)}})
+                                         norm-ps)
+                     :accounting-entries accounting-entries
+                     :accounting-entry-set-hash entry-hash}
+        app {:schema-version "pro-rata-propagation-application.v3"
+             :propagation-id "p1"
+             :propagation/reference {:propagation/id "p1"
+                                     :propagation/hash outcome-hash
+                                     :propagation/content-hash entry-hash}
+             :calculation-id calc-id
+             :outcome-hash outcome-hash
+             :policy-hash policy-hash
+             :application-key id-key
+             :application-order {:schema-version "pro-rata-application-order.v2"
+                                 :step 1 :event-id 0}
+             :accounting-entry-set-hash entry-hash
+             :source-account {:account :shared-liquidity
+                              :token token-id
+                              :before source-balance
+                              :delta (- total-allocated)
+                              :after residual}
+             :residual {:token token-id
+                        :available source-balance
+                        :allocated total-allocated
+                        :amount residual
+                        :destination :remain-in-shared-liquidity}
+             :participants
+             (mapv (fn [p]
+                     (let [pid (:participant-id p)
+                           fulfilled (:fulfilled p 0)
+                           oid (get-in p [:origin :obligation-id])]
+                       {:participant-id pid
+                        :obligation-id oid
+                        :withdrawn {:token token-id
+                                    :before 0
+                                    :delta fulfilled
+                                    :after fulfilled}
+                        :obligation {:before (:eligible-obligation p)}
+                        :cumulative-fulfilled {:before 0
+                                               :delta fulfilled
+                                               :after fulfilled}}))
+                   norm-ps)}
+        app (assoc app :application/hash (pf/application-hash app))
+        withdrawn-map (into {} (map (fn [p] [(:participant-id p) (:fulfilled p 0)]) norm-ps))
+        positions
+        (into {}
+              (map (fn [p]
+                     (let [pid (:participant-id p)
+                           deferred (:deferred p 0)
+                           oid (get-in p [:origin :obligation-id])]
+                       [pid
+                        (cond-> {:token token-id
+                                 :status (if (pos? deferred) :partially-deferred :withdrawn)}
+                          (pos? deferred)
+                          (assoc :deferred-position
+                                 {:position/current-amount deferred
+                                  :position/root-obligation-id oid
+                                  :position/origin-propagation-id "p1"
+                                  :position/round 1
+                                  :position/type :deferred-withdrawal
+                                  :position/eligibility :later-liquidity}))]))
+                   norm-ps))]
+    {:yield/pro-rata-propagations {"p1" propagation}
+     :yield/applied-pro-rata-propagations {"p1" app}
+     :total-held {token-id residual}
+     :yield/withdrawn {token-id withdrawn-map}
+     :yield/positions positions}))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(def happy-world (build-minimal-propagation-world))
+(def demo-propagation-case
+  {:token-id :USDC :source-balance 200
+   :participants [{:participant-id "alice" :eligible-obligation 200
+                   :fulfilled 200 :deferred 0 :unmet 0 :waived 0}]})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(def happy-world (build-propagation-happy-world demo-propagation-case))
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def propagation-invariant-result
@@ -305,12 +406,10 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def propagation-failure
-  (let [w (reduce-kv (fn [m k v]
-                       (assoc m k (-> v
-                                     (assoc-in [:summary :allocated] 150)
-                                     (assoc-in [:participants 0 :fulfilled] 150))))
-                     {} (:yield/pro-rata-propagations happy-world))
-        w2 (assoc happy-world :yield/pro-rata-propagations w)]
+  (let [p (get-in happy-world [:yield/pro-rata-propagations "p1"])
+        p2 (-> p (assoc-in [:summary :allocated] 150)
+                 (assoc-in [:participants 0 :fulfilled] 150))
+        w2 (assoc-in happy-world [:yield/pro-rata-propagations "p1"] p2)]
     (yinv/check-pro-rata-propagation-complete w2)))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
@@ -330,47 +429,14 @@
 ;; propagation with its committed application snapshot — checking hash
 ;; consistency, source arithmetic, and balanced entries.
 
-;; Extend the happy world with a matching application record:
-
-^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- inject-application
-  "Add a valid application record matching the propagation."
-  [world]
-  (let [prop (first (vals (:yield/pro-rata-propagations world)))
-        app-hash (pf/application-hash
-                  {:participants [{:participant-id "alice"
-                                   :obligation-id "obl-1"
-                                   :withdrawn {:token :USDC :before 200 :delta 200 :after 0}}]
-                   :accounting-entries (:accounting-entries prop)
-                   :propagation/reference {:propagation/id (:propagation/id prop)
-                                           :propagation/hash (:propagation/hash prop)
-                                           :propagation/content-hash (:propagation/content-hash prop)}
-                   :allocation/invocation-context (:allocation/invocation-context prop)
-                   :calculation-id (:calculation-ref prop)
-                   :outcome-hash (:outcome-ref prop)
-                   :policy-hash (get-in prop [:propagation-policy :policy/hash])
-                   :accounting-entry-set-hash (pf/accounting-entry-set-hash (:accounting-entries prop))
-                   :source-account {:before 200 :after 0 :delta -200}
-                   :residual {:token :USDC :available 200 :allocated 200 :amount 0 :destination :protocol}})]
-    (assoc-in world [:yield/applied-pro-rata-propagations (:propagation/id prop)]
-              {:schema-version "pro-rata-propagation-application.v3"
-               :application/hash app-hash
-               :propagation/reference {:propagation/id (:propagation/id prop)
-                                       :propagation/hash (:propagation/hash prop)
-                                       :propagation/content-hash (:propagation/content-hash prop)}
-               :allocation/invocation-context (:allocation/invocation-context prop)
-               :calculation-id (:calculation-ref prop)
-               :outcome-hash (:outcome-ref prop)
-               :policy-hash (get-in prop [:propagation-policy :policy/hash])
-               :accounting-entry-set-hash (pf/accounting-entry-set-hash (:accounting-entries prop))
-               :source-account {:before 200 :after 0 :delta -200}
-               :participants [{:participant-id "alice" :obligation-id "obl-1"
-                               :withdrawn {:token :USDC :before 200 :delta 200 :after 0}}]
-               :residual {:token :USDC :available 200 :allocated 200 :amount 0 :destination :protocol}})))
+;; The happy world above already carries the committed application record that
+;; matches the propagation.  This invariant reconciles that application snapshot
+;; against the propagation — application hash binding, source arithmetic,
+;; residual record, and balanced entries:
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def accounting-reconcile-result
-  (yinv/check-pro-rata-accounting-reconciles (inject-application happy-world)))
+  (yinv/check-pro-rata-accounting-reconciles happy-world))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html (render-checks accounting-reconcile-result))
@@ -380,15 +446,11 @@
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def accounting-failures
   [{:label "Application hash mismatch"
-    :world (let [w (inject-application happy-world)
-                 prop-id (-> w :yield/pro-rata-propagations keys first)]
-             (assoc-in w [:yield/applied-pro-rata-propagations prop-id :application/hash] "0xtampered"))
+    :world (assoc-in happy-world [:yield/applied-pro-rata-propagations "p1" :application/hash] "0xtampered")
     :expected-check :application-binding-valid}
    {:label "Accounting imbalance"
-    :world (let [w (inject-application happy-world)
-                 prop-id (-> w :yield/pro-rata-propagations keys first)]
-             (update-in w [:yield/applied-pro-rata-propagations prop-id :source-account]
-                        assoc :before 200 :after 100 :delta -50))
+    :world (update-in happy-world [:yield/applied-pro-rata-propagations "p1" :source-account]
+                      assoc :before 200 :after 100 :delta -50)
     :expected-check :application-binding-valid}])
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
@@ -665,7 +727,7 @@
    (count (:held-artifacts mut-multi)) " artifacts"]])
 
 ;; ---
-;; ## 12. Aggregate Shortfall Cap (yield Invariant)
+;; ## 11. Aggregate Shortfall Cap (yield Invariant)
 ;;
 ;; The `:yield/aggregate-shortfall-cap` invariant checks that aggregate
 ;; shortfall per (module-id, token) pair does not exceed the sum of
@@ -754,7 +816,7 @@
                 (if (:holds? shortfall-cap-separate) "PASS" "FAIL")]]])
 
 ;; ---
-;; ## 11. Yield Index Monotonicity (new-index)
+;; ## 12. Yield Index Monotonicity (new-index)
 ;;
 ;; Yield accrual computes `new-index = old-index × growth-factor` where the
 ;; growth factor is derived from APY in basis points and the time delta in
@@ -898,14 +960,14 @@
     (into [:table {:style {:width "100%" :border-collapse "collapse" :font-size "12px"}}]
           (map (fn [{:keys [label block-time]}]
                  (let [result (settlement-executable? block-time pending :disputed)]
-                   [:tr {:key (name block-time)}
+                    [:tr {:key (str block-time)}
                     [:td {:style {:padding "4px 8px" :color "#94a3b8" :border-bottom "1px solid #134e4a"}} label]
                     [:td {:style {:padding "4px 8px" :color (if (:executable? result) "#22c55e" "#ef4444")
                                  :border-bottom "1px solid #134e4a" :font-weight 700}}
                      (if (:executable? result) "EXECUTABLE" "BLOCKED")]
                     [:td {:style {:padding "4px 8px" :color "#c4b5fd" :border-bottom "1px solid #134e4a" :font-size "11px"}}
                      (:reason result)]]))
-          trials)]))
+          trials))]))
 
 ;; ── Theorem definitions ────────────────────────────────────────────────────────
 ;;
@@ -1172,7 +1234,7 @@
     [:td {:style {:padding "6px 8px" :color "#ef4444" :border-bottom "1px solid #134e4a" :font-weight 700}} "PROVENANCE-MISMATCH"]]
    [:tr [:td {:style {:padding "6px 8px" :color "#94a3b8" :border-bottom "1px solid #134e4a" :font-size "11px" :font-style "italic"}} "outcome hashes"]
     [:td {:style {:padding "6px 8px" :color "#94a3b8" :border-bottom "1px solid #134e4a" :font-size "11px"}} "provenance is part of payload → outcome hashes differ"]
-    [:td {:style {:padding "6px 8px" :color "#fbbf24" :border-bottom "1px solid #134e4a" :font-size "11px"}} (str "hash-A ≠ hash-B")]]])
+     [:td {:style {:padding "6px 8px" :color "#fbbf24" :border-bottom "1px solid #134e4a" :font-size "11px"}} (str "hash-A ≠ hash-B")]]]])
 
 ;; ---
 ;; ## 15. Researcher Assignment (Integer Member Keys)
@@ -1208,7 +1270,7 @@
   [:div "member keys: " (pr-str (rr/member-keys assignment-round))]
   [:div "round hash:  " (:review-round/id assignment-round)]])
 
-;; ### 12.1  Bidirectional Lookup
+;; ### 15.1  Bidirectional Lookup
 
 ;; Each key maps to exactly one researcher, and each researcher maps to
 ;; exactly one key.  The lookup functions round-trip.
@@ -1224,7 +1286,7 @@
                  (rr/member-key-for-researcher assignment-round (:researcher/id m))])
               (:review-round/members assignment-round))})
 
-;; ### 12.2  Scoped Reference Rule
+;; ### 15.2  Scoped Reference Rule
 
 ;; A member key is only meaningful when paired with its review-round hash.
 
@@ -1239,7 +1301,7 @@
   [:div {:style {:marginTop "12px" :color "#ef4444" :fontWeight 700}} "✗ Unscoped (not meaningful)"]
   [:div "  {:review-member/key 1} — scope root missing"]])
 
-;; ### 12.3  Key Validation
+;; ### 15.3  Key Validation
 
 ;; The builder rejects invalid key configurations at construction time:
 
@@ -1285,7 +1347,7 @@
                  :review-round/policy-root "sha256:p"})
                (catch Exception e (.getMessage e)))]]})
 
-;; ### 12.4  Integer Hash Commitment
+;; ### 15.4  Integer Hash Commitment
 
 ;; The review-round hash commits to the member keys.  Changing any key
 ;; produces a different hash.  This is the integer-key → hash binding:
@@ -1322,7 +1384,7 @@
 ;; ## 16. Researcher Approval (Key-Based Consensus)
 ;;
 ;; Three researchers submit positions against the settlement theorems from
-;; section 11.  The certificate emits additive key vectors alongside the
+;; section 13.  The certificate emits additive key vectors alongside the
 ;; existing researcher-ID vectors, enabling compact approval/dissent
 ;; analysis by round-local position.
 
@@ -1424,7 +1486,7 @@
         :positions approval-positions})
       (tmc/finalise-certificate!)))
 
-;; ### 13.1  Per-Theorem Consensus with Key Vectors
+;; ### 16.1  Per-Theorem Consensus with Key Vectors
 
 ;; Each theorem's consensus result carries both the string IDs and the
 ;; integer keys.  The keys provide a compact, ordering-independent
@@ -1454,14 +1516,14 @@
                     [:td {:style {:padding "6px 8px" :color "#7ADDDC" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
                      (str "Keys: " (pr-str (:supporting-member-indices consensus))
                           (when (seq (:dissenting-member-indices consensus))
-                            (str "  dissent: " (pr-str (:dissenting-member-indices consensus)))))]])
+                             (str "  dissent: " (pr-str (:dissenting-member-indices consensus)))))]]))
                (sort-by first by-theorem)))]))
 
 ;; The index vectors are particularly useful for the `majority-with-dissent`
 ;; case.  Supporting keys `[0 2]` and dissenting key `[1]` compactly
 ;; represent the same information as the full string vectors.
 
-;; ### 13.2  Per-Dimension Consensus with Keys
+;; ### 16.2  Per-Dimension Consensus with Keys
 
 ;; The same additive pattern applies to every model dimension:
 
@@ -1484,7 +1546,7 @@
                           (get-in approval-cert [:model-consensus])
                           (get-in approval-cert [:incentive-consensus])))))])
 
-;; ### 13.3  Force-Authorisation Approval by Key
+;; ### 16.3  Force-Authorisation Approval by Key
 
 ;; A three-member force-authorisation with 2 approvals and 1 dissent.
 ;; Decisions carry both the durable `:researcher/id` and the round-local
@@ -1546,7 +1608,7 @@
      "The approval key vector [0 1] and dissent key vector [2] compactly "
      "identify topological positions without repeating researcher ID strings."]]))
 
-;; ### 13.4  Approval Vector Isomorphism
+;; ### 16.4  Approval Vector Isomorphism
 
 ;; Two review rounds with different global researchers but identical key
 ;; assignments produce the same approval and dissent vectors by key.
@@ -1612,10 +1674,283 @@
   [:div {:style {:marginTop "8px" :color "#94a3b8" :fontSize "12px"}}
    "Same keys, same topology.  Different researchers, different hashes."]])
 
-;; ---
-;; ## 17. Summary
+;; ===========================================================================
+;; 17. Protected Held-Ledger Authorization Boundary
+;; ===========================================================================
+;;
+;; **Claim.** Protected held-ledger mutations require a currently usable force
+;; authorization bound to the requested scope. A failed authorization check
+;; yields no accounting change and does not consume an otherwise usable grant.
+;;
+;; The ledger (`:total-held`, `:held/positions`, `:held-ledger/index`) is
+;; mutated only through the public `add-held`/`sub-held` entry points, which
+;; route through the private `adjust-held` → `ensure-force-authorisation-usable!`
+;; → `update-ledger-index` chain. Every demonstration in this section is
+;; notebook-local and pure: a freshly built in-memory world is passed in, and
+;; nothing is persisted. Rejections prove that an unauthenticated caller
+;; (including this notebook) cannot move the ledger.
 
-;; The nine verification surfaces in this notebook enforce different properties:
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- held-ledger-view
+  "Project exactly the held-ledger state whose immutability is claimed across a
+   protected mutation attempt."
+  [world]
+  {:total-held        (:total-held world)
+   :held/positions    (:held/positions world)
+   :held-ledger/index (:held-ledger/index world)})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- fa-grant-world
+  "Build a Sew world carrying one force-authorisation grant plus a seeded
+   custody position (and one unrelated position).  The grant is active and
+   unconsumed unless overridden.  Returns the world plus its grant identity
+   so a matching authorization-provenance can be derived.
+
+   Options (with defaults):
+     :token/:amount           custody position and :total-held seed (:USDC/200)
+     :workflow-id             workflow id grant and position commit to (42)
+     :owner-address           escrow owner, required by address-scoped reasons
+     :grant-reason/:grant-amount  immutable scope the grant authorises
+     :starts-at/:expires-at   temporal window (starts-at defaults to 0)
+     :block-time              world clock used to evaluate the guard
+     :grant-status/:grant-consumed?  override grant lifecycle state
+     :unrelated-*             an untouched second position"
+  [{:keys [token amount workflow-id owner-address
+           grant-reason grant-amount starts-at expires-at
+           block-time grant-status grant-consumed?
+           unrelated-token unrelated-amount unrelated-workflow]
+    :or {token :USDC amount 200 workflow-id 42 owner-address "0xBob"
+         grant-reason :force-authorised-release grant-amount 40
+         grant-status :active grant-consumed? false
+         unrelated-token :ETH unrelated-amount 50 unrelated-workflow 7}}]
+  (let [account :escrow-principal
+        position-id [:held/position token account workflow-id]
+        auth-id (str "fa-" (name token) "-" (name grant-reason) "-" workflow-id)
+        scope-map {:authorization/id auth-id
+                   :authorization/type :force-authorisation
+                   :held/direction :out
+                   :token token
+                   :amount grant-amount
+                   :held/account account
+                   :owner/address owner-address
+                   :held/reason grant-reason
+                   :held/workflow-id workflow-id}
+        scope-hash (hc/domain-hash "force-authorisation-scope" scope-map)
+        unrelated-position [:held/position unrelated-token account unrelated-workflow]
+        world (cond-> {:total-held {token amount
+                                    unrelated-token unrelated-amount}
+                       :held/positions {position-id amount
+                                        unrelated-position unrelated-amount}
+                       :held-ledger/index {:by-token {token amount
+                                                      unrelated-token unrelated-amount}
+                                           :by-position {position-id amount
+                                                         unrelated-position unrelated-amount}
+                                           :by-account {account (+ amount unrelated-amount)}
+                                           :by-owner {owner-address amount
+                                                      "0xAlice" unrelated-amount}
+                                           :by-workflow {workflow-id amount
+                                                         unrelated-workflow unrelated-amount}}
+                       :force-authorisations {auth-id (cond-> {:authorization/id auth-id
+                                                               :authorization/type :force-authorisation
+                                                               :authorization/status grant-status
+                                                               :consumed? grant-consumed?
+                                                               :starts-at (or starts-at 0)
+                                                               :authorization/scope scope-map
+                                                               :authorization/scope-hash scope-hash}
+                                                           starts-at (assoc :starts-at starts-at)
+                                                           expires-at (assoc :expires-at expires-at))}}
+                block-time (assoc :block-time block-time))]
+    {:world world
+     :auth-id auth-id
+     :scope-map scope-map
+     :scope-hash scope-hash
+     :position-id position-id
+     :provenance {:authorization/type :force-authorisation
+                  :authorization/id auth-id
+                  :authorization/scope-hash scope-hash}}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- fa-attempt
+  "Attempt a protected sub-held against `world` and report whether the guard
+   accepted it, capturing the projected ledger before/after and any rejection
+   error.  Because accounting is pure, a rejected attempt leaves the ledger
+   exactly at its pre-attempt projection."
+  [world token amount opts]
+  (let [before (held-ledger-view world)]
+    (try
+      (let [after (sew-acc/sub-held world token amount opts)]
+        {:accepted? true :before before :after (held-ledger-view after) :world after})
+      (catch clojure.lang.ExceptionInfo e
+        {:accepted? false :before before :after before
+         :error-type (:type (ex-data e)) :error-data (ex-data e)}))))
+
+;; ### 17.1 Rejection matrix
+;;
+;; Each row attempts a force-authorised `sub-held` against a world whose grant
+;; differs in exactly one way.  The expected authorization failure is observed,
+;; the held-ledger projection is identical to its pre-attempt value, and the
+;; grant is left unconsumed (or, in the already-consumed case, unchanged).
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fa-rejection-cases
+  (let [base (fa-grant-world {})
+        base-world (:world base)
+        base-prov (:provenance base)]
+    [{:label "missing provenance" :expected-type :invalid-held-adjustment
+      :world base-world :auth-id (:auth-id base) :token :USDC :amount 40
+      :opts {:action "finalize-released" :reason :force-authorised-release
+             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
+     {:label "unknown grant" :expected-type :authorization/not-found
+      :world base-world :auth-id (:auth-id base) :token :USDC :amount 40
+      :opts {:action "finalize-released" :reason :force-authorised-release
+             :authorization-provenance {:authorization/type :force-authorisation
+                                        :authorization/id "fa-missing"
+                                        :authorization/scope-hash "0xforged"}
+             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
+     {:label "consumed grant" :expected-type :authorization/already-consumed
+      :world (:world (fa-grant-world {:grant-status :consumed :grant-consumed? true}))
+      :auth-id "fa-USDC-force-authorised-release-42" :token :USDC :amount 40
+      :opts {:action "finalize-released" :reason :force-authorised-release
+             :authorization-provenance base-prov
+             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
+     {:label "scope mismatch" :expected-type :authorization/grant-scope-mismatch
+      :world (:world (fa-grant-world {:grant-reason :force-authorised-refund}))
+      :auth-id "fa-USDC-force-authorised-refund-42" :token :USDC :amount 40
+      :opts {:action "finalize-released" :reason :force-authorised-release
+             :authorization-provenance (:provenance (fa-grant-world {:grant-reason :force-authorised-refund}))
+             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
+     {:label "not yet valid" :expected-type :authorization/not-yet-started
+      :world (:world (fa-grant-world {:starts-at 100 :block-time 0}))
+      :auth-id "fa-USDC-force-authorised-release-42" :token :USDC :amount 40
+      :opts {:action "finalize-released" :reason :force-authorised-release
+             :authorization-provenance (:provenance (fa-grant-world {:starts-at 100}))
+             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
+     {:label "expired" :expected-type :authorization/expired
+      :world (:world (fa-grant-world {:expires-at 100 :block-time 100}))
+      :auth-id "fa-USDC-force-authorised-release-42" :token :USDC :amount 40
+      :opts {:action "finalize-released" :reason :force-authorised-release
+             :authorization-provenance (:provenance (fa-grant-world {:expires-at 100}))
+             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}]))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "A. Rejection matrix — authentication → scope → temporal → replay protection"]
+  (into [:table {:style {:width "100%" :borderCollapse "collapse" :fontSize "12px"}}]
+        (map (fn [{:keys [label expected-type world auth-id token amount opts]}]
+               (let [r (fa-attempt world token amount opts)
+                     type-ok? (= expected-type (:error-type r))
+                     ledger-ok? (= (:before r) (:after r))
+                     gr (get-in world [:force-authorisations auth-id])
+                     grant-after (str (name (:authorization/status gr))
+                                      (if (:consumed? gr) "/consumed" "/unconsumed"))]
+                 [:tr {:key label}
+                  [:td {:style {:padding "6px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a"}} label]
+                  [:td {:style {:padding "6px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
+                   (name expected-type)]
+                  [:td {:style {:padding "6px 8px" :color (if type-ok? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
+                   (if (:accepted? r) "ACCEPTED" (name (:error-type r)))]
+                  [:td {:style {:padding "6px 8px" :color (if ledger-ok? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
+                   (if ledger-ok? "UNCHANGED" "CHANGED")]
+                  [:td {:style {:padding "6px 8px" :color "#94a3b8" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
+                   grant-after]]))
+             fa-rejection-cases))])
+
+;; ### 17.2 Successful authorized mutation
+;;
+;; A valid, active, scope-matching grant causes exactly the intended held-ledger
+;; transition and is consumed exactly once.  The unrelated `:ETH` position is
+;; left untouched, proving the accounting effect is scoped to the grant.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fa-positive
+  (let [g (fa-grant-world {})
+        world (:world g)
+        prov (:provenance g)
+        auth-id (:auth-id g)
+        pos (:position-id g)
+        eth-pos [:held/position :ETH :escrow-principal 7]
+        attempt (try (sew-acc/sub-held world :USDC 40
+                                       {:action "finalize-released"
+                                        :reason :force-authorised-release
+                                        :authorization-provenance prov
+                                        :extra {:held/workflow-id 42 :owner/address "0xBob"}})
+                     (catch Exception e e))
+        accepted? (not (instance? Exception attempt))
+        after (held-ledger-view attempt)
+        grant-after (get-in attempt [:force-authorisations auth-id])
+        consumed (get-in attempt [:force-authorisations/consumed auth-id])
+        check (fn [label observed expected]
+                {:label label :observed observed :expected expected
+                 :pass? (= observed expected)})]
+    {:accepted? accepted?
+     :checks [(check "authorized grant accepted" accepted? true)
+              (check "total-held :USDC 200 → 160" (get-in after [:total-held :USDC]) 160)
+              (check "total-held :ETH unchanged (50)" (get-in after [:total-held :ETH]) 50)
+              (check "target position 200 → 160" (get-in after [:held/positions pos]) 160)
+              (check "unrelated :ETH position unchanged (50)"
+                     (get-in after [:held/positions eth-pos]) 50)
+              (check "grant status :active → :consumed" (:authorization/status grant-after) :consumed)
+              (check "grant :consumed? true" (:consumed? grant-after) true)
+              (check "consumption registry written" (:consumed? consumed) true)]}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color (if (:accepted? fa-positive) "#22c55e" "#ef4444") :fontWeight 700 :marginBottom "8px"}}
+   "B. Authorized mutation accepted — grant consumed exactly once"]
+  (into [:table {:style {:width "100%" :borderCollapse "collapse" :fontSize "12px"}}]
+        (map (fn [{:keys [label observed expected pass?]}]
+                [:tr {:key label}
+                 [:td {:style {:padding "6px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a"}} label]
+                 [:td {:style {:padding "6px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
+                  (pr-str observed)]
+                 [:td {:style {:padding "6px 8px" :color "#94a3b8" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
+                  (pr-str expected)]
+                 [:td {:style {:padding "6px 8px" :color (if pass? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
+                  (if pass? "PASS" "FAIL")]]))
+            (:checks fa-positive))])
+
+;; ### 17.3 Independent protocol-level verifier
+;;
+;; `verify-authorisation-usable` (in `resolver-sim.assurance.force-authorisation`,
+;; a protocol-independent namespace with no Sew dependency) is a second,
+;; independent implementation of the same usability check.  Applied to the same
+;; grant data it agrees with the live Sew guard: the fresh grant is usable, the
+;; consumed grant is not.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fa-assurance-crosscheck
+  (let [g (fa-grant-world {})
+        record (get-in (:world g) [:force-authorisations (:auth-id g)])
+        scope-map (:authorization/scope record)
+        fresh (fass/verify-authorisation-usable record {} scope-map 0)
+        consumed (fass/verify-authorisation-usable
+                  (assoc record :consumed? true :authorization/status :consumed)
+                  {(:auth-id g) {:consumed? true}}
+                  scope-map 0)]
+    {:fresh fresh :consumed consumed}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "C. Independent verifier — protocol-level usability check"]
+  [:div "fresh active grant: " [:strong {:style {:color (if (:valid? (:fresh fa-assurance-crosscheck)) "#22c55e" "#ef4444")}}
+                                (if (:valid? (:fresh fa-assurance-crosscheck)) "USABLE" "REJECTED")]]
+  [:div "consumed grant:      " [:strong {:style {:color (if (:valid? (:consumed fa-assurance-crosscheck)) "#ef4444" "#22c55e")}}
+                                (if (:valid? (:consumed fa-assurance-crosscheck)) "USABLE" "REJECTED")]]
+  [:div {:style {:marginTop "8px" :color "#94a3b8" :fontSize "11px"}}
+   "errors: " (pr-str (mapv :code (:errors (:consumed fa-assurance-crosscheck))))]])
+
+;; ---
+;; ## 18. Summary
+
+;; The verification surfaces in this notebook enforce different properties:
 
 ;; - The **chain verifier** ensures evidence is hash-linked and ordered correctly.
 ;; - **Propagation completeness** ensures a pro-rata outcome was applied once and that
@@ -1626,6 +1961,11 @@
 ;;   custody paths, preventing structural drift via a Malli schema.
 ;; - **Second-order mutation path** demonstrates `add-held`/`sub-held` producing
 ;;   a valid index as a side effect of custody accounting.
+;; - **Protected held-ledger authorization boundary** demonstrates that only a
+;;   currently usable force-authorization bound to the requested scope can mutate
+;;   the ledger: every failed check leaves the projection unchanged and the grant
+;;   unconsumed, while a valid grant performs exactly the intended transition and
+;;   is consumed exactly once.
 ;; - **Yield index monotonicity** verifies `new-index = old-index × growth-factor`
 ;;   moves in the correct direction for both positive and negative APY.
 ;; - **Aggregate shortfall cap** prevents systemic over-counting where recorded

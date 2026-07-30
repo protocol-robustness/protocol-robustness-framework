@@ -2,31 +2,36 @@
   "REPL dev helpers for running single in-process registry scenarios.
    Routes through resolver-sim.io.scenario-runner (public path).
    For file-backed scenarios use io.scenario-runner/run-scenario-file directly."
-  (:require [resolver-sim.io.scenario-runner :as sr]))
+  (:require [clojure.string :as str]
+            [resolver-sim.io.scenario-runner :as sr]))
+
+(defn- scenario-number
+  "Extract the leading S-number from a scenario id/name (e.g. :S103 -> 103)."
+  [s]
+  (some->> (re-find #"(?i)^S(\d+)" (str s))
+           second
+           Long/parseLong))
+
+(defn- normalize-name
+  "Trim and collapse internal whitespace so registry names match regardless of spacing."
+  [s]
+  (-> (str s) str/trim (str/replace #"\s+" " ")))
 
 (defn- find-scenario
-  "Look up a scenario map by keyword id (e.g. :S103) or string name from the S01–S107 registry."
+  "Look up a scenario by keyword id (e.g. :S103) or string name from the registry.
+   Returns the registry entry `[display-name data]`, or nil when not found."
   [scenario-id]
   (let [scenarios (requiring-resolve 'resolver-sim.protocols.sew.invariant-scenarios/all-scenarios)
-        scenario-id-str (if (keyword? scenario-id) (name scenario-id) (str scenario-id))
-        ;; Handle both "S01" and "S01 baseline-happy-path" formats
-        pattern (if (keyword? scenario-id)
-                  (re-pattern (str "S" (name scenario-id) "\\b"))  ; Match S01 at word boundary
-                  scenario-id-str)]
-    (when-let [entry (first (filter (fn [[name _]]
-                                      (cond
-                                        (string? scenario-id) (or (= name scenario-id)
-                                                                  (and (re-find #"^S\d+\s" name)
-                                                                       (= (subs name 0 (count scenario-id)) scenario-id)))
-                                        (keyword? scenario-id) (when (string? name)
-                                                                 (let [id (re-find #"^S\d+" name)]
-                                                                   (and id (= (keyword id) scenario-id))))
-                                        :else false))
-                                    @scenarios))]
-      (let [[_ data] entry]
-        (if (vector? data)
-          {:pair data}
-          data)))))
+        id-str    (if (keyword? scenario-id) (name scenario-id) (str scenario-id))
+        id-num    (scenario-number id-str)
+        id-norm   (normalize-name id-str)]
+    (first (filter (fn [[name _]]
+                     (when (string? name)
+                       (let [n-num  (scenario-number name)
+                             n-norm (normalize-name name)]
+                         (or (and id-num n-num (= n-num id-num))
+                             (= n-norm id-norm)))))
+                   @scenarios))))
 
 (defn- sew-replay-fn []
   (requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol))
@@ -51,12 +56,12 @@
        []))))
 
 (defn run-scenario
-  "Run a single in-process registry scenario by keyword id (e.g. :S18).
+  "Run a single in-process registry scenario by keyword id (e.g. :S18) or name.
    Routes through io.scenario-runner/run-registry-scenario."
   [scenario-id]
-  (let [scenario (or (find-scenario scenario-id)
-                     (throw (ex-info "Unknown scenario" {:scenario-id scenario-id})))
-        result   (sr/run-registry-scenario scenario (sew-replay-fn))]
+  (let [entry   (or (find-scenario scenario-id)
+                    (throw (ex-info "Unknown scenario" {:scenario-id scenario-id})))
+        result  (sr/run-registry-scenario entry (sew-replay-fn))]
     (tap> {:type :scenario/result
            :scenario-id scenario-id
            :result result})

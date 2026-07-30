@@ -1,5 +1,4 @@
-(ns dev.yield
-  (:require [dev.repl :as repl]))
+(ns dev.yield)
 
 (defn run-shortfall
   []

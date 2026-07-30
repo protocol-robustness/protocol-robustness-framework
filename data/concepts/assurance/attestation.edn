@@ -162,8 +162,22 @@
   "Approval merely because a signature is cryptographically valid."
   "A validity conclusion when no verification function is available."
   "Checks not included in the bundle."
-  "Correctness of unavailable external dependencies."
-  "Production safety beyond the declared checks."
-  "Resolution of documented known gaps."
-  "Authenticity when required signatures are unavailable or invalid."
-  "Semantic validity of opaque external evidence."]}
+   "Correctness of unavailable external dependencies."
+   "Production safety beyond the declared checks."
+   "Authenticity when required signatures are unavailable or invalid."
+   "Semantic validity of opaque external evidence."]
+
+ :concept/known-gaps
+ ["gap-attestor-id-nil"
+  "gap-subject-type-unsupported"
+  "gap-signing-fn-nil"
+  "gap-signing-fn-string"
+  "gap-subject-hash-tamper"]
+
+ :concept/note
+  "Known implementation gaps for attestation are documented in the central
+   known-gaps registry (data/known-gaps/attestation.edn), each with :issue/id,
+   :current-behaviour, :intended-contract, :reason-non-gating, and
+   :removal-or-conversion-condition. These are temporary limitations, not
+   out-of-scope ownership boundaries; they remain in force until their
+   removal-or-conversion-condition is met."}

@@ -1,0 +1,87 @@
+{:concept/id :framework/research-assignment
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Research assignment"
+ :concept/summary
+ "A research assignment binds a content-addressed research task to the command artifact and runner that execute it. It records which task was assigned, which runner executed it, and which research command produced the execution provenance, so that task, command, and execution evidence are attributable to a single assignment."
+
+ :concept/stakeholder-question
+ "Which research task was assigned to which runner, and which command produced the evidence for that task?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/research-command
+  :framework/content-root
+  :framework/incentive
+  :framework/held-custody
+  :forensic/evidence-chain]
+
+ :concept/note
+  "A research assignment combines:
+   - task-ref     — content-addressed research-task reference (research-task:sha256:...).
+   - command-root — the research-command.v1 hash (:execution/command-root) that executed the task.
+   - runner/id    — the runner that carried out the assignment.
+   Attestations (community) subject a research-task and reference the runner and evidence node, so a research-assignment is the shared reference that ties task, command, runner, and execution evidence together."
+
+ :concept/roles
+ {:assigner {:description "Entity that creates the research task and assigns it to a runner."
+             :maps-to [:protocol.actor/governance]}
+  :assigned-runner {:description "Runner responsible for executing the assigned task."
+                    :maps-to [:protocol.actor/verifier]}
+  :assignment-verifier {:description "Entity that checks task, command, runner, and evidence consistency for an assignment."
+                        :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:research-task {:description "Content-addressed research task (research-task.v0) describing what to execute and its acceptance criteria."
+                  :maps-to [:protocol.entity/command]}
+  :task-ref {:description "Content-addressed reference to a research task (research-task:sha256:<hex>)."
+             :maps-to [:protocol.entity/canonical-hash]}
+  :assignment-command-root {:description "The research-command.v1 hash that executed the assigned task, committed as :execution/command-root."
+                            :maps-to [:protocol.entity/canonical-hash]}
+  :assigned-runner-id {:description "Runner identity that carried out the assignment."
+                       :maps-to [:protocol.entity/actor]}}
+
+ :concept/actions
+ {:assign-task {:description "Bind a research task to a command artifact and runner, forming a research assignment."
+                :maps-to [:protocol.action/commit-root]}
+  :verify-assignment {:description "Check that the task, command-root, runner, and produced evidence are consistent for an assignment."
+                      :maps-to [:protocol.action/verify-allocation]}
+  :attest-assignment {:description "Produce a community attestation subjecting the assigned research task to the executed result."
+                      :maps-to [:protocol.action/sign-attestation]}}
+
+ :concept/outcomes
+ {:assignment-valid {:description "Task, command-root, and runner are consistent and reference valid content roots."
+                     :maps-to [:protocol.outcome/released]}
+  :assignment-mismatch {:description "The command-root or runner does not match the declared task assignment."
+                        :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :assignment-task-command-mismatch
+   :failure/name "Task-command mismatch"
+   :failure/summary "The command-root does not correspond to the assigned task."
+   :protocol-mechanisms [:command-root :research-task]
+   :stakeholder-impact "Evidence cannot be attributed to the intended research task."}
+  {:failure/id :assignment-runner-mismatch
+   :failure/name "Runner mismatch"
+   :failure/summary "The runner that produced evidence differs from the assigned runner."
+   :protocol-mechanisms [:runner-identity :assignment]
+   :stakeholder-impact "Execution provenance cannot be trusted to the assigned party."}]
+
+ :concept/assumptions
+ ["A research task is content-addressed and immutable; the task-ref identifies it."
+  "The command-root is the shared reference that ties a task to the command that executed it."
+  "An assignment is only valid in combination with the command-root and runner that produced the evidence."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Definition of a research task's acceptance criteria or evaluation algorithm."
+  "Correctness or suitability of the executed outcomes."
+  "Runner reputation, qualification, or trust ranking."
+  "Production scheduling or resource allocation."]
+
+ :concept/metrics
+ {:assignment-count {:description "Number of research assignments recorded."
+                     :source :derived-from-trace}
+  :assignment-valid-count {:description "Number of assignments passing verification."
+                           :source :derived-from-invariant-results}}}

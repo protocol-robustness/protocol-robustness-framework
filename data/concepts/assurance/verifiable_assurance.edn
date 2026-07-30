@@ -171,13 +171,15 @@
     :source :derived-from-invariant-results}}
 
  :concept/assumptions
-  ["Evidence is collected and hashed using canonical EDN serialization (deterministic ordering)."
-   "Attestations use Ed25519 or similar public-key signatures."
-   "The verifier has access to the same scenario definitions and protocol adapter as the original run."
-   "Concept labels do not change protocol validity."]
+   ["Evidence is collected and hashed using canonical EDN serialization (deterministic ordering)."
+    "Attestations use Ed25519 or similar public-key signatures."
+    "The verifier has access to the same scenario definitions and protocol adapter as the original run."
+    "Concept labels do not change protocol validity."
+    "Hashable evidence structures are encoded using the framework's canonical EDN serialization rules. These rules determine the deterministic encoding of included fields and values, including confidence values and metadata, but do not determine which fields an artifact includes in its hash projection."]
 
  :concept/out-of-scope
- ["Real-world identity verification or KYC."
-  "Legal admissibility of cryptographic evidence."
-  "Network-level security (TLS, certificate chains)."
-  "Social consensus or reputation-based confidence."]}
+  ["Real-world identity verification or KYC."
+   "Legal admissibility of cryptographic evidence."
+   "Network-level security (TLS, certificate chains)."
+   "Social consensus or reputation-based confidence."
+   "Artifact-specific field semantics, required fields, and hash projections — these remain owned by the corresponding evidence, attestation, registry, or domain concept."]}

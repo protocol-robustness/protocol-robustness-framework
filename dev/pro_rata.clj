@@ -50,6 +50,19 @@
            :artifact artifact})
     artifact))
 
+(defn- allocation-equivalence?
+  "Compare direct vs projection allocation results on the documented fields:
+   total-allocated, total-unmet, and each allocation's id/paid/unmet.
+   Ignores bookkeeping keys the two paths differ on (e.g. :mechanism/evidence)."
+  [direct projection]
+  (let [norm (fn [r]
+               {:total-allocated (:recovered-total r)
+                :total-unmet     (:unmet-total r)
+                :allocations     (into {}
+                                       (map (juxt :id #(select-keys % [:paid :unmet])))
+                                       (:allocations r))})]
+    (= (norm direct) (norm projection))))
+
 (defn explain-projection-vs-direct
   "Run both direct allocation and projection-based allocation on the same
    Sew slash input. Returns {:direct ..., :projection ..., :equivalent? ...}.
@@ -65,7 +78,7 @@
         direct (sew-alloc sew-slash-input)
         artifact (proj-artifact sew-slash-input)
         projection (from-proj artifact)
-        match? (= direct projection)]
+        match? (allocation-equivalence? direct projection)]
     (tap> {:type :pro-rata/projection-vs-direct
            :direct direct
            :projection projection
@@ -84,15 +97,21 @@
     {:direct direct :projection projection :equivalent? match?}))
 
 (defn explain-claims
-  "Evaluate all 7 pro-rata claims on a Sew slash input.
+  "Evaluate the pro-rata claims supported by a Sew slash projection evidence
+   node on a Sew slash input.
    Uses claims.engine/evaluate-claims with evidence-node references.
    Returns {claim-id {:holds? bool :violations [...]}}.
-   See explain-sew-slash-allocation for input shape."
+   The witness-backed claims (:pro-rata/cap-respecting,
+   :pro-rata/canonical-remainder-assignment) are excluded because they require
+   :claims/mechanism-result evidence the legacy projection node does not carry —
+   matching build-prorata-slash-evidence. See explain-sew-slash-allocation for
+   input shape."
   [sew-slash-input]
   (let [alloc (requiring-resolve 'resolver-sim.protocols.sew.economics/calculate-sew-slash-allocation)
         proj (requiring-resolve 'resolver-sim.protocols.sew.economics/build-sew-slash-projection-artifact)
         from-proj (requiring-resolve 'resolver-sim.protocols.sew.economics/calculate-sew-slash-allocation-from-projection)
         build-node (requiring-resolve 'resolver-sim.protocols.sew.evidence.slashing/build-claim-evaluation-node)
+        legacy-ids (requiring-resolve 'resolver-sim.protocols.sew.evidence.slashing/legacy-projection-claim-ids)
         direct-result (alloc sew-slash-input)
         projection-artifact (proj sew-slash-input)
         projection-artifact-again (proj sew-slash-input)
@@ -102,7 +121,7 @@
         requests (mapv (fn [claim-id]
                          {:claim-id claim-id
                           :evidence-references [(:node-hash node)]})
-                       (pro-rata-claims/registered-claim-ids))
+                       (legacy-ids))
         {:keys [claim-results]}
         (engine/evaluate-claims
          requests [node]

@@ -51,6 +51,51 @@
             concept
             #{:protocol.actor/resolver})))))
 
+(deftest held-custody-add-held-is-abstract-classification
+  (testing "add-held is an abstract held-classification increase, not a concrete ledger mutation"
+    (let [{:keys [concepts]} (concepts-registry/load-registry)
+          held (first (filter #(= (:concept/id %) :framework/held-custody) concepts))]
+      (is (some? held))
+      (testing "add-held action exists and maps to the abstract record-held-adjustment action"
+        (let [add-held (get-in held [:concept/actions :add-held])]
+          (is (some? add-held))
+          (is (some #(= % :protocol.action/record-held-adjustment) (:maps-to add-held)))))
+      (testing "out-of-scope assigns concrete ledger mutation and economic meaning to other layers"
+        (let [oos (:concept/out-of-scope held)]
+          (is (some #(re-find #"(?i)protocol accounting|protocol-ledger mutation" %) oos))
+          (is (some #(re-find #"(?i)protocol policy|economic event" %) oos)))))))
+
+(deftest yield-aggregate-shortfall-cap-and-held-adjacency
+  (testing "yield concept covers aggregate shortfall cap and held-custody adjacency"
+    (let [{:keys [concepts]} (concepts-registry/load-registry)
+          yield-c (first (filter #(= (:concept/id %) :yield/yield-bearing) concepts))]
+      (is (some? yield-c))
+      (testing "aggregate shortfall checks exist as actions"
+        (let [actions (:concept/actions yield-c)]
+          (is (some? (:check-aggregate-shortfall-cap actions)))
+          (is (some? (:check-aggregate-shortfall actions)))
+          (is (some? (:check-aggregate actions)))))
+      (testing "held-custody is a related concept (add-held adjacency)"
+        (is (some #(= % :framework/held-custody) (:concept/related yield-c))))
+      (testing "out-of-scope assigns concrete ledger mutation to protocol accounting"
+        (is (some #(re-find #"(?i)protocol accounting|core-protocol-boundary" %) (:concept/out-of-scope yield-c)))))))
+
+(deftest semantic-commitments-generic-categories
+  (testing "semantic-commitments concept defines generic categories, not research-command-specific"
+    (let [{:keys [concepts]} (concepts-registry/load-registry)
+          sc (first (filter #(= (:concept/id %) :framework/semantic-commitments) concepts))
+          rc (first (filter #(= (:concept/id %) :framework/research-command) concepts))]
+      (is (some? sc))
+      (testing "allowed categories are declared"
+        (let [note (:concept/note sc)]
+          (is (some #(re-find #":semantic/scope" %) [note]))
+          (is (some #(re-find #":semantic/authorisation" %) [note]))
+          (is (some #(re-find #":semantic/economic-application" %) [note]))))
+      (testing "research-command references semantic-commitments generically"
+        (is (some #(= % :framework/semantic-commitments) (:concept/related rc)))
+        (let [note (:concept/note rc)]
+          (is (not (re-find #"partial-fill decisions, propagation refs" note))))))))
+
 (deftest enrich-report-surfaces-limitations-and-mapping-statuses
   (let [report (reporting/enrich-report
                 {}

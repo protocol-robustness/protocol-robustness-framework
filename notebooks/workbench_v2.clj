@@ -561,6 +561,6 @@
                         [:span {:style {:color (if (:pass? c) "#03DAC6" "#ef4444") :fontWeight 700}}
                          (if (:pass? c) "✓" "✗")]
                         [:span {:style {:color "#cbd5e1"}} (:label c)]
-                        [:span {:style {:color "#64748b" :marginLeft "auto"}} (:detail c)]])])]]]]])]
+                        [:span {:style {:color "#64748b" :marginLeft "auto"}} (:detail c)]])])]]]])]
            [:div {:style {:fontSize "12px" :color "#fbbf24"}}
-            "No custody data could be computed from live replay."]))]]])
+             "No custody data could be computed from live replay."]))]]])])

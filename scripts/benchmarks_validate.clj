@@ -295,6 +295,44 @@
         (swap! errors conj (str "pack capability violation " error-id " in " registry-path))
         (println "    FAIL pack capability violation" error-id)))))
  
+(defn check-benchmark-out-of-scope!
+  "Validate :concept/out-of-scope parity for benchmark concepts.
+   Enforces the same rules as data/concepts: required, vector of strings,
+   non-empty, no duplicates."
+  [errors path id c]
+  (let [oos (:concept/out-of-scope c)]
+    (cond
+      (nil? oos)
+      (do (swap! errors conj (str (path-str path) " concept " id " :concept/out-of-scope is required"))
+          (println "    FAIL" (path-str path) "concept" id "missing :concept/out-of-scope"))
+
+      (not (vector? oos))
+      (do (swap! errors conj (str (path-str path) " concept " id " :concept/out-of-scope must be a vector"))
+          (println "    FAIL" (path-str path) "concept" id ":concept/out-of-scope must be a vector"))
+
+      (empty? oos)
+      (do (swap! errors conj (str (path-str path) " concept " id " :concept/out-of-scope must be non-empty for production concepts"))
+          (println "    FAIL" (path-str path) "concept" id ":concept/out-of-scope must be non-empty"))
+
+      :else
+      (do (doseq [s oos]
+            (when-not (string? s)
+              (swap! errors conj (str (path-str path) " concept " id " :concept/out-of-scope entry " (pr-str s) " is not a string"))
+              (println "    FAIL" (path-str path) "concept" id "out-of-scope entry not a string")))
+          (let [dups (set (for [[v f] (frequencies oos) :when (> f 1)] v))]
+            (doseq [d dups]
+              (swap! errors conj (str (path-str path) " concept " id " :concept/out-of-scope has duplicate entry: " (pr-str d)))
+              (println "    FAIL" (path-str path) "concept" id "duplicate out-of-scope entry" (pr-str d))))
+          (let [normalised (mapv (fn [s] [(-> s clojure.string/lower-case
+                                              (clojure.string/replace #"[^a-z0-9]+" " ")
+                                              clojure.string/trim) s])
+                                 (filter string? oos))
+                by-norm (group-by first normalised)
+                overlaps (keep (fn [[_ vs]] (when (> (count vs) 1) (mapv second vs))) by-norm)]
+            (doseq [vs overlaps]
+              (swap! errors conj (str (path-str path) " concept " id " :concept/out-of-scope has semantically overlapping entries: " (pr-str vs)))
+              (println "    FAIL" (path-str path) "concept" id "semantically overlapping out-of-scope entries" (pr-str vs))))))))
+
 (defn run-validation []
   (println "▶ benchmarks:validate\n")
   (let [errors (atom [])]
@@ -352,6 +390,8 @@
                     (when-not (get c k)
                       (swap! errors conj (str (path-str path) " concept " id " missing " k))
                       (println "    FAIL" (path-str path) "concept" id "missing" k)))
+                  ;; Out-of-scope parity with data/concepts validation
+                  (check-benchmark-out-of-scope! errors path id c)
                   (let [maps-to (:concept/maps-to c)]
                     (when-not (map? maps-to)
                       (swap! errors conj (str (path-str path) " concept " id " :concept/maps-to must be a map"))

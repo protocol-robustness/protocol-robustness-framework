@@ -10,6 +10,9 @@
 
  :concept/protocols #{:protocol/sew-v1 :protocol/prf}
 
+ :concept/note
+ "This concept recognises the obligation resulting from a bounty award. The upstream award decision (bounty-award concept) does not yet exist. Bounty award, bounty payable, and bounty payment/settlement are distinct phases: award determines entitlement, payable recognises the obligation, and payment discharges it. Until a bounty-award concept is created, the award-to-payable transition is untracked at the concept level."
+
  :concept/roles
  {:bounty-obligor {:description "Entity that recognises the payable obligation."
                    :maps-to [:protocol.actor/governance]}

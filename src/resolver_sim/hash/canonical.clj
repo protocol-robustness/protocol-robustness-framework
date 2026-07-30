@@ -125,7 +125,12 @@
    :bounty-payable-v1              "BOUNTY_PAYABLE_V1"
    :bounty-payable-backing-v1      "BOUNTY_PAYABLE_BACKING_V1"
    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
-   :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"})
+    :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"
+    :pool-availability-v2   "POOL_AVAILABILITY_V2"
+    :pool-reservation       "POOL_RESERVATION_V1"
+    :award-calculation-v2   "AWARD_CALCULATION_V2"
+    :claim-set              "CLAIM_SET_V1"
+    :check-set              "CHECK_SET_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1482,6 +1487,67 @@
     :intent/description "Canonical identity of a procedure-execution-witness artifact"
     :intent/includes    #{:schema-version :id :definition-root :initial-input-root :steps :result-root}
     :intent/excludes    #{:root :verification :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :pool-availability-v2
+   {:intent/name        :pool-availability-v2
+    :intent/domain-tag  "POOL_AVAILABILITY_V2"
+    :intent/description "Canonical identity of a pool-availability v2 snapshot artifact, including predecessor binding"
+    :intent/includes    #{:artifact/type :pool/id :pool/kind :pool/owner-id
+                          :pool/state-root :pool/policy-root
+                          :pool/snapshot-time
+                          :pool/gross-amount :pool/reserved-amount
+                          :pool/protected-amount :pool/available-amount
+                          :pool/liability-roots :pool/reservation-roots
+                          :pool/predecessor-hash}
+    :intent/excludes    #{:artifact/hash :metadata}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :pool-reservation
+   {:intent/name        :pool-reservation
+    :intent/domain-tag  "POOL_RESERVATION_V1"
+    :intent/description "Canonical identity of a pool reservation artifact"
+    :intent/includes    #{:artifact/type :reservation/id :reservation/pool-root
+                          :reservation/amount :reservation/purpose-root}
+    :intent/excludes    #{:artifact/hash :metadata}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :award-calculation-v2
+   {:intent/name        :award-calculation-v2
+    :intent/domain-tag  "AWARD_CALCULATION_V2"
+    :intent/description "Canonical identity of an award calculation v2 artifact, including eligibility binding roots"
+    :intent/includes    #{:artifact/type :award/id :award/policy-root
+                          :award/pool-availability-root
+                          :award/claim-set-root :award/evidence-set-root
+                          :award/beneficiary-id :award/calculation-time
+                          :award/amount :award/scale
+                          :award/calculation-components
+                          :award/eligibility-result
+                          :award/eligibility-policy-root
+                          :award/check-set-root
+                          :award/mode}
+    :intent/excludes    #{:artifact/hash :metadata}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :check-set
+   {:intent/name        :check-set
+    :intent/domain-tag  "CHECK_SET_V1"
+    :intent/description "Canonical root of a sorted, deduplicated set of eligibility check IDs"
+    :intent/includes    #{:check/ids}
+    :intent/excludes    #{:metadata}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :claim-set
+   {:intent/name        :claim-set
+    :intent/domain-tag  "CLAIM_SET_V1"
+    :intent/description "Canonical root of a sorted, deduplicated set of claim hashes"
+    :intent/includes    #{:claim/roots}
+    :intent/excludes    #{:metadata}
     :intent/projection-fn project-identity
     :intent/version     1}})
 

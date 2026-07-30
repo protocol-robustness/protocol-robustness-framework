@@ -48,6 +48,13 @@
     :blocked-by-sensitivity-policy :internal-retention
     :unverified-sensitivity})
 
+(def ^:const fully-verified-statuses
+  "Statuses that semantically mean all applicable required verification
+   completed successfully. Only these may expose :verified? true. A bundle
+   that is structurally valid (:valid? true) but not :fully-verified (e.g.
+   :hash-linked, :partially-verified, :unverified-sensitivity) is NOT assured."
+  #{:fully-verified})
+
 (def ^:private runtime-root-key :bundle/runtime-root)
 
 (defn- bundle-root
@@ -568,9 +575,21 @@
 
    Returns:
      {:valid? true/false
-      :bundle/status <one of five statuses>
+      :verified? true/false
+      :bundle/status <one of the :bundle/status vocabulary values>
       :checks [<check-result> ...]
-      :summary {...}}"
+      :summary {...}}
+
+   SEMANTIC DISTINCTION:
+     :valid?    — the artifact is internally well-formed / no hard verification
+                  contradiction. True when no check is :fail, :blocked,
+                  :policy-constrained, or unknown.
+     :verified? — all checks required by the applicable profile actually
+                  completed successfully. True only for :fully-verified.
+                  A bundle can be :valid? true yet :verified? false (e.g.
+                  :hash-linked, :partially-verified, :unverified-sensitivity)
+                  when assurance/completeness was not actually established.
+   Assurance consumers MUST use :verified?, not :valid? alone."
   ([bundle] (verify-attestation-bundle bundle nil))
   ([bundle opts]
    (let [registry-check (check-attestor-registry-trust bundle opts)
@@ -639,15 +658,18 @@
                          (filter #(= :subject-content-available (:check/id %)) checks))
                    :partially-verified
                    :else :hash-linked)]
-     {:valid? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
-      :bundle/status status
-      :checks checks
-      :summary {:total-checks (count checks)
-                :pass (count (filter #(= :pass (:check/status %)) checks))
-                :warning (count (filter #(= :warning (:check/status %)) checks))
-                :fail (count failures)
-                :blocked (count blocked)
-                :policy-constrained (count policy-constrained)}})))
+     (let [valid? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
+           verified? (contains? fully-verified-statuses status)]
+       {:valid? valid?
+        :verified? verified?
+        :bundle/status status
+        :checks checks
+        :summary {:total-checks (count checks)
+                  :pass (count (filter #(= :pass (:check/status %)) checks))
+                  :warning (count (filter #(= :warning (:check/status %)) checks))
+                  :fail (count failures)
+                  :blocked (count blocked)
+                  :policy-constrained (count policy-constrained)}}))))
 
 ;; ── Bundle I/O ───────────────────────────────────────────────────────────────
 

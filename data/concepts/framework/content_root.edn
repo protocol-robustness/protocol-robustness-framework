@@ -47,13 +47,14 @@
   "Fields outside the canonical projection are incidental and do not affect identity."]
 
  :concept/out-of-scope
- ["Registration metadata."
-  "Registrant identity."
-  "Provenance."
-  "Review status."
-  "Incidental extension keys outside the canonical projection."
-  "Availability of the content package."
-  "Semantic correctness."]
+  ["Registration metadata."
+   "Registrant identity."
+   "Provenance."
+   "Review status."
+   "Incidental extension keys outside the canonical projection."
+   "Availability of the content package."
+   "Semantic correctness."
+   "Domain-specific content-root projections — each domain concept (incentive, operational, etc.) owns its canonical projection and semantic contents. This concept defines the generic integrity pattern (canonical hash, projection spec) but not the field composition of any domain-specific root."]
 
  :concept/metrics
  {:root-count {:description "Number of active content roots."

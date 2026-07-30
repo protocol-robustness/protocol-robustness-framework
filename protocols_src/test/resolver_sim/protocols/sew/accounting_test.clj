@@ -399,6 +399,48 @@
                                         :extra {:held/workflow-id 42
                                                 :owner/address bob}})))))
 
+(deftest scope-mismatch-rejection-does-not-mutate-ledger-or-index
+  (testing "a rejected force-authorisation leaves primary ledger and derived index unchanged"
+    (let [auth-id "fa-test-nomut-a1b2c3d4"
+          granted-scope {:authorization/id auth-id
+                         :authorization/type :force-authorisation
+                         :held/direction :out
+                         :token usdc
+                         :amount 40
+                         :held/account :escrow-principal
+                         :owner/address bob
+                         :held/reason :force-authorised-refund
+                         :held/workflow-id 42}
+          scope-hash (hash/domain-hash "force-authorisation-scope" granted-scope)
+          auth-prov {:authorization/type :force-authorisation
+                     :authorization/id auth-id
+                     :authorization/scope-hash scope-hash}
+          world {:total-held {usdc 100}
+                 :held/positions {[:held/position usdc :escrow-principal 42] 100}
+                 :held-ledger/index {:by-token {usdc 100}
+                                     :by-position {[:held/position usdc :escrow-principal 42] 100}}
+                 :force-authorisations {auth-id {:authorization/id auth-id
+                                                 :authorization/status :active
+                                                 :consumed? false
+                                                 :starts-at 0
+                                                 :authorization/scope granted-scope
+                                                 :authorization/scope-hash scope-hash}}}
+          before {:total-held (:total-held world)
+                  :index (:held-ledger/index world)
+                  :positions (:held/positions world)}]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"scope differs from grant"
+                            (ac/sub-held world usdc 40
+                                         {:action "finalize-released"
+                                          :reason :force-authorised-release
+                                          :authorization-provenance auth-prov
+                                          :extra {:held/workflow-id 42
+                                                  :owner/address bob}})))
+      (is (= before {:total-held (:total-held world)
+                     :index (:held-ledger/index world)
+                     :positions (:held/positions world)})
+          "rejection must not alter the primary ledger, positions, or derived index"))))
+
 (deftest force-authorised-sub-held-rejects-forged-provenance
   (let [auth-id "fa-forged-a1b2c3d4"
         scope-map {:authorization/id auth-id

@@ -38,7 +38,7 @@
                  (and (map? signature) (not= signature-version (:signature/version signature)))
                  (conj (if (:signature/version signature) :unsupported-signature-version :legacy-envelope))
                  (and (map? signature) (= signature-version (:signature/version signature))
-                      (not= :ed25519 (:algorithm signature))) (conj :unsupported-algorithm)
+                      (not (contains? att/supported-signature-algorithms (:algorithm signature)))) (conj :unsupported-algorithm)
                  (and (map? signature) (= signature-version (:signature/version signature))
                       (not= :hex (:signature-encoding signature))) (conj :unsupported-signature-encoding)
                  (and (map? signature) (= signature-version (:signature/version signature))
@@ -120,7 +120,8 @@
            (.update verifier (.getBytes payload-hash "UTF-8"))
            (if (.verify verifier (codecs/hex->bytes (:signature-bytes signature)))
              {:valid? true :attestor-id attestor-id :key-id (:key-id key)
-              :algorithm :ed25519 :payload-hash payload-hash}
+              :algorithm (first att/supported-signature-algorithms)
+              :payload-hash payload-hash}
              {:valid? false :reason :invalid-signature :key-id (:key-id key)}))
          (catch Exception e
            {:valid? false :reason :invalid-key-material :detail (.getMessage e)}))))))

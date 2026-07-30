@@ -1,0 +1,116 @@
+{:concept/id :framework/research-command
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Research command"
+ :concept/summary
+ "A research command is a structured execution provenance artifact that captures the normalised semantic command used to produce a theorem, conclusion, or benchmark outcome. It establishes a reproducible execution identity by committing argv, include directives, environment/runner/input/output roots, and a canonical hash of the complete execution context."
+
+ :concept/stakeholder-question
+ "What exact command produced this outcome, and can it be reproduced with the same semantic scope?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+  [:framework/content-root
+   :framework/incentive
+   :framework/held-custody
+   :framework/research-assignment
+   :framework/semantic-commitments
+   :forensic/evidence-chain]
+
+ :concept/note
+   "A command artifact may be combined with the artifacts it selects through include directives and with evidence produced under it. Common combinations:
+   - command-artifact + incentive-root — incentive evaluation output bound to the command that requested :incentive.
+   - command-artifact + held-custody-artifact — closed-form custody evidence (game-theoretic-validation artifact) bound to the command that produced it.
+   - command-artifact + research-assignment — a research task bound to the command artifact and runner that executed it; the command-root is the shared reference.
+   - command-artifact + semantic-commitments-artifact — binds meaning-bearing scope, authorisation-lifecycle, economic-application, assurance, configuration, and research-execution references that are not implied solely by the command-root. The allowed categories are defined by the semantic-commitments concept, not enumerated here.
+   These combinations bind derived evidence to the exact command that produced it; the command-root (:execution/command-root) is the shared reference that ties them together in the outcome manifest or validation artifact."
+
+ :concept/roles
+ {:commander {:description "Entity that constructs and commits the research command."
+              :maps-to [:protocol.actor/verifier]}
+  :reproducer {:description "Entity that re-executes a command to verify reproducibility."
+               :maps-to [:protocol.actor/verifier]}}
+
+ :concept/entities
+ {:command-artifact {:description "The full research command map including id, type, argv, includes, and environment roots."
+                     :maps-to [:protocol.entity/command]}
+  :command-hash {:description "Canonical SHA-256 hash of the command's complete execution context. Committed as :execution/command-root in the benchmark outcome manifest."
+                 :maps-to [:protocol.entity/canonical-hash]}
+  :command-root {:description "The :execution/command-root manifest field holding the research-command.v1 hash. When a command includes :incentive, its incentive evaluation output root is committed in combination with this command-root in the same :outcome-hashes projection. The command-root also ties a command to evidence artifacts it produced (e.g. held-custody artifacts) and to a research assignment (task + runner) via a shared reference."
+                 :maps-to [:protocol.entity/canonical-hash]}
+  :command-include {:description "Include directive selecting additional evaluation or output domains. Supported values: :incentive, :incentive-compatibility."
+                    :maps-to [:protocol.entity/include-directive]}
+  :semantic-commitments {:description "The outcome manifest's :evidence/semantic-commitments section binding meaning-bearing category roots — scope, authorisation, economic application, assurance, configuration, research-execution — to the same outcome, committed alongside the command-root. The allowed categories are defined by the semantic-commitments concept; this entity does not enumerate them."
+                         :maps-to [:protocol.entity/evidence]}
+  :environment-root {:description "Content root for the execution environment."
+                     :maps-to [:protocol.entity/canonical-hash]}
+  :runner-root {:description "Content root for the runner software."
+                :maps-to [:protocol.entity/canonical-hash]}
+  :input-root {:description "Content root for command inputs."
+               :maps-to [:protocol.entity/canonical-hash]}
+  :output-root {:description "Content root for command outputs."
+                :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:build-command {:description "Construct and hash a research command from its components."
+                  :maps-to [:protocol.action/commit-root]}
+  :validate-command {:description "Recompute the command hash and verify structural integrity."
+                     :maps-to [:protocol.action/verify-allocation]}
+  :compare-commands {:description "Compare two commands for semantic identity based on their include directives."
+                     :maps-to [:protocol.action/compare-configurations]}}
+
+ :concept/outcomes
+ {:command-valid {:description "Command structure is valid and hash matches recomputation."
+                  :maps-to [:protocol.outcome/released]}
+  :command-mismatch {:description "Command hash does not match recomputation or structure is invalid."
+                     :maps-to [:protocol.outcome/adversarial-resolution]}
+  :commands-equivalent {:description "Two commands share the same semantic include set."
+                        :maps-to [:protocol.outcome/released]}
+  :commands-divergent {:description "Two commands have different semantic include sets."
+                       :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :command-hash-mismatch
+   :failure/name "Command hash mismatch"
+   :failure/summary "Declared command hash does not match recomputation."
+   :protocol-mechanisms [:canonical-hashing]
+   :stakeholder-impact "Cannot verify the provenance of a benchmark outcome."}
+  {:failure/id :unsupported-include
+   :failure/name "Unsupported include directive"
+   :failure/summary "A requested include directive is not supported by the selected benchmark or pack."
+   :protocol-mechanisms [:command-validation :benchmark-pack]
+   :stakeholder-impact "A requested evaluation domain is silently omitted from command outputs, hiding the absence of requested evidence."}]
+
+ :concept/assumptions
+ ["A command's semantic identity is its include set; argument ordering and aliases do not affect identity."
+  "Include directives select additional evaluation or output domains. They do not define the evaluation algorithm."
+  "A include directive does not imply that every benchmark or pack supports the requested domain."
+  "A requested include domain must never be silently omitted from outputs. When the selected benchmark or pack does not support it, the command must surface an explicitly unsupported or inconclusive result according to the execution policy. Surfacing an explicit unsupported result does not by itself invalidate an otherwise structurally valid command."
+  "The execution policy determines whether an unsupported include is treated as command failure or as a valid command with an explicit unsupported result."
+  "The canonical hash covers the complete execution context: argv, includes, environment, runner, inputs, and outputs."
+  "A command that includes :incentive commits its incentive evaluation output root in combination with its own command-root in the outcome manifest. The two roots are bound together in the same canonical :outcome-hashes projection."
+  "A command artifact combines with the evidence it produces through a shared command-root reference. This includes closed-form evidence artifacts (e.g. held-custody artifacts referenced by a game-theoretic-validation artifact), so derived evidence is attributable to the exact command that produced it."
+  "A command artifact combines with a research-assignment, binding a content-addressed research task to the command-root and runner that executed it. The command-root is the shared reference tying task, command, runner, and produced evidence together."
+  "A command artifact combines with a semantic-commitments artifact to bind meaning-bearing scope, authorisation-lifecycle, economic-application, assurance, configuration, and research-execution references that are not implied by the command-root alone. The allowed categories are defined by the semantic-commitments concept."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["The evaluation algorithm or analysis method selected by an include directive."
+  "Correctness or suitability of the evaluated outcomes."
+  "Availability or retrievability of the referenced environment, runner, input, or output roots."
+  "Execution scheduling, parallelism, or resource allocation."]
+
+ :concept/include-values
+  {:incentive
+   {:description "Requests inclusion of incentive-relevant evaluation evidence and outputs, including participant outcomes, deviations, strategy effects, and coalition effects where the selected benchmark or pack supports them. The incentive evaluation output root is committed in combination with the command-root (the research-command.v1 hash) in the same outcome-manifest projection, so incentive evidence is bound to the exact command that produced it."
+    :status :supported}
+  :incentive-compatibility
+  {:description "Requests inclusion of evidence evaluating whether the applicable mechanism satisfies its declared incentive-compatibility criteria."
+   :status :documented}}
+
+ :concept/metrics
+ {:command-count {:description "Number of research commands recorded."
+                  :source :derived-from-trace}
+  :command-valid-count {:description "Number of commands passing validation."
+                        :source :derived-from-invariant-results}}}

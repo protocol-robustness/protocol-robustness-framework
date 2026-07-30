@@ -24,7 +24,16 @@
    :allocation/redistribution-fairness
    :consensus/finality
    :decision-quality/solvency-status
-   :verifiable-assurance/forensic-confidence]
+   :verifiable-assurance/forensic-confidence
+   :framework/held-custody]
+
+  :concept/note
+   "Yield value movements (principal deposit, yield accrual, shortfall,
+    withdrawal) flow through the held-custody abstraction as abstract
+    add-held / sub-held adjustments under an already-selected accounting
+    interpretation. The yield concept determines the economic reason and
+    custody classification; the concrete ledger mutation is owned by the
+    protocol accounting layer. See held-custody."
 
  :concept/roles
  {:yield-provider
@@ -68,11 +77,20 @@
   {:description "Verify that held balances cover the custody need (principal + realized yield) for all positions."
    :maps-to [:protocol.action/check-invariant]}
   :detect-shortfall
-  {:description "Identify when a yield position's held balance falls below its custody need."
-   :maps-to [:protocol.action/calculate-shortfall]}
-  :resolve-shortfall
-  {:description "Apply partial fill or deferred recovery when shortfall is detected."
-   :maps-to [:protocol.action/settle :protocol.action/partial-fill]}}
+   {:description "Identify when a yield position's held balance falls below its custody need."
+    :maps-to [:protocol.action/calculate-shortfall]}
+   :resolve-shortfall
+   {:description "Apply partial fill or deferred recovery when shortfall is detected."
+    :maps-to [:protocol.action/settle :protocol.action/partial-fill]}
+   :check-aggregate-shortfall-cap
+   {:description "Verify that aggregate shortfall per (module-id, token) pair does not exceed the sum of position values (principal + realized yield + max(0, unrealized yield)) in that pair, preventing systemic over-counting."
+    :maps-to [:protocol.action/check-invariant]}
+   :check-aggregate-shortfall
+   {:description "Verify that the total recorded shortfall across all positions is within available value for the pair."
+    :maps-to [:protocol.action/check-invariant]}
+   :check-aggregate
+   {:description "Verify aggregate yield position values and shortfall balances are consistent across positions (per module-id and token)."
+    :maps-to [:protocol.action/check-invariant]}}
 
  :concept/outcomes
  {:yield-preserved
@@ -115,7 +133,14 @@
    :failure/summary
    "Accrued yield does not match the module's expected rate over the elapsed time."
    :protocol-mechanisms [:yield-accrual :rate-application]
-   :stakeholder-impact "Position holders receive incorrect yield amounts."}]
+   :stakeholder-impact "Position holders receive incorrect yield amounts."}
+
+  {:failure/id :aggregate-shortfall-over-count
+   :failure/name "Aggregate shortfall over-count"
+   :failure/summary
+   "Total recorded shortfall across positions exceeds available value for the (module-id, token) pair, indicating systemic over-counting."
+   :protocol-mechanisms [:aggregate-shortfall-cap :shortfall-detection]
+   :stakeholder-impact "Shortfall is overstated, leading to incorrect recovery or exposure."}]
 
  :concept/metrics
  {:yield-rate
@@ -138,6 +163,7 @@
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
- ["Real-world APY, APR, or investment returns."
-  "Market risk, impermanent loss, or oracle price deviations."
-  "Tax treatment of yield as income or capital gain."]}
+  ["Real-world APY, APR, or investment returns."
+   "Market risk, impermanent loss, or oracle price deviations."
+   "Tax treatment of yield as income or capital gain."
+   "Concrete protocol-ledger mutation behind add-held / sub-held adjustments — owned by the protocol accounting layer (see held-custody and core-protocol-boundary). Yield determines the economic reason and custody classification; it does not perform authoritative ledger writes."]}
