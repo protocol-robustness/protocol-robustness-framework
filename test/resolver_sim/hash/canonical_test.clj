@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.data.json :as json]
             [clojure.set :as set]
+            [clojure.string :as str]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
@@ -298,6 +299,184 @@
     (is (thrown? Exception (hc/validate-canonical-value! (bigdec "1.5"))))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
+;; Consecutive Concatenation Checklist (spec §8.4–§9)
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(deftest test-concat-empty-vs-absent-segments
+  (testing "empty collection and zero-length string are structurally distinct"
+    (is (not (bytes= (hc/canonical-bytes []) (hc/canonical-bytes [""]))))
+    (is (not (bytes= (hc/canonical-bytes []) (hc/canonical-bytes [nil])))))
+  (testing "position of zero-length segments matters"
+    (is (not (bytes= (hc/canonical-bytes ["" "a"])
+                     (hc/canonical-bytes ["a" ""]))))
+    (is (not (bytes= (hc/canonical-bytes [nil "a"])
+                     (hc/canonical-bytes ["a" nil]))))
+    (is (not (bytes= (hc/canonical-bytes [[] "a"])
+                     (hc/canonical-bytes ["a" []]))))))
+
+(deftest test-concat-utf8-multiscript-lengths
+  (letfn [(len-prefix [s] (bit-and (int (aget (hc/canonical-bytes s) 1)) 0xFF))]
+    (testing "length prefix counts UTF-8 encoded bytes across scripts"
+      (is (= 5  (len-prefix "hello")))
+      (is (= 6  (len-prefix (str "a" (String. (Character/toChars 0x1F600)) "b")))) ; emoji = 4 bytes
+      (is (= 6  (len-prefix "e\u0301e\u0300")))                                  ; combining marks
+      (is (= 12 (len-prefix "\u043F\u0440\u0438\u0432\u0435\u0442")))             ; Cyrillic
+      (is (= 6  (len-prefix "\u4E2D\u6587")))                                    ; CJK
+      (is (= 4  (len-prefix "\u00E9\u00FC")))                                    ; accented
+      (is (= 10 (len-prefix "\u0645\u0631\u062D\u0628\u0627")))                   ; Arabic
+      (is (= 3  (len-prefix (str "a" (char 0) "b")))))                           ; embedded NUL
+    (testing "every multiscript string is deterministic"
+      (doseq [s ["\u043F\u0440\u0438\u0432\u0435\u0442" "e\u0301" "\u4E2D\u6587"]]
+        (is (bytes= (hc/canonical-bytes s) (hc/canonical-bytes s)))))))
+
+(deftest test-concat-length-prefix-boundary-stress
+    (letfn [(frame [^bytes ba] (to-hex (byte-array (take 5 ba))))]
+    (testing "string length prefixes cross varuint boundaries"
+      (doseq [n [127 128 16383 16384 2097151 2097152]
+              :let [s (apply str (repeat n "x"))]]
+        (is (= (+ 1 (varuint-byte-count n) n) (count (hc/canonical-bytes s)))
+            (str "string len " n))))
+    (testing "collection counts cross varuint boundaries"
+      (is (str/starts-with? (frame (hc/canonical-bytes (vec (range 127)))) "307f"))
+      (is (str/starts-with? (frame (hc/canonical-bytes (vec (range 128)))) "308001"))
+      (is (str/starts-with? (frame (hc/canonical-bytes (vec (range 16384)))) "30808001"))
+      (is (str/starts-with? (frame (hc/canonical-bytes (vec (range 2097152)))) "3080808001"))
+      (is (str/starts-with? (frame (hc/canonical-bytes
+                                    (into {} (map (fn [i] [(str "k" i) i]) (range 128)))))
+                            "318001")))))
+
+(deftest test-concat-type-separation
+  (testing "adjacent values whose textual forms coincide remain type-distinct"
+    (is (not (bytes= (hc/canonical-bytes [1])   (hc/canonical-bytes ["1"]))))
+    (is (not (bytes= (hc/canonical-bytes [true])(hc/canonical-bytes ["true"]))))
+    (is (not (bytes= (hc/canonical-bytes [false])(hc/canonical-bytes ["false"]))))
+    (is (not (bytes= (hc/canonical-bytes [nil]) (hc/canonical-bytes [""]))))
+    (is (not (bytes= (hc/canonical-bytes [:a])  (hc/canonical-bytes ["a"]))))
+    (is (not (bytes= (hc/canonical-bytes [true])(hc/canonical-bytes [1]))))
+    (is (not (bytes= (hc/canonical-bytes [false])(hc/canonical-bytes [0])))))
+  (testing "type tag is committed before each component's payload"
+    (doseq [[v tag] [[nil 0x00] [false 0x01] [true 0x02]
+                     [1 0x10] ["s" 0x20] [:k 0x22]
+                     [[] 0x30] [{} 0x31]]]
+      (is (= tag (bit-and (int (aget (hc/canonical-bytes v) 0)) 0xFF))
+          (str "tag for " (pr-str v))))))
+
+(deftest test-concat-sequence-boundaries
+  (testing "one two-element sequence vs two consecutive single-element sequences"
+    (is (not (bytes= (hc/canonical-bytes [1 2])
+                     (hc/canonical-bytes [[1] [2]]))))
+    (is (not (bytes= (hc/canonical-bytes ["a" "b"])
+                     (hc/canonical-bytes [["a"] ["b"]])))))
+  (testing "nested empty/singleton collections stay distinct"
+    (is (not (bytes= (hc/canonical-bytes [])      (hc/canonical-bytes [[]]))))
+    (is (not (bytes= (hc/canonical-bytes [[]])    (hc/canonical-bytes [[] []]))))
+    (is (not (bytes= (hc/canonical-bytes [[] []]  ) (hc/canonical-bytes [[[]]]))))
+    (is (not (bytes= (hc/canonical-bytes [[1 2]]) (hc/canonical-bytes [[1] [2]]))))))
+
+(deftest test-concat-associativity-traps
+  (testing "nested grouping cannot flatten into an equivalent stream"
+    (is (not (bytes= (hc/canonical-bytes [["a" "b"] "c"])
+                     (hc/canonical-bytes ["a" ["b" "c"]]))))
+    (is (not (bytes= (hc/canonical-bytes [[1 2] [3 4]])
+                     (hc/canonical-bytes [1 [2 3] 4]))))
+    (is (not (bytes= (hc/canonical-bytes [[[1]]])
+                     (hc/canonical-bytes [[1]]))))
+    (is (not (bytes= (hc/canonical-bytes [[1 2 3]])
+                     (hc/canonical-bytes [1 2 3]))))))
+
+(deftest test-concat-map-entry-boundaries
+  (testing "map entries cannot be confused with a flat vector of key/value parts"
+    (is (not (bytes= (hc/canonical-bytes {:k1 "v1" :k2 "v2"})
+                     (hc/canonical-bytes [:k1 "v1" :k2 "v2"])))))
+  (testing "alternate key/value partitioning cannot collide"
+    (is (not (bytes= (hc/canonical-bytes {"a" "bc" "ab" "c"})
+                     (hc/canonical-bytes {"a" "b" "c" "ab"}))))
+    (is (not (bytes= (hc/canonical-bytes {:a {:b 1}})
+                     (hc/canonical-bytes {:a/bb 1})))))
+  (testing "variable-length keys and values sort deterministically"
+    (is (bytes= (hc/canonical-bytes {"a" "bc" "ab" "c"})
+                (hc/canonical-bytes {"ab" "c" "a" "bc"})))))
+
+(deftest test-concat-set-canonical-byte-order
+  (testing "sets sort by canonical byte representation, not host-language order"
+    ;; Byte order: int(0x10) < string(0x20) < keyword(0x22); zigzag 1→0x02 < -2→0x03;
+    ;; keyword length byte 0x01 < 0x03, so :x precedes :a/b.
+    (is (bytes= (hc/canonical-bytes #{:a 1 "b" :a/b -2})
+                (hc/canonical-bytes [1 -2 "b" :a :a/b])))
+    (is (bytes= (hc/canonical-bytes #{:x 9 "a" :a/b})
+                (hc/canonical-bytes [9 "a" :x :a/b]))))
+  (testing "namespaced and multibyte set members participate in byte order"
+    ;; ASCII 'z' (0x7A) < Cyrillic п (D0 BF) < CJK 中 (E4 B8 AD)
+    (is (bytes= (hc/canonical-bytes #{"\u043F" "z" "\u4E2D"})
+                (hc/canonical-bytes ["z" "\u043F" "\u4E2D"])))
+    (is (bytes= (hc/canonical-bytes #{:a/b :a :b})
+                (hc/canonical-bytes [:a :b :a/b])))))
+
+(deftest test-concat-numeric-edge-cases
+  (testing "extreme and adjacent longs are distinct and non-degenerate"
+    (is (not (bytes= (hc/canonical-bytes Long/MAX_VALUE)
+                     (hc/canonical-bytes (dec Long/MAX_VALUE)))))
+    (is (not (bytes= (hc/canonical-bytes Long/MIN_VALUE)
+                     (hc/canonical-bytes (inc Long/MIN_VALUE)))))
+    (is (not (bytes= (hc/canonical-bytes Long/MAX_VALUE)
+                     (hc/canonical-bytes Long/MIN_VALUE))))
+    (is (not (bytes= (hc/canonical-bytes 0) (hc/canonical-bytes 1))))
+    (is (not (bytes= (hc/canonical-bytes -1) (hc/canonical-bytes 1)))))
+  (testing "adjacent huge bigints are distinct (no truncation to host width)"
+    (doseq [[a b] [[(bigint (bit-shift-left 1 200)) (bigint (inc (bit-shift-left 1 200)))]
+                   [(bigint (- (bit-shift-left 1 200))) (bigint (dec (- (bit-shift-left 1 200))))]]]
+      (is (not (bytes= (hc/canonical-bytes a) (hc/canonical-bytes b))))))
+  (testing "narrow integer types encode exactly like their long counterparts"
+    (is (bytes= (hc/canonical-bytes (short 127)) (hc/canonical-bytes 127)))
+    (is (bytes= (hc/canonical-bytes (byte -5)) (hc/canonical-bytes -5)))
+    (is (bytes= (hc/canonical-bytes (int 42)) (hc/canonical-bytes 42)))))
+
+(deftest test-concat-prefix-freeness-corpus
+  (testing "no canonical encoding is a byte-prefix of another for a diverse corpus"
+    (let [candidates (vec (distinct [nil true false 0 1 -1 127 128 16383 16384 ""
+                                     "a" "ab" :a :a/b [] [[]] [1] [1 2] ["a" "b"]
+                                     {:a 1} {"a" "bc" "ab" "c"} ["a" "bc"] ["ab" "c"]
+                                     [""] [nil] [[]] [[] []]]))
+          encs (map hc/canonical-bytes candidates)
+          prefix? (fn [^bytes p ^bytes s]
+                    (and (<= (count p) (count s))
+                         (loop [i 0]
+                           (if (= i (count p)) true
+                               (and (= (bit-and (int (aget p i)) 0xFF)
+                                       (bit-and (int (aget s i)) 0xFF))
+                                    (recur (inc i)))))))]
+      (doseq [[i a] (map-indexed vector encs)
+              [j b] (map-indexed vector encs)
+              :when (not= i j)]
+        (is (not (prefix? a b))
+            (str "encoding of " (pr-str (nth candidates i))
+                 " is a prefix of " (pr-str (nth candidates j))))))))
+
+(deftest test-concat-cross-runtime-equivalence
+  (let [content #(hc/hash-with-intent {:hash/intent :evidence-content} %)]
+    (testing "EDN string round-trip hash matches the equivalent JSON-shaped map"
+      (is (= (-> (hc/read-string "{:scenario/id \"test\" :event/seq 1 :evidence/type \"stake-registered\"}")
+                 :hash)
+             (content {:scenario/id "test" :event/seq 1 :evidence/type "stake-registered"}))))
+    (testing "intended keyword→string equivalence holds"
+      (is (= (content {:a 1}) (content {"a" 1})))
+      (is (= (content {:a/b 1}) (content {"a/b" 1}))))
+    (testing "distinct logical content remains distinct"
+      (is (not= (content {:a/b 1}) (content {:b 1})))
+      (is (not= (content {:event/seq 1}) (content {:event/seq 2})))
+      (is (not= (content [1 2]) (content [2 1]))))))
+
+(deftest test-concat-domain-separation-wide
+  (testing "the same concatenated payload differs across many hash domains"
+    (let [fixtures {:world-structure {:a 1} :evidence-record {:a 1}
+                    :evidence-chain {:a 1} :registry {:a 1}
+                    :manifest {:a 1} :provenance {:a 1}
+                    :state-diff {:a 1} :bundle-root {:a 1}}]
+      (is (apply distinct?
+                 (map (fn [[intent v]] (hc/hash-with-intent {:hash/intent intent} v))
+                      fixtures))))))
+
+;; ──────────────────────────────────────────────────────────────────────────────
 ;; Domain Hashing
 ;; ──────────────────────────────────────────────────────────────────────────────
 
@@ -587,18 +766,19 @@
                (hc/validate-intent-constraints! :evidence-record {:evidence/timestamp "2024"
                                                                   :a 1}))))
 
-(deftest test-validate-intent-constraints-checks-keywords-for-evidence-content
-  (is (thrown? Exception
-               (hc/validate-intent-constraints! :evidence-content {:evidence/type :core}))))
+(deftest test-validate-intent-constraints-allows-keywords-for-evidence-content
+  ;; Keywords and hash-like keys are projected (keyword→string) by
+  ;; project-for-content-hash, so they are legitimate evidence content and
+  ;; must not be rejected by intent-constraint validation.
+  (is (nil? (hc/validate-intent-constraints! :evidence-content {:evidence/type :core}))))
 
 (deftest test-validate-intent-constraints-rejects-unknown-intent
   (is (thrown? Exception
                (hc/validate-intent-constraints! :does-not-exist {:a 1}))))
 
-(deftest test-validate-intent-constraints-throws-on-hash-fields
-  (is (thrown? Exception
-               (hc/validate-intent-constraints! :evidence-content
-                                                {:some-hash "abc" :data "test"}))))
+(deftest test-validate-intent-constraints-allows-hash-fields
+  (is (nil? (hc/validate-intent-constraints! :evidence-content
+                                             {:some-hash "abc" :data "test"}))))
 
 (deftest test-validate-intent-constraints-nested-excludes
   (is (nil? (hc/validate-intent-constraints! :world-structure

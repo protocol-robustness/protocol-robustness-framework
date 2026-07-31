@@ -1096,7 +1096,12 @@
     :intent/domain-tag  "EVIDENCE_CONTENT_V1"
     :intent/description "JSON-round-trippable content hash of an evidence record"
     :intent/includes    #{:serialized-content :evidence-fields :artifact-body}
-    :intent/excludes    #{:chain-metadata :timestamps :keywords :hash-fields}
+    ;; Keywords and hash-like keys are NOT excluded here: the projection
+    ;; (project-for-content-hash) already normalizes them (keyword→string,
+    ;; hash-keys preserved as content), so excluding them would reject
+    ;; legitimate JSON-round-trippable evidence content. Only semantic
+    ;; exclusions belong in :intent/excludes (see project-world-to-structure-view).
+    :intent/excludes    #{:chain-metadata :timestamps}
     :intent/projection-fn project-for-content-hash
     :intent/version     1}
 

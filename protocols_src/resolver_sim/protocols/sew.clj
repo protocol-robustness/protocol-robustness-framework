@@ -1590,6 +1590,16 @@
           s-tokens     (into #{} (keep #(get-in % [:params :token]) (:events scenario)))
           base         (-> (t/empty-world init-time)
                            (assoc :params pp)
+                           ;; Declare the held-adjustment completeness contract: a world
+                           ;; born from t/empty-world begins with zero custody and is driven
+                           ;; only through the protocol command layer (acct/adjust-held), so
+                           ;; custody begins at zero, every held mutation is logged, and no
+                           ;; history is truncated. This is the canonical construction point
+                           ;; for replayed Sew scenarios; runs that break the contract (e.g.
+                           ;; the adversarial yield module :drain/:bloat, or pro-rata
+                           ;; propagation that assocs :total-held directly) must explicitly
+                           ;; clear this flag, keeping strong replay honestly :not-evaluated.
+                           (assoc-in [:params :held-adjustments/complete?] true)
                            (yield-proto/init-world pp (:yield-config scenario)))]
       (if (and fot-bps (pos? fot-bps) (seq s-tokens))
         (reduce (fn [w tok] (assoc-in w [:token-fot-bps tok] fot-bps)) base s-tokens)

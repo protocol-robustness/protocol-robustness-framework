@@ -5,7 +5,8 @@
             [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
-            [resolver-sim.hash.canonical :as hash]))
+            [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.workflow-group :as wg]))
 
 (def usdc :0xUSDC)
 (def alice "0xAlice")
@@ -73,6 +74,52 @@
                :members [{:claim/kind :sew/workflow :workflow/id 1}
                          {:claim/kind :sew/workflow :workflow/id 2}]})]
     (is (false? (:ok r2)))))
+
+(deftest create-related-claims-no-duplicate-across-types
+  (testing "a workflow cannot enter a second active relationship even of a different type"
+    (let [w (world-with-escrows 3)
+          r1 (rc/create-related-claims! w
+                {:type :same-incident
+                 :members [{:claim/kind :sew/workflow :workflow/id 0}
+                           {:claim/kind :sew/workflow :workflow/id 1}]})
+          world' (:world r1)
+          r2 (rc/create-related-claims! world'
+                {:type :same-counterparty
+                 :members [{:claim/kind :sew/workflow :workflow/id 1}
+                           {:claim/kind :sew/workflow :workflow/id 2}]})]
+      (is (false? (:ok r2))
+          "workflow 1 already belongs to an active relationship"))))
+
+(deftest create-related-claims-rejects-empty-members
+  (testing "empty membership is rejected"
+    (let [w (world-with-escrows 1)
+          result (rc/create-related-claims! w
+                   {:type :same-incident
+                    :members []
+                    :reason "test"})]
+      (is (false? (:ok result)))
+      (is (= :invalid-related-claims (:error result))))))
+
+(deftest create-related-claims-rejects-unknown-semantics
+  (testing "an unknown semantics keyword is rejected"
+    (let [w (world-with-escrows 1)
+          result (rc/create-related-claims! w
+                   {:type :same-incident
+                    :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                    :semantics #{:batch-force-authorisation}
+                    :reason "test"})]
+      (is (false? (:ok result)))
+      (is (= :invalid-related-claims (:error result))))))
+
+(deftest create-related-claims-rejects-non-audit-only-semantics
+  (testing "any semantics other than exactly #{:audit-only} is rejected in v1"
+    (let [w (world-with-escrows 1)
+          result (rc/create-related-claims! w
+                   {:type :same-incident
+                    :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                    :semantics #{:audit-only :cross-claim-guarantee}
+                    :reason "test"})]
+      (is (false? (:ok result))))))
 
 (deftest find-related-claims-for-workflow
   (let [w (world-with-escrows 3)]
@@ -246,3 +293,38 @@
                            :member-count 1
                            :consumed-members #{"hash1"}})]
     (is (true? (:holds? (inv/related-claims-authorisation-scope-closed? world''))))))
+
+;; ---------------------------------------------------------------------------
+;; Workflow-group delegation / equivalence
+;; ---------------------------------------------------------------------------
+
+(deftest related-claims-member-hash-delegates-to-workflow-group
+  (testing "related-claims-member-hash is the workflow-group member hash of the projected member"
+    (let [member {:claim/kind :sew/workflow :workflow/id 5}]
+      (is (= (rc/related-claims-member-hash member)
+             (wg/workflow-group-member-hash (wg/workflow-group-member :sew/workflow 5)))))))
+
+(deftest relationship-member-delegates-to-canonical-predicate
+  (testing "relationship-member? matches the canonical workflow-group predicate"
+    (let [relationship {:relationship/members
+                        [{:claim/kind :sew/workflow :workflow/id 0}
+                         {:claim/kind :sew/workflow :workflow/id 1}]}
+          present {:claim/kind :sew/workflow :workflow/id 1}
+          absent  {:claim/kind :sew/workflow :workflow/id 9}
+          projected (map (fn [m] (wg/workflow-group-member (:claim/kind m) (:workflow/id m)))
+                         (:relationship/members relationship))]
+      (is (= (rc/relationship-member? relationship present)
+             (wg/workflow-group-member? projected (wg/workflow-group-member :sew/workflow 1))))
+      (is (= (rc/relationship-member? relationship absent)
+             (wg/workflow-group-member? projected (wg/workflow-group-member :sew/workflow 9))))
+      (is (true? (rc/relationship-member? relationship present)))
+      (is (false? (rc/relationship-member? relationship absent))))))
+
+(deftest related-claims-member-hash-domain-is-workflow-group-domain
+  (testing "related-claims member hashes now use the WORKFLOW_GROUP_MEMBER_V1 domain, not the legacy related-claims-member domain"
+    (let [member {:claim/kind :sew/workflow :workflow/id 0}
+          wg-hash (wg/workflow-group-member-hash (wg/workflow-group-member :sew/workflow 0))
+          legacy-hash (hash/domain-hash "related-claims-member" {:claim/kind :sew/workflow :workflow/id 0})]
+      (is (= (rc/related-claims-member-hash member) wg-hash))
+      (is (not= (rc/related-claims-member-hash member) legacy-hash)
+          "domain separation from the legacy related-claims-member domain is intentional"))))

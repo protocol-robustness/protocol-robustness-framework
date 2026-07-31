@@ -74,16 +74,18 @@ Example: bb cli scenario list --search yield"
     :task (shell "bash" "-c"
             "PRF_ARTIFACT_DIR=results/test-artifacts-$(date -u +%Y%m%dT%H%M%SZ) ./scripts/test.sh all")}
 
-   test:framework:parallel
-   {:doc "Run framework unit tests in parallel with noop evidence capture"
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
-                 "resolver-sim.core-tests"
-                 "resolver-sim.protocol-alignment-test"
-                 "resolver-sim.time.context-test"
-                 "resolver-sim.time.model-test"
-                 "resolver-sim.sim.defection-test"
-                 "resolver-sim.sim.strategy-adaptation-test"
-                 "resolver-sim.sim.waterfall-test")}
+    test:framework:parallel
+    {:doc "Run framework unit tests in parallel with noop evidence capture"
+     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
+                  "resolver-sim.core-tests"
+                  "resolver-sim.protocol-alignment-test"
+                  "resolver-sim.time.context-test"
+                  "resolver-sim.time.model-test"
+                  "resolver-sim.sim.defection-test"
+                  "resolver-sim.sim.strategy-adaptation-test"
+                  "resolver-sim.sim.waterfall-test"
+                  "resolver-sim.workflow-group-test"
+                  "resolver-sim.hash.algorithm-test")}
 
    test:unit:parallel
    {:doc "Run all unit tests (framework + Sew) in parallel with noop capture"
@@ -143,16 +145,18 @@ Example: bb cli scenario list --search yield"
    {:doc "Run all unit tests (framework + Sew) with noop capture (single JVM)"
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.run-sew-tests" "unit")}
 
-   test:framework
-   {:doc "Run framework unit tests with noop capture (single JVM)"
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
-                 "resolver-sim.core-tests"
-                 "resolver-sim.protocol-alignment-test"
-                 "resolver-sim.time.context-test"
-                 "resolver-sim.time.model-test"
-                 "resolver-sim.sim.defection-test"
-                 "resolver-sim.sim.strategy-adaptation-test"
-                 "resolver-sim.sim.waterfall-test")}
+    test:framework
+    {:doc "Run framework unit tests with noop capture (single JVM)"
+     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
+                  "resolver-sim.core-tests"
+                  "resolver-sim.protocol-alignment-test"
+                  "resolver-sim.time.context-test"
+                  "resolver-sim.time.model-test"
+                  "resolver-sim.sim.defection-test"
+                  "resolver-sim.sim.strategy-adaptation-test"
+                  "resolver-sim.sim.waterfall-test"
+                  "resolver-sim.workflow-group-test"
+                  "resolver-sim.hash.algorithm-test")}
 
    test:benchmark:e2e
   {:doc "Run benchmark report end-to-end tests using fixture evidence bundles.

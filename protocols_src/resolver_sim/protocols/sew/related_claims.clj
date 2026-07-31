@@ -9,9 +9,17 @@
    v1 semantics: #{:audit-only} — no settlement coupling.
    Future semantics may add :batch-force-authorisation, :shared-evidence.
 
-   See docs/architecture/related-claims.md for full design rationale."
+   Relationship creation is a governance/control-plane operation: it is
+   intentionally not exposed as a SewProtocol state-machine action. Protocol
+   execution may consume relationships (via related-claims force-authorisation),
+   but scenario actions do not create them.
+
+   See docs/architecture/HELD_CUSTODY_ACCOUNTING_AND_FORCE_AUTHORISATION.md
+   (\"Related claims\") and docs/architecture/FRAUD_INCIDENT_LIABILITY_VERSIONING.md
+   for the full design rationale."
   (:require [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.workflow-group :as wg]
             [resolver-sim.evidence.capture :as cap]
             [resolver-sim.util.attribution :as attr]))
 
@@ -69,6 +77,28 @@
   (let [rel (get-related-claims world relationship-id)]
     (and rel (= :active (:relationship/status rel)))))
 
+(defn related-claims-member-hash
+  "Canonical hash identifying one related-claims member by {claim/kind, workflow/id}.
+   Delegates to the framework-neutral workflow-group member hash
+   (domain WORKFLOW_GROUP_MEMBER_V1), projecting the member's {claim/kind,
+   workflow/id} onto the generic workflow-group member identity. This is distinct
+   from the `force-authorisation-scope` hash: it identifies the member identity,
+   not a specific held-accounting adjustment scope."
+  [member]
+  (wg/workflow-group-member-hash
+   (wg/workflow-group-member (:claim/kind member) (:workflow/id member))))
+
+(defn relationship-member?
+  "True when `member` ({claim/kind, workflow/id}) is present in `relationship`'s
+   member set. Delegates to the canonical workflow-group membership predicate:
+   a member is identified by its normalized workflow-id plus claim kind,
+   independent of any adjustment scope hash."
+  [relationship member]
+  (wg/workflow-group-member?
+   (map (fn [m] (wg/workflow-group-member (:claim/kind m) (:workflow/id m)))
+        (:relationship/members relationship))
+   (wg/workflow-group-member (:claim/kind member) (:workflow/id member))))
+
 ;; ---------------------------------------------------------------------------
 ;; Validation
 ;; ---------------------------------------------------------------------------
@@ -80,6 +110,23 @@
                     {:type :invalid-related-claims
                      :relationship/type type
                      :allowed allowed-relationship-types}))))
+
+(defn- validate-members-nonempty!
+  [members]
+  (when-not (seq members)
+    (throw (ex-info "related-claims relationship requires at least one member"
+                    {:type :invalid-related-claims
+                     :error :empty-members
+                     :members members}))))
+
+(defn- validate-semantics!
+  [semantics]
+  (when-not (= default-semantics semantics)
+    (throw (ex-info "unsupported relationship semantics — v1 supports exactly #{:audit-only}"
+                    {:type :invalid-related-claims
+                     :error :unsupported-semantics
+                     :semantics semantics
+                     :allowed default-semantics}))))
 
 (defn- validate-claim-kinds!
   [members]
@@ -103,14 +150,19 @@
 
 (defn- validate-no-duplicate-members!
   [world members]
+  ;; Intra-group duplicate rule: no duplicate member identity within the group
+  ;; (canonical workflow-group structural check).
+  (when-not (wg/valid-workflow-group-members?
+             (map (fn [m] (wg/workflow-group-member (:claim/kind m) (:workflow/id m)))
+                  members))
+    (throw (ex-info "duplicate workflow member in relationship"
+                    {:type :invalid-related-claims
+                     :members members})))
+  ;; Cross-relationship global rule (consumer-specific): no workflow-id already
+  ;; in another active relationship, regardless of type.
   (let [wf-ids (set (for [m members
                           :when (= :sew/workflow (:claim/kind m))]
                       (:workflow/id m)))]
-    (when (not= (count wf-ids) (count members))
-      (throw (ex-info "duplicate workflow-id in relationship members"
-                      {:type :invalid-related-claims
-                       :members members})))
-    ;; Check no workflow-id already in another active relationship of same type
     (doseq [[rel-id rel] (:related-claims world {})]
       (when (= :active (:relationship/status rel))
         (let [existing-wf-ids (set (for [m (:relationship/members rel)
@@ -127,19 +179,12 @@
 ;; Builder
 ;; ---------------------------------------------------------------------------
 
-(defn- build-member-scope-hash
-  "Compute a scope hash for a single claim member.
-   Used to tie force-authorisation scopes to specific members."
-  [member]
-  (hash/domain-hash "related-claims-member"
-                     (select-keys member [:claim/kind :workflow/id])))
-
 (defn- build-related-claims-record
   "Construct a related-claims record map without storing it."
   [world type members semantics reason created-by created-at-step]
   (let [wf-members (for [m members]
                      (let [scope-hash (or (:claim/scope-hash m)
-                                         (build-member-scope-hash m))]
+                                         (related-claims-member-hash m))]
                        (-> m
                            (assoc :claim/scope-hash scope-hash)
                            (update :workflow/id t/normalize-workflow-id))))
@@ -162,13 +207,14 @@
 
 (defn create-related-claims!
   "Create a new related-claims relationship.
-   Validates members exist, no duplicates, type is allowed.
+   Validates members exist, no duplicates, type is allowed, membership is
+   non-empty, and semantics are exactly v1's #{:audit-only}.
    Returns {:ok true :world world' :relationship-id N :relationship record}.
 
    opts:
      :type         — keyword from allowed-relationship-types
      :members      — [{:claim/kind :sew/workflow :workflow/id N, :claim/scope-hash optional}]
-     :semantics    — set of semantics keywords (default #{:audit-only})
+     :semantics    — must be exactly #{:audit-only} (v1); anything else is rejected
      :reason       — string describing why
      :created-by   — {:actor/type :governance :actor/address \"0x...\"}
      :created-at-step — integer step number"
@@ -179,6 +225,8 @@
                created-at-step 0}}]
   (try
     (validate-relationship-type! type)
+    (validate-members-nonempty! members)
+    (validate-semantics! semantics)
     (validate-claim-kinds! members)
     (validate-members-exist! world members)
     (validate-no-duplicate-members! world members)
@@ -210,19 +258,19 @@
 ;; ---------------------------------------------------------------------------
 
 (defn find-related-claims-for-workflow
-  "Find all active relationship IDs that contain the given workflow-id."
+  "Find all active relationship IDs that contain the given workflow-id.
+   Return contract: a seq of relationship-id keywords (possibly empty).
+   Uses the canonical workflow-group membership predicate."
   [world workflow-id]
-  (let [wf-id (t/normalize-workflow-id workflow-id)]
+  (let [member {:claim/kind :sew/workflow :workflow/id workflow-id}]
     (keep (fn [[rel-id rel]]
             (when (and (= :active (:relationship/status rel))
-                       (some (fn [m]
-                               (and (= :sew/workflow (:claim/kind m))
-                                    (= wf-id (:workflow/id m))))
-                             (:relationship/members rel)))
+                       (relationship-member? rel member))
               rel-id))
           (:related-claims world {}))))
 
 (defn find-related-claims-for-workflows
-  "Find all active relationship IDs that contain any of the given workflow-ids."
+  "Find all active relationship IDs that contain any of the given workflow-ids.
+   Return contract: a set of relationship-id keywords (possibly empty)."
   [world workflow-ids]
   (set (mapcat #(find-related-claims-for-workflow world %) workflow-ids)))

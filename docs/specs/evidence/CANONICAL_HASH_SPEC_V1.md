@@ -304,7 +304,7 @@ Registered Contracts:
 |                     | time-context                                                   |                                                           |
 | :evidence-record    | attribution, action, result, context, artifact-kind,           | evidence-hash, timestamp, chain-metadata                  |
 |                     | temporal-context, sub-hashes                                   |                                                           |
-| :evidence-content   | serialized-content, evidence-fields, artifact-body             | keywords, hash-fields, chain-metadata, timestamps         |
+| :evidence-content   | serialized-content, evidence-fields, artifact-body             | chain-metadata, timestamps                               |
 | :evidence-chain     | chain-links, registry-structure, prev-hash, chain-seq,         | artifact-content, evidence-payload, timestamps            |
 |                     | self-hash                                                      |                                                           |
 | :manifest           | manifest-metadata, bundle-structure, schema-version            | content-payloads, individual-artifacts                    |

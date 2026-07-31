@@ -1,5 +1,6 @@
 (ns resolver-sim.benchmark.review-member-canonical-indices-test
   (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.review.three-member-certificate :as cert]))
@@ -353,6 +354,58 @@
 
 (deftest indices-hash-empty-returns-nil
   (is (nil? (ci/indices-hash [])) "empty entries must return nil for indices-hash"))
+
+;; ── Indices-hash hardening tests ───────────────────────────────────────────
+
+(deftest indices-hash-domain-separated-from-full-artifact-tag
+  (testing "indices-hash must use its own domain tag, not the full-artifact tag"
+    (let [round (make-keyed-round)
+          entries (:review-member/canonical-indices (ci/build-canonical-indices round))]
+      (is (not= (ci/indices-hash entries)
+                (str "sha256:" (hc/domain-hash :review-member-canonical-indices entries)))
+          "hashing entries under the entries domain tag must differ from the full-artifact tag"))))
+
+(deftest tampered-indices-hash-detected
+  (testing "a tampered :review-member/indices-hash (not recomputed) must be detected"
+    (let [round (make-keyed-round)
+          artifact (ci/build-canonical-indices round)
+          tampered (assoc artifact :review-member/indices-hash
+                          "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+          result (ci/verify-canonical-indices tampered round)]
+      (is (false? (:indices-hash-valid? result))
+          ":indices-hash-valid? must be false for a tampered indices-hash")
+      (is (= :hash-mismatch (:status result))
+          "tampered indices-hash is part of the full preimage, so status is :hash-mismatch"))))
+
+(deftest recomputed-self-consistent-wrong-mapping-rejected
+  (testing "a self-consistent rehashed artifact with wrong mapping must still be rejected"
+    (let [round (make-keyed-round)
+          artifact (ci/build-canonical-indices round)
+          entries (:review-member/canonical-indices artifact)
+          ;; Swap two entries
+          swapped (vec (assoc (vec (assoc entries 0 (nth entries 1))) 1 (nth entries 0)))
+          ;; Recompute BOTH the indented indices-hash and the full artifact hash
+          ;; so the artifact is internally self-consistent (passes its own hash checks).
+          ;; The full-hash preimage must already carry the recomputed indices-hash.
+          ihash (ci/indices-hash swapped)
+          preimage (-> artifact
+                       (assoc :review-member/canonical-indices swapped)
+                       (assoc :review-member/indices-hash ihash)
+                       (dissoc :review-member-canonical-indices/hash))
+          self-consistent (assoc preimage :review-member-canonical-indices/hash
+                                 (str "sha256:" (hc/domain-hash
+                                                 :review-member-canonical-indices preimage)))
+          result (ci/verify-canonical-indices self-consistent round)]
+      ;; Even though the artifact is internally self-consistent, the verifier
+      ;; must rederive the mapping from the round and reject the wrong ordering.
+      (is (= :canonical-indices-derived-mapping-mismatch (:status result))
+          "self-consistent but wrong mapping must be rejected by semantic rederivation")
+      (is (false? (:derived-mapping-valid? result))
+          "derived-mapping-valid? must be false")
+      (is (:artifact-hash-valid? result)
+          "artifact self-hash must be valid (it was recomputed)")
+      (is (:indices-hash-valid? result)
+          "indices-hash must be valid (it was recomputed)"))))
 
 ;; ── Lookup tests ────────────────────────────────────────────────────────────
 

@@ -1064,8 +1064,14 @@
                                updated-position))))
              world
              participants)
-            next-world (assoc-in next-world [:total-held token]
-                                 (- source-before allocated))
+            next-world (-> next-world
+                           ;; Pro-rata propagation allocates liquidity by assoc-ing
+                           ;; :total-held directly (not via Sew acct/sub-held), so the
+                           ;; held-adjustment ledger no longer reconstructs to total-held.
+                           ;; Clear the completeness declaration so strong replay stays
+                           ;; honestly :not-evaluated rather than falsely passing.
+                           (assoc-in [:total-held token] (- source-before allocated))
+                           (assoc-in [:params :held-adjustments/complete?] false))
             application-base
             {:schema-version "pro-rata-propagation-application.v3"
              :propagation-id propagation-id

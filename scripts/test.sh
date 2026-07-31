@@ -249,7 +249,9 @@ run_framework() {
          'resolver-sim.time.model-test
          'resolver-sim.sim.defection-test
          'resolver-sim.sim.strategy-adaptation-test
-         'resolver-sim.sim.waterfall-test)
+         'resolver-sim.sim.waterfall-test
+         'resolver-sim.workflow-group-test
+         'resolver-sim.hash.algorithm-test)
 (binding [resolver-sim.evidence.chain/*allow-dirty* true]
   (let [results (t/run-tests
                 'resolver-sim.core-tests
@@ -258,7 +260,9 @@ run_framework() {
                 'resolver-sim.time.model-test
                 'resolver-sim.sim.defection-test
                 'resolver-sim.sim.strategy-adaptation-test
-                'resolver-sim.sim.waterfall-test)]
+                'resolver-sim.sim.waterfall-test
+                'resolver-sim.workflow-group-test
+                'resolver-sim.hash.algorithm-test)]
               (when (pos? (+ (:error results) (:fail results)))
                 (System/exit 1))))"
   return $?

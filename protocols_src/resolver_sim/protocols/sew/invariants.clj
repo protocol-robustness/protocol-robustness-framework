@@ -319,10 +319,17 @@
 
 (defn held-custody-closed-form?
   "A world declaring a complete held ledger must also pass the artifact's
-   deterministic hash, local-delta, non-negative, and sequence-replay checks."
+   deterministic hash, local-delta, non-negative, and sequence-replay checks.
+
+   When the world does not declare :params :held-adjustments/complete?, the
+   check cannot evaluate against a guaranteed-complete artifact surface and is
+   reported as :not-evaluated rather than silently passing."
   [world]
   (if-not (get-in world [:params :held-adjustments/complete?])
-    {:holds? true :violations []}
+    {:holds? true
+     :status :not-evaluated
+     :reason :held-history-not-declared-complete
+     :violations []}
     (try
       ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
        (vals (:held-artifacts world {})))
@@ -813,38 +820,61 @@
 (defn held-adjustments-reconstruct-total-held?
   "When a world declares its held-adjustment ledger complete, replay it and
    confirm that the replay-derived ledger index matches all materialized
-   custody views."
+   custody views.
+
+   Reconstruction assumes the zero-origin opening contract (see
+   resolver-sim.assurance.custody/held-history-zero-origin?): the first
+   adjustment for each token must record :held/before 0. When the ledger is not
+   declared complete, or is complete but not zero-origin (no reconstructable
+   opening state), the check is reported as :not-evaluated rather than silently
+   passing."
   [world]
-  (if (get-in world [:params :held-adjustments/complete?])
+  (if-not (get-in world [:params :held-adjustments/complete?])
+    {:holds? true
+     :status :not-evaluated
+     :reason :held-history-not-declared-complete
+     :violations []}
     (let [adjustments (:held-adjustments world [])]
-      (try
-        (let [{replayed-total-held :total-held
-               replayed-positions :held/positions
-               replayed-index :held-ledger/index}
-              ((requiring-resolve 'resolver-sim.assurance.custody/replay-held-adjustment-state) adjustments)
-              actual-index (get world :held-ledger/index {})
-              actual-total-held (:total-held world {})
-              actual-positions (:held/positions world {})]
-          (if (and (= replayed-index actual-index)
-                   (= replayed-total-held actual-total-held)
-                   (= replayed-positions actual-positions)
-                   (= (get actual-index :by-token {}) actual-total-held)
-                   (= (get actual-index :by-position {}) actual-positions))
-            {:holds? true :violations nil}
+      (if-not ((requiring-resolve 'resolver-sim.assurance.custody/held-history-zero-origin?)
+               adjustments)
+        {:holds? true
+         :status :not-evaluated
+         :reason :held-history-missing-opening-state
+         :violations [{:type :held-history-not-zero-origin
+                       :ledger-adjustment-count (count adjustments)}]}
+        (try
+          (let [{replayed-total-held :total-held
+                 replayed-positions :held/positions
+                 replayed-index :held-ledger/index}
+                ((requiring-resolve 'resolver-sim.assurance.custody/replay-held-adjustment-state) adjustments)
+                ;; Normalize a live index that has no held operations: it is `{}`
+                ;; (or absent) until the first add-held, whereas replay always
+                ;; yields the full empty index structure. Merge the empty defaults
+                ;; so the empty-ledger case compares equal.
+                actual-index (merge {:by-token {} :by-position {} :by-account {}
+                                     :by-owner {} :by-workflow {}}
+                                    (get world :held-ledger/index {}))
+                actual-total-held (:total-held world {})
+                actual-positions (:held/positions world {})]
+            (if (and (= replayed-index actual-index)
+                     (= replayed-total-held actual-total-held)
+                     (= replayed-positions actual-positions)
+                     (= (get actual-index :by-token {}) actual-total-held)
+                     (= (get actual-index :by-position {}) actual-positions))
+              {:holds? true :violations nil}
+              {:holds? false
+               :violations [{:type :held-adjustments-replay-mismatch
+                             :replayed {:held-ledger/index replayed-index
+                                        :total-held replayed-total-held
+                                        :held/positions replayed-positions}
+                             :actual {:held-ledger/index actual-index
+                                      :total-held actual-total-held
+                                      :held/positions actual-positions}}]}))
+          (catch Exception e
             {:holds? false
-             :violations [{:type :held-adjustments-replay-mismatch
-                           :replayed {:held-ledger/index replayed-index
-                                      :total-held replayed-total-held
-                                      :held/positions replayed-positions}
-                           :actual {:held-ledger/index actual-index
-                                    :total-held actual-total-held
-                                    :held/positions actual-positions}}]}))
-        (catch Exception e
-          {:holds? false
-           :violations [{:type :held-adjustments-invalid
-                         :message (.getMessage e)
-                         :data (ex-data e)}]})))
-    {:holds? true :violations nil}))
+             :violations [{:type :held-adjustments-invalid
+                           :message (.getMessage e)
+                           :data (ex-data e)}]}))))))
 
 (defn held-artifacts-derived-from-adjustments?
   "The held-adjustment ledger is canonical. Any materialized held artifact map
@@ -2016,15 +2046,17 @@
      :violations (vec violations)}))
 
 (defn related-claims-no-duplicate-members?
-  "No workflow-id appears in two active relationships of the same type."
+  "A workflow-id may appear in at most one active related-claims relationship,
+   regardless of relationship type. This matches the constructor's stricter
+   rule (one active relationship per workflow) and keeps the invariant in
+   agreement with the reachable state."
   [world]
   (let [index (reduce (fn [acc [rel-id rel]]
                         (if (= :active (:relationship/status rel))
                           (reduce (fn [a m]
                                     (when (= :sew/workflow (:claim/kind m))
-                                      (let [wf-id (:workflow/id m)
-                                            type (:relationship/type rel)]
-                                        (update-in a [wf-id type] (fnil conj #{}) rel-id)))
+                                      (let [wf-id (:workflow/id m)]
+                                        (update a wf-id (fnil conj #{}) rel-id)))
                                     a)
                                   acc
                                   (:relationship/members rel))
@@ -2032,11 +2064,9 @@
                       {}
                       (:related-claims world {}))
         violations
-        (for [[wf-id type-map] index
-              [type rel-ids] type-map
+        (for [[wf-id rel-ids] index
               :when (> (count rel-ids) 1)]
           {:workflow/id wf-id
-           :relationship/type type
            :relationship/ids (vec rel-ids)})]
     {:holds? (empty? violations)
      :violations (vec violations)}))
@@ -2078,11 +2108,13 @@
 
 (defn related-claims-authorisation-scope-closed?
   "True when every consumed related-claims force-authorisation references a
-   relationship that exists, is active, and whose member count matches the
-   auth's authorized member-set size.
-   Prevents scope drift: an auth created for a 2-member relationship cannot
-   be used against a 3-member version of the same relationship (impossible
-   since relationships are immutable, but this checks the invariant anyway)."
+   relationship that exists, is active, whose member count does not exceed the
+   auth's authorized member-set size, and whose per-member consumption records
+   a related-claims-member hash that is actually a member of the referenced
+   relationship.
+   Closes per-member scope: an auth/consumption cannot reference member hashes
+   that do not belong to the relationship it points at, without merging the
+   related-claims-member and force-authorisation-scope hash domains."
   [world]
   (let [consumed-auths (get-in world [:force-authorisations/consumed] {})]
     (if (empty? consumed-auths)
@@ -2100,7 +2132,14 @@
                         count-over? (and rel (> member-count rel-member-count))
                         missing-rel? (and rel-id (nil? rel))
                         inactive? (and rel (not= :active (:relationship/status rel)))
-                        has-violation? (or missing-rel? inactive? rel-hash-mismatch? count-over?)]
+                        rel-member-hashes (set (map rc/related-claims-member-hash
+                                                   (:relationship/members rel [])))
+                        consumed-rel-member-hashes (:consumed-relationship-member-hashes consumed #{})
+                        non-member-consumed (when rel
+                                              (seq (remove #(contains? rel-member-hashes %)
+                                                           consumed-rel-member-hashes)))
+                        has-violation? (or missing-rel? inactive? rel-hash-mismatch? count-over?
+                                           (some? non-member-consumed))]
                   :when has-violation?]
               {:authorization/id auth-id
                :relationship/id rel-id
@@ -2109,7 +2148,8 @@
                :hash-mismatch? rel-hash-mismatch?
                :consumed-member-count member-count
                :relationship-member-count rel-member-count
-               :count-exceeds? count-over?})]
+               :count-exceeds? count-over?
+               :non-member-consumed (vec non-member-consumed)})]
         {:holds? (empty? violations)
          :violations (vec violations)}))))
 

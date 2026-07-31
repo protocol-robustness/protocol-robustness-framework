@@ -172,6 +172,13 @@
   "Replay a held-adjustment ledger into replay-verified materialized custody
    views. The ledger is canonical; returned indexes and balances are derived.
 
+   Opening semantics: replay starts from `initial-held` (default {}). This is
+   the STRONG reconstruction path and it enforces the zero-origin contract —
+   for every token, the first adjustment's :held/before must equal the running
+   replay value (0 with the default opening), otherwise a :held-adjustment
+   before-mismatch is thrown. Use held-history-zero-origin? to check the
+   contract before replaying, or supply a committed initial-held.
+
    Index keys:
    - :by-token     — total held per token (always >= 0 by invariant)
    - :by-position  — total held per position-id (always >= 0 by invariant)
@@ -325,6 +332,27 @@
   ([initial-held adjustments]
    (:total-held (replay-held-adjustment-state initial-held adjustments))))
 
+(defn held-history-zero-origin?
+  "True when the held-adjustment ledger is zero-origin for every token: the
+   first adjustment for each token records :held/before 0.
+
+   This is the opening contract for a 'complete' held history. Full
+   reconstruction from a zero opening (replay-held-adjustment-state from {})
+   is deterministic only under zero-origin. A ledger whose first adjustment for
+   some token has a non-zero :held/before is not reconstructable without a
+   committed opening state — treat it as a subset/imported history, or one whose
+   opening was never posted as an explicit adjustment."
+  [adjustments]
+  (let [first-per-token (reduce (fn [m adjustment]
+                                  (cond-> m
+                                    (not (contains? m (:token adjustment)))
+                                    (assoc (:token adjustment) adjustment)))
+                                {}
+                                adjustments)]
+    (every? (fn [[_ adjustment]]
+              (zero? (long (:held/before adjustment 0))))
+            first-per-token)))
+
 (defn final-held-summary
   "Derived reporting summary of the held-adjustment ledger.
 
@@ -341,6 +369,11 @@
            :final-held 0}}
       :ledger-adjustment-count 2
       :reconstruction-valid? true}
+
+   Reconstruction assumes the zero-origin contract (see
+   held-history-zero-origin?). A non-zero-origin ledger cannot be replayed from
+   an empty opening, so :reconstruction-valid? is false and
+   :reconstruction-issue is :missing-opening-state rather than throwing.
 
    Suitable for scenario reports, benchmark evidence packages, and review material."
   [adjustments index total-held]
@@ -372,9 +405,13 @@
                                           :yield-custody-final yield-final
                                           :final-held (get workflow-index wf-id 0)}]))
                               (sort-by key wf-adjs)))
-        reconstructed (replay-held-adjustments adjustments)
-        reconstruction-valid? (= reconstructed total-held)]
+        zero-origin? (held-history-zero-origin? adjustments)
+        reconstructed (when zero-origin?
+                        (replay-held-adjustments adjustments))
+        reconstruction-valid? (and zero-origin?
+                                   (= reconstructed total-held))]
     {:by-token token-rows
      :by-workflow wf-rows
      :ledger-adjustment-count (count adjustments)
-     :reconstruction-valid? reconstruction-valid?}))
+     :reconstruction-valid? reconstruction-valid?
+     :reconstruction-issue (when-not zero-origin? :missing-opening-state)}))

@@ -214,6 +214,15 @@
                           {:type :authorization/relationship-inactive
                            :authorization/id auth-id
                            :relationship/id rel-id})))
+        (let [member-identity {:claim/kind :sew/workflow
+                               :workflow/id (:held/workflow-id scope-map)}]
+          (when-not (and (:held/workflow-id scope-map)
+                         (rc/relationship-member? rel member-identity))
+            (throw (ex-info "force-authorisation member not in referenced related-claims relationship"
+                            {:type :authorization/member-not-in-relationship
+                             :authorization/id auth-id
+                             :relationship/id rel-id
+                             :member member-identity}))))
         (let [member-hash (force-authorisation-scope-hash scope-map)
               member-hashes (:member-scope-hashes auth-provenance [])]
           (when-not (contains? (set member-hashes) member-hash)
@@ -278,7 +287,14 @@
     (if (= :related-claims scope-kind)
       ;; Per-member consumption: add member scope hash to consumed set. The
       ;; grant remains active while members remain, then becomes terminally consumed.
+      ;; `:consumed-relationship-member-hashes` records each consumed member's
+      ;; related-claims-member identity hash so the scope-closed invariant can
+      ;; prove relationship membership retrospectively, independent of the
+      ;; force-authorisation-scope hash.
       (let [member-hash (member-scope-hash-from-adjustment auth-provenance adjustment)
+            rel-member-hash (rc/related-claims-member-hash
+                             {:claim/kind :sew/workflow
+                              :workflow/id (:held/workflow-id adjustment)})
             existing (or (get-in world [:force-authorisations/consumed auth-id])
                          {:consumed? false
                           :authorization/id auth-id
@@ -288,11 +304,13 @@
                           :relationship/id (:relationship/id auth-provenance)
                           :relationship/hash (:relationship/hash auth-provenance)
                           :member-scope-hashes (:member-scope-hashes auth-provenance [])
-                          :consumed-members #{} :member-count 0})
+                          :consumed-members #{} :consumed-relationship-member-hashes #{}
+                          :member-count 0})
             updated (-> existing
                         (assoc :consumed? true
                                :last-consumed-at (:held-adjustment/id adjustment))
                         (update :consumed-members conj member-hash)
+                        (update :consumed-relationship-member-hashes conj rel-member-hash)
                         (update :member-count inc)
                         (assoc :last-consumed-adjustment-id (:held-adjustment/id adjustment)
                                :last-consumed-workflow-id (:held/workflow-id adjustment)))
@@ -363,6 +381,12 @@
 (defn- update-ledger-index
   ;; Live Sew world-state mutation corresponding to the pure custody
   ;; reconstruction in resolver-sim.assurance.custody.
+  ;;
+  ;; Opening semantics: :by-token is seeded from the live :total-held (the
+  ;; authoritative running balance) and updated by the adjustment step. Under
+  ;; the zero-origin contract (first :in per token from 0) this is identical to
+  ;; replay-held-adjustment-state from {}; the live path does not itself
+  ;; enforce zero-origin because :total-held already carries the running level.
   ;;
   ;; Kept protocol-local because it currently operates on the complete Sew world
   ;; and because custody projection authority and live-transition validation have
