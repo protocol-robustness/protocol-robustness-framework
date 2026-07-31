@@ -75,7 +75,15 @@ workloads, or threat models.
 |------|-------|-----------|-------------|
 | `:use-case` | `:stakeholder` | `use-case/` | Real-world scenarios (ecommerce, deposits, accounts) |
 | `:decision-quality` | `:stakeholder` | `decision-quality/` | How the system decides contested outcomes |
-| `:assurance` | `:framework-explanation` | `assurance/` | How to verify protocol correctness independently |
+| `:assurance` | `:stakeholder` | `assurance/` | How to verify protocol correctness independently |
+| `:allocation` | `:stakeholder` | `allocation/` | How funds are allocated across claims (partial fill, shortfall, slash) |
+| `:framework` | `:framework-explanation` | `framework/` | Framework-level explanation concepts (incentive, conservation, content roots, …) |
+| `:mechanism` | `:protocol` | `mechanism/` | Protocol-mechanism concepts (e.g. deterministic pro-rata allocation) |
+| `:security` | `:stakeholder` | `security/` | Security-relevant concepts (e.g. force-authorisation) |
+| `:yield` | `:stakeholder` | `yield/` | Yield-bearing position concepts |
+
+The `:concept/type` value determines the subdirectory a concept file lives in
+(see `type-dir-map` in `scripts/concepts_validate.clj`).
 
 ## What "Consensus" Means Here
 
@@ -110,10 +118,52 @@ data/concepts/
 │   ├── finality.edn                      ← when binding
 │   ├── escalation.edn                    ← how to challenge
 │   ├── liveness.edn                      ← timeliness of process
-│   └── legitimacy.edn                    ← why accept outcome
-└── assurance/
-    └── verifiable_assurance.edn          ← forensic confidence
+│   ├── legitimacy.edn                    ← why accept outcome
+│   ├── solvency.edn                      ← solvency status classification
+│   ├── proposed_content.edn              ← proposed content
+│   └── proposed_content_root.edn         ← proposed content root
+├── assurance/
+│   ├── verifiable_assurance.edn          ← forensic confidence
+│   ├── attestation.edn                   ← attestation verification
+│   └── evidence_chain.edn                ← forensic evidence chain
+├── allocation/
+│   ├── partial_fill.edn                  ← partial fill allocation
+│   ├── shortfall.edn                     ← shortfall detection and recording
+│   ├── pro_rata_fairness.edn             ← pro-rata fairness in allocation
+│   ├── redistribution_fairness.edn       ← redistribution fairness
+│   ├── deferred_claim.edn                ← deferred claim recovery
+│   ├── slash_obligation.edn              ← slash obligation allocation
+│   ├── slash_distribution.edn            ← slash distribution
+│   ├── bounty_payable.edn                ← bounty payable
+│   ├── bounty_payable_reserve.edn        ← bounty payable reserve
+│   ├── deferred_class.edn                ← deferred position classification
+│   └── fractional_allocation.edn         ← fractional remainder
+├── framework/
+│   ├── incentive.edn                     ← incentive (umbrella)
+│   ├── incentive_compatibility.edn       ← incentive compatibility
+│   ├── conservation.edn                  ← conservation
+│   ├── confidence.edn                    ← confidence
+│   ├── configuration.edn                 ← configuration
+│   ├── content_root.edn                  ← content root
+│   ├── registry_entry_hash.edn           ← registry entry hash
+│   ├── research_command.edn              ← research command
+│   ├── research_assignment.edn           ← research assignment
+│   ├── held_custody.edn                  ← held custody
+│   ├── review_certificate.edn            ← review certificate
+│   ├── review_member_canonical_indices.edn← review-member canonical indices
+│   ├── procedure_execution_witness.edn   ← procedure execution witness
+│   ├── core_protocol_boundary.edn        ← core–protocol ownership boundary
+│   └── semantic_commitments.edn          ← semantic commitments
+├── mechanism/
+│   └── pro_rata_allocation.edn           ← deterministic pro-rata allocation
+├── security/
+│   └── force_authorisation.edn           ← force-authorisation
+└── yield/
+    └── yield_bearing.edn                 ← yield-bearing position
 ```
+
+`incentive/` (empty) is reserved for future incentive-type concepts; the current
+incentive concepts are `:framework`-typed under `framework/`.
 
 ## File Structure
 
@@ -122,7 +172,7 @@ Each concept file is a single EDN map with these keys:
 | Key | Purpose |
 |-----|---------|
 | `:concept/id` | Unique keyword identifier (matches registry) |
-| `:concept/type` | `:use-case`, `:decision-quality`, or `:assurance` |
+| `:concept/type` | One of the concept types above; determines the file's subdirectory |
 | `:concept/layer` | `:stakeholder` or `:framework-explanation` |
 | `:concept/name` | Human-readable name |
 | `:concept/summary` | One-paragraph explanation |

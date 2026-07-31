@@ -37,110 +37,197 @@
 (def mechanism-properties
   "Available mechanism-property validators across generic and Sew-specific.
    These are merged from resolver-sim.scenario.equilibrium/mechanism-validators
-   and resolver-sim.protocols.sew.equilibrium/mechanism-property-validators."
+   and resolver-sim.protocols.sew.equilibrium/mechanism-property-validators.
+
+   Metadata fields:
+     :catalogued?   — present in this catalogue (always true here).
+     :wired?        — a validator is registered in a dispatcher map, so declaring
+                      the property produces a result other than
+                      :inconclusive :unsupported-concept.
+     :implemented?  — an evaluation function exists somewhere in the codebase,
+                      even if it is not wired into the trace-end dispatcher.
+   A property may be catalogued and implemented yet not wired (e.g. the
+   framework-sourced multi-epoch analyses below); declaring such a property in a
+   single-trace theory block resolves to :inconclusive :unsupported-concept and
+   must never be reported as passing."
   [{:id :budget-balance
-    :source :generic
+    :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Budget balance"
     :summary "Total funds in = total funds out + protocol fees. No value creation or destruction."}
    {:id :incentive-compatibility
     :source :generic
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Incentive compatibility"
     :summary "No actor obtains higher realised payoff through adversarial action than through honest baseline."}
    {:id :sybil-resistance
     :source :generic
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Sybil resistance"
     :summary "An actor controlling multiple identities cannot obtain higher net payoff than through a single identity."}
    {:id :individual-rationality
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Individual rationality"
     :summary "No required honest participant has a negative net payoff."}
    {:id :collusion-resistance
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Collusion resistance"
     :summary "Labelled coalition does not profit relative to non-collusive baseline."}
    {:id :stake-flow-conservation
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Stake flow conservation"
     :summary "Resolver stakes flow correctly through lifecycle: register, freeze, slash, release."}
    {:id :budget-balance-detailed
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Budget balance (Sew-specific)"
     :summary "Sew-specific budget-balance check via the payout ledger."}
    {:id :force-refund-path-integrity
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Force refund / reversal path integrity"
     :summary "Guard-enforced refund paths exist and function correctly under resolution bypass."}
    {:id :pending-lifecycle-integrity
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Pending lifecycle integrity"
     :summary "Pending settlement lifecycle guards prevent double-finalization and stale-state claims."}
    {:id :coalition-aggregate-payoff
     :source :framework
+    :catalogued? true
+    :wired? false
+    :implemented? true
     :title "Coalition aggregate payoff"
-    :summary "Coalition-level payoff aggregation with marginal contributions and side-payment feasibility."}
+    :summary "Coalition-level payoff aggregation with marginal contributions and side-payment feasibility. Implemented as a multi-epoch economics helper but not wired into the trace-end dispatcher."}
    {:id :grim-trigger-stability
     :source :framework
+    :catalogued? true
+    :wired? false
+    :implemented? true
     :title "Grim-trigger stability"
-    :summary "Repeated-game grim-trigger condition: discount >= deviation-gain / (deviation-gain + punishment-loss)."}
+    :summary "Repeated-game grim-trigger condition: discount >= deviation-gain / (deviation-gain + punishment-loss). Implemented as a multi-epoch analysis but not wired into the trace-end dispatcher."}
    {:id :incentive-margin
     :source :framework
+    :catalogued? true
+    :wired? false
+    :implemented? true
     :title "Incentive margin"
-    :summary "U_honest - max(U_deviation). Positive margin means honest strategy is strictly preferred."}])
+    :summary "U_honest - max(U_deviation). Positive margin means honest strategy is strictly preferred. Implemented as a terminal-payoff helper but not wired into the trace-end dispatcher."}])
 
 (def equilibrium-concepts
-  "Available equilibrium-concept validators across generic and Sew-specific."
+  "Available equilibrium-concept validators across generic and Sew-specific.
+   Metadata fields match mechanism-properties (:catalogued?/:wired?/:implemented?)
+   plus :alias-of, which records the canonical predicate an alias delegates to.
+   Aliases share the underlying predicate implementation but label results with
+   their own concept keyword."
   [{:id :dominant-strategy-equilibrium
     :source :generic
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Dominant strategy equilibrium"
     :summary "Every player has a single strategy that is optimal regardless of opponents' choices. (Single-trace metric proxy — use :empirical-strategy-dominance for bounded checks.)"}
    {:id :empirical-strategy-dominance
     :source :generic
+    :catalogued? true
+    :wired? true
+    :implemented? true
+    :alias-of :dominant-strategy-equilibrium
     :title "Empirical strategy dominance"
-    :summary "No encoded adversarial deviation improves utility on the evaluated traces (bounded empirical proxy)."}
+    :summary "No encoded adversarial deviation improves utility on the evaluated traces (bounded empirical proxy). Reuses the dominant-strategy predicate."}
    {:id :nash-equilibrium
     :source :generic
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Nash equilibrium"
     :summary "No player can improve their payoff by unilaterally deviating from their strategy. (Single-trace metric proxy — use :bounded-nash-diagnostic for bounded checks.)"}
    {:id :bounded-nash-diagnostic
     :source :generic
+    :catalogued? true
+    :wired? true
+    :implemented? true
+    :alias-of :nash-equilibrium
     :title "Bounded Nash diagnostic"
-    :summary "No profitable unilateral deviation among encoded alternatives at the evaluated state or strategy profile."}
+    :summary "No profitable unilateral deviation among encoded alternatives at the evaluated state or strategy profile. Reuses the Nash predicate."}
    {:id :subgame-perfect-equilibrium
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Subgame perfect equilibrium (SPE)"
     :summary "Backward-induction SPE: no player has an ex-post profitable deviation at any subgame. (Trace-conditioned — use :trace-conditioned-epsilon-spe for bounded diagnostic.)"}
    {:id :trace-conditioned-epsilon-spe
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
+    :alias-of :subgame-perfect-equilibrium
     :title "Trace-conditioned epsilon-SPE diagnostic"
-    :summary "Bounded regret analysis from a single observed trace at strategic checkpoint nodes."}
+    :summary "Bounded regret analysis from a single observed trace at strategic checkpoint nodes. Reuses the subgame-perfect predicate."}
    {:id :bounded-public-state-epsilon-spe
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Bounded public-state epsilon-SPE"
     :summary "Epsilon-SPE under bounded rationality: deviations must exceed epsilon threshold to count."}
    {:id :bounded-backward-induction-spe
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Bounded backward-induction SPE"
     :summary "Backward induction with bounded lookahead depth and epsilon tolerance."}
    {:id :resolver-reputation-spe
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Resolver reputation SPE"
     :summary "SPE incorporating resolver reputation penalties that deter strategic slashing."}
    {:id :resolver-reputation-profile-matrix
     :source :sew
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Resolver reputation profile matrix"
     :summary "Full profile-matrix analysis: payoff matrix across strategy profiles with reputation penalties."}
    {:id :cancellation-dominance
     :source :generic
+    :catalogued? true
+    :wired? true
+    :implemented? true
     :title "Cancellation dominance"
     :summary "Mutual cancel strictly dominates unilateral default for honest participants."}
    {:id :folk-theorem-cooperation-region
     :source :framework
+    :catalogued? true
+    :wired? false
+    :implemented? true
     :title "Folk theorem cooperation region"
-    :summary "Cooperation is sustainable under grim trigger when discount >= (U_malicious - U_honest) / U_honest."}
-   {:id :trace-conditioned-epsilon-spe
-    :source :sew
-    :title "Trace-conditioned epsilon-SPE diagnostic"
-    :summary "Bounded regret analysis from a single observed trace at strategic checkpoint nodes."}])
+    :summary "Cooperation is sustainable under grim trigger when discount >= (U_malicious - U_honest) / U_honest. Implemented as a multi-epoch analysis but not wired into the trace-end dispatcher."}])
 
 (def run-strategic-claim-validation strategic/run-strategic-claim-validation)
 

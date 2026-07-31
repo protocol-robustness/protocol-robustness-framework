@@ -1013,4 +1013,116 @@ sign
     :depends [sign:prf sign:sew]}
 
    monitor {:doc "Start JMX monitoring system"
-            :task (shell "clojure -M:test -m resolver-sim.monitoring")}}}
+            :task (shell "clojure -M:test -m resolver-sim.monitoring")}
+
+   ;; ── Path data tasks ────────────────────────────────────────────────────
+
+   paths
+   {    :doc "Print effective project source roots for one or more aliases, resolved
+          through tools.deps (same semantics as the CLI).
+          Usage:
+            bb paths <alias> [<alias> ...]
+            bb paths --all
+          --all lists aliases that affect source paths (:paths/:extra-paths/
+          :replace-paths); deps-only aliases are omitted."
+    :requires ([babashka.process :as p]
+               [clojure.edn :as edn]
+               [clojure.string :as str])
+    :task
+    (let [args (vec *command-line-args*)
+          deps (edn/read-string (slurp "deps.edn"))
+          aliases (:aliases deps)
+          strip-colon (fn [a] (let [s (str a)] (if (str/starts-with? s ":") (subs s 1) s)))
+          print-roots (fn [label al]
+                        (let [r (p/sh "timeout" "30" "clojure" "-Spath" (str "-A:" al))
+                              cp (or (:out r) "")
+                              exit (:exit r)]
+                          (println label)
+                          (if (zero? exit)
+                            (doseq [pth (str/split (str/trim cp) (re-pattern ":"))]
+                              (when-not (str/starts-with? pth "/")
+                                (println "  " pth)))
+                            (binding [*out* *err*]
+                              (println (str "  (failed to resolve :" al ", exit " exit ")"))))))]
+      (if (= "--all" (first args))
+        (doseq [[k v] (sort-by key aliases)]
+          (when (and (map? v)
+                     (or (:paths v) (:extra-paths v) (:replace-paths v)))
+            (let [n (subs (str k) 1)]
+              (print-roots (str ":" n) n))))
+        (if (seq args)
+          (doseq [a args]
+            (let [n (strip-colon a)]
+              (when-not (contains? aliases (keyword n))
+                (binding [*out* *err*]
+                  (println (str "warning: alias :" n " not found in project deps.edn (may be user-level)"))))
+              (print-roots (str ":" n) n)))
+          (println "Usage: bb paths <alias> [<alias>...]  |  bb paths --all"))))}
+
+   paths:check
+   {:doc "Validate deps.edn path references:
+            - every :paths/* reference resolves (no dangling refs)
+            - no reference cycles
+            - no duplicate resolved paths within an alias
+            - every resolved directory exists and stays beneath the repo root
+            - no execution alias carries a raw literal already covered by a :paths/* group
+            - resolved order for key aliases matches the committed expectation"
+    :requires ([babashka.fs :as fs]
+               [clojure.edn :as edn]
+               [clojure.string :as str])
+    :task
+    (let [deps (edn/read-string (slurp "deps.edn"))
+          aliases (:aliases deps)
+          optional-refs #{:researcher/paths}
+          path-groups (into {} (keep (fn [[k v]] (when (vector? v) [k v]))) aliases)
+          errors (atom [])
+          fail! (fn [m] (swap! errors conj m))]
+      (letfn [(expand [v seen]
+                (reduce (fn [acc x]
+                          (cond
+                            (keyword? x)
+                            (if (contains? path-groups x)
+                              (if (contains? seen x)
+                                (do (fail! (str "cycle detected at " x " (seen " (str/join "," seen) ")"))
+                                    acc)
+                                (into acc (expand (get path-groups x) (conj seen x))))
+                              (if (contains? optional-refs x)
+                                acc
+                                (do (fail! (str "unresolved path ref " x))
+                                    acc)))
+                            :else (conj acc x)))
+                        [] v))]
+        ;; validate every path group: refs resolve + no cycles
+        (doseq [[k v] path-groups] (expand v #{k}))
+        ;; validate every execution alias with :extra-paths
+        (doseq [[k v] aliases]
+          (when (and (map? v) (:extra-paths v))
+            (let [ep (:extra-paths v)
+                  expanded (expand ep #{})]
+              ;; duplicates
+              (when-let [dups (seq (keys (filter (fn [[_ n]] (> n 1)) (frequencies expanded))))]
+                (fail! (str k " has duplicate paths " (pr-str dups))))
+              ;; existence + beneath repo root
+              (doseq [p expanded]
+                (cond
+                  (str/starts-with? p "..") (fail! (str k " path escapes repo root: " p))
+                  (not (fs/exists? p)) (fail! (str k " path does not exist: " p))))
+              ;; raw literal covered by a canonical group
+              (doseq [lit ep]
+                (when (string? lit)
+                  (when (some (fn [[_ grp]] (some (fn [g] (= lit g)) grp)) path-groups)
+                    (fail! (str k " raw literal \"" lit "\" should reference a :paths/* alias"))))))))
+        ;; committed ordering for high-risk aliases
+        (let [expected {:test        ["test" "scripts" "protocols_src" "protocols_src/test"]
+                        :with-sew    ["protocols_src" "protocols_src/test"]
+                        :mcp         ["src" "dev" "test" "protocols_src" "protocols_src/test"]
+                        :dev/full    ["dev" "test" "notebooks"]}]
+          (doseq [[k want] expected]
+            (let [ep (:extra-paths (get aliases k))
+                  got (when ep (expand ep #{}))]
+              (when (and got (not= want got))
+                (fail! (str k " path order changed; expected " (pr-str want) " got " (pr-str got)))))))
+        (if (seq (deref errors))
+          (do (doseq [e (deref errors)] (println "✗" e))
+              (System/exit 1))
+          (println "paths:check OK"))))}}}

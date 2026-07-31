@@ -26,12 +26,39 @@
         metosin/malli                     {:mvn/version "0.17.0"}}
 
  :aliases
-   {:test
-    {:extra-paths ["test" "scripts" "protocols_src" "protocols_src/test"]
-         :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}
+   {;; ── Path data ──────────────────────────────────────────────
+    ;; Data aliases referenced by name from :extra-paths.
+    ;; They are not intended to be selected directly with -M.
+    ;; tools.deps resolves keyword entries recursively, preserving order.
+
+    :paths/test          ["test"]
+    :paths/scripts       ["scripts"]
+    :paths/protocols-src ["protocols_src"]
+    :paths/protocols     ["protocols_src" "protocols_src/test"]
+    :paths/dev           ["dev" "test"]              ;; = dev + test
+    :paths/notebooks     ["notebooks"]
+    :paths/src           ["src"]
+
+    ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
+    ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
+    ;; Compose with: clojure -M:test:researcher/env  (see .researcher/ note)
+    ;; Canonical tasks and CI never select :researcher/env, so user config
+    ;; cannot leak into them; CI additionally runs with -Srepro for reproducibility.
+
+    ;; Researcher-local paths intentionally participate in normal local deps
+    ;; resolution. Use -Srepro when a user-independent classpath is required.
+    ;; Canonical CI tasks do not compose :researcher/env and GitHub Actions has
+    ;; no user deps.edn, so -Srepro is not currently required for CI isolation.
+    :researcher/env      {:extra-paths [:researcher/paths]}
+
+    ;; ── Execution aliases ─────────────────────────────────────
+
+    :test
+    {:extra-paths [:paths/test :paths/scripts :paths/protocols]
+     :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}
 
    :with-sew
-   {:extra-paths ["protocols_src" "protocols_src/test"]}
+   {:extra-paths [:paths/protocols]}
 
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
@@ -53,7 +80,7 @@
     ["-m" "rebel-readline.main"]}
 
    :dev/full
-   {:extra-paths ["dev" "test" "notebooks"]
+   {:extra-paths [:paths/dev :paths/notebooks]
     :extra-deps {nrepl/nrepl             {:mvn/version "1.3.1"}
                  cider/cider-nrepl       {:mvn/version "0.57.0"}
                  djblue/portal            {:mvn/version "0.59.1"}
@@ -68,7 +95,7 @@
    ;; Classpath-only dev environment for smoke checks and one-off evals.
    ;; Usage: clojure -M:dev/env -e "(require 'user)"
    :dev/env
-   {:extra-paths ["dev" "test"]
+   {:extra-paths [:paths/dev]
     :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
                  cider/cider-nrepl           {:mvn/version "0.57.0"}
                  djblue/portal               {:mvn/version "0.59.1"}
@@ -82,7 +109,7 @@
    ;; clj-nrepl-eval --discover-ports after startup.
    ;; Usage: clojure -M:repl/nrepl
    :repl/nrepl
-   {:extra-paths ["dev" "test"]
+   {:extra-paths [:paths/dev]
     :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
                  cider/cider-nrepl           {:mvn/version "0.57.0"}
                  djblue/portal               {:mvn/version "0.59.1"}
@@ -97,7 +124,7 @@
 
    ;; Fully loaded terminal REPL.
    :repl/terminal
-   {:extra-paths ["dev" "test" "notebooks"]
+   {:extra-paths [:paths/dev :paths/notebooks]
     :extra-deps
     {org.clojure/tools.namespace {:mvn/version "1.5.0"}
      djblue/portal               {:mvn/version "0.59.1"}
@@ -113,7 +140,7 @@
    {:extra-deps {ring/ring-core {:mvn/version "1.12.2"}}}
 
    :build
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :extra-deps {io.github.clojure/tools.build {:git/tag "v0.10.7"
                                                   :git/sha "573711e"}}
     :ns-default build}
@@ -131,23 +158,23 @@
                 "--fail-level" "error"]}
 
    :regenerate-goldens
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.scenarios.regenerate-goldens"]}
 
    :sync-trace-fixtures
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.scenarios.sync-invariant-trace-fixtures"]}
 
    :generate-missing-traces
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.scenarios.generate-missing-traces"]}
 
    :generate-scenario-docs
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.generate-scenario-index-docs"]}
 
    :export-s62-traces
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.export-s62-traces"]}
 
    :eastwood
@@ -156,7 +183,7 @@
                 "{:source-paths [\"src\" \"notebooks\" \"test\"]}"]}
 
    :ci
-   {:extra-paths ["test"]
+   {:extra-paths [:paths/test]
     :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}}
 
    :fmt
@@ -177,17 +204,17 @@
 
    :cli/sew
    {:main-opts ["-m" "resolver-sim.cli.main"]
-    :extra-paths ["protocols_src" "protocols_src/test"]}
+    :extra-paths [:paths/protocols]}
 
    :diff-traces
    {:main-opts ["-m" "resolver-sim.io.diff-runner"]}
 
    :trace-export
-   {:extra-paths ["protocols_src"]
+   {:extra-paths [:paths/protocols-src]
     :main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
 
    :reference-validation
-   {:extra-paths ["protocols_src" "protocols_src/test"]
+   {:extra-paths [:paths/protocols]
     :main-opts ["-m" "resolver-sim.sim.reference-validation"]}
 
    :sign-manifest
@@ -196,13 +223,13 @@
    ;; Promote all stored adversarial traces into Forge regression suite:
    ;;   clojure -M:trace-regress [store-dir] [regression-dir]
    :trace-regress
-   {:extra-paths ["protocols_src"]
+   {:extra-paths [:paths/protocols-src]
     :main-opts ["-m" "resolver-sim.io.trace-store"]}
 
    ;; Run Phase Z adversarial scenarios, score them, persist top 1%:
    ;;   clojure -M:phase-z-persist [store-dir]
    :phase-z-persist
-   {:extra-paths ["protocols_src"]
+   {:extra-paths [:paths/protocols-src]
     :main-opts ["-m" "resolver-sim.io.phase-z-persist"]}
 
    :clerk
@@ -222,6 +249,8 @@
    :telemetry-seed
    {:main-opts ["-m" "resolver-sim.db.telemetry-seed"]}
 
+   ;; Intentionally not path-grouped: base-replacing runner classpath.
+   ;; See #NNN for normalization constraints.
    :runner/replay-core
    {:deps {org.clojure/clojure              {:mvn/version "1.12.0"}
            org.clojure/tools.logging         {:mvn/version "1.2.4"}
@@ -231,6 +260,8 @@
            org.clojure/data.json             {:mvn/version "2.4.0"}}
     :paths ["src" "resources" "scenarios"]}
 
+   ;; Intentionally not path-grouped: base-replacing runner classpath.
+   ;; See #NNN for normalization constraints.
    :runner/sew
    {:deps {org.clojure/clojure              {:mvn/version "1.12.0"}
            org.clojure/tools.logging         {:mvn/version "1.2.4"}
@@ -245,22 +276,22 @@
     :paths ["src" "protocols_src" "resources" "scenarios"]}
 
    :speds-comparator-shadow
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.scenarios.speds-generate-comparator-shadow"]}
 
    :notebooks
    {:extra-paths ["."]}
 
    :search-docs
-   {:extra-paths ["scripts"]
+   {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
 
    ;; MCP (Model Context Protocol) support for LLM integration
    ;; Usage: clojure -Tmcp start :config-profile :cli-assist
    ;; Or: clojure -Tmcp start :config-profile :nrepl
-   :mcp
-   {:extra-deps {io.github.mschmitt/clojure-mcp {:mvn/version "0.2.0"}
-                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
-                 org.clojure/tools.trace {:mvn/version "0.7.11"}}
-    :extra-paths ["src" "dev" "test" "protocols_src" "protocols_src/test"]
-    :main-opts ["-m" "clojure-mcp.main"]}}}
+    :mcp
+    {:extra-deps {io.github.mschmitt/clojure-mcp {:mvn/version "0.2.0"}
+                  org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                  org.clojure/tools.trace {:mvn/version "0.7.11"}}
+     :extra-paths [:paths/src :paths/dev :paths/protocols]
+     :main-opts ["-m" "clojure-mcp.main"]}}}

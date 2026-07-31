@@ -23,7 +23,11 @@
     (if (or (nil? position) (zero? yield))
       world
       (let [fee-bps (or (:yield-protocol-fee-bps snap) 0)
-            fee     (t/compute-fee yield fee-bps)
+            ;; Protocol fee applies only to positive yield: a negative (mark-to-
+            ;; market) yield is a principal drawdown, not income, so no fee is
+            ;; assessed. Charging a negative fee would corrupt the token fee
+            ;; accumulator (total-fees is monotonic non-negative).
+            fee     (max 0 (t/compute-fee yield fee-bps))
             net     (- yield fee)
             preset  (t/normalize-yield-preset (:yield-preset settings :off))
 
@@ -59,7 +63,8 @@
                                                     :held/yield-preset preset}})
                             w))]
         (let [world' (-> world
-                         (acct/record-fee token fee)
+                         (cond-> (pos? fee)
+                           (acct/record-fee token fee))
                          (cond-> (pos? sender-amt)
                            (acct/record-claimable-v2 escrow-id :settlement/yield (:from et) sender-amt))
                          (cond-> (pos? recipient-amt)

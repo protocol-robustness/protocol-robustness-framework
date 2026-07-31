@@ -1,0 +1,89 @@
+{:concept/id :framework/incentive-compatibility
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Incentive compatibility"
+ :concept/summary
+ "Incentive compatibility is the mechanism property that no participant obtains a higher realised payoff through an adversarial action than through an honest baseline. It is a distinct, narrower evaluation dimension owned here, sitting under the umbrella incentive concept. This concept owns the semantic projection of the incentive-compatibility evaluation result committed as :outcomes/incentive-compatibility-root."
+
+ :concept/stakeholder-question
+ "Does any participant gain by behaving dishonestly instead of honestly?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/incentive
+  :framework/research-command
+  :framework/content-root
+  :verifiable-assurance/forensic-confidence
+  :concept/conservation]
+
+ :concept/roles
+ {:incentive-evaluator {:description "Entity that runs incentive-compatibility evaluation and interprets its result."
+                        :maps-to [:protocol.role/verifier]}
+  :incentive-designer {:description "Entity that defines the incentive-compatibility criteria for a benchmark."
+                       :maps-to [:protocol.actor/resolution-module]}
+  :reviewer {:description "Entity that assesses whether incentive compatibility was actually demonstrated in a researcher position."
+             :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:incentive-compatibility-evaluation {:description "Result of evaluating the incentive-compatibility property from scenario outcomes. Reports attack attempts, successes, and funds lost; a positive success or loss count is a misalignment."
+                                       :maps-to [:protocol.entity/evidence]}
+  :incentive-compatibility-root {:description "Content root for the incentive-compatibility evaluation result, committed as :outcomes/incentive-compatibility-root in the benchmark outcome manifest. The incentive-compatibility concept owns which fields and values enter this root's canonical projection; the generic canonical encoding of the resulting hash-preimage follows the verifiable-assurance canonical serialization rules."
+                                 :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:evaluate-incentive-compatibility {:description "Evaluate whether any adversarial action yields equal or better payoff than the honest baseline for a declared deviation domain."
+                                     :maps-to [:protocol.action/check-invariant]}
+  :compute-incentive-margin {:description "Compute U_honest - max(U_deviation) over the declared deviation types actually supplied. A positive margin supports alignment only relative to that declared deviation domain; it does not by itself establish compatibility across all possible deviations."
+                             :maps-to [:protocol.action/check-invariant]}}
+
+ :concept/outcomes
+ {:incentives-aligned {:description "No adversarial action produced equal or better payoff than the honest baseline on the evaluated trace."
+                       :maps-to [:protocol.outcome/released]}
+  :incentives-misaligned {:description "An adversarial action produced equal or better payoff than the honest baseline."
+                          :maps-to [:protocol.outcome/adversarial-resolution]}
+  :incentives-inconclusive {:description "Incentive compatibility could not be determined because no adversarial actors were present or the required evidence was absent."
+                            :maps-to [:protocol.outcome/deferred]}
+  :incentive-compatibility-root-committed {:description "The incentive-compatibility evaluation result root is committed in the outcome manifest."
+                                           :maps-to [:protocol.outcome/released]}}
+
+ :concept/failure-modes
+ [{:failure/id :incentive-compatibility-untested
+   :failure/name "Incentive compatibility untested"
+   :failure/summary "No adversarial actor appeared in the trace, so alignment is vacuously consistent but unverified. Reported as :inconclusive, not :pass."
+   :protocol-mechanisms [:incentive-evaluation :attack-tracking]
+   :stakeholder-impact "A reader may mistake an unevaluated trace for a demonstrated compatibility result."}
+  {:failure/id :incentive-misalignment-detected
+   :failure/name "Incentive misalignment detected"
+   :failure/summary "An adversarial action succeeded or funds were lost, indicating an action yielded equal or better payoff than honest behaviour."
+   :protocol-mechanisms [:incentive-evaluation :attack-tracking]
+   :stakeholder-impact "Rational participants may deviate from honest behaviour."}
+  {:failure/id :incentive-compatibility-root-unavailable
+   :failure/name "Incentive-compatibility root unavailable"
+   :failure/summary "The :outcomes/incentive-compatibility-root is missing from the outcome manifest."
+   :protocol-mechanisms [:outcome-manifest :content-root]
+   :stakeholder-impact "Incentive-compatibility results cannot be independently referenced or verified."}]
+
+ :concept/assumptions
+ ["Incentive compatibility is a narrower evaluation dimension than the umbrella incentive concept. It concerns only whether adversarial actions are profitable, not the full payoff/penalty model."
+  "A trace with no adversarial actors is inconclusive, not passing: an untested compatibility claim must never be presented as demonstrated."
+  "A positive incentive margin is relative to the declared deviation domain actually supplied to the evaluation; it does not imply compatibility across all possible deviations."
+  "The incentive-compatibility-root follows the content-root integrity pattern. This concept owns the semantic projection (which fields and values enter the root) and the semantic contents; the generic canonical serialization and hashing of the resulting hash-preimage is owned by the verifiable-assurance concept."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["The umbrella incentive concept's full reward, penalty, and payoff model."
+  "Equilibrium computation algorithms or strategy-space enumeration."
+  "Budget balance, individual rationality, sybil resistance, or collusion resistance — these are distinct mechanism properties owned elsewhere."
+  "Dominant-strategy or Nash-equilibrium verification — these are solution/equilibrium concepts used to analyse incentive properties, not this property's own semantics."
+  "Subgame-perfect or reputation equilibrium analysis — these are equilibrium concepts, not the incentive-compatibility property itself."]
+
+ :concept/metrics
+ {:attack-attempts {:description "Number of adversarial action attempts in the trace. Zero attempts yields an inconclusive result."
+                    :source :derived-from-trace}
+  :attack-successes {:description "Number of adversarial action attempts that succeeded. Any positive value is a misalignment."
+                     :source :derived-from-trace}
+  :funds-lost {:description "Funds lost to adversarial behaviour. Any positive value is a misalignment."
+               :source :derived-from-trace}
+  :incentive-margin {:description "Computed incentive margin U_honest - max(U_deviation) over the declared deviation types supplied, if evaluated. Relative to the evaluated deviation domain only."
+                     :source :derived-from-invariant-results}}}

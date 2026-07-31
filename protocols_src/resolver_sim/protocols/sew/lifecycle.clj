@@ -230,63 +230,80 @@
                         (min raw-settle-amt held-after-policy))
         settled-amt sub-held-amt
         shortfall-started (:started-at pos-shortfall)
-        result (-> world-after-policy
-                   (acct/sub-held token
-                                  sub-held-amt
-                                   {:action (str "finalize-" (name direction))
-                                    :reason held-reason
-                                    :authorization-provenance authorization-provenance
-                                    :extra (cond-> {:held/action (str "finalize-" (name direction))
-                                                    :held/workflow-id workflow-id
-                                                    :owner/address recipient
-                                                    :held/recipient recipient
-                                                    :held/settlement-direction direction
-                                                    :held/settled-amount settled-amt}
-                                              shortfall-started
-                                              (assoc :shortfall/started-at shortfall-started))})
-                   (record-fn token settled-amt)
-                   (cond-> (pos? (long (or (:deferred-amount pos-shortfall) 0)))
-                     (reserve-deferred-yield-custody token workflow-id
-                                                     (:deferred-amount pos-shortfall)))
-                   ;; Track outbound FoT fee
-                   (update-in [:total-fot-fees token] (fnil + 0) (- amt net-amt))
-                   ;; Principal claimable
-                   (acct/record-claimable-v2 workflow-id :settlement/principal recipient settled-amt)
-                   (update :pending-settlements dissoc workflow-id)
-                   (sm/apply-transition! workflow-id direction)
-                   ;; Reset dispute/cancel statuses
-                   (update-in [:escrow-transfers workflow-id] assoc :sender-status :none :recipient-status :none)
-                   ;; Clean up dispute timestamp on terminal state
-                   (update :dispute-timestamps dissoc workflow-id))
+        principal-position [:held/position token :escrow-principal workflow-id]
+        principal-position-held (get-in world-after-policy [:held/positions principal-position] 0)
         evidence-reason (if (= direction :released) :escrow-released :escrow-refunded)]
-    (attr/with-attribution {:subject/type :escrow
-                            :subject/id workflow-id
-                            :action/type (keyword "escrow" (name direction))
-                            :evidence/reason evidence-reason}
-      (cap/capture-event-evidence!
-       evidence-reason
-        {:finalize/before
-         {:workflow-state (t/escrow-state world workflow-id)
-          :total-held (get-in world [:total-held token] 0)
-          :resolver (:dispute-resolver et)}}
-        {:finalize/after
-         {:workflow-state (t/escrow-state result workflow-id)
-          :total-held (get-in result [:total-held token] 0)}}
-{:finalize/workflow-id workflow-id
-         :finalize/direction direction
-         :finalize/recipient recipient
-         :finalize/settled-amount settled-amt
-         :finalize/sub-held-amount sub-held-amt
-         :finalize/partial-yield? (boolean partial-yield?)
-         :finalize/shortfall? (boolean pos-shortfall)
-         :finalize/resolver (:dispute-resolver et)
-         :finalize/authorization-id (some-> authorization-provenance :authorization/id)
-         :finalize/authorization-type (some-> authorization-provenance :authorization/type)
-         :force-auth/auth-id (some-> authorization-provenance :authorization/id)}
-        nil
-       {:world-before world
-        :world-after result}))
-    result))
+    (if (< principal-position-held sub-held-amt)
+      ;; Settlement-boundary guard: the settlement amount must not exceed the
+      ;; escrow's own custody position. A negative-yield (mark-to-market)
+      ;; write-down can drain the escrow-principal position below the remaining
+      ;; principal; that is a supported reachable state, so it fails as a
+      ;; structured rejection here — BEFORE sub-held — rather than surfacing the
+      ;; accounting-layer :sub-held-position-underflow assertion as an exception.
+      ;; The accounting-layer underflow check remains in place as defense-in-depth.
+      (guard-fail :insufficient-custody-position
+                  :workflow-id workflow-id
+                  :token token
+                  :direction direction
+                  :settlement-amount sub-held-amt
+                  :position-id principal-position
+                  :position-held principal-position-held)
+      (let [result (-> world-after-policy
+                       (acct/sub-held token
+                                      sub-held-amt
+                                      {:action (str "finalize-" (name direction))
+                                       :reason held-reason
+                                       :authorization-provenance authorization-provenance
+                                       :extra (cond-> {:held/action (str "finalize-" (name direction))
+                                                       :held/workflow-id workflow-id
+                                                       :owner/address recipient
+                                                       :held/recipient recipient
+                                                       :held/settlement-direction direction
+                                                       :held/settled-amount settled-amt}
+                                                 shortfall-started
+                                                 (assoc :shortfall/started-at shortfall-started))})
+                       (record-fn token settled-amt)
+                       (cond-> (pos? (long (or (:deferred-amount pos-shortfall) 0)))
+                         (reserve-deferred-yield-custody token workflow-id
+                                                         (:deferred-amount pos-shortfall)))
+                       ;; Track outbound FoT fee
+                       (update-in [:total-fot-fees token] (fnil + 0) (- amt net-amt))
+                       ;; Principal claimable
+                       (acct/record-claimable-v2 workflow-id :settlement/principal recipient settled-amt)
+                       (update :pending-settlements dissoc workflow-id)
+                       (sm/apply-transition! workflow-id direction)
+                       ;; Reset dispute/cancel statuses
+                       (update-in [:escrow-transfers workflow-id] assoc :sender-status :none :recipient-status :none)
+                       ;; Clean up dispute timestamp on terminal state
+                       (update :dispute-timestamps dissoc workflow-id))]
+        (attr/with-attribution {:subject/type :escrow
+                                :subject/id workflow-id
+                                :action/type (keyword "escrow" (name direction))
+                                :evidence/reason evidence-reason}
+          (cap/capture-event-evidence!
+           evidence-reason
+            {:finalize/before
+             {:workflow-state (t/escrow-state world workflow-id)
+              :total-held (get-in world [:total-held token] 0)
+              :resolver (:dispute-resolver et)}}
+            {:finalize/after
+             {:workflow-state (t/escrow-state result workflow-id)
+              :total-held (get-in result [:total-held token] 0)}}
+            {:finalize/workflow-id workflow-id
+             :finalize/direction direction
+             :finalize/recipient recipient
+             :finalize/settled-amount settled-amt
+             :finalize/sub-held-amount sub-held-amt
+             :finalize/partial-yield? (boolean partial-yield?)
+             :finalize/shortfall? (boolean pos-shortfall)
+             :finalize/resolver (:dispute-resolver et)
+             :finalize/authorization-id (some-> authorization-provenance :authorization/id)
+             :finalize/authorization-type (some-> authorization-provenance :authorization/type)
+             :force-auth/auth-id (some-> authorization-provenance :authorization/id)}
+            nil
+           {:world-before world
+            :world-after result}))
+        (t/ok result)))))
 
 (defn finalize-escrow-accounting
   "Shared finalize accounting for release/refund and resolution paths.
@@ -719,7 +736,7 @@
       (if-not allowed?
         (guard-fail (if (= 1 reason-code) :not-sender :release-not-allowed)
                     :reason-code reason-code :workflow-id workflow-id)
-        (t/ok (finalize world workflow-id :released))))))
+        (finalize world workflow-id :released))))
 
 ;; ---------------------------------------------------------------------------
 ;; partial-release
@@ -848,7 +865,7 @@
 
     ;; Strategy permits unilateral cancel
     (and (some? cancel-strategy) (:unilateral-cancel? cancel-strategy))
-    (t/ok (finalize world workflow-id :refunded))
+    (finalize world workflow-id :refunded)
 
     :else
     ;; Mutual-consent path: set sender status
@@ -856,7 +873,7 @@
       (if-not (:ok r)
         r
         (if (sm/both-agreed-to-cancel? (:world r) workflow-id)
-          (t/ok (finalize (:world r) workflow-id :refunded))
+          (finalize (:world r) workflow-id :refunded)
           r)))))
 
 ;; ---------------------------------------------------------------------------
@@ -888,14 +905,14 @@
                 :cancel-strategy cancel-strategy :workflow-id workflow-id)
 
     (and (some? cancel-strategy) (:unilateral-cancel? cancel-strategy))
-    (t/ok (finalize world workflow-id :refunded))
+    (finalize world workflow-id :refunded)
 
     :else
     (let [r (sm/set-recipient-agree-to-cancel world workflow-id caller)]
       (if-not (:ok r)
         r
         (if (sm/both-agreed-to-cancel? (:world r) workflow-id)
-          (t/ok (finalize (:world r) workflow-id :refunded))
+          (finalize (:world r) workflow-id :refunded)
           r)))))
 
 ;; ---------------------------------------------------------------------------
@@ -954,34 +971,37 @@
         token           (:token et)
         has-resolver?   (and resolver
                              (not= resolver t/zero-address))
-        world-finalized (finalize world workflow-id :refunded)
-        world-slashed   (if has-resolver?
-                          (let [current (reg/get-stake world-finalized resolver)
-                                actual  (bigint (min (double current) (double slash-amt)))
-                                world'  (-> world-finalized
-                                            (update-in [:resolver-stakes resolver] (fnil - 0) actual)
-                                            (acct/distribute-slashed-funds actual nil 0 workflow-id)
-                                            (update-in [:resolver-slash-total resolver] (fnil + 0) actual))]
-                            (attr/with-attribution
-                             {:subject/type :resolver
-                              :subject/id   resolver
-                              :action/type  :slash
-                              :evidence/reason :slashing}
-                             (cap/capture-event-evidence!
-                              :slashing
-                              {:resolver-stake current}
-                              {:resolver-stake (reg/get-stake world' resolver)}
-                              {:requested-amount slash-amt :actual-amount actual}
-                              nil
-                              {:world-before world-finalized
-                               :world-after world'}))
-                            world')
-                          world-finalized)
-        world-result    (-> world-slashed
-                            (t/decrement-resolver-capacity resolver)
-                            (acct/return-all-bonds-for-workflow workflow-id)
-                            (cleanup-orphaned-slashes workflow-id))]
-    (t/ok world-result)))
+        world-finalized (finalize world workflow-id :refunded)]
+    (if-not (:ok world-finalized)
+      world-finalized
+      (let [world-finalized (:world world-finalized)
+            world-slashed   (if has-resolver?
+                              (let [current (reg/get-stake world-finalized resolver)
+                                    actual  (bigint (min (double current) (double slash-amt)))
+                                    world'  (-> world-finalized
+                                                (update-in [:resolver-stakes resolver] (fnil - 0) actual)
+                                                (acct/distribute-slashed-funds actual nil 0 workflow-id)
+                                                (update-in [:resolver-slash-total resolver] (fnil + 0) actual))]
+                                (attr/with-attribution
+                                 {:subject/type :resolver
+                                  :subject/id   resolver
+                                  :action/type  :slash
+                                  :evidence/reason :slashing}
+                                 (cap/capture-event-evidence!
+                                  :slashing
+                                  {:resolver-stake current}
+                                  {:resolver-stake (reg/get-stake world' resolver)}
+                                  {:requested-amount slash-amt :actual-amount actual}
+                                  nil
+                                  {:world-before world-finalized
+                                   :world-after world'}))
+                                world')
+                              world-finalized)
+            world-result    (-> world-slashed
+                                (t/decrement-resolver-capacity resolver)
+                                (acct/return-all-bonds-for-workflow workflow-id)
+                                (cleanup-orphaned-slashes workflow-id))]
+        (t/ok world-result))))))
 
 (defn auto-cancel-disputed-escrow
   "Cancel a :disputed escrow after max-dispute-duration has elapsed.

@@ -1366,3 +1366,61 @@
       (is (= :soft (:severity result))
           "inconclusive has soft severity"))))
 
+;; ---------------------------------------------------------------------------
+;; Alias result labelling — semantic-equivalence regression tests
+;; ---------------------------------------------------------------------------
+;;
+;; Aliases intentionally share the predicate of their canonical concept, but
+;; must label the result with the *requested* concept keyword (not the parent's).
+;; This proves the shared implementation is genuinely labeling-only: every field
+;; except :property must be identical to the canonical evaluator for the same
+;; input. This protects the stated out-of-scope constraint that the alias fix
+;; does not change pass/fail semantics.
+
+(defn- assert-alias-equivalent
+  "Run `alias-kw` and `canonical-kw` through the dispatcher on `proj` with
+   `validators`, and assert the alias result equals the canonical result except
+   for the :property label (which must equal the alias keyword)."
+  [alias-kw canonical-kw proj validators]
+  (let [results (eq/evaluate-equilibrium-concepts [alias-kw canonical-kw] proj validators)
+        alias-result (get results alias-kw)
+        canonical-result (get results canonical-kw)
+        alias-body (dissoc alias-result :property)
+        canonical-body (dissoc canonical-result :property)]
+    (is (= alias-kw (:property alias-result))
+        (str (name alias-kw) " must be labelled with its own keyword, not the canonical parent"))
+    (is (= canonical-kw (:property canonical-result)))
+    (is (= canonical-body alias-body)
+        (str (name alias-kw) " must be semantically identical to "
+             (name canonical-kw) " except for the :property label"))))
+
+(deftest test-empirical-strategy-dominance-is-dominant-label-only
+  (testing ":empirical-strategy-dominance reuses the dominant-strategy predicate with its own label"
+    (doseq [opts [{:attack-attempts 0 :attack-successes 0 :invariant-violations 0}
+                  {:attack-attempts 3 :attack-successes 0 :invariant-violations 0}
+                  {:attack-attempts 1 :attack-successes 1 :invariant-violations 0}
+                  {:attack-attempts 0 :attack-successes 0 :invariant-violations 2}]]
+      (assert-alias-equivalent
+       :empirical-strategy-dominance :dominant-strategy-equilibrium
+       (projection opts) {}))))
+
+(deftest test-bounded-nash-diagnostic-is-nash-label-only
+  (testing ":bounded-nash-diagnostic reuses the nash predicate with its own label"
+    (doseq [opts [{:attack-attempts 0 :attack-successes 0 :invariant-violations 0}
+                  {:attack-attempts 2 :attack-successes 0 :invariant-violations 0}
+                  {:attack-attempts 1 :attack-successes 1 :invariant-violations 0}]]
+      (assert-alias-equivalent
+       :bounded-nash-diagnostic :nash-equilibrium
+       (projection opts) {}))))
+
+(deftest test-trace-conditioned-epsilon-spe-is-spe-label-only
+  (testing ":trace-conditioned-epsilon-spe reuses the subgame-perfect predicate with its own label"
+    (let [proj {:raw-trace [{:world {:claimable {"e1" {"buyer" 0}}}}    ; t=0
+                            {:world {:bond-balances {"e1" {"buyer" 50}}}}  ; t=1 (escalate)
+                            {:world {:claimable {"e1" {"buyer" 150}}}}] ; t=2 (won: escrow 100 + bond 50)
+                :decisions [{:index 1 :seq 1 :agent "buyer" :action "escalate_dispute"}]
+                :terminal-world {:terminal? true}}]
+      (assert-alias-equivalent
+       :trace-conditioned-epsilon-spe :subgame-perfect-equilibrium
+       proj sew-eq/equilibrium-concept-validators))))
+

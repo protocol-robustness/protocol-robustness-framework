@@ -223,6 +223,22 @@
   [& bs]
   (byte-array bs))
 
+(defn- byte-compare
+  "Lexicographic byte comparison. Returns a negative number if a < b,
+   zero if a == b, and a positive number if a > b."
+  [^bytes a ^bytes b]
+  (let [alen (count a)
+        blen (count b)
+        minlen (min alen blen)]
+    (loop [i 0]
+      (if (= i minlen)
+        (- alen blen)
+        (let [ai (bit-and (int (aget a i)) 0xFF)
+              bi (bit-and (int (aget b i)) 0xFF)]
+          (if (= ai bi)
+            (recur (inc i))
+            (- ai bi)))))))
+
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Type Validation
 ;; ──────────────────────────────────────────────────────────────────────────────
@@ -287,98 +303,120 @@
 
 (defn canonical-bytes
   "Produce the canonical typed binary encoding of a value.
-    Returns a byte-array per CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI."
+    Returns a byte-array per CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI.
+
+    Implemented iteratively over an explicit work stack so that deeply
+    nested structures (per spec §8.4 concatenation stress) do not overflow
+    the JVM stack. Output is byte-identical to a direct recursive walk."
   [v]
-  (cond
-    (nil? v)
-    (ba-of tag-null)
+  (loop [work [[:encode v]]
+         done []]
+    (if (empty? work)
+      (peek done)
+      (let [task (peek work)
+            work (pop work)]
+        (case (nth task 0)
+          :encode
+          (let [x (nth task 1)]
+            (cond
+              (nil? x)
+              (recur work (conj done (ba-of tag-null)))
 
-    (instance? Boolean v)
-    (ba-of (if v tag-bool-true tag-bool-false))
+              (instance? Boolean x)
+              (recur work (conj done (ba-of (if x tag-bool-true tag-bool-false))))
 
-     ;; Only integer types have a canonical representation.  Do not use
-     ;; number? here: coercing floating-point values or ratios to long silently
-     ;; aliases distinct semantic values (for example, 1 and 1.9).
-    (or (instance? Long v)
-        (instance? Integer v)
-        (instance? Short v)
-        (instance? Byte v)
-        (instance? clojure.lang.BigInt v)
-        (instance? BigInteger v))
-    (let [bi (coerce-integer v)
-          zv (zigzag bi)
-          vu (encode-varuint zv)]
-      (ba-concat (ba-of tag-int) vu))
+              ;; Only integer types have a canonical representation.  Do not use
+              ;; number? here: coercing floating-point values or ratios to long
+              ;; silently aliases distinct semantic values (for example, 1 and 1.9).
+              (or (instance? Long x)
+                  (instance? Integer x)
+                  (instance? Short x)
+                  (instance? Byte x)
+                  (instance? clojure.lang.BigInt x)
+                  (instance? BigInteger x))
+              (let [bi (coerce-integer x)
+                    vu (encode-varuint (zigzag bi))]
+                (recur work (conj done (ba-concat (ba-of tag-int) vu))))
 
-    (instance? String v)
-    (let [bs (utf8-bytes v)
-          len (encode-varuint (count bs))]
-      (ba-concat (ba-of tag-string) len bs))
+              (instance? String x)
+              (let [bs (utf8-bytes x)
+                    len (encode-varuint (count bs))]
+                (recur work (conj done (ba-concat (ba-of tag-string) len bs))))
 
-    (instance? clojure.lang.Keyword v)
-    (let [s (keyword-string v)
-          bs (utf8-bytes s)
-          len (encode-varuint (count bs))]
-      (ba-concat (ba-of tag-keyword) len bs))
+              (instance? clojure.lang.Keyword x)
+              (let [s (keyword-string x)
+                    bs (utf8-bytes s)
+                    len (encode-varuint (count bs))]
+                (recur work (conj done (ba-concat (ba-of tag-keyword) len bs))))
 
-    (instance? java.time.temporal.TemporalAccessor v)
-    (let [s (str v)
-          bs (utf8-bytes s)
-          len (encode-varuint (count bs))]
-      (ba-concat (ba-of tag-string) len bs))
+              (instance? java.time.temporal.TemporalAccessor x)
+              (let [s (str x)
+                    bs (utf8-bytes s)
+                    len (encode-varuint (count bs))]
+                (recur work (conj done (ba-concat (ba-of tag-string) len bs))))
 
-    (instance? java.math.BigDecimal v)
-    (let [double-bytes (canonical-bytes (double v))]
-      double-bytes)
+              (instance? java.math.BigDecimal x)
+              (throw (ex-info "BigDecimal must be projected to a canonical-safe representation before hashing"
+                              {:type (type x) :value x}))
 
-    (instance? clojure.lang.IPersistentVector v)
-    (let [count-enc (encode-varuint (count v))
-          elements (map canonical-bytes v)]
-      (apply ba-concat (ba-of tag-array) count-enc elements))
+              (instance? clojure.lang.IPersistentVector x)
+              (let [n (count x)]
+                (recur (into (conj work [:array n])
+                             (map (fn [e] [:encode e]) (reverse x)))
+                       done))
 
-    (instance? clojure.lang.IPersistentMap v)
-    (let [pairs (map (fn [[k v]]
-                       {:key-bytes (canonical-bytes k)
-                        :val-bytes (canonical-bytes v)})
-                     v)
-          sorted (sort-by :key-bytes (fn [^bytes a ^bytes b]
-                                       (let [alen (count a)
-                                             blen (count b)
-                                             minlen (min alen blen)]
-                                         (loop [i 0]
-                                           (if (= i minlen)
-                                             (< alen blen)
-                                             (let [ai (bit-and (int (aget a i)) 0xFF)
-                                                   bi (bit-and (int (aget b i)) 0xFF)]
-                                               (if (= ai bi)
-                                                 (recur (inc i))
-                                                 (< ai bi)))))))
-                          pairs)
-          count-enc (encode-varuint (count v))
-          elements (mapcat (fn [p] [(:key-bytes p) (:val-bytes p)]) sorted)]
-      (apply ba-concat (ba-of tag-map) count-enc elements))
+              (instance? clojure.lang.IPersistentMap x)
+              (let [n (count x)
+                    pairs (mapv (fn [[k val]]
+                                  {:key-bytes (canonical-bytes k)
+                                   :val val})
+                                x)
+                    sorted (sort-by :key-bytes
+                                    (fn [^bytes a ^bytes b]
+                                      (neg? (byte-compare a b)))
+                                    pairs)
+                    key-bytes (mapv :key-bytes sorted)
+                    vals (mapv :val sorted)]
+                (recur (into (conj work [:map n key-bytes])
+                             (map (fn [val] [:encode val]) (reverse vals)))
+                       done))
 
-    (instance? clojure.lang.IPersistentSet v)
-    (let [byte-cmp (fn [^bytes a ^bytes b]
-                     (let [alen (count a)
-                           blen (count b)
-                           minlen (min alen blen)]
-                       (loop [i 0]
-                         (if (= i minlen)
-                           (- alen blen)
-                           (let [ai (bit-and (int (aget a i)) 0xFF)
-                                 bi (bit-and (int (aget b i)) 0xFF)]
-                             (if (= ai bi)
-                               (recur (inc i))
-                               (- ai bi)))))))
-          sorted (vec (sort (fn [a b] (byte-cmp (canonical-bytes a) (canonical-bytes b))) v))
-          count-enc (encode-varuint (count v))
-          elements (map canonical-bytes sorted)]
-      (apply ba-concat (ba-of tag-array) count-enc elements))
+              (instance? clojure.lang.IPersistentSet x)
+              (let [n (count x)]
+                (recur (into (conj work [:set n])
+                             (map (fn [e] [:encode e]) (reverse x)))
+                       done))
 
-    :else
-    (throw (ex-info "Cannot encode unsupported type"
-                    {:type (type v) :value v}))))
+              :else
+              (throw (ex-info "Cannot encode unsupported type"
+                              {:type (type x) :value x}))))
+
+          :array
+          (let [n (nth task 1)
+                split (- (count done) n)
+                elems (subvec done split)
+                rest-done (subvec done 0 split)
+                combined (apply ba-concat (ba-of tag-array) (encode-varuint n) elems)]
+            (recur work (conj rest-done combined)))
+
+          :set
+          (let [n (nth task 1)
+                split (- (count done) n)
+                elems (subvec done split)
+                rest-done (subvec done 0 split)
+                sorted (vec (sort byte-compare elems))
+                combined (apply ba-concat (ba-of tag-array) (encode-varuint n) sorted)]
+            (recur work (conj rest-done combined)))
+
+          :map
+          (let [n (nth task 1)
+                key-bytes (nth task 2)
+                split (- (count done) n)
+                val-bytes (subvec done split)
+                rest-done (subvec done 0 split)
+                elements (mapcat (fn [kb vb] [kb vb]) key-bytes val-bytes)
+                combined (apply ba-concat (ba-of tag-map) (encode-varuint n) elements)]
+            (recur work (conj rest-done combined))))))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Projection Helpers
@@ -610,9 +648,9 @@
                       (swap! flattened-fields-atom conj
                              {:path path
                               :type :keyword
-                              :value (name v)
+                              :value (keyword-string v)
                               :contract :keyword→string}))
-                    (name v))
+                    (keyword-string v))
                 (ratio? v)
                 (do (when flattened-fields-atom
                       (swap! flattened-fields-atom conj
@@ -1057,7 +1095,7 @@
     :intent/domain-tag  "EVIDENCE_CONTENT_V1"
     :intent/description "JSON-round-trippable content hash of an evidence record"
     :intent/includes    #{:serialized-content :evidence-fields :artifact-body}
-    :intent/excludes    #{:chain-metadata :timestamps}
+    :intent/excludes    #{:chain-metadata :timestamps :keywords :hash-fields}
     :intent/projection-fn project-for-content-hash
     :intent/version     1}
 
@@ -1700,8 +1738,12 @@
                              "root map contains :evidence/timestamp"))
    :hash-fields    (fn [v]
                      (when (and (map? v)
-                                (some self-hash-keys (keys v)))
-                       "root map contains self-hash keys"))
+                                (some (fn [k]
+                                        (or (contains? self-hash-keys k)
+                                            (when (or (keyword? k) (string? k))
+                                              (boolean (re-find #"-hash$" (name k))))))
+                                      (keys v)))
+                       "map contains hash-like keys"))
    :chain-metadata (fn [v]
                      (when (and (map? v)
                                 (some #(re-find #"^evidence/chain-" (name %))

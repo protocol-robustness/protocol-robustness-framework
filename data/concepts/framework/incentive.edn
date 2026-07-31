@@ -12,6 +12,7 @@
 
  :concept/related
  [:framework/research-command
+  :framework/incentive-compatibility
   :framework/content-root
   :verifiable-assurance/forensic-confidence
   :consensus/evidence]
@@ -75,16 +76,16 @@
   "The three dimensions are not interchangeable indicators of one overall incentives verdict. Each must be reported and assessed independently."
   "The incentive-root follows the content-root integrity pattern. The incentive concept owns the semantic projection (which fields and values enter the root) and the semantic contents; the generic canonical serialization and hashing of the resulting hash-preimage is owned by the verifiable-assurance concept. These are distinct ownership responsibilities."
   "An incentive evaluation is only valid in combination with the research command that requested it. The incentive-root and the producing command-root are committed together in the same outcome-manifest projection; incentive results must not be presented as standalone evidence without the command-root that produced them."
-  "The incentive-compatibility-root is a specialised incentive-evaluation root. Its full semantic owner will be a separate incentive-compatibility concept; this document does not define its projection."
+  "The incentive-compatibility-root is a specialised incentive-evaluation root. Its full semantic owner is the framework/incentive-compatibility concept, which defines the projection and criteria for that specialised root."
   "Define-incentive-model is architectural only — definition, registration, and hashing of incentive model artifacts are not yet implemented."
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
-  ["Concrete incentive-compatibility criteria and evaluation — outside this concept; intended for a dedicated incentive-compatibility concept."
+  ["Concrete incentive-compatibility criteria and evaluation — owned by the dedicated framework/incentive-compatibility concept."
    "Equilibrium computation algorithms or strategy-space enumeration."
    "Payoff simulation engine or terminal-payoff computation internals."
    "Budget balance, individual rationality, sybil resistance, or collusion resistance verification — these are distinct mechanism properties owned by their respective evaluation concepts."
-   "Dominant-strategy or Nash-equilibrium verification — these require a dedicated concept."
+   "Dominant-strategy, Nash, or subgame-perfect equilibrium verification — these are solution/equilibrium concepts used to analyse incentive properties, not incentive properties themselves."
    "Bounty-award decision semantics — outside this concept; intended for a dedicated bounty-award concept."]
 
  :concept/metrics

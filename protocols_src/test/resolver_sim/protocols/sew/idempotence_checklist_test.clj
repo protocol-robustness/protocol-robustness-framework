@@ -489,8 +489,10 @@
         (is (not= key-hop0 key-hop1) "different hop-ids produce different keys")
         (is (not= key-hop0 key-no-hop) "hop and non-hop keys differ in hop-scope position"))
 
-      ;; Verify settlement dedup through the replay boundary
-      (let [w-pending w-after-hop0
+      ;; Verify settlement dedup through the replay boundary. After escalation to
+      ;; level 1 the level-0 decision is cancelled, so settlement must use the
+      ;; level-1 pending seeded below (deadline 1200), not the stale level-0 one.
+      (let [w-pending w-with-pending-l1
             w-advanced (time-ctx/advance-time w-pending {:to 1400})
             settle-ev {:seq 5 :time 1400 :agent "buyer" :action "execute_pending_settlement"
                        :params {:workflow-id 0 :event-id "evt-settle-1"}}

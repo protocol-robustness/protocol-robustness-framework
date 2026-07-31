@@ -213,29 +213,35 @@
    This does NOT verify dominance across all opponent strategies — it only
    checks that no deviation from honest behavior was profitable in this trace.
 
-   :inconclusive when no adversarial actors are present (untested)."
-  [{:keys [metrics]}]
-  (let [violations (:invariant-violations metrics 0)
-        successes  (:attack-successes metrics 0)
-        attempts   (:attack-attempts metrics 0)]
-    (cond
-      (and (zero? attempts) (zero? violations))
-      (inconclusive :dominant-strategy-equilibrium :single-trace-metric-proxy :untested-no-adversary
-                    "no adversarial actors in trace; dominance is consistent but untested"
-                    :required [:attack-attempts])
+   :inconclusive when no adversarial actors are present (untested).
 
-      (or (pos? violations) (pos? successes))
-      (fail :dominant-strategy-equilibrium :single-trace-metric-proxy
-            {:invariant-violations violations :attack-successes successes}
-            {:invariant-violations 0 :attack-successes 0}
-            (cond-> []
-              (pos? violations) (conj {:metric :invariant-violations :observed violations})
-              (pos? successes)  (conj {:metric :attack-successes :observed successes})))
+   Takes an optional `property` keyword (default :dominant-strategy-equilibrium)
+   so alias concepts (e.g. :empirical-strategy-dominance) can reuse this
+   predicate while still being labelled with the concept that was requested."
+  ([projection] (check-dominant-strategy-equilibrium projection :dominant-strategy-equilibrium))
+  ([projection property]
+   (let [{:keys [metrics]} projection
+         violations (:invariant-violations metrics 0)
+         successes  (:attack-successes metrics 0)
+         attempts   (:attack-attempts metrics 0)]
+     (cond
+       (and (zero? attempts) (zero? violations))
+       (inconclusive property :single-trace-metric-proxy :untested-no-adversary
+                     "no adversarial actors in trace; dominance is consistent but untested"
+                     :required [:attack-attempts])
 
-      :else
-      (pass :dominant-strategy-equilibrium :single-trace-metric-proxy
-            {:invariant-violations violations :attack-successes successes}
-            "no deviation from honest behavior was profitable in this trace (single-trace proxy)"))))
+       (or (pos? violations) (pos? successes))
+       (fail property :single-trace-metric-proxy
+             {:invariant-violations violations :attack-successes successes}
+             {:invariant-violations 0 :attack-successes 0}
+             (cond-> []
+               (pos? violations) (conj {:metric :invariant-violations :observed violations})
+               (pos? successes)  (conj {:metric :attack-successes :observed successes})))
+
+       :else
+       (pass property :single-trace-metric-proxy
+             {:invariant-violations violations :attack-successes successes}
+             "no deviation from honest behavior was profitable in this trace (single-trace proxy)")))))
 
 (defn- check-nash-equilibrium
   "No profitable unilateral deviation was observed. Trace is consistent with
@@ -245,29 +251,35 @@
    This does NOT verify that no profitable deviation exists — only that no
    deviation succeeded in this trace.
 
-   :inconclusive when no adversarial actors present."
-  [{:keys [metrics]}]
-  (let [violations (:invariant-violations metrics 0)
-        successes  (:attack-successes metrics 0)
-        attempts   (:attack-attempts metrics 0)]
-    (cond
-      (and (zero? attempts) (zero? violations))
-      (inconclusive :nash-equilibrium :single-trace-metric-proxy :untested-no-adversary
-                    "no adversarial actors; Nash consistency untested in this trace"
-                    :required [:attack-attempts])
+   :inconclusive when no adversarial actors present.
 
-      (or (pos? violations) (pos? successes))
-      (fail :nash-equilibrium :single-trace-metric-proxy
-            {:invariant-violations violations :attack-successes successes}
-            {:invariant-violations 0 :attack-successes 0}
-            (cond-> []
-              (pos? successes)  (conj {:metric :attack-successes :observed successes})
-              (pos? violations) (conj {:metric :invariant-violations :observed violations})))
+   Takes an optional `property` keyword (default :nash-equilibrium) so alias
+   concepts (e.g. :bounded-nash-diagnostic) can reuse this predicate while still
+   being labelled with the concept that was requested."
+  ([projection] (check-nash-equilibrium projection :nash-equilibrium))
+  ([projection property]
+   (let [{:keys [metrics]} projection
+         violations (:invariant-violations metrics 0)
+         successes  (:attack-successes metrics 0)
+         attempts   (:attack-attempts metrics 0)]
+     (cond
+       (and (zero? attempts) (zero? violations))
+       (inconclusive property :single-trace-metric-proxy :untested-no-adversary
+                     "no adversarial actors; Nash consistency untested in this trace"
+                     :required [:attack-attempts])
 
-      :else
-      (pass :nash-equilibrium :single-trace-metric-proxy
-            {:invariant-violations violations :attack-successes successes}
-            "no unilateral deviation succeeded in this trace (single-trace proxy)"))))
+       (or (pos? violations) (pos? successes))
+       (fail property :single-trace-metric-proxy
+             {:invariant-violations violations :attack-successes successes}
+             {:invariant-violations 0 :attack-successes 0}
+             (cond-> []
+               (pos? successes)  (conj {:metric :attack-successes :observed successes})
+               (pos? violations) (conj {:metric :invariant-violations :observed violations})))
+
+       :else
+       (pass property :single-trace-metric-proxy
+             {:invariant-violations violations :attack-successes successes}
+             "no unilateral deviation succeeded in this trace (single-trace proxy)")))))
 
 (defn- check-bayesian-nash-equilibrium
   "Requires population/belief distributions across resolvers. Always
@@ -399,9 +411,9 @@
 
 (def ^:private equilibrium-validators
   {:dominant-strategy-equilibrium check-dominant-strategy-equilibrium
-   :empirical-strategy-dominance check-dominant-strategy-equilibrium
+   :empirical-strategy-dominance  (fn [p] (check-dominant-strategy-equilibrium p :empirical-strategy-dominance))
    :nash-equilibrium              check-nash-equilibrium
-   :bounded-nash-diagnostic       check-nash-equilibrium
+   :bounded-nash-diagnostic       (fn [p] (check-nash-equilibrium p :bounded-nash-diagnostic))
    :bayesian-nash-equilibrium     check-bayesian-nash-equilibrium})
 
 ;; ---------------------------------------------------------------------------

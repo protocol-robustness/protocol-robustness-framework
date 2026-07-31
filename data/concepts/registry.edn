@@ -332,6 +332,14 @@
     :concept/status :draft
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
+   {:concept/id    :framework/incentive-compatibility
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/incentive_compatibility.edn"
+    :concept/name  "Incentive compatibility"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
    {:concept/id    :framework/held-custody
     :concept/type  :framework
     :concept/layer :framework-explanation

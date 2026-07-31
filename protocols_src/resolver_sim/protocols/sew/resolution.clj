@@ -709,7 +709,9 @@
                                       :authorization-provenance authorization-provenance)
                             (finalize world''' workflow-id :refunded
                                       :authorization-provenance authorization-provenance))]
-            (t/ok (lc/cleanup-orphaned-slashes finalized workflow-id)))
+            (if (:ok finalized)
+              (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
+              finalized))
           (let [pending (t/make-pending-settlement
                          {:exists          true
                           :is-release      is-release
@@ -843,13 +845,14 @@
               ;; record so it flows through to the escrow settlement held adjustment.
               auth-prov (get-in world [:escrow-transfers workflow-id :resolution
                                        :authorization/provenance])
-              world' (if (:is-release pending)
-                       (finalize world workflow-id :released
-                                 :authorization-provenance auth-prov)
-                       (finalize world workflow-id :refunded
-                                 :authorization-provenance auth-prov))
-              world'' (lc/cleanup-orphaned-slashes world' workflow-id)]
-          (t/ok world''))))))
+              finalized (if (:is-release pending)
+                          (finalize world workflow-id :released
+                                    :authorization-provenance auth-prov)
+                          (finalize world workflow-id :refunded
+                                    :authorization-provenance auth-prov))]
+          (if (:ok finalized)
+            (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
+            finalized))))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal building block: _validateAndPrepareEscalation deletes
@@ -1077,12 +1080,12 @@
 
         ;; Priority 4: auto-release
         (sm/auto-release-due? world workflow-id)
-        (let [r (t/ok (lc/finalize-escrow-accounting world workflow-id :released))]
+        (let [r (lc/finalize-escrow-accounting world workflow-id :released)]
           (assoc r :action :auto-release))
 
         ;; Priority 5: auto-cancel
         (sm/auto-cancel-due? world workflow-id)
-        (let [r (t/ok (lc/finalize-escrow-accounting world workflow-id :refunded))]
+        (let [r (lc/finalize-escrow-accounting world workflow-id :refunded)]
           (assoc r :action :auto-cancel))
 
         :else
@@ -2243,11 +2246,12 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
    that were just created by handle-reversal-slashing in the same
    execute-resolution call (final-round path)."
   [world workflow-id direction & {:keys [authorization-provenance]}]
-  (let [resolver (:dispute-resolver (t/get-transfer world workflow-id))]
-    (-> world
-        (lc/finalize-escrow-accounting workflow-id direction
-          :authorization-provenance authorization-provenance)
-        (t/decrement-resolver-capacity resolver))))
+  (let [resolver (:dispute-resolver (t/get-transfer world workflow-id))
+        result   (lc/finalize-escrow-accounting world workflow-id direction
+                                                :authorization-provenance authorization-provenance)]
+    (if (:ok result)
+      (t/ok (t/decrement-resolver-capacity (:world result) resolver))
+      result)))
 
 ;; ── Monadic Transitions ──────────────────────────────────────────────────────
 

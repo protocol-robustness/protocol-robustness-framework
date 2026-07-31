@@ -14,6 +14,11 @@
 (defn bytes= [a b]
   (Arrays/equals a b))
 
+(defn- to-hex
+  "Byte array → lowercase hex string."
+  [^bytes ba]
+  (apply str (map #(format "%02x" (bit-and % 0xFF)) ba)))
+
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Primitives
 ;; ──────────────────────────────────────────────────────────────────────────────
@@ -46,6 +51,57 @@
     (testing "the tagged floating-point representation preserves numeric type"
       (is (not= (hash-content {:index 1.0})
                 (hash-content {:index (float 1.0)}))))))
+
+(deftest test-evidence-content-preserves-keyword-namespaces
+  (let [hash-content #(hc/hash-with-intent {:hash/intent :evidence-content} %)]
+    (testing "namespaced and bare keywords must NOT collide in content hashing"
+      (is (not= (hash-content {:a/b 1})
+                (hash-content {:b 1})))
+      (is (not= (hash-content {:foo/seq 1})
+                (hash-content {:bar/seq 1})))
+      (is (not= (hash-content {:k :a/b})
+                (hash-content {:k :b})))
+      (is (not= (hash-content {:k [:x/y :x/z]})
+                (hash-content {:k [:y :z]}))))
+    (testing "keyword-to-string JSON round-trip equivalence is preserved"
+      (is (= (hash-content {:a 1})
+             (hash-content {"a" 1})))
+      (is (= (hash-content {:a/b 1})
+             (hash-content {"a/b" 1}))))))
+
+(deftest test-concat-utf8-byte-length-prefix
+  (testing "string length prefix counts UTF-8 bytes, not characters"
+    (let [emoji (str "a\u1F600" "b")
+          nul (str "a" (char 0) "b")
+          emoji-bytes (hc/canonical-bytes emoji)
+          nul-bytes (hc/canonical-bytes nul)]
+      ;; "a" (1) + emoji (4) + "b" (1) = 6 UTF-8 bytes
+      (is (= 6 (bit-and (int (aget emoji-bytes 1)) 0xFF)))
+      ;; 1 + 1 + 1 = 3 UTF-8 bytes
+      (is (= 3 (bit-and (int (aget nul-bytes 1)) 0xFF)))
+      (is (bytes= emoji-bytes (hc/canonical-bytes emoji)) "deterministic")
+      (is (bytes= nul-bytes (hc/canonical-bytes nul)) "deterministic"))))
+
+(deftest test-concat-multibyte-varuint-boundaries
+  (testing "varuint multi-byte boundaries encode with minimal LEB128 length"
+    (is (= "10feff01"     (to-hex (hc/canonical-bytes 16383))))
+    (is (= "10808002"     (to-hex (hc/canonical-bytes 16384))))
+    (is (= "10feffff01"   (to-hex (hc/canonical-bytes 2097151))))
+    (is (= "1080808002"   (to-hex (hc/canonical-bytes 2097152)))))
+  (testing "arbitrary-precision integers beyond long range are distinct"
+    (let [a (bigint (bit-shift-left 1 100))
+          b (bigint (inc (bit-shift-left 1 100)))]
+      (is (not (bytes= (hc/canonical-bytes a) (hc/canonical-bytes b)))))))
+
+(deftest test-concat-set-mixed-type-ordering
+  (testing "sets of mixed-type elements sort by canonical byte order"
+    (let [s1 (hc/canonical-bytes #{:z :a "str" 5 10})
+          s2 (hc/canonical-bytes #{10 "str" 5 :a :z})]
+      (is (bytes= s1 s2) "order independence for mixed-type sets")
+      (is (= 0x30 (aget s1 0)) "sets encode as sorted arrays")))
+  (testing "distinct mixed-type set contents must differ"
+    (is (not (bytes= (hc/canonical-bytes #{:a :b})
+                     (hc/canonical-bytes #{:a :b "c"}))))))
 
 (deftest test-string
   (let [expected (byte-array [0x20 0x06 0x61 0x63 0x74 0x69 0x76 0x65])]
@@ -88,6 +144,158 @@
   (let [bytes (hc/canonical-bytes [1 "two" :three])]
     (is (= 0x30 (aget bytes 0)))
     (is (= 3 (aget bytes 1)))))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Consecutive Concatenation Coverage
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Exercises the byte-concatenation model in CANONICAL_HASH_SPEC_V1 §8.4
+;; (Concatenation Stress) and §9 (Critical Concatenation Edge Cases):
+;;   - self-delimiting concatenation (no delimiter ambiguity)
+;;   - boundary ambiguity protection  ("ab"+"c" vs "a"+"bc", mixed types)
+;;   - empty-value collision guards
+;;   - stress (long strings, many-element lists/maps, deep nesting)
+;;   - varuint/ZigZag integer boundaries feeding concatenated output
+
+(defn- varuint-byte-count
+  "LEB128 length (in bytes) of a non-negative integer."
+  [n]
+  (loop [n n c 1]
+    (if (< n 128) c (recur (quot n 128) (inc c)))))
+
+(defn- read-varuint
+  "Decode a LEB128 varuint from a byte array starting at offset."
+  [^bytes ba offset]
+  (loop [i offset shift 0 acc 0]
+    (let [b (bit-and (int (aget ba i)) 0xFF)
+          acc (bit-or acc (bit-shift-left (bit-and b 0x7F) shift))]
+      (if (zero? (bit-and b 0x80))
+        acc
+        (recur (inc i) (+ shift 7) acc)))))
+
+(deftest test-concat-boundary-ambiguity
+  (testing "\"ab\"+\"c\" vs \"a\"+\"bc\" must differ (length-prefix delimiters)"
+    (is (not (bytes= (hc/canonical-bytes ["ab" "c"])
+                     (hc/canonical-bytes ["a" "bc"])))))
+  (testing "mixed-type [\"1\", 1] vs [1, \"1\"] must differ (type tags)"
+    (is (not (bytes= (hc/canonical-bytes ["1" 1])
+                     (hc/canonical-bytes [1 "1"]))))))
+
+(deftest test-concat-no-delimiter-required
+  (testing "nested concatenation is self-delimiting: [\"a\" \"b\" \"c\"] groups differently"
+    (is (not (bytes= (hc/canonical-bytes [["a" "b"] "c"])
+                     (hc/canonical-bytes ["a" ["b" "c"]]))))))
+
+(deftest test-concat-empty-value-collisions
+  (testing "empty containers and empty primitives are mutually distinct"
+    (is (not (bytes= (hc/canonical-bytes []) (hc/canonical-bytes {}))))
+    (is (not (bytes= (hc/canonical-bytes []) (hc/canonical-bytes [nil]))))
+    (is (not (bytes= (hc/canonical-bytes "") (hc/canonical-bytes []))))
+    (is (not (bytes= (hc/canonical-bytes "") (hc/canonical-bytes [""]))))
+    (is (not (bytes= (hc/canonical-bytes nil) (hc/canonical-bytes false))))
+    (is (not (bytes= (hc/canonical-bytes nil) (hc/canonical-bytes ""))))))
+
+(deftest test-concat-element-sensitivity
+  (testing "same-length vectors differing by one element must differ"
+    (is (not (bytes= (hc/canonical-bytes [1 2 3])
+                     (hc/canonical-bytes [1 2 4])))))
+  (testing "adding an element must change the concatenation"
+    (is (not (bytes= (hc/canonical-bytes [1 2])
+                     (hc/canonical-bytes [1 2 3])))))
+  (testing "integer elements vs string elements with identical glyphs"
+    (is (not (bytes= (hc/canonical-bytes [1 2])
+                     (hc/canonical-bytes [1 "2"]))))))
+
+(deftest test-concat-long-string-stress
+  (testing "long strings (>10k bytes) encode with correct length prefix"
+    (let [n 20000
+          s (apply str (repeat n "x"))
+          bytes (hc/canonical-bytes s)]
+      (is (= (+ 1 (varuint-byte-count n) n) (count bytes)))
+      (is (bytes= bytes (hc/canonical-bytes s)) "deterministic"))))
+
+(deftest test-concat-large-vector-stress
+  (testing "many-element lists (>10k items) are deterministic and bounded"
+    (let [n 10000
+          v (vec (range n))
+          bytes (hc/canonical-bytes v)
+          tampered (update v 5000 inc)]
+      (is (bytes= bytes (hc/canonical-bytes v)) "deterministic")
+      (is (not (bytes= bytes (hc/canonical-bytes tampered))) "single change propagates")
+      (is (bytes= (hc/canonical-bytes [])
+                  (byte-array [0x30 0x00])) "empty vector unaffected"))))
+
+(deftest test-concat-many-entry-map-stress
+  (testing "many-entry maps sort deterministically independent of insertion order"
+    (let [n 2000
+          ks (mapv #(str "key-" %) (range n))
+          m (into {} (map (fn [k] [k (count k)]) ks))
+          m-shuffled (into {} (shuffle (seq m)))
+          b1 (hc/canonical-bytes m)
+          b2 (hc/canonical-bytes m-shuffled)]
+      (is (bytes= b1 b2) "order independence")
+      (is (= n (read-varuint b1 1)) "count decodes to element count"))))
+
+(deftest test-concat-deep-nesting
+  (testing "deeply nested concatenation chains remain deterministic at practical depth"
+    (let [deep (nth (iterate (fn [x] [x]) 1) 100)
+          b1 (hc/canonical-bytes deep)
+          b2 (hc/canonical-bytes deep)]
+      (is (bytes= b1 b2))
+      (is (> (count b1) 100))
+      ;; Structural equivalence regardless of map vs vector at a given level
+      (is (bytes= (hc/canonical-bytes {:a {:b {:c 1}}})
+                  (hc/canonical-bytes {:a {:b {:c 1}}}))))))
+
+(deftest test-concat-deep-nesting-stack-safe
+  (testing "canonical-bytes is stack-safe for deep nesting (spec §8.4)"
+    ;; Previously overflowed the JVM stack at ~200 levels; must now encode
+    ;; arbitrarily deep chains without throwing StackOverflowError.
+    (doseq [depth [1000 10000 50000]]
+      (let [v (nth (iterate (fn [x] [x]) 1) depth)
+            b1 (hc/canonical-bytes v)
+            b2 (hc/canonical-bytes v)]
+        (is (bytes= b1 b2) (str "depth " depth))
+        (is (= (+ (* 2 depth) 2) (count b1)) (str "encoded length at depth " depth))))
+    (testing "deep nesting hash determinism through domain-hash"
+      (let [v (nth (iterate (fn [x] [x]) 10000) 1)]
+        (is (= (hc/domain-hash :evidence-record v)
+               (hc/domain-hash :evidence-record v)))))))
+
+(deftest test-concat-set-vector-equivalence
+  (testing "sets normalize to sorted vectors (canonical-bytes treats them identically)"
+    (is (bytes= (hc/canonical-bytes #{:a :b})
+                (hc/canonical-bytes [:a :b])))
+    (is (bytes= (hc/canonical-bytes #{:b :a})
+                (hc/canonical-bytes [:a :b]))))
+  (testing "validate-canonical-value! rejects sets (must be projected first)"
+    (is (thrown? Exception (hc/validate-canonical-value! #{:a :b})))))
+
+(deftest test-concat-integer-boundaries
+  (testing "varuint/ZigZag boundaries round-trip into concatenated byte stream"
+    (is (= "1000" (to-hex (hc/canonical-bytes 0))))
+    (is (= "1001" (to-hex (hc/canonical-bytes -1))))
+    (is (= "10fe01" (to-hex (hc/canonical-bytes 127))))
+    (is (= "108002" (to-hex (hc/canonical-bytes 128))))
+    (is (= "10ff01" (to-hex (hc/canonical-bytes -128)))))
+  (testing "large and extreme integers are distinct and non-degenerate"
+    (let [s #{Long/MAX_VALUE Long/MIN_VALUE 0 1 -1 127 128}]
+      (is (apply distinct? (map (comp to-hex hc/canonical-bytes) s))))
+    (is (= "10feffffffffffffffff01"
+           (to-hex (hc/canonical-bytes Long/MAX_VALUE))))))
+
+(deftest test-concat-domain-hash-concatenation
+  (testing "domain-hash = SHA256(domain_tag || canonical_bytes) is deterministic, 64-hex"
+    (let [v {:nested [{:a [1 2 3] :b "long string here"}] :s "x"}
+          h1 (hc/domain-hash :evidence-record v)
+          h2 (hc/domain-hash :evidence-record v)]
+      (is (= 64 (count h1)))
+      (is (= h1 h2))
+      (is (not= h1 (hc/domain-hash :registry v)) "domain tag separation"))))
+
+(deftest test-concat-rejects-lossy-bigdecimal
+  (testing "BigDecimal is not a canonical type and must be projected first"
+    (is (thrown? Exception (hc/canonical-bytes (bigdec "1.5"))))
+    (is (thrown? Exception (hc/validate-canonical-value! (bigdec "1.5"))))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Domain Hashing
@@ -494,7 +702,7 @@
   {:world-structure   "7bd2385f6f282de3016059bd6e2cedd14ae1733c1c2b09fe766362346efbe091"
    :evm-projection    "0e8665e204c8f3833773b6b68d458ccd6346acd621ab9c7f5e4219ba6e3cdd2a"
    :evidence-record   "bb94b6ff9457c613af3fefce33130c4b4e68a8a0f5b587c00124c18cfa848ace"
-   :evidence-content  "aa84921b0d4b447aaad5a450ffee9b36e2e3f9d3d39991c0eb3842162b05630d"
+   :evidence-content  "644a06aff128e2324d7769de979d7a9c8f8d79235556027506c23193a0001b48"
    :evidence-chain    "365e311bef1cd758d3961a2b08dc59fffc8d636f8826ff4901328cfd4a49a84b"
    :manifest          "b6398eb7538ee05172ce62d656c2c4042819ad7d62fe1694c5dfafbf3ab242b7"
    :bundle-root       "ebf3a96c2062e800866f6c353c28d4ebd340a538fbb630d0c75fa3b2420ff057"

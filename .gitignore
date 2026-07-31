@@ -79,6 +79,9 @@ local
 scripts/experimental
 .sync-backup/
 
+# Local researcher workspace (opt-in extra paths via :researcher/env)
+.researcher/
+
 # JAR
 prf.jar
 

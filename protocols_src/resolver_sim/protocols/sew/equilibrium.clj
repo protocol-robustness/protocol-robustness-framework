@@ -176,8 +176,13 @@
 
 (defn- check-subgame-perfect-equilibrium
   "Heuristic: No Profitable Regret (Trace-level SPE Proxy).
-   Delegates to resolver-sim.scenario.subgame-counterfactual."
-  [projection]
+   Delegates to resolver-sim.scenario.subgame-counterfactual.
+
+   Takes an optional `eq-concept` keyword (default :subgame-perfect-equilibrium)
+   so alias concepts (e.g. :trace-conditioned-epsilon-spe) can reuse this
+   predicate while still being labelled with the concept that was requested."
+  ([projection] (check-subgame-perfect-equilibrium projection :subgame-perfect-equilibrium))
+  ([projection eq-concept]
   (let [spe-result-map (subgame-cf/evaluate-subgame-counterfactual projection)
         {:keys [status basis regret-table max-regret mean-regret threshold checked-nodes requires
                 continuation-policy replay-boundary utility-spec class-counts
@@ -257,18 +262,18 @@
                    :spe-violations   (vec (filter (fn [r] (pos? (long (or (:local-regret r) 0)))) regret-table))}]
     (case status
       :pass
-      (pass :subgame-perfect-equilibrium basis
+      (pass eq-concept basis
             observed
             {:spe-status :pass :max-regret (str "<= " threshold)})
 
       :fail
-      (fail :subgame-perfect-equilibrium basis
+      (fail eq-concept basis
             observed
             {:spe-status :pass :max-regret (str "<= " threshold)}
             (:spe-violations observed))
 
-      (inconclusive :subgame-perfect-equilibrium basis
-                    (or (first requires) "counterfactual evidence unavailable")))))
+      (inconclusive eq-concept basis
+                    (or (first requires) "counterfactual evidence unavailable"))))))
 
 (defn- check-bounded-public-state-epsilon-spe
   "Phase K: Bounded public-state epsilon-SPE proxy.
@@ -777,7 +782,7 @@
    Returned by SewProtocol/equilibrium-concept-validators and merged with the
    framework's built-in generic validators."
   {   :subgame-perfect-equilibrium             check-subgame-perfect-equilibrium
-   :trace-conditioned-epsilon-spe           check-subgame-perfect-equilibrium
+   :trace-conditioned-epsilon-spe           (fn [p] (check-subgame-perfect-equilibrium p :trace-conditioned-epsilon-spe))
    :bounded-public-state-epsilon-spe        check-bounded-public-state-epsilon-spe
    :bounded-backward-induction-spe          check-bounded-backward-induction-spe
    :resolver-reputation-spe                 check-resolver-reputation-spe

@@ -31,15 +31,19 @@ layer that makes simulation results explainable to stakeholders.
 |------|---------|
 | `data/concepts/registry.edn` | Concept registry index |
 | `data/concepts/*.edn` | Individual concept definitions |
-| `docs/concepts/README.md` | This file |
-| `docs/concepts/GLOSSARY.md` | General project glossary |
-| `docs/concepts/RISK_TAXONOMY.md` | Risk taxonomy across concepts |
-| `docs/concepts/scenario-annotation-guide.md` | How to annotate scenarios |
-| `docs/concepts/sensitivity-provenance-chain.md` | Cryptographic verification of sensitivity classification provenance |
+| `docs/conceptual/README.md` | This file |
+| `docs/conceptual/incentive-property-semantics.md` | Incentive property → concept ownership / coverage matrix |
+| `docs/conceptual/GLOSSARY.md` | General project glossary |
+| `docs/conceptual/RISK_TAXONOMY.md` | Risk taxonomy across concepts |
+| `docs/conceptual/scenario-annotation-guide.md` | How to annotate scenarios |
+| `docs/conceptual/sensitivity-provenance-chain.md` | Cryptographic verification of sensitivity classification provenance |
 | `src/resolver_sim/concepts/registry.clj` | Registry loading + validation |
 | `src/resolver_sim/concepts/reporting.clj` | Concept-aware report shape (stub) |
 
 ## Current Concepts
+
+The full catalogue is indexed by `data/concepts/registry.edn` (49 concepts).
+Select concepts most relevant to the incentive-property layer:
 
 | Concept | Status | Stakeholder Question |
 |---------|--------|----------------------|
@@ -47,6 +51,9 @@ layer that makes simulation results explainable to stakeholders.
 | `:event/deposit` | Draft | Can deposited funds be released only when intended conditions are met? |
 | `:spending-account/controlled-balance` | Draft | Can a user safely maintain a spendable balance with holds and withdrawals? |
 | `:verifiable-assurance/forensic-confidence` | Draft | How can I verify a protocol outcome without trusting any single authority? |
+| `:concept/conservation` | Draft | Is the quantity fully accounted for? |
+| `:framework/incentive` | Draft | Does the protocol provide correct incentives for participants to behave honestly, and how is this verified? |
+| `:framework/incentive-compatibility` | Draft | Does any participant gain by behaving dishonestly instead of honestly? |
 
 ## Using Concepts
 
