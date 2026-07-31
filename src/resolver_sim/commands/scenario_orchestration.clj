@@ -307,6 +307,12 @@
                                                  (instance? java.time.temporal.TemporalAccessor x)
                                                  (fn? x))
                                              (str x)
+                                             ;; Sequence types (LazySeq, PersistentList, Cons, ...) are not
+                                             ;; canonical-bytes encodable. Realize them as vectors so claim
+                                             ;; results / attestations can be hashed and persisted. This only
+                                             ;; affects previously-failing serialization: no valid evidence
+                                             ;; existed for values that reached this branch.
+                                             (instance? clojure.lang.ISeq x) (vec x)
                                              (instance? clojure.lang.IPersistentCollection x) x
                                              :else (str x)))
                                          value))
