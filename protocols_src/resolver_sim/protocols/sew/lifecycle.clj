@@ -736,7 +736,7 @@
       (if-not allowed?
         (guard-fail (if (= 1 reason-code) :not-sender :release-not-allowed)
                     :reason-code reason-code :workflow-id workflow-id)
-        (finalize world workflow-id :released))))
+        (finalize world workflow-id :released)))))
 
 ;; ---------------------------------------------------------------------------
 ;; partial-release
@@ -1001,7 +1001,7 @@
                                 (t/decrement-resolver-capacity resolver)
                                 (acct/return-all-bonds-for-workflow workflow-id)
                                 (cleanup-orphaned-slashes workflow-id))]
-        (t/ok world-result))))))
+        (t/ok world-result)))))
 
 (defn auto-cancel-disputed-escrow
   "Cancel a :disputed escrow after max-dispute-duration has elapsed.

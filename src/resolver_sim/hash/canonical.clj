@@ -130,7 +130,8 @@
     :pool-reservation       "POOL_RESERVATION_V1"
     :award-calculation-v2   "AWARD_CALCULATION_V2"
     :claim-set              "CLAIM_SET_V1"
-    :check-set              "CHECK_SET_V1"})
+    :check-set              "CHECK_SET_V1"
+    :award-policy           "AWARD_POLICY_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1577,6 +1578,16 @@
     :intent/description "Canonical root of a sorted, deduplicated set of eligibility check IDs"
     :intent/includes    #{:check/ids}
     :intent/excludes    #{:metadata}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :award-policy
+   {:intent/name        :award-policy
+    :intent/domain-tag  "AWARD_POLICY_V1"
+    :intent/description "Canonical identity of an award policy artifact committing the required eligibility check-set root"
+    :intent/includes    #{:artifact/type :policy/id :policy/required-check-ids
+                          :policy/check-set-root}
+    :intent/excludes    #{:artifact/hash :metadata}
     :intent/projection-fn project-identity
     :intent/version     1}
 

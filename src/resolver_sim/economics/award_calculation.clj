@@ -339,9 +339,17 @@
 (defn verify-award-calculation
   "Independent verification of an award-calculation artifact.
    Returns {:valid? true} or {:valid? false :errors [...]}.
-   Never throws."
-  [award]
-  (try
+   Never throws.
+   opts — {:keys [policy-resolver]}, where policy-resolver is a function
+   (fn [policy-root] -> award-policy artifact) or nil.  When supplied,
+   the verifier resolves :award/eligibility-policy-root and establishes
+   the policy-relative completeness invariant:
+     (:policy/check-set-root resolved-policy)
+     == (:award/check-set-root award)
+     == (check-set-root supplied-check-ids)"
+  ([award] (verify-award-calculation award nil))
+  ([award {:keys [policy-resolver]}]
+   (try
     (validate-award-calculation award)
     (let [errors (atom [])]
       ;; Recompute hash
@@ -383,9 +391,40 @@
                    (pos? (:award/amount award)))
           (swap! errors conj {:type :ineligible-positive-amount
                               :amount (:award/amount award)})))
+      ;; Policy-relative completeness: when a policy-resolver is supplied,
+      ;; resolve the committed policy and require its check-set-root to equal
+      ;; both the artifact check-set-root and the derived root from supplied checks.
+      (when policy-resolver
+        (let [policy-root (:award/eligibility-policy-root award)
+              award-csr (:award/check-set-root award)
+              supplied-csr (check-set-root
+                            (map :check/id
+                                 (get-in award [:award/eligibility-result :checks])))]
+          (if (and policy-root award-csr)
+            (let [resolved (try (policy-resolver policy-root)
+                                (catch Exception e
+                                  (swap! errors conj {:type :policy-resolve-error
+                                                      :policy-root policy-root
+                                                      :message (ex-message e)})
+                                  nil))
+                  _ (when resolved
+                      (let [policy-csr (:policy/check-set-root resolved)]
+                        (when (not= policy-csr award-csr)
+                          (swap! errors conj {:type :policy-check-set-mismatch
+                                              :policy-root policy-root
+                                              :policy-check-set-root policy-csr
+                                              :award-check-set-root award-csr}))
+                        (when (not= policy-csr supplied-csr)
+                          (swap! errors conj {:type :policy-supplied-check-set-mismatch
+                                              :policy-root policy-root
+                                              :policy-check-set-root policy-csr
+                                              :supplied-check-set-root supplied-csr
+                                              :supplied-ids (mapv :check/id
+                                                                  (get-in award [:award/eligibility-result :checks]))}))))]
+              nil))))
       (if (empty? @errors) {:valid? true} {:valid? false :errors @errors}))
     (catch Exception e
       {:valid? false
        :errors [{:type :invalid-structure
                  :message (ex-message e)
-                 :data (ex-data e)}]})))
+                 :data (ex-data e)}]}))))

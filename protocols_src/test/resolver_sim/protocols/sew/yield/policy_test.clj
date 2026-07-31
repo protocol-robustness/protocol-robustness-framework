@@ -129,3 +129,50 @@
       (is (:holds? (fees/fees-non-negative? final)) "total-fees stays non-negative")
       (is (:holds? (fees/fee-increased-or-equal? accrued final))
           "fee monotonicity holds across finalize"))))
+
+(deftest settlement-rejects-when-principal-position-drained-by-negative-yield
+  (testing "When a negative-yield write-down drains the escrow's principal custody
+            position but same-token funds remain (from another position), settlement
+            must return a structured :insufficient-custody-position rejection from
+            the settlement boundary — not a position-underflow exception — and must
+            not capture the other position's funds."
+    (let [scenario {:initial-block-time 1000
+                    :yield-config {:modules {:fixed-rate {:tokens {"USDC" {:apy -1.0
+                                                                           :failure-modes #{:negative-yield}}}}}}}
+          world (proto/init-world sew/protocol scenario)
+          yield-snapshot (snap-fix/escrow-snapshot {:yield-generation-module :fixed-rate
+                                                    :escrow-fee-bps 50
+                                                    :yield-protocol-fee-bps 0
+                                                    :appeal-window-duration 0})
+          plain-snapshot (snap-fix/escrow-snapshot {:escrow-fee-bps 50
+                                                    :appeal-window-duration 0})
+          res-a (lc/create-escrow world "sender-a" "USDC" "recipient-a" 10000
+                                  (t/make-escrow-settings {:yield-preset :to-recipient})
+                                  yield-snapshot)
+          world1 (:world res-a)
+          res-b (lc/create-escrow world1 "sender-b" "USDC" "recipient-b" 5000
+                                  (t/make-escrow-settings {})
+                                  plain-snapshot)
+          world2 (:world res-b)
+          wf-a 0
+          world3 (-> world2
+                     (time-ctx/advance-time {:seconds 31536000})
+                     (lc/accrue-yield wf-a))
+          pos (get-in world3 [:yield/positions (t/escrow-yield-owner-id wf-a)])
+          release (lc/release world3 wf-a "sender-a" (fn [_ _ _] {:allowed? true}))]
+      (is (neg? (+ (:realized-yield pos 0) (:unrealized-yield pos 0)))
+          "workflow A written down by negative yield")
+      (is (zero? (get-in world3 [:held/positions [:held/position :USDC :escrow-principal wf-a]] 0))
+          "workflow A principal position fully drained")
+      (is (pos? (get-in world3 [:held/positions [:held/position :USDC :escrow-principal 1]] 0))
+          "workflow B same-token principal remains in aggregate :total-held")
+      (is (false? (:ok release)))
+      (is (= :insufficient-custody-position (:error release)))
+      (is (nil? (:world release)) "guard rejection carries no world")
+      (is (= :pending (t/escrow-state world3 wf-a))
+          "workflow A remains unsettled; no stale finalization")
+      (is (= 0 (get-in world3 [:claimable-v2 wf-a :settlement/principal "recipient-a"] 0))
+          "no claimable created for workflow A")
+      (is (= (get-in world3 [:escrow-transfers 1 :amount-after-fee])
+             (get-in world3 [:total-held :USDC] 0))
+          "workflow B funds are untouched by the rejected settlement"))))

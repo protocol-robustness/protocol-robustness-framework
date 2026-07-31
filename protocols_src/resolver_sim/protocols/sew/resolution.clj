@@ -852,7 +852,7 @@
                                     :authorization-provenance auth-prov))]
           (if (:ok finalized)
             (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
-            finalized))))
+            finalized))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal building block: _validateAndPrepareEscalation deletes

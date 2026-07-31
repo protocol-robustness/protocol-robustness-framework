@@ -1,6 +1,7 @@
 (ns resolver-sim.economics.award-calculation-test
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.economics.award-calculation :as ac]))
+            [resolver-sim.economics.award-calculation :as ac]
+            [resolver-sim.economics.award-policy :as ap]))
 
 (defn- valid-award-input
   []
@@ -354,3 +355,70 @@
     (is (= :generic (:award/mode award))
         "default mode is :generic with optional roots")
     (is (nil? (:award/check-set-root award)))))
+
+;; ── Policy-relative completeness ─────────────────────────────────────────────
+
+(defn- build-policy-bound-award
+  "Build a review-mode award whose check set exactly matches the policy."
+  [policy]
+  (let [check-ids (:policy/required-check-ids policy)
+        csr (:policy/check-set-root policy)
+        er {:eligible? true
+            :checks (mapv (fn [id] {:check/id id :check/pass? true}) check-ids)}]
+    (ac/build-award-calculation
+     (assoc (valid-award-input)
+            :award/mode :review
+            :award/eligibility-policy-root (:artifact/hash policy)
+            :award/check-set-root csr
+            :award/eligibility-result er))))
+
+(deftest policy-relative-completeness-passes
+  (let [policy (ap/build-award-policy
+                {:policy/id "policy-p"
+                 :policy/required-check-ids [:claim-valid :beneficiary-active]})
+        award (build-policy-bound-award policy)
+        result (ac/verify-award-calculation
+                award {:policy-resolver (fn [_] policy)})]
+    (is (:valid? result)
+        "award whose check set exactly matches policy check-set is complete")))
+
+(deftest policy-relative-completeness-detects-subset
+  ;; The exact gap the review identified: policy requires {A B C}, the award
+  ;; supplies {A B} but carries an internally-consistent check-set-root for
+  ;; {A B}.  Resolution against the policy must reject it.
+  (let [policy (ap/build-award-policy
+                {:policy/id "policy-abc"
+                 :policy/required-check-ids [:a :b :c]})
+        ;; Award deliberately supplies only {A B}
+        er {:eligible? true
+            :checks [{:check/id :a :check/pass? true}
+                     {:check/id :b :check/pass? true}]}
+        csr (ac/check-set-root [:a :b])
+        award (ac/build-award-calculation
+               (assoc (valid-award-input)
+                      :award/mode :review
+                      :award/eligibility-policy-root (:artifact/hash policy)
+                      :award/check-set-root csr
+                      :award/eligibility-result er))
+        ;; Internally consistent: derived root == supplied check-set-root
+        internal (ac/verify-award-calculation award)
+        ;; Policy-relative: policy requires {A B C}
+        external (ac/verify-award-calculation
+                  award {:policy-resolver (fn [_] policy)})]
+    (is (:valid? internal)
+        "artifact is internally consistent (supplied checks match carried check-set-root)")
+    (is (false? (:valid? external))
+        "policy-relative completeness rejects {A B} against policy requiring {A B C}")
+    (is (some #(= :policy-supplied-check-set-mismatch (:type %))
+              (:errors external)))))
+
+(deftest policy-relative-completeness-no-resolver-is-partial
+  ;; Without a policy-resolver, review-mode verification can only establish
+  ;; internal consistency, not policy-relative completeness.
+  (let [policy (ap/build-award-policy
+                {:policy/id "policy-p"
+                 :policy/required-check-ids [:claim-valid :beneficiary-active]})
+        award (build-policy-bound-award policy)
+        result (ac/verify-award-calculation award)]
+    (is (:valid? result)
+        "without a resolver, verification confirms internal consistency only")))

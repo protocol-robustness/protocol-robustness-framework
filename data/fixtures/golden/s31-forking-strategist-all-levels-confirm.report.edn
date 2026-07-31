@@ -32,7 +32,7 @@
   :batch-events 0,
   :yield/escrow-reclaimed 0,
   :reverts 2,
-  :unexpected-reverts 0,
+  :unexpected-reverts 1,
   :yield/escrow-current-value 0,
   :yield/reclaimed 0,
   :resolutions-executed 3,
@@ -58,10 +58,10 @@
   :yield/escrow-principal 0,
   :yield/position-principal 0,
   :cancellations-sender 0,
-  :expected-reverts 2,
+  :expected-reverts 1,
   :escrow/live-state "released",
   :batch-buckets 0},
- :outcome :pass,
+ :outcome :fail,
  :theory
  {:equilibrium-reasons {},
   :diagnostics
