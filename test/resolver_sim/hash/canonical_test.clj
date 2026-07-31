@@ -330,7 +330,7 @@
         (is (bytes= (hc/canonical-bytes s) (hc/canonical-bytes s)))))))
 
 (deftest test-concat-length-prefix-boundary-stress
-    (letfn [(frame [^bytes ba] (to-hex (byte-array (take 5 ba))))]
+  (letfn [(frame [^bytes ba] (to-hex (byte-array (take 5 ba))))]
     (testing "string length prefixes cross varuint boundaries"
       (doseq [n [127 128 16383 16384 2097151 2097152]
               :let [s (apply str (repeat n "x"))]]
@@ -348,12 +348,12 @@
 (deftest test-concat-type-separation
   (testing "adjacent values whose textual forms coincide remain type-distinct"
     (is (not (bytes= (hc/canonical-bytes [1])   (hc/canonical-bytes ["1"]))))
-    (is (not (bytes= (hc/canonical-bytes [true])(hc/canonical-bytes ["true"]))))
-    (is (not (bytes= (hc/canonical-bytes [false])(hc/canonical-bytes ["false"]))))
+    (is (not (bytes= (hc/canonical-bytes [true]) (hc/canonical-bytes ["true"]))))
+    (is (not (bytes= (hc/canonical-bytes [false]) (hc/canonical-bytes ["false"]))))
     (is (not (bytes= (hc/canonical-bytes [nil]) (hc/canonical-bytes [""]))))
     (is (not (bytes= (hc/canonical-bytes [:a])  (hc/canonical-bytes ["a"]))))
-    (is (not (bytes= (hc/canonical-bytes [true])(hc/canonical-bytes [1]))))
-    (is (not (bytes= (hc/canonical-bytes [false])(hc/canonical-bytes [0])))))
+    (is (not (bytes= (hc/canonical-bytes [true]) (hc/canonical-bytes [1]))))
+    (is (not (bytes= (hc/canonical-bytes [false]) (hc/canonical-bytes [0])))))
   (testing "type tag is committed before each component's payload"
     (doseq [[v tag] [[nil 0x00] [false 0x01] [true 0x02]
                      [1 0x10] ["s" 0x20] [:k 0x22]
@@ -370,7 +370,7 @@
   (testing "nested empty/singleton collections stay distinct"
     (is (not (bytes= (hc/canonical-bytes [])      (hc/canonical-bytes [[]]))))
     (is (not (bytes= (hc/canonical-bytes [[]])    (hc/canonical-bytes [[] []]))))
-    (is (not (bytes= (hc/canonical-bytes [[] []]  ) (hc/canonical-bytes [[[]]]))))
+    (is (not (bytes= (hc/canonical-bytes [[] []]) (hc/canonical-bytes [[[]]]))))
     (is (not (bytes= (hc/canonical-bytes [[1 2]]) (hc/canonical-bytes [[1] [2]]))))))
 
 (deftest test-concat-associativity-traps

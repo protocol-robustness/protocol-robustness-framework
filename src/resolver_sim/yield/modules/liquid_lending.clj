@@ -525,6 +525,13 @@
     (inc (max (long active-round) maximum-history-round))))
 
 (defn- position-state-commitment [owner-id position]
+  ;; TODO(deferral.v1):
+  ;; The deferred-position commitment below is the implicit deferral artifact.
+  ;; resolver-sim.deferral formalizes this as deferral.v1 (stable :deferral/id +
+  ;; hashed snapshots + lineage chain). Migrating this site to emit deferral.v1
+  ;; would change :deferred-position-hash / position-hash values and the
+  ;; invariants that reconstruct them — defer until a versioned migration is
+  ;; acceptable. See GitHub issue: "deferral.v1 first-class hashed artifact".
   {:owner-id owner-id
    :position-hash (canonical-hash-safe position)
    :position-id (base-position-id owner-id position)
@@ -945,11 +952,11 @@
                      deferred (long (:deferred participant 0))
                      fulfilled (long (:fulfilled participant 0))
                      original-priority (:original-priority precondition)
-                      round (next-lineage-round position)
-                      _ (propagation-policy/check-max-lineage-round!
-                         round
-                         (get-in propagation [:propagation-policy :policy/snapshot]))
-                      transition-hash
+                     round (next-lineage-round position)
+                     _ (propagation-policy/check-max-lineage-round!
+                        round
+                        (get-in propagation [:propagation-policy :policy/snapshot]))
+                     transition-hash
                      (transition-commitment
                       propagation
                       participant
@@ -1012,29 +1019,29 @@
                                                   :haircut-amount 0}))
                               :deferred/lineage-root (lineage-root position current-deferred)
                               :deferred/predecessor-hash (predecessor-hash position current-deferred)}]
-                        (when (pos? deferred)
-                          (propagation-policy/validate-deferred-position-schema m))
+                       (when (pos? deferred)
+                         (propagation-policy/validate-deferred-position-schema m))
                        m)
-                      closed-prior
-                      (when current-deferred
-                        (assoc current-deferred
-                               :position/status :closed
-                               :position/closed-from-amount
-                               (:position/current-amount current-deferred)
-                               :position/current-amount 0
-                               :position/closed-by-propagation-id propagation-id
-                               :position/closed-by-transition-hash transition-hash
-                               :position/closed-order application-order
-                               :position/closed-event-time event-time
-                               :position/successor-id
-                               (when (pos? deferred) successor-id)))
-                      shortfall
-                      (when (pos? deferred)
-                        {:reason :liquidity-shortfall
-                         :basis-amount (+ fulfilled deferred)
-                         :fulfilled-amount fulfilled
-                         :deferred-amount deferred
-                         :haircut-amount 0})
+                     closed-prior
+                     (when current-deferred
+                       (assoc current-deferred
+                              :position/status :closed
+                              :position/closed-from-amount
+                              (:position/current-amount current-deferred)
+                              :position/current-amount 0
+                              :position/closed-by-propagation-id propagation-id
+                              :position/closed-by-transition-hash transition-hash
+                              :position/closed-order application-order
+                              :position/closed-event-time event-time
+                              :position/successor-id
+                              (when (pos? deferred) successor-id)))
+                     shortfall
+                     (when (pos? deferred)
+                       {:reason :liquidity-shortfall
+                        :basis-amount (+ fulfilled deferred)
+                        :fulfilled-amount fulfilled
+                        :deferred-amount deferred
+                        :haircut-amount 0})
                      updated-position
                      (cond->
                       (assoc position

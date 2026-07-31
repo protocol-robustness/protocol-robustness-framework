@@ -52,63 +52,63 @@
 
 (deftest build-deductions-exceed-base-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/calculation-components
-                      [{:component/id :base-part
-                        :component/kind :base
-                        :component/amount 100
-                        :component/source-root "sha256:s1"}
-                       {:component/id :deduction-part
-                        :component/kind :deduction
-                        :component/amount -200
-                        :component/source-root "sha256:s2"}])))
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/calculation-components
+                       [{:component/id :base-part
+                         :component/kind :base
+                         :component/amount 100
+                         :component/source-root "sha256:s1"}
+                        {:component/id :deduction-part
+                         :component/kind :deduction
+                         :component/amount -200
+                         :component/source-root "sha256:s2"}])))
       "100 + (-200) = -100 → negative amount rejected"))
 
 (deftest build-component-sign-mismatch-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/calculation-components
-                      [{:component/id :bad-base
-                        :component/kind :base
-                        :component/amount -50
-                        :component/source-root "sha256:s"}])))
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/calculation-components
+                       [{:component/id :bad-base
+                         :component/kind :base
+                         :component/amount -50
+                         :component/source-root "sha256:s"}])))
       "base kind requires non-negative amount"))
 
 (deftest build-deduction-positive-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/calculation-components
-                      [{:component/id :bad-ded
-                        :component/kind :deduction
-                        :component/amount 50
-                        :component/source-root "sha256:s"}])))
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/calculation-components
+                       [{:component/id :bad-ded
+                         :component/kind :deduction
+                         :component/amount 50
+                         :component/source-root "sha256:s"}])))
       "deduction kind requires non-positive amount"))
 
 (deftest build-missing-component-id-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/calculation-components
-                      [{:component/kind :base
-                        :component/amount 100
-                        :component/source-root "sha256:s"}])))))
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/calculation-components
+                       [{:component/kind :base
+                         :component/amount 100
+                         :component/source-root "sha256:s"}])))))
 
 (deftest build-duplicate-component-id-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/calculation-components
-                      [{:component/id :dup
-                        :component/kind :base
-                        :component/amount 100
-                        :component/source-root "sha256:s1"}
-                       {:component/id :dup
-                        :component/kind :deduction
-                        :component/amount -50
-                        :component/source-root "sha256:s2"}])))))
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/calculation-components
+                       [{:component/id :dup
+                         :component/kind :base
+                         :component/amount 100
+                         :component/source-root "sha256:s1"}
+                        {:component/id :dup
+                         :component/kind :deduction
+                         :component/amount -50
+                         :component/source-root "sha256:s2"}])))))
 
 (deftest build-component-permutation-same-hash
   (let [comps-a [{:component/id :a :component/kind :base
@@ -181,31 +181,31 @@
 
 (deftest build-ineligible-positive-amount-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/eligibility-result
-                      {:eligible? false
-                       :checks [{:check/id :some-fail
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/eligibility-result
+                       {:eligible? false
+                        :checks [{:check/id :some-fail
                                   :check/pass? false}]})))
       "ineligible with positive amount (800) must be rejected"))
 
 (deftest build-eligibility-declared-mismatch-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/eligibility-result
-                      {:eligible? true
-                       :checks [{:check/id :actually-fails
-                                 :check/pass? false}]})))
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/eligibility-result
+                       {:eligible? true
+                        :checks [{:check/id :actually-fails
+                                  :check/pass? false}]})))
       "declared eligible?=true but all checks must pass"))
 
 (deftest build-empty-checks-rejected
   (is (thrown? Exception
-              (ac/build-award-calculation
-               (assoc (valid-award-input)
-                      :award/eligibility-result
-                      {:eligible? true
-                       :checks []})))))
+               (ac/build-award-calculation
+                (assoc (valid-award-input)
+                       :award/eligibility-result
+                       {:eligible? true
+                        :checks []})))))
 
 (deftest build-eligibility-checks-canonicalized
   (let [er {:eligible? true
@@ -319,10 +319,10 @@
         expected-ids [:claim-valid :beneficiary-active :pool-verified]
         csr (ac/check-set-root expected-ids)]
     (is (thrown? Exception
-                (ac/build-award-calculation
-                 (assoc (valid-award-input)
-                        :award/eligibility-result er
-                        :award/check-set-root csr)))
+                 (ac/build-award-calculation
+                  (assoc (valid-award-input)
+                         :award/eligibility-result er
+                         :award/check-set-root csr)))
         "artifact supplies {claim-valid, beneficiary-active} but check-set-root commits {+pool-verified}")))
 
 ;; ── review-mode eligibility completeness ─────────────────────────────────────
@@ -331,10 +331,10 @@
   (let [er {:eligible? true
             :checks [{:check/id :claim-valid :check/pass? true}]}]
     (is (thrown? Exception
-                (ac/build-award-calculation
-                 (assoc (valid-award-input)
-                        :award/mode :review
-                        :award/eligibility-result er)))
+                 (ac/build-award-calculation
+                  (assoc (valid-award-input)
+                         :award/mode :review
+                         :award/eligibility-result er)))
         "review mode without eligibility-policy-root and check-set-root is rejected")))
 
 (deftest review-mode-with-both-roots-passes

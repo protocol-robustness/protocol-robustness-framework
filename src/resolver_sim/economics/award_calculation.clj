@@ -256,83 +256,83 @@
     (when (and (= :review award-mode)
                (or (nil? eligibility-policy-root)
                    (nil? declared-check-set-root)))
-    (throw (ex-info "Review-mode award requires :award/eligibility-policy-root and :award/check-set-root"
-                    {:award/mode award-mode
-                     :award/eligibility-policy-root eligibility-policy-root
-                     :award/check-set-root check-set-root})))
+      (throw (ex-info "Review-mode award requires :award/eligibility-policy-root and :award/check-set-root"
+                      {:award/mode award-mode
+                       :award/eligibility-policy-root eligibility-policy-root
+                       :award/check-set-root check-set-root})))
   ;; Validate component IDs
-  (let [comp-ids (map :component/id calculation-components)]
-    (when (some nil? comp-ids)
-      (throw (ex-info "All components must have :component/id" {})))
-    (doseq [cid comp-ids]
-      (require-keyword-or-string cid ":component/id"))
-    (when (not= (count comp-ids) (count (set comp-ids)))
-      (throw (ex-info "Duplicate component IDs" {:ids comp-ids}))))
+    (let [comp-ids (map :component/id calculation-components)]
+      (when (some nil? comp-ids)
+        (throw (ex-info "All components must have :component/id" {})))
+      (doseq [cid comp-ids]
+        (require-keyword-or-string cid ":component/id"))
+      (when (not= (count comp-ids) (count (set comp-ids)))
+        (throw (ex-info "Duplicate component IDs" {:ids comp-ids}))))
   ;; Validate component kinds and amounts
-  (doseq [c calculation-components]
-    (let [kind (:component/kind c)]
-      (when-not (keyword? kind)
-        (throw (ex-info ":component/kind must be a keyword"
-                        {:component/id (:component/id c)})))
-      (let [sign-check (get component-kind-sign kind)]
-        (when (and sign-check (not (sign-check (:component/amount c))))
-          (throw (ex-info "Component amount sign does not match kind"
-                          {:component/id (:component/id c)
-                           :kind kind
-                           :amount (:component/amount c)})))))
-    (when-not (integer? (:component/amount c))
-      (throw (ex-info ":component/amount must be an integer"
-                      {:component/id (:component/id c)}))))
+    (doseq [c calculation-components]
+      (let [kind (:component/kind c)]
+        (when-not (keyword? kind)
+          (throw (ex-info ":component/kind must be a keyword"
+                          {:component/id (:component/id c)})))
+        (let [sign-check (get component-kind-sign kind)]
+          (when (and sign-check (not (sign-check (:component/amount c))))
+            (throw (ex-info "Component amount sign does not match kind"
+                            {:component/id (:component/id c)
+                             :kind kind
+                             :amount (:component/amount c)})))))
+      (when-not (integer? (:component/amount c))
+        (throw (ex-info ":component/amount must be an integer"
+                        {:component/id (:component/id c)}))))
   ;; Canonicalize component order
-  (let [components (vec (sort-by :component/id calculation-components))
-        amount (reduce +' 0 (map :component/amount components))]
-    (when (neg? amount)
-      (throw (ex-info "Award amount would be negative"
-                      {:amount amount})))
+    (let [components (vec (sort-by :component/id calculation-components))
+          amount (reduce +' 0 (map :component/amount components))]
+      (when (neg? amount)
+        (throw (ex-info "Award amount would be negative"
+                        {:amount amount})))
     ;; Validate eligibility
-    (let [checks (get eligibility-result :checks [])
-          checks-canonical (canonicalize-eligibility-checks checks)
-          computed-eligible (and (seq checks-canonical)
-                                (every? true?
-                                        (map :check/pass? checks-canonical)))
-          declared-eligible (:eligible? eligibility-result)]
+      (let [checks (get eligibility-result :checks [])
+            checks-canonical (canonicalize-eligibility-checks checks)
+            computed-eligible (and (seq checks-canonical)
+                                   (every? true?
+                                           (map :check/pass? checks-canonical)))
+            declared-eligible (:eligible? eligibility-result)]
       ;; Check consistency
-      (when (not= computed-eligible declared-eligible)
-        (throw (ex-info "Eligibility result does not match check outcomes"
-                        {:declared declared-eligible
-                         :computed computed-eligible})))
+        (when (not= computed-eligible declared-eligible)
+          (throw (ex-info "Eligibility result does not match check outcomes"
+                          {:declared declared-eligible
+                           :computed computed-eligible})))
       ;; Ineligible + positive amount → reject
-      (when (and (not computed-eligible) (pos? amount))
-        (throw (ex-info "Ineligible award must have zero amount"
-                        {:award/id id :amount amount})))
+        (when (and (not computed-eligible) (pos? amount))
+          (throw (ex-info "Ineligible award must have zero amount"
+                          {:award/id id :amount amount})))
       ;; Verify check-set-root if provided
-      (when declared-check-set-root
-        (let [check-ids (map :check/id checks-canonical)
-              computed-root (check-set-root check-ids)]
-          (when (not= declared-check-set-root computed-root)
-            (throw (ex-info "check-set-root does not match canonicalized check IDs"
-                            {:declared-root declared-check-set-root
-                             :computed-root computed-root
-                             :check-ids check-ids})))))
+        (when declared-check-set-root
+          (let [check-ids (map :check/id checks-canonical)
+                computed-root (check-set-root check-ids)]
+            (when (not= declared-check-set-root computed-root)
+              (throw (ex-info "check-set-root does not match canonicalized check IDs"
+                              {:declared-root declared-check-set-root
+                               :computed-root computed-root
+                               :check-ids check-ids})))))
       ;; Build artifact
-      (let [result {:artifact/type award-calculation-type
-                    :award/id id
-                    :award/policy-root policy-root
-                    :award/pool-availability-root pool-availability-root
-                    :award/claim-set-root claim-set-root
-                    :award/evidence-set-root evidence-set-root
-                    :award/beneficiary-id beneficiary-id
-                    :award/calculation-time calculation-time
-                    :award/amount amount
-                    :award/scale scale
-                    :award/calculation-components components
-                    :award/eligibility-result
-                    (assoc eligibility-result :checks checks-canonical)
-                    :award/eligibility-policy-root eligibility-policy-root
-                    :award/check-set-root declared-check-set-root
-                    :award/mode award-mode}
-            hash (award-calculation-hash result)]
-        (assoc result :artifact/hash hash))))))
+        (let [result {:artifact/type award-calculation-type
+                      :award/id id
+                      :award/policy-root policy-root
+                      :award/pool-availability-root pool-availability-root
+                      :award/claim-set-root claim-set-root
+                      :award/evidence-set-root evidence-set-root
+                      :award/beneficiary-id beneficiary-id
+                      :award/calculation-time calculation-time
+                      :award/amount amount
+                      :award/scale scale
+                      :award/calculation-components components
+                      :award/eligibility-result
+                      (assoc eligibility-result :checks checks-canonical)
+                      :award/eligibility-policy-root eligibility-policy-root
+                      :award/check-set-root declared-check-set-root
+                      :award/mode award-mode}
+              hash (award-calculation-hash result)]
+          (assoc result :artifact/hash hash))))))
 
 ;; ── Verifier ─────────────────────────────────────────────────────────────────
 
@@ -350,81 +350,81 @@
   ([award] (verify-award-calculation award nil))
   ([award {:keys [policy-resolver]}]
    (try
-    (validate-award-calculation award)
-    (let [errors (atom [])]
+     (validate-award-calculation award)
+     (let [errors (atom [])]
       ;; Recompute hash
-      (let [expected (award-calculation-hash award)]
-        (when (not= expected (:artifact/hash award))
-          (swap! errors conj {:type :hash-mismatch
-                              :expected expected
-                              :actual (:artifact/hash award)})))
+       (let [expected (award-calculation-hash award)]
+         (when (not= expected (:artifact/hash award))
+           (swap! errors conj {:type :hash-mismatch
+                               :expected expected
+                               :actual (:artifact/hash award)})))
       ;; Recompute amount from components
-      (let [recomp (reduce +' 0
-                           (map :component/amount
-                                (:award/calculation-components award)))]
-        (when (not= recomp (:award/amount award))
-          (swap! errors conj {:type :amount-mismatch
-                              :expected recomp
-                              :actual (:award/amount award)})))
+       (let [recomp (reduce +' 0
+                            (map :component/amount
+                                 (:award/calculation-components award)))]
+         (when (not= recomp (:award/amount award))
+           (swap! errors conj {:type :amount-mismatch
+                               :expected recomp
+                               :actual (:award/amount award)})))
       ;; Verify canonical component ordering
-      (let [sorted (vec (sort-by :component/id
+       (let [sorted (vec (sort-by :component/id
                                   (:award/calculation-components award)))]
-        (when (not= sorted (:award/calculation-components award))
-          (swap! errors conj {:type :non-canonical-components})))
+         (when (not= sorted (:award/calculation-components award))
+           (swap! errors conj {:type :non-canonical-components})))
       ;; Verify canonical eligibility check ordering
-      (let [checks (get-in award [:award/eligibility-result :checks])
-            sorted-checks (canonicalize-eligibility-checks checks)]
-        (when (not= sorted-checks checks)
-          (swap! errors conj {:type :non-canonical-eligibility-checks})))
+       (let [checks (get-in award [:award/eligibility-result :checks])
+             sorted-checks (canonicalize-eligibility-checks checks)]
+         (when (not= sorted-checks checks)
+           (swap! errors conj {:type :non-canonical-eligibility-checks})))
       ;; Derive eligibility from checks
-      (let [checks (get-in award [:award/eligibility-result :checks])
-            computed-eligible (and (seq checks)
-                                   (every? true?
-                                           (map :check/pass? checks)))
-            declared-eligible (get-in award
-                                      [:award/eligibility-result :eligible?])]
-        (when (not= computed-eligible declared-eligible)
-          (swap! errors conj {:type :eligibility-mismatch
-                              :declared declared-eligible
-                              :computed computed-eligible}))
-        (when (and (not computed-eligible)
-                   (pos? (:award/amount award)))
-          (swap! errors conj {:type :ineligible-positive-amount
-                              :amount (:award/amount award)})))
+       (let [checks (get-in award [:award/eligibility-result :checks])
+             computed-eligible (and (seq checks)
+                                    (every? true?
+                                            (map :check/pass? checks)))
+             declared-eligible (get-in award
+                                       [:award/eligibility-result :eligible?])]
+         (when (not= computed-eligible declared-eligible)
+           (swap! errors conj {:type :eligibility-mismatch
+                               :declared declared-eligible
+                               :computed computed-eligible}))
+         (when (and (not computed-eligible)
+                    (pos? (:award/amount award)))
+           (swap! errors conj {:type :ineligible-positive-amount
+                               :amount (:award/amount award)})))
       ;; Policy-relative completeness: when a policy-resolver is supplied,
       ;; resolve the committed policy and require its check-set-root to equal
       ;; both the artifact check-set-root and the derived root from supplied checks.
-      (when policy-resolver
-        (let [policy-root (:award/eligibility-policy-root award)
-              award-csr (:award/check-set-root award)
-              supplied-csr (check-set-root
-                            (map :check/id
-                                 (get-in award [:award/eligibility-result :checks])))]
-          (if (and policy-root award-csr)
-            (let [resolved (try (policy-resolver policy-root)
-                                (catch Exception e
-                                  (swap! errors conj {:type :policy-resolve-error
-                                                      :policy-root policy-root
-                                                      :message (ex-message e)})
-                                  nil))
-                  _ (when resolved
-                      (let [policy-csr (:policy/check-set-root resolved)]
-                        (when (not= policy-csr award-csr)
-                          (swap! errors conj {:type :policy-check-set-mismatch
-                                              :policy-root policy-root
-                                              :policy-check-set-root policy-csr
-                                              :award-check-set-root award-csr}))
-                        (when (not= policy-csr supplied-csr)
-                          (swap! errors conj {:type :policy-supplied-check-set-mismatch
-                                              :policy-root policy-root
-                                              :policy-check-set-root policy-csr
-                                              :supplied-check-set-root supplied-csr
-                                              :supplied-ids (mapv :check/id
-                                                                  (get-in award [:award/eligibility-result :checks]))}))))]
-              nil))))
-      (if (empty? @errors) {:valid? true} {:valid? false :errors @errors}))
-    (catch Exception e
-      {:valid? false
-       :errors [{:type :invalid-structure
-                 :message (ex-message e)
-                 :data (ex-data e)}]}))))
+       (when policy-resolver
+         (let [policy-root (:award/eligibility-policy-root award)
+               award-csr (:award/check-set-root award)
+               supplied-csr (check-set-root
+                             (map :check/id
+                                  (get-in award [:award/eligibility-result :checks])))]
+           (if (and policy-root award-csr)
+             (let [resolved (try (policy-resolver policy-root)
+                                 (catch Exception e
+                                   (swap! errors conj {:type :policy-resolve-error
+                                                       :policy-root policy-root
+                                                       :message (ex-message e)})
+                                   nil))
+                   _ (when resolved
+                       (let [policy-csr (:policy/check-set-root resolved)]
+                         (when (not= policy-csr award-csr)
+                           (swap! errors conj {:type :policy-check-set-mismatch
+                                               :policy-root policy-root
+                                               :policy-check-set-root policy-csr
+                                               :award-check-set-root award-csr}))
+                         (when (not= policy-csr supplied-csr)
+                           (swap! errors conj {:type :policy-supplied-check-set-mismatch
+                                               :policy-root policy-root
+                                               :policy-check-set-root policy-csr
+                                               :supplied-check-set-root supplied-csr
+                                               :supplied-ids (mapv :check/id
+                                                                   (get-in award [:award/eligibility-result :checks]))}))))]
+               nil))))
+       (if (empty? @errors) {:valid? true} {:valid? false :errors @errors}))
+     (catch Exception e
+       {:valid? false
+        :errors [{:type :invalid-structure
+                  :message (ex-message e)
+                  :data (ex-data e)}]}))))

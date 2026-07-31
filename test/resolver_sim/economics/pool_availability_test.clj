@@ -25,29 +25,29 @@
         "available = 1000 - 200 - 100")
     (is (some? (:artifact/hash pool)))
     (is (= (:pool/available-amount pool) (-' (:pool/gross-amount pool)
-                                              (:pool/reserved-amount pool)
-                                              (:pool/protected-amount pool))))))
+                                             (:pool/reserved-amount pool)
+                                             (:pool/protected-amount pool))))))
 
 (deftest build-negative-gross-rejected
   (is (thrown? Exception
-              (pa/build-pool-availability (assoc (valid-pool-input)
-                                                 :pool/gross-amount -1)))))
+               (pa/build-pool-availability (assoc (valid-pool-input)
+                                                  :pool/gross-amount -1)))))
 
 (deftest build-negative-reserved-rejected
   (is (thrown? Exception
-              (pa/build-pool-availability (assoc (valid-pool-input)
-                                                 :pool/reserved-amount -1)))))
+               (pa/build-pool-availability (assoc (valid-pool-input)
+                                                  :pool/reserved-amount -1)))))
 
 (deftest build-encumbered-exceeds-gross-rejected
   (is (thrown? Exception
-              (pa/build-pool-availability (assoc (valid-pool-input)
-                                                 :pool/reserved-amount 600
-                                                 :pool/protected-amount 500)))))
+               (pa/build-pool-availability (assoc (valid-pool-input)
+                                                  :pool/reserved-amount 600
+                                                  :pool/protected-amount 500)))))
 
 (deftest build-unknown-source-fields-rejected
   (is (thrown? Exception
-              (pa/build-pool-availability (assoc (valid-pool-input)
-                                                 :pool/unknown-field "oops")))))
+               (pa/build-pool-availability (assoc (valid-pool-input)
+                                                  :pool/unknown-field "oops")))))
 
 (deftest build-deterministic-hash
   (let [a (pa/build-pool-availability (valid-pool-input))
@@ -63,15 +63,15 @@
 
 (deftest build-duplicate-liability-root-rejected
   (is (thrown? Exception
-              (pa/build-pool-availability
-               (assoc (valid-pool-input)
-                      :pool/liability-roots ["sha256:l1" "sha256:l1"])))))
+               (pa/build-pool-availability
+                (assoc (valid-pool-input)
+                       :pool/liability-roots ["sha256:l1" "sha256:l1"])))))
 
 (deftest build-duplicate-reservation-root-rejected
   (is (thrown? Exception
-              (pa/build-pool-availability
-               (assoc (valid-pool-input)
-                      :pool/reservation-roots ["sha256:r1" "sha256:r1"])))))
+               (pa/build-pool-availability
+                (assoc (valid-pool-input)
+                       :pool/reservation-roots ["sha256:r1" "sha256:r1"])))))
 
 (deftest build-root-permutation-same-hash
   (let [a (pa/build-pool-availability
@@ -143,18 +143,18 @@
 (deftest build-reservation-insufficient-capacity-rejected
   (let [pool (pa/build-pool-availability (valid-pool-input))]
     (is (thrown? Exception
-                (pa/build-reservation
-                 pool {:reservation/id "res-fail"
-                       :reservation/amount 701
-                       :reservation/purpose-root "sha256:p"})))))
+                 (pa/build-reservation
+                  pool {:reservation/id "res-fail"
+                        :reservation/amount 701
+                        :reservation/purpose-root "sha256:p"})))))
 
 (deftest build-reservation-zero-amount-rejected
   (let [pool (pa/build-pool-availability (valid-pool-input))]
     (is (thrown? Exception
-                (pa/build-reservation
-                 pool {:reservation/id "res-zero"
-                       :reservation/amount 0
-                       :reservation/purpose-root "sha256:p"})))))
+                 (pa/build-reservation
+                  pool {:reservation/id "res-zero"
+                        :reservation/amount 0
+                        :reservation/purpose-root "sha256:p"})))))
 
 (deftest build-reservation-derives-pool-root-from-pool
   (let [pool (pa/build-pool-availability (valid-pool-input))
@@ -168,10 +168,10 @@
   (let [bad-pool (assoc (pa/build-pool-availability (valid-pool-input))
                         :pool/gross-amount -1)]
     (is (thrown? Exception
-                (pa/build-reservation
-                 bad-pool {:reservation/id "res-bad"
-                           :reservation/amount 100
-                           :reservation/purpose-root "sha256:p"})))))
+                 (pa/build-reservation
+                  bad-pool {:reservation/id "res-bad"
+                            :reservation/amount 100
+                            :reservation/purpose-root "sha256:p"})))))
 
 ;; ── verify-reservation ───────────────────────────────────────────────────────
 
@@ -224,9 +224,9 @@
                                         :reservation/amount 100
                                         :reservation/purpose-root "sha256:p"})]
     (is (thrown? Exception
-                (pa/pool-after-reservation
-                 pool-a r {:pool/state-root "sha256:s"
-                           :pool/snapshot-time "2026-07-30T01:00:00Z"})))))
+                 (pa/pool-after-reservation
+                  pool-a r {:pool/state-root "sha256:s"
+                            :pool/snapshot-time "2026-07-30T01:00:00Z"})))))
 
 (deftest pool-after-reservation-duplicate-root-rejected
   (let [pool (pa/build-pool-availability (valid-pool-input))
@@ -237,8 +237,8 @@
                     pool r {:pool/state-root "sha256:s2"
                             :pool/snapshot-time "2026-07-30T01:00:00Z"})]
     (is (thrown? Exception
-                (pa/pool-after-reservation
-                 pool-after r {:pool/state-root "sha256:s3"
+                 (pa/pool-after-reservation
+                  pool-after r {:pool/state-root "sha256:s3"
                                 :pool/snapshot-time "2026-07-30T02:00:00Z"})))))
 
 ;; ── Sequential reservation overcommit ────────────────────────────────────────
@@ -383,9 +383,9 @@
                                       :reservation/amount 100
                                       :reservation/purpose-root "sha256:p"})]
     (is (thrown? Exception
-                (pa/pool-after-reservation
-                 pool r {:pool/state-root "sha256:ns"
-                         :pool/snapshot-time "2020-01-01T00:00:00Z"}))
+                 (pa/pool-after-reservation
+                  pool r {:pool/state-root "sha256:ns"
+                          :pool/snapshot-time "2020-01-01T00:00:00Z"}))
         "successor time before predecessor time is rejected")))
 
 (deftest successor-equal-time-accepted

@@ -523,7 +523,7 @@
     :expected-outcome          {:workflow-0 "release-after-l2-confirmation"}
     :strict-expected-errors?   true
     :expected-errors           [{:seq 7 :action "escalate_dispute" :error :transfer-not-in-dispute}
-                                {:seq 8 :action "execute_pending_settlement" :error :transfer-not-in-dispute}]
+                                {:seq 8 :action "execute_pending_settlement" :error :no-pending-settlement}]
     :theory                    (fork/theory-block
                                 {:claim-id :claims/forking-strategist-all-levels-confirm
                                  :claim    "Third escalation after max level must reject without corrupting L2 pending settlement."})

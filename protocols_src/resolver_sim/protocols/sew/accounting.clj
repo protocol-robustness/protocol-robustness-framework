@@ -933,19 +933,12 @@
          app-record (get-in world app-key)
          app-hash (when (map? app-record) (:distribution-hash app-record))]
       (if (and (some? app-hash) (= app-hash dist-hash))
-        ;; Idempotent: same hash already applied → no-op
-        (let [receipt (sd/build-application-receipt
-                       {:distribution-root dist-hash
-                        :policy-root policy-root
-                        :parameter-context-root param-root
-                        :pre-state-root pre-state-root
-                        :post-state-root pre-state-root
-                        :idempotency-key app-key
-                        :status :skipped
-                        :abstract-effects []
-                        :obligations []})
-              receipt-hash (:receipt/hash receipt)]
-          (assoc-in world (conj app-key :receipt-hash) receipt-hash))
+        ;; Idempotent: same hash already applied → no-op.  The app-key record
+        ;; (:distribution-hash + :receipt) is already present from the first
+        ;; application; writing anything here (e.g. a :skipped receipt) would
+        ;; diverge the replayed world from the applied world and break the
+        ;; idempotency contract asserted by distribution-characterization-test.
+        world
        (let [obligation-ref (when (and challenger (pos? bounty-amount) (some? workflow-id))
                               (str "claimable:" workflow-id ":" challenger))
              world' (-> world

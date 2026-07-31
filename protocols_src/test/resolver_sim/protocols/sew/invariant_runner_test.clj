@@ -6,7 +6,19 @@
             [resolver-sim.scenario.runner :as scenario-runner]))
 
 (deftest test-registry-size
-  (is (= 137 (count sc/all-scenarios))))
+  (testing "the canonical scenario registry is the set of registered scenario-type ids"
+    (let [scenario-ids (set (map :scenario-id
+                                 (mapcat (fn [[_ entry]] (if (vector? entry) entry [entry]))
+                                         sc/all-scenarios)))
+          registered   (set (keys sc/scenario-type-registry))]
+      ;; Membership over magic count: every scenario emitted by all-scenarios must
+      ;; have a registered type-registry key, and vice-versa (no orphans/missing).
+      ;; Note: all-scenarios has 140 display rows; paired entries (S12/S45/S46/S47/
+      ;; S51c/S51d) yield 143 distinct scenario ids.
+      (is (= registered scenario-ids)
+          "all-scenarios covers exactly the registered scenario-type ids")
+      (is (= 143 (count scenario-ids))
+          "canonical scenario registry contains 143 distinct ids"))))
 
 (deftest test-registry-validation-passes
   (is (true? (sc/validate-all-scenarios!))))

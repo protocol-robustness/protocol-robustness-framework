@@ -377,8 +377,8 @@
                                           :hash-intents hc/hash-intents} tmp-dir)
     (let [read-back (ab/read-attestation-bundle tmp-dir)
           result (ab/verify-attestation-bundle read-back {:trusted-attestor-registry-hashes
-                                                         #{(str "sha256:"
-                                                                (get-in bundle [:bundle/registries :attestors :registry/hash]))}})]
+                                                          #{(str "sha256:"
+                                                                 (get-in bundle [:bundle/registries :attestors :registry/hash]))}})]
       ;; Profile with :signature/required true — unsigned fails
       (is (false? (:valid? result))
           "committed profile with :signature/required true rejects unsigned on-disk")
@@ -411,8 +411,8 @@
                                           :hash-intents hc/hash-intents} tmp-dir)
     (let [read-back (ab/read-attestation-bundle tmp-dir)
           result (ab/verify-attestation-bundle read-back {:trusted-attestor-registry-hashes
-                                                         #{(str "sha256:"
-                                                                (get-in bundle [:bundle/registries :attestors :registry/hash]))}})]
+                                                          #{(str "sha256:"
+                                                                 (get-in bundle [:bundle/registries :attestors :registry/hash]))}})]
       (is (false? (:valid? result))
           "explicit :signature? true overrides dev profile — unsigned rejected on-disk")
       (is (= :invalid (:bundle/status result))

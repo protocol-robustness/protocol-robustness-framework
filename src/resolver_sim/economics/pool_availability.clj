@@ -327,8 +327,8 @@
               :pool/predecessor-hash (:artifact/hash pool))
        (update :pool/reserved-amount
                +' (:reservation/amount reservation))
-        (update :pool/reservation-roots
-                conj (:artifact/hash reservation)))))
+       (update :pool/reservation-roots
+               conj (:artifact/hash reservation)))))
 
 ;; ── Reservation set verification ─────────────────────────────────────────────
 

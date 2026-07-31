@@ -73,6 +73,8 @@
     :appeal-bond-conserved
     :appeal-bond-custody-consistent
     :no-auto-fraud-execute
+    :canonical-slash-registry-consistent
+    :slash-context-index-consistent
     :bond-liquidity
     :bond-slash-bounded
     :fee-cap
@@ -333,10 +335,11 @@
     (try
       ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
        (vals (:held-artifacts world {})))
-      {:holds? true :violations []}
+      {:holds? true :status :evaluated :violations []}
       (catch clojure.lang.ExceptionInfo e
         (let [data (ex-data e)]
           {:holds? false
+           :status :evaluated
            :violations (:failed-checks data)})))))
 
 (defn- related-member-scope-hash [auth-id adjustment]
@@ -861,8 +864,9 @@
                      (= replayed-positions actual-positions)
                      (= (get actual-index :by-token {}) actual-total-held)
                      (= (get actual-index :by-position {}) actual-positions))
-              {:holds? true :violations nil}
+              {:holds? true :status :evaluated :violations nil}
               {:holds? false
+               :status :evaluated
                :violations [{:type :held-adjustments-replay-mismatch
                              :replayed {:held-ledger/index replayed-index
                                         :total-held replayed-total-held
@@ -872,6 +876,7 @@
                                       :held/positions actual-positions}}]}))
           (catch Exception e
             {:holds? false
+             :status :evaluated
              :violations [{:type :held-adjustments-invalid
                            :message (.getMessage e)
                            :data (ex-data e)}]}))))))

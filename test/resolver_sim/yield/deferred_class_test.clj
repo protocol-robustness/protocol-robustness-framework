@@ -41,13 +41,13 @@
 (deftest derive-deferred-class-rejects-unsupported-reasons
   (testing "arbitrary reason keyword throws"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Unsupported shortfall reason"
-          (policy/derive-deferred-class {:reason :some-made-up-reason}))))
+                          (policy/derive-deferred-class {:reason :some-made-up-reason}))))
   (testing "nil reason throws"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Unsupported shortfall reason"
-          (policy/derive-deferred-class {:reason nil}))))
+                          (policy/derive-deferred-class {:reason nil}))))
   (testing "missing :reason key throws"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Unsupported shortfall reason"
-          (policy/derive-deferred-class {:basis-amount 100})))))
+                          (policy/derive-deferred-class {:basis-amount 100})))))
 
 (deftest supported-classes-match-derivation-table
   (testing "policy :supported-classes matches shortfall-reason->deferred-class values"
@@ -74,7 +74,7 @@
       (is (nil? (guard 3 custom-policy))
           "round == max-lineage-round is admissible")
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"exceeds policy max"
-            (guard 4 custom-policy))
+                            (guard 4 custom-policy))
           "round > max-lineage-round is rejected")
       (is (nil? (guard 0 custom-policy))
           "round 0 is admissible")
@@ -87,7 +87,7 @@
       (is (nil? (guard 0 {:deferred {:max-lineage-round 0}}))
           "round 0 is admissible with max 0")
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"exceeds policy max"
-            (guard 1 {:deferred {:max-lineage-round 0}}))
+                            (guard 1 {:deferred {:max-lineage-round 0}}))
           "round 1 is rejected with max 0"))))
 
 ;; ── Deferred class and lineage fields on constructed positions ────────────
@@ -158,21 +158,21 @@
   (testing "policy without :deferred section fails validation"
     (let [bad-policy (dissoc policy/shared-withdrawal-policy :deferred)]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Missing pro-rata propagation policy field"
-            (policy/normalize-and-validate bad-policy))))))
+                            (policy/normalize-and-validate bad-policy))))))
 
 (deftest policy-validation-rejects-negative-max-lineage-round
   (testing "policy with negative max-lineage-round fails"
     (let [bad-policy (assoc-in policy/shared-withdrawal-policy
                                [:deferred :max-lineage-round] -1)]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"max-lineage-round must be a non-negative integer"
-            (policy/normalize-and-validate bad-policy))))))
+                            (policy/normalize-and-validate bad-policy))))))
 
 (deftest policy-validation-rejects-mismatched-supported-classes
   (testing "policy with stale supported-classes fails"
     (let [bad-policy (assoc-in policy/shared-withdrawal-policy
                                [:deferred :supported-classes] #{:liquidity-shortfall :solvency-shortfall})]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"supported-classes does not match"
-            (policy/normalize-and-validate bad-policy))))))
+                            (policy/normalize-and-validate bad-policy))))))
 
 (deftest policy-validation-accepts-valid-deferred-section
   (testing "valid policy passes normalize-and-validate"

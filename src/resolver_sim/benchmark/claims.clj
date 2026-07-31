@@ -719,7 +719,14 @@
   "Evaluate a single claim against the given context.
    context depends on scope — for :scenario claims it includes
    :scenario/result, for :benchmark claims it includes :benchmark/results.
-   Returns {:claim/id <kw> :claim/outcome <kw> :claim/evidence [<coll>] :claim/severity <kw>}."
+   Returns {:claim/id <kw> :claim/outcome <kw> :claim/evidence [<coll>] :claim/severity <kw>}.
+   TODO(claim-outcome.v1):
+   The evaluated-claim result below is currently a transient map. resolver-sim.claim-outcome
+   formalizes it as claim-outcome.v1 (committed assertion about a committed subject, supported
+   by committed evidence roots, distinct from claim definitions and attestations). Migrating
+   this site to emit claim-outcome.v1 would change claim-result report shapes and any consumers
+   that hash them — defer until a versioned migration is acceptable. See GitHub issue:
+   \"claim-outcome.v1 first-class evaluated-claim artifact\"."
   ([claim-id context]
    (evaluate-claim claim-id context :low))
   ([claim-id context severity]

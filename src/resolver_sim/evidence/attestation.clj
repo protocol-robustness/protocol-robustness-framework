@@ -463,11 +463,11 @@
 
       :else
       (let [exists? (try
-                       (subject-resolver subject)
-                       (catch Exception e
-                         (do
-                           (.println *err* "subject-resolver failed:" (.getMessage e))
-                           nil)))]
+                      (subject-resolver subject)
+                      (catch Exception e
+                        (do
+                          (.println *err* "subject-resolver failed:" (.getMessage e))
+                          nil)))]
         (cond
           (nil? exists?)
           {:check :subject-exists
@@ -505,10 +505,10 @@
 
       :else
       (let [revoked? (try
-                        (revocation-resolver id)
-                        (catch Exception e
-                          (do (.println *err* "revocation-resolver failed:" (.getMessage e))
-                              nil)))]
+                       (revocation-resolver id)
+                       (catch Exception e
+                         (do (.println *err* "revocation-resolver failed:" (.getMessage e))
+                             nil)))]
         (cond
           (nil? revoked?)
           {:check :revocation-status

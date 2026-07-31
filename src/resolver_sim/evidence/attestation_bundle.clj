@@ -191,31 +191,31 @@
                             :registry/path (str bundle-dir "/registries/hash-intent-registry.edn")}}
 
          ;; Base manifest (without root-hash)
-         base-manifest {:bundle/version bundle-version
-                        :bundle/kind bundle-kind
-                        :bundle/entrypoints entrypoints
-                        :bundle/objects (vec (concat att-entries claim-entries node-entries))
-                        :bundle/registries registry-snapshot
-                        :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
-                                                     :sentinel/report-hash (:report-hash sensitivity-report)
-                                                     :sensitivity-report/ref
-                                                     {:schema "sensitivity-report.v2"
-                                                      :semantic-hash (:report/semantic-hash sensitivity-report)
-                                                      :sha256 (:report-byte-hash sensitivity-report)
-                                                      :byte-length (:report-byte-length sensitivity-report)
-                                                      :path (str bundle-dir "/reports/sensitivity-report.json")}}
-                                              sensitivity-provenance
-                                              (assoc :sentinel/provenance sensitivity-provenance))
-                         :bundle/completeness-profile
-                         {:profile/schema-version (:profile/schema-version profile)
-                          :profile/mode (:profile/mode profile)
-                          :profile/hash (:profile/hash profile)
-                          :profile/signature-required (get-in profile [:profile/rules :signature/required] false)}
-                         :bundle/verification-profile (cond-> {:integrity? true
-                                                       :registry-backed? true
-                                                       :subject-content-included? (boolean (seq claim-results))
-                                                       :quorum? false}
-                                                       (:signature? options) (assoc :signature? true))}
+        base-manifest {:bundle/version bundle-version
+                       :bundle/kind bundle-kind
+                       :bundle/entrypoints entrypoints
+                       :bundle/objects (vec (concat att-entries claim-entries node-entries))
+                       :bundle/registries registry-snapshot
+                       :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
+                                                    :sentinel/report-hash (:report-hash sensitivity-report)
+                                                    :sensitivity-report/ref
+                                                    {:schema "sensitivity-report.v2"
+                                                     :semantic-hash (:report/semantic-hash sensitivity-report)
+                                                     :sha256 (:report-byte-hash sensitivity-report)
+                                                     :byte-length (:report-byte-length sensitivity-report)
+                                                     :path (str bundle-dir "/reports/sensitivity-report.json")}}
+                                             sensitivity-provenance
+                                             (assoc :sentinel/provenance sensitivity-provenance))
+                       :bundle/completeness-profile
+                       {:profile/schema-version (:profile/schema-version profile)
+                        :profile/mode (:profile/mode profile)
+                        :profile/hash (:profile/hash profile)
+                        :profile/signature-required (get-in profile [:profile/rules :signature/required] false)}
+                       :bundle/verification-profile (cond-> {:integrity? true
+                                                             :registry-backed? true
+                                                             :subject-content-included? (boolean (seq claim-results))
+                                                             :quorum? false}
+                                                      (:signature? options) (assoc :signature? true))}
 
         ;; Canonical root hash (excludes self-referential fields)
         root-input (dissoc base-manifest :bundle/root-hash)
@@ -593,35 +593,35 @@
   ([bundle] (verify-attestation-bundle bundle nil))
   ([bundle opts]
    (let [registry-check (check-attestor-registry-trust bundle opts)
-          trusted-registry (when (= :pass (:check/status registry-check)) (:registry registry-check))
-          completeness-profile-ref (:bundle/completeness-profile bundle)
-          resolved-profile (when completeness-profile-ref
-                             (let [mode (:profile/mode completeness-profile-ref)]
-                               (try (acp/resolve-profile mode)
-                                    (catch Exception _ nil))))
-           signatures-required? (true? (or (get-in bundle [:bundle/verification-profile :signature?])
-                                           (get-in bundle [:bundle/completeness-profile :profile/signature-required])))
-          cp-status (if completeness-profile-ref
-                      (if resolved-profile
-                        (let [status (acp/evaluate-evidence-status
-                                      resolved-profile
-                                      {:bundle/objects (:bundle/objects bundle [])
-                                       :sensitivity/decision (get-in bundle
-                                                                      [:bundle/sensitivity :sentinel/decision])
-                                       :sensitivity/report-hash (get-in bundle
-                                                                         [:bundle/sensitivity :sentinel/report-hash])})]
-                          {:check/id :completeness-profile-evaluated
-                           :check/status :pass
-                           :evidence-status status
-                           :profile/mode (:profile/mode completeness-profile-ref)})
-                        {:check/id :completeness-profile-evaluated
-                         :check/status :warning
-                         :reason "Unknown completeness profile mode — cannot evaluate"})
-                      {:check/id :completeness-profile-evaluated
-                       :check/status :warning
-                       :reason "No completeness profile in bundle"})
-          checks [(check-version bundle)
-                  (check-root-hash bundle)
+         trusted-registry (when (= :pass (:check/status registry-check)) (:registry registry-check))
+         completeness-profile-ref (:bundle/completeness-profile bundle)
+         resolved-profile (when completeness-profile-ref
+                            (let [mode (:profile/mode completeness-profile-ref)]
+                              (try (acp/resolve-profile mode)
+                                   (catch Exception _ nil))))
+         signatures-required? (true? (or (get-in bundle [:bundle/verification-profile :signature?])
+                                         (get-in bundle [:bundle/completeness-profile :profile/signature-required])))
+         cp-status (if completeness-profile-ref
+                     (if resolved-profile
+                       (let [status (acp/evaluate-evidence-status
+                                     resolved-profile
+                                     {:bundle/objects (:bundle/objects bundle [])
+                                      :sensitivity/decision (get-in bundle
+                                                                    [:bundle/sensitivity :sentinel/decision])
+                                      :sensitivity/report-hash (get-in bundle
+                                                                       [:bundle/sensitivity :sentinel/report-hash])})]
+                         {:check/id :completeness-profile-evaluated
+                          :check/status :pass
+                          :evidence-status status
+                          :profile/mode (:profile/mode completeness-profile-ref)})
+                       {:check/id :completeness-profile-evaluated
+                        :check/status :warning
+                        :reason "Unknown completeness profile mode — cannot evaluate"})
+                     {:check/id :completeness-profile-evaluated
+                      :check/status :warning
+                      :reason "No completeness profile in bundle"})
+         checks [(check-version bundle)
+                 (check-root-hash bundle)
                  (check-object-integrity bundle)
                  (check-attestation-integrity bundle)
                  registry-check
@@ -629,35 +629,35 @@
                  (check-registry-references bundle)
                  (check-claim-definition-references bundle)
                  (check-subject-availability bundle)
-                  (check-sensitivity-sentinel bundle)
-                  cp-status]
+                 (check-sensitivity-sentinel bundle)
+                 cp-status]
          failures (filter #(= :fail (:check/status %)) checks)
-          blocked (filter #(= :blocked (:check/status %)) checks)
-          policy-constrained (filter #(= :policy-constrained (:check/status %)) checks)
-          unknown (filter #(and (not= :pass (:check/status %))
-                                (not= :fail (:check/status %))
-                                (not= :warning (:check/status %))
-                                (not= :blocked (:check/status %))
-                                (not= :policy-constrained (:check/status %)))
-                          checks)
+         blocked (filter #(= :blocked (:check/status %)) checks)
+         policy-constrained (filter #(= :policy-constrained (:check/status %)) checks)
+         unknown (filter #(and (not= :pass (:check/status %))
+                               (not= :fail (:check/status %))
+                               (not= :warning (:check/status %))
+                               (not= :blocked (:check/status %))
+                               (not= :policy-constrained (:check/status %)))
+                         checks)
          sens-warnings (filter #(and (= :warning (:check/status %))
                                      (= :sensitivity-sentinel-approved (:check/id %)))
                                checks)
          other-warnings (filter #(and (= :warning (:check/status %))
                                       (not= :sensitivity-sentinel-approved (:check/id %)))
                                 checks)
-          all-pass? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
-          status (cond
-                   (seq unknown) :invalid
-                   (seq failures) :invalid
-                   (seq blocked) :blocked-by-sensitivity-policy
-                   (seq policy-constrained) :internal-retention
-                   (seq sens-warnings) :unverified-sensitivity
-                   (and (empty? other-warnings) all-pass?) :fully-verified
-                   (some #(= :warning (:check/status %))
-                         (filter #(= :subject-content-available (:check/id %)) checks))
-                   :partially-verified
-                   :else :hash-linked)]
+         all-pass? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
+         status (cond
+                  (seq unknown) :invalid
+                  (seq failures) :invalid
+                  (seq blocked) :blocked-by-sensitivity-policy
+                  (seq policy-constrained) :internal-retention
+                  (seq sens-warnings) :unverified-sensitivity
+                  (and (empty? other-warnings) all-pass?) :fully-verified
+                  (some #(= :warning (:check/status %))
+                        (filter #(= :subject-content-available (:check/id %)) checks))
+                  :partially-verified
+                  :else :hash-linked)]
      (let [valid? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
            verified? (contains? fully-verified-statuses status)]
        {:valid? valid?

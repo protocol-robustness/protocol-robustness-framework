@@ -187,40 +187,40 @@
 (def prop-roundtrip
   "decode(canonical-bytes(v)) == v for all canonical-safe values."
   (prop/for-all [v gen-value]
-    (= v (decode (hc/canonical-bytes v)))))
+                (= v (decode (hc/canonical-bytes v)))))
 
 (def prop-sequence-decode
   "A concatenated stream of component encodings decodes to exactly one sequence."
   (prop/for-all [s (gen/vector gen-value 0 20)]
-    (= s (decode-stream (concat-bytes (map hc/canonical-bytes s))))))
+                (= s (decode-stream (concat-bytes (map hc/canonical-bytes s))))))
 
 (def prop-distinct-sequences
   "Distinct component sequences ⇒ distinct framed byte streams (injectivity)."
   (prop/for-all [[s1 s2] (gen/tuple (gen/vector gen-value 0 10)
                                     (gen/vector gen-value 0 10))]
-    (let [b1 (concat-bytes (map hc/canonical-bytes s1))
-          b2 (concat-bytes (map hc/canonical-bytes s2))]
-      (if (= s1 s2)
-        (bytes= b1 b2)
-        (not (bytes= b1 b2))))))
+                (let [b1 (concat-bytes (map hc/canonical-bytes s1))
+                      b2 (concat-bytes (map hc/canonical-bytes s2))]
+                  (if (= s1 s2)
+                    (bytes= b1 b2)
+                    (not (bytes= b1 b2))))))
 
 (def prop-prefix-free
   "No canonical encoding is a proper prefix of another (unambiguous framing)."
   (prop/for-all [pairs (gen/vector (gen/tuple gen-value gen-value) 1 50)]
-    (every?
-     (fn [[a b]]
-       (let [ba (hc/canonical-bytes a)
-             bb (hc/canonical-bytes b)]
-         (if (bytes= ba bb)
-           true
-           (and (not (prefix? ba bb)) (not (prefix? bb ba))))))
-     pairs)))
+                (every?
+                 (fn [[a b]]
+                   (let [ba (hc/canonical-bytes a)
+                         bb (hc/canonical-bytes b)]
+                     (if (bytes= ba bb)
+                       true
+                       (and (not (prefix? ba bb)) (not (prefix? bb ba))))))
+                 pairs)))
 
 (def prop-framing
   "A vector's framing is never the same as the naive concatenation of its parts."
   (prop/for-all [s (gen/vector gen-value 0 10)]
-    (not (bytes= (hc/canonical-bytes s)
-                 (concat-bytes (map hc/canonical-bytes s))))))
+                (not (bytes= (hc/canonical-bytes s)
+                             (concat-bytes (map hc/canonical-bytes s))))))
 
 (deftest test-decodeability-properties
   (doseq [[name p] {:roundtrip prop-roundtrip

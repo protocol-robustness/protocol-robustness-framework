@@ -85,7 +85,10 @@ Example: bb cli scenario list --search yield"
                   "resolver-sim.sim.strategy-adaptation-test"
                   "resolver-sim.sim.waterfall-test"
                   "resolver-sim.workflow-group-test"
-                  "resolver-sim.hash.algorithm-test")}
+                  "resolver-sim.hash.algorithm-test"
+                  "resolver-sim.deferral-test"
+                  "resolver-sim.claim-outcome-test"
+                  "resolver-sim.grounded-amount-test")}
 
    test:unit:parallel
    {:doc "Run all unit tests (framework + Sew) in parallel with noop capture"
@@ -156,7 +159,10 @@ Example: bb cli scenario list --search yield"
                   "resolver-sim.sim.strategy-adaptation-test"
                   "resolver-sim.sim.waterfall-test"
                   "resolver-sim.workflow-group-test"
-                  "resolver-sim.hash.algorithm-test")}
+                  "resolver-sim.hash.algorithm-test"
+                  "resolver-sim.deferral-test"
+                  "resolver-sim.claim-outcome-test"
+                  "resolver-sim.grounded-amount-test")}
 
    test:benchmark:e2e
   {:doc "Run benchmark report end-to-end tests using fixture evidence bundles.

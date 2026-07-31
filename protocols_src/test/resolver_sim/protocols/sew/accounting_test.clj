@@ -2,11 +2,14 @@
   "Tests for contract_model/accounting.clj and invariants.clj."
   (:require [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
             [clojure.test :refer [deftest is testing]]
+            [resolver-sim.protocols.protocol      :as proto]
+            [resolver-sim.protocols.sew           :as sew]
             [resolver-sim.protocols.sew.types      :as t]
             [resolver-sim.protocols.sew.lifecycle  :as lc]
             [resolver-sim.protocols.sew.accounting :as ac]
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.assurance.custody        :as custody]
+            [resolver-sim.yield.modules.adversarial :as adv-yield]
             [resolver-sim.hash.canonical          :as hash]))
 
 (def usdc :0xUSDC)
@@ -298,6 +301,102 @@
     (is (false? (:reconstruction-valid? summary)))
     (is (= :missing-opening-state (:reconstruction-issue summary)))
     (is (= 1 (:ledger-adjustment-count summary)))))
+
+(deftest ordinary-sew-run-reaches-evaluated-strong-replay
+  (testing "An ordinary non-test-style Sew run (init-world + create + release) declares
+            held-adjustment completeness, so strong replay is evaluated/pass, reconstructs
+            the final :total-held, and satisfies the zero-origin contract."
+    (let [world0  (proto/init-world sew/protocol {:initial-block-time 1000})
+          snap    (snap-fix/escrow-snapshot {:escrow-fee-bps 50 :appeal-window-duration 0})
+          created (lc/create-escrow world0 alice usdc bob 1000
+                                    (t/make-escrow-settings {}) snap)
+          released (lc/release (:world created) 0 alice (fn [_ _ _] {:allowed? true}))
+          world'  (:world released)
+          rec     (inv/held-adjustments-reconstruct-total-held? world')]
+      (is (:ok created))
+      (is (:ok released))
+      (is (true? (get-in world' [:params :held-adjustments/complete?]))
+          "canonical init-world declares held-adjustment completeness")
+      (is (= :evaluated (:status rec))
+          "ordinary run reaches evaluated/pass, not :not-evaluated")
+      (is (:holds? rec) "strong replay reconstructs final :total-held")
+      (is (= 0 (get-in world' [:total-held usdc] 0)))
+      (is (custody/held-history-zero-origin? (:held-adjustments world'))
+          "zero-origin contract holds"))))
+
+(deftest not-evaluated-distinguishable-from-evaluated-pass
+  (testing "An incomplete-history run is :not-evaluated (holds? true for compatibility),
+            while the same world with completeness declared is :evaluated/pass — the
+            :status field disambiguates where :holds? cannot."
+    (let [world0  (proto/init-world sew/protocol {:initial-block-time 1000})
+          snap    (snap-fix/escrow-snapshot {:escrow-fee-bps 50 :appeal-window-duration 0})
+          created (lc/create-escrow world0 alice usdc bob 1000
+                                    (t/make-escrow-settings {}) snap)
+          world'  (:world created)
+          incomplete (update-in world' [:params] dissoc :held-adjustments/complete?)
+          incomplete-rec (inv/held-adjustments-reconstruct-total-held? incomplete)
+          evaluated-rec  (inv/held-adjustments-reconstruct-total-held? world')]
+      (is (= :not-evaluated (:status incomplete-rec)))
+      (is (= :evaluated (:status evaluated-rec)))
+      (is (= (:holds? incomplete-rec) (:holds? evaluated-rec))
+          ":holds? is retained true for both; :status disambiguates not-evaluated from pass"))))
+
+(deftest canonical-held-mutation-preserves-completeness
+  (testing "The canonical accounting mutation path (acct/add-held / acct/sub-held) does
+            not invalidate :held-adjustments/complete?: the ledger stays reconstructable."
+    (let [world (-> (proto/init-world sew/protocol {:initial-block-time 1000})
+                    (ac/add-held usdc 100 {:action "create-escrow"
+                                           :reason :escrow-principal-deposited
+                                           :extra {:held/workflow-id 0
+                                                   :owner/address alice
+                                                   :held/from alice
+                                                   :held/to bob}})
+                    (ac/sub-held usdc 40 {:action "release"
+                                          :reason :escrow-settlement-released
+                                          :extra {:held/workflow-id 0
+                                                  :owner/address bob}}))]
+      (is (true? (get-in world [:params :held-adjustments/complete?]))
+          "canonical mutations preserve the completeness declaration")
+      (is (= :evaluated (:status (inv/held-adjustments-reconstruct-total-held? world))))
+      (is (:holds? (inv/held-adjustments-reconstruct-total-held? world))))))
+
+(deftest adversarial-yield-direct-total-held-write-invalidates-completeness
+  (testing "The adversarial yield module (:drain/:bloat) writes :total-held directly
+            (bypassing acct/adjust-held); it must explicitly invalidate
+            :held-adjustments/complete? so strong replay stays :not-evaluated."
+    (doseq [strategy [:drain :bloat]]
+      (let [module (adv-yield/make-adversarial-module :adversarial)
+            world  {:yield/indices {:adversarial {:USDC 1.0}}
+                    :yield/positions {"p" {:owner/id "p" :module/id :adversarial
+                                           :token :USDC :status :active
+                                           :principal 100 :shares 100 :entry-index 1.0
+                                           :unrealized-yield 0 :realized-yield 0}}
+                    :yield/adversary {:adversarial {:strategy strategy}}
+                    :total-held {:USDC 100}
+                    :params {:held-adjustments/complete? true}}
+            world' (adv-yield/adversarial-accrue world module {:token :USDC :dt 1})]
+        (is (false? (get-in world' [:params :held-adjustments/complete?]))
+            (str strategy " direct write invalidates completeness"))))))
+
+(deftest direct-total-held-write-without-clear-fails-reconstruction
+  (testing "A direct :total-held write that bypasses adjust-held but does NOT clear
+            :held-adjustments/complete? is caught by strong replay: reconstruction
+            must fail. (This is the invariant-level consequence that the liquid-lending
+            pro-rata direct write clears the flag to avoid.)"
+    (let [world  (proto/init-world sew/protocol {:initial-block-time 1000})
+          created (lc/create-escrow world alice usdc bob 1000
+                                    (t/make-escrow-settings {}) snap)
+          base   (:world created)
+          ;; Simulate a pro-rata-style direct write: assoc :total-held to a value the
+          ;; ledger does not reflect, leaving complete? true.
+          bypassed (assoc-in base [:total-held usdc]
+                             (+ (get-in base [:total-held usdc] 0) 123))
+          rec (inv/held-adjustments-reconstruct-total-held? bypassed)]
+      (is (:holds? (inv/held-adjustments-reconstruct-total-held? base))
+          "a properly-mutated world reconstructs")
+      (is (false? (:holds? rec))
+          "an un-declared direct :total-held write breaks reconstruction")
+      (is (= :evaluated (:status rec))))))
 
 (deftest held-artifacts-must-match-derived-ledger-view
   (let [world (-> (t/empty-world)

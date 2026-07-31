@@ -201,22 +201,22 @@
     (when-not (contains? #{:review :development} mode)
       (throw (ex-info "Unsupported completeness profile mode"
                       {:mode mode})))
-      (let [required (:evidence/required rules)
-            optional (:evidence/optional rules)
-            sensitivity (:evidence/sensitivity-controlled rules)]
-        (when-not (every? (fn [s] (and (set? s) (every? keyword? s)))
-                          [required optional sensitivity])
-          (throw (ex-info "Evidence categories must be sets of keywords"
-                          {:required required :optional optional :sensitivity sensitivity})))
-        (let [signature-required (:signature/required rules)]
-          (when-not (contains? #{true false nil} signature-required)
-            (throw (ex-info ":signature/required must be true, false, or nil"
-                            {:signature/required signature-required}))))
-        (let [missing-decision (:sensitivity/missing-decision rules)
-              empty-decision (:sensitivity/empty-evidence-set rules)]
-          (when-not (every? #(contains? #{:fail :warn} %) [missing-decision empty-decision])
-            (throw (ex-info "Decisions must be :fail or :warn"
-                            {:missing-decision missing-decision :empty-decision empty-decision}))))))
+    (let [required (:evidence/required rules)
+          optional (:evidence/optional rules)
+          sensitivity (:evidence/sensitivity-controlled rules)]
+      (when-not (every? (fn [s] (and (set? s) (every? keyword? s)))
+                        [required optional sensitivity])
+        (throw (ex-info "Evidence categories must be sets of keywords"
+                        {:required required :optional optional :sensitivity sensitivity})))
+      (let [signature-required (:signature/required rules)]
+        (when-not (contains? #{true false nil} signature-required)
+          (throw (ex-info ":signature/required must be true, false, or nil"
+                          {:signature/required signature-required}))))
+      (let [missing-decision (:sensitivity/missing-decision rules)
+            empty-decision (:sensitivity/empty-evidence-set rules)]
+        (when-not (every? #(contains? #{:fail :warn} %) [missing-decision empty-decision])
+          (throw (ex-info "Decisions must be :fail or :warn"
+                          {:missing-decision missing-decision :empty-decision empty-decision}))))))
   (let [computed (profile-hash profile)
         declared (:profile/hash profile)]
     (when (and declared (not= computed declared))

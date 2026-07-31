@@ -25,18 +25,18 @@
 
 (deftest build-signing-fn-returning-nil-produces-nil-signature
   (let [result (att/build-attestation (valid-attestor) (valid-subject) :verified
-                                       {:signing-key-id "k1" :signing-fn (fn [_] nil)})]
+                                      {:signing-key-id "k1" :signing-fn (fn [_] nil)})]
     (is (nil? (:attestation/signature result)))))
 
 (deftest build-signing-fn-returning-string-stored-as-signature
   (let [result (att/build-attestation (valid-attestor) (valid-subject) :verified
-                                       {:signing-key-id "k1" :signing-fn (fn [_] "badsig")})]
+                                      {:signing-key-id "k1" :signing-fn (fn [_] "badsig")})]
     (is (= "badsig" (:attestation/signature result)))))
 
 (deftest build-signing-fn-throwing-rejected
   (is (thrown? RuntimeException
-        (att/build-attestation (valid-attestor) (valid-subject) :verified
-                               {:signing-key-id "k1" :signing-fn (fn [_] (throw (RuntimeException. "boom")))}))))
+               (att/build-attestation (valid-attestor) (valid-subject) :verified
+                                      {:signing-key-id "k1" :signing-fn (fn [_] (throw (RuntimeException. "boom")))}))))
 
 (deftest build-nil-attestor-id-accepted
   (let [result (att/build-attestation {:type :ci-runner :id nil} (valid-subject) :verified)]
@@ -50,21 +50,21 @@
 
 (deftest validate-rejects-missing-schema-version
   (let [a (dissoc (att/build-attestation (valid-attestor) (valid-subject) :verified)
-                   :schema-version)
+                  :schema-version)
         r (att/validate-attestation-shape a)]
     (is (false? (:valid? r)))
     (is (some #(re-find #"schema-version" (:message %)) (:errors r)))))
 
 (deftest validate-rejects-missing-id
   (let [a (dissoc (att/build-attestation (valid-attestor) (valid-subject) :verified)
-                   :attestation/id)
+                  :attestation/id)
         r (att/validate-attestation-shape a)]
     (is (false? (:valid? r)))
     (is (some #(= :attestation/missing-field (:type %)) (:errors r)))))
 
 (deftest validate-rejects-missing-subject-hash
   (let [a (dissoc (att/build-attestation (valid-attestor) (valid-subject) :verified)
-                   :attestation/subject-hash)
+                  :attestation/subject-hash)
         r (att/validate-attestation-shape a)]
     (is (false? (:valid? r)))
     (is (some #(re-find #"subject-hash" (:message %)) (:errors r)))))
@@ -91,7 +91,7 @@
 
 (deftest validate-detects-missing-attestor-id-new-shape
   (let [a (dissoc (att/build-attestation (valid-attestor) (valid-subject) :verified)
-                   :attestation/attestor-id)
+                  :attestation/attestor-id)
         r (att/validate-attestation-shape a)]
     (is (false? (:valid? r)))
     (is (some #(= :attestation/invalid-attestor (:type %)) (:errors r)))))
@@ -145,7 +145,7 @@
 (deftest register-attestation-idempotent-with-identical-content
   (ar/with-fresh-registry
     (let [a1 (att/build-attestation (valid-attestor) (valid-subject) :verified
-                                     {:signed-at "2025-01-01T00:00:00Z"})
+                                    {:signed-at "2025-01-01T00:00:00Z"})
           id (:attestation/id a1)]
       (ar/register-attestation! a1)
       (ar/register-attestation! a1)
@@ -156,7 +156,7 @@
 
 (deftest verify-unknown-attestor-rejected
   (let [attestation (att/build-attestation {:type :ci-runner :id :does-not-exist}
-                                            (valid-subject) :verified)
+                                           (valid-subject) :verified)
         a (assoc attestation :attestor {:type :ci-runner :id :does-not-exist}
                  :claim :verified :timestamp "2025-01-01T00:00:00Z"
                  :attestation-id (:attestation/id attestation))]
@@ -173,8 +173,8 @@
 
 (deftest verify-verify-fn-returning-nil-treated-as-false
   (let [attestation (att/build-attestation (valid-attestor) (valid-subject) :verified
-                                            {:signing-key-id "k1"
-                                             :signing-fn sample-signing-fn})
+                                           {:signing-key-id "k1"
+                                            :signing-fn sample-signing-fn})
         a (assoc attestation :attestor {:type :ci-runner :id :ci-validation}
                  :claim :verified :timestamp "2025-01-01T00:00:00Z"
                  :attestation-id (:attestation/id attestation))
@@ -209,7 +209,7 @@
 
 (deftest verify-missing-signed-at-new-shape-valid
   (let [a (dissoc (att/build-attestation (valid-attestor) (valid-subject) :verified)
-                   :attestation/signed-at)]
+                  :attestation/signed-at)]
     (is (nil? (:attestation/signed-at a)) "signed-at can be nil from builder")))
 
 ;; ── Claim-result-adversarial ────────────────────────────────────────────────
@@ -217,18 +217,18 @@
 (deftest build-claim-missing-result-hash-produces-nil-subject
   (let [claim-result {:claim-id :conservation :holds? true :status :pass}
         a (att/build-claim-result-attestation (valid-attestor) claim-result
-                                               {:signed-at "2025-01-01T00:00:00Z"})]
+                                              {:signed-at "2025-01-01T00:00:00Z"})]
     (is (nil? (:attestation/subject-hash a)))))
 
 (deftest build-claim-nil-claim-id-produces-nil-claim-id
   (let [claim-result {:claim-result-hash "sha256:abc" :holds? true :status :pass}
         a (att/build-claim-result-attestation (valid-attestor) claim-result
-                                               {:signed-at "2025-01-01T00:00:00Z"})]
+                                              {:signed-at "2025-01-01T00:00:00Z"})]
     (is (= "sha256:abc" (:attestation/subject-hash a)))
     (is (nil? (:attestation/claim-id a)))))
 
 (deftest build-claim-nil-attestor-id-sets-nil-attestor-id
   (let [claim-result {:claim-id :conservation :claim-result-hash "sha256:abc"}
         a (att/build-claim-result-attestation {:type :ci-runner :id nil} claim-result
-                                               {:signed-at "2025-01-01T00:00:00Z"})]
+                                              {:signed-at "2025-01-01T00:00:00Z"})]
     (is (nil? (:attestation/attestor-id a)))))

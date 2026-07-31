@@ -6,12 +6,14 @@
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.grounded-amount :as ga]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.yield.invariants :as yinv]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.accounting.held-ledger-index :as hli]
             [resolver-sim.protocols.sew.accounting :as sew-acc]
+            [resolver-sim.assurance.custody :as custody]
             [resolver-sim.assurance.force-authorisation :as fass]
             [resolver-sim.benchmark.review.three-member-certificate :as tmc]
             [resolver-sim.benchmark.review-round :as rr]
@@ -725,6 +727,208 @@
    "Final world: total-held " (pr-str (:total-held mut-multi))
    "  |  " (count (:held-adjustments mut-multi)) " adjustments, "
    (count (:held-artifacts mut-multi)) " artifacts"]])
+
+;; Step 4 — the custody artifacts form a content-addressed evidence chain.
+;; Each add-held/sub-held produces a `sha256:` artifact; every non-genesis
+;; artifact binds `:held/previous-artifact-hash` to its predecessor's hash.
+;; This is the evidence-chain surface the closed-form verifier checks.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def mut-chain
+  {:artifacts (sort-by :held-adjustment/id (vals (:held-artifacts mut-multi)))
+   :checks (custody/held-custody-closed-form-checks
+            (vals (:held-artifacts mut-multi)))})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "▸ held-custody evidence chain — content-addressed artifacts from add-held/sub-held"]
+  (into [:table {:style {:width "100%" :border-collapse "collapse" :fontSize "11px"}}]
+        (mapv (fn [art]
+                [:tr {:key (:held-adjustment/id art)}
+                 [:td {:style {:padding "4px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (:held-adjustment/id art)]
+                 [:td {:style {:padding "4px 8px" :color "#fbbf24" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (name (:held/direction art))]
+                 [:td {:style {:padding "4px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (str (:amount art)) " " (name (:token art))]
+                 [:td {:style {:padding "4px 8px" :color "#22c55e" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (:artifact/hash art)]
+                 [:td {:style {:padding "4px 8px" :color "#94a3b8" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (or (:held/previous-artifact-hash art) "—")]])
+              (:artifacts mut-chain)))
+  [:div {:style {:marginTop "10px" :fontSize "11px" :color "#94a3b8"}}
+   "Closed-form chain verification:"]
+  (into [:div {:style {:display "grid" :gap "4px" :marginTop "4px" :fontSize "11px"}}]
+        (map (fn [{:keys [check/id status details]}]
+               [:div {:style {:display "flex" :gap "8px"}}
+                [:span {:style {:color (if (= :pass status) "#22c55e" "#ef4444") :fontWeight 700}}
+                 (if (= :pass status) "✓" "✗")]
+                [:span {:style {:color "#cbd5e1"}} (name id)]
+                [:span {:style {:color "#94a3b8" :marginLeft "auto"}}
+                 (str (count (:violations details)) " violations")]])
+             (:checks mut-chain)))])
+
+;; Step 5 — admission gates: what add-held/sub-held reject.
+;; The same boundary that section 17 demonstrates for force-authorisation applies
+;; to custody mutations: invalid inputs, exceptional reasons without provenance,
+;; and sub-held overdraw all fail closed and leave the world untouched.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(defn- custody-state-projection
+  "Compact accounting + evidence-chain projection used to prove a rejected
+   mutation leaves the world unchanged — not just :total-held, but positions,
+   the ledger index, held-adjustments, held-custody artifacts, and any
+   authorization-consumption state."
+  [world]
+  (select-keys world [:total-held :held/positions :held-ledger/index
+                      :held-adjustments :held-artifacts
+                      :force-authorisations/consumed]))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(defn- gate-error [f world]
+  (let [before (custody-state-projection world)]
+    (try (f) {:ok? true :world-unchanged? false}
+         (catch clojure.lang.ExceptionInfo e
+           (let [d (ex-data e)]
+             {:ok? false
+              :error (or (:reason d) (:type d))
+              :world-unchanged? (= before (custody-state-projection world))})))))
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def add-held-gates
+  {:missing-token       (gate-error #(sew-acc/add-held mut-before nil 100 {}) mut-before)
+   :negative-amount     (gate-error #(sew-acc/add-held mut-before :USDC -5 {}) mut-before)
+   :exceptional-no-auth (gate-error #(sew-acc/add-held mut-before :USDC 100
+                                                       {:reason :governance-authorised-correction})
+                                    mut-before)
+   :sub-held-overdraw   (gate-error #(sew-acc/sub-held mut-before :USDC 100 {}) mut-before)})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "▸ admission gates — rejected mutations fail closed"]
+  (into [:div {:style {:display "grid" :gap "4px" :fontSize "11px"}}]
+        (map (fn [[k v]]
+               [:div {:style {:display "flex" :gap "8px" :alignItems "center"}}
+                [:span {:style {:color (if (:ok? v) "#22c55e" "#ef4444") :fontWeight 700}}
+                 (if (:ok? v) "ACCEPTED" "REJECTED")]
+                [:span {:style {:color "#c4b5fd" :minWidth "150px"}} (name k)]
+                [:span {:style {:color "#94a3b8"}} (pr-str (:error v))]
+                [:span {:style {:color (if (:world-unchanged? v) "#22c55e" "#ef4444")
+                                :fontSize "10px" :marginLeft "auto"}}
+                 (if (:world-unchanged? v) "state unchanged" "STATE CHANGED")]])
+             (sort add-held-gates)))
+  [:div {:style {:marginTop "8px" :fontSize "10px" :color "#94a3b8"}}
+   "Rejected mutations leave accounting state AND evidence-chain state unchanged (",
+   (pr-str (custody-state-projection mut-before)) ")"]])
+
+;; Step 6 — exceptional mutation with valid authorization is admitted.
+;; The negative :missing-authorization-provenance gate above is only half the
+;; story: an exceptional custody mutation is not impossible, it is admissible
+;; exactly when the authorization evidence is. The grant is consumed, the held
+;; mutation occurs, a held-custody artifact is appended, and the same closed-form
+;; chain verifier still passes.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def fa-add-held-pos
+  (let [auth-id "fa-add-held-gov"
+        scope-map {:authorization/id auth-id
+                   :authorization/type :force-authorisation
+                   :held/direction :in
+                   :token :USDC
+                   :amount 5000
+                   :held/account :escrow-principal
+                   :owner/address "0xGov"
+                   :held/reason :governance-authorised-correction
+                   :held/workflow-id 0}
+        scope-hash (hc/domain-hash "force-authorisation-scope" scope-map)
+        auth-prov {:authorization/type :force-authorisation
+                   :authorization/id auth-id
+                   :authorization/scope-hash scope-hash}
+        world (assoc-in mut-multi [:force-authorisations auth-id]
+                        {:authorization/id auth-id
+                         :authorization/status :active
+                         :consumed? false
+                         :starts-at 0
+                         :authorization/scope scope-map
+                         :authorization/scope-hash scope-hash})
+        w (sew-acc/add-held world :USDC 5000
+                            {:action "gov-correction"
+                             :reason :governance-authorised-correction
+                             :authorization-provenance auth-prov
+                             :extra {:held/workflow-id 0
+                                     :held/account :escrow-principal
+                                     :owner/address "0xGov"}})]
+    {:auth-id auth-id
+     :grant-before (get-in world [:force-authorisations auth-id :authorization/status])
+     :grant-after (get-in w [:force-authorisations auth-id :authorization/status])
+     :consumed (get-in w [:force-authorisations/consumed auth-id])
+     :total-held (get-in w [:total-held :USDC])
+     :artifacts (sort-by :held-adjustment/id (vals (:held-artifacts w)))
+     :checks (custody/held-custody-closed-form-checks
+              (vals (:held-artifacts w)))}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "▸ force-authorised add-held — exceptional mutation admitted with valid authorization"]
+  [:div {:style {:display "flex" :gap "24px" :fontSize "11px" :marginBottom "10px"}}
+   [:div "grant: " [:strong {:style {:color "#e2e8f0"}} (name (:grant-before fa-add-held-pos))]
+    " → " [:strong {:style {:color "#fbbf24"}} (name (:grant-after fa-add-held-pos))]
+    "  (consumed? " (:consumed? (:consumed fa-add-held-pos)) ")"]
+   [:div "total-held: " [:strong {:style {:color "#22c55e"}} (:total-held fa-add-held-pos)]]]
+  (into [:table {:style {:width "100%" :border-collapse "collapse" :fontSize "11px"}}]
+        (mapv (fn [art]
+                [:tr {:key (:held-adjustment/id art)}
+                 [:td {:style {:padding "4px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (:held-adjustment/id art)]
+                 [:td {:style {:padding "4px 8px" :color "#fbbf24" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (name (:held/direction art))]
+                 [:td {:style {:padding "4px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (str (:amount art)) " " (name (:token art))]
+                 [:td {:style {:padding "4px 8px" :color "#22c55e" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (:artifact/hash art)]
+                 [:td {:style {:padding "4px 8px" :color "#94a3b8" :borderBottom "1px solid #134e4a" :fontSize "10px"}} (or (:held/previous-artifact-hash art) "—")]])
+              (:artifacts fa-add-held-pos)))
+  [:div {:style {:marginTop "10px" :fontSize "11px" :color "#94a3b8"}}
+   "Closed-form chain verification on the extended chain:"]
+  (into [:div {:style {:display "grid" :gap "4px" :marginTop "4px" :fontSize "11px"}}]
+        (map (fn [{:keys [check/id status]}]
+               [:div {:style {:display "flex" :gap "8px"}}
+                [:span {:style {:color (if (= :pass status) "#22c55e" "#ef4444") :fontWeight 700}}
+                 (if (= :pass status) "✓" "✗")]
+                [:span {:style {:color "#cbd5e1"}} (name id)]])
+             (:checks fa-add-held-pos)))])
+
+;; Step 7 — the verifier actually detects broken ordering. Tamper with one
+;; :held/previous-artifact-hash on the valid chain: hash-integrity (artifact no
+;; longer self-consistent) and predecessor-continuity (link broken) must fail.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def mut-tampered
+  (let [tampered (assoc-in (:held-artifacts mut-multi)
+                           ["held-adjustment-2" :held/previous-artifact-hash]
+                           "sha256:0000000000000000000000000000000000000000000000000000000000000000")]
+    (try (custody/held-custody-closed-form-checks (vals tampered))
+         (catch clojure.lang.ExceptionInfo e
+           (:check-results (ex-data e))))))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#fbbf24" :fontWeight 700 :marginBottom "8px"}}
+   "▸ tampered chain — previous-artifact-hash of artifact 3 rewritten"]
+  (into [:div {:style {:display "grid" :gap "4px" :fontSize "11px"}}]
+        (map (fn [{:keys [check/id status details]}]
+               [:div {:style {:display "flex" :gap "8px"}}
+                [:span {:style {:color (if (= :pass status) "#22c55e" "#ef4444") :fontWeight 700}}
+                 (if (= :pass status) "✓" "✗")]
+                [:span {:style {:color "#cbd5e1"}} (name id)]
+                [:span {:style {:color "#94a3b8" :marginLeft "auto"}}
+                 (str (count (:violations details)) " violation(s)")]])
+             mut-tampered))
+  [:div {:style {:marginTop "8px" :fontSize "10px" :color "#94a3b8"}}
+   "The green five-check table is not merely descriptive: broken chain ordering is
+    detected (hash-integrity + predecessor-continuity fail)."]])
 
 ;; ---
 ;; ## 11. Aggregate Shortfall Cap (yield Invariant)
@@ -1948,7 +2152,52 @@
    "errors: " (pr-str (mapv :code (:errors (:consumed fa-assurance-crosscheck))))]])
 
 ;; ---
-;; ## 18. Summary
+;; ## 18. Primitive Contracts — grounded-amount & add-held
+;;
+;; The grounded-amount projection contract grounds a bare number with its token,
+;; basis, and source/as-of roots; `add-held` is the authorised mutator of
+;; `:total-held`. Here the two compose: add-held produces a held balance, and
+;; grounded-amount gives that balance its committed context.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def ga-held-demo
+  (let [base {:total-held {}
+              :held/positions {}
+              :held-ledger/index (hli/empty-held-ledger-index)
+              :held-adjustments []
+              :held-artifacts {}
+              :params {}}
+        w (sew-acc/add-held base :USDC 10000
+                            {:action "deposit-wf-0"
+                             :reason :escrow-principal-deposited
+                             :extra {:held/workflow-id 0
+                                     :held/account :escrow-principal
+                                     :owner/address "0xAlice"}})
+        held (get-in w [:total-held :USDC] 0)
+        world-root (some-> w hash str)]
+    {:total-held held
+     :adjustments (count (:held-adjustments w))
+     :grounded (ga/grounded-amount held :USDC :escrow-principal world-root
+                                   :as-of-root world-root)}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "▸ grounded-amount ∘ add-held — held balance with committed context"]
+  [:div {:style {:fontSize "11px" :marginBottom "12px"}}
+   "add-held: " [:strong {:style {:color "#22c55e"}} (:total-held ga-held-demo)]
+   " USDC  (" (:adjustments ga-held-demo) " adjustments)"]
+  [:div {:style {:color "#94a3b8" :fontSize "11px" :marginBottom "4px"}}
+   "grounded projection (token, basis, source/as-of roots):"]
+  (for [[k v] (:grounded ga-held-demo)]
+    [:div {:style {:display "flex" :gap "6px" :fontSize "11px"}}
+     [:span {:style {:color "#94a3b8" :minWidth "110px"}} (name k)]
+     [:span {:style {:color "#e2e8f0"}} (pr-str v)]])])
+
+;; ---
+;; ## 19. Summary
 
 ;; The verification surfaces in this notebook enforce different properties:
 

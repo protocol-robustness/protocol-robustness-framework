@@ -125,13 +125,13 @@
    :bounty-payable-v1              "BOUNTY_PAYABLE_V1"
    :bounty-payable-backing-v1      "BOUNTY_PAYABLE_BACKING_V1"
    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
-    :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"
-    :pool-availability-v2   "POOL_AVAILABILITY_V2"
-    :pool-reservation       "POOL_RESERVATION_V1"
-    :award-calculation-v2   "AWARD_CALCULATION_V2"
-    :claim-set              "CLAIM_SET_V1"
-    :check-set              "CHECK_SET_V1"
-    :award-policy           "AWARD_POLICY_V1"})
+   :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"
+   :pool-availability-v2   "POOL_AVAILABILITY_V2"
+   :pool-reservation       "POOL_RESERVATION_V1"
+   :award-calculation-v2   "AWARD_CALCULATION_V2"
+   :claim-set              "CLAIM_SET_V1"
+   :check-set              "CHECK_SET_V1"
+   :award-policy           "AWARD_POLICY_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

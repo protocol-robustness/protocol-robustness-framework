@@ -1,16 +1,16 @@
 {
-  "description": "L0/L1/L2 all release; third escalation rejected; two bonds lost; final release at L2.",
+  "description": "L0\/L1\/L2 all release; third escalation rejected; two bonds lost; final release at L2.",
   "protocol-params": {
     "resolver-fee-bps": 150,
     "appeal-window-duration": 60,
     "max-dispute-duration": 2592000,
+    "resolver-bond-bps": 0,
     "resolution-module": "0xkleros-proxy",
     "escalation-resolvers": {
       "0": "0xl0",
       "1": "0xl1",
       "2": "0xl2"
-    },
-    "resolver-bond-bps": 0
+    }
   },
   "expected-outcome": {
     "workflow-0": "release-after-l2-confirmation"
@@ -149,7 +149,7 @@
     "resolution-hash-isolation",
     "claimable-balance-isolation"
   ],
-  "id": "scenarios/s31-forking-strategist-all-levels-confirm",
+  "id": "scenarios\/s31-forking-strategist-all-levels-confirm",
   "notes": null,
   "strict-expected-errors?": true,
   "expected-errors": [
@@ -161,7 +161,7 @@
     {
       "seq": 8,
       "action": "execute_pending_settlement",
-      "error": "transfer-not-in-dispute"
+      "error": "no-pending-settlement"
     }
   ],
   "expectations": {

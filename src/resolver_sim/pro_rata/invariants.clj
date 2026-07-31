@@ -193,7 +193,7 @@
                               :observed den}))
         ;; Canonical form: gcd(|num|, den) = 1
         (when (and (integer? num) (integer? den) (pos? den))
-            (let [g (gcd (Math/abs (long num)) (long den))]
+          (let [g (gcd (Math/abs (long num)) (long den))]
             (when (> g 1)
               (swap! errors conj {:reason :pro-rata/fractional-remainder-not-reduced
                                   :numerator num :denominator den
@@ -292,22 +292,22 @@
 (defn result-violations
   [result]
   (vec (concat (when-not (= (:request/hash result)
-                             (hc/hash-with-intent {:hash/intent :projection-artifact}
-                                                  (:canonical-request result)))
-                  [{:reason :pro-rata/request-hash-mismatch
-                    :expected :recomputed-hash
-                    :observed (:request/hash result)}])
-                (when-not (allocation/allocation-hash-valid? result)
-                  [{:reason :pro-rata/allocation-hash-mismatch
-                    :expected :recomputed-hash
-                    :observed (:allocation/hash result)}])
-                (cap-respecting-violations result)
-                (residual-violations result)
-                (round-trace-violations result)
-                (quota-bounded-violations result)
-                (fractional-remainder-violations result)
-                (when (= :largest-remainder (:rounding-policy result))
-                  (canonical-remainder-assignment-violations result)))))
+                            (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                                 (:canonical-request result)))
+                 [{:reason :pro-rata/request-hash-mismatch
+                   :expected :recomputed-hash
+                   :observed (:request/hash result)}])
+               (when-not (allocation/allocation-hash-valid? result)
+                 [{:reason :pro-rata/allocation-hash-mismatch
+                   :expected :recomputed-hash
+                   :observed (:allocation/hash result)}])
+               (cap-respecting-violations result)
+               (residual-violations result)
+               (round-trace-violations result)
+               (quota-bounded-violations result)
+               (fractional-remainder-violations result)
+               (when (= :largest-remainder (:rounding-policy result))
+                 (canonical-remainder-assignment-violations result)))))
 
 (defn remainder-assignment-status
   [result]

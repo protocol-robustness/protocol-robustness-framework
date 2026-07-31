@@ -191,3 +191,74 @@
         tampered (assoc p :plan/gross-amount 9999)
         v (plan/verify-application-plan tampered)]
     (is (not (:valid? v)))))
+
+(deftest payout-state-conservation
+  (testing "payout-state equation: non-obligation final allocations + outstanding payables = gross"
+    (doseq [{:keys [gross-amount param-ctx idempotency-key expected-bounty]}
+            [{:gross-amount 1000
+              :param-ctx param-ctx
+              :idempotency-key [:slash-dist-applied 0 "0xChallenger"]
+              :expected-bounty 100}
+             {:gross-amount 100
+              :param-ctx {:source-root "test"
+                          :values {:sew.parameter/challenge-bounty-bps 500}}
+              :idempotency-key [:slash-dist-applied 1 "0xChallenger"]
+              :expected-bounty 5}]]
+      (let [dist-result (sd/build-slash-distribution
+                         {:gross-amount gross-amount
+                          :policy sew-default-policy
+                          :parameter-context param-ctx
+                          :resolved-awards resolved-awards
+                          :context {:source-reference "test"}})
+            _ (is (= :valid (:status dist-result)))
+            distribution (:distribution dist-result)
+            result (plan/build-application-plan
+                    {:distribution distribution
+                     :policy sew-default-policy
+                     :idempotency-key idempotency-key})
+            p (:plan result)
+            awards (:distribution/awards distribution)
+            payable-destinations (set (keep (comp :allocation-id :settlement) awards))
+            non-obligation-credits (reduce + 0
+                                           (for [[alloc-id amt] (:plan/allocation-credits p)
+                                                 :when (not (contains? payable-destinations alloc-id))]
+                                             amt))
+            outstanding (reduce + 0 (map :payable/amount (:plan/payables p)))]
+        ;; The award value appears exactly once: as the payable-settlement allocation
+        ;; credit AND as the outstanding payable.  Summing the full final allocations
+        ;; plus the payables would double-count; the non-obligation allocations plus
+        ;; outstanding payables must equal gross.
+        (is (= expected-bounty outstanding))
+        (is (= expected-bounty
+               (reduce + 0 (vals (select-keys (:plan/allocation-credits p)
+                                              payable-destinations)))))
+        (is (= gross-amount (+ non-obligation-credits outstanding))
+            "non-obligation final allocations + outstanding payables = gross"))))
+  (testing "backing reconciles with payables and funding deductions (no value creation)"
+    (let [dist-result (sd/build-slash-distribution
+                       {:gross-amount 1000
+                        :policy sew-default-policy
+                        :parameter-context param-ctx
+                        :resolved-awards resolved-awards
+                        :context {:source-reference "test"}})
+          distribution (:distribution dist-result)
+          result (plan/build-application-plan
+                  {:distribution distribution
+                   :policy sew-default-policy
+                   :idempotency-key [:slash-dist-applied 0 "0xChallenger"]})
+          p (:plan result)
+          payables (:plan/payables p)
+          backings (:plan/backing-records p)
+          payable-total (reduce + 0 (map :payable/amount payables))
+          backing-total (reduce + 0 (map :backing/amount backings))
+          funding-total (reduce + 0 (vals (:plan/funding-deductions p)))
+          awards-by-id (into {} (map (fn [a] [(:award/id a) a]) (:distribution/awards distribution)))]
+      (is (= payable-total backing-total funding-total)
+          "payables = backing = funding deductions")
+      (doseq [b backings]
+        (let [award (get awards-by-id (:backing/award-id b))]
+          (is (= (:backing/amount b)
+                 (reduce + 0 (vals (:backing/source-allocations b))))
+              "backing amount equals its source-allocation sum (restricted, not new credit)")
+          (is (= (:funding award) (:backing/source-allocations b))
+              "backing source allocations match the award's funding deduction split"))))))

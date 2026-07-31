@@ -172,7 +172,7 @@
   (let [expected (policy-hash policy)]
     (when-not (= expected (:policy/hash policy))
       (throw (ex-info "Pro-rata propagation policy hash mismatch" {:reason :policy-hash-mismatch
-                                                                    :expected expected :actual (:policy/hash policy)})))
+                                                                   :expected expected :actual (:policy/hash policy)})))
     (validate-policy-semantics (dissoc policy :policy/hash))))
 
 (defn resolve-policy [policy-id]

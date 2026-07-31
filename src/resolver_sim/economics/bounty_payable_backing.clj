@@ -17,7 +17,15 @@
    Key accounting rule:
    outstanding bounty payable = restricted bounty backing
    while gross conservation remains:
-     final allocations + outstanding payables = gross slash amount"
+     non-payable final allocations + outstanding payables = gross slash amount
+
+   The payable-backed value is represented exactly once: the funding deduction
+   (source allocations) is classified as restricted backing, and the same value
+   also appears as the payable-settlement allocation credit.  Summing the FULL
+   final allocations AND the outstanding payables would double-count that value;
+   the payout-state equation must exclude payable-settlement allocations from
+   'final allocations' when checking exposure.  See
+   payout-state-conservation in slash_distribution_application_plan_test.clj."
   (:require [resolver-sim.hash.canonical :as hc]))
 
 (def schema-version "bounty-payable-backing.v1")

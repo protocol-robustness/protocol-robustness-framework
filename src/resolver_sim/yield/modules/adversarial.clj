@@ -52,19 +52,19 @@
                            (if (and (= (:module/id pos) mid)
                                     (= (normalize-token (:token pos)) (normalize-token token))
                                     (= (:status pos) :active))
-                              (let [marked (acct/update-position-yield world pos index)]
-                                (case strategy
-                                  :drain (-> w
-                                             (assoc-in [:yield/positions oid] (update marked :principal (fn [p] (max 0 (- p 1)))))
-                                             (update-in [:total-held token] dec)
+                             (let [marked (acct/update-position-yield world pos index)]
+                               (case strategy
+                                 :drain (-> w
+                                            (assoc-in [:yield/positions oid] (update marked :principal (fn [p] (max 0 (- p 1)))))
+                                            (update-in [:total-held token] dec)
                                              ;; direct :total-held mutation breaks the held-adjustment
                                              ;; completeness contract — keep strong replay :not-evaluated
-                                             (assoc-in [:params :held-adjustments/complete?] false))
-                                  :bloat (-> w
-                                             (assoc-in [:yield/positions oid] (update marked :unrealized-yield + 1000))
-                                             (update-in [:total-held token] + 1000)
-                                             (assoc-in [:params :held-adjustments/complete?] false))
-                                  w))
+                                            (assoc-in [:params :held-adjustments/complete?] false))
+                                 :bloat (-> w
+                                            (assoc-in [:yield/positions oid] (update marked :unrealized-yield + 1000))
+                                            (update-in [:total-held token] + 1000)
+                                            (assoc-in [:params :held-adjustments/complete?] false))
+                                 w))
                              w))
                          world
                          (:yield/positions world))]

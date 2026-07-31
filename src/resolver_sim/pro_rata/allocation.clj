@@ -320,14 +320,14 @@
            :residual-reason (if (pos? (:remainder allocation))
                               (:residual-reason witness)
                               :none)
-             :rows (mapv (fn [row]
-                           (let [{:keys [allocated unmet]} (get by-id (:row/id row))]
-                             (assoc (get witness-by-id (:row/id row))
-                                    :allocated allocated
-                                    :unmet (or unmet 0))))
-                         rows)}
+           :rows (mapv (fn [row]
+                         (let [{:keys [allocated unmet]} (get by-id (:row/id row))]
+                           (assoc (get witness-by-id (:row/id row))
+                                  :allocated allocated
+                                  :unmet (or unmet 0))))
+                       rows)}
           allocation-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
-                                                result-base)]
+                                               result-base)]
       (assoc result-base :allocation/hash allocation-hash
              :allocation/fractional-remainder-total fractional-total))))
 

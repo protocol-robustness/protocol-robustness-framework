@@ -7,7 +7,10 @@
             [resolver-sim.notebook-support.speds.data :as speds-data]
             [resolver-sim.notebook-support.speds.config :as config]
             [resolver-sim.notebook-support.speds.story :as story]
+            [resolver-sim.grounded-amount :as ga]
             [resolver-sim.protocols.sew :as sew]
+            [resolver-sim.protocols.sew.accounting :as acct]
+            [resolver-sim.protocols.sew.types :as sew-types]
             [resolver-sim.protocols.sew.projection :as sew-proj]))
 
 ;; # Sew Protocol — Production Evidence Workbench
@@ -564,3 +567,48 @@
                         [:span {:style {:color "#64748b" :marginLeft "auto"}} (:detail c)]])])]]]])]
            [:div {:style {:fontSize "12px" :color "#fbbf24"}}
              "No custody data could be computed from live replay."]))]]])])
+
+;; # Primitive Inspectors — grounded-amount & add-held
+;; Thin viewers over production surfaces: the grounded-amount projection contract
+;; and the add-held custody primitive, exercised through the same public APIs the
+;; accounting tests use (no reimplemented business rules).
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}
+  :nextjournal.clerk/width :full}
+
+(clerk/html
+ [:div.workbench-container
+  [:div.grid-layout
+   [:div.card {:style {:grid-column "span 12"}}
+    [:div.card-title "Primitive Inspectors — grounded-amount & add-held"]
+    (let [ga-proj (ga/grounded-amount 250 :0xUSDC :escrow-principal "terminal-world-root"
+                                      :as-of-root "terminal-world-root")
+          w0 (sew-types/empty-world 1000)
+          w1 (acct/add-held w0 :0xUSDC 500 {:action "demo-add-held" :reason :escrow-created
+                                             :extra {:held/workflow-id 0 :held/actor "0xBuyer"}})
+          w2 (acct/add-held w1 :0xUSDC 250 {:action "demo-add-held" :reason :escrow-created
+                                             :extra {:held/workflow-id 0 :held/actor "0xBuyer"}})
+          total-held (get-in w2 [:total-held :0xUSDC] 0)
+          adj-count (count (:held-adjustments w2))]
+      [:div {:style {:display "grid" :gridTemplateColumns "repeat(3,1fr)" :gap "8px" :fontSize "10px"}}
+       [:div {:style {:padding "8px" :background "#0b1220" :border "1px solid #134e4a" :borderRadius "4px"}}
+        [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "6px"}} "grounded-amount (projection)"]
+        (for [[k v] ga-proj]
+          [:div {:style {:display "flex" :gap "6px" :padding "1px 0"}}
+           [:span {:style {:color "#64748b" :minWidth "90px"}} (name k)]
+           [:span {:style {:color "#cbd5e1"}} (pr-str v)]])]
+       [:div {:style {:padding "8px" :background "#0b1220" :border "1px solid #134e4a" :borderRadius "4px"}}
+        [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "6px"}} "add-held (custody mutation)"]
+        [:div {:style {:display "flex" :gap "6px" :padding "1px 0"}}
+         [:span {:style {:color "#64748b" :minWidth "90px"}} "after +500"]
+         [:span {:style {:color "#e2e8f0"}} (get-in w1 [:total-held :0xUSDC] 0)]]
+        [:div {:style {:display "flex" :gap "6px" :padding "1px 0"}}
+         [:span {:style {:color "#64748b" :minWidth "90px"}} "after +250"]
+         [:span {:style {:color "#03DAC6" :fontWeight 700}} total-held]]
+        [:div {:style {:display "flex" :gap "6px" :padding "1px 0"}}
+         [:span {:style {:color "#64748b" :minWidth "90px"}} "adjustments"]
+         [:span {:style {:color "#cbd5e1"}} adj-count]]]
+       [:div {:style {:padding "8px" :background "#0b1220" :border "1px solid #134e4a" :borderRadius "4px"}}
+        [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "6px"}} "Why"]
+        [:div {:style {:color "#cbd5e1" :fontSize "10px"}}
+         "grounded-amount grounds a bare number with token, basis, and source/as-of roots. add-held is the production custody primitive exercised through the exact public API the accounting tests use. Both are thin viewers over production surfaces."]]])]]])

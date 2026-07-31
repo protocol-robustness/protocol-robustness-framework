@@ -22,15 +22,15 @@
 
 (deftest build-award-policy-duplicate-ids-rejected
   (is (thrown? Exception
-              (ap/build-award-policy
-               {:policy/id "policy-dup"
-                :policy/required-check-ids [:a :a]}))))
+               (ap/build-award-policy
+                {:policy/id "policy-dup"
+                 :policy/required-check-ids [:a :a]}))))
 
 (deftest build-award-policy-empty-ids-rejected
   (is (thrown? Exception
-              (ap/build-award-policy
-               {:policy/id "policy-empty"
-                :policy/required-check-ids []}))))
+               (ap/build-award-policy
+                {:policy/id "policy-empty"
+                 :policy/required-check-ids []}))))
 
 (deftest verify-award-policy-passes
   (let [p (ap/build-award-policy

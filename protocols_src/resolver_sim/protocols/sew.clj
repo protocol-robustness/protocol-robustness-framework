@@ -1399,10 +1399,18 @@
 (defn- run-single-invariants [world]
   (let [scenario-id (get-in world [:params :scenario-id])
         r (inv/check-all world scenario-id)
-        exp-res (yield-exp/check-expectations world)]
+        exp-res (yield-exp/check-expectations world)
+        ;; Surface invariants that could not be evaluated (e.g. held-adjustment
+        ;; reconstruction when the history is incomplete). These are reported as
+        ;; :status :not-evaluated with :holds? true (compatibility), so callers
+        ;; that care can distinguish them from a genuine evaluated pass.
+        not-evaluated (into {}
+                            (filter (fn [[_ result]] (= :not-evaluated (:status result))))
+                            (:results r))]
     {:ok?        (and (:all-hold? r) (:ok? exp-res))
      :violations (cond-> (if (:all-hold? r) {} (:results r))
-                   (not (:ok? exp-res)) (assoc :expectations (:results exp-res)))}))
+                   (not (:ok? exp-res)) (assoc :expectations (:results exp-res)))
+     :not-evaluated-invariants not-evaluated}))
 
 (defn- run-transition-invariants [world-before world-after]
   (let [r (inv/check-transition world-before world-after)]

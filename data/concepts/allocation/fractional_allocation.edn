@@ -3,6 +3,8 @@
  :concept/layer :framework-explanation
  :concept/version 1
  :concept/display-name "Fractional Remainder"
+ :concept/name "Fractional remainder"
+ :concept/summary "The total of all per-claimant fractional remainders from pro-rata floor rounding, recorded at the allocation result level and redistributed by the largest-remainder method."
  :concept/description "The total of all per-claimant fractional remainders from pro-rata floor rounding, recorded at the allocation result level. This is the numerator/denominator sum that the largest-remainder method redistributes as unit awards. The total is not itself an allocation primitive — it is an evidence-layer summary of how much was distributable via remainder-ranking but was not floor-allocated."
 
  :concept/entities
