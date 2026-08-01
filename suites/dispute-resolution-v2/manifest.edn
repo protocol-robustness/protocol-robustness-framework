@@ -292,6 +292,83 @@
    :expectations-passed 2
    :invariants-passed 2
    :simulator/scenario-path "scenarios/edn/DR-K-001-fraud-slash-pending-blocks-second.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  ;; ── DR-C: Appeal Bond Economics (BondLedger primitive) ────────────────
+  {:id "dr-c-003-appeal-bond-refund-on-reversal"
+   :ordinal 20
+   :trace-slug "DR-C-003-appeal-bond-refund-on-reversal"
+   :claim-id "appeal-bond-refund-on-reversal"
+   :claim "When a higher-level resolver reverses a prior round's decision, the appeal bond is refunded to the escalator through the recordResolution production path."
+   :threat "Missing appeal bond refund on reversal"
+   :primary-threat "appeal-bond-missing-refund"
+   :classification :economic-solvency
+   :family "DR-C: Appeal Bond Economics"
+   :invariant-ids ["slashable-liability-preserved"]
+   :expectations-passed 1
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/DR-C-003-appeal-bond-refund-on-reversal.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "dr-c-004-appeal-bond-resolver-payout"
+   :ordinal 21
+   :trace-slug "DR-C-004-appeal-bond-resolver-payout"
+   :claim-id "appeal-bond-resolver-payout"
+   :claim "When a higher-level resolver upholds a prior round's decision, the appeal bond is distributed to the prior-round resolvers through the recordResolution production path."
+   :threat "Missing appeal bond resolver payout"
+   :primary-threat "appeal-bond-missing-resolver-payout"
+   :classification :economic-solvency
+   :family "DR-C: Appeal Bond Economics"
+   :invariant-ids ["slashable-liability-preserved"]
+   :expectations-passed 1
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/DR-C-004-appeal-bond-resolver-payout.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "dr-c-005-appeal-bond-forfeit-reserve"
+   :ordinal 22
+   :trace-slug "DR-C-005-appeal-bond-forfeit-reserve"
+   :claim-id "appeal-bond-forfeit-reserve"
+   :claim "Forfeited appeal bond principal is recorded in a forfeitedBondReserve, preventing silent asset stranding."
+   :threat "Stranded appeal bond assets on forfeit"
+   :primary-threat "appeal-bond-forfeit-stranding"
+   :classification :economic-solvency
+   :family "DR-C: Appeal Bond Economics"
+   :invariant-ids ["slashable-liability-preserved"]
+   :expectations-passed 1
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/DR-C-005-appeal-bond-forfeit-reserve.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "dr-c-006-appeal-bond-distribution-failure-atomic"
+   :ordinal 23
+   :trace-slug "DR-C-006-appeal-bond-distribution-failure-atomic"
+   :claim-id "appeal-bond-distribution-atomic"
+   :claim "Bond distribution during recordResolution is atomic: if distribution fails, the resolution reverts."
+   :threat "Inconsistent bond/distribution state on failure"
+   :primary-threat "appeal-bond-distribution-atomicity"
+   :classification :safety-critical
+   :family "DR-C: Appeal Bond Economics"
+   :invariant-ids ["slashable-liability-preserved"]
+   :expectations-passed 1
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/DR-C-006-appeal-bond-distribution-failure-atomic.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  ;; ── DR-N: Bond Return ─────────────────────────────────────────────────
+  {:id "dr-n-002-escalation-bond-return"
+   :ordinal 24
+   :trace-slug "DR-N-002-escalation-bond-return"
+   :claim-id "escalation-bond-returned-on-finalize"
+   :claim "After an escalation bond is posted and the escrow finalizes, the bond balance is cleared and the amount becomes claimable."
+   :threat "Escalation bond leak on finalize"
+   :primary-threat "escalation-bond-leak"
+   :classification :economic-solvency
+   :family "DR-H: Challenge Resolution & Bond Economics"
+   :invariant-ids ["slashable-liability-preserved"]
+   :expectations-passed 1
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/DR-N-002-escalation-bond-return.edn"
    :upgrade-path "maintain deterministic replay and trace hash stability"}]
 
  :invariants
@@ -302,7 +379,7 @@
   {:id "escalation-layer-protection" :scenarios ["dr-b-002-escalation-beyond-max-level" "dr-j-002-concurrent-escalation-race"]}
   {:id "appeal-reversal-detectable?" :scenarios ["dr-b-003-full-L0-L1-L2-chain-reversal"]}
   {:id "resolver-decision-attributable?" :scenarios ["dr-b-003-full-L0-L1-L2-chain-reversal" "dr-c-002-slash-appeal-bond-lifecycle" "dr-d-001-reversal-slashing-auto-track" "dr-e-002-rotate-before-resolution" "dr-g-001-manual-reversal-slash-t2" "dr-g-002-cross-level-reversal-edge" "dr-h-001-challenge-bond-deterrence"]}
-  {:id "slashable-liability-preserved" :scenarios ["dr-c-002-slash-appeal-bond-lifecycle" "dr-d-001-reversal-slashing-auto-track" "dr-g-001-manual-reversal-slash-t2" "dr-g-002-cross-level-reversal-edge"]}
+   {:id "slashable-liability-preserved" :scenarios ["dr-c-002-slash-appeal-bond-lifecycle" "dr-c-003-appeal-bond-refund-on-reversal" "dr-c-004-appeal-bond-resolver-payout" "dr-c-005-appeal-bond-forfeit-reserve" "dr-c-006-appeal-bond-distribution-failure-atomic" "dr-d-001-reversal-slashing-auto-track" "dr-g-001-manual-reversal-slash-t2" "dr-g-002-cross-level-reversal-edge" "dr-n-002-escalation-bond-return"]}
   {:id "pending-settlement-consistent" :scenarios ["dr-e-001-rotate-mid-escalation-pending-blocked"]}
   {:id "no-double-settlement" :scenarios ["dr-d-002-concurrent-resolutions-same-level"]}
   {:id "single-resolution-payout-consistent" :scenarios ["dr-d-002-concurrent-resolutions-same-level"]}]
@@ -344,12 +421,42 @@
    :invariant-ids ["dispute-level-bounded?"]
    :scenario-ids ["dr-c-001-appeal-bond-sybil-scaling"]
    :upgrade-path "maintain deterministic replay and trace hash stability"}
-  {:claim-id :slash-appeal-bond-refund-on-uphold
-   :claim "When a resolver's slash appeal is upheld, the posted appeal bond is refunded."
-   :threat "Slash appeal bond not refunded"
-   :invariant-ids ["slashable-liability-preserved" "resolver-decision-attributable?"]
-   :scenario-ids ["dr-c-002-slash-appeal-bond-lifecycle"]
-   :upgrade-path "maintain deterministic replay and trace hash stability"}
+   {:claim-id :slash-appeal-bond-refund-on-uphold
+    :claim "When a resolver's slash appeal is upheld, the posted appeal bond is refunded."
+    :threat "Slash appeal bond not refunded"
+    :invariant-ids ["slashable-liability-preserved" "resolver-decision-attributable?"]
+    :scenario-ids ["dr-c-002-slash-appeal-bond-lifecycle"]
+    :upgrade-path "maintain deterministic replay and trace hash stability"}
+   {:claim-id :appeal-bond-refund-on-reversal
+    :claim "When a higher-level resolver reverses a prior round's decision, the appeal bond is refunded to the escalator through recordResolution."
+    :threat "Missing appeal bond refund on reversal"
+    :invariant-ids ["slashable-liability-preserved"]
+    :scenario-ids ["dr-c-003-appeal-bond-refund-on-reversal"]
+    :upgrade-path "maintain deterministic replay and trace hash stability"}
+   {:claim-id :appeal-bond-resolver-payout
+    :claim "When a higher-level resolver upholds a prior round's decision, the appeal bond is distributed to the prior-round resolvers through recordResolution."
+    :threat "Missing appeal bond resolver payout"
+    :invariant-ids ["slashable-liability-preserved"]
+    :scenario-ids ["dr-c-004-appeal-bond-resolver-payout"]
+    :upgrade-path "maintain deterministic replay and trace hash stability"}
+   {:claim-id :appeal-bond-forfeit-reserve
+    :claim "Forfeited appeal bond principal is recorded in a forfeitedBondReserve, preventing silent asset stranding."
+    :threat "Stranded appeal bond assets on forfeit"
+    :invariant-ids ["slashable-liability-preserved"]
+    :scenario-ids ["dr-c-005-appeal-bond-forfeit-reserve"]
+    :upgrade-path "maintain deterministic replay and trace hash stability"}
+   {:claim-id :appeal-bond-distribution-atomic
+    :claim "Bond distribution during recordResolution is atomic: if distribution fails, the resolution reverts."
+    :threat "Inconsistent bond/distribution state on failure"
+    :invariant-ids ["slashable-liability-preserved"]
+    :scenario-ids ["dr-c-006-appeal-bond-distribution-failure-atomic"]
+    :upgrade-path "maintain deterministic replay and trace hash stability"}
+   {:claim-id :escalation-bond-returned-on-finalize
+    :claim "After an escalation bond is posted and the escrow finalizes, the bond balance is cleared and the amount becomes claimable."
+    :threat "Escalation bond leak on finalize"
+    :invariant-ids ["slashable-liability-preserved"]
+    :scenario-ids ["dr-n-002-escalation-bond-return"]
+    :upgrade-path "maintain deterministic replay and trace hash stability"}
   {:claim-id :auto-reversal-slash-on-reversal-no-new-evidence
    :claim "Auto-track reversal slashing fires immediately on reversal without new evidence."
    :threat "Auto-track reversal slashing"

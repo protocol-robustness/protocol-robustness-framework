@@ -1,7 +1,7 @@
 {:catalog/version 1,
  :catalog/description
  "Unified scenario catalog. One entry per canonical scenario ID, with\n                  cross-references to suite manifests, claims, invariants, golden\n                  reports, and file locations. Generated — do not edit manually.",
- :catalog/scenario-count 223,
+  :catalog/scenario-count 227,
  :catalog/generated-at "Tue Jun 30 20:52:58 BST 2026",
  :scenarios
  [#:scenario{:id "appeal-failure-cascade-v1",
@@ -202,6 +202,74 @@
              :purpose "adversarial-robustness",
              :suite-id "dispute-resolution-v2",
              :classification :economic-solvency}
+  #:scenario{:id "dr-c-003-appeal-bond-refund-on-reversal",
+             :files
+             [{:path
+               "scenarios/edn/DR-C-003-appeal-bond-refund-on-reversal.edn",
+               :format :edn}],
+             :invariants ["slashable-liability-preserved"],
+             :threat "Missing appeal bond refund on reversal",
+             :claim
+             "When a higher-level resolver reverses a prior round's decision, the appeal bond is refunded to the escalator through the recordResolution production path.",
+             :path
+             "scenarios/edn/DR-C-003-appeal-bond-refund-on-reversal.edn",
+             :format :edn,
+             :claim-id "appeal-bond-refund-on-reversal",
+             :protocol "sew-v1",
+             :purpose "behavioural-correction",
+             :suite-id "dispute-resolution-v2",
+             :classification :economic-solvency}
+  #:scenario{:id "dr-c-004-appeal-bond-resolver-payout",
+             :files
+             [{:path
+               "scenarios/edn/DR-C-004-appeal-bond-resolver-payout.edn",
+               :format :edn}],
+             :invariants ["slashable-liability-preserved"],
+             :threat "Missing appeal bond resolver payout",
+             :claim
+             "When a higher-level resolver upholds a prior round's decision, the appeal bond is distributed to the prior-round resolvers through the recordResolution production path.",
+             :path
+             "scenarios/edn/DR-C-004-appeal-bond-resolver-payout.edn",
+             :format :edn,
+             :claim-id "appeal-bond-resolver-payout",
+             :protocol "sew-v1",
+             :purpose "behavioural-correction",
+             :suite-id "dispute-resolution-v2",
+             :classification :economic-solvency}
+  #:scenario{:id "dr-c-005-appeal-bond-forfeit-reserve",
+             :files
+             [{:path
+               "scenarios/edn/DR-C-005-appeal-bond-forfeit-reserve.edn",
+               :format :edn}],
+             :invariants ["slashable-liability-preserved"],
+             :threat "Stranded appeal bond assets on forfeit",
+             :claim
+             "Forfeited appeal bond principal is recorded in a forfeitedBondReserve, preventing silent asset stranding.",
+             :path
+             "scenarios/edn/DR-C-005-appeal-bond-forfeit-reserve.edn",
+             :format :edn,
+             :claim-id "appeal-bond-forfeit-reserve",
+             :protocol "sew-v1",
+             :purpose "behavioural-correction",
+             :suite-id "dispute-resolution-v2",
+             :classification :economic-solvency}
+  #:scenario{:id "dr-c-006-appeal-bond-distribution-failure-atomic",
+             :files
+             [{:path
+               "scenarios/edn/DR-C-006-appeal-bond-distribution-failure-atomic.edn",
+               :format :edn}],
+             :invariants ["slashable-liability-preserved"],
+             :threat "Inconsistent bond/distribution state on failure",
+             :claim
+             "Bond distribution during recordResolution is atomic: if distribution fails, the resolution reverts.",
+             :path
+             "scenarios/edn/DR-C-006-appeal-bond-distribution-failure-atomic.edn",
+             :format :edn,
+             :claim-id "appeal-bond-distribution-atomic",
+             :protocol "sew-v1",
+             :purpose "behavioural-correction",
+             :suite-id "dispute-resolution-v2",
+             :classification :safety-critical}
   #:scenario{:id "dr-d-001-reversal-slashing-auto-track",
              :files
              [{:path
@@ -604,7 +672,14 @@
               {:path
                "scenarios/edn/DR-N-002-escalation-bond-return.edn",
                :format :edn}],
-             :purpose "adversarial-robustness"}
+              :purpose "adversarial-robustness",
+             :claim-id "escalation-bond-returned-on-finalize",
+             :claim
+             "After an escalation bond is posted and the escrow finalizes, the bond balance is cleared and the amount becomes claimable.",
+             :threat "Escalation bond leak on finalize",
+             :invariants ["slashable-liability-preserved"],
+             :suite-id "dispute-resolution-v2",
+             :classification :economic-solvency}
   #:scenario{:id "dynamic-sweep",
              :protocol "sew-v1",
              :path "scenarios/dynamic-sweep.json",
