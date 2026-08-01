@@ -9,10 +9,13 @@
             [resolver-sim.protocols.sew.accounting :as ac]
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.assurance.custody        :as custody]
+            [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.yield.modules.adversarial :as adv-yield]
-            [resolver-sim.evidence.capture         :as cap]
-            [resolver-sim.time.context             :as time-ctx]
-            [resolver-sim.hash.canonical          :as hash]))
+            [resolver-sim.yield.registry             :as yr]
+            [resolver-sim.evidence.capture           :as cap]
+            [resolver-sim.evidence.finalization      :as finalization]
+            [resolver-sim.time.context               :as time-ctx]
+            [resolver-sim.hash.canonical            :as hash]))
 
 (def usdc :0xUSDC)
 (def alice "0xAlice")
@@ -463,6 +466,143 @@
         (is (= (- afa claimable) write-down)
             "reconciliation: owed (afa) - claimable == write-down")))))
 
+(defn- capture-terminal-settle
+  "Run f (which must settle an escrow), capturing the emitted terminal-settlement
+   evidence as finalized artifacts. Returns {:result result :artifacts [...]}."
+  [f]
+  (let [captured (atom [])
+        recorder (fn [& args] (swap! captured conj args) nil)
+        result (with-redefs [resolver-sim.evidence.capture/capture-event-evidence! recorder]
+                 (f))
+        artifacts (into []
+                        (keep (fn [args]
+                                (when (and (sequential? args) (seq args))
+                                  (let [[reason pre post inputs] args]
+                                    (when (contains? #{:escrow-released :escrow-refunded} reason)
+                                      (-> (cap/evidence-base {:type reason :importance :core})
+                                          (assoc :inputs inputs :pre-state pre :post-state post)
+                                          (cap/finalize-evidence)))))))
+                        @captured)]
+    {:result result :artifacts artifacts}))
+
+(deftest settlement-reconciliation-normal
+  (testing "Normal one-shot release: write-down 0, evidence fidelity holds, and the
+            settlement equation owed = claimable + write-down + deferred + haircut holds."
+    (let [w0 (proto/init-world sew/protocol {:initial-block-time 1000})
+          snap (snap-fix/escrow-snapshot {:escrow-fee-bps 50 :appeal-window-duration 0})
+          created (lc/create-escrow w0 alice "USDC" bob 10000
+                                    (t/make-escrow-settings {}) snap)
+          w1 (:world created)
+          {:keys [result artifacts]} (capture-terminal-settle
+                                      #(lc/release w1 0 alice (fn [_ _ _] {:allowed? true})))
+          w2 (:world result)
+          rec (inv/settlement-reconciliation? w1 w2)
+          fid (custody/verify-settlement-evidence-fidelity w2 artifacts)
+          reported (get-in (first artifacts) [:inputs :finalize/write-down])]
+      (is (:ok result))
+      (is (zero? reported) "normal settlement has zero write-down")
+      (is (= 0 (custody/ledger-workflow-write-down w2 0)))
+      (is (:holds? rec) "owed = claimable + write-down + deferred + haircut")
+      (is (:holds? fid) "evidence write-down equals ledger write-down"))))
+
+(deftest settlement-reconciliation-negative-yield
+  (testing "Negative-yield (mark-to-market) settlement: write-down positive, evidence
+            reports the correct value, and the settlement equation holds."
+    (let [scenario {:initial-block-time 1000
+                    :yield-config {:modules {:fixed-rate {:tokens {"USDC" {:apy -0.5
+                                                                           :failure-modes #{:negative-yield}}}}}}}
+          w0 (proto/init-world sew/protocol scenario)
+          snap (snap-fix/escrow-snapshot {:yield-generation-module :fixed-rate
+                                          :escrow-fee-bps 50
+                                          :yield-protocol-fee-bps 0
+                                          :appeal-window-duration 0})
+          created (lc/create-escrow w0 alice "USDC" bob 10000
+                                    (t/make-escrow-settings {:yield-preset :to-recipient}) snap)
+          w1 (:world created)
+          w2 (-> w1 (time-ctx/advance-time {:seconds 31536000}) (lc/accrue-yield 0))
+          {:keys [result artifacts]} (capture-terminal-settle
+                                      #(lc/release w2 0 alice (fn [_ _ _] {:allowed? true})))
+          w3 (:world result)
+          rec (inv/settlement-reconciliation? w2 w3)
+          fid (custody/verify-settlement-evidence-fidelity w3 artifacts)
+          reported (get-in (first artifacts) [:inputs :finalize/write-down])
+          ledger (custody/ledger-workflow-write-down w3 0)]
+      (is (:ok result))
+      (is (pos? reported) "negative-yield write-down is positive")
+      (is (= ledger reported) "evidence reports the ledger-derived write-down")
+      (is (:holds? rec) "owed = claimable + write-down + deferred + haircut")
+      (is (:holds? fid) "evidence fidelity: :finalize/write-down == ledger write-down"))))
+
+(deftest settlement-reconciliation-liquidity-shortfall
+  (testing "Liquidity-shortfall settlement: write-down 0 (deferred/haircut carry the
+            shortfall), no reclassification to :yield-negative-excess, and the
+            settlement equation holds against the canonical shortfall basis."
+    (let [cfg {:modules {:aave-v3 {:tokens {"USDC" {:initial-index 1.0 :apy 0.08
+                                                    :loss-mode :none
+                                                    :failure-modes #{:partial-liquidity}
+                                                    :shortfall {:available-ratio 0.5
+                                                                :reason :liquidity-shortfall}}}}}}
+          w0 (-> (proto/init-world sew/protocol {:initial-block-time 1000})
+                 (yr/apply-yield-config cfg))
+          snap (snap-fix/escrow-snapshot {:yield-generation-module :yield.provider/liquid-lending
+                                          :yield-protocol-fee-bps 1000
+                                          :appeal-window-duration 0})
+          created (lc/create-escrow w0 alice "USDC" bob 100000
+                                    (t/make-escrow-settings {:yield-preset :to-recipient}) snap)
+          w1 (:world created)
+          w2 (-> w1 (time-ctx/advance-time {:seconds 315360000}))
+          {:keys [result artifacts]} (capture-terminal-settle
+                                      #(lc/release w2 0 alice (fn [_ _ _] {:allowed? true})))
+          w3 (:world result)
+          pos (get-in w3 [:yield/positions (t/escrow-yield-owner-id 0)])
+          rec (inv/settlement-reconciliation? w2 w3)
+          fid (custody/verify-settlement-evidence-fidelity w3 artifacts)
+          wd (custody/ledger-workflow-write-down w3 0)
+          yield-excess-adj (filter #(= :yield-negative-excess (:held/reason %))
+                                   (filter #(= 0 (:held/workflow-id %)) (:held-adjustments w3 [])))]
+      (is (:ok result))
+      (is (some? (:shortfall pos)) "liquidity shortfall recorded")
+      (is (zero? wd) "shortfall contributes zero write-down")
+      (is (zero? (get-in (first artifacts) [:inputs :finalize/write-down])))
+      (is (empty? yield-excess-adj)
+          "a liquidity shortfall is not reclassified as :yield-negative-excess")
+      (is (:holds? rec) "owed = claimable + write-down + deferred + haircut (shortfall basis)")
+      (is (:holds? fid) "evidence fidelity: write-down 0 == ledger 0"))))
+
+(deftest settlement-write-down-tamper-detected
+  (testing "Tampering with or removing a positive :finalize/write-down is detected by
+            artifact content-hash verification, and a recomputed leaf hash is no
+            longer covered by the committed evidence-hash-set root."
+    (let [scenario {:initial-block-time 1000
+                    :yield-config {:modules {:fixed-rate {:tokens {"USDC" {:apy -0.5
+                                                                           :failure-modes #{:negative-yield}}}}}}}
+          w0 (proto/init-world sew/protocol scenario)
+          snap (snap-fix/escrow-snapshot {:yield-generation-module :fixed-rate
+                                          :escrow-fee-bps 50
+                                          :yield-protocol-fee-bps 0
+                                          :appeal-window-duration 0})
+          created (lc/create-escrow w0 alice "USDC" bob 10000
+                                    (t/make-escrow-settings {:yield-preset :to-recipient}) snap)
+          w1 (:world created)
+          w2 (-> w1 (time-ctx/advance-time {:seconds 31536000}) (lc/accrue-yield 0))
+          {:keys [artifacts]} (capture-terminal-settle
+                               #(lc/release w2 0 alice (fn [_ _ _] {:allowed? true})))
+          artifact (first artifacts)
+          committed (finalization/build-hash-set [(:evidence/hash artifact)])
+          mutated (assoc-in artifact [:inputs :finalize/write-down] 0)
+          removed (update-in artifact [:inputs] dissoc :finalize/write-down)
+          recomputed (cap/finalize-evidence
+                      (dissoc mutated :evidence/hash :evidence/timestamp))]
+      (is (seq artifacts))
+      (is (pos? (get-in artifact [:inputs :finalize/write-down])))
+      (is (custody/artifact-content-hash-valid? artifact) "untampered artifact verifies")
+      (is (not (custody/artifact-content-hash-valid? mutated))
+          "mutating write-down fails artifact content verification")
+      (is (not (custody/artifact-content-hash-valid? removed))
+          "removing write-down fails artifact content verification")
+      (is (not (contains? (set (:hashes committed)) (:evidence/hash recomputed)))
+          "recomputed leaf hash is not covered by the committed evidence-hash-set root"))))
+
 (deftest held-artifacts-must-match-derived-ledger-view
   (let [world (-> (t/empty-world)
                   (ac/add-held usdc 100 {:action "create-escrow"
@@ -540,6 +680,21 @@
         "semantic-id and path forms are mutually exclusive")
     (is (= :invalid-parameter-context
            (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/context {:parameter-context/type :world-params
+                                                         :parameter-context/id :sew/default
+                                                         :parameter-context/version 1}
+                                     :parameter/address address})))
+        "interim contexts reject root-form-only fields")
+    (doseq [address' [{:parameter/id :sew/escrow-principal :parameter/path []}
+                      {:parameter/id :sew/escrow-principal
+                       :parameter/path [{:runtime "map"}]}]]
+      (is (= :invalid-parameter-address
+             (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                      {:parameter/context context
+                                       :parameter/address address'})))
+          "semantic IDs cannot mask malformed path-form fields"))
+    (is (= :invalid-parameter-context
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
                                     {:parameter/context (assoc context :parameter-context/root "not-really-a-root")
                                      :parameter/address address})))
         "roots must be canonical sha256 references")
@@ -549,6 +704,67 @@
                                       {:parameter/context context
                                        :parameter/address {:parameter/path path}})))
           (str "path is limited to canonical scalar segments: " (pr-str path))))))
+
+(deftest held-adjustment-primitive-rejects-invalid-provenance-projections
+  (let [malformed {:held/direction :in :token usdc :amount 1
+                   :parameter/context {:parameter-context/type :protocol-parameters
+                                       :parameter-context/root (str "sha256:" (apply str (repeat 64 "a")))
+                                       :parameter-context/version 1}
+                   :parameter/address nil}]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"cannot project invalid held adjustment scope"
+                          (held-adjustment/project-held-adjustment-scope malformed)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"cannot build invalid held adjustment"
+                          (held-adjustment/build-held-adjustment malformed)))))
+
+(deftest held-adjustments-reject-parameter-attribution-in-extra
+  (let [root (str "sha256:" (apply str (repeat 64 "a")))
+        context {:parameter-context/type :protocol-parameters
+                 :parameter-context/root root :parameter-context/version 1}
+        address {:parameter/id :sew/escrow-principal}
+        base {:total-held {usdc 100}
+              :held/positions {[:held/position usdc :escrow-principal 42] 100}
+              :held-ledger/index {:by-token {usdc 100}
+                                  :by-position {[:held/position usdc :escrow-principal 42] 100}}}
+        rejected? (fn [f]
+                    (try (f) false
+                         (catch clojure.lang.ExceptionInfo e
+                           (= :reserved-parameter-attribution-in-extra
+                              (:reason (ex-data e))))))]
+    (is (rejected? #(ac/add-held (t/empty-world) usdc 1
+                                 {:extra {:parameter/context context
+                                          :parameter/address address}})))
+    (is (rejected? #(ac/sub-held base usdc 1
+                                 {:reason :escrow-settlement-released
+                                  :extra {:held/workflow-id 42 :owner/address bob
+                                          :parameter/context context}})))
+    (is (= 100 (get-in base [:total-held usdc]))
+        "rejected nested provenance leaves the caller world unchanged")))
+
+(deftest sub-held-parameter-attribution-round-trip-and-tamper
+  (let [root (str "sha256:" (apply str (repeat 64 "a")))
+        context {:parameter-context/type :protocol-parameters
+                 :parameter-context/root root :parameter-context/version 1}
+        address {:parameter/id :sew/escrow-principal}
+        position [:held/position usdc :escrow-principal 42]
+        world (ac/sub-held {:total-held {usdc 100}
+                             :held/positions {position 100}
+                             :held-ledger/index {:by-token {usdc 100}
+                                                 :by-position {position 100}}}
+                           usdc 40
+                           {:action "release" :reason :escrow-settlement-released
+                            :parameter/context context :parameter/address address
+                            :extra {:held/workflow-id 42 :owner/address bob}})
+        adjustment (last (:held-adjustments world))
+        artifact (get-in world [:held-artifacts (:held-adjustment/id adjustment)])]
+    (is (= context (:parameter/context adjustment)))
+    (is (= address (:parameter/address adjustment)))
+    (is (= (:total-held world)
+           (:total-held (custody/replay-held-adjustment-state {usdc 100}
+                                                              (:held-adjustments world)))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"closed-form checks failed"
+                          (custody/held-custody-closed-form-checks
+                           [(assoc-in artifact [:parameter/context :parameter-context/root]
+                                      (str "sha256:" (apply str (repeat 64 "b"))))])))))
 
 (deftest parameter-attribution-is-committed-to-artifact-hash
   (let [root-a (str "sha256:" (apply str (repeat 64 "a")))
@@ -590,7 +806,19 @@
         v2-with-provenance (assoc v2 :parameter/context {:parameter-context/type :protocol-parameters
                                                           :parameter-context/id :sew/default}
                                     :parameter/address {:parameter/id :sew/escrow-principal})
-        v3-with-v2-hash (assoc v3 :artifact/hash (:artifact/hash v2))]
+        v3-with-v2-hash (assoc v3 :artifact/hash (:artifact/hash v2))
+        attribution-status (fn [artifact]
+                             (->> (custody/held-custody-closed-form-checks [artifact])
+                                  (filter #(= :held-custody/parameter-attribution (:check/id %)))
+                                  first :details :attributions first))
+        attributed-v3 (custody/build-held-custody-artifact
+                       (assoc adjustment
+                              :parameter/context {:parameter-context/type :world-params
+                                                  :parameter-context/id :sew/default}
+                              :parameter/address {:parameter/id :sew/escrow-principal}))]
+    (is (= :legacy-v2 (:parameter-attribution/classification (attribution-status v2))))
+    (is (= :unattributed-v3 (:parameter-attribution/classification (attribution-status v3))))
+    (is (= :attributed-v3 (:parameter-attribution/classification (attribution-status attributed-v3))))
     (is (every? #(= :pass (:status %)) (custody/held-custody-closed-form-checks [v2])))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"closed-form checks failed"
                           (custody/held-custody-closed-form-checks [v2-with-provenance])))
@@ -608,7 +836,9 @@
         scope {:authorization/id auth-id
                :authorization/type :force-authorisation
                :held/direction :out :token usdc :amount 40
-               :held/account :escrow-principal :owner/address bob
+               :held/account :escrow-principal
+               :held/position-id [:held/position usdc :escrow-principal 42]
+               :owner/address bob
                :held/reason :force-authorised-release :held/workflow-id 42
                :parameter/context context :parameter/address granted-address}
         scope-hash (hash/domain-hash "force-authorisation-scope" scope)

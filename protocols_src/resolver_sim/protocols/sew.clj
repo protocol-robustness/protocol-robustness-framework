@@ -14,6 +14,7 @@
             [resolver-sim.protocols.sew.resolution       :as res]
             [resolver-sim.protocols.sew.registry         :as reg]
             [resolver-sim.protocols.sew.accounting       :as acct]
+            [resolver-sim.accounting.held-adjustment     :as held-adjustment]
             [resolver-sim.protocols.sew.authority        :as auth]
             [resolver-sim.protocols.sew.trace-metadata   :as meta]
             [resolver-sim.protocols.sew.invariants       :as inv]
@@ -348,6 +349,7 @@
     "set-yield-risk"
     "force-reversal-slash"
     "grant-force-authorisation"
+    "grant-related-claims-force-authorisation"
     "revoke-force-authorisation"
     "grant-related-claims"
     "set-resolution-module"})
@@ -732,19 +734,24 @@
           (and expires-at-param duration) (t/fail :force-authorisation-conflicting-timing)
           (and expires-at max-dur (> (- expires-at starts-at) max-dur))
           (t/fail :force-authorisation-duration-exceeds-max)
+          (held-adjustment/parameter-attribution-error pp)
+          (t/fail :force-authorisation-invalid-parameter-attribution)
           :else
           (let [auth-id         (str "fa-" (get world :next-force-authorisation-id 0))
                 recipient       (if is-release (:to escrow) (:from escrow))
                 reason-for-scope (if is-release :force-authorised-release :force-authorised-refund)
-                scope           {:authorization/id auth-id
-                                 :authorization/type :force-authorisation
-                                 :held/direction :out
-                                 :token (:token escrow)
-                                 :amount (:amount-after-fee escrow)
-                                 :held/account :escrow-principal
-                                 :owner/address recipient
-                                 :held/reason reason-for-scope
-                                 :held/workflow-id workflow-id}
+                scope           (held-adjustment/project-held-adjustment-scope
+                                 (merge {:authorization/id auth-id
+                                         :authorization/type :force-authorisation
+                                         :held/direction :out
+                                         :token (:token escrow)
+                                         :amount (:amount-after-fee escrow)
+                                         :held/account :escrow-principal
+                                         :held/position-id [:held/position (:token escrow) :escrow-principal workflow-id]
+                                         :owner/address recipient
+                                         :held/reason reason-for-scope
+                                         :held/workflow-id workflow-id}
+                                        (select-keys pp [:parameter/context :parameter/address])))
                 scope-hash      (hash/domain-hash acct/force-authorisation-scope-domain scope)
                 grant-prov      (merge provenance
                                        {:authorization/type :force-authorisation
@@ -897,6 +904,103 @@
                         (:authentication-mode auth-info))]
         result))))
 
+;; Governance-gated grant of one immutable force-authorisation scope per active
+;; related-claims workflow member. New scopes bind the custody position and
+;; optional parameter attribution through the shared held-adjustment projector.
+(defmethod apply-action "grant-related-claims-force-authorisation"
+  [context world event]
+  (run-governance-action context world event
+    (fn [addr _auth-info provenance]
+      (let [pp (:params event)
+            rel-id (:relationship-id pp)
+            relationship (rc/get-related-claims world rel-id)
+            is-release (get pp :is-release true)
+            parameter-attribution (select-keys pp [:parameter/context :parameter/address])
+            reason (:reason pp)
+            fa-policy (:force-authorisation-policy context)
+            now (time-ctx/block-ts world)
+            starts-at (or (:starts-at pp) now)
+            duration (:duration pp)
+            expires-at (or (:expires-at pp)
+                           (when (and (number? starts-at) (number? duration))
+                             (+ starts-at duration))
+                           (when (and (number? starts-at) (number? (:default-duration fa-policy)))
+                             (+ starts-at (:default-duration fa-policy))))]
+        (cond
+          (not (rc/related-claims-active? world rel-id))
+          (t/fail :force-authorisation-relationship-not-active)
+          (not (keyword? reason))
+          (t/fail :force-authorisation-invalid-reason)
+          (and (:allowed-reasons fa-policy) (not (contains? (:allowed-reasons fa-policy) reason)))
+          (t/fail :force-authorisation-reason-not-allowed)
+          (not (boolean? is-release))
+          (t/fail :force-authorisation-invalid-settlement-direction)
+          (not (number? starts-at))
+          (t/fail :force-authorisation-invalid-start-time)
+          (and duration (or (not (number? duration)) (neg? duration)))
+          (t/fail :force-authorisation-invalid-duration)
+          (and expires-at (<= expires-at starts-at))
+          (t/fail :force-authorisation-invalid-time-window)
+          (held-adjustment/parameter-attribution-error parameter-attribution)
+          (t/fail :force-authorisation-invalid-parameter-attribution)
+          :else
+          (let [auth-id (str "fa-related-" (get world :next-force-authorisation-id 0))
+                reason-for-scope (if is-release :force-authorised-release :force-authorised-refund)
+                scopes (mapv (fn [{:claim/keys [kind] :workflow/keys [id]}]
+                               (let [escrow (t/get-transfer world id)
+                                     recipient (if is-release (:to escrow) (:from escrow))]
+                                 (held-adjustment/project-held-adjustment-scope
+                                  (merge {:authorization/id auth-id
+                                          :authorization/type :force-authorisation
+                                          :held/direction :out
+                                          :token (:token escrow)
+                                          :amount (:amount-after-fee escrow)
+                                          :held/account :escrow-principal
+                                          :held/position-id [:held/position (:token escrow) :escrow-principal id]
+                                          :owner/address recipient
+                                          :held/reason reason-for-scope
+                                          :held/workflow-id id}
+                                         parameter-attribution))))
+                             (:relationship/members relationship))
+                missing-workflow? (some nil? (map #(t/get-transfer world (:workflow/id %))
+                                                  (:relationship/members relationship)))
+                disputed-members? (every? #(= :disputed (t/escrow-state world (:workflow/id %)))
+                                           (:relationship/members relationship))
+                member-hashes (mapv #(hash/domain-hash acct/force-authorisation-scope-domain %) scopes)]
+            (if (or missing-workflow? (not disputed-members?) (empty? scopes))
+              (t/fail :force-authorisation-invalid-related-members)
+              (let [scope (first scopes)
+                    scope-hash (first member-hashes)
+                    grant-prov (merge provenance
+                                      {:authorization/type :force-authorisation
+                                       :authorization/id auth-id
+                                       :authorization/source :governance
+                                       :authorization/check :with-governance-actor
+                                       :authorization/scope-hash scope-hash})
+                    record {:authorization/id auth-id
+                            :authorization/version "force-authorisation.v2"
+                            :authorization/type :force-authorisation
+                            :authorization/source :governance
+                            :authorization/status :active
+                            :authorization/scope-kind :related-claims
+                            :relationship/id rel-id
+                            :relationship/hash (:relationship/hash relationship)
+                            :member-scope-hashes member-hashes
+                            :allowed-action "execute-resolution"
+                            :authorization/scope scope
+                            :authorization/scope-hash scope-hash
+                            :starts-at starts-at :expires-at expires-at :created-at now
+                            :created-by addr :reason reason :consumed? false
+                            :authorization/provenance grant-prov
+                            :authorization/last-provenance grant-prov
+                            :authorization/last-action "grant-related-claims-force-authorisation"
+                            :authorization/history [{:authorization/action "grant-related-claims-force-authorisation"
+                                                     :authorization/provenance grant-prov}]}
+                    world' (-> world
+                               (assoc-in [:force-authorisations auth-id] record)
+                               (update :next-force-authorisation-id inc))]
+                (assoc (t/ok world') :extra {:authorization/id auth-id})))))))))
+
 (defmethod apply-action "execute-force-authorised-action"
   [{:keys [agent-index]} world event]
   (actx/with-resolved-actor
@@ -908,6 +1012,7 @@
             is-release      (get pp :is-release true)
             resolution-hash (get pp :resolution-hash "0xf-authorized")
             record          (get-in world [:force-authorisations auth-id])
+            related?        (= :related-claims (:authorization/scope-kind record))
             now             (time-ctx/block-ts world)]
         (cond
           (nil? record)
@@ -919,7 +1024,7 @@
           (:consumed? record)
           (t/fail :force-authorisation-already-consumed)
 
-          (not= workflow-id (:workflow-id record))
+          (and (not related?) (not= workflow-id (:workflow-id record)))
           (t/fail :force-authorisation-workflow-mismatch)
 
           (not= "execute-resolution" (:allowed-action record))
@@ -932,8 +1037,11 @@
                (>= now (:expires-at record)))
           (t/fail :force-authorisation-expired)
 
-          (get-in world [:force-authorisations/consumed auth-id])
+          (and (not related?) (get-in world [:force-authorisations/consumed auth-id]))
           (t/fail :force-authorisation-already-consumed)
+
+          (held-adjustment/parameter-attribution-error pp)
+          (t/fail :force-authorisation-invalid-parameter-attribution)
 
           :else
           (let [et        (t/get-transfer world workflow-id)
@@ -942,18 +1050,33 @@
                 recipient (if is-release (:to et) (:from et))
                 direction :out
                 fa-reason (if is-release :force-authorised-release :force-authorised-refund)
-                scope-map {:authorization/id auth-id
-                           :authorization/type :force-authorisation
-                           :held/direction direction
-                           :token token
-                           :amount amount
-                           :held/account :escrow-principal
-                           :owner/address recipient
-                           :held/reason fa-reason
-                           :held/workflow-id workflow-id}
-                scope-hash (hash/domain-hash acct/force-authorisation-scope-domain scope-map)]
-            (if (or (not= scope-map (:authorization/scope record))
-                    (not= scope-hash (:authorization/scope-hash record)))
+                scope-fields (merge {:authorization/id auth-id
+                                     :authorization/type :force-authorisation
+                                     :held/direction direction
+                                     :token token
+                                     :amount amount
+                                     :held/account :escrow-principal
+                                     :held/position-id [:held/position token :escrow-principal workflow-id]
+                                     :owner/address recipient
+                                     :held/reason fa-reason
+                                     :held/workflow-id workflow-id}
+                                    (select-keys pp [:parameter/context :parameter/address]))
+                positioned-scope (held-adjustment/project-held-adjustment-scope scope-fields)
+                position-bound? (if related?
+                                  (contains? (set (:member-scope-hashes record))
+                                             (hash/domain-hash acct/force-authorisation-scope-domain positioned-scope))
+                                  (contains? (:authorization/scope record) :held/position-id))
+                scope-map (held-adjustment/project-held-adjustment-scope
+                           (cond-> scope-fields
+                             (not position-bound?) (dissoc :held/position-id)))
+                scope-hash (hash/domain-hash acct/force-authorisation-scope-domain scope-map)
+                scope-authorised? (if related?
+                                    (and (= :related-claims (:authorization/scope-kind record))
+                                         (rc/related-claims-active? world (:relationship/id record))
+                                         (contains? (set (:member-scope-hashes record)) scope-hash))
+                                    (and (= scope-map (:authorization/scope record))
+                                         (= scope-hash (:authorization/scope-hash record))))]
+            (if-not scope-authorised?
               (t/fail :force-authorisation-grant-scope-mismatch)
               (let [execution-prov
                 {:authorization/schema-version "force-authorisation.v2"
@@ -967,7 +1090,15 @@
                  :authorization/executed-by addr
                  :authorization/executed-at now
                  :authorization/governance-provenance
-                 (:authorization/provenance record)}
+                 (:authorization/provenance record)
+                 :parameter/context (:parameter/context scope-map)
+                 :parameter/address (:parameter/address scope-map)}
+                execution-prov (cond-> execution-prov
+                                 related?
+                                 (assoc :authorization/scope-kind :related-claims
+                                        :relationship/id (:relationship/id record)
+                                        :relationship/hash (:relationship/hash record)
+                                        :member-scope-hashes (:member-scope-hashes record)))
                 result (res/apply-resolution-transition
                         world workflow-id addr is-release resolution-hash nil
                         :resolution-source :force-authorised

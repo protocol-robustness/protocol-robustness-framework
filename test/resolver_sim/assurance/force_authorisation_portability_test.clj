@@ -51,10 +51,11 @@
 
   (testing "Authorisation lifecycle consistency check works on data maps"
     ;; Consistent: grant and consumption match
-    (let [result (fa/verify-authorisation-lifecycle-consistency
+    (let [scope valid-scope
+          result (fa/verify-authorisation-lifecycle-consistency
                   {"fa-0" {:authorization/status :consumed
-                           :authorization/scope-hash "0xh"
-                           :authorization/scope {}}}
+                           :authorization/scope-hash (fa/force-authorisation-scope-hash scope)
+                           :authorization/scope scope}}
                   {"fa-0" {:consumed-at 500}})]
       (is (:holds? result)))
 

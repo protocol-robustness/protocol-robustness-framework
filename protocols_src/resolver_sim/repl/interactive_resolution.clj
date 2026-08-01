@@ -8,6 +8,7 @@
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.resolution :as res]
             [resolver-sim.protocols.sew.accounting :as ac]
+            [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.time.deadlines :as dl]))
@@ -321,26 +322,22 @@
                                 fa-reason (if is-release :force-authorised-release
                                               :force-authorised-refund)
                                 amount   (:amount-after-fee et)
-                                 scope-map {:authorization/id nil
-                                            :authorization/type :force-authorisation
-                                            :held/direction direction
-                                            :token token
-                                            :amount amount
-                                            :held/account :escrow-principal
-                                            :owner/address recipient
-                                            :held/reason fa-reason
-                                            :held/workflow-id wf}
-                                 scope-hash (hash/domain-hash ac/force-authorisation-scope-domain scope-map)
-                                 auth-id   (str "fa-" wf "-"
-                                                (name (if is-release :release :refund)) "-"
-                                                (subs scope-hash 0 8))
-                                 ;; Rebuild scope-map with real auth-id for
-                                 ;; ensure-force-authorisation-usable! verification.
-                                 ;; The scope-hash is computed without the id
-                                 ;; (matching how adjust-held builds its scope-map
-                                 ;; from position components — the id is added by
-                                 ;; ensure-force-authorisation-usable! during verification).
-                                 scope-map (assoc scope-map :authorization/id auth-id)
+                                scope-fields {:authorization/type :force-authorisation
+                                              :held/direction direction
+                                              :token token
+                                              :amount amount
+                                              :held/account :escrow-principal
+                                              :held/position-id [:held/position token :escrow-principal wf]
+                                              :owner/address recipient
+                                              :held/reason fa-reason
+                                              :held/workflow-id wf}
+                                id-seed (hash/domain-hash ac/force-authorisation-scope-domain scope-fields)
+                                auth-id (str "fa-" wf "-"
+                                             (name (if is-release :release :refund)) "-"
+                                             (subs id-seed 0 8))
+                                scope-map (held-adjustment/project-held-adjustment-scope
+                                           (assoc scope-fields :authorization/id auth-id))
+                                scope-hash (hash/domain-hash ac/force-authorisation-scope-domain scope-map)
                                 force-auth-provenance
                                 (merge provenance
                                        {:authorization/type :force-authorisation

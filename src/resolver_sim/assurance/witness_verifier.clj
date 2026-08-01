@@ -64,14 +64,14 @@
         (swap! checks conj (pass :procedure-witness/definition-root-matches))
         (swap! checks conj (fail :procedure-witness/definition-root-matches
                                  (str "definition root " def-root " != witness " witness-def-root)))))
-    (let [def-step-ids (set (map :step/id (:trust-sequence-definition/steps definition [])))
-          witness-step-ids (set (map :step/id steps))]
+    (let [def-step-ids (set (map (comp str :step/id) (:trust-sequence-definition/steps definition [])))
+          witness-step-ids (set (map (comp str :step/id) steps))]
       (if (= def-step-ids witness-step-ids)
         (swap! checks conj (pass :procedure-witness/step-ids-match-definition))
         (swap! checks conj (fail :procedure-witness/step-ids-match-definition
                                  (str "definition " def-step-ids " != witness " witness-step-ids)))))
-    (let [def-order (mapv :step/id (:trust-sequence-definition/steps definition []))
-          witness-order (mapv :step/id steps)]
+    (let [def-order (mapv (comp str :step/id) (:trust-sequence-definition/steps definition []))
+          witness-order (mapv (comp str :step/id) steps)]
       (if (= def-order witness-order)
         (swap! checks conj (pass :procedure-witness/step-order-matches-definition))
         (swap! checks conj (fail :procedure-witness/step-order-matches-definition

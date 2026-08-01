@@ -283,6 +283,21 @@
             (is (nil? (get-in world [:claimable-v2 workflow-id])) "no claimable created")
             (is (some? receipt) "receipt emitted for zero-bounty case")))))))
 
+(deftest with-bounty-rejects-tampered-application-plan
+  (let [workflow-id 77
+        challenger "0xChallenger"
+        distribution (build-distribution 1000 1000 challenger workflow-id)
+        plan-result (plan/build-application-plan
+                     {:distribution distribution
+                      :policy sew-default-policy
+                      :idempotency-key [:slash-distribution-applied workflow-id challenger]})
+        tampered (assoc-in (:plan plan-result) [:plan/allocation-credits :sew.allocation/insurance] 999)
+        world (base-world)]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pre-mutation validation failed"
+                          (apply/apply-plan-to-world tampered world {})))
+    (is (= world (base-world))
+        "rejection occurs before any Sew allocation or claimable mutation")))
+
 (deftest with-bounty-parity-with-characterization
   "Verify that the plan-based application path produces the same state effects
    as the original distribute-slashed-funds path (parity with characterization)."

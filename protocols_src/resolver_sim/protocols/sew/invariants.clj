@@ -42,6 +42,7 @@
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.registry :as reg]
             [resolver-sim.protocols.sew.related-claims :as rc]
+            [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.hash.canonical :as hash]))
 
 (defn cancellation-mutex? [world] (escrow/cancellation-mutex? world))
@@ -344,23 +345,35 @@
            :status :evaluated
            :violations (:failed-checks data)})))))
 
-(defn- related-member-scope-hash [auth-id adjustment]
+(defn- stored-scope-hash-valid?
+  "Authenticate a persisted force-authorisation scope rather than trusting its
+   stored digest. Invalid parameter attribution is never downgraded to a legacy
+   scope during verification."
+  [record]
+  (let [scope (:authorization/scope record)
+        stored-hash (:authorization/scope-hash record)]
+    (and scope
+         stored-hash
+         (held-adjustment/valid-held-adjustment? scope)
+         (= stored-hash
+            (hash/domain-hash acct/force-authorisation-scope-domain
+                              (held-adjustment/project-held-adjustment-scope scope))))))
+
+(defn- related-member-scope-hash [auth-id record adjustment]
   ;; Must remain byte-for-byte aligned with accounting/member-scope-hash-from-adjustment.
   ;; Parameter provenance is optional, so absent fields must not perturb legacy hashes.
-  (hash/domain-hash acct/force-authorisation-scope-domain
-                    (cond-> {:authorization/id auth-id
-                             :authorization/type :force-authorisation
-                             :held/direction (:held/direction adjustment)
-                             :token (:token adjustment)
-                             :amount (:amount adjustment)
-                             :held/account (:held/account adjustment)
-                             :owner/address (:owner/address adjustment)
-                             :held/reason (:held/reason adjustment)
-                             :held/workflow-id (:held/workflow-id adjustment)}
-                      (:parameter/context adjustment)
-                      (assoc :parameter/context (:parameter/context adjustment))
-                      (:parameter/address adjustment)
-                      (assoc :parameter/address (:parameter/address adjustment)))))
+  (when (held-adjustment/valid-held-adjustment? adjustment)
+    (let [fields (assoc adjustment
+                        :authorization/id auth-id
+                        :authorization/type :force-authorisation)
+          positioned-scope (held-adjustment/project-held-adjustment-scope fields)
+          position-bound? (contains? (set (:member-scope-hashes record))
+                                     (hash/domain-hash acct/force-authorisation-scope-domain
+                                                       positioned-scope))]
+      (hash/domain-hash acct/force-authorisation-scope-domain
+                        (held-adjustment/project-held-adjustment-scope
+                         (cond-> fields
+                           (not position-bound?) (dissoc :held/position-id)))))))
 
 (defn force-authorisations-lifecycle-consistent?
   "Validate persisted grants, consumption, and held adjustments. Related-claims
@@ -374,13 +387,39 @@
         valid-statuses #{:active :consumed :revoked}
         valid-related? (fn [auth-id record entry linked]
                          (let [committed (set (:member-scope-hashes record []))
-                               linked-hashes (set (map #(related-member-scope-hash auth-id %) linked))
+                               linked-hashes (set (map #(related-member-scope-hash auth-id record %) linked))
                                consumed-hashes (set (:consumed-members entry #{}))
+                               consumption-records (vals (get-in world [:force-authorisations/consumption-records auth-id] {}))
+                               linked-by-id (into {} (map (juxt :held-adjustment/id identity) linked))
+                               record-scope-hashes (set (map :member-scope-hash consumption-records))
+                               records-valid? (every? (fn [consumption]
+                                                         (let [adjustment (get linked-by-id (:held-adjustment/id consumption))]
+                                                           (and adjustment
+                                                                (held-adjustment/valid-held-adjustment? adjustment)
+                                                                (held-adjustment/valid-held-adjustment? consumption)
+                                                                (= auth-id (:authorization/id consumption))
+                                                                (= (:relationship/id record) (:relationship/id consumption))
+                                                                (= (:relationship/hash record) (:relationship/hash consumption))
+                                                                (contains? committed (:member-scope-hash consumption))
+                                                                (= (:member-scope-hash consumption)
+                                                                   (related-member-scope-hash auth-id record adjustment))
+                                                                (= (:related-member-hash consumption)
+                                                                   (rc/related-claims-member-hash
+                                                                    {:claim/kind :sew/workflow
+                                                                     :workflow/id (:held/workflow-id adjustment)}))
+                                                                (= (:parameter/context consumption) (:parameter/context adjustment))
+                                                                (= (:parameter/address consumption) (:parameter/address adjustment)))))
+                                                       consumption-records)
                                complete? (= committed consumed-hashes linked-hashes)]
                            (and (= :related-claims (:authorization/scope-kind record))
+                                (stored-scope-hash-valid? record)
                                 (:relationship/id record) (:relationship/hash record)
                                 (seq committed)
                                 (= (count linked) (count linked-hashes))
+                                (= (count consumption-records) (count linked))
+                                (= (count consumption-records) (count record-scope-hashes))
+                                records-valid?
+                                (= consumed-hashes record-scope-hashes)
                                 (= consumed-hashes linked-hashes)
                                 (case (:authorization/status record)
                                   :active (and (not (:consumed? record)) (not complete?))
@@ -407,7 +446,7 @@
                                                   (= (:held-adjustment/id entry) (:held-adjustment/id (first linked)))
                                                   (= scope-hash (get-in (first linked) [:authorization/provenance :authorization/scope-hash]))))
                                          (or (not= :force-authorisation (:authorization/type record))
-                                             (and scope scope-hash))))))]
+                                             (stored-scope-hash-valid? record))))))]
               :when (not valid?)]
           {:authorization/id auth-id :status status :type :invalid-authorisation-lifecycle
            :linked-adjustment-count (count linked)})
@@ -2274,51 +2313,67 @@
      :violations (vec violations)}))
 
 (defn related-claims-authorisation-scope-closed?
-  "True when every consumed related-claims force-authorisation references a
-   relationship that exists, is active, whose member count does not exceed the
-   auth's authorized member-set size, and whose per-member consumption records
-   a related-claims-member hash that is actually a member of the referenced
-   relationship.
-   Closes per-member scope: an auth/consumption cannot reference member hashes
-   that do not belong to the relationship it points at, without merging the
-   related-claims-member and force-authorisation-scope hash domains."
+  "Verify each related-claims consumption is closed over its persisted grant,
+   relationship, linked held adjustment, and immutable consumption record."
   [world]
-  (let [consumed-auths (get-in world [:force-authorisations/consumed] {})]
-    (if (empty? consumed-auths)
-      {:holds? true :violations []}
-      (let [violations
-            (for [[auth-id consumed] consumed-auths
-                  :when (= :related-claims (:authorization/scope-kind consumed))
-                  :let [rel-id (:relationship/id consumed)
-                        rel (when rel-id (get-in world [:related-claims rel-id]))
-                        rel-hash (:relationship/hash consumed)
-                        rel-hash-mismatch? (and rel rel-hash
-                                                (not= rel-hash (:relationship/hash rel)))
-                        member-count (:member-count consumed 0)
-                        rel-member-count (count (:relationship/members rel []))
-                        count-over? (and rel (> member-count rel-member-count))
-                        missing-rel? (and rel-id (nil? rel))
-                        inactive? (and rel (not= :active (:relationship/status rel)))
-                        rel-member-hashes (set (map rc/related-claims-member-hash
-                                                   (:relationship/members rel [])))
-                        consumed-rel-member-hashes (:consumed-relationship-member-hashes consumed #{})
-                        non-member-consumed (when rel
-                                              (seq (remove #(contains? rel-member-hashes %)
-                                                           consumed-rel-member-hashes)))
-                        has-violation? (or missing-rel? inactive? rel-hash-mismatch? count-over?
-                                           (some? non-member-consumed))]
-                  :when has-violation?]
-              {:authorization/id auth-id
-               :relationship/id rel-id
-               :relationship-exists? (some? rel)
-               :relationship-active? (if rel (= :active (:relationship/status rel)) nil)
-               :hash-mismatch? rel-hash-mismatch?
-               :consumed-member-count member-count
-               :relationship-member-count rel-member-count
-               :count-exceeds? count-over?
-               :non-member-consumed (vec non-member-consumed)})]
-        {:holds? (empty? violations)
-         :violations (vec violations)}))))
+  (let [consumed-auths (get-in world [:force-authorisations/consumed] {})
+        adjustments-by-auth (group-by #(get-in % [:authorization/provenance :authorization/id])
+                                      (:held-adjustments world []))
+        violations
+        (for [[auth-id consumed] consumed-auths
+              :when (= :related-claims (:authorization/scope-kind consumed))
+              :let [grant (get-in world [:force-authorisations auth-id])
+                    rel-id (:relationship/id consumed)
+                    rel (get-in world [:related-claims rel-id])
+                    linked (get adjustments-by-auth auth-id [])
+                    records (vals (get-in world [:force-authorisations/consumption-records auth-id] {}))
+                    linked-by-id (into {} (map (juxt :held-adjustment/id identity) linked))
+                    member-hashes (set (map rc/related-claims-member-hash (:relationship/members rel [])))
+                    grant-member-scope-hashes (set (:member-scope-hashes grant []))
+                    record-valid? (fn [entry]
+                                    (let [adjustment (get linked-by-id (:held-adjustment/id entry))]
+                                      (and adjustment
+                                           (held-adjustment/valid-held-adjustment? adjustment)
+                                           (held-adjustment/valid-held-adjustment? entry)
+                                           (= auth-id (:authorization/id entry))
+                                           (= (:relationship/id grant) (:relationship/id entry) rel-id)
+                                           (= (:relationship/hash grant) (:relationship/hash entry)
+                                              (:relationship/hash consumed) (:relationship/hash rel))
+                                           (contains? grant-member-scope-hashes (:member-scope-hash entry))
+                                           (= (:member-scope-hash entry)
+                                              (related-member-scope-hash auth-id grant adjustment))
+                                           (= (:related-member-hash entry)
+                                              (rc/related-claims-member-hash
+                                               {:claim/kind :sew/workflow
+                                                :workflow/id (:held/workflow-id adjustment)}))
+                                           (contains? member-hashes (:related-member-hash entry))
+                                           (= (:parameter/context entry) (:parameter/context adjustment))
+                                           (= (:parameter/address entry) (:parameter/address adjustment)))))
+                    scope-hashes (set (map :member-scope-hash records))
+                    related-member-hashes (set (map :related-member-hash records))
+                    complete? (and grant rel
+                                   (= :related-claims (:authorization/scope-kind grant))
+                                   (stored-scope-hash-valid? grant)
+                                   (seq grant-member-scope-hashes)
+                                   (= rel-id (:relationship/id grant))
+                                   (= (:relationship/hash rel) (:relationship/hash grant))
+                                   (= (count records) (count linked))
+                                   (= (count records) (count scope-hashes))
+                                   (= (count records) (:member-count consumed))
+                                   (= scope-hashes (set (:consumed-members consumed)))
+                                   (= related-member-hashes
+                                      (set (:consumed-relationship-member-hashes consumed)))
+                                   (every? record-valid? records))]
+              :when (not complete?)]
+          {:authorization/id auth-id
+           :relationship/id rel-id
+           :relationship-exists? (some? rel)
+           :grant-present? (some? grant)
+           :linked-adjustment-count (count linked)
+           :consumption-record-count (count records)
+           :reason :related-claims-scope-not-closed})]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
 
 ;; ---------------------------------------------------------------------------
 ;; Composite: check all world-level invariants

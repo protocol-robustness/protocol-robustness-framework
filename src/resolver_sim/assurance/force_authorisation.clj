@@ -57,11 +57,13 @@
         (string? v) (Long/parseLong v)
         :else (long v))))
 
+(require '[resolver-sim.accounting.held-adjustment :as held-adjustment])
+
 (def ^:private scope-keys
   "Canonical keys that a force-authorisation scope map must contain."
   #{:authorization/id :authorization/type :held/direction
-    :token :amount :held/account :owner/address
-    :held/reason :held/workflow-id})
+    :token :amount :held/account :held/position-id :owner/address
+    :held/reason :held/workflow-id :parameter/context :parameter/address})
 
 (defn normalize-force-authorisation-scope
   "Normalize a force-authorisation scope map to canonical form.
@@ -79,6 +81,7 @@
                                       (if (keyword? v) v (keyword (name v)))
                                       (:amount :held/workflow-id) (coerce-long-default v)
                                       (:authorization/id :owner/address) (name v)
+                                      (:parameter/context :parameter/address) v
                                       v))
                              acc)))
                        {} scope-map)]
@@ -198,6 +201,10 @@
                  (conj (validation-error :authorisation-expired
                                          (str "now-ts " now-ts " >= expires-at " (:expires-at record))))
 
+                 (held-adjustment/parameter-attribution-error scope-map)
+                 (conj (validation-error :invalid-parameter-attribution
+                                         (name (held-adjustment/parameter-attribution-error scope-map))))
+
                  (scope-hash-mismatch? record scope-map)
                  (conj (validation-error :scope-hash-mismatch
                                          "Recomputed scope-hash does not match recorded authorization scope-hash"))
@@ -240,7 +247,16 @@
                                   (nil? (:authorization/scope record))))
                            authorisations)
                      (conj {:error :scope-hash-without-scope
-                            :detail "Grant record has scope-hash but no scope map"}))]
+                            :detail "Grant record has scope-hash but no scope map"})
+
+                     (some (fn [[_ record]]
+                             (and (:authorization/scope record)
+                                  (or (held-adjustment/parameter-attribution-error (:authorization/scope record))
+                                      (not= (:authorization/scope-hash record)
+                                            (force-authorisation-scope-hash (:authorization/scope record))))))
+                           authorisations)
+                     (conj {:error :stored-scope-hash-mismatch
+                            :detail "Grant scope hash does not authenticate its stored scope"}))]
     (if (seq violations)
       {:holds? false :violations violations}
       {:holds? true})))

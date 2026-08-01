@@ -292,7 +292,7 @@
                                        :let [trace (try (common/read-json trace-path) (catch Exception _ nil))]
                                        :when trace] (assoc trace :trace-path trace-path)))
              wf-map (extract-workflow-events traces)
-             sorted-wfs (sort-by key (seq wf-map))
+             sorted-wfs (sort-by (comp str key) (seq wf-map))
              scenario-worlds (into {}
                                    (keep (fn [trace]
                                            (when-let [w (world-for-trace (:trace-path trace)

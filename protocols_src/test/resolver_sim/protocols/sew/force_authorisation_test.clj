@@ -57,9 +57,12 @@
 
 (defn- grant-force-auth
   "Call apply-action to grant a force-authorisation and return the world + auth-id."
-  [world & {:keys [workflow-id reason starts-at duration expires-at is-release]
+  [world & {:keys [workflow-id reason starts-at duration expires-at is-release
+                   parameter-context parameter-address]
             :or {workflow-id 0 reason :resolver-overcapacity}}]
   (let [params (merge {:workflow-id workflow-id :reason reason}
+                      (when parameter-context {:parameter/context parameter-context})
+                      (when parameter-address {:parameter/address parameter-address})
                       (when (some? is-release) {:is-release is-release})
                       (when starts-at {:starts-at starts-at})
                       (when duration {:duration duration})
@@ -85,12 +88,14 @@
 
 (defn- execute-force-auth
   "Call apply-action to execute a force-authorised resolution."
-  [world auth-id & {:keys [workflow-id is-release]
+  [world auth-id & {:keys [workflow-id is-release parameter-context parameter-address]
                     :or {workflow-id 0 is-release true}}]
   (let [event {:seq 2 :time 1000 :agent "exec" :action "execute-force-authorised-action"
-               :params {:workflow-id workflow-id
-                        :authorization-id auth-id
-                        :is-release is-release}}
+               :params (cond-> {:workflow-id workflow-id
+                                 :authorization-id auth-id
+                                 :is-release is-release}
+                         parameter-context (assoc :parameter/context parameter-context)
+                         parameter-address (assoc :parameter/address parameter-address))}
         result (sew/apply-action exec-ctx world event)]
     (if (:ok result)
       {:world (:world result)
@@ -124,6 +129,84 @@
             (is (= auth-id (:authorization/id consumed)) "consumed registry should reference auth-id"))
 
           (is (= :released (t/escrow-state world2 0)) "escrow should be released"))))))
+
+(deftest force-auth-public-parameter-provenance-round-trip
+  (let [root-a (str "sha256:" (apply str (repeat 64 "a")))
+        root-b (str "sha256:" (apply str (repeat 64 "b")))
+        context-a {:parameter-context/type :protocol-parameters
+                   :parameter-context/root root-a :parameter-context/version 1}
+        context-b (assoc context-a :parameter-context/root root-b)
+        address {:parameter/id :sew/escrow-principal}
+        world0 (disputed-world)
+        {:keys [world auth-id]} (grant-force-auth world0
+                                                   :parameter-context context-a
+                                                   :parameter-address address)
+        grant (get-in world [:force-authorisations auth-id])
+        accepted (execute-force-auth world auth-id
+                                     :parameter-context context-a
+                                     :parameter-address address)
+        adjustment (some-> accepted :world :held-adjustments last)
+        mismatched (execute-force-auth world auth-id
+                                       :parameter-context context-b
+                                       :parameter-address address)]
+    (is auth-id)
+    (is (= context-a (get-in grant [:authorization/scope :parameter/context])))
+    (is (= address (get-in grant [:authorization/scope :parameter/address])))
+    (is (nil? (:error accepted)))
+    (is (= context-a (:parameter/context adjustment)))
+    (is (= address (:parameter/address adjustment)))
+    (is (= :force-authorisation-grant-scope-mismatch (:error mismatched))
+        "a changed context root is rejected before finalization")))
+
+(deftest force-auth-public-related-claims-grant-and-member-execution
+  (let [snapshot (snap-fix/escrow-snapshot {:escrow-fee-bps 50 :appeal-window-duration 0})
+        world0 (disputed-world)
+        created (lc/create-escrow world0 alice-addr usdc bob-addr 8000
+                                   (t/make-escrow-settings {}) snapshot)
+        world1 (-> (:world created)
+                   (assoc-in [:escrow-transfers 1 :escrow-state] :disputed)
+                   (assoc-in [:escrow-transfers 1 :sender-status] :raise-dispute)
+                   (assoc-in [:escrow-transfers 1 :dispute-resolver] resolver-addr)
+                   (assoc-in [:dispute-timestamps 1] 1000))
+        relationship-result (sew/apply-action gov-ctx world1
+                                              {:seq 1 :time 1000 :agent "gov"
+                                               :action "grant-related-claims"
+                                               :params {:workflow-ids [0 1]
+                                                        :type :force-authorisation-batch
+                                                        :reason "batch settlement"}})
+        relationship-id (:relationship-id relationship-result)
+        parameter-context {:parameter-context/type :protocol-parameters
+                           :parameter-context/root (str "sha256:" (apply str (repeat 64 "a")))
+                           :parameter-context/version 1}
+        parameter-address {:parameter/id :sew/escrow-principal}
+        grant-result (sew/apply-action gov-ctx (:world relationship-result)
+                                       {:seq 2 :time 1000 :agent "gov"
+                                        :action "grant-related-claims-force-authorisation"
+                                        :params {:relationship-id relationship-id
+                                                 :reason :resolver-overcapacity
+                                                 :parameter/context parameter-context
+                                                 :parameter/address parameter-address}})
+        auth-id (get-in grant-result [:extra :authorization/id])
+        grant (get-in (:world grant-result) [:force-authorisations auth-id])
+        execute-0 (execute-force-auth (:world grant-result) auth-id
+                                      :workflow-id 0
+                                      :parameter-context parameter-context
+                                      :parameter-address parameter-address)
+        execute-1 (execute-force-auth (:world execute-0) auth-id
+                                      :workflow-id 1
+                                      :parameter-context parameter-context
+                                      :parameter-address parameter-address)]
+    (is (:ok relationship-result))
+    (is auth-id)
+    (is (= :related-claims (:authorization/scope-kind grant)))
+    (is (= 2 (count (:member-scope-hashes grant))))
+    (is (every? #(contains? % :held/position-id)
+                (map :authorization/scope [grant])))
+    (is (nil? (:error execute-0)) "first related member executes")
+    (is (nil? (:error execute-1)) "second related member executes")
+    (is (= :consumed (get-in execute-1 [:world :force-authorisations auth-id :authorization/status])))
+    (is (true? (:holds? (inv/force-authorisations-lifecycle-consistent? (:world execute-1)))))
+    (is (true? (:holds? (inv/related-claims-authorisation-scope-closed? (:world execute-1)))))))
 
 (deftest force-auth-grant-release-cannot-execute-refund
   (let [world0 (disputed-world)
@@ -280,6 +363,7 @@
                  :held/direction :out
                  :token usdc-kw :amount sub-0
                  :held/account :escrow-principal
+                 :held/position-id [:held/position usdc-kw :escrow-principal wf-0]
                  :owner/address bob-addr
                  :held/reason :force-authorised-release
                  :held/workflow-id wf-0
@@ -290,6 +374,7 @@
                  :held/direction :out
                  :token usdc-kw :amount sub-1
                  :held/account :escrow-principal
+                 :held/position-id [:held/position usdc-kw :escrow-principal wf-1]
                  :owner/address bob-addr
                  :held/reason :force-authorised-release
                  :held/workflow-id wf-1
@@ -337,7 +422,25 @@
                                    :owner/address bob-addr}})
         c2 (get-in w6 [:force-authorisations/consumed auth-id])
         scope-closed (inv/related-claims-authorisation-scope-closed? w6)
-        consumed (get-in w6 [:force-authorisations/consumed auth-id])]
+        consumed (get-in w6 [:force-authorisations/consumed auth-id])
+        tampered (assoc-in w6 [:force-authorisations/consumption-records auth-id hash-0
+                                :parameter/address]
+                           {:parameter/id :sew/escrow-fee})
+        malformed (-> w6
+                      (update :held-adjustments
+                              (fn [adjustments]
+                                (mapv #(if (= auth-id
+                                              (get-in % [:authorization/provenance :authorization/id]))
+                                         (assoc % :parameter/address nil)
+                                         %)
+                                      adjustments)))
+                      (assoc-in [:force-authorisations/consumption-records auth-id hash-0
+                                 :parameter/address] nil))
+        substituted-grant (assoc-in w6 [:force-authorisations auth-id :member-scope-hashes]
+                                    [hash-1 "substituted-member-scope"])
+        tampered-stored-scope (assoc-in w6 [:force-authorisations auth-id
+                                            :authorization/scope :amount]
+                                        999)]
     ;; After first member: per-member tracking with partial consumption
     (is (true? (:consumed? c1)) "first member consumption recorded")
     (is (contains? (:consumed-members c1) hash-0) "first member hash tracked")
@@ -354,7 +457,17 @@
     (is (= :consumed (get-in w6 [:force-authorisations auth-id :authorization/status]))
         "grant is terminal only after every committed member is consumed")
     (is (true? (:holds? (inv/force-authorisations-lifecycle-consistent? w6)))
-        "persisted member commitments and held adjustments remain linked")))
+        "persisted member commitments and held adjustments remain linked")
+    (is (false? (:holds? (inv/force-authorisations-lifecycle-consistent? tampered)))
+        "a changed provenance field invalidates the immutable consumption binding")
+    (is (false? (:holds? (inv/related-claims-authorisation-scope-closed? tampered)))
+        "scope closure independently rejects the tampered consumption record")
+    (is (false? (:holds? (inv/related-claims-authorisation-scope-closed? malformed)))
+        "scope closure rejects matching but malformed one-sided provenance")
+    (is (false? (:holds? (inv/related-claims-authorisation-scope-closed? substituted-grant)))
+        "scope closure rejects a relationship member substituted outside the grant")
+    (is (false? (:holds? (inv/force-authorisations-lifecycle-consistent? tampered-stored-scope)))
+        "lifecycle recomputes and authenticates stored scope hashes")))
 
 ;; ── Authentication boundary: governance gate -> provenance -> lifecycle ──────
 

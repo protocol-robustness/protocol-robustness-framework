@@ -409,3 +409,113 @@
         result (om/pre-application-checks tampered)]
     (is (not (:pre-application-valid? result)))
     (is (some #(re-find #"outcome-hashes mismatch" %) (:errors result)))))
+
+(deftest pre-application-checks-rejects-invalid-model-root-hash
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest :benchmark/model-root "not-a-valid-hash"))
+        result (om/pre-application-checks manifest)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"model-root is not a valid sha256" %) (:errors result)))))
+
+(deftest pre-application-checks-rejects-invalid-execution-root-hash
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/parameter-domain-root "not-a-valid-hash"))
+        result (om/pre-application-checks manifest)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"parameter-domain-root is not a valid sha256" %)
+              (:errors result)))))
+
+(deftest gates-agree-on-valid-manifest
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/parameter-domain-root (h "d")
+                         :execution/sampling-policy-root (h "c0")
+                         :execution/generated-case-set-root (h "c")))]
+    (is (:pre-application-valid? (om/pre-application-checks manifest)))
+    (is (:valid? (om/validate-manifest manifest))
+        "pre-application-checks and validate-manifest must agree on a valid manifest")))
+
+(deftest gates-agree-on-invalid-model-root-hash
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest :benchmark/model-root "sha256:short"))]
+    (is (not (:pre-application-valid? (om/pre-application-checks manifest))))
+    (is (not (:valid? (om/validate-manifest manifest)))
+        "pre-application-checks and validate-manifest must agree on an invalid model root")))
+
+(deftest pre-application-checks-accepts-valid-force-authorisation
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/parameter-domain-root (h "d")
+                         :execution/sampling-policy-root (h "c0")
+                         :execution/generated-case-set-root (h "c")
+                         :execution/force-authorisation
+                         {:authorisation-hash (h "aa")
+                          :reservation-hash (h "bb")
+                          :consumption-key (h "cc")
+                          :execution-attempt-id :attempt-1
+                          :branch-descriptor-hash (h "dd")
+                          :baseline-content-root (h "ee")
+                          :executed-content-root (h "ff")
+                          :status :consumed}))
+        result (om/pre-application-checks manifest)]
+    (is (:pre-application-valid? result)
+        (str "valid FA section should pass, errors: " (:errors result)))))
+
+(deftest pre-application-checks-rejects-invalid-force-authorisation-hash
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/parameter-domain-root (h "d")
+                         :execution/sampling-policy-root (h "c0")
+                         :execution/generated-case-set-root (h "c")
+                         :execution/force-authorisation
+                         {:authorisation-hash "not-a-valid-hash"
+                          :reservation-hash (h "bb")
+                          :consumption-key (h "cc")
+                          :execution-attempt-id :attempt-1
+                          :status :consumed}))
+        result (om/pre-application-checks manifest)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"force-authorisation\.authorisation-hash" %) (:errors result)))))
+
+(deftest pre-application-checks-rejects-incomplete-force-authorisation
+  (let [manifest (om/build-manifest
+                  (assoc base-manifest
+                         :execution/parameter-domain-root (h "d")
+                         :execution/sampling-policy-root (h "c0")
+                         :execution/generated-case-set-root (h "c")
+                         :execution/force-authorisation
+                         {:authorisation-hash (h "aa")}))
+        result (om/pre-application-checks manifest)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"force-authorisation missing" %) (:errors result)))))
+
+(deftest pre-application-checks-rejects-invalid-theorem-hash
+  (let [t1 (rto/build-theorem-outcome sample-theorem-params)
+        manifest (om/build-manifest
+                  (assoc base-manifest
+                         :outcomes/theorems
+                         [{:theorem/id :theorem/quota-bounded
+                           :theorem/hash (:theorem/hash t1)
+                           :status :established}]))
+        tampered (assoc manifest :outcomes/theorems
+                        [{:theorem/id :theorem/quota-bounded
+                          :theorem/hash "not-a-valid-hash"
+                          :status :established}])
+        result (om/pre-application-checks tampered)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"invalid :theorem/hash" %) (:errors result)))))
+
+(deftest pre-application-checks-rejects-invalid-conclusion-hash
+  (let [c1 (rc/build-conclusion sample-conclusion-params)
+        manifest (om/build-manifest
+                  (assoc base-manifest
+                         :outcomes/conclusions
+                         [{:conclusion/id :conclusion/partial-fill-correctness
+                           :conclusion/hash (:conclusion/hash c1)}]))
+        tampered (assoc manifest :outcomes/conclusions
+                        [{:conclusion/id :conclusion/partial-fill-correctness
+                          :conclusion/hash "not-a-valid-hash"}])
+        result (om/pre-application-checks tampered)]
+    (is (not (:pre-application-valid? result)))
+    (is (some #(re-find #"invalid :conclusion/hash" %) (:errors result)))))

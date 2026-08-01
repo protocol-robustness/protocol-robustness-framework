@@ -24,7 +24,9 @@
             [resolver-sim.forensic.source-hash :as source-hash]
             [resolver-sim.run.distribution-provenance :as distribution]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
-            [resolver-sim.logging :as log]))
+            [resolver-sim.logging :as log]
+            [resolver-sim.definitions.passive-registries :as passive-registries]
+            [resolver-sim.hash.canonical :as hc]))
 (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
 (defn- p [x] (str x))
 (defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
@@ -234,8 +236,13 @@
   "Walk a value and convert runtime-specific types to canonical persisted
    representations.  Hard-fails on types that cannot be safely persisted.
    Permits: nil, Boolean, string, keyword, integer, vector, map, set.
-   Rejects: Double, Float, decimal, Ratio, temporal, fn, Var, and any
-   unrecognized type."
+   Converts runtime types to the deterministic canonical representations
+   used by the canonical hashing pipeline (project-world-to-structure-view /
+   canonical-bytes) so persisted objects round-trip and stay hash-consistent:
+   temporals → ISO-8601 string, Double/Float/BigDecimal → {:type :float64 ...},
+   Ratio → {:type :ratio ...}, function → {:type :fn}, Var → string,
+   lazy sequences → vector, records → plain maps.
+   Rejects: any unrecognized type."
   [value]
   (letfn [(walk [x]
             (cond
@@ -246,26 +253,25 @@
                   (integer? x))
               x
               (instance? Double x)
-              (throw (ex-info "Cannot persist Double — convert to canonical representation"
-                              {:type (type x) :value x}))
+              {:type :float64 :value-str (format "%.17g" (double x))}
               (instance? Float x)
-              (throw (ex-info "Cannot persist Float — convert to canonical representation"
-                              {:type (type x) :value x}))
-              (decimal? x)
-              (throw (ex-info "Cannot persist decimal — convert to rational or integer"
-                              {:type (type x) :value x}))
+              {:type :float64 :value-str (format "%.17g" (float x))}
+              (instance? java.math.BigDecimal x)
+              {:type :float64 :value-str (format "%.17g" (.doubleValue x))}
               (instance? clojure.lang.Ratio x)
-              (throw (ex-info "Cannot persist Ratio — convert to {:rational/numerator N :rational/denominator D}"
-                              {:type (type x) :value x}))
+              {:type :ratio
+               :value-str (format "%.17g" (double x))
+               :numerator (numerator x)
+               :denominator (denominator x)}
               (instance? java.time.temporal.TemporalAccessor x)
-              (throw (ex-info "Cannot persist temporal — convert to epoch millis or ISO string"
-                              {:type (type x) :value x}))
+              (.toString x)
               (fn? x)
-              (throw (ex-info "Cannot persist function reference"
-                              {:type (type x)}))
+              ;; Deterministic structured marker (matches
+              ;; project-world-to-structure-view): a raw `(str fn)` would embed a
+              ;; JVM identity hash and break bundle reproducibility.
+              {:type :fn}
               (instance? clojure.lang.Var x)
-              (throw (ex-info "Cannot persist Var reference"
-                              {:type (type x) :value (str x)}))
+              (str x)
               ;; Sequence types (LazySeq, PersistentList, Cons, ...) are not
               ;; canonical-bytes encodable. Realize them as vectors so claim
               ;; results / attestations can be hashed and persisted.
@@ -275,9 +281,14 @@
               (throw (ex-info (str "Cannot persist unsupported type: " (type x))
                               {:type (type x) :value (str x)}))))]
     (walk/postwalk (fn [x]
-                     (if (instance? clojure.lang.IPersistentCollection x)
-                       x
-                       (walk x)))
+                     (cond
+                       ;; Records pr-str as reader tags (e.g. SewProtocol) that
+                       ;; cannot round-trip through edn/read-string. Project them
+                       ;; to plain maps so bundle objects stay re-readable and
+                       ;; hash-consistent with their persisted bytes.
+                       (instance? clojure.lang.IRecord x) (into {} x)
+                       (instance? clojure.lang.IPersistentCollection x) x
+                       :else (walk x)))
                    value)))
 
 (defn default-build-attestation-bundle!
@@ -317,9 +328,15 @@
                                           {:event :attestation-bundle-missing-node-hash
                                            :node n}))))
                          (vec (keep (fn [n] (when (:node-hash n) n)) raw)))
-        registries {:attestors (get-in bundle-root [:registry/snapshot :attestors] {})
-                    :claim-definitions (get-in bundle-root [:registry/snapshot :claim-definitions] {})
-                    :hash-intents (get-in bundle-root [:registry/snapshot :hash-intents] {})}
+        ;; Registry snapshots committed into the bundle.  build-attestation-bundle
+        ;; declares registry hashes over the global registries
+        ;; (passive-registries/*, hash.canonical/hash-intents), so persistence must
+        ;; carry those same raw contents or object-integrity/registry verification
+        ;; will mismatch.  The bundle-root :registry/snapshot only records hashes,
+        ;; not contents, so it cannot source these.
+        registries {:attestors passive-registries/attestor-registry
+                    :claim-definitions passive-registries/claim-definition-registry
+                    :hash-intents hc/hash-intents}
         ;; Sensitivity report
         sensitivity-report-file (io/file (p (:manifest/dir c)) "sensitivity-report.json")
         _ (when-not (.isFile sensitivity-report-file)
@@ -342,18 +359,28 @@
                                     :provenance prov}))
         ;; Normalize for persistence (hard-fails on unsupported types);
         ;; lazy sequences are realized to vectors so claim results /
-        ;; attestations remain canonical-bytes encodable.
+        ;; attestations remain canonical-bytes encodable.  The same
+        ;; normalized values feed both hashing (build-attestation-bundle)
+        ;; and persistence (write-attestation-bundle!) so recorded object
+        ;; hashes match the bytes written to disk.
         objects-map {:attestations (normalize-for-persistence attestations)
                      :claim-results (normalize-for-persistence claim-results)
-                     :evidence-nodes (normalize-for-persistence evidence-nodes)}
+                     :evidence-nodes (normalize-for-persistence evidence-nodes)
+                     ;; Registry snapshots are persisted verbatim (matching the
+                     ;; write-attestation-bundle! contract); their declared hashes
+                     ;; are computed over the same raw content via
+                     ;; canonical-registry-snapshot.
+                     :attestors (:attestors registries)
+                     :claim-definitions (:claim-definitions registries)
+                     :hash-intents (:hash-intents registries)}
         _ (when (and (seq (:attestations run-result)) (empty? attestations))
             (log/warn! "Attestations in run-result but none with :attestation/id"
                        {:event :attestation-bundle-no-attestation-ids}))
         bundle-dir (str (io/file (p (:run/root c)) "evidence" "attestation-bundle"))
         result (ab/build-attestation-bundle
-                {:attestations attestations
-                 :claim-results claim-results
-                 :evidence-nodes evidence-nodes
+                {:attestations (:attestations objects-map)
+                 :claim-results (:claim-results objects-map)
+                 :evidence-nodes (:evidence-nodes objects-map)
                  :registries registries
                  :sensitivity-report sensitivity-report
                  :sensitivity-provenance sensitivity-provenance

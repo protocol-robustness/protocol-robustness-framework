@@ -352,6 +352,74 @@
   [v]
   (and (string? v) (re-matches #"sha256:[0-9a-f]{64}" v)))
 
+(def ^:const hash-bearing-root-keys
+  "Top-level manifest keys that must carry a valid sha256: hash when present.
+   Shared by pre-application-checks and validate-manifest so both gates apply
+   the same, complete hash-encoding rule."
+  [:benchmark/content-root
+   :benchmark/model-root
+   :benchmark/evaluation-policy-root
+   :execution/model-instance-root
+   :execution/plan-root
+   :execution/parameter-domain-root
+   :execution/sampling-policy-root
+   :execution/realised-parameter-set-root
+   :execution/generated-case-set-root
+   :execution/command-root
+   :outcomes/operational-root
+   :outcomes/incentive-root
+   :outcomes/incentive-compatibility-root])
+
+(def ^:const force-authorisation-hash-keys
+  "Hash-bearing fields inside :execution/force-authorisation."
+  [:authorisation-hash :consumption-key :reservation-hash
+   :branch-descriptor-hash :baseline-content-root :executed-content-root])
+
+(defn- check-hash-fields!
+  "Append an error for every hash-bearing top-level key present in m whose
+   value is not a valid sha256: hash."
+  [errors m]
+  (doseq [k hash-bearing-root-keys
+          :let [v (get m k)]
+          :when (some? v)
+          :when (not (hash-prefix-valid? v))]
+    (swap! errors conj (str k " is not a valid sha256: hash: " v)))
+  errors)
+
+(defn- check-force-authorisation!
+  "Validate the :execution/force-authorisation section, if present."
+  [errors manifest]
+  (when-let [fa (:execution/force-authorisation manifest)]
+    (when-not (map? fa)
+      (swap! errors conj ":execution/force-authorisation must be a map"))
+    (doseq [k [:authorisation-hash :reservation-hash :consumption-key
+               :execution-attempt-id :status]]
+      (when (nil? (get fa k))
+        (swap! errors conj (str ":execution/force-authorisation missing :"
+                                (name k)))))
+    (doseq [k force-authorisation-hash-keys
+            :let [v (get fa k)]
+            :when (some? v)
+            :when (not (hash-prefix-valid? v))]
+      (swap! errors conj (str ":execution/force-authorisation." (name k)
+                              " is not a valid sha256: hash: " v))))
+  errors)
+
+(defn- check-theorem-conclusion-hashes!
+  "Validate per-entry hashes in :outcomes/theorems and :outcomes/conclusions."
+  [errors manifest]
+  (doseq [t (:outcomes/theorems manifest)
+          :when (map? t)]
+    (when-not (hash-prefix-valid? (:theorem/hash t))
+      (swap! errors conj (str "invalid :theorem/hash in :outcomes/theorems: "
+                              (:theorem/hash t)))))
+  (doseq [c (:outcomes/conclusions manifest)
+          :when (map? c)]
+    (when-not (hash-prefix-valid? (:conclusion/hash c))
+      (swap! errors conj (str "invalid :conclusion/hash in :outcomes/conclusions: "
+                              (:conclusion/hash c)))))
+  errors)
+
 (defn pre-application-checks
   "Pre-application validation: verify that an outcome manifest is valid
    and ready for benchmark execution.
@@ -364,7 +432,13 @@
      5. Execution fields are present (parameter domain, sampling policy,
         generated case set — required for execution traceability)
      6. Status is set (benchmark lifecycle state)
-     7. Any present hierarchical root carries a valid hash encoding
+     7. Every present identity and execution root (content, model,
+        evaluation-policy, model-instance, plan, parameter-domain,
+        sampling-policy, realised-parameter-set, generated-case-set,
+        command, and the three outcome roots) carries a valid sha256:
+        hash encoding, and any :execution/force-authorisation section
+        and :outcomes/theorems / :outcomes/conclusions entries carry
+        valid hashes
      8. :outcome-hashes exactly matches the derived projection from
         top-level fields (when :outcome-hashes is present)
    
@@ -394,15 +468,12 @@
         (swap! errors conj "missing :execution/status"))
       (when (and exec-st (not (contains? execution-statuses exec-st)))
         (swap! errors conj (str "invalid execution/status: " exec-st))))
-    ;; ── Hierarchical root hash validation ───────────────────────────
-    (doseq [[k v] (select-keys manifest
-                               [:execution/command-root
-                                :outcomes/operational-root
-                                :outcomes/incentive-root
-                                :outcomes/incentive-compatibility-root])
-            :when (some? v)]
-      (when-not (hash-prefix-valid? v)
-        (swap! errors conj (str k " is not a valid sha256: hash: " v))))
+    ;; ── Hash encoding of all identity and execution roots ──────────
+    (check-hash-fields! errors manifest)
+    ;; ── Force-authorisation section ─────────────────────────────────
+    (check-force-authorisation! errors manifest)
+    ;; ── Theorem and conclusion per-entry hashes ─────────────────────
+    (check-theorem-conclusion-hashes! errors manifest)
     ;; ── Derived outcome-hashes consistency ──────────────────────────
     (when (some? (:outcome-hashes manifest))
       (let [derived (derive-outcome-hashes manifest)]
@@ -449,9 +520,12 @@
       (swap! errors conj "missing :benchmark/content-root"))
     (when-not (some? (:benchmark/model-root manifest))
       (swap! errors conj "missing :benchmark/model-root"))
-    (let [mr (:benchmark/model-root manifest)]
-      (when (and (some? mr) (not (hash-prefix-valid? mr)))
-        (swap! errors conj (str ":benchmark/model-root is not a valid sha256: hash: " mr))))
+    ;; ── Hash encoding of all identity and execution roots ──────────
+    (check-hash-fields! errors manifest)
+    ;; ── Force-authorisation section ─────────────────────────────────
+    (check-force-authorisation! errors manifest)
+    ;; ── Theorem and conclusion per-entry hashes ─────────────────────
+    (check-theorem-conclusion-hashes! errors manifest)
     ;; ── Reject unknown top-level keys ───────────────────────────────
     (doseq [k (keys manifest)
             :when (not (contains? valid-manifest-keys k))]

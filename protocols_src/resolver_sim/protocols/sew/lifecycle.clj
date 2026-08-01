@@ -259,17 +259,19 @@
       (let [result (-> world-after-policy
                        (acct/sub-held token
                                       sub-held-amt
-                                      {:action (str "finalize-" (name direction))
-                                       :reason held-reason
-                                       :authorization-provenance authorization-provenance
-                                       :extra (cond-> {:held/action (str "finalize-" (name direction))
+                                      (merge {:action (str "finalize-" (name direction))
+                                              :reason held-reason
+                                              :authorization-provenance authorization-provenance}
+                                             (select-keys authorization-provenance
+                                                          [:parameter/context :parameter/address])
+                                             {:extra (cond-> {:held/action (str "finalize-" (name direction))
                                                        :held/workflow-id workflow-id
                                                        :owner/address recipient
                                                        :held/recipient recipient
                                                        :held/settlement-direction direction
                                                        :held/settled-amount settled-amt}
                                                  shortfall-started
-                                                 (assoc :shortfall/started-at shortfall-started))})
+                                                 (assoc :shortfall/started-at shortfall-started))}))
                        (record-fn token settled-amt)
                        (cond-> (pos? (long (or (:deferred-amount pos-shortfall) 0)))
                          (reserve-deferred-yield-custody token workflow-id

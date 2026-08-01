@@ -18,6 +18,8 @@
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.assurance.custody :as custody-core]
+            [resolver-sim.accounting.held-ledger-index :as held-index]
+            [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.economics.slash-distribution :as sd]))
 
 (declare sub-held record-fee record-claimable)
@@ -256,46 +258,37 @@
 
 (defn- parameter-attribution-error!
   [parameter-context parameter-address]
-  (let [{:keys [parameter-pair-complete?
-                parameter-context-valid?
-                parameter-address-valid?]}
-        (custody-core/parameter-attribution-check parameter-context parameter-address)
-        reason (cond
-                 (not parameter-pair-complete?)
-                 (if (some? parameter-context)
-                   :parameter-context-without-address
-                   :parameter-address-without-context)
-                 (not parameter-context-valid?) :invalid-parameter-context
-                 (not parameter-address-valid?) :invalid-parameter-address)]
-    (when reason
-      (throw (ex-info "invalid held adjustment parameter attribution"
-                      {:type :invalid-held-adjustment
-                       :reason reason
-                       :parameter/context parameter-context
-                       :parameter/address parameter-address})))))
+  (when-let [reason (held-adjustment/parameter-attribution-error
+                     {:parameter/context parameter-context
+                      :parameter/address parameter-address})]
+    (throw (ex-info "invalid held adjustment parameter attribution"
+                    {:type :invalid-held-adjustment
+                     :reason reason
+                     :parameter/context parameter-context
+                     :parameter/address parameter-address}))))
 
 (defn- parameter-attribution-scope
   [parameter-context parameter-address]
-  (cond-> {}
-    parameter-context (assoc :parameter/context parameter-context)
-    parameter-address (assoc :parameter/address parameter-address)))
+  (held-adjustment/project-held-adjustment-scope
+   {:parameter/context parameter-context
+    :parameter/address parameter-address}))
 
 (defn- member-scope-hash-from-adjustment
-  "Recompute the force-authorisation scope hash from a held adjustment.
-   Used for related-claims per-member consumption tracking."
-  [auth-provenance adjustment]
-  (force-authorisation-scope-hash
-   (merge {:authorization/id (:authorization/id auth-provenance)
-           :authorization/type :force-authorisation
-           :held/direction (:held/direction adjustment)
-           :token (:token adjustment)
-           :amount (:amount adjustment)
-           :held/account (:held/account adjustment)
-           :owner/address (:owner/address adjustment)
-           :held/reason (:held/reason adjustment)
-           :held/workflow-id (:held/workflow-id adjustment)}
-          (parameter-attribution-scope (:parameter/context adjustment)
-                                       (:parameter/address adjustment)))))
+  "Recompute the force-authorisation member scope from a held adjustment.
+   Pre-position grants retain their legacy preimage; new grants bind the
+   derived custody position."
+  [world auth-provenance adjustment]
+  (let [record (get-in world [:force-authorisations (:authorization/id auth-provenance)])
+        fields (assoc adjustment
+                      :authorization/id (:authorization/id auth-provenance)
+                      :authorization/type :force-authorisation)
+        positioned-scope (held-adjustment/project-held-adjustment-scope fields)
+        position-bound? (contains? (set (:member-scope-hashes record))
+                                   (force-authorisation-scope-hash positioned-scope))]
+    (force-authorisation-scope-hash
+     (held-adjustment/project-held-adjustment-scope
+      (cond-> fields
+        (not position-bound?) (dissoc :held/position-id))))))
 
 (defn- mark-force-authorisation-consumed
   [world auth-provenance adjustment]
@@ -319,7 +312,7 @@
       ;; related-claims-member identity hash so the scope-closed invariant can
       ;; prove relationship membership retrospectively, independent of the
       ;; force-authorisation-scope hash.
-      (let [member-hash (member-scope-hash-from-adjustment auth-provenance adjustment)
+      (let [member-hash (member-scope-hash-from-adjustment world auth-provenance adjustment)
             rel-member-hash (rc/related-claims-member-hash
                              {:claim/kind :sew/workflow
                               :workflow/id (:held/workflow-id adjustment)})
@@ -343,8 +336,20 @@
                         (assoc :last-consumed-adjustment-id (:held-adjustment/id adjustment)
                                :last-consumed-workflow-id (:held/workflow-id adjustment)))
             committed-members (set (get-in world [:force-authorisations auth-id :member-scope-hashes] []))
-            all-members-consumed? (= committed-members (:consumed-members updated))]
-        (cond-> (assoc-in world [:force-authorisations/consumed auth-id] updated)
+            all-members-consumed? (= committed-members (:consumed-members updated))
+            consumption-record {:held-adjustment/id (:held-adjustment/id adjustment)
+                                :authorization/id auth-id
+                                :relationship/id (:relationship/id auth-provenance)
+                                :relationship/hash (:relationship/hash auth-provenance)
+                                :member-scope-hash member-hash
+                                :related-member-hash rel-member-hash
+                                :held/workflow-id (:held/workflow-id adjustment)
+                                :parameter/context (:parameter/context adjustment)
+                                :parameter/address (:parameter/address adjustment)}]
+        (cond-> (-> world
+                    (assoc-in [:force-authorisations/consumption-records auth-id member-hash]
+                              consumption-record)
+                    (assoc-in [:force-authorisations/consumed auth-id] updated))
           all-members-consumed?
           (assoc-in [:force-authorisations auth-id]
                     (assoc (get-in world [:force-authorisations auth-id])
@@ -465,10 +470,13 @@
                    (update-in [:held-ledger/index :by-owner owner-address] (fnil step-fn 0) amount)
 
                    workflow-id
-                   (update-in [:held-ledger/index :by-workflow workflow-id] (fnil step-fn 0) amount))]
-      (-> world'
-          (assoc :total-held (get-in world' [:held-ledger/index :by-token] {}))
-          (assoc :held/positions (get-in world' [:held-ledger/index :by-position] {}))))))
+                   (update-in [:held-ledger/index :by-workflow workflow-id] (fnil step-fn 0) amount))
+          result (-> world'
+                     (assoc :total-held (get-in world' [:held-ledger/index :by-token] {}))
+                     (assoc :held/positions (get-in world' [:held-ledger/index :by-position] {})))]
+      (held-index/validate-held-custody-state
+       (select-keys result [:held-ledger/index :total-held :held/positions]))
+      result)))
 
 (defn- build-held-adjustment
   [world token amount direction action reason authorization-provenance extra]
@@ -477,7 +485,8 @@
                  :in  (+ before amount)
                  :out (- before amount))
         position-fields (held-position-components token reason extra)]
-    (merge {:held-adjustment/id (next-held-adjustment-id world)
+    (held-adjustment/build-held-adjustment
+     (merge {:held-adjustment/id (next-held-adjustment-id world)
             :held/direction direction
             :token token
             :amount amount
@@ -491,7 +500,7 @@
            position-fields
            (when authorization-provenance
              {:authorization/provenance authorization-provenance})
-           extra)))
+           extra))))
 
 (defn- append-held-adjustment
   [world adjustment]
@@ -557,6 +566,11 @@
                                          parameter/context parameter/address]
                                  :or {action "adjust-held"}}]
   (validate-held-inputs! token amount)
+  (when-let [reserved (seq (held-adjustment/reserved-adjustment-keys-present extra))]
+    (throw (ex-info "held adjustment :extra contains reserved provenance keys"
+                    {:type :invalid-held-adjustment
+                     :reason :reserved-parameter-attribution-in-extra
+                     :keys reserved})))
   (parameter-attribution-error! context address)
   (when (and (contains? exceptional-held-reasons reason)
              (nil? authorization-provenance))
@@ -567,16 +581,26 @@
   (let [is-force-auth? (= :force-authorisation (:authorization/type authorization-provenance))]
     (when is-force-auth?
       (let [components (held-position-components token reason (or extra {}))
-            scope-map (merge {:authorization/id (:authorization/id authorization-provenance)
-                              :authorization/type :force-authorisation
-                              :held/direction direction
-                              :token token
-                              :amount amount
-                              :held/account (:held/account components)
-                              :owner/address (:owner/address components)
-                              :held/reason reason}
-                             (select-keys (or extra {}) [:held/workflow-id])
-                             (parameter-attribution-scope context address))]
+            record (get-in world [:force-authorisations (:authorization/id authorization-provenance)])
+            scope-fields (merge {:authorization/id (:authorization/id authorization-provenance)
+                                 :authorization/type :force-authorisation
+                                 :held/direction direction
+                                 :token token
+                                 :amount amount
+                                 :held/account (:held/account components)
+                                 :held/position-id (:held/position-id components)
+                                 :owner/address (:owner/address components)
+                                 :held/reason reason}
+                                (select-keys (or extra {}) [:held/workflow-id])
+                                (parameter-attribution-scope context address))
+            position-bound? (if (= :related-claims (:authorization/scope-kind authorization-provenance))
+                              (contains? (set (:member-scope-hashes record))
+                                         (force-authorisation-scope-hash
+                                          (held-adjustment/project-held-adjustment-scope scope-fields)))
+                              (contains? (:authorization/scope record) :held/position-id))
+            scope-map (held-adjustment/project-held-adjustment-scope
+                       (cond-> scope-fields
+                         (not position-bound?) (dissoc :held/position-id)))]
         (ensure-force-authorisation-usable! world authorization-provenance scope-map)))
     (let [current (get-in world [:total-held token] 0)]
       (when (and (= direction :out) (< current amount))

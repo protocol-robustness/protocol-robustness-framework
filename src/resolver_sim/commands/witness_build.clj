@@ -194,7 +194,12 @@
                                                            (vals evidence-map))
                                           match-count (count matching)]
                                       (if (= 1 match-count)
-                                        (conj acc {:step/id step-id :evidence (first matching)})
+                                        ;; Persist step ids as their namespaced string form:
+                                        ;; the witness is committed as JSON, which cannot
+                                        ;; preserve keyword namespaces in values. Keeping the
+                                        ;; in-memory witness identical to its persisted bytes
+                                        ;; keeps :procedure-witness/root-integrity recomputable.
+                                        (conj acc {:step/id (str step-id) :evidence (first matching)})
                                         (throw (ex-info (str "Expected exactly 1 evidence for step " step-id
                                                              " but found " match-count)
                                                         {:step/id step-id :expected-type expected-type
@@ -292,12 +297,16 @@
                            :expected-path (str witness-file)})))
         (let [witness (json/read-str (slurp witness-file) :key-fn keyword)
               index-file (io/file run-root "benchmark/index.edn")
-              exec-dir (when (.isFile index-file)
-                         (some-> (edn/read-string (slurp index-file))
-                                 :executions first :dir))
-              ev-dir (when exec-dir (str exec-dir "/event-evidence"))
-              reg-file (when exec-dir (str exec-dir "/evidence-registry.json"))
-              cursor-file (when exec-dir (str exec-dir "/chain-cursor-final.json"))
+              ;; Resolve the scenario execution artifacts the same way the
+              ;; witness builder does (build-witness-from-scenario): the index
+              ;; execution carries :scenario/artifacts, not a top-level :dir.
+              execution (when (.isFile index-file)
+                          (first (:executions (edn/read-string (slurp index-file)))))
+              artifacts (:scenario/artifacts execution)
+              artifact-dir (:scenario/artifact-dir artifacts)
+              ev-dir (when artifact-dir (str (io/file artifact-dir "event-evidence")))
+              reg-file (:scenario/evidence-registry artifacts)
+              cursor-file (:scenario/chain-cursor artifacts)
               registry (when (and reg-file (.isFile (io/file reg-file)))
                          (json/read-str (slurp reg-file) :key-fn keyword))
               cursor (when (and cursor-file (.isFile (io/file cursor-file)))

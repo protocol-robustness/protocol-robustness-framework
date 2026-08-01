@@ -38,9 +38,12 @@
 
 (defn expected-evidence-type
   "Return the expected evidence type string for a definition step ID,
-   or nil when the adapter does not define a mapping."
+   or nil when the adapter does not define a mapping.
+   Accepts keyword or string step ids (witnesses persist ids as
+   namespaced strings)."
   [adapter step-id]
-  (get-in adapter [:step-evidence-types step-id]))
+  (get-in adapter [:step-evidence-types
+                   (if (keyword? step-id) step-id (keyword step-id))]))
 
 (defn valid-step-types
   "Return the set of valid step type keywords for a sequence definition,

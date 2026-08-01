@@ -123,9 +123,13 @@
           (json/write-str cursor {:key-fn (fn [k] (if (keyword? k) (name k) (str k)))}))
 
     (spit (io/file td "benchmark/index.edn")
-          (pr-str {:executions [{:dir ev-dir
-                                 :artifacts {:evidence-registry {:path (str ev-dir "/evidence-registry.json")}
-                                             :chain-cursor {:path (str ev-dir "/chain-cursor-final.json")}}}]}))
+          (pr-str {:executions [{:scenario/source-path "e2e.edn"
+                                 :scenario/id "e2e"
+                                 :scenario/evidence-root (:chain-head scenario)
+                                 :scenario/artifacts
+                                 {:scenario/artifact-dir ev-dir
+                                  :scenario/evidence-registry (str ev-dir "/evidence-registry.json")
+                                  :scenario/chain-cursor (str ev-dir "/chain-cursor-final.json")}}]}))
 
     ;; Write canonical assurance — will be overwritten after verification
     (spit (io/file td "benchmark/assertions/canonical-integrity.json")

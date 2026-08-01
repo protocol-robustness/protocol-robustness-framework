@@ -14,11 +14,12 @@
                             "dispute_level_bounded"
                             "no_duplicate_dispute"
                             "dispute_resolution_path"]}
- :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150
-                   :appeal-window-duration 120
-                   :max-dispute-duration 2592000
-                   :dispute-resolver "0xprimary"}
+  :initial-block-time 1000
+  :protocol-params {:governance/identity {:governance/address "0xgovernance"}
+                    :resolver-fee-bps 150
+                    :appeal-window-duration 120
+                    :max-dispute-duration 2592000
+                    :dispute-resolver "0xprimary"}
  :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
           {:id "seller" :address "0xseller" :strategy "honest"}
           {:id "governance" :address "0xgovernance" :role "governance"}

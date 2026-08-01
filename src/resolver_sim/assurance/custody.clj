@@ -7,9 +7,9 @@
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - benchmarks/packs/sew/"
-  (:require [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hash]
-            [resolver-sim.hash.reference :as hash-ref]))
+  (:require [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.assurance.parameter-attribution :as pa]
+            [resolver-sim.accounting.held-ledger-index :as held-index]))
 
 (defn parameter-attribution-check
   "Validate the optional parameter provenance pair carried by a held adjustment.
@@ -22,37 +22,13 @@
    This verifies attribution shape only; parameter resolution and economic
    correctness remain application-layer concerns."
   [parameter-context parameter-address]
-  (let [pair-complete? (or (and (nil? parameter-context) (nil? parameter-address))
-                           (and (some? parameter-context) (some? parameter-address)))
-        locator? #(or (keyword? %) (integer? %) (and (string? %) (not (str/blank? %))))
-        root? (hash-ref/valid-sha256-ref? (:parameter-context/root parameter-context))
-        id? (locator? (:parameter-context/id parameter-context))
-        scope-id (:parameter-context/scope-id parameter-context)
-        context-valid? (and (map? parameter-context)
-                            (every? #{:parameter-context/type
-                                      :parameter-context/root
-                                      :parameter-context/version
-                                      :parameter-context/scope-id
-                                      :parameter-context/id}
-                                    (keys parameter-context))
-                            (keyword? (:parameter-context/type parameter-context))
-                            (not= (and root?
-                                       (pos-int? (:parameter-context/version parameter-context)))
-                                  id?)
-                            (or (nil? scope-id) (locator? scope-id)))
-        parameter-id (:parameter/id parameter-address)
-        id-address? (locator? parameter-id)
-        instance (:parameter/instance parameter-address)
-        path (:parameter/path parameter-address)
-        path-address? (and (vector? path) (boolean (seq path)) (every? locator? path))
-        address-valid? (and (map? parameter-address)
-                            (every? #{:parameter/id :parameter/instance :parameter/path}
-                                    (keys parameter-address))
-                            (not= id-address? path-address?)
-                            (or (nil? instance) (locator? instance)))]
-    {:parameter-pair-complete? pair-complete?
-     :parameter-context-valid? (or (nil? parameter-context) context-valid?)
-     :parameter-address-valid? (or (nil? parameter-address) address-valid?)}))
+  (let [carrier {:parameter/context parameter-context
+                 :parameter/address parameter-address}
+        error (pa/parameter-attribution-error carrier)]
+    {:parameter-pair-complete? (not (contains? #{:parameter-context-without-address
+                                                  :parameter-address-without-context} error))
+     :parameter-context-valid? (not= :invalid-parameter-context error)
+     :parameter-address-valid? (not= :invalid-parameter-address error)}))
 
 (defn parameter-attribution-status
   "Structural verification status for parameter provenance. Resolution is
@@ -146,12 +122,35 @@
         (mapv (fn [artifact]
                 (let [status (parameter-attribution-status
                               (:parameter/context artifact)
-                              (:parameter/address artifact))]
-                  (cond-> (assoc status :held-adjustment/id (:held-adjustment/id artifact))
-                    (and (= held-custody-artifact-v2 (:schema-version artifact))
-                         (:present? status))
-                    (assoc :structurally-valid? false
-                           :reason :parameter-provenance-not-supported-by-schema))))
+                              (:parameter/address artifact))
+                      v2? (= held-custody-artifact-v2 (:schema-version artifact))
+                      v3? (= held-custody-artifact-v3 (:schema-version artifact))
+                      schema-valid? (or v2? v3?)
+                      expected-hash (str "sha256:"
+                                         (hash/hash-with-intent {:hash/intent :evidence-record}
+                                                                (held-custody-artifact-payload artifact)))
+                      attribution-valid? (and (:structurally-valid? status)
+                                               (not (and v2? (:present? status))))
+                      artifact-valid? (and schema-valid?
+                                           (= expected-hash (:artifact/hash artifact))
+                                           attribution-valid?)
+                      classification (if artifact-valid?
+                                       (cond v2? :legacy-v2
+                                             (:present? status) :attributed-v3
+                                             :else :unattributed-v3)
+                                       :invalid)]
+                  (assoc status
+                         :held-adjustment/id (:held-adjustment/id artifact)
+                         :structurally-valid? attribution-valid?
+                         :artifact-valid? artifact-valid?
+                         :parameter-attribution/classification classification
+                         :attribution/authenticated?
+                         (if-not artifact-valid?
+                           :invalid
+                           (cond v2? :not-authenticated-by-schema
+                                 (:present? status) :authenticated-structural
+                                 :else :absent))
+                         :basis :structural-provenance)))
               ordered)
         parameter-attribution-violations
         (filterv #(not (:structurally-valid? %)) parameter-attribution-statuses)
@@ -235,6 +234,12 @@
                    {:check/id :held-custody/parameter-attribution
                     :status (if (empty? parameter-attribution-violations) :pass :fail)
                     :details {:basis :structural-provenance
+                              :valid-classification-counts
+                              (frequencies (map :parameter-attribution/classification
+                                               (filter :artifact-valid?
+                                                       parameter-attribution-statuses)))
+                              :invalid-artifact-count
+                              (count (remove :artifact-valid? parameter-attribution-statuses))
                               :attributions parameter-attribution-statuses
                               :violations parameter-attribution-violations}}
                    {:check/id :held-custody/local-delta
@@ -289,9 +294,10 @@
                                             :by-workflow {}}
                         :total-held initial-held
                         :held/positions {}}]
-     (reduce (fn [{total-held :total-held
-                   index :held-ledger/index
-                   positions :held/positions} adjustment]
+     (let [replayed
+           (reduce (fn [{total-held :total-held
+                         index :held-ledger/index
+                         positions :held/positions} adjustment]
                (let [{direction :held/direction
                       token :token
                       amount :amount
@@ -361,7 +367,9 @@
                     :total-held (:by-token index')
                     :held/positions (:by-position index')})))
              initial-state
-             adjustments))))
+             adjustments)]
+       (held-index/validate-held-custody-state replayed)
+       replayed))))
 
 (def ^:private held-custody-artifact-version held-custody-artifact-v3)
 
@@ -550,12 +558,12 @@
 (defn verify-settlement-evidence-fidelity
   "For every terminal settlement evidence artifact (:escrow-released /
    :escrow-refunded), require :finalize/write-down to equal the ledger-derived
-   workflow write-down (:yield-negative-excess) taken from the artifact's own
-   :post-state. Returns {:holds? bool :violations [...]}.
+   workflow write-down (:yield-negative-excess) computed from the post-settlement
+   `world`. Returns {:holds? bool :violations [...]}.
 
    This guarantees the committed evidence does not merely contain the field — it
    reports the correct value against the canonical held ledger."
-  [artifacts]
+  [world artifacts]
   (let [violations
         (for [a artifacts
               :let [etype (:evidence/type a)
@@ -565,7 +573,7 @@
               :when (and (contains? #{"escrow-released" "escrow-refunded"} etype)
                          (some? wf))
               :let [reported (long (:finalize/write-down inputs 0))
-                    ledger (ledger-workflow-write-down (:post-state a) wf)]
+                    ledger (ledger-workflow-write-down world wf)]
               :when (not= reported ledger)]
           {:evidence/hash (:evidence/hash a)
            :evidence/type etype

@@ -45,7 +45,16 @@
    to give each thread its own isolated registry.  All access goes through
    swap!/reset! — atomically safe within a single thread binding.  Dynamic
    binding does NOT auto-propagate to spawned futures/threads; callers must
-   wrap async boundaries in (binding [evidence-registry-atom ...] ...)."
+   wrap async boundaries in (binding [evidence-registry-atom ...] ...).
+
+   TODO(evidence-registry-isolation): the DEFAULT value of this dynamic var is a
+   shared atom that accumulates evidence across test namespaces running in the
+   same JVM. A failing prior test that leaks/does not restore this binding can
+   contaminate later namespaces (observed as order-dependent governance-sandwich
+   failures when an earlier suite's tests were failing). This is a pre-existing
+   test-isolation issue, independent of the governance-identity work: give the
+   registry per-test lifecycle control or explicit context injection so prior
+   test failures cannot contaminate later namespaces."
   (atom {:artifacts []
          :evidence-hashes []
          :run-id nil

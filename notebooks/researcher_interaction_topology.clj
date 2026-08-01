@@ -187,7 +187,7 @@
                    :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
      [:div {:style {:color "#f59e0b" :fontWeight 700}} "evidence — " (pr-str (:status evid))]
      [:div "  supporting: " (pr-str (:supporting-members evid)) "  indices " (pr-str (:supporting-member-indices evid))]
-     [:div "  dissenting: " (pr-str (:dissenting-members evid)) "  indices " (pr-str (:dissenting-member-indices evid))]]])))
+     [:div "  dissenting: " (pr-str (:dissenting-members evid)) "  indices " (pr-str (:dissenting-member-indices evid))]]]))
 
 ;; ### 3.3  Member Positions Carry Keys
 
@@ -362,7 +362,7 @@
       legacy-cert
       (-> (tmc/build-certificate
            {:review-round legacy-round :reports legacy-reports :positions legacy-pos})
-          (tmc/finalise-certificate!)))
+          (tmc/finalise-certificate!))]
   (clerk/html
    [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
                   :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
@@ -371,5 +371,5 @@
     [:div "certificate valid? " (tmc/certificate-valid? legacy-cert)]
     [:div "key vector present? "
           (contains? (get-in legacy-cert [:other-consensus :publication])
-                :supporting-member-indices)]]
-)
+                :supporting-member-indices)]]))
+

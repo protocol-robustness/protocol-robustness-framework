@@ -24,11 +24,13 @@
    Checks preconditions without mutating state.
    Returns {:valid? true} or {:valid? false :errors [...]}."
   [plan world]
-  (let [app-key (:plan/idempotency-key plan)
+  (let [plan-verification (plan/verify-application-plan plan)
+        app-key (:plan/idempotency-key plan)
         app-hash (get-in world app-key)
         dist-root (:plan/distribution-root plan)
         errors (cond-> []
-                 (nil? plan) (conj :missing-plan)
+                 (not (:valid? plan-verification))
+                 (into (:errors plan-verification))
                  (not (:plan/preconditions plan)) (conj :missing-preconditions)
                  (and app-hash (not= app-hash dist-root))
                  (conj :conflicting-application-key

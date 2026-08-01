@@ -348,7 +348,8 @@
                            :member-scope-hashes ["hash1" "hash2"]
                            :member-count 1
                            :consumed-members #{"hash1"}})]
-    (is (true? (:holds? (inv/related-claims-authorisation-scope-closed? world''))))))
+    (is (false? (:holds? (inv/related-claims-authorisation-scope-closed? world'')))
+        "a consumed entry without its grant, linked adjustment, and immutable record is not scope-closed")))
 
 ;; ---------------------------------------------------------------------------
 ;; Workflow-group delegation / equivalence

@@ -132,7 +132,18 @@
      :hash-linked
      :partially-verified
      :blocked-by-sensitivity-policy
-     :invalid"
+     :invalid
+
+   Field-level fidelity note: this profile classifies by evidence CATEGORY, not by
+   settlement field detail. Terminal-settlement evidence artifacts that lack
+   :finalize/write-down (legacy artifacts) cannot provide field-level evidence
+   fidelity for the negative-yield write-down reconciliation. :fully-verified here
+   attests category completeness only; it must not be read as attesting the
+   write-down reconciliation. When such evidence is present but field-level
+   fidelity cannot be asserted, the narrowest existing downgraded status is
+   :hash-linked (present + hash-committed, not field-verified). Field-level
+   fidelity is determined by resolver-sim.assurance.custody/
+   verify-settlement-evidence-fidelity."
   [profile evidence-state]
   (let [rules (:profile/rules profile)
         required (:evidence/required rules)

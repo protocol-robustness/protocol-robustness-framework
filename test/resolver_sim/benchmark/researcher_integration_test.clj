@@ -28,17 +28,23 @@
 ;; Shared test data
 ;; ═══════════════════════════════════════════════════════════════════════════
 
+(defn- h
+  "Produce a valid sha256: 64-hex hash from a known hex pattern (a-f, 0-9 only)."
+  [pattern]
+  (assert (re-matches #"[0-9a-f]+" pattern) (str "not hex: " pattern))
+  (str "sha256:" (apply str (take 64 (cycle pattern)))))
+
 (def ^:const base-input
-  {:benchmark/content-root "sha256:content"
-   :benchmark/model-root "sha256:model"
-   :benchmark/evaluation-policy-root "sha256:eval-policy"
+  {:benchmark/content-root (h "c0")
+   :benchmark/model-root (h "a0")
+   :benchmark/evaluation-policy-root (h "e5")
    :execution/status :completed
-   :execution/model-instance-root "sha256:model-instance"
-   :execution/plan-root "sha256:plan"
-   :execution/parameter-domain-root "sha256:param-domain"
-   :execution/sampling-policy-root "sha256:sampling-policy"
-   :execution/realised-parameter-set-root "sha256:realised-params"
-   :execution/generated-case-set-root "sha256:generated-cases"
+   :execution/model-instance-root (h "a1")
+   :execution/plan-root (h "a2")
+   :execution/parameter-domain-root (h "d0")
+   :execution/sampling-policy-root (h "c5")
+   :execution/realised-parameter-set-root (h "f0")
+   :execution/generated-case-set-root (h "a3")
    :results/operational {:conservation :pass :quota-bounded :pass}})
 
 (defn manifest []
@@ -170,22 +176,22 @@
     (is (:pre-sign-valid? result))))
 
 (deftest cross-artifact-roots-consistent
-  (let [entry {:benchmark/content-root "sha256:content" :benchmark/model-root "sha256:model"
-               :benchmark/evaluation-policy-root "sha256:eval-policy"}
+  (let [entry {:benchmark/content-root (h "c0") :benchmark/model-root (h "a0")
+               :benchmark/evaluation-policy-root (h "e5")}
         manifest (manifest)]
     (is (:consistent? (om/cross-artifact-roots-consistent? entry manifest)))))
 
 (deftest cross-artifact-roots-inconsistent-content
-  (let [entry {:benchmark/content-root "sha256:content-a" :benchmark/model-root "sha256:model"
-               :benchmark/evaluation-policy-root "sha256:eval-policy"}
+  (let [entry {:benchmark/content-root (h "c1") :benchmark/model-root (h "a0")
+               :benchmark/evaluation-policy-root (h "e5")}
         manifest (manifest)
         result (om/cross-artifact-roots-consistent? entry manifest)]
     (is (not (:consistent? result)))
     (is (some #(= :benchmark/content-root (:field %)) (:mismatches result)))))
 
 (deftest cross-artifact-roots-inconsistent-model
-  (let [entry {:benchmark/content-root "sha256:content" :benchmark/model-root "sha256:model-a"
-               :benchmark/evaluation-policy-root "sha256:eval-policy"}
+  (let [entry {:benchmark/content-root (h "c0") :benchmark/model-root (h "a1")
+               :benchmark/evaluation-policy-root (h "e5")}
         manifest (manifest)
         result (om/cross-artifact-roots-consistent? entry manifest)]
     (is (not (:consistent? result)))
