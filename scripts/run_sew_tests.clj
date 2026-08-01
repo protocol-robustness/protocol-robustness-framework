@@ -32,6 +32,9 @@
     resolver-sim.protocols.sew.dispute-capacity-test
     resolver-sim.protocols.sew.economics-test
     resolver-sim.protocols.sew.force-authorisation-test
+    resolver-sim.protocols.sew.held-custody-test-env-test
+    resolver-sim.protocols.sew.terminal-state-snapshot-test
+    resolver-sim.protocols.sew.authorised-effect-correlation-test
     resolver-sim.protocols.sew.forking-strategist-expectations-test
     resolver-sim.protocols.sew.funds-ledger-projection-test
     resolver-sim.protocols.sew.governance-gates-test
@@ -60,7 +63,13 @@
     resolver-sim.protocols.sew.yield-reorg-race-test
     resolver-sim.protocols.sew.yield-solvency-test
     resolver-sim.assurance.force-authorisation-portability-test
+    resolver-sim.assurance.parameter-attribution-test
+    resolver-sim.assurance.authorised-effect-correlation-test
+    resolver-sim.evidence.staged-capture-test
+    resolver-sim.io.content-addressed-store-test
     resolver-sim.benchmark.game-theory-validation-test
+    resolver-sim.benchmark.force-authorisation-consumption-v2-test
+    resolver-sim.benchmark.force-authorised-execution-evidence-v2-test
     resolver-sim.benchmark.sew-pre-application-test
     resolver-sim.protocols.sew.slashing-test
     resolver-sim.protocols.sew.evidence.slashing-test])

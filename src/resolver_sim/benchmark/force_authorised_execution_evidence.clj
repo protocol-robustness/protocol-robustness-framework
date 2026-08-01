@@ -21,11 +21,20 @@
    but does not produce this particular profile."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
-            [resolver-sim.benchmark.outcome-manifest :as om]))
+            [resolver-sim.benchmark.outcome-manifest :as om]
+            [resolver-sim.assurance.authorised-effect-correlation :as correlation]))
 
 (def ^:const schema-version "force-authorised-execution-evidence.v1")
 
 (def ^:const profile-id :evidence-profile/force-authorised-execution)
+(def ^:const schema-version-v2 "force-authorised-execution-evidence.v2")
+(def ^:private v2-allowed-keys
+  #{:schema-version :evidence-profile/id :evidence-profile/policy-hash
+    :evidence-profile/review-round-hash :evidence-profile/authorisation-hash
+    :evidence-profile/reservation-hash :evidence-profile/outcome-manifest-hash
+    :evidence-profile/consumption-receipt-hash :evidence-profile/executed-content-root
+    :evidence-profile/execution-result :evidence-profile/verification
+    :execution/effect-correlation-hash :evidence-profile/hash})
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Builder
@@ -140,6 +149,42 @@
       ;; must recompute and compare these values.
       (assoc base :evidence-profile/hash computed-hash))))
 
+(defn build-force-authorised-execution-evidence-v2
+  "Build status-aware v2 execution evidence. Produced/reversed effects require
+   the same validated correlation referenced by the receipt; explicit no-effect
+   failures prohibit a correlation rather than inventing a synthetic effect."
+  [{:keys [correlation consumption-receipt] :as fields}]
+  (when-not (= "force-authorisation-consumption.v2"
+                (:schema-version consumption-receipt))
+    (throw (ex-info "Execution evidence v2 requires a receipt v2" {})))
+  (when-not (:valid? (rfa/validate-consumption-receipt consumption-receipt))
+    (throw (ex-info "Execution evidence v2 requires a valid receipt v2" {})))
+  (let [outcome (:consumption/effect-outcome consumption-receipt)
+        receipt-hash (:consumption/effect-correlation-hash consumption-receipt)
+        supplied (:execution/effect-correlation-hash fields)
+        requires-correlation? (contains? #{:produced :reversed} outcome)]
+    (when-not (contains? #{:not-produced :produced :reversed} outcome)
+      (throw (ex-info "Invalid v2 receipt effect outcome" {:effect-outcome outcome})))
+    (when (and (= outcome :not-produced)
+               (or correlation receipt-hash supplied))
+      (throw (ex-info "No-effect execution evidence must not carry a correlation"
+                      {:error :unexpected-effect-correlation})))
+    (when requires-correlation?
+      (when-not (correlation/valid-correlation? correlation)
+        (throw (ex-info "Invalid effect correlation" {})))
+      (when-not (= receipt-hash (:correlation/hash correlation))
+        (throw (ex-info "Receipt/correlation hash mismatch" {})))
+      (when (and supplied (not= supplied (:correlation/hash correlation)))
+        (throw (ex-info "Supplied execution correlation hash conflicts with correlation artifact" {}))))
+    (let [v1 (build-force-authorised-execution-evidence
+              (dissoc fields :correlation :execution/effect-correlation-hash))
+          base (cond-> (assoc (dissoc v1 :evidence-profile/hash)
+                              :schema-version schema-version-v2)
+                 requires-correlation?
+                 (assoc :execution/effect-correlation-hash (:correlation/hash correlation)))]
+      (assoc base :evidence-profile/hash
+             (str "sha256:" (hc/domain-hash :force-authorised-execution-evidence-v2 base))))))
+
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Standalone validator
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -184,6 +229,36 @@
                                   (:evidence-profile/hash profile)
                                   " computed " computed)))))
     {:valid? (empty? @errors) :errors @errors}))
+
+(defn validate-force-authorised-execution-evidence-v2
+  "Strict structural validator for v2. Correlation resolution remains a
+   terminal-chain concern, while its canonical hash reference is authenticated
+   in this artifact's v2 preimage."
+  [profile]
+  (let [correlation-hash (:execution/effect-correlation-hash profile)
+        errors (cond-> []
+                 (not= schema-version-v2 (:schema-version profile)) (conj :unsupported-evidence-version)
+                 (not (every? v2-allowed-keys (keys profile))) (conj :unknown-evidence-key)
+                 (and correlation-hash (not (re-matches #"sha256:[0-9a-f]{64}" correlation-hash)))
+                 (conj :invalid-effect-correlation-reference)
+                 (not= (:evidence-profile/hash profile)
+                       (str "sha256:" (hc/domain-hash :force-authorised-execution-evidence-v2
+                                                       (dissoc profile :evidence-profile/hash))))
+                 (conj :evidence-hash-mismatch))]
+    {:valid? (empty? errors) :errors errors}))
+
+(defn validate-force-authorised-execution-evidence-any
+  "Version-dispatched structural validator. V1 rejects appended v2 fields."
+  [profile]
+  (case (:schema-version profile)
+    "force-authorised-execution-evidence.v2"
+    (validate-force-authorised-execution-evidence-v2 profile)
+    "force-authorised-execution-evidence.v1"
+    {:valid? (and (:valid? (validate-force-authorised-execution-evidence profile))
+                  (not (contains? profile :execution/effect-correlation-hash)))
+     :errors (cond-> (:errors (validate-force-authorised-execution-evidence profile))
+               (contains? profile :execution/effect-correlation-hash) (conj :v2-field-on-v1))}
+    {:valid? false :errors [:unsupported-evidence-version]}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Independent verifier

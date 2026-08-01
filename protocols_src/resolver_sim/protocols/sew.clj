@@ -35,6 +35,8 @@
             [resolver-sim.yield.risk                     :as yield-risk]
             [resolver-sim.protocols.sew.compat           :as compat]
             [resolver-sim.protocols.sew.action-context   :as actx]
+            [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
+            [resolver-sim.benchmark.research-assignment :as research-assignment]
             [resolver-sim.yield.expectations             :as yield-exp]
             [resolver-sim.yield.evidence                 :as yield-evi]
             [resolver-sim.time.context                   :as time-ctx]
@@ -56,6 +58,35 @@
     {:allowed? (or (= caller (:from et))
                    (= caller (:release-address settings)))
      :reason-code 0}))
+
+(defn force-authorisation-held-scope
+  "Build the canonical Sew held-adjustment scope for a planned individual
+   force-authorisation. The consensus bridge uses this before grant, while the
+   normal grant records the same projection. `parameter-attribution` must be
+   the optional validated pair, or {}."
+  [auth-id escrow workflow-id is-release parameter-attribution]
+  (let [recipient (if is-release (:to escrow) (:from escrow))
+        reason (if is-release :force-authorised-release :force-authorised-refund)]
+    (held-adjustment/project-held-adjustment-scope
+     (merge {:authorization/id auth-id
+             :authorization/type :force-authorisation
+             :held/direction :out
+             :token (:token escrow)
+             :amount (:amount-after-fee escrow)
+             :held/account :escrow-principal
+             :held/position-id [:held/position (:token escrow) :escrow-principal workflow-id]
+             :owner/address recipient
+             :held/reason reason
+             :held/workflow-id workflow-id}
+            parameter-attribution))))
+
+(defn public-force-authorisation-scope-ref
+  "Return the algorithm-qualified public commitment for a legacy internal
+   Sew scope digest. Internal stored scope hashes remain unchanged for
+   compatibility; researcher artifacts must use this canonical reference."
+  [scope-hash]
+  (when (string? scope-hash)
+    (str "sha256:" scope-hash)))
 
 (defn- has-active-dispute-for-resolver?
   [world resolver-addr]
@@ -349,6 +380,7 @@
     "set-yield-risk"
     "force-reversal-slash"
     "grant-force-authorisation"
+    "grant-consensus-force-authorisation"
     "grant-related-claims-force-authorisation"
     "revoke-force-authorisation"
     "grant-related-claims"
@@ -372,6 +404,7 @@
     "execute-fraud-group-slash"
     "force-reversal-slash"
     "grant-force-authorisation"
+    "grant-consensus-force-authorisation"
     "revoke-force-authorisation"
     "execute-force-authorised-action"
     ;; backward compatibility: old action names (normalize to canonical above)
@@ -693,8 +726,11 @@
                              (update :next-overflow-id inc))]
               (assoc (t/ok world') :extra {:overflow-id overflow-id}))))))))
 
-(defmethod apply-action "grant-force-authorisation"
-  [context world event]
+(defn- grant-force-authorisation*
+  "Construct, persist, and evidence a final Sew force-authorisation grant.
+   `consensus-provenance` is constructed exclusively from trusted context
+   resolvers by the consensus adapter; ordinary grants pass nil."
+  [context world event consensus-provenance]
   (run-governance-action context world event
     (fn [addr _agent provenance]
       (let [pp               (:params event)
@@ -740,25 +776,17 @@
           (let [auth-id         (str "fa-" (get world :next-force-authorisation-id 0))
                 recipient       (if is-release (:to escrow) (:from escrow))
                 reason-for-scope (if is-release :force-authorised-release :force-authorised-refund)
-                scope           (held-adjustment/project-held-adjustment-scope
-                                 (merge {:authorization/id auth-id
-                                         :authorization/type :force-authorisation
-                                         :held/direction :out
-                                         :token (:token escrow)
-                                         :amount (:amount-after-fee escrow)
-                                         :held/account :escrow-principal
-                                         :held/position-id [:held/position (:token escrow) :escrow-principal workflow-id]
-                                         :owner/address recipient
-                                         :held/reason reason-for-scope
-                                         :held/workflow-id workflow-id}
-                                        (select-keys pp [:parameter/context :parameter/address])))
+                scope           (force-authorisation-held-scope
+                                 auth-id escrow workflow-id is-release
+                                 (select-keys pp [:parameter/context :parameter/address]))
                 scope-hash      (hash/domain-hash acct/force-authorisation-scope-domain scope)
                 grant-prov      (merge provenance
                                        {:authorization/type :force-authorisation
                                         :authorization/id auth-id
                                         :authorization/source :governance
                                         :authorization/check :with-governance-actor
-                                        :authorization/scope-hash scope-hash})
+                                        :authorization/scope-hash scope-hash}
+                                       consensus-provenance)
                 record          {:authorization/id auth-id
                                  :authorization/version "force-authorisation.v2"
                                  :authorization/type :force-authorisation
@@ -806,16 +834,237 @@
                 :force-auth/expires-at expires-at
                 :force-auth/scope scope
                 :force-auth/scope-hash scope-hash
-                :force-auth/nonce auth-id}
+                :force-auth/nonce auth-id
+                :force-auth/consensus-provenance consensus-provenance}
                nil
                {:world-before world
                 :world-after world'}))
             (assoc (t/ok world') :extra {:authorization/id auth-id
                                          :authorization/scope-hash scope-hash})))))))
 
+(defmethod apply-action "grant-force-authorisation"
+  [context world event]
+  (grant-force-authorisation* context world event nil))
+
 (defmethod apply-action "grant-force-authorization"
   [context world event]
-  ((get-method apply-action "grant-force-authorisation") context world event))
+  (grant-force-authorisation* context world event nil))
+
+(defn- resolved-artifact
+  [resolver reference]
+  (when (and (fn? resolver) (some? reference))
+    (try (resolver reference)
+         (catch Exception _ nil))))
+
+(defn- parse-instant
+  [value]
+  (try
+    (cond
+      (instance? java.time.Instant value) value
+      (string? value) (java.time.Instant/parse value)
+      :else nil)
+    (catch Exception _ nil)))
+
+(defn- consensus-governance-preflight
+  "Authenticate the public governance actor before a consensus reservation can
+   be claimed. Grant construction repeats the check while producing its final
+   governance provenance; this preflight closes the CAS contention boundary."
+  [context event]
+  (actx/with-governance-actor
+    (:agent-index context) event (governance-check context)
+    (fn [_addr _actor _check] {:ok true})))
+
+(defn- consensus-authorisation-checks
+  "Fail-closed verification for the consensus-to-Sew bridge. Resolvers live in
+   the trusted action context; events contain only the researcher artifact hash.
+   The researcher target must commit the exact scope hash this Sew grant will
+   record."
+  [context world event]
+  (let [pp (:params event)
+        workflow-id (:workflow-id pp)
+        escrow (t/get-transfer world workflow-id)
+        auth-id (str "fa-" (get world :next-force-authorisation-id 0))
+        attribution (select-keys pp [:parameter/context :parameter/address])
+        auth-hash (:researcher-force-authorisation/hash pp)
+        assignment-hash (:research-assignment/hash pp)
+        assignment (resolved-artifact (:research-assignment-resolver context) assignment-hash)
+        auth (resolved-artifact (:researcher-force-authorisation-resolver context) auth-hash)
+        policy-ref (get-in auth [:authorisation/policy :policy/hash])
+        round-ref (get-in auth [:authorisation/review-round :review-round/hash])
+        policy (resolved-artifact (:researcher-force-authorisation-policy-resolver context) policy-ref)
+        round (resolved-artifact (:researcher-force-authorisation-round-resolver context) round-ref)
+        scope (when (and escrow (nil? (held-adjustment/parameter-attribution-error attribution)))
+                (force-authorisation-held-scope auth-id escrow workflow-id
+                                                (get pp :is-release true) attribution))
+        scope-hash (when scope (hash/domain-hash acct/force-authorisation-scope-domain scope))
+        structural (when auth (researcher-fa/validate-authorisation auth))
+        signatures (when auth
+                     (researcher-fa/verify-decision-signatures
+                      (:researcher-public-key-resolver context) auth))
+        policy-check (when (and policy auth) (researcher-fa/verify-against-policy policy auth))
+        round-check (when (and round auth) (researcher-fa/verify-against-round round auth))
+        consumed? (when-let [checker (:researcher-force-authorisation-consumed? context)]
+                    (try (checker (:authorisation/consumption-key auth))
+                         (catch Exception _ true)))
+        now (parse-instant (:researcher-force-authorisation/now context))
+        valid-from (parse-instant (:authorisation/valid-from auth))
+        expires-at (parse-instant (:authorisation/expires-at auth))
+        actual-policy-hash (or (:policy/hash policy) (get policy "policy_sha256"))
+        target (get auth :authorisation/target)
+        checks {:authorisation-resolved? (and auth (= auth-hash (:authorisation/hash auth)))
+                :structurally-valid? (true? (:valid? structural))
+                :approved? (boolean (and auth (researcher-fa/authorisation-approved? auth)))
+                :decision-signatures-valid? (true? (:valid? signatures))
+                :policy-binding-valid? (and policy-check (:valid? policy-check)
+                                            (= policy-ref actual-policy-hash))
+                :review-round-binding-valid? (and round-check (:valid? round-check)
+                                                    (= round-ref (:review-round/hash round)))
+                :target-kind-valid? (= :governance-mandated (:target/kind target))
+                :assignment-resolved? (and assignment
+                                            (= assignment-hash (:research-assignment/hash assignment)))
+                :assignment-valid? (boolean (and assignment
+                                                  (research-assignment/assignment-valid? assignment)))
+                :assignment-binding-valid?
+                (and assignment auth
+                     (research-assignment/assignment-matches-authorisation? assignment auth)
+                     (= policy-ref (:research-assignment/policy-hash assignment))
+                     (= round-ref (:research-assignment/review-round-hash assignment))
+                     (= workflow-id (get-in assignment [:research-assignment/target :target/workflow-id]))
+                     (= (:reason pp) (get-in assignment [:research-assignment/target :target/reason])))
+                ;; Boundaries are inclusive: valid-from <= now <= expires-at.
+                :time-valid? (and now
+                                  (or (nil? valid-from) (not (.isAfter valid-from now)))
+                                  (or (nil? expires-at) (not (.isBefore expires-at now))))
+                :public-sew-binding-valid? (and scope-hash
+                                                  (= (public-force-authorisation-scope-ref scope-hash)
+                                                     (:target/public-force-authorisation-scope-hash target)))
+                :consumption-key-unconsumed? (and (fn? (:researcher-force-authorisation-consumed? context))
+                                                  (false? consumed?))}]
+    {:valid? (every? true? (vals checks))
+     :checks checks
+     :authorisation auth
+     :research-assignment assignment
+     :scope scope
+     :scope-hash scope-hash}))
+
+(defn- build-consensus-reservation
+  "Build the immutable pre-grant reservation artifact. These command and plan
+   roots are references supplied by the public command, while the researcher
+   authorisation/hash and consumption key are resolved and verified internally."
+  [authorisation auth-id scope-hash pp]
+  (try
+    (researcher-fa/build-reservation
+     {:reservation/authorisation-hash (:authorisation/hash authorisation)
+      :reservation/consumption-key (:authorisation/consumption-key authorisation)
+      :reservation/execution-attempt-id
+      (:researcher-force-authorisation/execution-attempt-id pp)
+      :reservation/command-root (:researcher-force-authorisation/command-root pp)
+      :reservation/plan-root (:researcher-force-authorisation/plan-root pp)})
+    (catch Exception _ nil)))
+
+(defn- reserve-consensus-grant!
+  "Atomically claim a researcher consumption key with its complete Sew grant
+   binding. The registry is an action-context owned atom; no event value can
+   replace it."
+  [registry consumption-key binding]
+  (when (instance? clojure.lang.IAtom registry)
+    (loop []
+      (let [state @registry]
+        (if-let [existing (get state consumption-key)]
+          (if (= existing binding)
+            {:reserved? true :mode :resumed :binding binding}
+            {:reserved? false :reason :binding-conflict :existing existing})
+          (if (compare-and-set! registry state (assoc state consumption-key binding))
+            {:reserved? true :mode :new :binding binding}
+            (recur)))))))
+
+(defn- release-consensus-grant-reservation!
+  "Release only the exact reservation made by this failed grant attempt."
+  [registry consumption-key binding]
+  (when (instance? clojure.lang.IAtom registry)
+    (loop []
+      (let [state @registry]
+        (if-not (= binding (get state consumption-key))
+          false
+          (if (compare-and-set! registry state (dissoc state consumption-key))
+            true
+            (recur)))))))
+
+(defmethod apply-action "grant-consensus-force-authorisation"
+  [context world event]
+  (let [governance-result (consensus-governance-preflight context event)
+        {:keys [valid? checks authorisation research-assignment scope-hash]}
+        (consensus-authorisation-checks context world event)
+        pp (:params event)
+        auth-id (str "fa-" (get world :next-force-authorisation-id 0))
+        reservation (when valid?
+                      (build-consensus-reservation authorisation auth-id scope-hash pp))
+        consumption-key (:authorisation/consumption-key authorisation)
+        registry (:researcher-force-authorisation-reservation-registry context)
+        trusted-at (:researcher-force-authorisation/now context)
+        decision-hashes (mapv :decision/hash (:authorisation/decision-references authorisation))
+        binding (when reservation
+                  {:status :reserved
+                   :research-assignment/hash (:research-assignment/hash research-assignment)
+                   :researcher-force-authorisation/hash (:authorisation/hash authorisation)
+                   :researcher-force-authorisation/consumption-key consumption-key
+                   :sew/authorization-id auth-id
+                   :sew/scope-hash scope-hash
+                   :reservation/hash (:reservation/hash reservation)
+                   :reservation/execution-attempt-id
+                   (:reservation/execution-attempt-id reservation)})]
+    (cond
+      (not (:ok governance-result))
+      governance-result
+
+      (not valid?)
+      (t/fail :consensus-force-authorisation-invalid)
+
+      (nil? reservation)
+      (t/fail :consensus-force-authorisation-invalid-reservation)
+
+      (not (instance? clojure.lang.IAtom registry))
+      (t/fail :consensus-force-authorisation-reservation-registry-unavailable)
+
+      :else
+      (let [claim (reserve-consensus-grant! registry consumption-key binding)]
+        (if-not (:reserved? claim)
+          (t/fail :consensus-force-authorisation-reservation-binding-conflict)
+          (let [researcher-provenance
+                {:authorization/assurance :consensus-grant-reserved
+                 :consensus/assurance :researcher-threshold-authenticated
+                 :research-assignment/hash (:research-assignment/hash research-assignment)
+                 :researcher-force-authorisation/hash (:authorisation/hash authorisation)
+                 :researcher-force-authorisation/policy-hash
+                 (get-in authorisation [:authorisation/policy :policy/hash])
+                 :researcher-force-authorisation/review-round-hash
+                 (get-in authorisation [:authorisation/review-round :review-round/hash])
+                 :researcher-force-authorisation/request-root
+                 (:authorisation/request-root authorisation)
+                 :researcher-force-authorisation/decision-reference-hashes decision-hashes
+                 :researcher-force-authorisation/consumption-key consumption-key
+                 :researcher-force-authorisation/valid-from (:authorisation/valid-from authorisation)
+                 :researcher-force-authorisation/expires-at (:authorisation/expires-at authorisation)
+                 :researcher-force-authorisation/public-scope-hash
+                 (public-force-authorisation-scope-ref scope-hash)
+                 :researcher-force-authorisation/internal-scope-hash scope-hash
+                 :researcher-force-authorisation/reservation-hash (:reservation/hash reservation)
+                 :researcher-force-authorisation/execution-attempt-id
+                 (:reservation/execution-attempt-id reservation)
+                 :researcher-force-authorisation/trusted-verification-instant trusted-at
+                 :researcher-force-authorisation/checks checks}
+                grant (grant-force-authorisation* context world event researcher-provenance)]
+            (if (:ok grant)
+              (assoc grant :extra (assoc (:extra grant)
+                                         :researcher-force-authorisation/reservation reservation
+                                         :researcher-force-authorisation/checks checks))
+              (do
+                ;; A resumed claimant does not own the existing reservation and
+                ;; must never compensate it away. Only the call that won the
+                ;; CAS may release its exact binding after constructor failure.
+                (when (= :new (:mode claim))
+                  (release-consensus-grant-reservation! registry consumption-key binding))
+                grant))))))))
 
 (defmethod apply-action "revoke-force-authorisation"
   [context world event]

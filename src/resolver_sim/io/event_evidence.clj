@@ -177,6 +177,47 @@
     (log/warn! "capture-event-evidence! called without :ctx/run-id in attribution — evidence will be orphaned"
                {:resolved-attr (dissoc resolved-attr :ctx/scenario-id)})))
 
+(defn prepare-event-evidence
+  "Build finalized event-evidence.v1 content without assigning chain position,
+   writing bytes, or registering canonical reachability. This is the preparation
+   boundary used by durable staged capture; callers must still arrange an
+   immutable chain or publication anchor separately."
+  [reason pre post inputs calc ctx-or-opts]
+  (let [hash-opts? (and (map? ctx-or-opts)
+                        (or (:world-before ctx-or-opts)
+                            (:world-after ctx-or-opts)))
+        resolved-attr (cond
+                        (and (map? ctx-or-opts) (:attribution-context ctx-or-opts))
+                        (attr/get-attribution (:attribution-context ctx-or-opts))
+                        (and (map? ctx-or-opts) (not hash-opts?)) ctx-or-opts
+                        (map? reason) (attr/get-attribution reason)
+                        :else (attr/current-attribution))
+        _ (validate-attribution! resolved-attr)
+        importance (if (map? ctx-or-opts) (or (:importance ctx-or-opts) :core) :core)
+        before-hash (hc/hash-with-intent {:hash/intent :world-structure} pre)
+        after-hash (hc/hash-with-intent {:hash/intent :world-structure} post)]
+    (-> (cap/evidence-base {:type reason :importance importance :ctx resolved-attr})
+        (cap/cap-fields {:scenario/id (:ctx/scenario-id resolved-attr)
+                         :run/id (:ctx/run-id resolved-attr)
+                         :trial/id (:ctx/trial-id resolved-attr)
+                         :event/seq (:ctx/event-index resolved-attr 0)
+                         :replay/seed (:ctx/replay-seed resolved-attr)
+                         :oracle/cursor (:ctx/oracle-cursor resolved-attr)
+                         :oracle/mode (:ctx/oracle-mode resolved-attr)
+                         :oracle/fixture-id (:ctx/oracle-fixture-id resolved-attr)})
+        (assoc :inputs inputs :pre-state pre :post-state post)
+        (cond-> calc (assoc :calculation calc))
+        (cap/cap-field :world/before-hash before-hash)
+        (cap/cap-field :world/after-hash after-hash)
+        (cond-> (and (map? ctx-or-opts) (:world-before ctx-or-opts))
+          (assoc :world/before-full-hash (hc/hash-with-intent {:hash/intent :world-structure} (:world-before ctx-or-opts)))
+          (and (map? ctx-or-opts) (:world-after ctx-or-opts))
+          (assoc :world/after-full-hash (hc/hash-with-intent {:hash/intent :world-structure} (:world-after ctx-or-opts)))
+          (:ctx/evidence-group-id resolved-attr)
+          (assoc :evidence/group-id (:ctx/evidence-group-id resolved-attr)
+                 :evidence/layer :targeted-protocol))
+        (cap/finalize-evidence))))
+
 ;; ── Primary Capture API ──────────────────────────────────────────────────────
 
 (defn capture-event-evidence!

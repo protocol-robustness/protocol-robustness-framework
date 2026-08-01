@@ -148,6 +148,23 @@
       (is (empty? (:disconnected report)))
       (is (true? (:weakly-connected? report))))))
 
+(deftest report-reports-dag-structural-invalidity
+  (let [malformed {:dag/nodes [{:node/id :a} {:node/id :a}]
+                   :dag/edges [{:edge/from :a :edge/to :missing}
+                               {:edge/from :a :edge/to :a}]}
+        report (r/reachability-report malformed)]
+    (is (false? (:valid? report)))
+    (is (some #{:dag/duplicate-node-id} (:errors report)))
+    (is (some #{:dag/edge-endpoint-undeclared} (:errors report)))
+    (is (some #{:dag/self-loop} (:errors report)))))
+
+(deftest report-chain-set-is-explicitly-unordered
+  (let [report (r/reachability-report #{"b" "a"})]
+    (is (true? (:valid? report)))
+    (is (false? (:ordered? report)))
+    (is (nil? (:head-hash report)))
+    (is (nil? (:tail-hash report)))))
+
 (deftest report-dag-disconnected
   (testing "reachability-report detects disconnected DAG"
     (let [disconnected-dag {:dag/nodes [{:node/id :a} {:node/id :b} {:node/id :x}]

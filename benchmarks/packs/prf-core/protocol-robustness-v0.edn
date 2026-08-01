@@ -11,8 +11,8 @@
    :benchmark/scenario-suite  :suite/reference-validation-v1
    :benchmark/suite-pinned-version "1.3.0"
   :benchmark/scenario-suite-description
-  "Three Sew reference-validation scenarios: malicious-resolver-verdict-v1,
-   dispute-flooding-v1, and autopush-settlement-v1. These are
+  "Three Sew reference-validation scenarios: S25_profit-maximizer-slash-lifecycle,
+   S62_resolver-throughput-exhaustion, and S05_pending-settlement-execute. These are
    simulator-backed scenarios that exercise resolver accountability,
    liveness under adversarial load, and pull-first fund safety."
  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
@@ -48,13 +48,13 @@
   ;; slugs. The public id is what the runner emits as :scenario/id and what
   ;; evidence records carry, so the benchmark's declared scenarios must match.
   :benchmark/scenarios
-  [{:scenario/id "malicious-resolver-verdict-v1"
+  [{:scenario/id "S25_profit-maximizer-slash-lifecycle"
     :dimension   :robustness/resolver-accountability
     :claim       :malicious-verdict-economically-bounded}
-   {:scenario/id "dispute-flooding-v1"
+   {:scenario/id "S62_resolver-throughput-exhaustion"
     :dimension   :robustness/liveness-under-load
     :claim       :liveness-under-adversarial-load}
-   {:scenario/id "autopush-settlement-v1"
+   {:scenario/id "S05_pending-settlement-execute"
     :dimension   :robustness/escrow-fund-safety
     :claim       :pull-first-settlement-safety}]
   :benchmark/claims

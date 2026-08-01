@@ -6,7 +6,7 @@
      2. grant -> revoke -> execute         (rejected)
      3. grant -> expired -> execute        (rejected)
      4. grant -> execute -> execute again  (rejected by Gap 1 guard)"
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is use-fixtures]]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.lifecycle :as lc]
@@ -17,13 +17,23 @@
              [resolver-sim.time.context :as time-ctx]
              [resolver-sim.hash.canonical :as hc]
              [resolver-sim.protocols.sew.related-claims :as rc]
-             [resolver-sim.protocols.sew.invariants :as inv]))
+             [resolver-sim.protocols.sew.invariants :as inv]
+             [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
+             [resolver-sim.benchmark.research-assignment :as research-assignment])
+  (:import [org.bouncycastle.crypto.generators Ed25519KeyPairGenerator]
+           [org.bouncycastle.crypto.params Ed25519KeyGenerationParameters]
+           [org.bouncycastle.crypto.util PrivateKeyInfoFactory SubjectPublicKeyInfoFactory]
+           [java.security SecureRandom]
+           [java.util Base64]))
 
 (def gov-addr "0xGov")
 (def alice-addr "0xAlice")
 (def bob-addr "0xBob")
 (def resolver-addr "0xResolver")
 (def usdc "0xUSDC")
+
+(defn- test-root [label]
+  (str "sha256:" (hc/domain-hash :evidence-record {:label label})))
 
 (def gov-ctx
   "Context with a governance agent for grant/revoke actions."
@@ -102,7 +112,282 @@
        :auth-id auth-id}
       {:error (:error result)})))
 
+(def ^:private ephemeral-key-files (atom []))
+
+(use-fixtures
+  :each
+  (fn [test-fn]
+    (reset! ephemeral-key-files [])
+    (try
+      (test-fn)
+      (finally
+        (doseq [^java.io.File file @ephemeral-key-files]
+          (java.nio.file.Files/deleteIfExists (.toPath file)))))))
+
+(defn- ephemeral-ed25519-keypair
+  [label]
+  (let [generator (Ed25519KeyPairGenerator.)
+        _ (.init generator (Ed25519KeyGenerationParameters. (SecureRandom.)))
+        pair (.generateKeyPair generator)
+        encoder (Base64/getMimeEncoder)
+        private-file (java.io.File/createTempFile (str "sew-" label "-private") ".pem")
+        public-file (java.io.File/createTempFile (str "sew-" label "-public") ".pem")]
+    (spit private-file
+          (str "-----BEGIN PRIVATE KEY-----\n"
+               (.encodeToString encoder (.getEncoded
+                                         (PrivateKeyInfoFactory/createPrivateKeyInfo (.getPrivate pair))))
+               "\n-----END PRIVATE KEY-----\n"))
+    (spit public-file
+          (str "-----BEGIN PUBLIC KEY-----\n"
+               (.encodeToString encoder (.getEncoded
+                                         (SubjectPublicKeyInfoFactory/createSubjectPublicKeyInfo (.getPublic pair))))
+               "\n-----END PUBLIC KEY-----\n"))
+    ;; Owner-only access where supported by the host filesystem. The fixture
+    ;; deletes both files immediately after the test; deleteOnExit is fallback.
+    (.setReadable private-file true false)
+    (.setWritable private-file true false)
+    (.setExecutable private-file false false)
+    (.setReadable public-file true false)
+    (.setWritable public-file false false)
+    (.setExecutable public-file false false)
+    (.deleteOnExit private-file)
+    (.deleteOnExit public-file)
+    (swap! ephemeral-key-files into [private-file public-file])
+    {:private-key-path (.getPath private-file)
+     :public-key-path (.getPath public-file)}))
+
+(defn- consensus-grant-fixture
+  "Build a structurally valid, scope-bound researcher authorisation for P0
+   Sew reservation tests. Signature cryptography is exercised in the dedicated
+   researcher integration suite; this fixture isolates Sew transaction wiring."
+  [world]
+  (let [escrow (t/get-transfer world 0)
+        scope (sew/force-authorisation-held-scope "fa-0" escrow 0 true {})
+        scope-hash (hc/domain-hash acct/force-authorisation-scope-domain scope)
+        public-scope-hash (sew/public-force-authorisation-scope-ref scope-hash)
+        policy-hash (test-root :policy)
+        round-hash (test-root :round)
+        request-root (test-root :request)
+        command-root (test-root :command)
+        plan-root (test-root :plan)
+        policy {"member_count" 2 "threshold" 2 "single_use?" true
+                "preserve_dissent?" true "policy_sha256" policy-hash}
+        round {:review-round/id :review-round/sew-p0 :review-round/hash round-hash
+               :review-round/members [{:researcher/id "researcher-a"}
+                                      {:researcher/id "researcher-b"}]}
+        decisions [{:researcher/id "researcher-a" :decision :approve
+                    :decision/hash "sha256:decision-a"
+                    :signature {:algorithm :ed25519 :value "fixture" :signed-at "2026-01-01T00:00:00Z"}}
+                   {:researcher/id "researcher-b" :decision :approve
+                    :decision/hash "sha256:decision-b"
+                    :signature {:algorithm :ed25519 :value "fixture" :signed-at "2026-01-01T00:00:00Z"}}]
+        authorisation (researcher-fa/build-authorisation
+                       {:authorisation/id :sew/p0-consensus
+                        :authorisation/policy {:policy/id :sew/p0 :policy/version 1
+                                               :policy/schema-version "force-authorisation-policy.v1"
+                                               :policy/hash policy-hash}
+                        :authorisation/review-round {:review-round/id :review-round/sew-p0
+                                                     :review-round/hash round-hash}
+                        :authorisation/request-root request-root
+                        :authorisation/target {:target/kind :governance-mandated
+                                               :target/baseline-content-root (test-root :base)
+                                               :target/branch-descriptor-hash (test-root :branch)
+                                               :target/proposed-content-root (test-root :proposed)
+                                               :target/public-force-authorisation-scope-hash public-scope-hash}
+                        :authorisation/decision-references decisions
+                        :authorisation/threshold {:required 2 :eligible 2}
+                        :authorisation/valid-from "2026-01-01T00:00:00Z"
+                        :authorisation/expires-at "2026-12-31T23:59:59Z"})
+        assignment (research-assignment/build-assignment
+                    {:research-assignment/id :assignment/sew-p0
+                     :research-assignment/environment-hash (test-root :environment)
+                     :research-assignment/policy-hash policy-hash
+                     :research-assignment/review-round-hash round-hash
+                     :research-assignment/request-root request-root
+                     :research-assignment/target {:target/kind :governance-mandated
+                                                  :target/public-force-authorisation-scope-hash public-scope-hash
+                                                  :target/workflow-id 0
+                                                  :target/reason :resolver-overcapacity}
+                     :research-assignment/command-root command-root
+                     :research-assignment/plan-root plan-root})
+        registry (atom {})
+        context (assoc gov-ctx
+                       :research-assignment-resolver
+                       (fn [hash] (when (= hash (:research-assignment/hash assignment)) assignment))
+                       :researcher-force-authorisation-resolver
+                       (fn [hash] (when (= hash (:authorisation/hash authorisation)) authorisation))
+                       :researcher-force-authorisation-policy-resolver
+                       (fn [hash] (when (= hash policy-hash) policy))
+                       :researcher-force-authorisation-round-resolver
+                       (fn [hash] (when (= hash round-hash) round))
+                       :researcher-public-key-resolver (constantly "unused-in-wiring-test")
+                       :researcher-force-authorisation-consumed? (constantly false)
+                       :researcher-force-authorisation-reservation-registry registry
+                       :researcher-force-authorisation/now "2026-06-01T00:00:00Z")
+        event {:seq 0 :time 1000 :agent "gov" :action "grant-consensus-force-authorisation"
+               :params {:workflow-id 0 :reason :resolver-overcapacity
+                        :research-assignment/hash (:research-assignment/hash assignment)
+                        :researcher-force-authorisation/hash (:authorisation/hash authorisation)
+                        :researcher-force-authorisation/execution-attempt-id :attempt/sew-p0
+                        :researcher-force-authorisation/command-root command-root
+                        :researcher-force-authorisation/plan-root plan-root}}]
+    {:context context :event event :registry registry :authorisation authorisation
+     :assignment assignment}))
+
 ;; ── Scenario 1: grant -> execute -> consumed ─────────────────────────────────
+
+(deftest consensus-force-auth-verifies-real-ed25519-decisions
+  (let [world0 (disputed-world)
+        escrow (t/get-transfer world0 0)
+        scope (sew/force-authorisation-held-scope "fa-0" escrow 0 true {})
+        scope-ref (sew/public-force-authorisation-scope-ref
+                   (hc/domain-hash acct/force-authorisation-scope-domain scope))
+        policy-hash (test-root :p1-policy)
+        round-hash (test-root :p1-round)
+        request-root (test-root :p1-request)
+        keys {"researcher-a" (ephemeral-ed25519-keypair "researcher-a")
+              "researcher-b" (ephemeral-ed25519-keypair "researcher-b")}
+        decisions (mapv (fn [id]
+                          (researcher-fa/build-signed-decision
+                           id :sew/p1-consensus request-root round-hash :approve
+                           (get-in keys [id :private-key-path])))
+                        ["researcher-a" "researcher-b"])
+        auth (researcher-fa/build-authorisation
+              {:authorisation/id :sew/p1-consensus
+               :authorisation/policy {:policy/id :sew/p1 :policy/version 1
+                                      :policy/schema-version "force-authorisation-policy.v1"
+                                      :policy/hash policy-hash}
+               :authorisation/review-round {:review-round/id :review-round/sew-p1
+                                            :review-round/hash round-hash}
+               :authorisation/request-root request-root
+               :authorisation/target {:target/kind :governance-mandated
+                                      :target/baseline-content-root (test-root :p1-base)
+                                      :target/branch-descriptor-hash (test-root :p1-branch)
+                                      :target/proposed-content-root (test-root :p1-proposed)
+                                      :target/public-force-authorisation-scope-hash scope-ref}
+               :authorisation/decision-references decisions
+               :authorisation/threshold {:required 2 :eligible 2}
+               :authorisation/valid-from "2026-01-01T00:00:00Z"
+               :authorisation/expires-at "2026-12-31T23:59:59Z"})
+        assignment (research-assignment/build-assignment
+                    {:research-assignment/id :assignment/sew-p1
+                     :research-assignment/environment-hash (test-root :p1-environment)
+                     :research-assignment/policy-hash policy-hash
+                     :research-assignment/review-round-hash round-hash
+                     :research-assignment/request-root request-root
+                     :research-assignment/target {:target/kind :governance-mandated
+                                                  :target/public-force-authorisation-scope-hash scope-ref
+                                                  :target/workflow-id 0 :target/reason :resolver-overcapacity}
+                     :research-assignment/command-root (test-root :p1-command)
+                     :research-assignment/plan-root (test-root :p1-plan)})
+        policy {"member_count" 2 "threshold" 2 "single_use?" true
+                "preserve_dissent?" true "policy_sha256" policy-hash}
+        round {:review-round/id :review-round/sew-p1 :review-round/hash round-hash
+               :review-round/members [{:researcher/id "researcher-a"}
+                                      {:researcher/id "researcher-b"}]}
+        context (assoc gov-ctx
+                       :research-assignment-resolver #(when (= % (:research-assignment/hash assignment)) assignment)
+                       :researcher-force-authorisation-resolver #(when (= % (:authorisation/hash auth)) auth)
+                       :researcher-force-authorisation-policy-resolver #(when (= % policy-hash) policy)
+                       :researcher-force-authorisation-round-resolver #(when (= % round-hash) round)
+                       :researcher-public-key-resolver #(get-in keys [% :public-key-path])
+                       :researcher-force-authorisation-consumed? (constantly false)
+                       :researcher-force-authorisation-reservation-registry (atom {})
+                       :researcher-force-authorisation/now "2026-06-01T00:00:00Z")
+        result (sew/apply-action context world0
+                                 {:seq 0 :time 1000 :agent "gov"
+                                  :action "grant-consensus-force-authorisation"
+                                  :params {:workflow-id 0 :reason :resolver-overcapacity
+                                           :research-assignment/hash (:research-assignment/hash assignment)
+                                           :researcher-force-authorisation/hash (:authorisation/hash auth)
+                                           :researcher-force-authorisation/execution-attempt-id :attempt/sew-p1
+                                           :researcher-force-authorisation/command-root (test-root :p1-command)
+                                           :researcher-force-authorisation/plan-root (test-root :p1-plan)}})]
+    (is (:valid? (researcher-fa/verify-decision-signatures
+                  #(get-in keys [% :public-key-path]) auth)))
+    (is (:ok result))
+    (is (= :consensus-grant-reserved
+           (get-in result [:world :force-authorisations "fa-0"
+                           :authorization/provenance :authorization/assurance])))
+    (is (= (:research-assignment/hash assignment)
+           (get-in result [:world :force-authorisations "fa-0"
+                           :authorization/provenance :research-assignment/hash])))))
+
+(deftest consensus-force-auth-reserves-key-and-commits-final-provenance
+  (let [world0 (disputed-world)
+        {:keys [context event registry authorisation]} (consensus-grant-fixture world0)]
+    (with-redefs [researcher-fa/verify-decision-signatures (fn [_ _] {:valid? true :results []})]
+      (let [first-grant (sew/apply-action context world0 event)
+            auth-id (get-in first-grant [:extra :authorization/id])
+            reservation (get @registry (:authorisation/consumption-key authorisation))
+            stored (get-in first-grant [:world :force-authorisations auth-id])
+            second-grant (sew/apply-action context world0
+                                           (assoc-in event [:params :researcher-force-authorisation/execution-attempt-id]
+                                                     :attempt/sew-p0-conflict))]
+        (is (:ok first-grant))
+        (is (= :reserved (:status reservation)))
+        (is (= auth-id (:sew/authorization-id reservation)))
+        (is (= (:reservation/hash (get-in first-grant [:extra :researcher-force-authorisation/reservation]))
+               (:reservation/hash reservation)))
+        (is (= :researcher-threshold-authenticated
+               (get-in stored [:authorization/provenance :consensus/assurance])))
+        (is (= (:reservation/hash reservation)
+               (get-in stored [:authorization/provenance
+                               :researcher-force-authorisation/reservation-hash])))
+        (is (= :consensus-force-authorisation-reservation-binding-conflict (:error second-grant)))
+        (is (nil? (:world second-grant)))))))
+
+(deftest consensus-force-auth-resume-recovers-an-interrupted-pre-grant-lifecycle
+  (let [world0 (disputed-world)
+        clean-fixture (consensus-grant-fixture world0)
+        recovered-fixture (consensus-grant-fixture world0)]
+    (with-redefs [researcher-fa/verify-decision-signatures (fn [_ _] {:valid? true :results []})]
+      (let [clean (sew/apply-action (:context clean-fixture) world0 (:event clean-fixture))
+            consumption-key (:authorisation/consumption-key (:authorisation clean-fixture))
+            binding (get @(:registry clean-fixture) consumption-key)
+            _ (reset! (:registry recovered-fixture) {consumption-key binding})
+            recovered (sew/apply-action (:context recovered-fixture) world0 (:event recovered-fixture))
+            clean-record (get-in clean [:world :force-authorisations "fa-0"])
+            recovered-record (get-in recovered [:world :force-authorisations "fa-0"])]
+        (is (:ok clean))
+        (is (:ok recovered)
+            "an exact reserved binding recovers the interrupted pre-grant window")
+        (is (= (:world clean) (:world recovered))
+            "recovery constructs the same deterministic Sew grant world")
+        (is (= clean-record recovered-record))
+        (is (= (get-in clean [:extra :researcher-force-authorisation/reservation])
+               (get-in recovered [:extra :researcher-force-authorisation/reservation])))
+        (is (= binding (get @(:registry recovered-fixture) consumption-key))
+            "recovery retains its original reservation binding")
+        (is (not (contains? (:authorization/provenance recovered-record) :mode))
+            "operational resume mode is not persisted as consensus evidence")))))
+
+(deftest consensus-force-auth-releases-only-a-new-claim-when-grant-fails
+  (let [world0 (disputed-world)
+        {:keys [context event registry]} (consensus-grant-fixture world0)
+        rejecting-context (assoc context :force-authorisation-policy
+                                 {:allowed-reasons #{:different-reason}})]
+    (with-redefs [researcher-fa/verify-decision-signatures (fn [_ _] {:valid? true :results []})]
+      (let [result (sew/apply-action rejecting-context world0 event)]
+        (is (= :force-authorisation-reason-not-allowed (:error result)))
+        (is (empty? @registry)
+            "the call that made a new claim releases it when construction fails")
+        (is (nil? (:world result)))))))
+
+(deftest consensus-force-auth-preserves-a-resumed-reservation-on-grant-failure
+  (let [world0 (disputed-world)
+        {:keys [context event registry authorisation]} (consensus-grant-fixture world0)
+        rejecting-context (assoc context :force-authorisation-policy
+                                 {:allowed-reasons #{:different-reason}})]
+    (with-redefs [researcher-fa/verify-decision-signatures (fn [_ _] {:valid? true :results []})]
+      (let [first-grant (sew/apply-action context world0 event)
+            binding (get @registry (:authorisation/consumption-key authorisation))
+            retried (sew/apply-action rejecting-context world0 event)]
+        (is (:ok first-grant))
+        (is (= :force-authorisation-reason-not-allowed (:error retried)))
+        (is (= binding (get @registry (:authorisation/consumption-key authorisation)))
+            "a resumed caller cannot release an existing reservation")
+        (is (nil? (:world retried)))))))
 
 (deftest force-auth-grant-execute-consumed
   (let [world0 (disputed-world)
@@ -129,6 +414,18 @@
             (is (= auth-id (:authorization/id consumed)) "consumed registry should reference auth-id"))
 
           (is (= :released (t/escrow-state world2 0)) "escrow should be released"))))))
+
+(deftest consensus-force-auth-fails-closed-without-trusted-artifact-resolvers
+  (let [world0 (disputed-world)
+        event {:seq 0 :time 1000 :agent "gov"
+               :action "grant-consensus-force-authorisation"
+               :params {:workflow-id 0
+                        :reason :resolver-overcapacity
+                        :researcher-force-authorisation/hash "sha256:unresolved"}}
+        result (sew/apply-action gov-ctx world0 event)]
+    (is (= :consensus-force-authorisation-invalid (:error result)))
+    (is (= world0 (or (:world result) world0))
+        "a rejected consensus bridge request must not mutate custody or grants")))
 
 (deftest force-auth-public-parameter-provenance-round-trip
   (let [root-a (str "sha256:" (apply str (repeat 64 "a")))

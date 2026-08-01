@@ -648,7 +648,11 @@
    supplied together. They attest attribution only; this primitive does not
    resolve parameter values or evaluate economic policy."
   ([world token amount opts]
-   (adjust-held world token amount :in (merge {:action "add-held"} opts))))
+   ;; Normalize token to its keyword form (matching create-escrow's
+   ;; :held-ledger/index keys) so mixed string/keyword tokens cannot
+   ;; fragment the custody index.
+   (adjust-held world (if (keyword? token) token (keyword token)) amount :in
+                (merge {:action "add-held"} opts))))
 
 (defn sub-held
   "Decrease total-held for token by amount. Called on release/refund.
@@ -656,7 +660,8 @@
    so process-step's (catch Exception) handler converts it to :dispatch-exception
    rather than propagating an AssertionError past the catch boundary."
   ([world token amount opts]
-   (adjust-held world token amount :out (merge {:action "sub-held"} opts))))
+   (adjust-held world (if (keyword? token) token (keyword token)) amount :out
+                (merge {:action "sub-held"} opts))))
 
 ;; ---------------------------------------------------------------------------
 ;; Fee-recipient configuration

@@ -26,7 +26,7 @@
                  :parameter/address parameter-address}
         error (pa/parameter-attribution-error carrier)]
     {:parameter-pair-complete? (not (contains? #{:parameter-context-without-address
-                                                  :parameter-address-without-context} error))
+                                                 :parameter-address-without-context} error))
      :parameter-context-valid? (not= :invalid-parameter-context error)
      :parameter-address-valid? (not= :invalid-parameter-address error)}))
 
@@ -130,7 +130,7 @@
                                          (hash/hash-with-intent {:hash/intent :evidence-record}
                                                                 (held-custody-artifact-payload artifact)))
                       attribution-valid? (and (:structurally-valid? status)
-                                               (not (and v2? (:present? status))))
+                                              (not (and v2? (:present? status))))
                       artifact-valid? (and schema-valid?
                                            (= expected-hash (:artifact/hash artifact))
                                            attribution-valid?)
@@ -236,8 +236,8 @@
                     :details {:basis :structural-provenance
                               :valid-classification-counts
                               (frequencies (map :parameter-attribution/classification
-                                               (filter :artifact-valid?
-                                                       parameter-attribution-statuses)))
+                                                (filter :artifact-valid?
+                                                        parameter-attribution-statuses)))
                               :invalid-artifact-count
                               (count (remove :artifact-valid? parameter-attribution-statuses))
                               :attributions parameter-attribution-statuses
@@ -298,76 +298,76 @@
            (reduce (fn [{total-held :total-held
                          index :held-ledger/index
                          positions :held/positions} adjustment]
-               (let [{direction :held/direction
-                      token :token
-                      amount :amount
-                      before :held/before
-                      after :held/after
-                      position-id :held/position-id
-                      held-account :held/account
-                      owner-address :owner/address} adjustment
-                     workflow-id (:held/workflow-id adjustment)
-                     current (get total-held token 0)
-                     expected-after (case direction
-                                      :in  (+ current amount)
-                                      :out (- current amount)
-                                      (throw (ex-info "invalid held direction"
-                                                      {:type :invalid-held-adjustment
-                                                       :direction direction
-                                                       :adjustment adjustment})))]
-                 (when-not (valid-parameter-attribution?
-                            (:parameter/context adjustment)
-                            (:parameter/address adjustment))
-                   (throw (ex-info "held adjustment has invalid parameter attribution"
-                                   {:type :invalid-held-adjustment
-                                    :parameter-attribution
-                                    (parameter-attribution-check
-                                     (:parameter/context adjustment)
-                                     (:parameter/address adjustment))
-                                    :adjustment adjustment})))
-                 (when (nil? token)
-                   (throw (ex-info "held adjustment missing token"
-                                   {:type :invalid-held-adjustment
-                                    :adjustment adjustment})))
-                 (when (or (nil? amount) (neg? amount))
-                   (throw (ex-info "held adjustment amount must be non-negative"
-                                   {:type :invalid-held-adjustment
-                                    :adjustment adjustment})))
-                 (when (neg? expected-after)
-                   (throw (ex-info "held adjustment replay underflow"
-                                   {:type :invalid-held-adjustment
-                                    :adjustment adjustment
-                                    :current current})))
-                 (when (not= current before)
-                   (throw (ex-info "held adjustment before mismatch"
-                                   {:type :invalid-held-adjustment
-                                    :adjustment adjustment
-                                    :current current})))
-                 (when (not= expected-after after)
-                   (throw (ex-info "held adjustment after mismatch"
-                                   {:type :invalid-held-adjustment
-                                    :adjustment adjustment
-                                    :expected-after expected-after})))
-                 (let [step-fn (case direction
-                                 :in +
-                                 :out -)
-                       index' (cond-> (update-in index [:by-token token] (fnil step-fn 0) amount)
-                                position-id
-                                (update-in [:by-position position-id] (fnil step-fn 0) amount)
+                     (let [{direction :held/direction
+                            token :token
+                            amount :amount
+                            before :held/before
+                            after :held/after
+                            position-id :held/position-id
+                            held-account :held/account
+                            owner-address :owner/address} adjustment
+                           workflow-id (:held/workflow-id adjustment)
+                           current (get total-held token 0)
+                           expected-after (case direction
+                                            :in  (+ current amount)
+                                            :out (- current amount)
+                                            (throw (ex-info "invalid held direction"
+                                                            {:type :invalid-held-adjustment
+                                                             :direction direction
+                                                             :adjustment adjustment})))]
+                       (when-not (valid-parameter-attribution?
+                                  (:parameter/context adjustment)
+                                  (:parameter/address adjustment))
+                         (throw (ex-info "held adjustment has invalid parameter attribution"
+                                         {:type :invalid-held-adjustment
+                                          :parameter-attribution
+                                          (parameter-attribution-check
+                                           (:parameter/context adjustment)
+                                           (:parameter/address adjustment))
+                                          :adjustment adjustment})))
+                       (when (nil? token)
+                         (throw (ex-info "held adjustment missing token"
+                                         {:type :invalid-held-adjustment
+                                          :adjustment adjustment})))
+                       (when (or (nil? amount) (neg? amount))
+                         (throw (ex-info "held adjustment amount must be non-negative"
+                                         {:type :invalid-held-adjustment
+                                          :adjustment adjustment})))
+                       (when (neg? expected-after)
+                         (throw (ex-info "held adjustment replay underflow"
+                                         {:type :invalid-held-adjustment
+                                          :adjustment adjustment
+                                          :current current})))
+                       (when (not= current before)
+                         (throw (ex-info "held adjustment before mismatch"
+                                         {:type :invalid-held-adjustment
+                                          :adjustment adjustment
+                                          :current current})))
+                       (when (not= expected-after after)
+                         (throw (ex-info "held adjustment after mismatch"
+                                         {:type :invalid-held-adjustment
+                                          :adjustment adjustment
+                                          :expected-after expected-after})))
+                       (let [step-fn (case direction
+                                       :in +
+                                       :out -)
+                             index' (cond-> (update-in index [:by-token token] (fnil step-fn 0) amount)
+                                      position-id
+                                      (update-in [:by-position position-id] (fnil step-fn 0) amount)
 
-                                held-account
-                                (update-in [:by-account held-account] (fnil step-fn 0) amount)
+                                      held-account
+                                      (update-in [:by-account held-account] (fnil step-fn 0) amount)
 
-                                owner-address
-                                (update-in [:by-owner owner-address] (fnil step-fn 0) amount)
+                                      owner-address
+                                      (update-in [:by-owner owner-address] (fnil step-fn 0) amount)
 
-                                workflow-id
-                                (update-in [:by-workflow workflow-id] (fnil step-fn 0) amount))]
-                   {:held-ledger/index index'
-                    :total-held (:by-token index')
-                    :held/positions (:by-position index')})))
-             initial-state
-             adjustments)]
+                                      workflow-id
+                                      (update-in [:by-workflow workflow-id] (fnil step-fn 0) amount))]
+                         {:held-ledger/index index'
+                          :total-held (:by-token index')
+                          :held/positions (:by-position index')})))
+                   initial-state
+                   adjustments)]
        (held-index/validate-held-custody-state replayed)
        replayed))))
 

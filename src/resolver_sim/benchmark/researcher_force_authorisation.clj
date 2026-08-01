@@ -23,7 +23,8 @@
   (:require [clojure.set]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.signing :as signing]
-            [resolver-sim.benchmark.review-round :as rr]))
+            [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.assurance.authorised-effect-correlation :as correlation]))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Constants
@@ -868,6 +869,78 @@
         (throw (ex-info "Declared consumption/hash does not match computed value"
                         {:declared hash :computed computed-hash})))
       (assoc base :consumption/hash computed-hash))))
+
+(def ^:const receipt-v2-schema-version "force-authorisation-consumption.v2")
+(def ^:const effect-outcomes #{:not-produced :produced :reversed})
+
+(defn- receipt-v2-hash [receipt]
+  (str "sha256:" (hc/domain-hash :force-authorisation-consumption-v2
+                                  (dissoc receipt :consumption/hash))))
+
+(defn build-consumption-receipt-v2
+  "Build a status-aware v2 receipt. Correlation is accepted only as a validated
+   artifact and its hash is derived by the builder."
+  [{:keys [correlation consumption/status consumption/effect-outcome]
+    :as fields}]
+  (let [correlation-hash (:correlation/hash correlation)
+        required? (contains? #{[:consumed :produced]
+                               [:failed-after-consumption :produced]
+                               [:rolled-back-after-consumption :reversed]}
+                             [status effect-outcome])
+        prohibited? (= [:failed-after-consumption :not-produced] [status effect-outcome])
+        supplied (:consumption/effect-correlation-hash fields)]
+    (when-not (and (contains? effect-outcomes effect-outcome)
+                   (or (and required? (correlation/valid-correlation? correlation))
+                       (and prohibited? (nil? correlation)))
+                   (or required? prohibited?))
+      (throw (ex-info "Invalid v2 receipt effect outcome" {:status status :effect-outcome effect-outcome})))
+    (when (and supplied (not= supplied correlation-hash))
+      (throw (ex-info "Supplied correlation hash conflicts with correlation artifact" {})))
+    (when (and prohibited? correlation)
+      (throw (ex-info "not-produced receipt must not carry a correlation artifact" {})))
+    (let [v1 (build-consumption-receipt (dissoc fields :correlation :consumption/effect-outcome
+                                                   :consumption/effect-correlation-hash))
+          base (cond-> (assoc (dissoc v1 :consumption/hash)
+                              :schema-version receipt-v2-schema-version
+                              :consumption/effect-outcome effect-outcome)
+                 required? (assoc :consumption/effect-correlation-hash correlation-hash))]
+      (assoc base :consumption/hash (receipt-v2-hash base)))))
+
+(declare receipt-valid?)
+
+(defn validate-consumption-receipt-v2
+  "Strict structural validation for consumption receipt v2. Resolution of the
+   referenced correlation is deliberately a terminal-chain concern."
+  [receipt]
+  (let [outcome (:consumption/effect-outcome receipt)
+        correlation-hash (:consumption/effect-correlation-hash receipt)
+        requires? (contains? #{:produced :reversed} outcome)
+        errors (cond-> []
+                 (not= receipt-v2-schema-version (:schema-version receipt)) (conj :unsupported-receipt-version)
+                 (not (contains? effect-outcomes outcome)) (conj :invalid-effect-outcome)
+                 (and requires? (not (string? correlation-hash))) (conj :missing-effect-correlation)
+                 (and (= outcome :not-produced) correlation-hash) (conj :unexpected-effect-correlation)
+                 (and correlation-hash (not (re-matches #"sha256:[0-9a-f]{64}" correlation-hash)))
+                 (conj :invalid-effect-correlation-reference)
+                 (not= (:consumption/hash receipt) (receipt-v2-hash receipt)) (conj :receipt-hash-mismatch))]
+    {:valid? (empty? errors) :errors errors}))
+
+(defn validate-consumption-receipt
+  "Version-dispatched structural validator. V1 rejects appended v2 fields."
+  [receipt]
+  (case (:schema-version receipt)
+    "force-authorisation-consumption.v2" (validate-consumption-receipt-v2 receipt)
+    "force-authorisation-consumption.v1"
+    {:valid? (and (receipt-valid? receipt)
+                  (not= :rolled-back-after-consumption (:consumption/status receipt))
+                  (not (contains? receipt :consumption/effect-correlation-hash))
+                  (not (contains? receipt :consumption/effect-outcome)))
+     :errors (cond-> []
+               (not (receipt-valid? receipt)) (conj :invalid-v1-receipt)
+               (= :rolled-back-after-consumption (:consumption/status receipt)) (conj :v2-status-on-v1)
+               (contains? receipt :consumption/effect-correlation-hash) (conj :v2-field-on-v1)
+               (contains? receipt :consumption/effect-outcome) (conj :v2-field-on-v1))}
+    {:valid? false :errors [:unsupported-receipt-version]}))
 
 (defn receipt-valid?
   "Quick structural validity check for a consumption receipt artifact."

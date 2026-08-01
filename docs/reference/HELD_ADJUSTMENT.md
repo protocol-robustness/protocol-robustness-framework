@@ -35,6 +35,7 @@ operation for force-authorisation and related-member scope hashes:
  :token              :USDC
  :amount             100
  :held/account       :escrow-principal
+ :held/position-id   [:held/position :USDC :escrow-principal 42]
  :owner/address      "0xRecipient"
  :held/reason        :force-authorised-release
  :held/workflow-id   42
@@ -44,10 +45,10 @@ operation for force-authorisation and related-member scope hashes:
  :parameter/address  ...}
 ```
 
-` :held/position-id` is deliberately **record-only**. It is a derived custody
-partition identifier, not part of the established force-authorisation scope
-preimage. Keeping it out preserves legacy scope hashes and avoids changing the
-meaning of previously issued authorisations.
+` :held/position-id` is part of every new authorisation scope because it is a
+custody-location boundary. Grants issued before position binding retain their
+legacy preimage during execution and verification; newly issued grants include
+it and therefore cannot be reused for a different custody position.
 
 ### `held-adjustment-record`
 
@@ -178,7 +179,9 @@ standalone attribution hash:
 - force-authorisation scope hashes include the pair when present;
 - related-claims member scope hashes include the same projected pair.
 
-Legacy scope hashes remain unchanged when attribution is absent.
+Legacy scope hashes remain unchanged when attribution is absent. Grants issued
+before position binding also retain their original preimage; new grants bind
+`:held/position-id`.
 
 Closed-form artifact verification reports only valid classifications:
 

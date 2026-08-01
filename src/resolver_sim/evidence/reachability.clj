@@ -114,6 +114,49 @@
                (into (vec (rest queue)) unseen)))
       seen)))
 
+(defn- dag-cycle?
+  [adjacency node-ids]
+  (let [state (atom {})]
+    (letfn [(visit [node]
+              (case (get @state node)
+                :visiting true
+                :visited false
+                (do (swap! state assoc node :visiting)
+                    (let [cyclic? (boolean (some visit (get adjacency node #{})))]
+                      (swap! state assoc node :visited)
+                      cyclic?))))]
+      (boolean (some visit node-ids)))))
+
+(defn dag-structural-errors
+  "Return deterministic structural errors for a declared execution DAG.
+   Reachability queries remain permissive utilities; callers that need to admit
+   a DAG as evidence can require this result to be empty."
+  [dag]
+  (let [nodes (:dag/nodes dag [])
+        edges (:dag/edges dag [])
+        ids (map :node/id nodes)
+        id-set (set ids)
+        adjacency (build-adjacency edges)
+        base-errors (cond-> []
+                      (not (vector? nodes)) (conj :dag/nodes-not-vector)
+                      (not (vector? edges)) (conj :dag/edges-not-vector)
+                      (some #(or (not (map? %)) (nil? (:node/id %))) nodes)
+                      (conj :dag/invalid-node)
+                      (not= (count ids) (count id-set))
+                      (conj :dag/duplicate-node-id)
+                      (some #(or (not (map? %))
+                                 (nil? (:edge/from %))
+                                 (nil? (:edge/to %))) edges)
+                      (conj :dag/invalid-edge)
+                      (some #(or (not (contains? id-set (:edge/from %)))
+                                 (not (contains? id-set (:edge/to %)))) edges)
+                      (conj :dag/edge-endpoint-undeclared)
+                      (some #(= (:edge/from %) (:edge/to %)) edges)
+                      (conj :dag/self-loop))]
+    (cond-> base-errors
+      (and (empty? base-errors) (dag-cycle? adjacency id-set))
+      (conj :dag/cycle))))
+
 (defn dag-reachable?
   "True when to-id is reachable from from-id in the DAG.
 
@@ -235,6 +278,10 @@
           start-id (first (sort ids))
           reachable (if start-id (bfs-reachable adj start-id) #{})
           undirected-reachable (if start-id (bfs-reachable rev-adj start-id) #{})
+          roots (set/difference ids (set (map :edge/to edges)))
+          root-reachable (reduce set/union #{}
+                                 (map #(bfs-reachable adj %) roots))
+          errors (dag-structural-errors structure)
           components (let [visited (volatile! #{})
                            component-sizes (volatile! [])]
                        (doseq [nid (sort ids)]
@@ -244,25 +291,33 @@
                              (vswap! component-sizes conj (count comp)))))
                        (sort > @component-sizes))]
       {:type :dag
+       :valid? (empty? errors)
+       :errors errors
        :node-count (count nodes)
        :edge-count (count edges)
+       :roots (vec (sort roots))
        :disconnected (vec (sort (set/difference ids reachable)))
+       :unreachable-from-roots (vec (sort (set/difference ids root-reachable)))
        :weakly-connected? (= (count ids) (count undirected-reachable))
        :components (vec components)})
 
     (or (:chain/reachable-hashes structure)
         (vector? structure)
         (set? structure))
-    (let [hashes (if (vector? (:chain/reachable-hashes structure))
+    (let [ordered? (or (vector? (:chain/reachable-hashes structure))
+                       (vector? structure))
+          hashes (if (vector? (:chain/reachable-hashes structure))
                    (:chain/reachable-hashes structure)
-                   (if (vector? structure) structure (vec structure)))
+                   (if (vector? structure) structure (sort structure)))
           rset (set hashes)
           gaps (when check-set
                  (vec (sort (set/difference (set check-set) rset))))]
       {:type :chain
+       :valid? true
+       :ordered? ordered?
        :hash-count (count hashes)
-       :head-hash (first hashes)
-       :tail-hash (last hashes)
+       :head-hash (when ordered? (first hashes))
+       :tail-hash (when ordered? (last hashes))
        :chain-gaps gaps
        :gaps? (boolean (seq gaps))})
 
