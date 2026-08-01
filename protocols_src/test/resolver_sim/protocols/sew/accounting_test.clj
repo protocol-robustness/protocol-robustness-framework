@@ -10,6 +10,8 @@
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.assurance.custody        :as custody]
             [resolver-sim.yield.modules.adversarial :as adv-yield]
+            [resolver-sim.evidence.capture         :as cap]
+            [resolver-sim.time.context             :as time-ctx]
             [resolver-sim.hash.canonical          :as hash]))
 
 (def usdc :0xUSDC)
@@ -28,6 +30,27 @@
 (defn- base-world-with-recipient []
   (-> (base-world)
       (assoc-in [:fee-recipients :default] treasury)))
+
+(defn- valid-governance-force-authorisation
+  "Attach canonical governance-origin provenance to a synthetic force-authorisation
+   record so it models a governance-issued grant (matching the record shape
+   produced by grant-force-authorisation). Mechanism fixtures that carry this
+   helper represent valid production-shaped grants; fixtures without it are
+   explicit lower-level mechanism tests that bypass authentication."
+  [record]
+  (let [auth-id (:authorization/id record)
+        prov {:authorization/type :force-authorisation
+              :authorization/id auth-id
+              :authorization/source :governance
+              :authorization/check :with-governance-actor}]
+    (assoc record
+           :authorization/source :governance
+           :nonce auth-id
+           :created-by "0xGov"
+           :authorization/provenance prov
+           :authorization/history
+           [{:authorization/action "grant-force-authorisation"
+             :authorization/provenance prov}])))
 
 ;; ---------------------------------------------------------------------------
 ;; fee-recipient config
@@ -398,6 +421,40 @@
           "an un-declared direct :total-held write breaks reconstruction")
       (is (= :evaluated (:status rec))))))
 
+(deftest settlement-evidence-surfaces-write-down
+  (testing "A negative-yield (mark-to-market) principal write-down is surfaced on the
+            settlement evidence as :finalize/write-down, so the reconciliation
+            `owed (afa) - claimable == write-down` is visible at settlement without
+            replaying the held ledger."
+    (let [captured (atom [])
+          recorder (fn [& args] (swap! captured conj args) nil)
+          scenario {:initial-block-time 1000
+                    :yield-config {:modules {:fixed-rate {:tokens {"USDC" {:apy -0.5
+                                                                           :failure-modes #{:negative-yield}}}}}}}
+          world0   (proto/init-world sew/protocol scenario)
+          snap     (snap-fix/escrow-snapshot {:yield-generation-module :fixed-rate
+                                              :escrow-fee-bps 50
+                                              :yield-protocol-fee-bps 0
+                                              :appeal-window-duration 0})
+          created  (lc/create-escrow world0 alice "USDC" bob 10000
+                                     (t/make-escrow-settings {:yield-preset :to-recipient}) snap)
+          world1   (:world created)
+          world2   (time-ctx/advance-time world1 {:seconds 31536000})
+          world3   (lc/accrue-yield world2 0)
+          afa      (get-in world3 [:escrow-transfers 0 :amount-after-fee])
+          release  (with-redefs [resolver-sim.evidence.capture/capture-event-evidence! recorder]
+                     (lc/release world3 0 alice (fn [_ _ _] {:allowed? true})))
+          released (filter #(= :escrow-released (first %)) @captured)
+          inputs   (some-> (first released) (nth 3))]
+      (is (:ok release))
+      (is (seq released) "escrow-released evidence was captured")
+      (is (map? inputs))
+      (let [write-down (:finalize/write-down inputs)
+            claimable (get-in (:world release) [:claimable-v2 0 :settlement/principal bob] 0)]
+        (is (pos? write-down) "negative-yield principal write-down is surfaced")
+        (is (= (- afa claimable) write-down)
+            "reconciliation: owed (afa) - claimable == write-down")))))
+
 (deftest held-artifacts-must-match-derived-ledger-view
   (let [world (-> (t/empty-world)
                   (ac/add-held usdc 100 {:action "create-escrow"
@@ -460,16 +517,17 @@
          auth-prov {:authorization/type :force-authorisation
                     :authorization/id auth-id
                     :authorization/scope-hash scope-hash}
-         world (ac/sub-held {:total-held {usdc held}
+          world (ac/sub-held {:total-held {usdc held}
                               :held/positions {[:held/position usdc :escrow-principal 42] held}
                               :held-ledger/index {:by-token {usdc held}
                                                   :by-position {[:held/position usdc :escrow-principal 42] held}}
-                              :force-authorisations {auth-id {:authorization/id auth-id
-                                                              :authorization/status :active
-                                                              :consumed? false
-                                                              :starts-at 0
-                                                              :authorization/scope scope-map
-                                                              :authorization/scope-hash scope-hash}}}
+                              :force-authorisations {auth-id (valid-governance-force-authorisation
+                                                              {:authorization/id auth-id
+                                                               :authorization/status :active
+                                                               :consumed? false
+                                                               :starts-at 0
+                                                               :authorization/scope scope-map
+                                                               :authorization/scope-hash scope-hash})}}
                             usdc sub-amt
                            {:action "finalize-released"
                             :reason :force-authorised-release
@@ -669,16 +727,17 @@
                              :by-account {:escrow-principal 200}
                              :by-workflow {wf-0 200 wf-1 200}}
                             :force-authorisations
-                            {auth-id {:authorization/id auth-id
-                                      :authorization/status :active
-                                      :consumed? false
-                                      :starts-at 0
-                                                                            :authorization/scope-kind :related-claims
-                                                                            :relationship/id rel-id
-                                                                            :relationship/hash "rel-hash"
-                                                                            :member-scope-hashes [hash-0 hash-1]
-                                                                            :authorization/scope scope-0
-                                                                            :authorization/scope-hash hash-0}}
+                            {auth-id (valid-governance-force-authorisation
+                                      {:authorization/id auth-id
+                                       :authorization/status :active
+                                       :consumed? false
+                                       :starts-at 0
+                                       :authorization/scope-kind :related-claims
+                                       :relationship/id rel-id
+                                       :relationship/hash "rel-hash"
+                                       :member-scope-hashes [hash-0 hash-1]
+                                       :authorization/scope scope-0
+                                       :authorization/scope-hash hash-0})}
                              :related-claims
                              {rel-id {:relationship/id rel-id
                                       :relationship/status :active
@@ -732,15 +791,16 @@
                :by-account {:escrow-principal 200}
                :by-workflow {wf-0 200 wf-1 200}}
               :force-authorisations
-              {auth-id {:authorization/id auth-id
-                        :authorization/status :active
-                        :consumed? false :starts-at 0
-                        :authorization/scope-kind :related-claims
-                        :relationship/id rel-id
-                        :relationship/hash "rel-hash"
-                        :member-scope-hashes [hash-0 hash-1]
-                        :authorization/scope scope-0
-                        :authorization/scope-hash hash-0}}
+              {auth-id (valid-governance-force-authorisation
+                        {:authorization/id auth-id
+                         :authorization/status :active
+                         :consumed? false :starts-at 0
+                         :authorization/scope-kind :related-claims
+                         :relationship/id rel-id
+                         :relationship/hash "rel-hash"
+                         :member-scope-hashes [hash-0 hash-1]
+                         :authorization/scope scope-0
+                         :authorization/scope-hash hash-0})}
               :related-claims
               {rel-id {:relationship/id rel-id
                        :relationship/status :active
@@ -770,6 +830,15 @@
     (is (contains? (:consumed-members consumed) hash-0))
     (is (contains? (:consumed-members consumed) hash-1))
     (is (= 2 (:member-count consumed)))))
+
+;; ── Mechanism / unit fixtures (bypass authentication) ────────────────────────
+;;
+;; The rejection fixtures below deliberately construct force-authorisation
+;; records WITHOUT governance provenance. They isolate lower-level mechanism
+;; behavior (ensure-force-authorisation-usable!, scope matching, member
+;; rejection, consumption) and bypass the governance-gated grant path; they are
+;; not production-shaped grants. They are NOT run through check-all, so the
+;; force-authorisations-governance-origin invariant is not applied to them.
 
 (deftest force-authorised-sub-held-related-claims-rejects-member-reuse
   (let [auth-id "fa-rel-reuse-a1b2c3d4"

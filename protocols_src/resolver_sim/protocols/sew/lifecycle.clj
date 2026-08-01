@@ -230,6 +230,14 @@
                         (min raw-settle-amt held-after-policy))
         settled-amt sub-held-amt
         shortfall-started (:started-at pos-shortfall)
+        ;; Settlement write-down = the portion of the owed principal (raw-settle-amt)
+        ;; that is not settled to claimable (sub-held-amt) because it was already
+        ;; written down out of held — e.g. a negative-yield (mark-to-market)
+        ;; principal write-down. Surfaced on the settlement evidence so the
+        ;; reconciliation `owed - claimable == write-down` is visible at settlement
+        ;; without replaying the held ledger. Zero for normal and liquidity-shortfall
+        ;; settlements (deferred/haircut are tracked separately).
+        write-down (max 0 (- raw-settle-amt sub-held-amt))
         principal-position [:held/position token :escrow-principal workflow-id]
         principal-position-held (get-in world-after-policy [:held/positions principal-position] 0)
         evidence-reason (if (= direction :released) :escrow-released :escrow-refunded)]
@@ -294,6 +302,7 @@
              :finalize/recipient recipient
              :finalize/settled-amount settled-amt
              :finalize/sub-held-amount sub-held-amt
+             :finalize/write-down write-down
              :finalize/partial-yield? (boolean partial-yield?)
              :finalize/shortfall? (boolean pos-shortfall)
              :finalize/resolver (:dispute-resolver et)

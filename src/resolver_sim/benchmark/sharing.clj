@@ -15,6 +15,36 @@
 (defn generate-reproduce-command [evidence-path]
   (str "bb benchmark:reproduce " evidence-path))
 
+(def ^:private object-tag-reader
+  "LEGACY RUNTIME-VALUE COMPATIBILITY ONLY — not a permanent serialization design.
+
+   Reads #object[...] tagged literals emitted by pr-str for non-portable
+   Clojure objects (e.g. yield-module fns, java.time.Instant). Clojure function
+   objects are not portable data: a reader can turn the textual form into an
+   opaque placeholder vector, but it cannot reconstruct the original function
+   or establish its identity. This reader exists so legacy bundles written
+   before the writer-boundary migration remain readable for reproduction and
+   export.
+
+   Durable fix is at the WRITER boundary: evidence should serialize a stable
+   yield-module identifier/version/config, not the runtime fn value. Until
+   then, opaque object representations must not be relied upon in any field
+   that influences admission or assurance. Note the committed :evidence/hash
+   (:bundle-root) already normalizes runtime fns to a deterministic {:type :fn}
+   marker via project-world-to-structure-view, so it is unaffected by this tag.
+
+   Returns the raw tagged vector, which is inert (not callable, not an object)."
+  (fn [v] v))
+
+(defn read-evidence-file
+  "Reads an evidence bundle, tolerating the #object tagged literals that
+  pr-str emits for non-portable Clojure objects (e.g. yield-module fns,
+  java.time.Instant). These values are not round-trippable; reproduce/export
+  only read the surrounding canonical map, so the raw tagged vector is kept."
+  [path]
+  (edn/read-string {:readers {'object object-tag-reader}}
+                   (slurp path)))
+
 (defn share-summary
   ([evidence] (share-summary evidence "evidence/latest.edn"))
   ([evidence evidence-path]
@@ -41,7 +71,7 @@
           "Reproduce:\n" (generate-reproduce-command evidence-path)))))
 
 (defn reproduce [evidence-path]
-  (let [evidence (edn/read-string (slurp evidence-path))
+  (let [evidence (read-evidence-file evidence-path)
         target-commit (get-in evidence [:repo :repo :commit])
         current-meta (repo/metadata)
         current-commit (get-in current-meta [:repo :commit])
@@ -95,7 +125,7 @@
     {:path path :manifest manifest :sha256 (sha256-file path)}))
 
 (defn export [evidence-path export-tar-path]
-  (let [evidence (edn/read-string (slurp evidence-path))
+  (let [evidence (read-evidence-file evidence-path)
         tmp-dir (.toFile (java.nio.file.Files/createTempDirectory "benchmark-export-"
                                                                   (make-array java.nio.file.attribute.FileAttribute 0)))
         export-file (.getAbsoluteFile (io/file export-tar-path))]
@@ -171,7 +201,7 @@
       nil)))
 
 (defn attest [evidence-path private-key-path password]
-  (let [evidence (edn/read-string (slurp evidence-path))
+  (let [evidence (read-evidence-file evidence-path)
 
         bm-id (get-in evidence [:benchmark :benchmark/id])
         bm-commit (get-in evidence [:benchmark :commit])
@@ -188,7 +218,7 @@
     attestation))
 
 (defn verify-attestation [attestation-path]
-  (let [attestation (edn/read-string (slurp attestation-path))
+  (let [attestation (read-evidence-file attestation-path)
         evidence-hash (:evidence/hash attestation)
         signature (:signature attestation)
         pub-key-path (get-in attestation [:attestor :public-key-path])]

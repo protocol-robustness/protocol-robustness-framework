@@ -382,11 +382,20 @@
   ;; Live Sew world-state mutation corresponding to the pure custody
   ;; reconstruction in resolver-sim.assurance.custody.
   ;;
-  ;; Opening semantics: :by-token is seeded from the live :total-held (the
-  ;; authoritative running balance) and updated by the adjustment step. Under
-  ;; the zero-origin contract (first :in per token from 0) this is identical to
-  ;; replay-held-adjustment-state from {}; the live path does not itself
-  ;; enforce zero-origin because :total-held already carries the running level.
+  ;; Authoritative source: the existing index, NOT :total-held. The seed map
+  ;; below is merged UNDER the current index (merge keeps the later index keys),
+  ;; so on any normal world the existing index wins and the seed is inert; it
+  ;; only supplies defaults when the index is missing a dimension (e.g. the
+  ;; opening empty-index case). The adjustment step is then applied on top, and
+  ;; :total-held / :held/positions are re-derived FROM the index. Divergence
+  ;; between the top-level aliases and the index is therefore impossible after a
+  ;; live mutation.
+  ;;
+  ;; Opening semantics: with an empty index the first :in per token is applied
+  ;; from 0. Under the zero-origin contract (first :in per token from 0) this is
+  ;; identical to replay-held-adjustment-state from {}; the live path does not
+  ;; itself enforce zero-origin because the running level already lives in the
+  ;; index/top-level aliases.
   ;;
   ;; Kept protocol-local because it currently operates on the complete Sew world
   ;; and because custody projection authority and live-transition validation have

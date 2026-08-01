@@ -39,7 +39,8 @@
 (def ^:private token   "0xUSDC")
 
 (defn- base-snap
-  "Standard module snapshot with 0 appeal window (immediate finalization)."
+  "Standard module snapshot with 0 appeal window (zero waiting period; the
+   pending-settlement lifecycle still applies — settlement executes immediately)."
   ([] (base-snap {}))
   ([overrides]
    (snap-fix/escrow-snapshot (merge {:max-dispute-duration   2592000
@@ -74,12 +75,17 @@
      {:world (:world dr) :wf-id wf-id})))
 
 (defn- make-resolved
-  "Create, dispute, and immediately resolve (release) an escrow."
+  "Create, dispute, resolve (release), then execute the pending settlement —
+   producing a terminal :released escrow.  With a zero appeal window the
+   pending settlement is immediately executable, so the keeper step follows
+   in the same transition."
   [world]
   (let [{:keys [world wf-id]} (make-disputed world)
         rr (res/execute-resolution world wf-id r0 true "0xhash" nil)]
     (when-not (:ok rr) (throw (ex-info "execute-resolution failed" rr)))
-    {:world (:world rr) :wf-id wf-id}))
+    (let [ep (res/execute-pending-settlement (:world rr) wf-id)]
+      (when-not (:ok ep) (throw (ex-info "execute-pending-settlement failed" ep)))
+      {:world (:world ep) :wf-id wf-id})))
 
 (defn- make-pending
   "Create, dispute, then submit resolution that defers into appeal window.

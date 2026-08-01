@@ -134,7 +134,7 @@
    {"reverted":true,
     "error":"not-authorized-resolver",
     "escrow_state":4,
-    "pending_settlement_exists":false,
+    "pending_settlement_exists":true,
     "accepted":false,
     "state_changed":false,
     "rejection_reason":"not-authorized-resolver"},

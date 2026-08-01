@@ -117,7 +117,15 @@ Example: bb cli scenario list --search yield"
                  "resolver-sim.validation.scenario-registry-test"
                  "resolver-sim.run.overview-test"
                  "resolver-sim.evidence.node-test"
-                 "resolver-sim.evidence.attestation-dag-test")}
+                 "resolver-sim.evidence.attestation-dag-test"
+                 "resolver-sim.economics.payoffs-test"
+                 "resolver-sim.hash.canonical-test"
+                 "resolver-sim.hash.concat-properties-test"
+                 "resolver-sim.hash.attestor-hash-test"
+                 "resolver-sim.evidence.chain-test"
+                 "resolver-sim.evidence.commitment-root-test"
+                 "resolver-sim.evidence.finalization-test"
+                 "resolver-sim.evidence.qol-test")}
 
    test:evidence
    {:doc "Run evidence-chain unit tests (node, chain, registry, attestation, integrity, qol) with noop capture"

@@ -570,13 +570,21 @@
         (cond
           (empty? active)
           (let [allocations (allocations-in-input-order items id-fn (vals committed))
-                total-allocated (reduce +' 0 (map :allocated allocations))]
+                total-allocated (reduce +' 0 (map :allocated allocations))
+                ;; Every active item was committed at its cap. The residual was
+                ;; claimed by those caps but could not be satisfied, so it is
+                ;; unmet, not unallocatable remainder. Only report a
+                ;; redistribution when some pass left uncapped survivors (i.e.
+                ;; excess actually flowed between rounds); a single all-capped
+                ;; pass is not a redistribution.
+                redistributed? (some #(not= (:active-ids %) (:capped-ids %)) passes)]
             {:allocations allocations :total-requested amount
-             :total-allocated total-allocated :total-unmet 0 :remainder remaining
+             :total-allocated total-allocated :total-unmet remaining :remainder 0
              :policy {:rounding rounding :remainder-policy :unallocated
                       :ordering-policy ordering-policy :total-weight weight-total}
-             :redistribution {:passes passes :total-passes round-index
-                              :residual-reason :no-remaining-capacity}})
+             :redistribution (when redistributed?
+                               {:passes passes :total-passes round-index
+                                :residual-reason :no-remaining-capacity})})
 
           (zero? weight-total)
           (let [all-rows (merge committed

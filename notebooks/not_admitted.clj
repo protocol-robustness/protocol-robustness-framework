@@ -12,6 +12,10 @@
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.accounting.held-ledger-index :as hli]
+            [resolver-sim.protocols.sew :as sew]
+            [resolver-sim.protocols.sew.types :as sew-types]
+            [resolver-sim.protocols.sew.lifecycle :as lc]
+            [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
             [resolver-sim.protocols.sew.accounting :as sew-acc]
             [resolver-sim.assurance.custody :as custody]
             [resolver-sim.assurance.force-authorisation :as fass]
@@ -586,8 +590,24 @@
 ;; The static index above shows the shape.  Here the live mutation path
 ;; (`add-held` / `sub-held`) produce the index
 ;; as a side effect of custody accounting.  This is the boundary that the
-;; direct-write allowlist protects: only `add-held` and `sub-held` are
-;; authorised to mutate `:total-held`, `:held/positions`, and the index.
+;; direct-write allowlist (`scripts/scenarios/check_direct_writes.clj`)
+;; protects: for the canonical custody-mutation path, `add-held` and
+;; `sub-held` are the only entry points authorised to mutate
+;; `:total-held`, `:held/positions`, and the index.
+;;
+;; Two further writers are permitted by design, each either private or an
+;; explicit completeness-clearing escape hatch rather than an independent
+;; custody authority: (1) `update-ledger-index` is a private helper whose
+;; writes are downstream of an authorised `adjust-held` mutation, so it is
+;; intentionally NOT in the allowlist and is instead recognised by the gate as
+;; the sole canonical private ledger/index mutator (verified to stay `defn-`
+;; and reachable only from `adjust-held`); (2) the completeness-clearing
+;; escape hatches — `adversarial-accrue` and the liquid-lending pro-rata
+;; application (`apply-pro-rata-propagation`) — write `:total-held` directly
+;; but set `:held-adjustments/complete?` false so strong replay stays guarded.
+;; The gate (`check:direct-writes`) verifies each escape-hatch entry actually
+;; clears the flag and passes cleanly; they are not generic authorised
+;; direct-write locations.
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def mut-before
@@ -766,6 +786,56 @@
                  (str (count (:violations details)) " violations")]])
              (:checks mut-chain)))])
 
+;; Step 4b — live vs replay differential: the independent replay path
+;; (`replay-held-adjustment-state`, a pure reconstruction from the adjustment
+;; ledger with no Sew dependency) must reproduce the live world's custody state
+;; exactly. This is the direct equivalence check behind §9's "shared contract"
+;; claim — not just the closed-form checks above.
+;;
+;; The §10 chain is zero-origin (each token's first :held/before is 0), so
+;; replay from {} is deterministic and must match the live index, :total-held,
+;; and :held/positions dimension for dimension.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def mut-replay
+  (let [live (:held-ledger/index mut-multi)
+        replayed (custody/replay-held-adjustment-state (:held-adjustments mut-multi))
+        rindex (:held-ledger/index replayed)]
+    {:zero-origin? (custody/held-history-zero-origin? (:held-adjustments mut-multi))
+     :by-token-equal? (= (:by-token live) (:by-token rindex))
+     :by-position-equal? (= (:by-position live) (:by-position rindex))
+     :by-account-equal? (= (:by-account live) (:by-account rindex))
+     :by-owner-equal? (= (:by-owner live) (:by-owner rindex))
+     :by-workflow-equal? (= (:by-workflow live) (:by-workflow rindex))
+     :total-held-equal? (= (:total-held mut-multi) (:total-held replayed))
+     :positions-equal? (= (:held/positions mut-multi) (:held/positions replayed))
+     :summary (custody/final-held-summary (:held-adjustments mut-multi)
+                                          rindex (:total-held replayed))}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "▸ replay-held-adjustment-state — independent reconstruction of the live world"]
+  [:div {:style {:fontSize "11px" :marginBottom "6px"}}
+   "zero-origin contract: "
+   [:strong {:style {:color (if (:zero-origin? mut-replay) "#22c55e" "#ef4444")}}
+    (if (:zero-origin? mut-replay) "PASS" "FAIL")]]
+  (into [:table {:style {:width "100%" :borderCollapse "collapse" :fontSize "12px"}}]
+        (map (fn [[label equal?]]
+               [:tr {:key (name label)}
+                [:td {:style {:padding "4px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a"}} (name label)]
+                [:td {:style {:padding "4px 8px" :color (if equal? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
+                 (if equal? "MATCH" "DIVERGE")]])
+             (select-keys mut-replay [:by-token-equal? :by-position-equal?
+                                      :by-account-equal? :by-owner-equal?
+                                      :by-workflow-equal? :total-held-equal?
+                                      :positions-equal?])))
+  [:div {:style {:marginTop "8px" :borderTop "1px solid #334155" :paddingTop "8px" :fontSize "11px" :color "#94a3b8"}}
+   "final-held-summary: "
+   (pr-str (:summary mut-replay))]])
+
 ;; Step 5 — admission gates: what add-held/sub-held reject.
 ;; The same boundary that section 17 demonstrates for force-authorisation applies
 ;; to custody mutations: invalid inputs, exceptional reasons without provenance,
@@ -822,12 +892,17 @@
    "Rejected mutations leave accounting state AND evidence-chain state unchanged (",
    (pr-str (custody-state-projection mut-before)) ")"]])
 
-;; Step 6 — exceptional mutation with valid authorization is admitted.
+;; Step 6 — DIRECT-CONSTRUCTION mechanics example.
 ;; The negative :missing-authorization-provenance gate above is only half the
 ;; story: an exceptional custody mutation is not impossible, it is admissible
 ;; exactly when the authorization evidence is. The grant is consumed, the held
 ;; mutation occurs, a held-custody artifact is appended, and the same closed-form
 ;; chain verifier still passes.
+;;
+;; NOTE: the authorization record below is CONSTRUCTED LOCALLY to isolate
+;; scope/lifecycle/consumption behavior. Production force authorisations cannot
+;; be created this way through the Sew action surface — creation and revocation
+;; are governance-gated (see Step 8).
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def fa-add-held-pos
@@ -929,6 +1004,100 @@
   [:div {:style {:marginTop "8px" :fontSize "10px" :color "#94a3b8"}}
    "The green five-check table is not merely descriptive: broken chain ordering is
     detected (hash-integrity + predecessor-continuity fail)."]])
+
+;; Step 8 — the legitimate public path: governance grants, anyone executes.
+;;
+;; The synthetic Step 6 record is NOT how production force authorisations are
+;; obtained. Through the Sew action surface:
+;;
+;;   governance actor ──► grant-force-authorisation ──► governance-origin record
+;;   non-governance actor ──► grant ──► :not-governance
+;;   any resolved actor ──► execute-force-authorised-action ──► scope-locked,
+;;     single-use custody mutation (grant consumed, escrow released)
+;;
+;; Execution is intentionally unprivileged: the privilege lives in the
+;; authenticated, scope-locked, consumable capability.
+
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
+(def fa-legit
+  (let [snap (snap-fix/escrow-snapshot {:escrow-fee-bps 50})
+        w0 (sew-types/empty-world 1000)
+        cr (lc/create-escrow w0 "0xAlice" :0xUSDC "0xBob" 10000
+                             (sew-types/make-escrow-settings {}) snap)
+        disputed (-> (:world cr)
+                     (assoc-in [:escrow-transfers 0 :escrow-state] :disputed)
+                     (assoc-in [:escrow-transfers 0 :sender-status] :raise-dispute)
+                     (assoc-in [:escrow-transfers 0 :dispute-resolver] "0xResolver"))
+        gov-ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}}
+        non-gov-ctx {:agent-index {"mallory" {:id "mallory" :address "0xMallory" :type "honest"}}}
+        exec-ctx {:agent-index {"exec" {:address "0xExecutor"}}}
+        grant-event {:seq 0 :time 1000 :agent "gov" :action "grant-force-authorisation"
+                     :params {:workflow-id 0 :reason :resolver-overcapacity}}
+        grant (sew/apply-action gov-ctx disputed grant-event)
+        auth-id (get-in grant [:extra :authorization/id])
+        record (get-in grant [:world :force-authorisations auth-id])
+        mallory-grant-event {:seq 0 :time 1000 :agent "mallory" :action "grant-force-authorisation"
+                             :params {:workflow-id 0 :reason :resolver-overcapacity}}
+        mallory-grant (sew/apply-action non-gov-ctx disputed mallory-grant-event)
+        exec-event {:seq 1 :time 1000 :agent "exec" :action "execute-force-authorised-action"
+                    :params {:workflow-id 0 :authorization-id auth-id :is-release true}}
+        executed (sew/apply-action exec-ctx (:world grant) exec-event)
+        w-exec (:world executed)
+        exec-consumed (get-in w-exec [:force-authorisations/consumed auth-id])
+        reuse (sew/apply-action exec-ctx w-exec exec-event)]
+    {:auth-id auth-id
+     :granted? (:ok grant)
+     :provenance (select-keys (:authorization/provenance record)
+                              [:authorization/type :authorization/source
+                               :authorization/check :authorization/scope-hash])
+     :nonce (:nonce record)
+     :created-by (:created-by record)
+     :non-governance-grant (:error mallory-grant)
+     :executed? (:ok executed)
+     :grant-status (get-in w-exec [:force-authorisations auth-id :authorization/status])
+     :consumed? (:consumed? exec-consumed)
+     :reuse-error (:error reuse)}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "▸ legitimate public path — governance grants, scope-locked single-use execution"]
+  [:div {:style {:display "grid" :gap "4px" :fontSize "11px" :marginBottom "10px"}}
+   [:div {:style {:display "flex" :gap "8px"}}
+    [:span {:style {:color "#94a3b8" :minWidth "150px"}} "governance grant"]
+    [:span {:style {:color (if (:granted? fa-legit) "#22c55e" "#ef4444") :fontWeight 700}}
+     (if (:granted? fa-legit) "ADMITTED" "REJECTED")]
+    [:span {:style {:color "#94a3b8"}} (str "auth-id=" (:auth-id fa-legit))]]
+   [:div {:style {:display "flex" :gap "8px"}}
+    [:span {:style {:color "#94a3b8" :minWidth "150px"}} "non-governance grant"]
+    [:span {:style {:color "#ef4444" :fontWeight 700}} (name (:non-governance-grant fa-legit))]]
+   [:div {:style {:display "flex" :gap "8px"}}
+    [:span {:style {:color "#94a3b8" :minWidth "150px"}} "any resolved actor execute"]
+    [:span {:style {:color (if (:executed? fa-legit) "#22c55e" "#ef4444") :fontWeight 700}}
+     (if (:executed? fa-legit) "EXECUTED" "REJECTED")]
+    [:span {:style {:color "#94a3b8"}} "grant "
+     (name (:grant-status fa-legit)) "  consumed? " (:consumed? fa-legit)]]
+   [:div {:style {:display "flex" :gap "8px"}}
+    [:span {:style {:color "#94a3b8" :minWidth "150px"}} "grant reuse"]
+    [:span {:style {:color "#ef4444" :fontWeight 700}} (name (:reuse-error fa-legit))]]]
+  [:div {:style {:color "#94a3b8" :fontSize "11px" :marginBottom "4px"}}
+   "record provenance:"]
+  (for [[k v] (:provenance fa-legit)]
+    [:div {:style {:display "flex" :gap "6px" :fontSize "10px"}}
+     [:span {:style {:color "#94a3b8" :minWidth "120px"}} (name k)]
+     [:span {:style {:color "#e2e8f0"}} (pr-str v)]])
+  [:div {:style {:display "flex" :gap "6px" :fontSize "10px" :marginTop "2px"}}
+   [:span {:style {:color "#94a3b8" :minWidth "120px"}} "nonce"]
+   [:span {:style {:color "#e2e8f0"}} (pr-str (:nonce fa-legit))]]
+  [:div {:style {:display "flex" :gap "6px" :fontSize "10px"}}
+   [:span {:style {:color "#94a3b8" :minWidth "120px"}} "created-by"]
+   [:span {:style {:color "#e2e8f0"}} (pr-str (:created-by fa-legit))]]
+  [:div {:style {:marginTop "8px" :fontSize "10px" :color "#94a3b8"}}
+   "Only governance can create/revoke; the executing actor is intentionally
+    unprivileged because the privilege lives in the authenticated, scope-locked,
+    single-use grant."]])
 
 ;; ---
 ;; ## 11. Aggregate Shortfall Cap (yield Invariant)
@@ -2062,6 +2231,16 @@
                    grant-after]]))
              fa-rejection-cases))])
 
+;; **claim-deferred.** The matrix above demonstrates missing / forged /
+;; consumed / scope-mismatched / not-yet-valid / expired force-authorisations.
+;; Two force-authorisation rejection classes are implemented and tested but are
+;; **not** demonstrated by this notebook: a `:revoked`/`:not-active` grant
+;; status (`ensure-force-authorisation-usable!` → `:authorization/not-active`),
+;; and the multi-member `related-claims` scope-kind rejection matrix
+;; (member-not-in-relationship, member-scope-not-authorized, member reuse,
+;; inactive relationship). Treat those as deferred evidence; do not read this
+;; section as asserting notebook-level coverage of them.
+
 ;; ### 17.2 Successful authorized mutation
 ;;
 ;; A valid, active, scope-matching grant causes exactly the intended held-ledger
@@ -2209,7 +2388,9 @@
 ;; - **Held-ledger index** formalises the shared contract between live and replay
 ;;   custody paths, preventing structural drift via a Malli schema.
 ;; - **Second-order mutation path** demonstrates `add-held`/`sub-held` producing
-;;   a valid index as a side effect of custody accounting.
+;;   a valid index as a side effect of custody accounting, plus the
+;;   **live-vs-replay differential** (`replay-held-adjustment-state` reproduces
+;;   the live `:total-held`, `:held/positions`, and every index dimension).
 ;; - **Protected held-ledger authorization boundary** demonstrates that only a
 ;;   currently usable force-authorization bound to the requested scope can mutate
 ;;   the ledger: every failed check leaves the projection unchanged and the grant

@@ -68,29 +68,113 @@
   (let [r (or (:role agent) (:type agent) "")]
     (contains? #{"governance" :governance} r)))
 
-(defn- governance-pred
-  "Build a governance predicate from the execution context.
-   In :full mode every agent passes; otherwise only governance-role agents pass."
+(defn- normalize-governance-identity
+  "Canonicalize the :governance/identity configuration. Accepts a string address
+   or a map {:governance/address <addr>}. Returns nil when not configured.
+   Throws on malformed configuration (before any action is attempted)."
+  [identity]
+  (cond
+    (nil? identity) nil
+    (string? identity) {:governance/address identity}
+    (map? identity)
+    (let [addr (:governance/address identity)]
+      (if (and (string? addr) (not= "" addr))
+        {:governance/address addr}
+        (throw (ex-info "malformed :governance/identity — missing non-empty :governance/address"
+                        {:type :invalid-governance-identity
+                         :governance-identity identity}))))
+    :else
+    (throw (ex-info "malformed :governance/identity — expected string address or map"
+                    {:type :invalid-governance-identity
+                     :governance-identity identity}))))
+
+(defn- governance-check
+  "Build a reason-carrying governance check from the execution context.
+
+   Returns {:ok true :authentication-mode <kw> :configured-governance-address <addr?>
+            :address-bound? <bool> :basis <kw>} on success, or
+   {:ok false :error <kw> :detail {...}} on failure.
+
+   Modes:
+     :restricted (default) — requires a configured :governance/identity record.
+        An actor is governance iff its resolved role/type is governance AND its
+        resolved address equals the configured governance address. A missing
+        identity fails closed with :governance-identity-not-configured (never a
+        silent role-only fallback).
+     :open / :full         — any resolved actor (explicitly open).
+     :legacy               — explicit role-only governance (weaker; recorded in
+        provenance as :scenario-declared-role).
+   Any other mode fails closed with :unsupported-governance-mode."
   [context]
-  (let [mode (get context :governance-mode :restricted)]
-    (fn [agent]
-      (or (= :full mode)
-          (governance-actor? agent)))))
+  (let [mode (keyword (or (get context :governance-mode) :restricted))
+        identity (normalize-governance-identity (:governance-identity context))
+        configured-addr (get-in identity [:governance/address])]
+    (case mode
+      :restricted
+      (fn [addr agent]
+        (cond
+          (nil? configured-addr)
+          {:ok false :error :governance-identity-not-configured
+           :detail {:mode :restricted}}
+
+          (not (governance-actor? agent))
+          {:ok false :error :not-governance
+           :detail {:mode :restricted :actor-address addr :address-bound? true}}
+
+          (not= configured-addr addr)
+          {:ok false :error :not-governance
+           :detail {:mode :restricted :actor-address addr
+                    :configured-governance-address configured-addr
+                    :address-bound? true}}
+
+          :else
+          {:ok true :authentication-mode :address-bound
+           :configured-governance-address configured-addr
+           :address-bound? true
+           :basis :scenario-configured-address-binding}))
+
+      (:open :full)
+      (fn [_addr _agent]
+        {:ok true :authentication-mode :open
+         :configured-governance-address configured-addr
+         :address-bound? false
+         :basis :scenario-declared-open})
+
+      :legacy
+      (fn [addr agent]
+        (if (governance-actor? agent)
+          {:ok true :authentication-mode :role
+           :configured-governance-address configured-addr
+           :address-bound? false
+           :basis :scenario-declared-role}
+          {:ok false :error :not-governance
+           :detail {:mode :legacy :actor-address addr}}))
+
+      (fn [_addr _agent]
+        {:ok false :error :unsupported-governance-mode
+         :detail {:mode mode}}))))
 
 (defn- governance-authorization-provenance
-  [context event addr]
-  (let [action-name (.replace (name (:action event)) "_" "-")]
-    {:authorization/schema-version "governance-authorization.v1"
+  [context event addr auth-info]
+  (let [action-name (.replace (name (:action event)) "_" "-")
+        mode (keyword (or (get context :governance-mode) :restricted))
+        configured-addr (:configured-governance-address auth-info)]
+    {:authorization/schema-version "governance-authorization.v2"
      :authorization/type :governance
-     :authorization/basis :scenario-declared
+     :authorization/basis (or (:basis auth-info) :scenario-declared)
      :authorization/actor-id (:agent event)
      :authorization/address addr
+     :authorization/actor-address addr
+     :authorization/configured-governance-address configured-addr
      :authorization/check :with-governance-actor
      :authorization/source :replay-context/agent-index
      :authorization/action action-name
-     :authorization/governance-mode (get context :governance-mode :restricted)
+     :authorization/governance-mode mode
+     :authorization/authentication-mode (:authentication-mode auth-info)
+     :authorization/address-bound? (boolean (:address-bound? auth-info))
+     :authorization/registry-verified? false
      :authorization/limitation
-     "Governance authority is scenario-declared in replay context; not registry-verified."}))
+     "Governance identity is scenario/protocol-configured address equality, not registry or cryptographic control of the address."}))
 
 (def ^:private forced-authorisation-policy
   {   "execute-resolution"
@@ -169,7 +253,12 @@
                       {:type :invalid-force-authorisation
                        :action action-name
                        :reason reason})))
-    (cond-> (governance-authorization-provenance context event addr)
+    (cond-> (governance-authorization-provenance
+             context event addr
+             {:authentication-mode :interactive-session
+              :address-bound? false
+              :basis :repl-interactive-session
+              :configured-governance-address nil})
       true
       (assoc :authorization/class class
              :authorization/path path
@@ -185,15 +274,16 @@
   "Single wrapper over with-governance-actor for governance-sensitive dispatch.
    Every governance-sensitive defmethod apply-action MUST pass through this
    helper so the governance dispatch audit test can verify coverage.
-   Builds authorization-provenance and passes it to the callback, then
-   stores it on the result's :extra for audit trail."
+   Builds authorization-provenance (recording the authentication mode and
+   address binding) and passes it to the callback, then stores it on the
+   result's :extra for audit trail."
   [{:keys [agent-index] :as context} world event f]
   (actx/with-governance-actor
     agent-index event
-    (governance-pred context)
-    (fn [addr agent]
-      (let [provenance (governance-authorization-provenance context event addr)
-            result (f addr agent provenance)]
+    (governance-check context)
+    (fn [addr _agent auth-info]
+      (let [provenance (governance-authorization-provenance context event addr auth-info)
+            result (f addr auth-info provenance)]
         (if (:ok result)
           (update result :extra
                   (fn [extra]
@@ -600,7 +690,7 @@
 (defmethod apply-action "grant-force-authorisation"
   [context world event]
   (run-governance-action context world event
-    (fn [addr _agent _provenance]
+    (fn [addr _agent provenance]
       (let [pp               (:params event)
             fa-policy        (:force-authorisation-policy context)
             now              (time-ctx/block-ts world)
@@ -652,7 +742,7 @@
                                  :held/reason reason-for-scope
                                  :held/workflow-id workflow-id}
                 scope-hash      (hash/domain-hash acct/force-authorisation-scope-domain scope)
-                grant-prov      (merge (governance-authorization-provenance context event addr)
+                grant-prov      (merge provenance
                                        {:authorization/type :force-authorisation
                                         :authorization/id auth-id
                                         :authorization/source :governance
@@ -719,16 +809,16 @@
 (defmethod apply-action "revoke-force-authorisation"
   [context world event]
   (run-governance-action context world event
-    (fn [addr _agent _provenance]
+    (fn [addr _agent provenance]
       (let [pp      (:params event)
             auth-id (:authorization-id pp)
             record  (get-in world [:force-authorisations auth-id])]
         (if (nil? record)
           (t/fail :force-authorisation-not-found)
           (let [now (time-ctx/block-ts world)
-                revoke-prov (merge (governance-authorization-provenance context event addr)
-                                   {:authorization/type :force-authorisation
-                                    :authorization/id auth-id
+                revoke-prov (merge provenance
+                                    {:authorization/type :force-authorisation
+                                     :authorization/id auth-id
                                     :authorization/source :governance
                                     :authorization/check :with-governance-actor
                                     :authorization/action "revoke-force-authorisation"})
@@ -1653,6 +1743,7 @@
            :resolution-module-fn rm-fn
            :resolution-level-map level-map
            :governance-mode      (get pp :governance-mode :restricted)
+           :governance-identity  (normalize-governance-identity (get pp :governance/identity))
            :resolver-overflow-policy (merge def-policy of-policy)
            :force-authorisation-policy (merge def-fa-policy fa-policy)})))
 

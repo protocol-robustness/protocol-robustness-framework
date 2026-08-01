@@ -619,10 +619,11 @@
 ;;   3. state must be :disputed
 ;;
 ;; Appeal window logic (SettlementOps.computeResolutionExecution):
-;;   If snap.appeal-window-duration > 0:
-;;     → store PendingSettlement, do NOT finalize immediately
-;;   Else:
-;;     → finalize immediately (release or refund)
+;;   A non-final resolution ALWAYS stores a PendingSettlement with
+;;   appeal-deadline = now + window-dur.  A zero-duration appeal window removes
+;;   the WAITING period (deadline == now, immediately executable); it does NOT
+;;   remove the pending-settlement lifecycle.  Only the final dispute round
+;;   (isFinalRound) bypasses the pending lifecycle and finalizes immediately.
 ;;
 ;; When escalation occurs (dispute is escalated to a higher level):
 ;;   Any existing pending-settlement is cancelled (see _validateAndPrepareEscalation).
@@ -665,7 +666,7 @@
 
       :else
       (let [world          (if (:exists (t/get-pending world workflow-id))
-                              (archive-current-pending-settlement world workflow-id)
+                              (archive-current-pending-settlement world workflow-id :new-resolution)
                               world)
             world          (clear-pending-settlement world workflow-id)
             world          (lc/accrue-yield world workflow-id)
@@ -703,7 +704,7 @@
                                        (assoc :decision-evidence-hash (:evidence-hash decision-evidence))
                                        authorization-provenance
                                        (assoc :authorization/provenance authorization-provenance)))]
-        (if (or final-round? (not (pos? window-dur)))
+        (if final-round?
           (let [finalized (if is-release
                             (finalize world''' workflow-id :released
                                       :authorization-provenance authorization-provenance)
@@ -798,15 +799,23 @@
 ;; ---------------------------------------------------------------------------
 
 (defn execute-pending-settlement
-  "Execute a deferred settlement after the appeal window has closed."
+  "Execute a deferred settlement after the appeal window has closed.
+
+   When no active pending settlement exists but a superseded one has been
+   recovered by pick-eligible-superseded-pending (escalation or challenge that
+   produced no replacement decision), execution proceeds from that recovered
+   decision and the result records :settlement/recovered-from-superseded with the
+   originating level and supersession reason."
   [world workflow-id]
   (if-not (t/valid-workflow-id? world workflow-id)
     (guard-fail :invalid-workflow-id :workflow-id workflow-id)
     (let [active-pending (t/get-pending world workflow-id)
           now-ts         (time-ctx/block-ts world)
+          fallback-entry (when-not (:exists active-pending)
+                           (pick-eligible-superseded-pending world workflow-id now-ts))
           pending        (if (:exists active-pending)
                            active-pending
-                           (pick-eligible-superseded-pending world workflow-id now-ts))]
+                           (some-> fallback-entry :pending))]
       (cond
         (not (:exists pending))
         (guard-fail :no-pending-settlement :workflow-id workflow-id)
@@ -845,13 +854,20 @@
               ;; record so it flows through to the escrow settlement held adjustment.
               auth-prov (get-in world [:escrow-transfers workflow-id :resolution
                                        :authorization/provenance])
+              recovered-meta (when fallback-entry
+                               {:level (:level fallback-entry)
+                                :superseded-at (:superseded-at fallback-entry)
+                                :reason (:reason fallback-entry)})
               finalized (if (:is-release pending)
                           (finalize world workflow-id :released
                                     :authorization-provenance auth-prov)
                           (finalize world workflow-id :refunded
                                     :authorization-provenance auth-prov))]
           (if (:ok finalized)
-            (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
+            (let [world' (lc/cleanup-orphaned-slashes (:world finalized) workflow-id)]
+              (if recovered-meta
+                (assoc (t/ok world') :extra {:settlement/recovered-from-superseded recovered-meta})
+                (t/ok world')))
             finalized))))))
 
 ;; ---------------------------------------------------------------------------
@@ -867,46 +883,58 @@
 
 (defn- archive-current-pending-settlement
   "Archive the current pending settlement as superseded and clear active pending.
-   Called both during normal resolution submission (when a previous pending
+   Called during normal resolution submission (when a previous pending
    settlement exists) and during escalation/challenge.  The archived entry
-   preserves a fallback execution path for edge-cases where the replacement
+   preserves a fallback execution path for edge-cases where a replacement
    decision is not produced in time.
-   Caps retained entries to max-superseded-pending-per-workflow."
-  [world workflow-id]
-  (let [pending (t/get-pending world workflow-id)]
-    (if (:exists pending)
-      (-> world
-          (clear-stale-settlement-principal workflow-id)
-          (update-in [:superseded-pending-settlements workflow-id]
-                     (fnil conj [])
-                     {:pending pending
-                      :superseded-at (time-ctx/block-ts world)
-                      :level (t/dispute-level world workflow-id)})
-          (update-in [:superseded-pending-settlements workflow-id]
-                     (fn [v] (take-last max-superseded-pending-per-workflow v)))
-          (update :pending-settlements dissoc workflow-id))
-      world)))
+   Caps retained entries to max-superseded-pending-per-workflow.
+
+   reason tags why the decision was superseded (:new-resolution | :escalation |
+   :challenge) and is carried through to any later recovery record."
+  ([world workflow-id]
+   (archive-current-pending-settlement world workflow-id :new-resolution))
+  ([world workflow-id reason]
+   (let [pending (t/get-pending world workflow-id)]
+     (if (:exists pending)
+       (-> world
+           (clear-stale-settlement-principal workflow-id)
+           (update-in [:superseded-pending-settlements workflow-id]
+                      (fnil conj [])
+                      {:pending pending
+                       :superseded-at (time-ctx/block-ts world)
+                       :level (t/dispute-level world workflow-id)
+                       :reason reason})
+           (update-in [:superseded-pending-settlements workflow-id]
+                      (fn [v] (take-last max-superseded-pending-per-workflow v)))
+           (update :pending-settlements dissoc workflow-id))
+       world))))
 
 (defn- pick-eligible-superseded-pending
-  "Select the superseded pending that remains the authoritative executable
-   decision for the CURRENT escrow state. Returns a pending-settlement map or nil.
+  "Select the superseded pending entry that is authoritative for the CURRENT
+   escrow state. Returns the archived entry map ({:pending ... :level ...}) or nil.
 
-   A superseded decision is authoritative only while the dispute remains at the
-   level at which it was superseded: escalation/challenge cancel the pending and
-   advance the dispute level, so an entry archived at a lower level is stale and
-   must never be recovered. Among same-level entries only the most recently
-   superseded decision is authoritative (older ones were cancelled by it); an
-   older decision must not execute just because its deadline has already passed.
-   The caller's deadline guard then rejects the selected decision until its own
-   appeal deadline has passed."
+   A superseded decision is authoritative while the dispute remains at the level
+   at which it was superseded; among same-level entries only the most recently
+   superseded decision is authoritative (older ones were cancelled by it), and an
+   older decision must not execute just because its deadline passed earlier.
+
+   When no decision exists at the current active level — no active pending and no
+   same-level superseded entry — the most recently superseded decision across all
+   levels is recovered so that an escalation or challenge that never produces a
+   replacement decision cannot stall settlement indefinitely (liveness). The
+   caller's guards still require the recovered decision's deadline to have elapsed
+   and preserve all normal settlement validation. If a newer replacement decision
+   exists (active pending, or a same-level superseded entry), it is preferred and
+   no older decision is recovered."
   [world workflow-id _now-ts]
-  (let [current-level (t/dispute-level world workflow-id)
-        same-level    (filter #(= current-level (:level %))
-                              (get-in world [:superseded-pending-settlements workflow-id] []))]
-    (when (seq same-level)
-      (:pending (last (sort-by (fn [e] [(:superseded-at e 0)
-                                        (:appeal-deadline (:pending e) 0)])
-                               same-level))))))
+  (let [entries       (get-in world [:superseded-pending-settlements workflow-id] [])
+        current-level (t/dispute-level world workflow-id)
+        same-level    (seq (filter #(= current-level (:level %)) entries))
+        ordered       (fn [es] (last (sort-by (fn [e] [(:superseded-at e 0)
+                                                       (:appeal-deadline (:pending e) 0)])
+                                              es)))]
+    (when (seq entries)
+      (ordered (or same-level entries)))))
 
 ;; ---------------------------------------------------------------------------
 ;; challenge-resolution (Phase L)
@@ -973,7 +1001,7 @@
                                 (cond-> (pos? bond-amt)
                                   (acct/post-appeal-bond workflow-id caller snap (:token et) bond-amt))
                                 (assoc-in [:challengers workflow-id current-level] caller)
-                                (archive-current-pending-settlement workflow-id)
+                                (archive-current-pending-settlement workflow-id :challenge)
                                 (assoc-in [:dispute-levels workflow-id] new-level)
                                 (assoc-in [:escrow-transfers workflow-id :dispute-resolver]
                                           new-resolver)
@@ -1193,9 +1221,9 @@
                world'       (-> world-prepared
                                 (cond-> (pos? bond-amt)
                                   (acct/post-appeal-bond workflow-id caller snap (:token et) bond-amt))
-                                (archive-current-pending-settlement workflow-id)
-                                (assoc-in [:challengers workflow-id current-level] caller)
-                                (assoc-in [:dispute-levels workflow-id] new-level)
+                                 (archive-current-pending-settlement workflow-id :escalation)
+                                 (assoc-in [:challengers workflow-id current-level] caller)
+                                 (assoc-in [:dispute-levels workflow-id] new-level)
                                 (assoc-in [:escrow-transfers workflow-id :dispute-resolver]
                                           new-resolver)
                                 (t/decrement-resolver-capacity old-resolver)

@@ -41,12 +41,18 @@
     agent-index event f))
 
 (defn with-governance-actor
-  "Resolve actor and enforce governance predicate.
-   Calls (f actor-address actor-map) when governance check passes."
-  [agent-index event governance-pred? f]
-  (common-actx/with-role-actor
-    resolve-address
-    (fn [idx ev] (get idx (:agent ev)))
-    governance-pred?
-    #(t/fail :not-governance)
-    agent-index event f))
+  "Resolve actor, run a reason-carrying governance check, then call
+   (f actor-address actor-map check-result) when the check returns {:ok true}.
+   The check must return either {:ok true ...} or {:ok false :error ...}; a
+   non-ok check result is propagated unchanged (so e.g.
+   :governance-identity-not-configured and :not-governance are distinguished).
+   Never throws."
+  [agent-index event check-fn f]
+  (common-actx/with-resolved-actor
+    resolve-address agent-index event
+    (fn [addr]
+      (let [actor (get agent-index (:agent event))
+            result (check-fn addr actor)]
+        (if (:ok result)
+          (f addr actor result)
+          result)))))

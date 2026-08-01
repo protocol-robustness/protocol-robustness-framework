@@ -4,24 +4,23 @@
  :domains
  [{:domain/id :domain/escrow-dispute-resolution
    :domain/description "Escrow release/cancel, dispute lifecycle, resolver behaviour"}
- {:domain/id :domain/evidence-integrity
+  {:domain/id :domain/evidence-integrity
    :domain/description "Evidence chain integrity, attestation, proof verification"}
   {:domain/id :domain/protocol-value-conservation
    :domain/description "Protocol value accounting, allocation correctness, shortfall visibility, and liability classification across settlement, yield, bonds, and slashing"}
-   {:domain/id :domain/yield-shortfall
-    :domain/description "Yield provider shortfall, partial fill, liquidity disruption"}
-   {:domain/id :domain/allocation-shortfall
-     :domain/description "Allocation shortfall detection, pro-rata handling, deferred claim recording"}
-    {:domain/id :domain/prf-core
-     :domain/description "Core PRF benchmark infrastructure: registries, evidence policies, runner policies, scoring rules, and concept mappings"}
-    {:domain/id :domain/protocol-sew
-     :domain/description "Sew escrow protocol benchmarks covering dispute resolution, yield shortfall, resolver slashing, and escrow safety."}]
+  {:domain/id :domain/yield-shortfall
+   :domain/description "Yield provider shortfall, partial fill, liquidity disruption"}
+  {:domain/id :domain/allocation-shortfall
+   :domain/description "Allocation shortfall detection, pro-rata handling, deferred claim recording"}
+  {:domain/id :domain/prf-core
+   :domain/description "Core PRF benchmark infrastructure: registries, evidence policies, runner policies, scoring rules, and concept mappings"}
+  {:domain/id :domain/protocol-sew
+   :domain/description "Sew escrow protocol benchmarks covering dispute resolution, yield shortfall, resolver slashing, and escrow safety."}]
 
  :packs
  [{:pack/id :pack/prf-core
    :pack/description "Core PRF benchmark infrastructure pack"
    :pack/registry "packs/prf-core/registry.edn"}
-
-   {:pack/id :pack/sew
-    :pack/description "Sew protocol benchmark pack"
-    :pack/registry "packs/sew/registry.edn"}]}
+  {:pack/id :pack/sew
+   :pack/description "Sew protocol benchmark pack"
+   :pack/registry "packs/sew/registry.edn"}]}

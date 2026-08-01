@@ -1,6 +1,47 @@
 {:benchmark-repo/id "prf/benchmarks"
  :version 1
- :description "Canonical benchmark repository. See benchmarks/ for structure."
+ :description "Canonical benchmark repository. See benchmarks/ for structure.
+   Catalogue entries are classified by status in :catalogue; the :benchmarks
+   vector below is the complete flat list (slug -> manifest), kept intact so
+   existing consumers resolve slugs unchanged. Status lives in the registries
+   (registry.edn, packs/*/registry.edn); :catalogue mirrors it for readers."
+
+ ;; Human-facing classification. A slug appears in exactly one status group.
+ ;; Status is authoritative in the registries; this section is a curated view.
+ :catalogue
+ {:active
+  [{:id "sew/escrow-dispute-v1"
+    :description "Escrow dispute safety under adversarial slashing, fraud, and economic pressure"}
+   {:id "sew/dispute-liveness-v1"
+    :description "Basic dispute escalation robustness"}
+   {:id "sew/resolver-slashing-v1"
+    :description "Resolver slashing conservation and waterfall coverage"}
+   {:id "sew/reversal-slashing-v1"
+    :description "Reversal-reviewer slashing due process, conservation, and vindication stability"}
+   {:id "prf/deterministic-replay-v1"
+    :description "Deterministic replay and hash consistency"}]
+
+  :experimental
+  [{:id "sew/yield-shortfall-v1"
+    :description "Yield provider shortfall and partial fill safety"}
+   {:id "prf/protocol-robustness-v0"
+    :description "Protocol robustness research profile"}
+   {:id "prf/shortfall-allocation-v0"
+    :description "Shortfall allocation research profile"}
+   {:id "prf/redistribution-fairness-v0"
+    :description "Redistribution fairness research profile"}
+   {:id "prf/force-authorisation-custody-v1"
+    :description "Exceptional authorization and custody isolation"}]
+
+  :deprecated
+  [{:id "prf/evidence-integrity-v1"
+    :description "Superseded by prf/deterministic-replay-v1"
+    :replaced-by "prf/deterministic-replay-v1"}]
+
+  :aliases
+  [{:id "community/dispute-liveness-v1"
+    :description "Compatibility alias for sew/dispute-liveness-v1 (same manifest); kept for backward compatibility"
+    :alias-of "sew/dispute-liveness-v1"}]}
 
  :benchmarks
  [{:id "sew/escrow-dispute-v1"
@@ -43,8 +84,12 @@
    :description "[EXPERIMENTAL] Redistribution fairness research profile"
    :manifest "benchmarks/packs/prf-core/redistribution-fairness-v0.edn"}
 
+  {:id "prf/force-authorisation-custody-v1"
+   :description "[EXPERIMENTAL] Exceptional authorization and custody isolation"
+   :manifest "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn"}
+
   {:id "community/dispute-liveness-v1"
-   :description "[DEPRECATED] Basic dispute escalation robustness — migrated to sew/dispute-liveness-v1"
+   :description "[DEPRECATED ALIAS] of sew/dispute-liveness-v1 — migrated"
    :manifest "benchmarks/packs/sew/dispute-liveness-v1.edn"}
 
   ]}

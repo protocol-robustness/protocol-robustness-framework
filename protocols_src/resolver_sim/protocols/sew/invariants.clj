@@ -60,6 +60,7 @@
     :held-partitions-non-negative
     :terminal-workflow-custody-closed
     :force-authorisations-lifecycle-consistent
+    :force-authorisations-governance-origin
     :held-custody-closed-form
     :all-status-combinations-valid
     :persisted-escrow-state-valid
@@ -420,6 +421,63 @@
         violations (vec (concat record-violations orphan-consumption-violations))]
     {:holds? (empty? violations) :violations violations}))
 
+(defn- valid-governance-force-auth-history?
+  "Every entry in a force-authorisation history must record a governance action
+   carrying the :with-governance-actor check marker and :governance source."
+  [history]
+  (every? (fn [entry]
+            (let [prov (:authorization/provenance entry)]
+              (and (:authorization/action entry)
+                   (= :with-governance-actor (:authorization/check prov))
+                   (= :governance (:authorization/source prov)))))
+          history))
+
+(defn force-authorisations-governance-origin?
+  "Structural governance-origin check for persisted force-authorisation records.
+
+   Answers: 'could this permit have originated through the trusted grant
+   authority?' A record must carry governance-origin provenance: an
+   :authorization/source :governance marker, a :with-governance-actor check on
+   its provenance chain, a nonce, a creator, and a governance-action history.
+
+   This is deliberately separate from force-authorisations-lifecycle-consistent?
+   (which checks the permit's state machine is internally coherent). A fabricated
+   but lifecycle-consistent record should yield :lifecycle-consistent :pass with
+   :governance-origin :fail, rather than conflating the two trust-boundary
+   properties.
+
+   NOTE: this proves STRUCTURAL governance provenance — it detects state
+   injection and malformed fixtures — not cryptographic authenticity. The
+   governance actor/history are not independently authenticated in the world
+   model."
+  [world]
+  (let [records (:force-authorisations world {})
+        violations
+        (for [[auth-id record] records
+              :let [prov (or (:authorization/provenance record)
+                             (:authorization/last-provenance record))
+                    prov-ok? (and prov
+                                  (= :with-governance-actor (:authorization/check prov))
+                                  (= :governance (:authorization/source prov)))
+                    ok? (and (= :force-authorisation (:authorization/type record))
+                             (= :governance (:authorization/source record))
+                             (some? (:nonce record))
+                             (some? (:created-by record))
+                             prov-ok?
+                             (valid-governance-force-auth-history?
+                              (:authorization/history record [])))]
+              :when (not ok?)]
+          {:authorization/id auth-id
+           :reason (cond
+                     (not= :force-authorisation (:authorization/type record)) :invalid-type
+                     (not= :governance (:authorization/source record)) :missing-governance-source
+                     (nil? (:nonce record)) :missing-nonce
+                     (nil? (:created-by record)) :missing-created-by
+                     (not prov-ok?) :missing-governance-provenance
+                     :else :invalid-governance-history)})]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
+
 ;; ---------------------------------------------------------------------------
 ;; Invariant 7: Valid status combinations
 ;;
@@ -503,26 +561,52 @@
 ;; execute-pending), the keeper must have already processed it.  Finding such
 ;; an escrow in a finalized world snapshot is a temporal invariant violation.
 ;;
+;; EXECUTABLE vs STALE — the pending-settlement clause deliberately separates
+;; the two.  A pending settlement whose deadline has arrived is "executable";
+;; it is only "stale" (a keeper opportunity was missed) once the deadline is
+;; STRICTLY in the past.  A zero-appeal-window pending created at `now` with
+;; deadline `now` is immediately executable but is not stale within the same
+;; transition, so it must not be flagged here.
+;;
 ;; This is checked on a post-step world, after automate-timed-actions has run.
 ;; ---------------------------------------------------------------------------
 
-(defn no-stale-automatable-escrows?
-  "True when no escrow is currently eligible for an untriggered timed action.
+(defn- pending-executable-stale?
+  "True when an executable pending settlement for workflow-id has been left
+   unexecuted past its deadline.  Active pendings require the appeal deadline
+   to be STRICTLY before the current block time (a zero-window pending created
+   at `now` is executable, not stale).  Superseded-only pendings are archived
+   and older, so any that are executable are stale."
+  [world workflow-id]
+  (let [pending (t/get-pending world workflow-id)
+        now-ts  (time-ctx/block-ts world)]
+    (and (= :disputed (t/escrow-state world workflow-id))
+         (if (:exists pending)
+           (< (:appeal-deadline pending) now-ts)
+           (some #(and (= (:level %) (t/dispute-level world workflow-id))
+                       (< (:appeal-deadline (:pending %)) now-ts))
+                 (get-in world [:superseded-pending-settlements workflow-id] []))))))
 
-   Intended to be called on the world snapshot AFTER automate-timed-actions
-   has been run for each active escrow.  A violation means the caller failed
-   to invoke the keeper."
+(defn no-stale-automatable-escrows?
+  "True when no escrow has an untriggered timed action the keeper already had
+   an opportunity to process.
+
+   auto-release/auto-cancel flag :pending escrows whose deadline has passed.
+   execute-pending flags only STALE pendings (deadline strictly in the past),
+   not merely executable ones.  A violation means the caller failed to invoke
+   the keeper."
   [world]
   (let [violations
         (for [[wf _et] (:escrow-transfers world)
-              :when (or (sm/auto-release-due?             world wf)
-                        (sm/auto-cancel-due?              world wf)
-                        (sm/pending-settlement-executable? world wf))]
+              :let [auto-release? (sm/auto-release-due? world wf)
+                    auto-cancel?  (sm/auto-cancel-due?  world wf)
+                    pending?      (pending-executable-stale? world wf)]
+              :when (or auto-release? auto-cancel? pending?)]
           {:workflow-id wf
            :reasons (cond-> []
-                      (sm/auto-release-due? world wf)              (conj :auto-release-due)
-                      (sm/auto-cancel-due? world wf)               (conj :auto-cancel-due)
-                      (sm/pending-settlement-executable? world wf) (conj :pending-executable))})]
+                      auto-release? (conj :auto-release-due)
+                      auto-cancel?  (conj :auto-cancel-due)
+                      pending?      (conj :pending-executable))})]
     {:holds?     (empty? violations)
      :violations (vec violations)}))
 
@@ -2181,7 +2265,8 @@
                  :held-non-negative             (held-non-negative? world)
                  :held-partitions-non-negative  (held-partitions-non-negative? world)
                  :terminal-workflow-custody-closed (terminal-workflow-custody-closed? world)
-                 :force-authorisations-lifecycle-consistent (force-authorisations-lifecycle-consistent? world)
+                  :force-authorisations-lifecycle-consistent (force-authorisations-lifecycle-consistent? world)
+                  :force-authorisations-governance-origin (force-authorisations-governance-origin? world)
                  :held-custody-closed-form      (held-custody-closed-form? world)
                  :all-status-combinations-valid (all-status-combinations-valid? world)
                  :persisted-escrow-state-valid (persisted-escrow-state-valid? world)

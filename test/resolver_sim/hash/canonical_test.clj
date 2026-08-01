@@ -796,8 +796,11 @@
 (deftest test-dynamic-var-validation-inline
   (let [clean-data {:a 1}
         dirty-data {:evidence/hash "abc" :a 1}]
-    ;; Validation disabled (default) — no throw
-    (is (string? (hc/hash-with-intent {:hash/intent :evidence-record} dirty-data)))
+    ;; Validation disabled — no throw (bound explicitly; the parallel test
+    ;; runner enables validation by default, so the ambient default must not
+    ;; be relied upon)
+    (binding [hc/*validate-intent-constraints* false]
+      (is (string? (hc/hash-with-intent {:hash/intent :evidence-record} dirty-data))))
     ;; Validation enabled — throw
     (binding [hc/*validate-intent-constraints* true]
       (is (thrown? Exception

@@ -153,27 +153,35 @@
 
 (defn per-dimension-consensus
   "Compute consensus for one dimension, with position-group classification.
-   
+
    Returns {:status keyword
             :positions [{:researcher/id :position-hash :status :targets}]
             :supporting-members [id...]
             :qualifying-members [id...]
             :dissenting-members [id...]
+            :assessed-members [id...]
             :absent-members [id...]
             :insufficient-information-members [id...]
             :not-reviewed-members [id...]
-            :not-applicable-members [id...]}"
+            :not-applicable-members [id...]}
+
+   NOTE: here :absent-members are researchers whose dimension status is nil
+   (no position on the dimension). This differs from per-item-consensus, where
+   :absent-members are researchers who did not target that theorem/conclusion."
   [positions dimension-key]
   (let [{:keys [positions all-assessed assessed-members
                 assessed-statuses position-group]}
         (group-members positions dimension-key)
         n-assessed (count assessed-statuses)]
     (if (< n-assessed 1)
-      (merge-pg {:status :not-evaluable :positions positions} position-group)
+      (merge-pg {:status :not-evaluable :positions positions
+                 :assessed-members assessed-members}
+                position-group)
       (let [unique-statuses (set assessed-statuses)]
         (if (= 1 (count unique-statuses))
           (merge-pg {:status :unanimous :positions positions
-                     :supporting-members assessed-members}
+                     :supporting-members assessed-members
+                     :assessed-members assessed-members}
                     position-group)
           (let [freqs (frequencies assessed-statuses)
                 sorted (sort-by (comp - val) freqs)
@@ -189,7 +197,8 @@
                                  :else :contested)
                        :positions positions
                        :supporting-members majority-members
-                       :dissenting-members minority-members}
+                       :dissenting-members minority-members
+                       :assessed-members assessed-members}
                       position-group)))))))
 
 ;; ── Theorem/conclusion-level consensus ────────────────────────────────────
@@ -222,15 +231,21 @@
             :supporting-members [id...]
             :qualifying-members [id...]
             :dissenting-members [id...]
+            :assessed-members [id...]
             :absent-members [id...]  ;; researchers who didn't target this item
             :not-reviewed-members [id...]
             :insufficient-information-members [id...]
-            :not-applicable-members [id...]}"
+            :not-applicable-members [id...]}
+
+   NOTE: here :absent-members are researchers who did not target this item
+   (non-participants), which differs from per-dimension-consensus where
+   :absent-members are researchers whose dimension status is nil."
   [item-id kind entries all-researcher-ids]
   (let [assessed (filter #(not (or (nil? (:status %))
                                    (contains? pg/absent-statuses (:status %))))
                          entries)
         assessed-statuses (mapv :status assessed)
+        assessed-member-ids (mapv :researcher/id assessed)
         participant-ids (set (map :researcher/id entries))
         non-participants (remove participant-ids all-researcher-ids)
         base-pg (pg/position-group
@@ -244,12 +259,14 @@
         n-assessed (count assessed-statuses)]
     (if (< n-assessed 1)
       (merge base-pg
-             {:item/id item-id :item/kind kind :status :not-evaluable :entries entries})
+             {:item/id item-id :item/kind kind :status :not-evaluable :entries entries
+              :assessed-members []})
       (let [unique-statuses (set assessed-statuses)]
         (if (= 1 (count unique-statuses))
           (merge base-pg
                  {:item/id item-id :item/kind kind :status :unanimous :entries entries
-                  :supporting-members (mapv :researcher/id assessed)})
+                  :supporting-members assessed-member-ids
+                  :assessed-members assessed-member-ids})
           (let [freqs (frequencies assessed-statuses)
                 sorted (sort-by (comp - val) freqs)
                 [majority-status majority-count] (first sorted)
@@ -266,7 +283,8 @@
                               :else :contested)
                     :entries entries
                     :supporting-members majority-members
-                    :dissenting-members minority-members})))))))
+                    :dissenting-members minority-members
+                    :assessed-members assessed-member-ids})))))))
 
 (defn per-theorem-consensus
   "Compute consensus for every theorem targeted across positions."

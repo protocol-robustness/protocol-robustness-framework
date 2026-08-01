@@ -261,6 +261,21 @@
       (is (= 2 (count (:supporting-members th))))
       (is (= 1 (count (:absent-members th)))))))
 
+(deftest per-item-majority-with-dissent-reports-assessed-and-dissenting
+  (let [consensus (tmc/per-item-consensus
+                   :theorem/x :theorem
+                   [{:researcher/id "a" :status :supported}
+                    {:researcher/id "b" :status :supported}
+                    {:researcher/id "c" :status :contradicted}]
+                   ["a" "b" "c"])]
+    (is (= :majority-with-dissent (:status consensus)))
+    (is (= ["a" "b"] (:supporting-members consensus)))
+    (is (= ["c"] (:dissenting-members consensus))
+        "dissenting-members are the minority, not the majority")
+    (is (= ["a" "b" "c"] (:assessed-members consensus))
+        "assessed-members are the researchers who provided a position status")
+    (is (empty? (:absent-members consensus)))))
+
 (deftest per-theorem-consensus-empty-when-no-targets
   (let [consensus (tmc/per-theorem-consensus
                    [(make-pos-with-targets "a")

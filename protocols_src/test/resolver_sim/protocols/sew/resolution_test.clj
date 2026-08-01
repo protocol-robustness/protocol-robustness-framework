@@ -42,14 +42,19 @@
 (def direct-resolver-fn nil)  ; no module — use direct resolver
 
 ;; ---------------------------------------------------------------------------
-;; execute-resolution: no appeal window
+;; execute-resolution: zero appeal window
+;;
+;; A zero-duration appeal window removes the WAITING period (deadline == now,
+;; immediately executable); it does NOT remove the pending-settlement lifecycle.
+;; The escrow stays :disputed until execute-pending-settlement runs.
 ;; ---------------------------------------------------------------------------
 
-(deftest execute-resolution-immediate-release
+(deftest execute-resolution-zero-window-creates-pending
   (let [w (base-world 0)
         r (res/execute-resolution w 0 resolver true "0xhash" direct-resolver-fn)]
     (is (true? (:ok r)))
-    (is (= :released (t/escrow-state (:world r) 0)))
+    (is (= :disputed (t/escrow-state (:world r) 0))
+        "escrow remains disputed until settlement execution")
     (is (= {:decision-id "resolve-0-0"
             :step 1000
             :alternatives [:release :refund]
@@ -60,14 +65,26 @@
             (get-in (:world r) [:escrow-transfers 0 :resolution :decision-evidence-hash])}
            (get-in (:world r) [:escrow-transfers 0 :resolution :trace-decision])))
     (is (string? (get-in (:world r) [:escrow-transfers 0 :resolution :decision-evidence-hash])))
-    (is (nil? (get-in (:world r) [:pending-settlements 0]))
-        "no pending settlement when appeal window = 0")))
+    (let [pending (t/get-pending (:world r) 0)]
+      (is (:exists pending) "pending settlement is created even at zero appeal window")
+      (is (:is-release pending))
+      (is (= 1000 (:appeal-deadline pending))
+          "zero-window pending is immediately executable (deadline == resolution time)"))
+    (let [executed (res/execute-pending-settlement (:world r) 0)]
+      (is (true? (:ok executed)))
+      (is (= :released (t/escrow-state (:world executed) 0))
+          "settlement can execute immediately at zero appeal window"))))
 
-(deftest execute-resolution-immediate-refund
+(deftest execute-resolution-zero-window-creates-pending-refund
   (let [w (base-world 0)
         r (res/execute-resolution w 0 resolver false "0xhash" direct-resolver-fn)]
     (is (true? (:ok r)))
-    (is (= :refunded (t/escrow-state (:world r) 0)))))
+    (is (= :disputed (t/escrow-state (:world r) 0)))
+    (is (:exists (t/get-pending (:world r) 0)))
+    (is (false? (:is-release (t/get-pending (:world r) 0))))
+    (let [executed (res/execute-pending-settlement (:world r) 0)]
+      (is (true? (:ok executed)))
+      (is (= :refunded (t/escrow-state (:world executed) 0))))))
 
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution: with appeal window

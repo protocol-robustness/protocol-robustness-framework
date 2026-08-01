@@ -27,7 +27,8 @@
 
 (def gov-ctx
   "Context with a governance agent for grant/revoke actions."
-  {:agent-index {"gov" {:id "gov" :address gov-addr :role "governance"}}})
+  {:agent-index {"gov" {:id "gov" :address gov-addr :role "governance"}}
+   :governance-identity gov-addr})
 
 (def exec-ctx
   "Context with any resolvable agent for execute actions."
@@ -35,12 +36,16 @@
 
 (defn- disputed-world
   "Create a world with one :disputed escrow at block-time 1000.
-   The dispute-resolver is set to resolver-addr for resolution authorization."
+   The dispute-resolver is set to resolver-addr for resolution authorization.
+   The escrow is at the FINAL round (:max-dispute-level 0) so a force-authorised
+   resolution finalizes immediately (release + consumption) rather than opening
+   a pending settlement."
   [& {:keys [appeal-dur amount] :or {appeal-dur 0 amount 10000}}]
   (let [snap (snap-fix/escrow-snapshot {:escrow-fee-bps        50
                                         :max-dispute-duration  3600
                                         :appeal-window-duration appeal-dur})
-        w0   (t/empty-world 1000)
+        w0   (-> (t/empty-world 1000)
+                 (assoc :params {:max-dispute-level 0}))
         cr   (lc/create-escrow w0 alice-addr usdc bob-addr amount
                                (t/make-escrow-settings {}) snap)
         w    (:world cr)]
@@ -338,3 +343,88 @@
         "grant is terminal only after every committed member is consumed")
     (is (true? (:holds? (inv/force-authorisations-lifecycle-consistent? w6)))
         "persisted member commitments and held adjustments remain linked")))
+
+;; ── Authentication boundary: governance gate -> provenance -> lifecycle ──────
+
+(def non-gov-ctx
+  "Context with a non-governance actor for gate rejection tests.
+   Governance identity is configured so the actor is rejected for role/address,
+   not for missing configuration."
+  {:agent-index {"mallory" {:id "mallory" :address "0xMallory" :type "honest"}}
+   :governance-identity gov-addr})
+
+(deftest force-auth-non-governance-grant-rejected
+  (let [world0 (disputed-world)
+        event {:seq 0 :time 1000 :agent "mallory" :action "grant-force-authorisation"
+               :params {:workflow-id 0 :reason :resolver-overcapacity}}
+        result (sew/apply-action non-gov-ctx world0 event)]
+    (is (= :not-governance (:error result)))
+    (is (not (:ok result)))
+    (is (empty? (:force-authorisations world0))
+        "no authorization record created by a non-governance actor")))
+
+(deftest force-auth-non-governance-revoke-rejected
+  (let [world0 (disputed-world)
+        {:keys [world auth-id]} (grant-force-auth world0)
+        event {:seq 1 :time 1000 :agent "mallory" :action "revoke-force-authorisation"
+               :params {:authorization-id auth-id}}
+        result (sew/apply-action non-gov-ctx world event)]
+    (is (= :not-governance (:error result)))
+    (is (= :active (get-in world [:force-authorisations auth-id :authorization/status]))
+        "grant remains active after a non-governance revoke attempt")))
+
+(deftest force-auth-governance-grant-carries-provenance
+  (let [world0 (disputed-world)
+        {:keys [world auth-id]} (grant-force-auth world0)
+        record (get-in world [:force-authorisations auth-id])]
+    (is (= :force-authorisation (:authorization/type record)))
+    (is (= :governance (:authorization/source record)))
+    (is (= :with-governance-actor
+           (get-in record [:authorization/provenance :authorization/check])))
+    (is (= :governance
+           (get-in record [:authorization/provenance :authorization/source])))
+    (is (some? (:nonce record)))
+    (is (= gov-addr (:created-by record)))
+    (is (seq (:authorization/history record)))
+    (is (true? (:holds? (inv/force-authorisations-governance-origin? world)))
+        "governance-granted record satisfies the governance-origin invariant")))
+
+(deftest force-auth-governance-revoke-transition
+  (let [world0 (disputed-world)
+        {:keys [world auth-id]} (grant-force-auth world0)
+        {:keys [world]} (revoke-force-auth world auth-id)]
+    (is (= :revoked (get-in world [:force-authorisations auth-id :authorization/status])))
+    (is (= :with-governance-actor
+           (get-in world [:force-authorisations auth-id :authorization/last-provenance :authorization/check])))
+    (is (>= (count (get-in world [:force-authorisations auth-id :authorization/history])) 2)
+        "revoke appends to the authorization history")
+    (is (true? (:holds? (inv/force-authorisations-governance-origin? world)))
+        "revoked record retains governance origin")))
+
+;; ── Adversarial invariant: lifecycle-consistent but governance-less ──────────
+
+(deftest force-auth-governance-origin-invariant-detects-synthetic
+  (let [        scope-map {:authorization/id "fa-synthetic"
+                   :authorization/type :force-authorisation
+                   :held/direction :out :token usdc :amount 100
+                   :held/account :escrow-principal
+                   :owner/address bob-addr :held/reason :force-authorised-release
+                   :held/workflow-id 0}
+        scope-hash (hc/domain-hash "force-authorisation-scope" scope-map)
+        record {:authorization/id "fa-synthetic"
+                :authorization/type :force-authorisation
+                :authorization/status :active
+                :consumed? false :starts-at 0
+                :authorization/scope scope-map
+                :authorization/scope-hash scope-hash}
+        world {:force-authorisations {"fa-synthetic" record}
+               :force-authorisations/consumed {}}
+        lifecycle (inv/force-authorisations-lifecycle-consistent? world)
+        origin (inv/force-authorisations-governance-origin? world)
+        check (inv/check-all world)]
+    (is (true? (:holds? lifecycle))
+        "hand-injected record is lifecycle-consistent")
+    (is (false? (:holds? origin))
+        "governance-origin must fail for a synthetic record with no governance provenance")
+    (is (false? (get-in check [:results :force-authorisations-governance-origin :holds?]))
+        "aggregate robustness check flags governance-origin violation")))

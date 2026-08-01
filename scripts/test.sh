@@ -233,7 +233,15 @@ run_unit() {
     resolver-sim.run.overview-test \
     resolver-sim.benchmark.game-theory-validation-test \
     resolver-sim.evidence.node-test \
-    resolver-sim.evidence.attestation-dag-test
+    resolver-sim.evidence.attestation-dag-test \
+    resolver-sim.economics.payoffs-test \
+    resolver-sim.hash.canonical-test \
+    resolver-sim.hash.concat-properties-test \
+    resolver-sim.hash.attestor-hash-test \
+    resolver-sim.evidence.chain-test \
+    resolver-sim.evidence.commitment-root-test \
+    resolver-sim.evidence.finalization-test \
+    resolver-sim.evidence.qol-test
   return $?
 }
 

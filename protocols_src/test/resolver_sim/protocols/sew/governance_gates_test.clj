@@ -26,7 +26,8 @@
       (is (true? (get-in result [:world :paused?]))))))
 
 (deftest governance-envelope-is-normalized-for-set-paused
-  (let [ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}}
+  (let [ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}
+             :governance-identity "0xGov"}
         event {:seq 0 :time 1000 :agent "gov" :action "set_paused" :params {:paused? true}}
         result (sew/apply-action ctx (t/empty-world 1000) event)]
     (is (:ok result))
@@ -35,15 +36,25 @@
            (get-in result [:extra :authorization/provenance :authorization/type])))
     (is (= :with-governance-actor
            (get-in result [:extra :authorization/provenance :authorization/check])))
+    (is (= :scenario-configured-address-binding
+           (get-in result [:extra :authorization/provenance :authorization/basis])))
+    (is (= :address-bound
+           (get-in result [:extra :authorization/provenance :authorization/authentication-mode])))
+    (is (= true
+           (get-in result [:extra :authorization/provenance :authorization/address-bound?])))
+    (is (= false
+           (get-in result [:extra :authorization/provenance :authorization/registry-verified?])))
     (is (nil? (get-in result [:extra :authorization/provenance :authorization/class]))))
   (testing "non-governance agent is rejected"
-    (let [ctx {:agent-index {"alice" {:id "alice" :address "0xAlice" :type "honest"}}}
+    (let [ctx {:agent-index {"alice" {:id "alice" :address "0xAlice" :type "honest"}}
+               :governance-identity "0xGov"}
           event {:seq 0 :time 1000 :agent "alice" :action "set_paused" :params {:paused? true}}
           result (sew/apply-action ctx (t/empty-world 1000) event)]
       (is (= :not-governance (:error result))))))
 
 (deftest activate-resolver-overflow-record-carries-normalized-envelope
   (let [ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}
+             :governance-identity "0xGov"
              :resolver-overflow-policy {:allowed-reasons #{:resolver-overcapacity}
                                         :default-max-workflows 3
                                         :default-duration 3600

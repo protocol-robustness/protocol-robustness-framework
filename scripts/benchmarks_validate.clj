@@ -333,6 +333,107 @@
               (swap! errors conj (str (path-str path) " concept " id " :concept/out-of-scope has semantically overlapping entries: " (pr-str vs)))
               (println "    FAIL" (path-str path) "concept" id "semantically overlapping out-of-scope entries" (pr-str vs))))))))
 
+(defn validate-catalogue-registry-mapping! [errors]
+  "Cross-check the human catalogue (BENCHMARKS.edn) against the pack
+   registries. Catalogue slug ('sew/yield-shortfall-v1') and registry keyword
+   (:benchmark/sew-yield-shortfall-v1) are two roles for the same benchmark,
+   linked by the shared pack-relative manifest file. This checks that link
+   explicitly (manifest resolution), without asserting any slug-naming
+   convention, so it is robust to pack-name drift (e.g. prf vs prf-core)."
+  (println "  Checking catalogue <-> registry identifier mapping...")
+  (let [[catalogue parse-err] (parse-edn (io/file "benchmarks/BENCHMARKS.edn"))]
+    (if parse-err
+      (do (swap! errors conj (str "benchmarks/BENCHMARKS.edn: " parse-err))
+          (println "    FAIL BENCHMARKS.edn -" parse-err))
+      (let [;; Registry: [pack file] -> {:registry-id status}
+            registry (into {}
+                           (for [registry-path ["benchmarks/packs/prf-core/registry.edn"
+                                                "benchmarks/packs/sew/registry.edn"]
+                                 :let [data (read-edn-file registry-path)]
+                                 :when data
+                                 :let [pack (str/replace (name (:pack/id data)) "pack/" "")
+                                       refs (:benchmarks data)]
+                                 ref refs]
+                             [[pack (:benchmark/file ref)]
+                              {:registry-id (:benchmark/id ref)
+                               :status (:benchmark/status ref)}]))
+            catalog-entries (:benchmarks catalogue)
+            catalog-slugs (set (map :id catalog-entries))
+            manifest-freq (frequencies (map :manifest catalog-entries))
+            manifest->slug (into {} (map (fn [e] [(:manifest e) (:id e)]) catalog-entries))
+            classified (->> (:catalogue catalogue)
+                            (into [] (mapcat (fn [[group entries]]
+                                               (map (fn [e] [(str group) (:id e)]) entries)))))]
+
+        ;; 1. Every catalogue manifest resolves to exactly one registered (pack,file)
+        (doseq [entry catalog-entries]
+          (let [manifest (:manifest entry)
+                m (or (re-find #"benchmarks/packs/([^/]+)/([^/]+)$" manifest) [])
+                pack (nth m 1 nil) file (nth m 2 nil)]
+            (if (and pack file (contains? registry [pack file]))
+              (println "    OK catalogue" (:id entry) "->" pack "/" file)
+              (do (swap! errors conj (str "catalogue slug " (:id entry) " manifest " manifest
+                                          " does not resolve to a registered pack benchmark"))
+                  (println "    FAIL catalogue slug" (:id entry) "unresolved manifest" manifest)))))
+
+        ;; 2. Every active/experimental registry benchmark has >=1 catalogue entry
+        (doseq [[[pack file] {:keys [registry-id status]}] registry
+                :when (#{:active :experimental} status)]
+          (when-not (contains? (set (map :manifest catalog-entries))
+                               (str "benchmarks/packs/" pack "/" file))
+            (swap! errors conj (str "registry " registry-id " (" status ") has no catalogue entry "
+                                    "(manifest benchmarks/packs/" pack "/" file ") in BENCHMARKS.edn"))
+            (println "    FAIL registry" registry-id "missing catalogue entry")))
+
+        ;; 3. Duplicate manifest references are allowed only when an alias is present
+        (let [alias-slugs (set (map :id (get (:catalogue catalogue) :aliases)))]
+          (doseq [[manifest n] manifest-freq
+                  :when (> n 1)]
+            (let [slugs (map :id (filter #(= (:manifest %) manifest) catalog-entries))]
+              (when-not (some alias-slugs slugs)
+                (swap! errors conj (str "duplicate manifest " manifest " across non-alias slugs "
+                                        (str/join ", " slugs)))
+                (println "    FAIL duplicate manifest" manifest "without an alias classification")))))
+
+        ;; 4. Classification groups reference only known slugs, each in one group
+        (doseq [[group slug] classified]
+          (when-not (contains? catalog-slugs slug)
+            (swap! errors conj (str "catalogue group " group " references unknown slug " slug))
+            (println "    FAIL catalogue group" group "references unknown slug" slug)))
+        (doseq [[slug groups] (group-by second classified) :when (> (count (distinct (map first groups))) 1)]
+          (swap! errors conj (str "catalogue slug " slug " classified under multiple groups"))
+          (println "    FAIL catalogue slug" slug "in multiple groups"))
+        ;; 5. Deprecated / alias entries declare their targets
+        (doseq [[group entries] (:catalogue catalogue)]
+          (doseq [e entries :when (= group :deprecated) :when (not (:replaced-by e))]
+            (swap! errors conj (str "deprecated catalogue slug " (:id e) " missing :replaced-by"))
+            (println "    FAIL deprecated catalogue slug" (:id e) "missing :replaced-by"))
+          (doseq [e entries :when (= group :aliases) :when (not (:alias-of e))]
+            (swap! errors conj (str "alias catalogue slug " (:id e) " missing :alias-of"))
+            (println "    FAIL alias catalogue slug" (:id e) "missing :alias-of")))))))
+
+(defn validate-results-untracked! [errors]
+  "Assert that no generated benchmark output is tracked under results/benchmarks,
+   keeping the README's 'results/ is fully git-ignored and non-authoritative'
+   statement honest. Skips when no usable .git is present (e.g. source archives,
+   placeholder/empty .git dirs)."
+  (println "  Checking results/benchmarks is untracked (git policy)...")
+  (let [head-file (java.io.File. ".git/HEAD")]
+    (if-not (.exists head-file)
+      (println "    SKIP no usable .git — skipping git results-policy check")
+      (let [{:keys [exit out err]} (clojure.java.shell/sh "git" "ls-files" "results/benchmarks")]
+        (cond
+          (not= 0 exit)
+          (do (println "    SKIP git unavailable or not a repository:" (str/trim err))
+              nil)
+          (str/blank? out)
+          (println "    OK results/benchmarks has no tracked files")
+          :else
+          (do (swap! errors conj (str "results/benchmarks contains tracked files: "
+                                      (str/join ", " (str/split-lines out))))
+              (println "    FAIL results/benchmarks contains tracked files")
+              (doseq [line (str/split-lines out)] (println "      -" line))))))))
+
 (defn run-validation []
   (println "▶ benchmarks:validate\n")
   (let [errors (atom [])]
@@ -454,8 +555,22 @@
                 (let [ids (map :benchmark/id entries)]
                   (println "    WARN active benchmarks" (str/join ", " ids)
                            "share suite, claims, scoring, and runner —"
-                           "possible structural duplication")))))))
-      )
+                           "possible structural duplication")))))
+
+          ;; ── Catalogue ↔ registry identifier mapping ────────────────
+          ;; Human catalogue slugs ("sew/yield-shortfall-v1"), registry keywords
+          ;; (:benchmark/sew-yield-shortfall-v1), and CLI IDs (sew/... ) are
+          ;; three roles for the same benchmark. Validate a one-to-one mapping
+          ;; so the documented distinction cannot silently drift.
+          (validate-catalogue-registry-mapping! errors)
+
+          ;; ── Results-policy assertion ────────────────────────────────
+          ;; README states results/ is fully git-ignored and non-authoritative.
+          ;; If any generated benchmark output is tracked, that statement has
+          ;; drifted from repository reality.
+          (validate-results-untracked! errors)
+      )))
+
 
     (println)
     (if (empty? @errors)
