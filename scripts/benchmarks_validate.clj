@@ -93,15 +93,24 @@
 
 (defn validate-scenario-ids!
   "Check that every :scenario/id in the benchmark's scenario list
-   is a known scenario ID in the referenced suite."
+   is a known scenario ID in the referenced suite.
+
+   Invariant: a benchmark/pack may reference only scenarios that belong to
+   its declared :benchmark/scenario-suite, and each reference MUST use the
+   suite's PUBLIC scenario id (e.g. \"malicious-resolver-verdict-v1\"), not
+   the underlying simulator file slug (e.g. \"S25_...\") or the scenario
+   file's internal :scenario-id. The public id is what the runner emits and
+   what evidence records carry, so declared scenarios must match it."
   [errors suite-key benchmark-path scenarios]
   (let [known-ids (suite-scenario-ids suite-key)]
     (doseq [scenario scenarios]
       (let [id (:scenario/id scenario)]
         (when-not (contains? known-ids id)
           (swap! errors conj (str "scenario id \"" id "\" not found in suite "
-                                  suite-key " in " benchmark-path))
-          (println "    FAIL unknown scenario id \"" id "\" in suite" suite-key))))))
+                                  suite-key " in " benchmark-path
+                                  " — must reference the suite's public scenario id"))
+          (println "    FAIL unknown scenario id \"" id "\" in suite" suite-key
+                   "(expected a public scenario id from" suite-key ")"))))))
 
 (defn- normalize-claim-ref
   "Normalize a single claim ref: keyword → {:claim/id <keyword>}, map kept as-is."
@@ -574,10 +583,15 @@
 
     (println)
     (if (empty? @errors)
-      (println "  OK all checks passed\n\nBENCHMARK VALIDATION PASSED")
+      (do (println "  OK all checks passed\n\nBENCHMARK VALIDATION PASSED")
+          (System/exit 0))
       (do (println "  ERRORS:" (count @errors))
           (doseq [e @errors] (println "    -" e))
           (println "\nBENCHMARK VALIDATION FAILED")
           (System/exit 1)))))
 
+;; No -main: this runs the validation at load time. Exiting explicitly on both
+;; success (0) and failure (1) keeps the process exit code a reliable signal;
+;; without it, clojure.main would fall through to a missing -main lookup and
+;; exit 1 even on success, masking a green status.
 (run-validation)

@@ -1087,7 +1087,12 @@
     :intent/description "Content identity of an individual evidence record"
     :intent/includes    #{:attribution :action :result :context
                           :artifact-kind :temporal-context :sub-hashes}
-    :intent/excludes    #{:evidence-hash :timestamp :chain-metadata}
+    ;; :functions is a hard runtime-value rejection (defense-in-depth): evidence
+    ;; records are finalized data and must not carry live runtime objects. This
+    ;; complements (but does not replace) the writer-boundary rule that
+    ;; finalized evidence schemas simply reject runtime values before they are
+    ;; ever persisted.
+    :intent/excludes    #{:evidence-hash :timestamp :chain-metadata :functions}
     :intent/projection-fn project-identity
     :intent/version     1}
 

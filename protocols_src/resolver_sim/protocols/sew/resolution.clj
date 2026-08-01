@@ -619,11 +619,12 @@
 ;;   3. state must be :disputed
 ;;
 ;; Appeal window logic (SettlementOps.computeResolutionExecution):
-;;   A non-final resolution ALWAYS stores a PendingSettlement with
-;;   appeal-deadline = now + window-dur.  A zero-duration appeal window removes
-;;   the WAITING period (deadline == now, immediately executable); it does NOT
-;;   remove the pending-settlement lifecycle.  Only the final dispute round
-;;   (isFinalRound) bypasses the pending lifecycle and finalizes immediately.
+;;   If snap.appeal-window-duration > 0:
+;;     → store PendingSettlement, do NOT finalize immediately
+;;   Else:
+;;     → finalize immediately (release or refund)
+;;   Only the final dispute round (isFinalRound) always bypasses the pending
+;;   lifecycle and finalizes immediately.
 ;;
 ;; When escalation occurs (dispute is escalated to a higher level):
 ;;   Any existing pending-settlement is cancelled (see _validateAndPrepareEscalation).
@@ -704,7 +705,7 @@
                                        (assoc :decision-evidence-hash (:evidence-hash decision-evidence))
                                        authorization-provenance
                                        (assoc :authorization/provenance authorization-provenance)))]
-        (if final-round?
+        (if (or final-round? (not (pos? window-dur)))
           (let [finalized (if is-release
                             (finalize world''' workflow-id :released
                                       :authorization-provenance authorization-provenance)
@@ -925,16 +926,21 @@
    caller's guards still require the recovered decision's deadline to have elapsed
    and preserve all normal settlement validation. If a newer replacement decision
    exists (active pending, or a same-level superseded entry), it is preferred and
-   no older decision is recovered."
+   no older decision is recovered. Cross-level recovery applies only while the
+   escrow is still :disputed — a terminal escrow has nothing to settle, so no
+   entry is returned from another level."
   [world workflow-id _now-ts]
   (let [entries       (get-in world [:superseded-pending-settlements workflow-id] [])
         current-level (t/dispute-level world workflow-id)
         same-level    (seq (filter #(= current-level (:level %)) entries))
+        disputed?     (= :disputed (t/escrow-state world workflow-id))
         ordered       (fn [es] (last (sort-by (fn [e] [(:superseded-at e 0)
                                                        (:appeal-deadline (:pending e) 0)])
-                                              es)))]
-    (when (seq entries)
-      (ordered (or same-level entries)))))
+                                             es)))]
+    (cond
+      same-level    (ordered same-level)
+      (and disputed? (seq entries)) (ordered entries)
+      :else nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; challenge-resolution (Phase L)

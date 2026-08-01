@@ -20,7 +20,13 @@
     (is (= "evt-settle-1" (get-in dup-set [:attributes :event_id])))))
 
 (deftest export-includes-transfer-trace-decision-for-final-resolution
-  (let [scenario (scen-io/load-scenario-file "scenarios/edn/S11_zero-fee-edge-case.edn")
+  (let [;; S11 resolves at appeal-window-duration 0; a zero window now creates a
+        ;; pending settlement, so append an immediate keeper execution to reach
+        ;; the terminal state (pending lifecycle, zero waiting period).
+        scenario (-> (scen-io/load-scenario-file "scenarios/edn/S11_zero-fee-edge-case.edn")
+                     (update :events conj
+                             {:seq 3 :time 1180 :agent "resolver"
+                              :action "execute_pending_settlement" :params {:workflow-id 0}}))
         result (replay/replay-with-protocol sew/protocol scenario)
         fixture (trace-export/export-trace-fixture result scenario)
         decision (get-in fixture [:expected_semantics :resolution :trace_decision])]

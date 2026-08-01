@@ -9,7 +9,7 @@ not a production security certification or deployed-contract audit.
 Start with the built Sew distribution:
 
 ```bash
-java -jar prf-runner-sew-0.1.0-uber.jar help
+java -jar prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main help
 ```
 
 Before inspecting examples, verify the packet from its own root:
@@ -29,6 +29,10 @@ verify-scenario --run-root <completed-root>
 run-benchmark <benchmark-id> --run-root <fresh-root>
 verify-benchmark --run-root <completed-root>
 ```
+
+Each is invoked as `java -jar prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main
+<command> [args]`. The packet's `bin/verify-review-packet.sh` runs them for you.
+
 
 ## Ownership boundary
 

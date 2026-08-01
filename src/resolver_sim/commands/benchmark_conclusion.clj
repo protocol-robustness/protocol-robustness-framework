@@ -67,7 +67,16 @@
                          "not_implemented" (:not-implemented claims)}
                "invariants" {"total" (:total-checks invariants) "passed" (:passed-checks invariants)
                              "failed" (- (or (:total-checks invariants) 0) (or (:passed-checks invariants) 0))}
-               "evidence" {"path" "benchmark/evidence/evidence.edn" "sha256" (sha256 file) "bytes" (.length file)}
+               ;; Two-commitment model: :evidence/hash is the SEMANTIC, reproducible
+               ;; bundle root (the substantive commitment a verifier checks), while
+               ;; file_sha256 is an exact-instance TRANSPORT checksum proving only
+               ;; that this artifact file has not changed. The file sha is NOT the
+               ;; benchmark outcome identity and is NOT expected to match across an
+               ;; original and an independently reproduced run.
+               "evidence" {"path" "benchmark/evidence/evidence.edn"
+                           "hash" (get evidence :evidence/hash)
+                           "file_sha256" (sha256 file)
+                           "bytes" (.length file)}
                "scope" {"statement" "Declared benchmark claims passed only for the executed inputs."
                         "does_not_establish" ["unexercised claims" "protocol-wide safety"]}}
         target (io/file (str (:benchmark/conclusion-file context)))

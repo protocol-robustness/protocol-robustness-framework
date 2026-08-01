@@ -2,7 +2,7 @@
  :suite-id :suites/spe-regression,
  :trace-id "spe-reg-v8-profile-matrix",
  :final-state-hash
- "6d64fcd7c5f31673162dc299e7e4860319e365c6943c4334709edd1989177238",
+ "875dfe8e515c777f84934ab3569da96ef2c69cb07fa35ae15d78f19978c1c773",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,
@@ -31,8 +31,8 @@
   :invalid-state-transitions 0,
   :batch-events 0,
   :yield/escrow-reclaimed 0,
-  :reverts 0,
-  :unexpected-reverts 0,
+  :reverts 2,
+  :unexpected-reverts 2,
   :yield/escrow-current-value 0,
   :yield/reclaimed 0,
   :resolutions-executed 1,

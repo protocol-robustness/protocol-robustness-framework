@@ -66,11 +66,11 @@
   {"step_type":"protocol-transition",
    "cdrs_version":"0.2",
    "expected":
-   {"escrow_state":4,
+   {"escrow_state":2,
     "escrow_amount_after_fee":3000,
     "global_total_held":0,
     "global_total_fees":0,
-    "pending_settlement_exists":true,
+    "pending_settlement_exists":false,
     "dispute_level":0,
     "accepted":true,
     "state_changed":true},

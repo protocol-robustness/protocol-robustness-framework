@@ -942,7 +942,7 @@
   (let [gov {:id "gov" :type "governance" :address "0xGov"}
         r (sew/replay-with-sew-protocol
            (sb/sc :agents [alice bob resolver gov]
-                  :params (assoc default-params
+                  :params (assoc (assoc default-params :governance-mode :legacy)
                                  :appeal-window-duration 100
                                  :appeal-bond-amount 50)
                   :events
@@ -968,7 +968,7 @@
   (let [gov {:id "gov" :type "governance" :address "0xGov"}
         r (sew/replay-with-sew-protocol
            (sb/sc :agents [alice bob resolver gov]
-                  :params (assoc default-params
+                  :params (assoc (assoc default-params :governance-mode :legacy)
                                  :appeal-window-duration 100
                                  :appeal-bond-amount 50)
                   :events
@@ -998,7 +998,7 @@
         slash-at 1255
         r (sew/replay-with-sew-protocol
            (sb/sc :agents [alice bob resolver gov keeper]
-                  :params (assoc default-params :appeal-window-duration 120)
+                  :params (assoc (assoc default-params :governance-mode :legacy) :appeal-window-duration 120)
                   :events
                   [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
                     :params {:amount 10000}}
@@ -1028,7 +1028,7 @@
         freeze-until (+ slash-at (* 3 time-ctx/seconds-per-day))
         r (sew/replay-with-sew-protocol
            (sb/sc :agents [alice bob resolver gov keeper]
-                  :params (assoc default-params :appeal-window-duration 120)
+                  :params (assoc (assoc default-params :governance-mode :legacy) :appeal-window-duration 120)
                   :events
                   [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
                     :params {:amount 10000}}
@@ -1064,7 +1064,7 @@
                    {:seq 2 :time 1002 :agent "gov" :action "set_token_liquidity_crunch"
                     :params {:token "0xUSDC" :active? true}}
                    {:seq 3 :time 1002 :agent "bob" :action "withdraw_escrow"
-                    :params {:workflow-id 0}}]))]
+                    :params {:workflow-id 0}}] :params sb/legacy-default-params))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 1 :result])))
     (is (= :ok (get-in r [:trace 2 :result])))
@@ -1085,7 +1085,7 @@
                    {:seq 2 :time 1002 :agent "bob" :action "withdraw_escrow"
                     :params {:workflow-id 0}}
                    {:seq 3 :time 1002 :agent "gov" :action "set_token_liquidity_crunch"
-                    :params {:token "0xUSDC" :active? true}}]))]
+                    :params {:token "0xUSDC" :active? true}}] :params sb/legacy-default-params))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 1 :result])))
     (is (= :ok (get-in r [:trace 2 :result])))
@@ -1103,7 +1103,7 @@
                    {:seq 1 :time 1001 :agent "gov" :action "set_token_liquidity_crunch"
                     :params {:token "0xUSDC" :active? true}}
                    {:seq 2 :time 1001 :agent "gov" :action "withdraw_fees"
-                    :params {:token "0xUSDC"}}]))]
+                    :params {:token "0xUSDC"}}] :params sb/legacy-default-params))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 0 :result])))
     (is (= :ok (get-in r [:trace 1 :result])))
@@ -1122,7 +1122,7 @@
                    {:seq 1 :time 1001 :agent "gov" :action "withdraw_fees"
                     :params {:token "0xUSDC"}}
                    {:seq 2 :time 1001 :agent "gov" :action "set_token_liquidity_crunch"
-                    :params {:token "0xUSDC" :active? true}}]))]
+                    :params {:token "0xUSDC" :active? true}}] :params sb/legacy-default-params))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 0 :result])))
     (is (= :ok (get-in r [:trace 1 :result])))
@@ -1141,7 +1141,7 @@
                     :params {:token "0xUSDC"}}
                 ;; governance path remains valid
                    {:seq 2 :time 1002 :agent "gov" :action "withdraw_fees"
-                    :params {:token "0xUSDC"}}]))]
+                    :params {:token "0xUSDC"}}] :params sb/legacy-default-params))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 0 :result])))
     (is (= :rejected (get-in r [:trace 1 :result])))
@@ -1162,7 +1162,7 @@
                    {:seq 2 :time 1002 :agent "bob" :action "withdraw_escrow"
                     :params {:workflow-id 0}}
                    {:seq 3 :time 1002 :agent "gov" :action "withdraw_fees"
-                    :params {:token "0xUSDC"}}]))]
+                    :params {:token "0xUSDC"}}] :params sb/legacy-default-params))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 1 :result])))
     (is (= :ok (get-in r [:trace 2 :result])))
@@ -1182,7 +1182,7 @@
                    {:seq 2 :time 1002 :agent "gov" :action "withdraw_fees"
                     :params {:token "0xUSDC"}}
                    {:seq 3 :time 1002 :agent "bob" :action "withdraw_escrow"
-                    :params {:workflow-id 0}}]))]
+                    :params {:workflow-id 0}}] :params sb/legacy-default-params))]
     (is (= :pass (:outcome r)))
     (is (= :ok (get-in r [:trace 1 :result])))
     (is (= :ok (get-in r [:trace 2 :result])))
@@ -1284,7 +1284,7 @@
         r-upheld
         (sew/replay-with-sew-protocol
          (sb/sc :agents [alice bob resolver gov]
-                        :params (assoc default-params
+                        :params (assoc (assoc default-params :governance-mode :legacy)
                                        :appeal-window-duration 120
                                        :appeal-bond-amount 70)
                         :events
@@ -1308,7 +1308,7 @@
         r-rejected
          (sew/replay-with-sew-protocol
           (sb/sc :agents [alice bob resolver gov keeper]
-                 :params (assoc default-params
+                 :params (assoc (assoc default-params :governance-mode :legacy)
                                 :appeal-window-duration 120
                                 :appeal-bond-amount 80)
                  :events
@@ -1356,7 +1356,7 @@
         keeper {:id "keeper" :type "keeper" :address "0xKeeper"}
         r   (sew/replay-with-sew-protocol
              (sb/sc :agents [alice bob resolver gov keeper]
-                    :params (assoc default-params :appeal-window-duration 120)
+                    :params (assoc (assoc default-params :governance-mode :legacy) :appeal-window-duration 120)
                     :events
                     [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
                       :params {:amount 10000}}

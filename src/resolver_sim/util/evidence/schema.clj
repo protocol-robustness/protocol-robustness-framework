@@ -213,6 +213,14 @@
    {:domain :finalize
     :description "Amount deducted from :total-held."}
 
+   :finalize/write-down
+   {:domain :finalize
+    :description "Portion of the owed principal written down out of held (e.g. a
+                  negative-yield / mark-to-market principal write-down) rather than
+                  settled to claimable. Zero for normal and liquidity-shortfall
+                  settlements (deferred/haircut are tracked separately). Reconciliation:
+                  owed = claimable + write-down + deferred + haircut."}
+
    :finalize/partial-yield?
    {:domain :finalize
     :description "Whether a partial-yield shortfall occurred."}

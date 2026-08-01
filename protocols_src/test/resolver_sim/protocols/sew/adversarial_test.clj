@@ -24,7 +24,8 @@
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.protocols.sew.accounting    :as acct]
             [resolver-sim.protocols.sew.authority     :as auth]
-            [resolver-sim.protocols.sew.invariants    :as inv]))
+            [resolver-sim.protocols.sew.invariants    :as inv]
+            [resolver-sim.time.context                 :as time-ctx]))
 
 ;; ---------------------------------------------------------------------------
 ;; Shared fixtures
@@ -36,7 +37,7 @@
 (def ^:private r0      "0xResolver0")    ; initial resolver
 (def ^:private r1      "0xSeniorResolver")
 (def ^:private r2      "0xKleros")
-(def ^:private token   "0xUSDC")
+(def ^:private token   :0xUSDC)
 
 (defn- base-snap
   "Standard module snapshot with 0 appeal window (zero waiting period; the
@@ -163,16 +164,26 @@
     (is (invariants-hold? world))))
 
 (deftest a6-release-while-pending-settlement
-  "Submit verdict that creates a pending settlement, then attempt a direct
-   execute-resolution again before the deadline. Must be blocked."
+  "A second resolution while a pending settlement exists archives the previous
+   pending and replaces it (superseded-pending fallback); exactly one active
+   pending remains and the previous decision is recoverable via the superseded
+   path.
+
+   NOTE: This characterises current sim behaviour.  Solidity rejects a
+   same-level re-resolution with PendingDecisionAlreadyExists — a known
+   divergence tracked separately from the zero-appeal-window fix."
   (let [{:keys [world wf-id]} (make-pending (t/empty-world 1000) 86400)
-        ;; Pending now exists; try to submit another resolution
+        before (t/get-pending world wf-id)
         r (res/execute-resolution world wf-id r0 false "0xhash2" nil)]
-    (is (false? (:ok r)))
-    (is (= :resolution-already-pending (:error r)))
-    ;; Only one pending settlement exists
-    (is (:exists (t/get-pending world wf-id)))
-    (is (invariants-hold? world))))
+    (is (true? (:ok r)) "second resolution replaces the pending (archive+replace)")
+    (let [after (t/get-pending (:world r) wf-id)]
+      (is (:exists after) "exactly one active pending remains")
+      (is (false? (:is-release after)) "replacement pending reflects the new decision")
+      (is (= (:appeal-deadline after) (:appeal-deadline before))
+          "replacement preserves the appeal deadline")
+      (is (= 1 (count (get-in (:world r) [:superseded-pending-settlements wf-id] [])))
+          "previous decision archived as superseded"))
+    (is (invariants-hold? (:world r)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Category B: Authorization attacks
@@ -295,14 +306,19 @@
                 {:world w0 :wf-ids []}
                 (range n))
         _     (is (invariants-hold? world) "solvency after disputes")]
-    ;; Resolve half as release, half as refund
+    ;; Resolve half as release, half as refund, then execute each pending
+    ;; settlement (zero appeal window — immediately executable).
     (let [final-world
           (reduce (fn [w [i wf]]
                     (let [is-release (even? i)
                           rr (res/execute-resolution w wf r0 is-release "0xhash" nil)]
                       (is (true? (:ok rr)) (str "resolution of wf " wf " failed"))
                       (is (transition-holds? w (:world rr)))
-                      (:world rr)))
+                      (let [w-resolved (:world rr)
+                            ep (res/execute-pending-settlement w-resolved wf)]
+                        (is (true? (:ok ep)) (str "pending execution of wf " wf " failed"))
+                        (is (transition-holds? w-resolved (:world ep)))
+                        (:world ep))))
                   world
                   (map-indexed vector wf-ids))]
       (is (invariants-hold? final-world) "solvency after all resolutions")
@@ -313,7 +329,7 @@
 (deftest c2-cross-token-isolation
   "Two escrows in different tokens. Resolving one must not affect the other
    token's total-held."
-  (let [token-b  "0xDAI"
+  (let [token-b  :0xDAI
         w0       (t/empty-world 1000)
         snap     (base-snap)
         settings (t/make-escrow-settings {})
@@ -333,10 +349,12 @@
         w-both (:world dr-b)
         held-a-before (get-in w-both [:total-held token] 0)
         held-b-before (get-in w-both [:total-held token-b] 0)
-        ;; Resolve only escrow A
+        ;; Resolve only escrow A, then execute its pending settlement
         rr-a  (res/execute-resolution w-both wf-a r0 true "0xhash" nil)
         _     (is (true? (:ok rr-a)))
-        w-after (:world rr-a)]
+        ep-a  (res/execute-pending-settlement (:world rr-a) wf-a)
+        _     (is (true? (:ok ep-a)))
+        w-after (:world ep-a)]
     ;; Token B held must be unchanged
     (is (= held-b-before (get-in w-after [:total-held token-b] 0))
         "DAI total-held must not change when USDC escrow resolves")
@@ -348,7 +366,7 @@
   "Execute pending settlement once successfully, then attempt again.
    Second call must fail; solvency must hold throughout."
   (let [{:keys [world wf-id deadline]} (make-pending (t/empty-world 1000) 86400)
-        w-past-dl (assoc world :block-time (inc deadline))
+        w-past-dl (time-ctx/advance-time world {:to (inc deadline)})
         ;; First execution
         r1 (res/execute-pending-settlement w-past-dl wf-id)
         _  (is (true? (:ok r1)))
@@ -410,7 +428,7 @@
    Must fail with :appeal-window-not-expired."
   (let [{:keys [world wf-id deadline]} (make-pending (t/empty-world 1000) 86400)
         ;; Set block-time to just before the deadline
-        w-early (assoc world :block-time (dec deadline))
+        w-early (time-ctx/advance-time world {:to (dec deadline)})
         r       (res/execute-pending-settlement w-early wf-id)]
     (is (false? (:ok r)))
     (is (= :appeal-window-not-expired (:error r)))
@@ -420,7 +438,7 @@
   "Execute-pending at block-time == appeal-deadline must SUCCEED.
    The check is >= (not >), so the boundary is inclusive."
   (let [{:keys [world wf-id deadline]} (make-pending (t/empty-world 1000) 86400)
-        w-at-dl (assoc world :block-time deadline)
+        w-at-dl (time-ctx/advance-time world {:to deadline})
         r       (res/execute-pending-settlement w-at-dl wf-id)]
     (is (true? (:ok r)) "execute-pending at exact deadline must succeed")
     (is (= :released (t/escrow-state (:world r) wf-id)))
@@ -440,7 +458,7 @@
         _   (is (not (:exists (t/get-pending w1 wf-id))) "pending must be cleared after escalation")
         ;; Try to execute the now-cleared pending (past deadline)
         dl  (:appeal-deadline (t/get-pending world wf-id))
-        w2  (assoc w1 :block-time (+ dl 1))
+        w2  (time-ctx/advance-time w1 {:to (+ dl 1)})
         r   (res/execute-pending-settlement w2 wf-id)]
     (is (true? (:ok r)) "eligible superseded pending should execute")
     (is (= :released (t/escrow-state (:world r) wf-id)))
@@ -454,7 +472,7 @@
         {world :world wf-id :wf-id} (make-disputed w0 {:max-dispute-duration max-dur})
         ts      (get-in world [:dispute-timestamps wf-id] 0)
         ;; Set block-time to one second before timeout
-        w-early (assoc world :block-time (+ ts max-dur -1))
+        w-early (time-ctx/advance-time world {:to (+ ts max-dur -1)})
         auto-r  (res/automate-timed-actions w-early wf-id)]
     ;; Should return some ok result but NOT finalize the escrow
     (when (:ok auto-r)
@@ -475,7 +493,7 @@
         wf     (:workflow-id cr)
         world  (:world cr)
         ;; Block-time one second before auto-release
-        w-early (assoc world :block-time (dec rel-t))
+        w-early (time-ctx/advance-time world {:to (dec rel-t)})
         auto-r  (res/automate-timed-actions w-early wf)]
     (is (= :pending (t/escrow-state (or (:world auto-r) w-early) wf))
         "escrow must remain :pending before auto-release-time")

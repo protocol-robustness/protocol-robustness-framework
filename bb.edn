@@ -91,41 +91,10 @@ Example: bb cli scenario list --search yield"
                   "resolver-sim.grounded-amount-test")}
 
    test:unit:parallel
-   {:doc "Run all unit tests (framework + Sew) in parallel with noop capture"
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
-                 "resolver-sim.core-tests"
-                 "resolver-sim.protocol-alignment-test"
-                 "resolver-sim.protocols.sew.replay-test"
-                 "resolver-sim.protocols.sew.forking-strategist-expectations-test"
-                 "resolver-sim.protocols.sew.slashing-test"
-                 "resolver-sim.protocols.sew.phase-k-test"
-                 "resolver-sim.protocols.sew.phase-m-test"
-                 "resolver-sim.scenario.expectations-test"
-                 "resolver-sim.scenario.equilibrium-test"
-                 "resolver-sim.sim.multi-epoch-test"
-                 "resolver-sim.sim.defection-test"
-                 "resolver-sim.sim.strategy-adaptation-test"
-                 "resolver-sim.sim.waterfall-test"
-                 "resolver-sim.io.scenario-fixture-parity-test"
-                 "resolver-sim.contract-model.replay-batch-test"
-                 "resolver-sim.contract-model.replay-batch-sew-test"
-                 "resolver-sim.contract-model.replay-batch-appeal-test"
-                 "resolver-sim.contract-model.replay-batch-slash-domain-test"
-                 "resolver-sim.protocols.sew.dispute-resolution-coverage-test"
-                 "resolver-sim.financial.pro-rata-characterization-test"
-                 "resolver-sim.scenario.suites-test"
-                 "resolver-sim.validation.scenario-registry-test"
-                 "resolver-sim.run.overview-test"
-                 "resolver-sim.evidence.node-test"
-                 "resolver-sim.evidence.attestation-dag-test"
-                 "resolver-sim.economics.payoffs-test"
-                 "resolver-sim.hash.canonical-test"
-                 "resolver-sim.hash.concat-properties-test"
-                 "resolver-sim.hash.attestor-hash-test"
-                 "resolver-sim.evidence.chain-test"
-                 "resolver-sim.evidence.commitment-root-test"
-                 "resolver-sim.evidence.finalization-test"
-                 "resolver-sim.evidence.qol-test")}
+   {:doc "Run all unit tests (framework + Sew) in parallel with noop capture.
+          Delegates to scripts/test.sh unit — run_unit there is the single
+          source of truth for the unit namespace list."
+    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "unit")}
 
    test:evidence
    {:doc "Run evidence-chain unit tests (node, chain, registry, attestation, integrity, qol) with noop capture"

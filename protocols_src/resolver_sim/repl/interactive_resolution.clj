@@ -8,7 +8,6 @@
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.resolution :as res]
             [resolver-sim.protocols.sew.accounting :as ac]
-            [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.time.deadlines :as dl]))
@@ -70,35 +69,55 @@
 
 (defn- next-keeper-deadline
   "Earliest future timestamp when a keeper action could fire for this workflow.
-   Returns {:deadline-ts <int> :action <kw>} or nil if none is pending."
+   Returns {:deadline-ts <int> :action <kw>} or nil if none is pending.
+   Mirrors the dispatch order and guards of automate-timed-actions."
   [world wf]
   (let [now     (time-ctx/block-ts world)
         et      (t/get-transfer world wf)
         state   (:escrow-state et)
         results (atom [])]
-    (when (= :disputed state)
-      ;; Priority 1: pending settlement appeal deadline
-      (let [pending (t/get-pending world wf)]
-        (when (:exists pending)
+    (cond
+      (= :disputed state)
+      (let [pending (t/get-pending world wf)
+            has-pending (:exists pending)]
+        ;; Priority 1: pending settlement appeal deadline
+        (when has-pending
           (let [dl (:appeal-deadline pending)]
             (when-not (dl/deadline-expired? now dl)
-              (swap! results conj {:deadline-ts dl :action :execute-pending})))))
-      ;; Priority 2: auto-cancel-time on disputed escrow
-      (let [act (:auto-cancel-time et 0)]
-        (when (pos? act)
-          (when-not (dl/deadline-expired? now act)
-            (swap! results conj {:deadline-ts act :action :auto-cancel-disputed-auto-time}))))
-      ;; Priority 3: max-dispute-duration timeout
-      (let [snap    (t/get-snapshot world wf)
-            ts      (get-in world [:dispute-timestamps wf] 0)
-            max-dur (get snap :max-dispute-duration 0)]
-        (when (and (pos? ts) (pos? max-dur))
-          (let [dl (dl/deadline ts max-dur)]
-            (when-not (dl/deadline-expired? now dl)
-              (swap! results conj {:deadline-ts dl :action :auto-cancel-disputed})))))
-      ;; Return the nearest deadline
-      (when (seq @results)
-        (apply min-key :deadline-ts @results)))))
+              (swap! results conj {:deadline-ts dl :action :execute-pending}))))
+        ;; Priority 2: auto-cancel-time on disputed escrow (blocked by pending)
+        (let [act (:auto-cancel-time et 0)]
+          (when (and (pos? act) (not has-pending))
+            (when-not (dl/deadline-expired? now act)
+              (swap! results conj {:deadline-ts act :action :auto-cancel-disputed-auto-time}))))
+        ;; Priority 2.5 / 3: max-dispute-duration timeout (blocked by pending)
+        (let [snap    (t/get-snapshot world wf)
+              ts      (get-in world [:dispute-timestamps wf] 0)
+              max-dur (get snap :max-dispute-duration 0)
+              refused (get-in world [:escrow-transfers wf :resolution/refused] false)
+              action  (if refused :auto-cancel-refused-resolution :auto-cancel-disputed)]
+          (when (and (pos? ts) (pos? max-dur) (not has-pending))
+            (let [dl (dl/deadline ts max-dur)]
+              (when-not (dl/deadline-expired? now dl)
+                (swap! results conj {:deadline-ts dl :action action})))))
+        ;; Return the nearest deadline
+        (when (seq @results)
+          (apply min-key :deadline-ts @results)))
+
+      (= :pending state)
+      ;; Priority 4/5: auto-release and auto-cancel on pending escrow
+      (let [auto-release (:auto-release-time et 0)
+            auto-cancel  (:auto-cancel-time et 0)]
+        (when (pos? auto-release)
+          (when-not (dl/deadline-expired? now auto-release)
+            (swap! results conj {:deadline-ts auto-release :action :auto-release})))
+        (when (pos? auto-cancel)
+          (when-not (dl/deadline-expired? now auto-cancel)
+            (swap! results conj {:deadline-ts auto-cancel :action :auto-cancel})))
+        (when (seq @results)
+          (apply min-key :deadline-ts @results)))
+
+      :else nil)))
 
 (defn- workflow-prefix
   "Short status tag for a workflow, e.g. '[wf-0 :disputed L1/pending]'."
@@ -365,44 +384,44 @@
             (apply-choice session choice)))))))
 
 (defn create-related-claims
-  "Create a related-claims relationship between workflows.
+  "Create a related-claims relationship between workflows through the
+   AUTHENTICATED grant-related-claims action (governance-gated). The creator is
+   the resolved governance agent (opts :governed-by); there is no hardcoded
+   creator fallback. Direct low-level construction is intentionally NOT used here
+   so REPL-created relationships carry authentic governance provenance.
    Event: {:action \"create-related-claims\"
            :params {:type :same-incident
                     :workflow-ids [12 13]
                     :reason \"shared-dispute-context\"
                     :semantics #{:audit-only}}}"
-  [session event {:keys [created-by] :as _opts}]
-  (let [params (:params event)
-        type (get params :type :same-incident)
-        workflow-ids (get params :workflow-ids [])
-        reason (get params :reason "related-claims")
-        semantics (get params :semantics #{:audit-only})
-        created-by (or created-by {:actor/type :governance
-                                   :actor/address "0xInteractiveSession"})
-        created-at-step (count (:steps session))
-        members (for [wf-id workflow-ids]
-                  {:claim/kind :sew/workflow
-                   :workflow/id (t/normalize-workflow-id wf-id)})
-        choice {:action (:action event)
-                :params (:params event)
-                :actor (:agent event)
-                :type (if (:agent event) :agent :keeper)
-                :summary (str "create-related-claims: " type " " workflow-ids)
-                :apply-fn
-                (fn [session' _event]
-                  (let [result (rc/create-related-claims!
-                                (:world session')
-                                {:type type
-                                 :members members
-                                 :semantics semantics
-                                 :reason reason
-                                 :created-by created-by
-                                 :created-at-step created-at-step})]
-                    result))}]
-    (println (str "[RELATED] created relationship type " type
-                  " for workflows " workflow-ids
-                  " (" reason ")"))
-    (apply-choice session choice)))
+  [session event {:keys [governed-by] :as _opts}]
+  (let [gov-res (resolve-governance-agent session governed-by)]
+    (if-not (:ok gov-res)
+      (do
+        (println (str "[FAIL] create-related-claims requires a governance actor, got "
+                      (pr-str (:error gov-res))))
+        session)
+      (let [gov-agent  (:agent gov-res)
+            params     (:params event)
+            action-event {:action "grant-related-claims"
+                          :agent (:id gov-agent)
+                          :params params}
+            choice     {:action (:action event)
+                        :params (:params event)
+                        :actor (:id gov-agent)
+                        :type :agent
+                        :governed-by (:id gov-agent)
+                        :summary (str "grant-related-claims: " (:type params) " "
+                                      (:workflow-ids params))
+                        :apply-fn
+                        (fn [session' _event]
+                          (let [gov-context (-> (:context session')
+                                                (assoc :governance-identity (:address gov-agent))
+                                                (assoc :governance-mode
+                                                       (get-in session' [:context :governance-mode]
+                                                               :restricted)))]
+                            (sew/apply-action gov-context (:world session') action-event)))}]
+        (apply-choice session choice)))))
 
 (defn- apply-choice
   "Apply a choice action, return updated session."

@@ -751,4 +751,17 @@
     :command/runtime :jvm
     :command/options []
     :command/outputs []
-    :command/description "List all available run-ids."}]}
+    :command/description "List all available run-ids."}
+
+   {:command/id :ref-file
+    :command/path ["ref-file"]
+    :command/title "Compute canonical file references"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--check" :type :string :doc "Verify a canonical refs file against file contents"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/description "Compute canonical sha256:<hex> file references (sha256-ref-file) or verify a refs file."}]}

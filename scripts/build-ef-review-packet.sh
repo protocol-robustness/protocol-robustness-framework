@@ -49,6 +49,36 @@ cp "$PROJECT_DIR/resources/test-vectors/pro-rata/liquidity-fulfillment-liquidity
 cp "$PROJECT_DIR/resources/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json" \
    "$OUTPUT_DIR/inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json"
 
+# Emit canonical sha256:<hex> references for packet-relative paths using the
+# packaged jar itself (resolver-sim.hash.reference/sha256-ref-file), so the
+# packet is self-hosting: the artifact being reviewed computes its own refs.
+packet_refs() {
+  ( cd "$OUTPUT_DIR" && java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main ref-file "$@" )
+}
+
+MANIFEST_REFS="$(mktemp)"
+trap 'rm -f "$MANIFEST_REFS"' EXIT
+packet_refs \
+  bin/prf-runner-sew-0.1.0-uber.jar \
+  inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn \
+  inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn \
+  inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn \
+  docs/specs/SEW_CUSTODY_EXPOSURE_V1.md \
+  inputs/benchmarks/force-authorisation-custody-v1.edn \
+  inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json \
+  inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json \
+  > "$MANIFEST_REFS"
+
+ref_for() {
+  awk -v target="$1" '$2 == target {print $1}' "$MANIFEST_REFS"
+}
+
+JAR_REF="$(ref_for bin/prf-runner-sew-0.1.0-uber.jar)"
+if [ -z "$JAR_REF" ]; then
+  echo "Failed to compute canonical jar reference via ref-file" >&2
+  exit 2
+fi
+
 {
   echo "packet_schema_version=prf-ef-review-packet.v1"
   echo "built_jar=bin/prf-runner-sew-0.1.0-uber.jar"
@@ -62,35 +92,35 @@ cp "$PROJECT_DIR/resources/test-vectors/pro-rata/liquidity-fulfillment-liquidity
     echo "repository_commit=unavailable"
     echo "provenance_status=incomplete"
   fi
-  echo "jar_sha256=$(sha256sum "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" | awk '{print $1}')"
+  echo "jar_sha256=$JAR_REF"
 } > "$OUTPUT_DIR/PROVENANCE.txt"
 
 (
   cd "$OUTPUT_DIR/evidence"
-  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     run-scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
     --run-root scenario-rejected
-  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-scenario --run-root scenario-rejected
-  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     run-scenario classpath:scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn \
     --run-root scenario-pro-rata
-  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-scenario --run-root scenario-pro-rata
   # This scenario reaches an unsuppressed invariant violation. Its non-zero
   # semantic outcome is expected; the completed package must still verify.
-  if java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  if java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
        run-scenario classpath:scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn \
        --run-root scenario-semantic-failure; then
     echo "Expected DR-N-002 to conclude with a semantic failure" >&2
     exit 1
   fi
-  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-scenario --run-root scenario-semantic-failure
-  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     run-benchmark force-authorisation-custody-v1 \
     --run-root benchmark-force-authorisation
-  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" \
+  java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-benchmark --run-root benchmark-force-authorisation
 )
 
@@ -102,28 +132,27 @@ clojure -M "$PROJECT_DIR/scripts/render_scenario_diagnostic.clj" \
   --output-dir "$OUTPUT_DIR/diagnostics/scenario-semantic-failure" \
   > /dev/null
 
-JAR_SHA256="$(sha256sum "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" | awk '{print $1}')"
-REJECTED_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn" | awk '{print $1}')"
-PRO_RATA_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn" | awk '{print $1}')"
-FAILURE_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn" | awk '{print $1}')"
-CUSTODY_EXPOSURE_SPEC_SHA256="$(sha256sum "$OUTPUT_DIR/docs/specs/SEW_CUSTODY_EXPOSURE_V1.md" | awk '{print $1}')"
-BENCHMARK_INPUT_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/benchmarks/force-authorisation-custody-v1.edn" | awk '{print $1}')"
-PRO_RATA_INSUFFICIENT_VECTOR_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json" | awk '{print $1}')"
-PRO_RATA_DUST_VECTOR_SHA256="$(sha256sum "$OUTPUT_DIR/inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json" | awk '{print $1}')"
+REJECTED_INPUT_REF="$(ref_for inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn)"
+PRO_RATA_INPUT_REF="$(ref_for inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn)"
+FAILURE_INPUT_REF="$(ref_for inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn)"
+CUSTODY_EXPOSURE_SPEC_REF="$(ref_for docs/specs/SEW_CUSTODY_EXPOSURE_V1.md)"
+BENCHMARK_INPUT_REF="$(ref_for inputs/benchmarks/force-authorisation-custody-v1.edn)"
+PRO_RATA_INSUFFICIENT_VECTOR_REF="$(ref_for inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json)"
+PRO_RATA_DUST_VECTOR_REF="$(ref_for inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json)"
 
 cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
 {
   "schema_version": "prf-ef-review-packet-manifest.v1",
   "jar": {
     "path": "bin/prf-runner-sew-0.1.0-uber.jar",
-    "sha256": "sha256:$JAR_SHA256"
+    "sha256": "$JAR_REF"
   },
   "provenance_ref": "PROVENANCE.txt",
   "evidence_profiles": [
     {
       "id": "sew-custody-exposure.v1",
       "path": "docs/specs/SEW_CUSTODY_EXPOSURE_V1.md",
-      "sha256": "sha256:$CUSTODY_EXPOSURE_SPEC_SHA256",
+      "sha256": "$CUSTODY_EXPOSURE_SPEC_REF",
       "role": "custody-at-settlement-deadline evidence profile",
       "instantiated_by": "benchmark-force-authorisation"
     }
@@ -131,12 +160,12 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
   "reference_vectors": [
     {
       "path": "inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json",
-      "sha256": "sha256:$PRO_RATA_INSUFFICIENT_VECTOR_SHA256",
+      "sha256": "$PRO_RATA_INSUFFICIENT_VECTOR_REF",
       "role": "independent deterministic calculator reference; not a Y06 replay witness"
     },
     {
       "path": "inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json",
-      "sha256": "sha256:$PRO_RATA_DUST_VECTOR_SHA256",
+      "sha256": "$PRO_RATA_DUST_VECTOR_REF",
       "role": "deterministic rounding and dust calculator reference; not a Y06 replay witness"
     }
   ],
@@ -144,7 +173,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
     {
       "id": "scenario-rejected",
       "input": "inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn",
-      "input_sha256": "sha256:$REJECTED_INPUT_SHA256",
+      "input_sha256": "$REJECTED_INPUT_REF",
       "bundle_root": "evidence/scenario-rejected",
       "semantic_outcome": "pass",
       "verify": ["verify-scenario", "--run-root", "evidence/scenario-rejected"]
@@ -152,7 +181,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
     {
       "id": "scenario-pro-rata",
       "input": "inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn",
-      "input_sha256": "sha256:$PRO_RATA_INPUT_SHA256",
+      "input_sha256": "$PRO_RATA_INPUT_REF",
       "bundle_root": "evidence/scenario-pro-rata",
       "semantic_outcome": "pass",
       "verify": ["verify-scenario", "--run-root", "evidence/scenario-pro-rata"]
@@ -160,7 +189,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
     {
       "id": "scenario-semantic-failure",
       "input": "inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn",
-      "input_sha256": "sha256:$FAILURE_INPUT_SHA256",
+      "input_sha256": "$FAILURE_INPUT_REF",
       "bundle_root": "evidence/scenario-semantic-failure",
       "semantic_outcome": "fail",
       "verify": ["verify-scenario", "--run-root", "evidence/scenario-semantic-failure"],
@@ -173,7 +202,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
     {
       "id": "benchmark-force-authorisation",
       "input": "inputs/benchmarks/force-authorisation-custody-v1.edn",
-      "input_sha256": "sha256:$BENCHMARK_INPUT_SHA256",
+      "input_sha256": "$BENCHMARK_INPUT_REF",
       "bundle_root": "evidence/benchmark-force-authorisation",
       "verify": ["verify-benchmark", "--run-root", "evidence/benchmark-force-authorisation"]
     }
@@ -183,7 +212,7 @@ EOF
 
 (
   cd "$OUTPUT_DIR"
-  sha256sum \
+  java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main ref-file \
     bin/prf-runner-sew-0.1.0-uber.jar \
     bin/verify-review-packet.sh \
     inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn \

@@ -43,14 +43,18 @@
                              :concept/conservation
                              :concept/confidence
                              :concept/configuration]
+  ;; :scenario/id must reference the suite's PUBLIC scenario ids
+  ;; (:suite/reference-validation-v1), not the underlying simulator file
+  ;; slugs. The public id is what the runner emits as :scenario/id and what
+  ;; evidence records carry, so the benchmark's declared scenarios must match.
   :benchmark/scenarios
-  [{:scenario/id "S25_profit-maximizer-slash-lifecycle"
+  [{:scenario/id "malicious-resolver-verdict-v1"
     :dimension   :robustness/resolver-accountability
     :claim       :malicious-verdict-economically-bounded}
-   {:scenario/id "S62_resolver-throughput-exhaustion"
+   {:scenario/id "dispute-flooding-v1"
     :dimension   :robustness/liveness-under-load
     :claim       :liveness-under-adversarial-load}
-   {:scenario/id "S05_pending-settlement-execute"
+   {:scenario/id "autopush-settlement-v1"
     :dimension   :robustness/escrow-fund-safety
     :claim       :pull-first-settlement-safety}]
   :benchmark/claims

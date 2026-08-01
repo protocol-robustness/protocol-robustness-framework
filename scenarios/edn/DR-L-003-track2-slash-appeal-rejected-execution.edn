@@ -22,7 +22,7 @@
                        "Rejected slash returns to pending for execution"]}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "governance" "protocol" "insurance" "slashPool"]}
  :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
                    :reversal-slash-bps 2500 :appeal-bond-bps 500
                    :dispute-resolver "0xresolver-l0"
                    :escalation-resolvers {:1 "0xresolver-l1"}}

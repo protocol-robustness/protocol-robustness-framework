@@ -197,6 +197,8 @@ SEW_UNIT_NS := \
 	resolver-sim.protocols.sew.forking-strategist-expectations-test \
 	resolver-sim.protocols.sew.funds-ledger-projection-test \
 	resolver-sim.protocols.sew.governance-gates-test \
+	resolver-sim.protocols.sew.governance-identity-test \
+	resolver-sim.protocols.sew.governance-authorization-test \
 	resolver-sim.protocols.sew.governance-test \
 	resolver-sim.protocols.sew.idempotence-checklist-test \
 	resolver-sim.protocols.sew.lifecycle-test \

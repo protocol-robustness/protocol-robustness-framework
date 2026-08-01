@@ -19,7 +19,7 @@
           :assumptions ["Fraud slash proposal creates :pending entry" "Active check prevents duplicates"]}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "governance" "protocol" "slashPool"]}
  :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 600
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 600
                    :fraud-slash-bps 5000 :dispute-resolver "0xresolver"}
  :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
           {:id "seller" :address "0xseller" :strategy "honest"}

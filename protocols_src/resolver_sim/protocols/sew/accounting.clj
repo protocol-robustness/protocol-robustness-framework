@@ -254,20 +254,48 @@
                            :derived-scope-hash (force-authorisation-scope-hash scope-map)
                            :scope-map scope-map})))))))
 
+(defn- parameter-attribution-error!
+  [parameter-context parameter-address]
+  (let [{:keys [parameter-pair-complete?
+                parameter-context-valid?
+                parameter-address-valid?]}
+        (custody-core/parameter-attribution-check parameter-context parameter-address)
+        reason (cond
+                 (not parameter-pair-complete?)
+                 (if (some? parameter-context)
+                   :parameter-context-without-address
+                   :parameter-address-without-context)
+                 (not parameter-context-valid?) :invalid-parameter-context
+                 (not parameter-address-valid?) :invalid-parameter-address)]
+    (when reason
+      (throw (ex-info "invalid held adjustment parameter attribution"
+                      {:type :invalid-held-adjustment
+                       :reason reason
+                       :parameter/context parameter-context
+                       :parameter/address parameter-address})))))
+
+(defn- parameter-attribution-scope
+  [parameter-context parameter-address]
+  (cond-> {}
+    parameter-context (assoc :parameter/context parameter-context)
+    parameter-address (assoc :parameter/address parameter-address)))
+
 (defn- member-scope-hash-from-adjustment
   "Recompute the force-authorisation scope hash from a held adjustment.
    Used for related-claims per-member consumption tracking."
   [auth-provenance adjustment]
   (force-authorisation-scope-hash
-   {:authorization/id (:authorization/id auth-provenance)
-    :authorization/type :force-authorisation
-    :held/direction (:held/direction adjustment)
-    :token (:token adjustment)
-    :amount (:amount adjustment)
-    :held/account (:held/account adjustment)
-    :owner/address (:owner/address adjustment)
-    :held/reason (:held/reason adjustment)
-    :held/workflow-id (:held/workflow-id adjustment)}))
+   (merge {:authorization/id (:authorization/id auth-provenance)
+           :authorization/type :force-authorisation
+           :held/direction (:held/direction adjustment)
+           :token (:token adjustment)
+           :amount (:amount adjustment)
+           :held/account (:held/account adjustment)
+           :owner/address (:owner/address adjustment)
+           :held/reason (:held/reason adjustment)
+           :held/workflow-id (:held/workflow-id adjustment)}
+          (parameter-attribution-scope (:parameter/context adjustment)
+                                       (:parameter/address adjustment)))))
 
 (defn- mark-force-authorisation-consumed
   [world auth-provenance adjustment]
@@ -525,9 +553,11 @@
                            :amount amount})))))))
 
 (defn- adjust-held
-  [world token amount direction {:keys [action reason authorization-provenance extra]
+  [world token amount direction {:keys [action reason authorization-provenance extra
+                                         parameter/context parameter/address]
                                  :or {action "adjust-held"}}]
   (validate-held-inputs! token amount)
+  (parameter-attribution-error! context address)
   (when (and (contains? exceptional-held-reasons reason)
              (nil? authorization-provenance))
     (throw (ex-info "exceptional held adjustment requires authorization provenance"
@@ -545,7 +575,8 @@
                               :held/account (:held/account components)
                               :owner/address (:owner/address components)
                               :held/reason reason}
-                             (select-keys (or extra {}) [:held/workflow-id]))]
+                             (select-keys (or extra {}) [:held/workflow-id])
+                             (parameter-attribution-scope context address))]
         (ensure-force-authorisation-usable! world authorization-provenance scope-map)))
     (let [current (get-in world [:total-held token] 0)]
       (when (and (= direction :out) (< current amount))
@@ -562,7 +593,9 @@
                                               action
                                               reason
                                               authorization-provenance
-                                              extra)
+                                              (cond-> (or extra {})
+                                                context (assoc :parameter/context context)
+                                                address (assoc :parameter/address address)))
             artifact (custody-core/build-held-custody-artifact adjustment)
             world' (update-ledger-index world adjustment)
             world'' (-> world'
@@ -583,7 +616,13 @@
    - :action                    logical mutation action string
    - :reason                    economic custody reason keyword
    - :authorization-provenance  structured authorization provenance
-   - :extra                     extra machine-readable held-adjustment metadata"
+   - :parameter/context         compact committed parameter environment reference
+   - :parameter/address         semantic parameter locator within that context
+   - :extra                     extra machine-readable held-adjustment metadata
+
+   Parameter context and address are optional for compatibility, but must be
+   supplied together. They attest attribution only; this primitive does not
+   resolve parameter values or evaluate economic policy."
   ([world token amount opts]
    (adjust-held world token amount :in (merge {:action "add-held"} opts))))
 

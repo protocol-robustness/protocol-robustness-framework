@@ -32,7 +32,7 @@
           :assumptions ["Governance can issue force-reversal-slash" "Duplicate force slash is rejected"]}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "governance" "protocol" "slashPool"]}
  :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
                    :reversal-slash-bps 2500
                    :dispute-resolver "0xl0"
                    :escalation-resolvers {:0 "0xl0" :1 "0xl1"}}

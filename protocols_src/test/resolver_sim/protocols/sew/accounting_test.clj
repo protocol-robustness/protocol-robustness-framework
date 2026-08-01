@@ -31,6 +31,11 @@
   (-> (base-world)
       (assoc-in [:fee-recipients :default] treasury)))
 
+(def gov-addr
+  "Shared fixture governance identity for production-shaped force-authorisation
+   fixtures. Kept in one place so it cannot drift from the records it stamps."
+  "0xGov")
+
 (defn- valid-governance-force-authorisation
   "Attach canonical governance-origin provenance to a synthetic force-authorisation
    record so it models a governance-issued grant (matching the record shape
@@ -42,11 +47,12 @@
         prov {:authorization/type :force-authorisation
               :authorization/id auth-id
               :authorization/source :governance
-              :authorization/check :with-governance-actor}]
+              :authorization/check :with-governance-actor
+              :authorization/assurance :address-bound}]
     (assoc record
            :authorization/source :governance
            :nonce auth-id
-           :created-by "0xGov"
+           :created-by gov-addr
            :authorization/provenance prov
            :authorization/history
            [{:authorization/action "grant-force-authorisation"
@@ -150,7 +156,7 @@
     (is (= "appeal-slash" (:held/action adjustment)))
     (is (= 42 (:held/workflow-id adjustment)))
     (is (= auth (:authorization/provenance adjustment)))
-    (is (= "held-custody-adjustment.artifact.v2" (:schema-version artifact)))
+    (is (= "held-custody-adjustment.artifact.v3" (:schema-version artifact)))
     (is (= :held-custody-adjustment (:artifact/kind artifact)))
     (is (= "held-custody-held-adjustment-0" (:artifact/id artifact)))
     (is (string? (:artifact/hash artifact)))
@@ -235,6 +241,8 @@
                                                 :owner/address bob}}))
         checks (custody/held-custody-closed-form-checks (vals (:held-artifacts world)))]
     (is (= [:held-custody/hash-integrity
+            :held-custody/artifact-schema
+            :held-custody/parameter-attribution
             :held-custody/local-delta
             :held-custody/non-negative-after
             :held-custody/predecessor-continuity
@@ -468,6 +476,213 @@
                            999)]
     (is (:holds? (inv/held-artifacts-derived-from-adjustments? world)))
     (is (false? (:holds? (inv/held-artifacts-derived-from-adjustments? tampered))))))
+
+(deftest held-adjustments-record-and-verify-parameter-attribution
+  (let [parameter-root (str "sha256:" (apply str (repeat 64 "a")))
+        context {:parameter-context/type :protocol-parameters
+                 :parameter-context/root parameter-root
+                 :parameter-context/version 1
+                 :parameter-context/scope-id 42}
+        address {:parameter/id :sew/escrow-principal}
+        world (ac/add-held (t/empty-world) usdc 100
+                            {:action "create-escrow"
+                             :reason :escrow-principal-deposited
+                             :parameter/context context
+                             :parameter/address address
+                             :extra {:held/workflow-id 42
+                                     :owner/address alice}})
+        adjustment (last (:held-adjustments world))
+        artifact (get-in world [:held-artifacts (:held-adjustment/id adjustment)])
+        replayed (custody/replay-held-adjustment-state (:held-adjustments world))]
+    (is (= context (:parameter/context adjustment)))
+    (is (= address (:parameter/address adjustment)))
+    (is (= context (:parameter/context artifact)))
+    (is (= address (:parameter/address artifact)))
+    (is (= (:total-held world) (:total-held replayed)))
+    (is (every? #(= :pass (:status %))
+                (custody/held-custody-closed-form-checks [artifact])))))
+
+(deftest held-adjustments-reject-incomplete-or-invalid-parameter-attribution
+  (let [parameter-root (str "sha256:" (apply str (repeat 64 "a")))
+        context {:parameter-context/type :protocol-parameters
+                 :parameter-context/root parameter-root
+                 :parameter-context/version 1}
+        address {:parameter/id :sew/escrow-principal}
+        reason-of (fn [f]
+                    (try (f) nil
+                         (catch clojure.lang.ExceptionInfo e
+                           (:reason (ex-data e)))))]
+    (is (= :parameter-context-without-address
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/context context}))))
+    (is (= :parameter-address-without-context
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/address address}))))
+    (is (= :invalid-parameter-context
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/context {:parameter-context/type :protocol-parameters}
+                                     :parameter/address address}))))
+    (is (= :invalid-parameter-address
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/context context
+                                     :parameter/address {:parameter/id nil}})))
+        "empty parameter addresses are rejected")
+    (is (= :invalid-parameter-context
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/context (assoc context :parameter-context/id :sew/default)
+                                     :parameter/address address})))
+        "root/version and interim id forms are mutually exclusive")
+    (is (= :invalid-parameter-address
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/context context
+                                     :parameter/address {:parameter/id :sew/escrow-principal
+                                                         :parameter/path [:escrow :principal]}})))
+        "semantic-id and path forms are mutually exclusive")
+    (is (= :invalid-parameter-context
+           (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                    {:parameter/context (assoc context :parameter-context/root "not-really-a-root")
+                                     :parameter/address address})))
+        "roots must be canonical sha256 references")
+    (doseq [path [[] [[:unexpected "nested"]] [{:runtime "map"}]]]
+      (is (= :invalid-parameter-address
+             (reason-of #(ac/add-held (t/empty-world) usdc 1
+                                      {:parameter/context context
+                                       :parameter/address {:parameter/path path}})))
+          (str "path is limited to canonical scalar segments: " (pr-str path))))))
+
+(deftest parameter-attribution-is-committed-to-artifact-hash
+  (let [root-a (str "sha256:" (apply str (repeat 64 "a")))
+        root-b (str "sha256:" (apply str (repeat 64 "b")))
+        context-a {:parameter-context/type :protocol-parameters
+                   :parameter-context/root root-a
+                   :parameter-context/version 1}
+        context-b (assoc context-a :parameter-context/root root-b)
+        address-a {:parameter/id :sew/escrow-principal}
+        address-b {:parameter/id :sew/escrow-fee}
+        adjustment {:held-adjustment/id "held-adjustment-0"
+                    :held/direction :in :token usdc :amount 100
+                    :held/before 0 :held/after 100
+                    :held/reason :escrow-principal-deposited :held/action "create-escrow"}
+        artifact-a (custody/build-held-custody-artifact
+                    (assoc adjustment :parameter/context context-a :parameter/address address-a))
+        artifact-b (custody/build-held-custody-artifact
+                    (assoc adjustment :parameter/context context-a :parameter/address address-b))
+        artifact-c (custody/build-held-custody-artifact
+                    (assoc adjustment :parameter/context context-b :parameter/address address-a))]
+    (is (not= (:artifact/hash artifact-a) (:artifact/hash artifact-b)))
+    (is (not= (:artifact/hash artifact-a) (:artifact/hash artifact-c)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"closed-form checks failed"
+                          (custody/held-custody-closed-form-checks
+                           [(assoc artifact-a :parameter/address address-b)])))))
+
+(deftest held-custody-artifact-version-contract
+  (let [adjustment {:held-adjustment/id "held-adjustment-0"
+                    :held/direction :in :token usdc :amount 100
+                    :held/before 0 :held/after 100
+                    :held/reason :held/unspecified :held/action "add-held"}
+        v3 (custody/build-held-custody-artifact adjustment)
+        v2-body (assoc (custody/held-custody-artifact-payload
+                        (assoc v3 :schema-version "held-custody-adjustment.artifact.v2"))
+                       :schema-version "held-custody-adjustment.artifact.v2")
+        v2 (assoc v3 :schema-version "held-custody-adjustment.artifact.v2"
+                   :artifact/hash (str "sha256:" (hash/hash-with-intent
+                                                   {:hash/intent :evidence-record} v2-body)))
+        v2-with-provenance (assoc v2 :parameter/context {:parameter-context/type :protocol-parameters
+                                                          :parameter-context/id :sew/default}
+                                    :parameter/address {:parameter/id :sew/escrow-principal})
+        v3-with-v2-hash (assoc v3 :artifact/hash (:artifact/hash v2))]
+    (is (every? #(= :pass (:status %)) (custody/held-custody-closed-form-checks [v2])))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"closed-form checks failed"
+                          (custody/held-custody-closed-form-checks [v2-with-provenance])))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"closed-form checks failed"
+                          (custody/held-custody-closed-form-checks [v3-with-v2-hash])))))
+
+(deftest force-authorisation-scope-binds-parameter-attribution
+  (let [auth-id "fa-parameter-scope-a1b2c3d4"
+        parameter-root (str "sha256:" (apply str (repeat 64 "a")))
+        context {:parameter-context/type :protocol-parameters
+                 :parameter-context/root parameter-root
+                 :parameter-context/version 1}
+        granted-address {:parameter/id :sew/escrow-principal}
+        attempted-address {:parameter/id :sew/escrow-fee}
+        scope {:authorization/id auth-id
+               :authorization/type :force-authorisation
+               :held/direction :out :token usdc :amount 40
+               :held/account :escrow-principal :owner/address bob
+               :held/reason :force-authorised-release :held/workflow-id 42
+               :parameter/context context :parameter/address granted-address}
+        scope-hash (hash/domain-hash "force-authorisation-scope" scope)
+        world {:total-held {usdc 100}
+               :held/positions {[:held/position usdc :escrow-principal 42] 100}
+               :held-ledger/index {:by-token {usdc 100}
+                                   :by-position {[:held/position usdc :escrow-principal 42] 100}}
+               :force-authorisations {auth-id {:authorization/id auth-id
+                                               :authorization/status :active :consumed? false :starts-at 0
+                                               :authorization/scope scope
+                                               :authorization/scope-hash scope-hash}}}
+        provenance {:authorization/type :force-authorisation
+                    :authorization/id auth-id :authorization/scope-hash scope-hash}]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"scope differs from grant"
+                          (ac/sub-held world usdc 40
+                                       {:action "finalize-released"
+                                        :reason :force-authorised-release
+                                        :authorization-provenance provenance
+                                        :parameter/context context
+                                        :parameter/address attempted-address
+                                        :extra {:held/workflow-id 42 :owner/address bob}})))))
+
+(deftest force-authorisation-parameter-provenance-transition-matrix
+  (let [root-a (str "sha256:" (apply str (repeat 64 "a")))
+        root-b (str "sha256:" (apply str (repeat 64 "b")))
+        context-a {:parameter-context/type :protocol-parameters
+                   :parameter-context/root root-a :parameter-context/version 1}
+        context-b (assoc context-a :parameter-context/root root-b)
+        address-a {:parameter/id :sew/escrow-principal}
+        address-instance-a (assoc address-a :parameter/instance 1)
+        address-instance-b (assoc address-a :parameter/instance 2)
+        attempt (fn [granted-context granted-address execution-context execution-address]
+                  (let [auth-id "fa-parameter-transition"
+                        scope (cond-> {:authorization/id auth-id
+                                       :authorization/type :force-authorisation
+                                       :held/direction :out :token usdc :amount 40
+                                       :held/account :escrow-principal :owner/address bob
+                                       :held/reason :force-authorised-release :held/workflow-id 42}
+                                granted-context (assoc :parameter/context granted-context)
+                                granted-address (assoc :parameter/address granted-address))
+                        scope-hash (hash/domain-hash "force-authorisation-scope" scope)
+                        world {:total-held {usdc 100}
+                               :held/positions {[:held/position usdc :escrow-principal 42] 100}
+                               :held-ledger/index {:by-token {usdc 100}
+                                                   :by-position {[:held/position usdc :escrow-principal 42] 100}}
+                               :force-authorisations {auth-id {:authorization/id auth-id
+                                                               :authorization/status :active
+                                                               :consumed? false :starts-at 0
+                                                               :authorization/scope scope
+                                                               :authorization/scope-hash scope-hash}}}
+                        opts (cond-> {:action "finalize-released"
+                                      :reason :force-authorised-release
+                                      :authorization-provenance {:authorization/type :force-authorisation
+                                                                 :authorization/id auth-id
+                                                                 :authorization/scope-hash scope-hash}
+                                      :extra {:held/workflow-id 42 :owner/address bob}}
+                               execution-context (assoc :parameter/context execution-context)
+                               execution-address (assoc :parameter/address execution-address))]
+                    (try
+                      (ac/sub-held world usdc 40 opts)
+                      :pass
+                      (catch clojure.lang.ExceptionInfo e
+                        (:type (ex-data e))))))]
+    (is (= :pass (attempt nil nil nil nil)) "legacy scope hashes remain valid")
+    (is (= :pass (attempt context-a address-a context-a address-a)))
+    (doseq [[label granted-context granted-address execution-context execution-address]
+            [["address changed" context-a address-a context-a {:parameter/id :sew/escrow-fee}]
+             ["provenance removed" context-a address-a nil nil]
+             ["provenance inserted" nil nil context-a address-a]
+             ["context root changed" context-a address-a context-b address-a]
+             ["instance changed" context-a address-instance-a context-a address-instance-b]]]
+      (is (= :authorization/grant-scope-mismatch
+             (attempt granted-context granted-address execution-context execution-address))
+          label))))
 
 (deftest add-held-rejects-invalid-inputs
   (is (thrown-with-msg? clojure.lang.ExceptionInfo

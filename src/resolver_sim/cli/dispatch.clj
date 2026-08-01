@@ -65,7 +65,8 @@
    :notebook-runs 'resolver-sim.commands.notebook-focus/runs
    :invariants-run 'resolver-sim.commands.invariants-run/run
    :verify-run 'resolver-sim.commands.verify-run/run
-   :assure-package 'resolver-sim.commands.assure-package/run})
+   :assure-package 'resolver-sim.commands.assure-package/run
+   :ref-file 'resolver-sim.commands.ref-file/run})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
@@ -156,7 +157,8 @@
    [nil "--package-b DIR" "Second completed canonical package"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
-   [nil "--key PATH" "Path to private key"]])
+   [nil "--key PATH" "Path to private key"]
+   [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]])
 
 ;; ---------------------------------------------------------------------------
 ;; Command path resolution

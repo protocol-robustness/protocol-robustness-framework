@@ -33,14 +33,34 @@
    (:bundle-root) already normalizes runtime fns to a deterministic {:type :fn}
    marker via project-world-to-structure-view, so it is unaffected by this tag.
 
-   Returns the raw tagged vector, which is inert (not callable, not an object)."
-  (fn [v] v))
+   Returns an unmistakable legacy sentinel map (never the raw vector), so it
+   cannot accidentally satisfy domain code that expects sequential data and so
+   admission/validation logic can categorically detect and reject it:
+   {:legacy/runtime-object true
+    :legacy/class <class-name>
+    :legacy/printed-representation <pr-str output>}"
+  (fn [[class-sym _hex printed :as v]]
+    (if (vector? v)
+      {:legacy/runtime-object true
+       :legacy/class (when class-sym (str class-sym))
+       :legacy/printed-representation printed}
+      {:legacy/runtime-object true
+       :legacy/printed-representation (str v)})))
+
+(defn legacy-object?
+  "True if x is a legacy sentinel emitted by object-tag-reader, i.e. the
+   residue of a non-portable #object[...] runtime value read from a legacy
+   evidence bundle. Such values must be categorically excluded from new
+   evidence admission."
+  [x]
+  (and (map? x) (= true (:legacy/runtime-object x))))
 
 (defn read-evidence-file
   "Reads an evidence bundle, tolerating the #object tagged literals that
   pr-str emits for non-portable Clojure objects (e.g. yield-module fns,
   java.time.Instant). These values are not round-trippable; reproduce/export
-  only read the surrounding canonical map, so the raw tagged vector is kept."
+  only read the surrounding canonical map, so each tagged literal is kept as
+  an inert legacy sentinel map (see legacy-object?)."
   [path]
   (edn/read-string {:readers {'object object-tag-reader}}
                    (slurp path)))

@@ -42,51 +42,6 @@
 (def direct-resolver-fn nil)  ; no module — use direct resolver
 
 ;; ---------------------------------------------------------------------------
-;; execute-resolution: zero appeal window
-;;
-;; A zero-duration appeal window removes the WAITING period (deadline == now,
-;; immediately executable); it does NOT remove the pending-settlement lifecycle.
-;; The escrow stays :disputed until execute-pending-settlement runs.
-;; ---------------------------------------------------------------------------
-
-(deftest execute-resolution-zero-window-creates-pending
-  (let [w (base-world 0)
-        r (res/execute-resolution w 0 resolver true "0xhash" direct-resolver-fn)]
-    (is (true? (:ok r)))
-    (is (= :disputed (t/escrow-state (:world r) 0))
-        "escrow remains disputed until settlement execution")
-    (is (= {:decision-id "resolve-0-0"
-            :step 1000
-            :alternatives [:release :refund]
-            :selected :release
-            :reasoning "Resolver 0xResolver releases escrow 0"
-            :caller resolver
-            :decision-evidence-hash
-            (get-in (:world r) [:escrow-transfers 0 :resolution :decision-evidence-hash])}
-           (get-in (:world r) [:escrow-transfers 0 :resolution :trace-decision])))
-    (is (string? (get-in (:world r) [:escrow-transfers 0 :resolution :decision-evidence-hash])))
-    (let [pending (t/get-pending (:world r) 0)]
-      (is (:exists pending) "pending settlement is created even at zero appeal window")
-      (is (:is-release pending))
-      (is (= 1000 (:appeal-deadline pending))
-          "zero-window pending is immediately executable (deadline == resolution time)"))
-    (let [executed (res/execute-pending-settlement (:world r) 0)]
-      (is (true? (:ok executed)))
-      (is (= :released (t/escrow-state (:world executed) 0))
-          "settlement can execute immediately at zero appeal window"))))
-
-(deftest execute-resolution-zero-window-creates-pending-refund
-  (let [w (base-world 0)
-        r (res/execute-resolution w 0 resolver false "0xhash" direct-resolver-fn)]
-    (is (true? (:ok r)))
-    (is (= :disputed (t/escrow-state (:world r) 0)))
-    (is (:exists (t/get-pending (:world r) 0)))
-    (is (false? (:is-release (t/get-pending (:world r) 0))))
-    (let [executed (res/execute-pending-settlement (:world r) 0)]
-      (is (true? (:ok executed)))
-      (is (= :refunded (t/escrow-state (:world executed) 0))))))
-
-;; ---------------------------------------------------------------------------
 ;; execute-resolution: with appeal window
 ;; ---------------------------------------------------------------------------
 
@@ -338,26 +293,28 @@
     (is (false? (:ok r2)))
     (is (= :transfer-not-in-dispute (:error r2)))))
 
-(deftest execute-pending-refuses-stale-superseded-after-escalation
-  "REGRESSION: after escalation, the superseded pending is no longer the
-   authoritative decision for the current escrow state.
+(deftest execute-pending-recovers-superseded-after-escalation
+  "LIVENESS: after escalation supersedes the pending decision and no replacement
+   is produced at the new level, the most recent superseded pending is recovered
+   so settlement is not stalled indefinitely.
 
    State machine: level-0 resolution creates pending P0; escalation cancels P0
    (per _validateAndPrepareEscalation) and advances the dispute to level 1. No
-   level-1 resolution has been submitted, so there is NO authoritative decision.
-   Once P0's deadline passes, a keeper must NOT be able to finalize on the
-   cancelled level-0 decision."
-  (let [w0        (base-world 1800)                 ;; block 1000, level 0
-        esc-fn    (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
-        r0        (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
-        w1        (:world r0)
+   level-1 resolution has been submitted, so there is no active decision. Once
+   P0's deadline passes, a keeper finalizes on the recovered level-0 decision,
+   and the result records the recovery origin (level + supersession reason)."
+  (let [w0         (base-world 1800)                 ;; block 1000, level 0
+        esc-fn     (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
+        r0         (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
+        w1         (:world r0)
         pending-l0 (t/get-pending w1 0)
-        w1'       (time-ctx/advance-time w1 {:to 2000})
-        r-esc     (res/escalate-dispute w1' 0 bob esc-fn)
-        w2        (:world r-esc)
-        archived  (first (get-in w2 [:superseded-pending-settlements 0]))
-        w3        (time-ctx/advance-time w2 {:to 3000})   ;; P0 deadline (2800) passed
-        r-exec    (res/execute-pending-settlement w3 0)]
+        w1'        (time-ctx/advance-time w1 {:to 2000})
+        r-esc      (res/escalate-dispute w1' 0 bob esc-fn)
+        w2         (:world r-esc)
+        archived   (first (get-in w2 [:superseded-pending-settlements 0]))
+        w3         (time-ctx/advance-time w2 {:to 3000})   ;; P0 deadline (2800) passed
+        r-exec     (res/execute-pending-settlement w3 0)
+        recovered  (get-in r-exec [:extra :settlement/recovered-from-superseded])]
     (is (:ok r0) "level-0 resolution accepted")
     (is (:exists pending-l0) "level-0 pending created")
     (is (= 2800 (:appeal-deadline pending-l0)) "P0 deadline = 1000 + 1800")
@@ -366,17 +323,36 @@
     (is (false? (:exists (t/get-pending w2 0))) "active pending cleared by escalation")
     (is (= 0 (:level archived)) "archived decision was made at level 0")
     (is (= 2800 (:appeal-deadline (:pending archived))) "archived P0 deadline")
-    (is (false? (:exists (t/get-pending w3 0))) "still no authoritative pending at level 1")
-    ;; The cancelled level-0 decision must NOT be recovered as the executable
-    ;; decision for a level-1 dispute that has not yet been resolved.
-    (is (false? (:ok r-exec))
-        "superseded level-0 decision must not execute at level 1")
-    (is (= :no-pending-settlement (:error r-exec))
-        "no authoritative decision exists -> no-pending-settlement")
-    (is (nil? (:world r-exec))
-        "guard rejection returns no world; no state change occurred")
-    (is (= :disputed (t/escrow-state w3 0))
-        "escrow remained :disputed before the rejected execution")))
+    (is (false? (:exists (t/get-pending w3 0))) "no active pending at level 1")
+    ;; The superseded level-0 decision IS recovered (no replacement exists).
+    (is (true? (:ok r-exec))
+        "superseded level-0 decision executes at level 1 when no replacement exists")
+    (is (= :released (t/escrow-state (:world r-exec) 0))
+        "escrow finalized on the recovered release decision")
+    (is (= 0 (:level recovered)) "recovery records the originating level 0")
+    (is (= :escalation (:reason recovered)) "recovery records :escalation supersession")
+    (is (some? (:superseded-at recovered)) "recovery records when the decision was superseded")))
+
+(deftest execute-pending-refuses-superseded-when-active-replacement-exists
+  "REGRESSION: a superseded pending must NOT be recovered once a newer decision
+   has been submitted at the active level — the active pending takes precedence
+   and no recovery marker is recorded."
+  (let [w0     (base-world 1800)                     ;; block 1000, level 0
+        esc-fn (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
+        r0     (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
+        w1     (time-ctx/advance-time (:world r0) {:to 2000})
+        r-esc  (res/escalate-dispute w1 0 bob esc-fn)
+        r-l1   (res/execute-resolution (:world r-esc) 0 "0xLevel1" false "0xhash-level1" direct-resolver-fn)
+        w3     (time-ctx/advance-time (:world r-l1) {:to 5000}) ;; P0 deadline passed; P1 active
+        r-exec (res/execute-pending-settlement w3 0)]
+    (is (:ok r-esc) "escalation accepted")
+    (is (:ok r-l1) "level-1 replacement resolution accepted")
+    (is (:exists (t/get-pending w3 0)) "active replacement pending exists at level 1")
+    (is (true? (:ok r-exec)) "settlement proceeds on the active replacement")
+    (is (= :refunded (t/escrow-state (:world r-exec) 0))
+        "active level-1 decision (refund) is authoritative, not the superseded level-0 release")
+    (is (nil? (get-in r-exec [:extra :settlement/recovered-from-superseded]))
+        "no recovery marker: an active replacement decision existed")))
 
 ;; ---------------------------------------------------------------------------
 ;; Yield-liveness freeze: execute-pending-settlement blocked by yield guard

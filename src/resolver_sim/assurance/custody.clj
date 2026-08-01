@@ -7,7 +7,68 @@
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - benchmarks/packs/sew/"
-  (:require [resolver-sim.hash.canonical :as hash]))
+  (:require [clojure.string :as str]
+            [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.hash.reference :as hash-ref]))
+
+(defn parameter-attribution-check
+  "Validate the optional parameter provenance pair carried by a held adjustment.
+
+   A context is a compact, stable reference: exactly one of a cryptographic
+   root plus :parameter-context/version (the context-reference schema version,
+   not a mutable parameter-set revision), or an explicit non-cryptographic
+   context id. An address is exactly one semantic parameter id (optionally
+   instance-scoped) or a non-empty EDN path of canonical scalar segments.
+   This verifies attribution shape only; parameter resolution and economic
+   correctness remain application-layer concerns."
+  [parameter-context parameter-address]
+  (let [pair-complete? (or (and (nil? parameter-context) (nil? parameter-address))
+                           (and (some? parameter-context) (some? parameter-address)))
+        locator? #(or (keyword? %) (integer? %) (and (string? %) (not (str/blank? %))))
+        root? (hash-ref/valid-sha256-ref? (:parameter-context/root parameter-context))
+        id? (locator? (:parameter-context/id parameter-context))
+        scope-id (:parameter-context/scope-id parameter-context)
+        context-valid? (and (map? parameter-context)
+                            (every? #{:parameter-context/type
+                                      :parameter-context/root
+                                      :parameter-context/version
+                                      :parameter-context/scope-id
+                                      :parameter-context/id}
+                                    (keys parameter-context))
+                            (keyword? (:parameter-context/type parameter-context))
+                            (not= (and root?
+                                       (pos-int? (:parameter-context/version parameter-context)))
+                                  id?)
+                            (or (nil? scope-id) (locator? scope-id)))
+        parameter-id (:parameter/id parameter-address)
+        id-address? (locator? parameter-id)
+        instance (:parameter/instance parameter-address)
+        path (:parameter/path parameter-address)
+        path-address? (and (vector? path) (boolean (seq path)) (every? locator? path))
+        address-valid? (and (map? parameter-address)
+                            (every? #{:parameter/id :parameter/instance :parameter/path}
+                                    (keys parameter-address))
+                            (not= id-address? path-address?)
+                            (or (nil? instance) (locator? instance)))]
+    {:parameter-pair-complete? pair-complete?
+     :parameter-context-valid? (or (nil? parameter-context) context-valid?)
+     :parameter-address-valid? (or (nil? parameter-address) address-valid?)}))
+
+(defn parameter-attribution-status
+  "Structural verification status for parameter provenance. Resolution is
+   deliberately unsupported at the custody layer, so it is always false."
+  [parameter-context parameter-address]
+  (let [checks (parameter-attribution-check parameter-context parameter-address)
+        present? (or (some? parameter-context) (some? parameter-address))]
+    (assoc checks
+           :present? present?
+           :structurally-valid? (every? true? (vals checks))
+           :context-resolved? false
+           :basis :structural-provenance)))
+
+(defn valid-parameter-attribution?
+  [parameter-context parameter-address]
+  (:structurally-valid? (parameter-attribution-status parameter-context parameter-address)))
 
 (defn held-adjustment-order
   "Numeric sequence order for canonical held-adjustment IDs; lexical ordering
@@ -16,6 +77,34 @@
   (let [id (:held-adjustment/id adjustment)
         match (and (string? id) (re-matches #"held-adjustment-(\d+)" id))]
     [(if match (Long/parseLong (second match)) Long/MAX_VALUE) (str id)]))
+
+(def ^:private held-custody-artifact-v2 "held-custody-adjustment.artifact.v2")
+(def ^:private held-custody-artifact-v3 "held-custody-adjustment.artifact.v3")
+(def ^:private supported-held-custody-artifact-versions
+  #{held-custody-artifact-v2 held-custody-artifact-v3})
+
+(defn held-custody-artifact-payload
+  "The schema-specific, hash-committed projection of a held custody artifact."
+  [artifact]
+  (let [v3? (= held-custody-artifact-v3 (:schema-version artifact))]
+    (cond-> {:schema-version (:schema-version artifact)
+             :artifact/kind (:artifact/kind artifact)
+             :held-adjustment/id (:held-adjustment/id artifact)
+             :held/direction (:held/direction artifact)
+             :token (:token artifact)
+             :amount (:amount artifact)
+             :held/before (:held/before artifact)
+             :held/after (:held/after artifact)
+             :held/reason (:held/reason artifact)
+             :held/action (:held/action artifact)}
+      (:held/account artifact) (assoc :held/account (:held/account artifact))
+      (:held/position-id artifact) (assoc :held/position-id (:held/position-id artifact))
+      (:held/workflow-id artifact) (assoc :held/workflow-id (:held/workflow-id artifact))
+      (:owner/address artifact) (assoc :owner/address (:owner/address artifact))
+      (and v3? (:parameter/context artifact)) (assoc :parameter/context (:parameter/context artifact))
+      (and v3? (:parameter/address artifact)) (assoc :parameter/address (:parameter/address artifact))
+      (:held/previous-artifact-hash artifact) (assoc :held/previous-artifact-hash (:held/previous-artifact-hash artifact))
+      (:authorization/provenance artifact) (assoc :authorization/provenance (:authorization/provenance artifact)))))
 
 (defn held-custody-closed-form-checks
   "Deterministic closed-form checks for derived held custody artifacts.
@@ -30,40 +119,11 @@
    - :held-custody/sequence-replay"
   [artifacts]
   (let [ordered (sort-by held-adjustment-order artifacts)
-        artifact-hash-payload
-        (fn [artifact]
-          (cond-> {:schema-version (:schema-version artifact)
-                   :artifact/kind (:artifact/kind artifact)
-                   :held-adjustment/id (:held-adjustment/id artifact)
-                   :held/direction (:held/direction artifact)
-                   :token (:token artifact)
-                   :amount (:amount artifact)
-                   :held/before (:held/before artifact)
-                   :held/after (:held/after artifact)
-                   :held/reason (:held/reason artifact)
-                   :held/action (:held/action artifact)}
-            (:held/account artifact)
-            (assoc :held/account (:held/account artifact))
-
-            (:held/position-id artifact)
-            (assoc :held/position-id (:held/position-id artifact))
-
-            (:held/workflow-id artifact)
-            (assoc :held/workflow-id (:held/workflow-id artifact))
-
-            (:owner/address artifact)
-            (assoc :owner/address (:owner/address artifact))
-
-            (:held/previous-artifact-hash artifact)
-            (assoc :held/previous-artifact-hash (:held/previous-artifact-hash artifact))
-
-            (:authorization/provenance artifact)
-            (assoc :authorization/provenance (:authorization/provenance artifact))))
         hash-violations
         (->> ordered
              (keep (fn [artifact]
                      (let [expected (-> artifact
-                                        artifact-hash-payload
+                                        held-custody-artifact-payload
                                         (#(str "sha256:"
                                                (hash/hash-with-intent
                                                 {:hash/intent :evidence-record}
@@ -73,6 +133,28 @@
                           :expected expected
                           :actual (:artifact/hash artifact)}))))
              vec)
+        schema-violations
+        (->> ordered
+             (keep (fn [artifact]
+                     (when-not (contains? supported-held-custody-artifact-versions
+                                          (:schema-version artifact))
+                       {:held-adjustment/id (:held-adjustment/id artifact)
+                        :schema-version (:schema-version artifact)
+                        :reason :unsupported-schema-version})))
+             vec)
+        parameter-attribution-statuses
+        (mapv (fn [artifact]
+                (let [status (parameter-attribution-status
+                              (:parameter/context artifact)
+                              (:parameter/address artifact))]
+                  (cond-> (assoc status :held-adjustment/id (:held-adjustment/id artifact))
+                    (and (= held-custody-artifact-v2 (:schema-version artifact))
+                         (:present? status))
+                    (assoc :structurally-valid? false
+                           :reason :parameter-provenance-not-supported-by-schema))))
+              ordered)
+        parameter-attribution-violations
+        (filterv #(not (:structurally-valid? %)) parameter-attribution-statuses)
         local-delta-violations
         (->> ordered
              (keep (fn [artifact]
@@ -147,6 +229,14 @@
     (let [results [{:check/id :held-custody/hash-integrity
                     :status (if (empty? hash-violations) :pass :fail)
                     :details {:violations hash-violations}}
+                   {:check/id :held-custody/artifact-schema
+                    :status (if (empty? schema-violations) :pass :fail)
+                    :details {:violations schema-violations}}
+                   {:check/id :held-custody/parameter-attribution
+                    :status (if (empty? parameter-attribution-violations) :pass :fail)
+                    :details {:basis :structural-provenance
+                              :attributions parameter-attribution-statuses
+                              :violations parameter-attribution-violations}}
                    {:check/id :held-custody/local-delta
                     :status (if (empty? local-delta-violations) :pass :fail)
                     :details {:violations local-delta-violations}}
@@ -219,6 +309,16 @@
                                                       {:type :invalid-held-adjustment
                                                        :direction direction
                                                        :adjustment adjustment})))]
+                 (when-not (valid-parameter-attribution?
+                            (:parameter/context adjustment)
+                            (:parameter/address adjustment))
+                   (throw (ex-info "held adjustment has invalid parameter attribution"
+                                   {:type :invalid-held-adjustment
+                                    :parameter-attribution
+                                    (parameter-attribution-check
+                                     (:parameter/context adjustment)
+                                     (:parameter/address adjustment))
+                                    :adjustment adjustment})))
                  (when (nil? token)
                    (throw (ex-info "held adjustment missing token"
                                    {:type :invalid-held-adjustment
@@ -263,7 +363,7 @@
              initial-state
              adjustments))))
 
-(def ^:private held-custody-artifact-version "held-custody-adjustment.artifact.v2")
+(def ^:private held-custody-artifact-version held-custody-artifact-v3)
 
 (defn build-held-custody-artifact
   "Build a minimal research-grade artifact from a canonical held adjustment.
@@ -291,6 +391,12 @@
 
                (:owner/address adjustment)
                (assoc :owner/address (:owner/address adjustment))
+
+               (:parameter/context adjustment)
+               (assoc :parameter/context (:parameter/context adjustment))
+
+               (:parameter/address adjustment)
+               (assoc :parameter/address (:parameter/address adjustment))
 
                (:held/previous-artifact-hash adjustment)
                (assoc :held/previous-artifact-hash (:held/previous-artifact-hash adjustment))
@@ -415,3 +521,55 @@
      :ledger-adjustment-count (count adjustments)
      :reconstruction-valid? reconstruction-valid?
      :reconstruction-issue (when-not zero-origin? :missing-opening-state)}))
+
+(defn ledger-workflow-write-down
+  "Canonical negative-yield principal write-down for a workflow, derived from the
+   held-adjustment ledger (:yield-negative-excess reason). This is the canonical
+   source of truth for the write-down component of the settlement reconciliation
+   and for the :finalize/write-down field on settlement evidence."
+  [world workflow-id]
+  (reduce + 0
+          (for [adj (:held-adjustments world [])
+                :when (and (= (:held/workflow-id adj) workflow-id)
+                           (= :yield-negative-excess (:held/reason adj)))]
+            (long (:amount adj 0)))))
+
+(defn artifact-content-hash-valid?
+  "True when the artifact's :evidence/hash matches a recomputation over its content
+   (excluding :evidence/hash, :evidence/timestamp and chain fields added after
+   finalization). Mirrors the disk-level content-hash verification in
+   resolver-sim.io.event-evidence/verify-chain-integrity."
+  [artifact]
+  (let [content (dissoc artifact
+                        :evidence/hash :evidence/timestamp
+                        :evidence/chain-self-hash :evidence/chain-prev-hash
+                        :evidence/chain-hash-scheme :evidence/chain-seq)
+        expected (hash/hash-with-intent {:hash/intent :evidence-content} content)]
+    (= expected (:evidence/hash artifact))))
+
+(defn verify-settlement-evidence-fidelity
+  "For every terminal settlement evidence artifact (:escrow-released /
+   :escrow-refunded), require :finalize/write-down to equal the ledger-derived
+   workflow write-down (:yield-negative-excess) taken from the artifact's own
+   :post-state. Returns {:holds? bool :violations [...]}.
+
+   This guarantees the committed evidence does not merely contain the field — it
+   reports the correct value against the canonical held ledger."
+  [artifacts]
+  (let [violations
+        (for [a artifacts
+              :let [etype (:evidence/type a)
+                    inputs (:inputs a)
+                    wf (or (:finalize/workflow-id inputs)
+                           (:finalize/workflow_id inputs))]
+              :when (and (contains? #{"escrow-released" "escrow-refunded"} etype)
+                         (some? wf))
+              :let [reported (long (:finalize/write-down inputs 0))
+                    ledger (ledger-workflow-write-down (:post-state a) wf)]
+              :when (not= reported ledger)]
+          {:evidence/hash (:evidence/hash a)
+           :evidence/type etype
+           :workflow-id wf
+           :reported-write-down reported
+           :ledger-write-down ledger})]
+    {:holds? (empty? violations) :violations (vec violations)}))

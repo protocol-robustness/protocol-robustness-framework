@@ -267,6 +267,10 @@
         rel-id (:relationship-id rel-result)
         rel (rc/get-related-claims w3 rel-id)
         auth-id "fa-rel-lifecycle"
+        parameter-context {:parameter-context/type :protocol-parameters
+                           :parameter-context/root (str "sha256:" (apply str (repeat 64 "a")))
+                           :parameter-context/version 1}
+        parameter-address {:parameter/id :sew/escrow-principal}
         ;; sub-held needs to match the keyword key that create-escrow stores
         held-amount (get-in w3 [:total-held usdc-kw] 0)
         sub-0 (quot held-amount 4)
@@ -278,7 +282,9 @@
                  :held/account :escrow-principal
                  :owner/address bob-addr
                  :held/reason :force-authorised-release
-                 :held/workflow-id wf-0}
+                 :held/workflow-id wf-0
+                 :parameter/context parameter-context
+                 :parameter/address parameter-address}
         scope-1 {:authorization/id auth-id
                  :authorization/type :force-authorisation
                  :held/direction :out
@@ -286,7 +292,9 @@
                  :held/account :escrow-principal
                  :owner/address bob-addr
                  :held/reason :force-authorised-release
-                 :held/workflow-id wf-1}
+                 :held/workflow-id wf-1
+                 :parameter/context parameter-context
+                 :parameter/address parameter-address}
         hash-0 (hc/domain-hash "force-authorisation-scope" scope-0)
         hash-1 (hc/domain-hash "force-authorisation-scope" scope-1)
         w4 (-> w3
@@ -314,6 +322,8 @@
                           {:action "finalize-released"
                            :reason :force-authorised-release
                            :authorization-provenance auth-prov
+                           :parameter/context parameter-context
+                           :parameter/address parameter-address
                            :extra {:held/workflow-id wf-0
                                    :owner/address bob-addr}})
         c1 (get-in w5 [:force-authorisations/consumed auth-id])
@@ -321,6 +331,8 @@
                           {:action "finalize-released"
                            :reason :force-authorised-release
                            :authorization-provenance auth-prov
+                           :parameter/context parameter-context
+                           :parameter/address parameter-address
                            :extra {:held/workflow-id wf-1
                                    :owner/address bob-addr}})
         c2 (get-in w6 [:force-authorisations/consumed auth-id])

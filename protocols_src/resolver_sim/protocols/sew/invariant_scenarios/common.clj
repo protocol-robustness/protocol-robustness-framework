@@ -7,35 +7,35 @@
 ;; Shared protocol-param sets
 ;; ---------------------------------------------------------------------------
 
-(def dr3
-  {:resolver-fee-bps 150 :appeal-window-duration 0 :max-dispute-duration 2592000})
+ (def dr3
+  {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 0 :max-dispute-duration 2592000})
 
-(def dr3-module
-  {:resolver-fee-bps 150 :resolution-module "0xresolver"
+ (def dr3-module
+  {:governance-mode :legacy, :resolver-fee-bps 150 :resolution-module "0xresolver"
    :appeal-window-duration 0 :max-dispute-duration 2592000})
 
-(def ieo
-  {:resolver-fee-bps 0 :appeal-window-duration 0 :max-dispute-duration 2592000})
+ (def ieo
+  {:governance-mode :legacy, :resolver-fee-bps 0 :appeal-window-duration 0 :max-dispute-duration 2592000})
 
-(def ieo-timeout
-  {:resolver-fee-bps 0 :appeal-window-duration 0 :max-dispute-duration 300})
+ (def ieo-timeout
+  {:governance-mode :legacy, :resolver-fee-bps 0 :appeal-window-duration 0 :max-dispute-duration 300})
 
-(def timeout
-  {:resolver-fee-bps 150 :appeal-window-duration 0 :max-dispute-duration 300})
+ (def timeout
+  {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 0 :max-dispute-duration 300})
 
 (def stake-cascade
   ;; Zero fee so AFA = amount; short timeout for quick testing.
   ;; resolver-bond-bps=0 skips the creation-time stake-capacity guard,
   ;; letting us register stake separately and observe it deplete under slashing.
-  {:resolver-fee-bps 0 :max-dispute-duration 300
+  {:governance-mode :legacy, :resolver-fee-bps 0 :max-dispute-duration 300
    :dispute-resolver "0xresolver" :resolver-bond-bps 0})
 
-(def appeal
-  {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 600
+ (def appeal
+  {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 600
    :resolver-bond-bps 0})
 
-(def appeal-60
-  {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
+ (def appeal-60
+  {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
    :resolver-bond-bps 0})
 
 (def kleros-resolver-fixture
@@ -55,11 +55,12 @@
       :or {resolver-fee-bps (:resolver-fee-bps kleros-defaults)
            appeal-window-duration 0
            max-dispute-duration 2592000}}]
-    (merge {:resolver-fee-bps resolver-fee-bps
-            :appeal-window-duration appeal-window-duration
-            :max-dispute-duration max-dispute-duration
-            :resolver-bond-bps 0}
-           kleros-resolver-fixture)))
+     (merge {:governance-mode :legacy
+             :resolver-fee-bps resolver-fee-bps
+             :appeal-window-duration appeal-window-duration
+             :max-dispute-duration max-dispute-duration
+             :resolver-bond-bps 0}
+            kleros-resolver-fixture)))
 
 (def kleros (kleros-params))
 

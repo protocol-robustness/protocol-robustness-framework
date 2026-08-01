@@ -70,16 +70,25 @@ bb benchmark:reproduce /tmp/prf-benchmark/benchmark/evidence/evidence.edn
 compares evidence hashes. It reports `✓ Hash match! Results are reproducible.`
 when the recomputed hash equals the original.
 
-> **Reproducibility nuance.** The committed `:evidence/hash` (the `:bundle-root`
+> **Reproducibility.** The committed `:evidence/hash` (the `:bundle-root`
 > commitment) is reproducible: runtime function objects in scenario results are
-> normalized to a deterministic marker before hashing. However, the raw
-> evidence-file byte SHA shown in `conclusion.json` is **not** a stable
-> commitment: legacy serialization embeds JVM object-identity hex inside
-> `#object[...]` tags (e.g. `#object[java.time.Instant 0x1100dccc "..."]`), which
-> varies per process. This is a known limitation of the current evidence
-> serialization, tracked toward a writer-boundary fix that serializes stable
-> yield-module identifiers instead of runtime values. It does not affect the
-> reproducible `:evidence/hash` comparison performed by `benchmark:reproduce`.
+> normalized to a deterministic marker before hashing, and since the
+> writer-boundary fix the evidence writer serializes stable yield-module
+> descriptors instead of runtime function values — the persisted
+> `evidence.edn` contains no `#object[...]` function tags.
+>
+> `conclusion.json` and the package index distinguish two commitments:
+> **`hash`** is the semantic, reproducible bundle root (the substantive
+> commitment `benchmark:reproduce` compares), while **`file_sha256`** is an
+> exact-instance transport checksum proving only that a stored file is
+> unchanged. The transport checksum is **not** the benchmark outcome identity
+> and is not expected to match across an original and a reproduced run.
+>
+> One known limitation remains: legacy serialization embeds JVM
+> object-identity hex inside `#object[java.time.Instant 0x1100dccc "..."]`
+> tags, so the raw evidence-file bytes are not byte-reproducible across
+> processes. This affects only the transport checksum, never the reproducible
+> `:evidence/hash` comparison performed by `benchmark:reproduce`.
 
 > **Note on IDs:** the CLI accepts IDs in `pack/benchmark` form
 > (`sew/sew-yield-shortfall-v1`). This differs from the internal registry

@@ -23,12 +23,12 @@ done
 
 (
   cd "$PACKET_DIR"
-  sha256sum --check --strict SHA256SUMS
+  java -jar "$JAR" -m resolver-sim.cli.main ref-file --check "$CHECKSUMS"
 
-  java -jar "$JAR" verify-scenario --run-root evidence/scenario-rejected
-  java -jar "$JAR" verify-scenario --run-root evidence/scenario-pro-rata
-  java -jar "$JAR" verify-scenario --run-root evidence/scenario-semantic-failure
-  java -jar "$JAR" verify-benchmark --run-root evidence/benchmark-force-authorisation
+  java -jar "$JAR" -m resolver-sim.cli.main verify-scenario --run-root evidence/scenario-rejected
+  java -jar "$JAR" -m resolver-sim.cli.main verify-scenario --run-root evidence/scenario-pro-rata
+  java -jar "$JAR" -m resolver-sim.cli.main verify-scenario --run-root evidence/scenario-semantic-failure
+  java -jar "$JAR" -m resolver-sim.cli.main verify-benchmark --run-root evidence/benchmark-force-authorisation
 )
 
-echo "PASS: EF review packet checksums and evidence bundles verified"
+echo "PASS: EF review packet canonical refs and evidence bundles verified"

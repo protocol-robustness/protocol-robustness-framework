@@ -17,6 +17,7 @@
             [resolver-sim.protocols.sew.authority        :as auth]
             [resolver-sim.protocols.sew.trace-metadata   :as meta]
             [resolver-sim.protocols.sew.invariants       :as inv]
+            [resolver-sim.protocols.sew.related-claims   :as rc]
             [resolver-sim.protocols.sew.projection       :as sew-proj]
             [resolver-sim.protocols.sew.equilibrium      :as sew-eq]
             [resolver-sim.protocols.sew.advisory         :as sew-adv]
@@ -68,7 +69,7 @@
   (let [r (or (:role agent) (:type agent) "")]
     (contains? #{"governance" :governance} r)))
 
-(defn- normalize-governance-identity
+(defn normalize-governance-identity
   "Canonicalize the :governance/identity configuration. Accepts a string address
    or a map {:governance/address <addr>}. Returns nil when not configured.
    Throws on malformed configuration (before any action is attempted)."
@@ -143,7 +144,7 @@
       :legacy
       (fn [addr agent]
         (if (governance-actor? agent)
-          {:ok true :authentication-mode :role
+          {:ok true :authentication-mode :role-declared
            :configured-governance-address configured-addr
            :address-bound? false
            :basis :scenario-declared-role}
@@ -171,6 +172,7 @@
      :authorization/action action-name
      :authorization/governance-mode mode
      :authorization/authentication-mode (:authentication-mode auth-info)
+     :authorization/assurance (:authentication-mode auth-info)
      :authorization/address-bound? (boolean (:address-bound? auth-info))
      :authorization/registry-verified? false
      :authorization/limitation
@@ -218,10 +220,10 @@
   "Build the canonical forced-authorization envelope for a narrow allowlisted
    exceptional path. Rejects unknown actions, reasons, checks, and sources so
    `:authorization/class :forced` cannot silently spread to ordinary flows."
-  [context event addr {:keys [reason capacity-context check source limitation]
+  [context event addr {:keys [reason capacity-context check source limitation authorization-provenance]
                        :or {check :with-governance-actor
                             source :replay-context/agent-index
-                            limitation "Forced authorization is scenario-declared in replay context; not registry-verified."}}]
+                            limitation "Forced authorization is governance-gated; not registry-verified."}}]
   (let [action-name (.replace (name (:action event)) "_" "-")
         {:keys [authorization/class authorization/path] :as policy}
         (get forced-authorisation-policy action-name)]
@@ -253,12 +255,13 @@
                       {:type :invalid-force-authorisation
                        :action action-name
                        :reason reason})))
-    (cond-> (governance-authorization-provenance
-             context event addr
-             {:authentication-mode :interactive-session
-              :address-bound? false
-              :basis :repl-interactive-session
-              :configured-governance-address nil})
+    (cond-> (or authorization-provenance
+                (governance-authorization-provenance
+                 context event addr
+                 {:authentication-mode :interactive-session
+                  :address-bound? false
+                  :basis :repl-interactive-session
+                  :configured-governance-address nil}))
       true
       (assoc :authorization/class class
              :authorization/path path
@@ -329,8 +332,7 @@
    through with-governance-actor (via run-governance-action).
    Source of truth for the governance dispatch audit test."
   #{"rotate-dispute-resolver"
-    "activate-resolver-overflow"
-    "unfreeze-resolver"
+    "activate-resolver-overflow"    "unfreeze-resolver"
     "withdraw-fees"
     "governance-update-fee"
     "set-token-liquidity-crunch"
@@ -347,6 +349,7 @@
     "force-reversal-slash"
     "grant-force-authorisation"
     "revoke-force-authorisation"
+    "grant-related-claims"
     "set-resolution-module"})
 
 (def replay-sensitive-actions
@@ -634,7 +637,7 @@
 (defmethod apply-action "activate-resolver-overflow"
   [context world event]
   (run-governance-action context world event
-    (fn [addr _agent _provenance]
+    (fn [addr _agent governance-prov]
       (let [pp       (:params event)
             now      (time-ctx/block-ts world)
             policy   (:resolver-overflow-policy context)
@@ -664,7 +667,8 @@
                   provenance (build-force-authorisation-provenance
                               context event addr
                               {:reason reason
-                               :capacity-context capacity-context})
+                               :capacity-context capacity-context
+                               :authorization-provenance governance-prov})
                   record {:overflow-id        overflow-id
                           :resolver           resolver
                           :reason             reason
@@ -850,6 +854,48 @@
 (defmethod apply-action "revoke-force-authorization"
   [context world event]
   ((get-method apply-action "revoke-force-authorisation") context world event))
+
+(defmethod apply-action "grant-related-claims"
+  ;; Authenticated related-claims creation (governance-gated): creator identity
+  ;; and provenance are DERIVED from the resolved governance actor via the same
+  ;; authentication/provenance surface as every governance action; caller-supplied
+  ;; :created-by cannot override it. Emits a V2 relationship with
+  ;; :relationship/authenticated? true; creator provenance is committed in the hash.
+  [context world event]
+  (run-governance-action context world event
+    (fn [addr auth-info provenance]
+      (let [pp         (:params event)
+            type       (get pp :type :same-incident)
+            workflow-ids (get pp :workflow-ids [])
+            reason     (get pp :reason "related-claims")
+            semantics  (get pp :semantics rc/default-semantics)
+            created-at-step (time-ctx/block-ts world)
+            created-by {:actor/type :governance
+                        :actor/address addr
+                        :authorization/type :governance
+                        :authorization/check :with-governance-actor
+                        :authorization/source :governance
+                        :authorization/governance-mode
+                        (get context :governance-mode :restricted)
+                        :authorization/authentication-mode
+                        (:authentication-mode auth-info)
+                        :authorization/address-bound?
+                        (boolean (:address-bound? auth-info))
+                        :authorization/registry-verified? false
+                        :authorization/provenance provenance}
+            members    (for [wf-id workflow-ids]
+                         {:claim/kind :sew/workflow
+                          :workflow/id (t/normalize-workflow-id wf-id)})
+            result     (rc/create-related-claims-with-assurance!
+                        world
+                        {:type type
+                         :members members
+                         :semantics semantics
+                         :reason reason
+                         :created-by created-by
+                         :created-at-step created-at-step}
+                        (:authentication-mode auth-info))]
+        result))))
 
 (defmethod apply-action "execute-force-authorised-action"
   [{:keys [agent-index]} world event]
@@ -1365,7 +1411,7 @@
 (defmethod apply-action "appeal-slash"
   [{:keys [agent-index] :as context} world event]
   (run-governance-action context world event
-    (fn [addr _agent _provenance]
+    (fn [addr _agent governance-prov]
       (let [workflow-id (event-workflow-id event)
             slash-id (event-slash-id event)
             slash-entry (get-in world [:pending-fraud-slashes slash-id])
@@ -1375,7 +1421,8 @@
                         {:reason :appeal-bond-custody
                          :capacity-context {:workflow-id workflow-id
                                             :slash-id slash-id
-                                                                                        :resolver resolver-caller}})
+                                            :resolver resolver-caller}
+                         :authorization-provenance governance-prov})
                                                         result (res/appeal-slash world workflow-id resolver-caller slash-id
                                      :authorization-provenance provenance)]
         (if (:ok result)
@@ -1451,14 +1498,15 @@
 (defmethod apply-action "force-reversal-slash"
   [{:keys [agent-index] :as context} world event]
   (run-governance-action context world event
-    (fn [addr _agent _provenance]
+    (fn [addr _agent governance-prov]
       (let [wf   (event-workflow-id event)
             bps  (event-slash-bps event)
             provenance (build-force-authorisation-provenance
                         context event addr
                         {:reason :governance-force-reversal-slash
                          :capacity-context {:workflow-id wf
-                                            :slash-bps bps}})]
+                                            :slash-bps bps}
+                         :authorization-provenance governance-prov})]
         (attr/log-with-attr :debug "force-reversal-slash" {:workflow-id wf :slash-bps bps :caller addr})
         (let [result (t/ok (res/force-reversal-slash world wf
                                                      :slash-bps bps

@@ -561,21 +561,24 @@
                        (res/escalate-dispute w-pend 0 "0xAlice"
                                              (fn [_ _ _ _] {:ok true :new-resolver "0xRes1"})))
              w-esc   (when (:ok er) (:world er))
-             stale   (when w-esc
-                       (res/execute-pending-settlement
-                        (assoc w-esc :block-time 99999) 0))
-             new-rr  (when w-esc
-                       (res/execute-resolution w-esc 0 "0xRes1" true "0xhash2" nil))]
-         (if (and (:ok rr) (:ok er) stale new-rr)
+             w-recovered (when w-esc (time-ctx/advance-time w-esc {:to 99999}))
+             recovered (when w-recovered
+                         (res/execute-pending-settlement w-recovered 0))
+             rec-meta (get-in recovered [:extra :settlement/recovered-from-superseded])]
+         (if (and (:ok rr) (:ok er) recovered)
            (and
             (not (:exists (t/get-pending w-esc 0)))
-            (false? (:ok stale))
-            (= :no-pending-settlement (:error stale))
-            (:ok new-rr)
+            ;; Escalation clears the ACTIVE pending, but a recovered superseded
+            ;; decision finalizes at deadline when no replacement exists (liveness).
+            (:ok recovered)
+            (= :released (t/escrow-state (:world recovered) 0))
+            (= :escalation (:reason rec-meta))
+            (= 0 (:level rec-meta))
+            (some? (:superseded-at rec-meta))
             (:all-hold? (inv/check-all w-esc))
-            (:all-hold? (inv/check-all (:world new-rr)))
+            (:all-hold? (inv/check-all (:world recovered)))
             (:all-hold? (inv/check-transition w-pend w-esc))
-            (:all-hold? (inv/check-transition w-esc (:world new-rr))))
+            (:all-hold? (inv/check-transition w-esc (:world recovered))))
            false))
        false))))
 

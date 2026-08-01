@@ -147,7 +147,7 @@
                   {:id "resolver" :address "0xResolver" :type "resolver"}]
           ctx (proto/build-execution-context
                sew/protocol agents
-               {:resolver-fee-bps 50 :appeal-window-duration 200})
+               {:governance-mode :legacy :resolver-fee-bps 50 :appeal-window-duration 200})
           w0 (t/empty-world 1000)
           s1 (replay/process-step sew/protocol ctx w0
                                   {:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
@@ -195,7 +195,7 @@
                 {:reversal-slash-bps 2500 :appeal-window-duration 200})
           ctx (proto/build-execution-context
                sew/protocol agents
-               {:resolver-fee-bps 50 :appeal-window-duration 200
+               {:governance-mode :legacy :resolver-fee-bps 50 :appeal-window-duration 200
                 :escalation-resolvers {:1 l1-resolver}})
           w0 (-> (t/empty-world 1000)
                  (reg/register-stake res-addr 10000))
@@ -282,7 +282,7 @@
                 {:reversal-slash-bps 2500 :appeal-window-duration 200})
           ctx (proto/build-execution-context
                sew/protocol agents
-               {:resolver-fee-bps 50 :appeal-window-duration 200
+               {:governance-mode :legacy :resolver-fee-bps 50 :appeal-window-duration 200
                 :escalation-resolvers {:1 l1-resolver}})
           w0 (-> (t/empty-world 1000)
                  (reg/register-stake res-addr 10000))
@@ -340,7 +340,7 @@
                 {:reversal-slash-bps 2500 :appeal-window-duration 200})
           ctx (proto/build-execution-context
                sew/protocol agents
-               {:resolver-fee-bps 50 :appeal-window-duration 200
+               {:governance-mode :legacy :resolver-fee-bps 50 :appeal-window-duration 200
                 :escalation-resolvers {:1 l1-resolver}})
           w0 (-> (t/empty-world 1000)
                  (reg/register-stake res-addr 10000))
@@ -394,7 +394,7 @@
                  :max-dispute-duration 3600})
           ctx (proto/build-execution-context
                sew/protocol agents
-               {:resolver-fee-bps 50 :appeal-window-duration 200})
+               {:governance-mode :legacy :resolver-fee-bps 50 :appeal-window-duration 200})
           w0 (t/empty-world 1000)
 
           ;; "grant-force-authorization" (US spelling, alias) -> normalizes to

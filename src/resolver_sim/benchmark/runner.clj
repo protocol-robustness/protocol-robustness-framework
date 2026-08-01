@@ -18,6 +18,7 @@
             [resolver-sim.protocols.registry :as protocols]
             [resolver-sim.scenario.runner :as scenario-runner]
             [resolver-sim.scenario.suites :as suites]
+            [resolver-sim.yield.module :as yield-module]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.set :as set]
@@ -518,6 +519,38 @@
     (coll? x) (into (empty x) (map sort-maps x))
     :else x))
 
+(defn- yield-module-map?
+  "True when x is a declarative yield module map: it carries a :module/id and an
+   :ops map whose values are runtime functions (the module implementations)."
+  [x]
+  (and (map? x)
+       (some? (:module/id x))
+       (map? (:ops x))
+       (some fn? (vals (:ops x)))))
+
+(defn- normalize-runtime-values
+  "WRITER-BOUNDARY normalization: convert runtime Clojure objects into stable,
+   portable descriptors so the persisted evidence structure contains no
+   functions or opaque runtime values.
+
+   - Declarative yield module maps (:ops carrying fns) → describe-module
+     descriptor ({:module/id ... :module/type ... :ops [...]}).
+   - Any remaining fn (defensive) → stable {:type :fn :class ...} marker.
+
+   This is the durable fix for the legacy #object[...] compatibility reader:
+   evidence is written without runtime values, so a reader never needs to
+   reconstruct (or accidentally execute) a function. The committed
+   :evidence/hash (:bundle-root) is unaffected because it excludes
+   :individual-results/:detailed-evidence and normalizes fns via
+   project-world-to-structure-view."
+  [x]
+  (cond
+    (yield-module-map? x) (yield-module/describe-module x)
+    (fn? x) {:type :fn :class (str (class x))}
+    (map? x) (into {} (map (fn [[k v]] [k (normalize-runtime-values v)]) x))
+    (coll? x) (into (empty x) (map normalize-runtime-values x))
+    :else x))
+
 (defn write-evidence
   ([evidence output-path]
    (write-evidence evidence output-path nil))
@@ -525,8 +558,10 @@
    (io/make-parents output-path)
    (let [stable (-> evidence
                     (cond-> run-manifest (assoc :run/manifest run-manifest))
+                    normalize-runtime-values
                     sort-maps)]
      (spit output-path (pr-str stable))
      (log/info! "benchmark/evidence-written" {:output-path output-path
-                                              :sorted-keys? true})
+                                              :sorted-keys? true
+                                              :runtime-values-normalized? true})
      (println "Evidence bundle written to:" output-path))))

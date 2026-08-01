@@ -136,6 +136,7 @@
     :step-non-decreasing
     :time-no-action-after-finality
     :finalization-accounting-correct
+    :settlement-reconciliation
     :escalation-level-monotonic
     :no-withdrawal-during-dispute
     :time-lock-integrity
@@ -344,16 +345,22 @@
            :violations (:failed-checks data)})))))
 
 (defn- related-member-scope-hash [auth-id adjustment]
+  ;; Must remain byte-for-byte aligned with accounting/member-scope-hash-from-adjustment.
+  ;; Parameter provenance is optional, so absent fields must not perturb legacy hashes.
   (hash/domain-hash acct/force-authorisation-scope-domain
-                    {:authorization/id auth-id
-                     :authorization/type :force-authorisation
-                     :held/direction (:held/direction adjustment)
-                     :token (:token adjustment)
-                     :amount (:amount adjustment)
-                     :held/account (:held/account adjustment)
-                     :owner/address (:owner/address adjustment)
-                     :held/reason (:held/reason adjustment)
-                     :held/workflow-id (:held/workflow-id adjustment)}))
+                    (cond-> {:authorization/id auth-id
+                             :authorization/type :force-authorisation
+                             :held/direction (:held/direction adjustment)
+                             :token (:token adjustment)
+                             :amount (:amount adjustment)
+                             :held/account (:held/account adjustment)
+                             :owner/address (:owner/address adjustment)
+                             :held/reason (:held/reason adjustment)
+                             :held/workflow-id (:held/workflow-id adjustment)}
+                      (:parameter/context adjustment)
+                      (assoc :parameter/context (:parameter/context adjustment))
+                      (:parameter/address adjustment)
+                      (assoc :parameter/address (:parameter/address adjustment)))))
 
 (defn force-authorisations-lifecycle-consistent?
   "Validate persisted grants, consumption, and held adjustments. Related-claims
@@ -436,9 +443,11 @@
   "Structural governance-origin check for persisted force-authorisation records.
 
    Answers: 'could this permit have originated through the trusted grant
-   authority?' A record must carry governance-origin provenance: an
-   :authorization/source :governance marker, a :with-governance-actor check on
-   its provenance chain, a nonce, a creator, and a governance-action history.
+   authority?' STRICT: a record must carry :address-bound assurance — a
+   :with-governance-actor check on its provenance chain with :governance source
+   and :authorization/assurance :address-bound (restricted mode, configured-address
+   match). Legacy (:role-declared) and open (:open) grants do NOT satisfy this
+   strict predicate.
 
    This is deliberately separate from force-authorisations-lifecycle-consistent?
    (which checks the permit's state machine is internally coherent). A fabricated
@@ -458,7 +467,8 @@
                              (:authorization/last-provenance record))
                     prov-ok? (and prov
                                   (= :with-governance-actor (:authorization/check prov))
-                                  (= :governance (:authorization/source prov)))
+                                  (= :governance (:authorization/source prov))
+                                  (= :address-bound (:authorization/assurance prov)))
                     ok? (and (= :force-authorisation (:authorization/type record))
                              (= :governance (:authorization/source record))
                              (some? (:nonce record))
@@ -473,7 +483,7 @@
                      (not= :governance (:authorization/source record)) :missing-governance-source
                      (nil? (:nonce record)) :missing-nonce
                      (nil? (:created-by record)) :missing-created-by
-                     (not prov-ok?) :missing-governance-provenance
+                     (not prov-ok?) :missing-address-bound-assurance
                      :else :invalid-governance-history)})]
     {:holds? (empty? violations)
      :violations (vec violations)}))
@@ -1232,6 +1242,72 @@
                     afa              (t/safe-parse-long (:amount-after-fee et))]
               :when (> total afa)]
           {:workflow-id wf :claims total :max afa})]
+    {:holds? (empty? violations) :violations (vec violations)}))
+
+(defn settlement-reconciliation?
+  "Transition invariant: at the transition that makes an escrow terminal, prove the
+   settlement equation
+
+     owed-settled = delta-claimable + write-down + deferred + haircut
+
+   using independently sourced, canonical components:
+
+   - owed-settled = net principal settled this transition
+       = (amount-after-fee - released-so-far) - FoT(remaining);
+       when a liquidity shortfall applies, the canonical shortfall :basis-amount is
+       the owed component instead (kept disjoint from write-down).
+   - delta-claimable = increase in :claimable-v2 wf :settlement/principal this
+       transition (net recipient credits).
+   - write-down = the workflow's cumulative :yield-negative-excess held adjustments
+       (canonical ledger source — the same quantity reported on the settlement
+       evidence). Zero unless a mark-to-market principal write-down occurred.
+   - deferred / haircut = canonical position shortfall records (zero when no
+       liquidity shortfall).
+
+   Accounting horizon is the settlement transition (delta-based), so a later
+   withdraw-escrow (which clears claimables) cannot invalidate the check. Cumulative
+   claimable across partial releases is consistent because owed-settled is computed
+   on the remaining principal (afa - released-so-far). FoT loss appears exactly once
+   as a deduction from owed-settled and is not folded into write-down or
+   deferred/haircut; negative-yield write-down is disjoint from liquidity shortfall."
+  [world-before world-after]
+  (let [violations
+        (for [[wf et-after] (:escrow-transfers world-after)
+              :when (and et-after (contains? t/terminal-states (:escrow-state et-after)))
+              :let [et-before (get-in world-before [:escrow-transfers wf])
+                    state-before (:escrow-state et-before)]
+              :when (and state-before (not (contains? t/terminal-states state-before)))
+              :let [token (:token et-after)
+                    afa (t/safe-parse-long (:amount-after-fee et-after))
+                    released-so-far (t/safe-parse-long (get-in world-after [:amount-released wf] 0))
+                    fot-bps (get-in world-after [:token-fot-bps token] 0)
+                    remaining (- afa released-so-far)
+                    fot (t/compute-fee remaining fot-bps)
+                    owed-net (- remaining fot)
+                    claimable-before (reduce + 0 (vals (get-in world-before [:claimable-v2 wf :settlement/principal] {})))
+                    claimable-after  (reduce + 0 (vals (get-in world-after [:claimable-v2 wf :settlement/principal] {})))
+                    delta-claimable (- claimable-after claimable-before)
+                    write-down (reduce + 0
+                                       (for [adj (:held-adjustments world-after [])
+                                             :when (and (= (:held/workflow-id adj) wf)
+                                                        (= :yield-negative-excess (:held/reason adj)))]
+                                         (t/safe-parse-long (:amount adj 0))))
+                    pos (get-in world-after [:yield/positions (t/escrow-yield-owner-id wf)])
+                    shortfall (:shortfall pos)
+                    deferred (t/safe-parse-long (get shortfall :deferred-amount 0))
+                    haircut (t/safe-parse-long (get shortfall :haircut-amount 0))
+                    owed (if shortfall
+                           (t/safe-parse-long (get shortfall :basis-amount owed-net))
+                           owed-net)
+                    reconciled (+ delta-claimable write-down deferred haircut)]
+              :when (not= owed reconciled)]
+          {:workflow-id wf :token token
+           :owed owed :owed-net owed-net
+           :delta-claimable delta-claimable
+           :write-down write-down
+           :deferred deferred :haircut haircut
+           :reconciled reconciled
+           :diff (- owed reconciled)})]
     {:holds? (empty? violations) :violations (vec violations)}))
 
 (defn settlement-yield-boundary?
@@ -2161,13 +2237,15 @@
      :violations (vec violations)}))
 
 (defn related-claims-hash-matches-members?
-  "Every active relationship's stored hash must match re-derivation from
-   its current members. Detects data corruption or mutation."
+  "Every active relationship's stored hash must match re-derivation from its
+   current members AND its committed creator provenance. Detects data corruption
+   or mutation (including creator provenance attached outside the hash)."
   [world]
   (let [violations
         (for [[rel-id rel] (:related-claims world {})
               :when (= :active (:relationship/status rel))
-              :let [expected (rc/related-claims-hash (:relationship/members rel))
+              :let [expected (rc/related-claims-hash (:relationship/members rel)
+                                                     (:relationship/creator-provenance rel))
                     actual (:relationship/hash rel)]
               :when (not= expected actual)]
           {:relationship/id rel-id
@@ -2380,6 +2458,8 @@
                    :terminal-states    t/terminal-states)
                   :finalization-accounting-correct
                   (finalization-accounting-correct? world-before world-after)
+                  :settlement-reconciliation
+                  (settlement-reconciliation? world-before world-after)
                   :escalation-level-monotonic
                   (escalation-level-monotonic? world-before world-after)
                   :no-withdrawal-during-dispute

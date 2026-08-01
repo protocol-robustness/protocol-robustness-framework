@@ -18,7 +18,7 @@
           :fix "Governance must rotate-dispute-resolver before slashing a resolver with active disputes."}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "governance" "protocol" "claimableBalances"]}
  :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000 :fraud-slash-bps 5000 :appeal-bond-bps 500}
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000 :fraud-slash-bps 5000 :appeal-bond-bps 500}
  :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
           {:id "seller" :address "0xseller" :strategy "honest"}
           {:id "resolver" :address "0xresolver" :role "resolver" :stake 20000}

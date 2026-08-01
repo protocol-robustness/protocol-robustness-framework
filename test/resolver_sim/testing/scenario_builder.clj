@@ -7,9 +7,20 @@
 (def resolver {:id "resolver" :type "honest"        :address "0xResolver"})
 
 (def default-params
+  "Restricted governance is the default: no :governance-mode, no :governance/identity.
+   A governance action invoked in a default scenario therefore fails closed with
+   :governance-identity-not-configured rather than silently inheriting role-only
+   governance."
   {:resolver-fee-bps 50 :appeal-window-duration 0
    :max-dispute-duration 2592000 :appeal-bond-protocol-fee-bps 0
    :resolver-bond-bps 0})
+
+(def legacy-default-params
+  "Explicitly-named legacy (role-only) governance default for scenarios that
+   intentionally use scenario-declared governance roles without address binding.
+   Only scenarios that pass :params legacy-default-params (or assoc it) opt into
+   this weaker mode."
+  (assoc default-params :governance-mode :legacy))
 
 (defn sc [& {:keys [agents params init-time events schema-version allow-open-disputes?]
              :or   {agents       [alice bob resolver]

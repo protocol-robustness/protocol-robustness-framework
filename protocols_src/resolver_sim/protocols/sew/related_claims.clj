@@ -24,9 +24,16 @@
             [resolver-sim.util.attribution :as attr]))
 
 (def ^:const related-claims-domain
+  "V1 domain tag — retained for verifying pre-V2 artifacts."
   "related-claims.v1")
 
+(def ^:const related-claims-domain-v2
+  "V2 domain tag — commits members AND authenticated creator provenance."
+  "related-claims.v2")
+
 (def ^:const related-claims-version 1)
+
+(def ^:const related-claims-version-v2 2)
 
 (def ^:const default-semantics
   "Default relationship semantics set for v1.
@@ -51,16 +58,30 @@
 ;; Hash
 ;; ---------------------------------------------------------------------------
 
-(defn related-claims-hash
-  "Compute the canonical hash for a related-claims relationship.
-   Hashes over sorted members with their claim/kind, workflow/id, and
-   claim/scope-hash to prevent membership mutation without
-   re-authorization."
+(defn related-claims-hash-v1
+  "V1 canonical hash (members only) — retained as a pure reference for verifying
+   pre-V2 artifacts. No authoritative V1 artifacts are known to exist; this is a
+   reference-only function, NOT the production commitment."
   [members]
   (hash/domain-hash related-claims-domain
                     (vec (sort-by (juxt :workflow/id :claim/kind)
-                                 (for [m members]
-                                   (select-keys m [:claim/kind :workflow/id :claim/scope-hash]))))))
+                                  (for [m members]
+                                    (select-keys m [:claim/kind :workflow/id :claim/scope-hash]))))))
+
+(defn related-claims-hash
+  "V2 canonical hash for a related-claims relationship. Commits sorted members
+   PLUS the authenticated creator provenance, so the creator is hash-bound and
+   cannot be presented as authenticated merely by attaching metadata outside the
+   committed preimage. V1 and V2 are domain-separated (related-claims.v1 vs
+   related-claims.v2) and cannot collide."
+  [members creator-provenance]
+  (hash/domain-hash related-claims-domain-v2
+                    {:related-claims/schema-version "related-claims.v2"
+                     :relationship/members
+                     (vec (sort-by (juxt :workflow/id :claim/kind)
+                                   (for [m members]
+                                     (select-keys m [:claim/kind :workflow/id :claim/scope-hash]))))
+                     :relationship/creator-provenance (or creator-provenance {})}))
 
 ;; ---------------------------------------------------------------------------
 ;; Accessors
@@ -176,12 +197,66 @@
                                :existing-relationship-id rel-id})))))))))
 
 ;; ---------------------------------------------------------------------------
+;; Creator provenance / authentication
+;; ---------------------------------------------------------------------------
+
+(defn- validate-creator-provenance!
+  "Require an explicit, well-formed creator provenance on every related-claims
+   record. There is no hardcoded default creator. Note this validates WELL-FORMED
+   provenance, not authenticity — only the governance-gated action sets
+   :relationship/authenticated? true."
+  [created-by]
+  (when-not (and (map? created-by)
+                 (contains? created-by :actor/type)
+                 (string? (:actor/address created-by))
+                 (not= "" (:actor/address created-by)))
+    (throw (ex-info "related-claims requires explicit, well-formed creator provenance"
+                    {:type :invalid-related-claims
+                     :error :missing-creator-provenance
+                     :created-by created-by}))))
+
+(defn- build-creator-provenance
+  "Canonical projection of the creator provenance committed by the V2 hash.
+   Includes :authorization/assurance so the assurance classification is hash-bound."
+  [created-by]
+  (select-keys created-by
+               [:actor/type :actor/address
+                :authorization/type :authorization/check :authorization/source
+                :authorization/governance-mode :authorization/authentication-mode
+                :authorization/assurance
+                :authorization/address-bound? :authorization/registry-verified?
+                :authorization/provenance]))
+
+(def related-claims-assurances
+  "Assurance classification for a related-claims relationship.
+     :address-bound  — governance action in restricted mode: role + configured-address match.
+     :role-declared  — governance action in explicit legacy mode (scenario-declared role only).
+     :open           — governance action in open/full mode (any resolved actor).
+     :unauthenticated— direct builder construction (never authenticated)."
+  #{:address-bound :role-declared :open :unauthenticated})
+
+(defn authenticated-related-claims?
+  "STRICT authenticated predicate. True only for a record produced by the
+   governance-gated action in restricted/address-bound mode, with creator
+   provenance committed by its hash. Legacy (:role-declared), open, and direct
+   (:unauthenticated) records do NOT satisfy this predicate, even with creator
+   metadata attached outside the hash."
+  [relationship]
+  (and (= :address-bound (:relationship/assurance relationship))
+       (some? (:relationship/creator-provenance relationship))
+       (= :address-bound
+          (get-in relationship [:relationship/creator-provenance :authorization/assurance]))))
+
+;; ---------------------------------------------------------------------------
 ;; Builder
 ;; ---------------------------------------------------------------------------
 
 (defn- build-related-claims-record
-  "Construct a related-claims record map without storing it."
-  [world type members semantics reason created-by created-at-step]
+  "Construct a V2 related-claims record map without storing it.
+   `assurance` is the derived assurance classification (:address-bound,
+   :role-declared, :open, or :unauthenticated). Authenticated is true ONLY for
+   :address-bound."
+  [world type members semantics reason creator-provenance created-by created-at-step assurance]
   (let [wf-members (for [m members]
                      (let [scope-hash (or (:claim/scope-hash m)
                                          (related-claims-member-hash m))]
@@ -189,40 +264,41 @@
                            (assoc :claim/scope-hash scope-hash)
                            (update :workflow/id t/normalize-workflow-id))))
         relationship-id (get world :next-related-claim-id 0)
-        rel-hash (related-claims-hash wf-members)]
-    {:related-claims/version related-claims-version
+        rel-hash (related-claims-hash wf-members creator-provenance)]
+    {:related-claims/version related-claims-version-v2
      :relationship/id relationship-id
      :relationship/type type
      :relationship/status :active
      :relationship/members wf-members
      :relationship/semantics (or semantics default-semantics)
      :relationship/reason reason
+     :relationship/creator-provenance creator-provenance
+     :relationship/assurance (or assurance :unauthenticated)
+     :relationship/authenticated? (= :address-bound (or assurance :unauthenticated))
      :created-by created-by
      :created-at-step created-at-step
      :relationship/hash rel-hash}))
 
-;; ---------------------------------------------------------------------------
-;; Action
-;; ---------------------------------------------------------------------------
+(defn- validate-no-auth-override!
+  "Direct construction may never claim authentication. Reject any caller-supplied
+   authentication/assurance override."
+  [opts]
+  (when (or (some? (:authenticated? opts))
+            (some? (:assurance opts)))
+    (throw (ex-info "caller-supplied authentication/assurance override rejected on direct construction"
+                    {:type :invalid-related-claims
+                     :error :related-claims-auth-override-rejected
+                     :opts (select-keys opts [:authenticated? :assurance])}))))
 
-(defn create-related-claims!
-  "Create a new related-claims relationship.
-   Validates members exist, no duplicates, type is allowed, membership is
-   non-empty, and semantics are exactly v1's #{:audit-only}.
-   Returns {:ok true :world world' :relationship-id N :relationship record}.
-
-   opts:
-     :type         — keyword from allowed-relationship-types
-     :members      — [{:claim/kind :sew/workflow :workflow/id N, :claim/scope-hash optional}]
-     :semantics    — must be exactly #{:audit-only} (v1); anything else is rejected
-     :reason       — string describing why
-     :created-by   — {:actor/type :governance :actor/address \"0x...\"}
-     :created-at-step — integer step number"
-  [world {:keys [type members semantics reason created-by created-at-step]
-          :or {semantics default-semantics
-               reason "unspecified"
-               created-by {:actor/type :governance :actor/address "0xGovernance"}
-               created-at-step 0}}]
+(defn create-related-claims-with-assurance!
+  "Authenticated-path builder, intended to be invoked ONLY by the governance-gated
+   grant-related-claims action. `assurance` is derived from governance-check
+   (:address-bound restricted, :role-declared legacy, :open open). This is the
+   only path that produces an :address-bound (authenticated) record. External
+   callers should use create-related-claims!, which rejects authentication
+   overrides and always emits :unauthenticated."
+  [world {:keys [type members semantics reason created-by created-at-step] :as opts}
+   assurance]
   (try
     (validate-relationship-type! type)
     (validate-members-nonempty! members)
@@ -230,7 +306,74 @@
     (validate-claim-kinds! members)
     (validate-members-exist! world members)
     (validate-no-duplicate-members! world members)
-    (let [record (build-related-claims-record world type members semantics reason created-by created-at-step)
+    (validate-creator-provenance! created-by)
+    (let [creator-provenance (build-creator-provenance
+                              (assoc created-by :authorization/assurance assurance))
+          record (build-related-claims-record world type members semantics reason
+                                              creator-provenance created-by
+                                              created-at-step assurance)
+          rel-id (:relationship/id record)
+          world' (-> world
+                     (assoc-in [:related-claims rel-id] record)
+                     (update :next-related-claim-id inc))]
+      (attr/with-attribution {:subject/type :related-claims
+                              :subject/id rel-id
+                              :action/type :related-claims/create
+                              :evidence/reason :related-claims-created}
+        (cap/capture-event-evidence!
+         :related-claims-created
+         {:related-claims/before {:related-claims-count (count (:related-claims world {}))}}
+         {:related-claims/after {:related-claims-count (count (:related-claims world' {}))}}
+         {:related-claims/id rel-id
+          :related-claims/type type
+          :related-claims/members-count (count members)
+          :related-claims/reason reason
+          :related-claims/assurance assurance}))
+      (assoc (t/ok world')
+             :relationship-id rel-id
+             :relationship record))
+    (catch Exception e
+      (t/fail (or (:type (ex-data e)) :related-claims-invalid)))))
+
+;; ---------------------------------------------------------------------------
+;; Action
+;; ---------------------------------------------------------------------------
+
+(defn create-related-claims!
+  "Create a new related-claims relationship (V2) via DIRECT construction.
+   Validates members exist, no duplicates, type is allowed, membership is
+   non-empty, semantics are exactly v1's #{:audit-only}, and an explicit
+   well-formed `created-by` creator provenance is supplied (no hardcoded default).
+
+   DIRECT construction is unconditionally UNAUTHENTICATED: any caller-supplied
+   :authenticated? / :assurance override is REJECTED. Only the governance-gated
+   grant-related-claims action can produce an authenticated (:address-bound)
+   record, via the internal authenticated builder.
+
+   opts:
+     :type         — keyword from allowed-relationship-types
+     :members      — [{:claim/kind :sew/workflow :workflow/id N, :claim/scope-hash optional}]
+     :semantics    — must be exactly #{:audit-only} (v1); anything else is rejected
+     :reason       — string describing why
+     :created-by   — explicit {:actor/type ... :actor/address \"0x...\"} (required)
+     :created-at-step — integer step number"
+  [world {:keys [type members semantics reason created-by created-at-step] :as opts
+          :or {semantics default-semantics
+               reason "unspecified"
+               created-at-step 0}}]
+  (try
+    (validate-no-auth-override! opts)
+    (validate-relationship-type! type)
+    (validate-members-nonempty! members)
+    (validate-semantics! semantics)
+    (validate-claim-kinds! members)
+    (validate-members-exist! world members)
+    (validate-no-duplicate-members! world members)
+    (validate-creator-provenance! created-by)
+    (let [creator-provenance (build-creator-provenance created-by)
+          record (build-related-claims-record world type members semantics reason
+                                              creator-provenance created-by
+                                              created-at-step :unauthenticated)
           rel-id (:relationship/id record)
           world' (-> world
                      (assoc-in [:related-claims rel-id] record)

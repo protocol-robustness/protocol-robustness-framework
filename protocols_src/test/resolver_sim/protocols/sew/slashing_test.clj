@@ -288,7 +288,7 @@
           {:world after-esc :force-workflow-id workflow-id})
         agent-index {"gov"  {:id "gov" :address gov :role "governance"}
                      "user" {:id "user" :address non-gov :role "honest"}}
-        ctx {:agent-index agent-index}
+        ctx {:agent-index agent-index :governance-identity gov}
         propose-ev {:agent "user" :action "propose_fraud_slash"
                     :params {:workflow-id workflow-id :resolver-addr resolver-addr :amount 100}}
         r-propose-gov (sew/apply-action (assoc ctx :agent-index {"gov" {:id "gov" :address gov :role "governance"}})
@@ -309,7 +309,7 @@
     (is (= :not-governance (:error r-resolve-non-gov)))
     (is (false? (:ok r-force-non-gov)))
     (is (= :not-governance (:error r-force-non-gov)))
-    (is (= :scenario-declared
+    (is (= :scenario-configured-address-binding
            (get-in propose-entry [:authorization/provenance :authorization/basis])))
     (is (= :governance
            (get-in propose-entry [:authorization/provenance :authorization/type])))
@@ -328,11 +328,11 @@
              (select-keys stored-provenance (keys extra-provenance)))
           "Stored provenance contains all fields from action result provenance"))
     (is (= :executed (:status force-entry)))
-    (is (= "governance-authorization.v1"
+    (is (= "governance-authorization.v2"
            (get-in force-entry [:authorization/provenance :authorization/schema-version])))
     (is (= :governance
            (get-in force-entry [:authorization/provenance :authorization/type])))
-    (is (= :scenario-declared
+    (is (= :scenario-configured-address-binding
            (get-in force-entry [:authorization/provenance :authorization/basis])))
     (is (= "gov"
            (get-in force-entry [:authorization/provenance :authorization/actor-id])))
@@ -577,7 +577,8 @@
           world1 (-> (res/propose-fraud-slash world workflow-id gov resolver-addr 100) :world)
           world2 (-> (res/appeal-slash world1 workflow-id resolver-addr) :world)
           context {:agent-index {"gov" {:id "gov" :address gov :role "governance"}
-                                 "user" {:id "user" :address non-gov :role "honest"}}}
+                                 "user" {:id "user" :address non-gov :role "honest"}}
+                   :governance-identity gov}
           r-non-gov (sew/apply-action context world2
                       {:agent "user" :action "resolve_appeal"
                        :params {:workflow-id workflow-id :upheld? false}})
@@ -600,7 +601,8 @@
         {:keys [world workflow-id]}
         (world-ready-for-fraud-slash-propose world0 buyer "USDC" seller resolver-addr 1000 snap)
         world1 (-> (res/propose-fraud-slash world workflow-id gov resolver-addr 100) :world)
-        context {:agent-index {"gov" {:id "gov" :address gov :role "governance"}}}
+        context {:agent-index {"gov" {:id "gov" :address gov :role "governance"}}
+             :governance-identity gov}
         result (sew/apply-action context world1
                                  {:agent "gov"
                                   :action "appeal_slash"
@@ -615,7 +617,7 @@
            (get-in custody [:authorization/provenance :authorization/class])))
     (is (= :appeal-bond-custody
            (get-in custody [:authorization/provenance :authorization/reason])))
-    (is (= :scenario-declared
+    (is (= :scenario-configured-address-binding
            (get-in custody [:authorization/provenance :authorization/basis])))
     (is (= :with-governance-actor
            (get-in custody [:authorization/provenance :authorization/check])))
@@ -631,7 +633,7 @@
            (:held/workflow-id held-adjustment)))
     (is (= :governance-intervention
            (get-in held-adjustment [:authorization/provenance :authorization/class])))
-    (is (= :scenario-declared
+    (is (= :scenario-configured-address-binding
            (get-in held-adjustment [:authorization/provenance :authorization/basis])))))
 
 ;; ============ Reversal-slash specific tests ============
@@ -983,7 +985,7 @@
                              {:id "l1" :address "0xl1" :role "resolver"}
                              {:id "l2" :address "0xl2" :role "resolver"}
                              {:id "keeper" :address "0xkeeper" :role "keeper"}]
-                    :protocol-params {:resolver-fee-bps 0 :appeal-window-duration 60
+                    :protocol-params {:governance-mode :legacy :resolver-fee-bps 0 :appeal-window-duration 60
                                       :max-dispute-duration 120 :resolver-bond-bps 0
                                       :resolution-module "0xkleros-proxy"
                                       :escalation-resolvers {:0 "0xl0" :1 "0xl1" :2 "0xl2"}
@@ -1019,7 +1021,7 @@
                               {:id "l0" :address "0xl0" :role "resolver"}
                               {:id "l1" :address "0xl1" :role "resolver"}
                               {:id "keeper" :address "0xkeeper" :role "keeper"}]
-                     :protocol-params {:resolver-fee-bps 0 :appeal-window-duration 60
+                     :protocol-params {:governance-mode :legacy :resolver-fee-bps 0 :appeal-window-duration 60
                                        :max-dispute-duration 120 :resolver-bond-bps 0
                                        :resolution-module "0xkleros-proxy"
                                        :escalation-resolvers {:0 "0xl0" :1 "0xl1"}

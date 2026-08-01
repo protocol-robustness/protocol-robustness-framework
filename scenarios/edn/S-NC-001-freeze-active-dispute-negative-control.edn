@@ -13,7 +13,7 @@
          :falsifies-if ["Fraud slash is not rejected with :freeze-blocked-active-dispute"
                         "Slash proceeds despite active disputed escrow"]}
  :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150
                    :appeal-window-duration 120
                    :max-dispute-duration 2592000
                    :fraud-slash-bps 5000

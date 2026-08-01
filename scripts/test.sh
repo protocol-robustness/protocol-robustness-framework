@@ -306,6 +306,8 @@ run_sew() {
          'resolver-sim.protocols.sew.integration-test
          'resolver-sim.protocols.sew.accounting-test
          'resolver-sim.protocols.sew.governance-gates-test
+                'resolver-sim.protocols.sew.governance-identity-test
+         'resolver-sim.protocols.sew.governance-identity-test
          'resolver-sim.protocols.sew.yield-reorg-race-test
          'resolver-sim.protocols.sew.yield-solvency-test
          'resolver-sim.protocols.sew.yield.failure-test

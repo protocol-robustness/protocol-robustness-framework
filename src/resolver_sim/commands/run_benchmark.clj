@@ -302,7 +302,7 @@
                    :distribution-provenance (distribution/distribution-identity)})]
     (verdict-policy/write! (io/file root "manifest/verdict-policy.json") artifact)))
 
-(defn- write-package-index! [context]
+(defn- write-package-index! [context execution]
   (let [root (io/file (str (:run/root context)))
         ref (fn [path]
               (let [file (io/file root path)]
@@ -326,7 +326,13 @@
      (io/file root paths/run-package-index)
      {:run-id (:run/id context)
       :run-type :benchmark
-      :bundle-root-hash (sha-ref (io/file root "benchmark/evidence/evidence.edn"))
+      ;; :bundle-root-hash is the SEMANTIC, reproducible bundle root
+      ;; (:evidence/hash). The transport checksum of the persisted evidence
+      ;; file lives in the :benchmark-evidence artifact's :sha256 (and in
+      ;; runner-finalization :evidence-file-sha256); it is NOT the benchmark
+      ;; outcome identity and is not expected to match across original and
+      ;; reproduced runs.
+      :bundle-root-hash (get-in execution [:evidence :evidence/hash])
       :artifacts (merge {:runner-finalization (ref "benchmark/execution/runner-finalization.json")
                          :benchmark-definition (ref "benchmark/definition.edn")
                          :execution-plan (ref "benchmark/execution-plan.edn")
@@ -359,13 +365,19 @@
 
 (defn- finalize-runner! [context execution]
   (let [evidence-file (:benchmark/evidence-file context)
+        ;; Two-commitment model: :bundle/root-hash is the SEMANTIC, reproducible
+        ;; bundle root (:evidence/hash), while :evidence-file-sha256 is the
+        ;; exact-instance TRANSPORT checksum of the persisted evidence.edn file.
+        ;; The transport checksum is NOT the benchmark outcome identity and is
+        ;; not expected to match across an original and reproduced run.
+        semantic-root (get-in execution [:evidence :evidence/hash])
         artifact (runner-finalization/build
                   {:run-id (:run/id context)
                    :runner-selection {:mode :pinned :runner-id :runner/local-clojure}
                    :execution-result {:execution/termination :completed
                                       :semantic/outcome (if (zero? (:exit-code execution)) :pass :fail)
-                                      :cli/exit-code (:exit-code execution)
-                                      :bundle/root-hash (lifecycle/sha256-file evidence-file)}})]
+                                      :bundle/root-hash semantic-root
+                                      :evidence-file-sha256 (lifecycle/sha256-file evidence-file)}})]
     (runner-finalization/write!
      (io/file (str (:run/root context)) "benchmark/execution/runner-finalization.json")
      artifact)))
@@ -552,7 +564,7 @@
                                    :build-execution-witness (fn [_ _] (witness-build/build-and-write! context))
                                    :write-canonical-assurance (fn [_ _] (write-canonical-assurance! context))
                                    :write-verdict-policy (fn [_ result] (write-verdict-policy! context (:evidence result) @benchmark-conclusion))
-                                   :write-package-index (fn [_ _] (write-package-index! context))
+                                   :write-package-index (fn [_ result] (write-package-index! context result))
                                    :build-inventory (fn [_ _] (inventory/build! context))
                                    :finalize-registry (fn [_ _] (registry/finalize! (:run/root context)))
                                    :validate-registry (fn [_ _] (validate-registry! context))

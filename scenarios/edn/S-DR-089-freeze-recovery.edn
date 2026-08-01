@@ -1,5 +1,5 @@
 {:tags ["suite/dispute-resolution" "coverage/resolver-integrity"]
- :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 600}
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 600}
  :threat-tags ["dispute-resolution" "governance" "rotation" "freeze" "recovery"]
  :purpose "adversarial-robustness"
  :events [{:seq 0 :time 1000 :agent "resolver1" :action "register_stake" :params {:amount 20000 :token "USDC"}}

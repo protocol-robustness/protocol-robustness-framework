@@ -17,7 +17,7 @@
           :assumptions ["Pending settlement exists on workflow"]}
  :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "oldResolver" "newResolver" "protocol"]}
  :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000}
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000}
  :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
           {:id "seller" :address "0xseller" :strategy "honest"}
           {:id "oldResolver" :address "0xold" :role "resolver"}

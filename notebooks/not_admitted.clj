@@ -913,7 +913,7 @@
                    :token :USDC
                    :amount 5000
                    :held/account :escrow-principal
-                   :owner/address "0xGov"
+                   :owner/address "0xRecipient"
                    :held/reason :governance-authorised-correction
                    :held/workflow-id 0}
         scope-hash (hc/domain-hash "force-authorisation-scope" scope-map)
@@ -933,7 +933,7 @@
                              :authorization-provenance auth-prov
                              :extra {:held/workflow-id 0
                                      :held/account :escrow-principal
-                                     :owner/address "0xGov"}})]
+                                     :owner/address "0xRecipient"}})]
     {:auth-id auth-id
      :grant-before (get-in world [:force-authorisations auth-id :authorization/status])
      :grant-after (get-in w [:force-authorisations auth-id :authorization/status])
@@ -1028,8 +1028,10 @@
                      (assoc-in [:escrow-transfers 0 :escrow-state] :disputed)
                      (assoc-in [:escrow-transfers 0 :sender-status] :raise-dispute)
                      (assoc-in [:escrow-transfers 0 :dispute-resolver] "0xResolver"))
-        gov-ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}}
-        non-gov-ctx {:agent-index {"mallory" {:id "mallory" :address "0xMallory" :type "honest"}}}
+        gov-ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}
+                 :governance-identity "0xGov"}
+        non-gov-ctx {:agent-index {"mallory" {:id "mallory" :address "0xMallory" :type "honest"}}
+                     :governance-identity "0xGov"}
         exec-ctx {:agent-index {"exec" {:address "0xExecutor"}}}
         grant-event {:seq 0 :time 1000 :agent "gov" :action "grant-force-authorisation"
                      :params {:workflow-id 0 :reason :resolver-overcapacity}}

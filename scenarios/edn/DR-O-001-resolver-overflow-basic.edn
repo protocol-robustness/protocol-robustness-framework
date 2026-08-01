@@ -14,7 +14,7 @@
                             "no_duplicate_dispute"
                             "dispute_resolution_path"]}
  :initial-block-time 1000
- :protocol-params {:resolver-fee-bps 150
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150
                    :appeal-window-duration 120
                    :max-dispute-duration 2592000
                    :dispute-resolver "0xprimary"
