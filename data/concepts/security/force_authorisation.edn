@@ -41,7 +41,16 @@
    :maps-to [:protocol.guard/single-use]}
   :force-authorisation/custody-impact
   {:description "The effect of a forced settlement on the custody ledger."
-   :maps-to [:protocol.outcome/custody-adjustment]}}
+   :maps-to [:protocol.outcome/custody-adjustment]}
+  :force-authorisation/auth-id
+  {:description "The shorthand identifier ('force-auth') deterministically derived from the workflow, direction (release/refund), and scope-hash prefix; it binds grant, execution, and consumption records so lifecycle ordering is verifiable."
+   :maps-to [:protocol.entity/authorisation-record]}
+  :force-authorisation/lifecycle
+  {:description "The strictly ordered lifecycle of a grant: grant records a force-authorisation in :active status; execute resolves the workflow while the grant stays :active; finalization consumes the grant via sub-held, moving it to :consumed. Expiry or revocation must precede execution to be valid. Violating the order (consumption without a grant, executed-after-expiry, reuse) is invalid."
+   :maps-to [:protocol.outcome/single-use-enforced :protocol.outcome/expiry-enforced]}
+  :force-authorisation/lifecycle-summary
+  {:description "A reviewer-facing summary of a force-authorisation execution chain with decision, execution, verification, and qualification sections (decision status, approvals/dissents, threshold, terminal consumption status, receipt hash, and provenance references)."
+   :maps-to [:protocol.action/report]}}
 
  :concept/roles
  {:governance-authoriser
@@ -74,7 +83,13 @@
    :maps-to [:protocol.action/execute-authorised-action]}
   :revoke-force-authorisation
   {:description "Cancel a force-authorisation before it is exercised."
-   :maps-to [:protocol.action/revoke-authorisation]}}
+   :maps-to [:protocol.action/revoke-authorisation]}
+  :verify-force-authorisation-lifecycle
+  {:description "Verify lifecycle order and consistency: every consumed auth has a matching grant, grants in the consumption registry report :consumed status, scope-hashes authenticate their stored scopes, and no consumption occurs without a preceding grant."
+   :maps-to [:protocol.action/check-invariant]}
+  :summarise-force-authorisation-lifecycle
+  {:description "Produce a concentrated reviewer-facing summary of a force-authorisation execution chain covering decision, execution, verification, and qualification."
+   :maps-to [:protocol.action/report]}}
 
  :concept/outcomes
  {:scope-enforced
@@ -91,7 +106,10 @@
    :maps-to [:protocol.outcome/expiry-enforced]}
   :authorisation-revoked
   {:description "The force-authorisation was revoked before being exercised."
-   :maps-to [:protocol.outcome/revoked]}}
+   :maps-to [:protocol.outcome/revoked]}
+  :lifecycle-consistent
+  {:description "The grant→execute→consume ordering held: every consumption has a matching grant, consumed grants report :consumed status, and stored scope-hashes authenticate their scope maps."
+   :maps-to [:protocol.outcome/single-use-enforced :protocol.outcome/scope-enforced]}}
 
  :concept/failure-modes
  [{:failure/id :scope-mismatch
@@ -118,7 +136,22 @@
    :failure/name "Custody leak"
    :failure/summary "A forced settlement consumed custody from a different position than authorised."
    :protocol-mechanisms [:position-isolation :custody-partition]
-   :stakeholder-impact "Custody accounting becomes inconsistent between positions."}]
+   :stakeholder-impact "Custody accounting becomes inconsistent between positions."}
+  {:failure/id :orphan-consumption
+   :failure/name "Orphan consumption"
+   :failure/summary "The consumption registry contains an auth-id with no matching grant record — consumption occurred without a preceding grant."
+   :protocol-mechanisms [:consumption-registry :lifecycle-consistency]
+   :stakeholder-impact "An unbound consumption implies a settlement ran without a valid authorisation grant."}
+  {:failure/id :consumed-without-status
+   :failure/name "Consumed without status"
+   :failure/summary "A grant appears in the consumption registry but its record status is not :consumed, so lifecycle order (consume only after grant) is inconsistent."
+   :protocol-mechanisms [:consumption-registry :lifecycle-consistency]
+   :stakeholder-impact "Grant and consumption state disagree, undermining replay and forensic verification."}
+  {:failure/id :stored-scope-hash-mismatch
+   :failure/name "Stored scope-hash mismatch"
+   :failure/summary "A grant's stored scope-hash does not authenticate its stored scope map, or a scope-hash exists without a scope map."
+   :protocol-mechanisms [:scope-hash :lifecycle-consistency]
+   :stakeholder-impact "The grant cannot be trusted to bound the settlement it authorises."}]
 
  :concept/metrics
  {:force-authorisation-count
@@ -132,14 +165,21 @@
    :source :derived-from-trace}
   :scope-hash-match?
   {:description "Whether the execution scope-hash matched the grant scope-hash."
-   :source :derived-from-evidence}}
+   :source :derived-from-evidence}
+  :lifecycle-consistent?
+  {:description "Whether the force-authorisation lifecycle order held (no orphan consumption, consumed statuses consistent, scope-hashes authenticate scopes)."
+   :source :derived-from-invariant-results}
+  :consumption-record-count
+  {:description "Number of consumption records in the consumption registry."
+   :source :derived-from-trace}}
 
  :concept/assumptions
  ["Force-authorisation is a governance-level override for exceptional circumstances."
   "The governance identity that grants authorisation is correctly configured."
   "Scope integrity depends on content-addressed hashing of the grant-time parameters."
   "The consumption registry is append-only and cannot be rewritten."
-  "Evidence ordering (grant before execution) is independently verifiable."]
+  "Evidence ordering (grant before execution) is independently verifiable."
+  "Lifecycle is strictly ordered: a grant must precede execution, execution must precede consumption during finalization, and expiry or revocation must precede execution to be valid."]
 
  :concept/out-of-scope
  ["Safety or correctness of the authorised change."

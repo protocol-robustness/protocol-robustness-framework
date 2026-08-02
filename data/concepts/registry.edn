@@ -394,4 +394,12 @@
     :concept/file  "data/concepts/framework/semantic_commitments.edn"
     :concept/name  "Semantic commitments"
     :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+   {:concept/id    :assurance/evidence-backed-classification
+    :concept/type  :assurance
+    :concept/layer :stakeholder
+    :concept/file  "data/concepts/assurance/evidence_backed_classification.edn"
+    :concept/name  "Evidence-backed classification"
+    :concept/status :draft
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}]}

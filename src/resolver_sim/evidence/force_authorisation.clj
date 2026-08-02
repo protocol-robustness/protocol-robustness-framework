@@ -89,6 +89,9 @@
 (def ^:private lifecycle-summary-schema-version "force-auth-lifecycle-summary.v1")
 (def ^:private lifecycle-summary-verifier-id "force-auth-lifecycle-summary-verifier.v1")
 
+(def ^:private add-held-summary-schema-version "force-auth-add-held-summary.v1")
+(def ^:private add-held-summary-verifier-id "force-auth-add-held-summary-verifier.v1")
+
 (defn- finalize-artifact
   "Attach the content hash and exact preimage to an artifact body."
   [body]
@@ -248,3 +251,101 @@
   [report]
   (valid-artifact? report lifecycle-summary-schema-version
                    :force-auth-lifecycle-summary lifecycle-summary-verifier-id))
+
+;; ── force-auth-add-held-summary ────────────────────────────────────────────
+
+(defn build-force-auth-add-held-summary
+  "Build the versioned, content-addressed summary evidence artifact over a
+   collection of force-auth-add-held evidence artifacts.
+
+   opts:
+     :artifacts  a seq of force-auth-add-held evidence artifacts (as produced by
+                 build-force-auth-add-held). Each is re-verified before counting.
+
+   Commits aggregate counts, amount sums and ranges, cardinality, a triage view
+   of non-passing artifacts, and a catalogue of sub-category summaries (account,
+   reason, authorization, consumer, owner, position, authorization type, and the
+   token × direction breakdown)."
+  [{:keys [artifacts]}]
+  (let [artifacts (vec (or artifacts []))
+        valid? valid-force-auth-add-held?
+        valid-count (count (filter valid? artifacts))
+        invalid-artifacts (into []
+                                (keep-indexed (fn [i a]
+                                                (when-not (valid? a)
+                                                  {:index i
+                                                   :adjustment-id (:held/adjustment-id a)})))
+                                artifacts)
+        scope-verified (count (filter :authorization/scope-verifies? artifacts))
+        unverified-auth-ids (vec (sort
+                                  (distinct
+                                   (keep (fn [a]
+                                           (when-not (:authorization/scope-verifies? a)
+                                             (:authorization/id a)))
+                                         artifacts))))
+        by-token (frequencies (keep :held/token artifacts))
+        by-direction (frequencies (keep :held/direction artifacts))
+        amounts (mapv #(long (or (:held/amount %) 0)) artifacts)
+        total-amount (reduce + 0 amounts)
+        min-amount (when (seq amounts) (apply min amounts))
+        max-amount (when (seq amounts) (apply max amounts))
+        consumed-ats (->> artifacts (keep :held/consumed-at) (map long) vec)
+        consumed-at-earliest (when (seq consumed-ats) (apply min consumed-ats))
+        consumed-at-latest (when (seq consumed-ats) (apply max consumed-ats))
+        sorted-freq (fn [k] (into (sorted-map) (frequencies (keep k artifacts))))
+        sum-by (fn [k]
+                 (into (sorted-map)
+                       (reduce (fn [m a]
+                                 (let [v (get a k)]
+                                   (if (some? v)
+                                     (update m v (fnil + 0) (long (or (:held/amount a) 0)))
+                                     m)))
+                               {}
+                               artifacts)))
+        by-token-direction (frequencies
+                            (keep (fn [a]
+                                    (when-let [t (:held/token a)]
+                                      (when-let [d (:held/direction a)]
+                                        [(keyword t) (keyword d)])))
+                                  artifacts))
+        categories {:by-account (sorted-freq :held/account)
+                    :by-reason (sorted-freq :held/reason)
+                    :by-authorization (sorted-freq :authorization/id)
+                    :by-consumed-by (sorted-freq :held/consumed-by)
+                    :by-owner (sorted-freq :owner/address)
+                    :by-position-id (sorted-freq :held/position-id)
+                    :by-authorization-type (sorted-freq :authorization/type)
+                    :by-token-direction (into (sorted-map) by-token-direction)}
+        body {:schema-version add-held-summary-schema-version
+              :artifact/kind :force-auth-add-held-summary
+              :artifact/verifier add-held-summary-verifier-id
+              :total (count artifacts)
+              :valid-count valid-count
+              :invalid-count (- (count artifacts) valid-count)
+              :invalid-artifacts (vec invalid-artifacts)
+              :scope-verified-count scope-verified
+              :scope-unverified-count (- (count artifacts) scope-verified)
+              :unverified-authorization-ids unverified-auth-ids
+              :total-amount total-amount
+              :min-amount min-amount
+              :max-amount max-amount
+              :consumed-at-earliest consumed-at-earliest
+              :consumed-at-latest consumed-at-latest
+              :distinct-adjustment-ids (count (distinct (keep :held/adjustment-id artifacts)))
+              :distinct-tokens (count (distinct (keep :held/token artifacts)))
+              :distinct-accounts (count (distinct (keep :held/account artifacts)))
+              :distinct-owners (count (distinct (keep :owner/address artifacts)))
+              :by-token (into (sorted-map) by-token)
+              :by-direction (into (sorted-map) by-direction)
+              :amount-by-token (sum-by :held/token)
+              :amount-by-direction (sum-by :held/direction)
+              :amount-by-account (sum-by :held/account)
+              :amount-by-owner (sum-by :owner/address)
+              :categories categories}]
+    (finalize-artifact body)))
+
+(defn valid-force-auth-add-held-summary?
+  "Re-verify a force-auth-add-held-summary evidence artifact."
+  [report]
+  (valid-artifact? report add-held-summary-schema-version
+                   :force-auth-add-held-summary add-held-summary-verifier-id))

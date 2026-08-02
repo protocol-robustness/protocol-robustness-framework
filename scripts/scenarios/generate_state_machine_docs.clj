@@ -1,7 +1,8 @@
 (ns scripts.scenarios.generate-state-machine-docs
   (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
+            [clojure.edn      :as edn]
+            [clojure.java.io  :as io]
+            [clojure.string   :as str]
             [resolver-sim.definitions.registry :as defs]))
 
 (defn- protocol-state-machine-doc-path [protocol-id]
@@ -37,19 +38,21 @@
 
 (defn- scenario-id-from-file [f]
   (-> (.getName ^java.io.File f)
-      (str/replace #"\.json$" "")))
+      (str/replace #"\.(edn|json)$" "")))
 
 (defn- load-scenario [f]
   (try
-    (json/read-str (slurp f) :key-fn keyword)
+    (if (str/ends-with? (.getName ^java.io.File f) ".edn")
+      (edn/read-string (slurp f))
+      (json/read-str (slurp f) :key-fn keyword))
     (catch Exception e
       (println "WARN: skipping unreadable scenario" (.getPath ^java.io.File f) "-" (.getMessage e))
       nil)))
 
 (defn- scenario-files []
-  (->> (file-seq (io/file "scenarios"))
+  (->> (file-seq (io/file "scenarios/edn"))
        (filter #(.isFile ^java.io.File %))
-       (filter #(str/ends-with? (.getName ^java.io.File %) ".json"))
+       (filter #(str/ends-with? (.getName ^java.io.File %) ".edn"))
        (sort-by #(.getName ^java.io.File %))))
 
 (defn- scenario-actions [scenario]
@@ -65,6 +68,7 @@
             [tr (->> scenarios
                      (filter (fn [{:keys [actions]}] (contains? actions tr)))
                      (map :id)
+                     distinct
                      sort
                      vec)]))))
 
@@ -139,12 +143,12 @@
     (when (not= expected-sm current-sm)
       (binding [*out* *err*]
         (println "State machine generated doc is stale:" sm-path)
-        (println "Run: clojure scripts/generate_state_machine_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_state_machine_docs.clj"))
       (System/exit 1))
     (when (not= expected-cov current-cov)
       (binding [*out* *err*]
         (println "Transition coverage generated doc is stale:" coverage-path)
-        (println "Run: clojure scripts/generate_state_machine_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_state_machine_docs.clj"))
       (System/exit 1))
     (println "State machine docs are up to date.")))
 

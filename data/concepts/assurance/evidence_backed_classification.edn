@@ -1,0 +1,118 @@
+{:concept/id :assurance/evidence-backed-classification
+ :concept/type :assurance
+ :concept/layer :stakeholder
+ :concept/name "Evidence-backed classification"
+ :concept/summary
+ "Artifacts are classified for disclosure sensitivity either from concrete
+  evidence findings (secret scanning) or from structural heuristics.
+  Evidence-backed classification is always attempted first; structural
+  heuristics act only as a conservative fallback when no findings are present."
+
+ :concept/stakeholder-question
+ "How can a reviewer trust that an artifact's sensitivity classification
+  reflects actual content (secrets, unpublished evidence, protocol identifiers)
+  rather than guesswork from its shape?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/vocabulary
+ {:evidence-backed
+  {:description "A classification grounded in concrete evidence findings attached to the artifact rather than inferred from artifact shape."
+   :maps-to [:protocol.entity/evidence]}
+  :evidence-backed-classification
+  {:description "The classification path that reads :sensitivity/findings or :safety/findings, maps each finding rule ID to a sensitivity level and reason codes, and takes the highest level present."
+   :maps-to [:protocol.action/classify]}
+  :evidence-backed-classification-via
+  {:description "The two concrete evidence sources that feed the same evidence-backed path: :sensitivity/findings (secret-scanner output) and :safety/findings. Both take precedence over structural heuristics."
+   :maps-to [:protocol.entity/evidence]}
+  :sensitivity-level
+  {:description "The ordered sensitivity ladder used to pick the dominant level: :sensitivity/public < :sensitivity/internal < :sensitivity/private < :sensitivity/embargoed < :sensitivity/critical-private. Among findings, the highest level wins."
+   :maps-to [:protocol.parameter/level]}}
+
+ :concept/roles
+ {:reviewer
+  {:description "Party that reads the classification and the evidence findings behind it."
+   :maps-to [:protocol.actor/reviewer]}
+  :scanner
+  {:description "Protocol tooling that scans artifacts and produces the evidence findings."
+   :maps-to [:protocol.actor/keeper]}}
+
+ :concept/entities
+ {:sensitivity-findings
+  {:description "Evidence findings under :sensitivity/findings produced by secret scanning."
+   :maps-to [:protocol.entity/evidence]}
+  :safety-findings
+  {:description "Evidence findings under :safety/findings produced by safety scanning."
+   :maps-to [:protocol.entity/evidence]}
+  :sensitivity-level
+  {:description "The effective sensitivity level assigned to an artifact."
+   :maps-to [:protocol.entity/sensitivity-classification]}}
+
+ :concept/actions
+ {:scan-sensitivity
+  {:description "Scan an artifact for secrets, credentials, and tokens, producing findings with rule IDs and reasons."
+   :maps-to [:protocol.action/evidence-capture]}
+  :classify-from-findings
+  {:description "Classify an artifact from its evidence findings: map each finding rule to a level and reason codes, then take the highest level on the ordered sensitivity ladder."
+   :maps-to [:protocol.action/classify]}
+  :classify-structural
+  {:description "Classify an artifact from structural heuristics only. Used only as a conservative fallback when no evidence findings are present; evidence-backed classification is attempted first."
+   :maps-to [:protocol.action/classify]}}
+
+ :concept/outcomes
+ {:evidence-backed-level
+  {:description "The sensitivity level is determined by evidence findings, with the highest finding level dominating."
+   :maps-to [:protocol.outcome/classified]}
+  :structural-fallback
+  {:description "No evidence findings were present, so structural heuristics produced the classification."
+   :maps-to [:protocol.outcome/classified]}
+  :unknown-rule-critical-private
+  {:description "A finding with an unknown rule ID defaults to :sensitivity/critical-private, conservatively over-classifying rather than under-classifying."
+   :maps-to [:protocol.outcome/blocked]}}
+
+ :concept/failure-modes
+ [{:failure/id :evidence-without-precedence
+   :failure/name "Evidence ignored in favor of heuristics"
+   :failure/summary
+   "Structural heuristics are used even though evidence findings are present, allowing a private artifact to be under-classified."
+   :protocol-mechanisms [:evidence-backed-classification :classification-precedence]
+   :stakeholder-impact "Sensitive material may be disclosed to a sink that should have been blocked."}
+  {:failure/id :unknown-rule-over-classification
+   :failure/name "Unknown rule over-classification"
+   :failure/summary
+   "A finding rule outside the known mapping defaults to :sensitivity/critical-private, conservatively blocking artifacts that may be safe."
+   :protocol-mechanisms [:reason-code-mapping]
+   :stakeholder-impact "Legitimate artifacts may be withheld from publication pending manual review."}
+  {:failure/id :missing-evidence-fallback
+   :failure/name "Missing-evidence heuristic fallback"
+   :failure/summary
+   "When no findings are present the classification rests on shape heuristics, which cannot see content-level secrets."
+   :protocol-mechanisms [:structural-heuristics]
+   :stakeholder-impact "An artifact with undetected secrets may be under-classified because scanning produced no findings."}]
+
+ :concept/metrics
+ {:evidence-findings-count
+  {:description "Number of evidence findings attached to the artifact."
+   :source :derived-from-trace}
+  :effective-level
+  {:description "The effective sensitivity level after evidence-backed classification (or structural fallback)."
+   :source :derived-from-invariant-results}
+  :level-distribution
+  {:description "Distribution of effective sensitivity levels across scanned artifacts."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Evidence findings are produced before classification and attached to the artifact."
+  "Finding rule IDs map deterministically to sensitivity levels and reason codes."
+  "The ordered sensitivity ladder is the single ordering used for dominance among findings."
+  "Evidence-backed classification always takes precedence over structural heuristics."]
+
+ :concept/out-of-scope
+ ["Guarantee that scanning detects every possible secret or leak pattern."
+  "Automated declassification or release decisions beyond the classification itself."
+  "Determination of whether a detected finding is exploitable in practice."]
+
+ :concept/related
+ [:verifiable-assurance/forensic-confidence
+  :attestation/verification
+  :forensic/evidence-chain]}

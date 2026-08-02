@@ -7,8 +7,8 @@
 - `unclassified` — Unclassified (v1.0)
 
 ## Statuses
-- `not-evaluated` — Not evaluated
-- `not-falsified` — Claim not falsified
-- `falsified` — Claim falsified
-- `inconclusive` — Inconclusive
+- `not-evaluated` — Not evaluated: no theory block
+- `not-falsified` — Not falsified in this replay
+- `falsified` — Falsified by this replay
+- `inconclusive` — Inconclusive: evidence incomplete or invalid
 - `not-applicable` — Not applicable

@@ -1,8 +1,8 @@
 # Evidence Artifact Contract (Generated)
 
-Source of truth: current emitted artifacts under `results/test-artifacts`, CDRS schemas under `spec/`, and semantic registry hash.
+Source of truth: current emitted artifacts under `results/test-artifacts`, CDRS schemas under `schemas/`, and semantic registry hash.
 
-Definitions hash: `1730484672`
+Definitions hash: `743884729`
 
 ## Canonical Artifact Set
 
@@ -22,21 +22,15 @@ Definitions hash: `1730484672`
 
 | Key |
 |---|
-| `acceptance_decision` |
-| `claimable_classification` |
+| `created_at` |
 | `failure_count` |
-| `force_refund_forward_only` |
 | `mode` |
 | `overall_status` |
-| `phase_failures` |
-| `risk_digest` |
 | `run_id` |
-| `run_manifest` |
 | `schema_version` |
-| `shortfall_exposure` |
-| `status_counts` |
+| `target_count` |
+| `target_index` |
 | `targets` |
-| `yield_context` |
 
 ## Top-level Contract: coverage.json
 
@@ -65,26 +59,13 @@ Definitions hash: `1730484672`
 
 | Key |
 |---|
-| `comparator_config` |
-| `findings` |
-| `overall_status` |
-| `provenance` |
-| `run` |
-| `schema_version` |
-| `story_candidates` |
+| _missing_ |
 
 ## Top-level Contract: issues.json
 
 | Key |
 |---|
-| `comparator_config` |
-| `generated-at` |
-| `hash` |
-| `id` |
-| `issue-count` |
-| `issues` |
-| `policy` |
-| `version` |
+| _missing_ |
 
 ## CDRS Trace/Event Required Fields
 

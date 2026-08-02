@@ -20,4 +20,4 @@ Source of truth: `src/resolver_sim/definitions/registry.clj` (`transitions`).
 | `sender_cancel` | Sender cancel |
 | `submit_evidence` | Submit evidence |
 
-Definitions hash: `1730484672`
+Definitions hash: `743884729`

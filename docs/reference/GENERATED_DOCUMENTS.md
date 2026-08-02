@@ -8,14 +8,18 @@ Some repository documents are derived from executable definitions. Do not hand-e
 |---|---|---|---|
 | `docs/scenarios.md` S01–S23 table | `src/resolver_sim/protocols/sew/invariant_scenarios/doc_summaries.clj` | `bb docs:scenarios` | Review the resulting diff. |
 | `docs/protocols/sew/STATE_MACHINE_GENERATED.md` | Sew state-machine definitions | `make state-machine-docs-generate` | `make state-machine-docs-check` |
-| `docs/protocols/sew/TRANSITION_COVERAGE_GENERATED.md` | Sew state-machine definitions and coverage data | `make state-machine-docs-generate` | `make state-machine-docs-check` |
+| `docs/protocols/sew/TRANSITION_COVERAGE_GENERATED.md` | Sew state-machine definitions and `scenarios/edn/*.edn` coverage | `make state-machine-docs-generate` | `make state-machine-docs-check` |
 | Core generated docs | Their registered core-doc sources | `make core-generated-docs-generate` | `make core-generated-docs-check` |
-| Semantic registry output | Semantic registry sources | generator task in Makefile | `make semantic-registry-check` |
+| Semantic registry output (`docs/overview/SEMANTIC_VOCAB.md`, `docs/overview/SEMANTIC_REGISTRY.edn`) | `src/resolver_sim/definitions/registry.clj` | `make semantic-registry-generate` | `make semantic-registry-check` |
+
+Concept EDN files under `data/concepts/` are hand-edited (not generated); structural,
+registry, and mapping validation runs via `make concepts-check` (the `concepts_validate.clj`
+script).
 
 ## Full checks
 
 ```bash
-# Framework-only generated-doc checks
+# Framework-only generated-doc checks (includes concept EDN validation)
 make docs-as-code-check-framework
 
 # Sew generated-doc checks

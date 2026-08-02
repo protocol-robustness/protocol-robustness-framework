@@ -246,15 +246,17 @@
 ;; ── Versioned force-authorisation evidence file-artifacts ─────────────────
 
 (defn- hash-bound-auth
-  "An authorization record whose scope-hash authenticates valid-scope."
+  "An authorization record whose scope-hash authenticates valid-scope, using the
+   canonical normalized scope so it agrees with the evidence builders."
   [id status]
-  {:authorization/id id
-   :authorization/status status
-   :authorization/type :force-authorisation
-   :authorization/scope-hash (fa/force-authorisation-scope-hash valid-scope)
-   :authorization/scope valid-scope
-   :starts-at 0
-   :expires-at 1000})
+  (let [scope (fa/normalize-force-authorisation-scope valid-scope)]
+    {:authorization/id id
+     :authorization/status status
+     :authorization/type :force-authorisation
+     :authorization/scope-hash (fa/force-authorisation-scope-hash scope)
+     :authorization/scope scope
+     :starts-at 0
+     :expires-at 1000}))
 
 (deftest force-auth-add-held-evidence-roundtrip
   (testing "a force-authorised add-held with a matching scope-hash verifies"
@@ -297,13 +299,14 @@
       (is (false? (:authorization/scope-verifies? r))))))
 
 (deftest force-auth-lifecycle-evidence-roundtrip
-  (testing "a consistent lifecycle (consumed grant + matching consumption)"
+  (testing "a consistent lifecycle with an active, usable grant"
     (let [r (fa-ev/build-force-auth-lifecycle
-             {:authorisations {"fa-0" (hash-bound-auth "fa-0" :consumed)}
-              :consumption-registry {"fa-0" {:consumed-at 500}}})]
+             {:authorisations {"fa-0" (hash-bound-auth "fa-0" :active)}
+              :consumption-registry {}})]
       (is (= :force-auth-lifecycle (:artifact/kind r)))
       (is (true? (:lifecycle-consistent? r)))
-      (is (true? (get-in r [:authorisation-usable "fa-0"])))
+      (is (true? (get-in r [:authorisation-usable "fa-0"]))
+          "an active, un-consumed grant within its window is usable")
       (is (string? (:authorisations-root r)))
       (is (true? (fa-ev/valid-force-auth-lifecycle? r))))))
 
@@ -353,4 +356,148 @@
     (is (false? (fa-ev/valid-force-auth-lifecycle-summary?
                  (assoc r :total 99))))
     (is (false? (fa-ev/valid-force-auth-lifecycle-summary?
+                 (assoc r :artifact/hash "sha256:forged"))))))
+
+;; ── force-auth-add-held-summary ────────────────────────────────────────────
+
+(defn- sample-add-held
+  ([token amount direction]
+   (sample-add-held token amount direction "adj-1"))
+  ([token amount direction adjustment-id]
+   (fa-ev/build-force-auth-add-held
+    {:authorization (hash-bound-auth "fa-0" :active)
+     :scope-map valid-scope
+     :adjustment {:held-adjustment/id adjustment-id
+                  :token token
+                  :amount amount
+                  :held/direction direction}})))
+
+(deftest force-auth-add-held-summary-evidence-roundtrip
+  (let [r (fa-ev/build-force-auth-add-held-summary
+           {:artifacts [(sample-add-held :USDC 100 :in)
+                        (sample-add-held :USDC 200 :in)
+                        (sample-add-held :ETH 50 :in)]})]
+    (is (= :force-auth-add-held-summary (:artifact/kind r)))
+    (is (= 3 (:total r)))
+    (is (= 3 (:valid-count r)))
+    (is (= 3 (:scope-verified-count r)))
+    (is (= 350 (:total-amount r)))
+    (is (= 1 (:distinct-adjustment-ids r)))
+    (is (= 3 (get-in r [:by-direction :in])))
+    (is (= 2 (get-in r [:by-token :USDC])))
+    (is (= 1 (get-in r [:by-token :ETH])))
+    (is (true? (fa-ev/valid-force-auth-add-held-summary? r)))))
+
+(deftest force-auth-add-held-summary-categories-catalogue
+  (testing "sub-category summaries catalogued per account, reason, authorization, consumer, and token×direction"
+    (let [a1 (fa-ev/build-force-auth-add-held
+              {:authorization (hash-bound-auth "fa-0" :active)
+               :scope-map valid-scope
+               :adjustment {:held-adjustment/id "adj-1" :token :USDC :amount 100 :held/direction :in}
+               :consumed-by "0xgov"})
+          a2 (fa-ev/build-force-auth-add-held
+              {:authorization (hash-bound-auth "fa-1" :active)
+               :scope-map valid-scope
+               :adjustment {:held-adjustment/id "adj-2" :token :USDC :amount 50 :held/direction :in}
+               :consumed-by "0xrelayer"})
+          r (fa-ev/build-force-auth-add-held-summary {:artifacts [a1 a2]})
+          cat (:categories r)]
+      (is (= {:escrow-principal 2} (:by-account cat)))
+      (is (= {:force-authorised-release 2} (:by-reason cat)))
+      (is (= {"fa-0" 1 "fa-1" 1} (:by-authorization cat)))
+      (is (= {"0xgov" 1 "0xrelayer" 1} (:by-consumed-by cat)))
+      (is (= {[:USDC :in] 2} (:by-token-direction cat)))
+      (is (true? (fa-ev/valid-force-auth-add-held-summary? r))))))
+
+(deftest force-auth-add-held-summary-categories-token-direction
+  (testing "token × direction breakdown distinguishes same-token directions"
+    (let [r (fa-ev/build-force-auth-add-held-summary
+             {:artifacts [(sample-add-held :USDC 100 :in)
+                          (sample-add-held :USDC 50 :out)]})]
+      (is (= {[:USDC :in] 1 [:USDC :out] 1}
+             (:by-token-direction (:categories r)))))))
+
+(deftest force-auth-add-held-summary-evidence-detects-invalid
+  (let [good (sample-add-held :USDC 100 :in)
+        bad (assoc (sample-add-held :USDC 100 :in "adj-2") :held/amount 999)
+        r (fa-ev/build-force-auth-add-held-summary {:artifacts [good bad]})]
+    (is (= 2 (:total r)))
+    (is (= 1 (:valid-count r)))
+    (is (= 1 (:invalid-count r)))
+    (is (= [1] (mapv :index (:invalid-artifacts r))))
+    (is (= ["adj-2"] (mapv :adjustment-id (:invalid-artifacts r))))
+    (is (true? (fa-ev/valid-force-auth-add-held-summary? r)))))
+
+(deftest force-auth-add-held-summary-amount-sums-and-range
+  (testing "amount sums by token/direction/account/owner and min/max range"
+    (let [r (fa-ev/build-force-auth-add-held-summary
+             {:artifacts [(sample-add-held :USDC 100 :in)
+                          (sample-add-held :USDC 250 :in)
+                          (sample-add-held :ETH 50 :out)]})]
+      (is (= 400 (:total-amount r)))
+      (is (= 50 (:min-amount r)))
+      (is (= 250 (:max-amount r)))
+      (is (= {:USDC 350 :ETH 50} (:amount-by-token r)))
+      (is (= {:in 350 :out 50} (:amount-by-direction r)))
+      (is (= {:escrow-principal 400} (:amount-by-account r)))
+      (is (= {"0xrecipient" 400} (:amount-by-owner r))))))
+
+(deftest force-auth-add-held-summary-owner-and-position-categories
+  (let [scope-b (assoc valid-scope :owner/address "0xother")
+        a1 (fa-ev/build-force-auth-add-held
+            {:authorization (hash-bound-auth "fa-0" :active)
+             :scope-map valid-scope
+             :adjustment {:held-adjustment/id "adj-1" :token :USDC :amount 100 :held/direction :in
+                          :held/position-id "pos-1"}})
+        a2 (fa-ev/build-force-auth-add-held
+            {:authorization (hash-bound-auth "fa-1" :active)
+             :scope-map scope-b
+             :adjustment {:held-adjustment/id "adj-2" :token :ETH :amount 50 :held/direction :in
+                          :held/position-id "pos-2"}})
+        r (fa-ev/build-force-auth-add-held-summary {:artifacts [a1 a2]})
+        cat (:categories r)]
+    (is (= 2 (:distinct-owners r)))
+    (is (= 1 (:distinct-accounts r)))
+    (is (= 2 (:distinct-tokens r)))
+    (is (= {"0xrecipient" 1 "0xother" 1} (:by-owner cat)))
+    (is (= {"pos-1" 1 "pos-2" 1} (:by-position-id cat)))
+    (is (= {:force-authorisation 2} (:by-authorization-type cat)))))
+
+(deftest force-auth-add-held-summary-consumed-at-range
+  (let [a1 (fa-ev/build-force-auth-add-held
+            {:authorization (hash-bound-auth "fa-0" :active)
+             :scope-map valid-scope
+             :adjustment {:held-adjustment/id "adj-1" :token :USDC :amount 100 :held/direction :in}
+             :consumed-at 100})
+        a2 (fa-ev/build-force-auth-add-held
+            {:authorization (hash-bound-auth "fa-1" :active)
+             :scope-map valid-scope
+             :adjustment {:held-adjustment/id "adj-2" :token :USDC :amount 50 :held/direction :in}
+             :consumed-at 300})
+        r (fa-ev/build-force-auth-add-held-summary {:artifacts [a1 a2]})]
+    (is (= 100 (:consumed-at-earliest r)))
+    (is (= 300 (:consumed-at-latest r)))))
+
+(deftest force-auth-add-held-summary-unverified-auth-triage
+  (testing "unverified-authorization-ids surfaces the non-passing scope-hash cases"
+    (let [wrong (assoc (sample-add-held :USDC 100 :in "adj-1")
+                       :authorization/scope-verifies? false
+                       :authorization/id "fa-bad")
+          r (fa-ev/build-force-auth-add-held-summary
+             {:artifacts [(sample-add-held :USDC 100 :in) wrong]})]
+      (is (= 1 (:scope-unverified-count r)))
+      (is (= ["fa-bad"] (:unverified-authorization-ids r))))))
+
+(deftest force-auth-add-held-summary-evidence-empty
+  (let [r (fa-ev/build-force-auth-add-held-summary {:artifacts []})]
+    (is (= 0 (:total r)))
+    (is (= 0 (:total-amount r)))
+    (is (true? (fa-ev/valid-force-auth-add-held-summary? r)))))
+
+(deftest force-auth-add-held-summary-evidence-tamper-detected
+  (let [r (fa-ev/build-force-auth-add-held-summary
+           {:artifacts [(sample-add-held :USDC 100 :in)]})]
+    (is (false? (fa-ev/valid-force-auth-add-held-summary?
+                 (assoc r :total 99))))
+    (is (false? (fa-ev/valid-force-auth-add-held-summary?
                  (assoc r :artifact/hash "sha256:forged"))))))

@@ -352,37 +352,37 @@
     (when (not= exp1 cur1)
       (binding [*out* *err*]
         (println "Generated doc stale:" evidence-semantics-path)
-        (println "Run: clojure scripts/generate_core_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_core_docs.clj"))
       (System/exit 1))
     (when (not= exp2 cur2)
       (binding [*out* *err*]
         (println "Generated doc stale:" scenario-contract-path)
-        (println "Run: clojure scripts/generate_core_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_core_docs.clj"))
       (System/exit 1))
     (when (not= exp3 cur3)
       (binding [*out* *err*]
         (println "Generated doc stale:" invariant-catalog-path)
-        (println "Run: clojure scripts/generate_core_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_core_docs.clj"))
       (System/exit 1))
     (when (not= exp4 cur4)
       (binding [*out* *err*]
         (println "Generated doc stale:" transition-guard-catalog-path)
-        (println "Run: clojure scripts/generate_core_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_core_docs.clj"))
       (System/exit 1))
     (when (not= exp5 cur5)
       (binding [*out* *err*]
         (println "Generated doc stale:" evidence-artifact-contract-path)
-        (println "Run: clojure scripts/generate_core_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_core_docs.clj"))
       (System/exit 1))
     (when (not= exp6 cur6)
       (binding [*out* *err*]
         (println "Generated doc stale:" benchmark-authoring-guide-path)
-        (println "Run: clojure scripts/generate_core_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_core_docs.clj"))
       (System/exit 1))
     (when (not= exp7 cur7)
       (binding [*out* *err*]
         (println "Generated doc stale:" claim-registry-path)
-        (println "Run: clojure scripts/generate_core_docs.clj"))
+        (println "Run: clojure scripts/scenarios/generate_core_docs.clj"))
       (System/exit 1))
     (println "Core generated docs are up to date.")))
 

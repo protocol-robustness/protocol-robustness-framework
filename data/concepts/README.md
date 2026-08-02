@@ -125,7 +125,8 @@ data/concepts/
 ├── assurance/
 │   ├── verifiable_assurance.edn          ← forensic confidence
 │   ├── attestation.edn                   ← attestation verification
-│   └── evidence_chain.edn                ← forensic evidence chain
+│   ├── evidence_chain.edn                ← forensic evidence chain
+│   └── evidence_backed_classification.edn← evidence-backed sensitivity classification
 ├── allocation/
 │   ├── partial_fill.edn                  ← partial fill allocation
 │   ├── shortfall.edn                     ← shortfall detection and recording
@@ -233,8 +234,10 @@ evidence establishes support.
 ## Validation
 
 ```bash
-bb concepts:validate
+make concepts-check          # clojure scripts/concepts_validate.clj
 ```
+
+Runs as part of the docs-as-code pipeline via `make docs-as-code-check`.
 
 Checks that:
 - Every EDN file under `data/concepts/` parses correctly

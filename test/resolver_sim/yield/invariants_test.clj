@@ -113,13 +113,13 @@
       (is (inv/holds? :yield/shortfall-detected world)))))
 
 (deftest shortfall-detected-fails-on-over-detection
-  (testing "shortfall-detected fails when basis exceeds position value"
+  (testing "shortfall-detected fails when basis exceeds position value (including deferred)"
     (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
                                          :principal 100 :realized-yield 0 :unrealized-yield 0
                                          :shortfall {:basis-amount 500
-                                                     :fulfilled-amount 50
-                                                     :deferred-amount 450
-                                                     :haircut-amount 0}}}
+                                                     :fulfilled-amount 200
+                                                     :deferred-amount 200
+                                                     :haircut-amount 100}}}
                  :yield/risk {:m {:t {:liquidity-mode :shortfall}}}
                  :yield/market-state {:m {:t {:available-ratio 0.5}}}}]
       (is (not (inv/holds? :yield/shortfall-detected world))))))

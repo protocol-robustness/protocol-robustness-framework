@@ -41,36 +41,42 @@ semantic-phase3-check:
 
 .PHONY: state-machine-docs-generate
 state-machine-docs-generate:
-	clojure scripts/generate_state_machine_docs.clj --protocol sew
+	clojure scripts/scenarios/generate_state_machine_docs.clj --protocol sew
 
 .PHONY: state-machine-docs-check
 state-machine-docs-check:
-	clojure scripts/generate_state_machine_docs.clj --protocol sew --check
+	clojure scripts/scenarios/generate_state_machine_docs.clj --protocol sew --check
 
 .PHONY: protocol-sew-docs-generate
 protocol-sew-docs-generate:
-	clojure scripts/generate_state_machine_docs.clj --protocol sew
+	clojure scripts/scenarios/generate_state_machine_docs.clj --protocol sew
 
 .PHONY: protocol-sew-docs-check
 protocol-sew-docs-check:
-	clojure scripts/generate_state_machine_docs.clj --protocol sew --check
+	clojure scripts/scenarios/generate_state_machine_docs.clj --protocol sew --check
+
+.PHONY: concepts-check
+concepts-check:
+	clojure scripts/concepts_validate.clj
 
 .PHONY: docs-as-code-check
 docs-as-code-check:
+	$(MAKE) concepts-check
 	$(MAKE) semantic-registry-check
 	$(MAKE) core-generated-docs-check
 	$(MAKE) state-machine-docs-check
 
 .PHONY: core-generated-docs-generate
 core-generated-docs-generate:
-	clojure scripts/generate_core_docs.clj
+	clojure scripts/scenarios/generate_core_docs.clj
 
 .PHONY: core-generated-docs-check
 core-generated-docs-check:
-	clojure scripts/generate_core_docs.clj --check
+	clojure scripts/scenarios/generate_core_docs.clj --check
 
 .PHONY: docs-as-code-check-framework
 docs-as-code-check-framework:
+	$(MAKE) concepts-check
 	$(MAKE) semantic-registry-check
 	$(MAKE) core-generated-docs-check
 

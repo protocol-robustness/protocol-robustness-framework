@@ -88,9 +88,9 @@
    :check-aggregate-shortfall
    {:description "Verify that the total recorded shortfall across all positions is within available value for the pair."
     :maps-to [:protocol.action/check-invariant]}
-   :check-aggregate
-   {:description "Verify aggregate yield position values and shortfall balances are consistent across positions (per module-id and token)."
-    :maps-to [:protocol.action/check-invariant]}}
+    :check-aggregate
+    {:description "Verify aggregate yield position values and shortfall balances are consistent per (module-id, token) pair, aggregating order-independently across positions: for each pair the sum of shortfall splits (fulfilled + deferred + haircut) must equal the sum of shortfall basis-amounts, and shortfall balances must not exceed the pair's total available value (principal + realized-yield + max(0, unrealized-yield))."
+     :maps-to [:protocol.action/check-invariant]}}
 
  :concept/outcomes
  {:yield-preserved

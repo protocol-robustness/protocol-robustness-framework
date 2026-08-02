@@ -263,7 +263,6 @@ parity between the registry, the dispatch table, and the bb task definitions.
 | `bb evidence:coverage` | `java -jar prf.jar evidence coverage` |
 | `bb evidence:backstop` | `java -jar prf.jar evidence backstop` |
 | `bb validate` | `java -jar prf.jar validate` |
-| `bb concepts:validate` | `java -jar prf.jar concepts validate` |
 | `bb benchmark:validate` | `java -jar prf.jar benchmark validate` |
 | `bb run:scenario` | `java -jar prf.jar run-scenario` |
 | `bb run:invariants` | `java -jar prf.jar run-invariants` |

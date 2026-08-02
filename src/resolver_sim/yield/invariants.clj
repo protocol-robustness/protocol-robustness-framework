@@ -128,11 +128,28 @@
                        (vals (:yield/positions world {})))]
     {:holds? holds? :violations [] :checks {:value-conservation-valid (if holds? :pass :fail)}}))
 
+(defn- position-shortfall-value
+  "Total value backing a position: principal + realized-yield + max(0, unrealized-yield)
+   + deferred-amount. The deferred-amount is the crystallized yield/principal still owed
+   to the holder (recorded in the :shortfall map), so it must count toward available value;
+   otherwise a partial-liquidity withdraw that zeroes unrealized-yield would under-count
+   the position and falsely report basis > value."
+  [p]
+  (+ (long (:principal p 0))
+     (long (:realized-yield p 0))
+     (max 0 (long (:unrealized-yield p 0)))
+     (long (or (get-in p [:shortfall :deferred-amount]) 0))))
+
+(defn- position-shortfall-basis
+  "Shortfall basis-amount for a position (0 when no shortfall or nil basis)."
+  [p]
+  (long (or (get-in p [:shortfall :basis-amount]) 0)))
+
 (defn check-aggregate-shortfall-cap
   "Aggregate shortfall per (module-id, token) pair must not exceed
-   the sum of position values (principal + realized-yield + max(0, unrealized-yield))
-   in that pair. This prevents systemic over-counting where the total
-   recorded shortfall across all positions exceeds available value.
+   the sum of position values (principal + realized-yield + max(0, unrealized-yield)
+   + deferred-amount) in that pair. This prevents systemic over-counting where the
+   total recorded shortfall across all positions exceeds available value.
 
    Returns {:holds? bool :violations [{:module-id mid :token tok
                                        :total-basis n :total-value n
@@ -143,11 +160,7 @@
         violations (into []
                          (keep (fn [[[mid tok] pos-group]]
                                  (let [total-basis (reduce + 0 (map (comp (fn [v] (long (or v 0))) :basis-amount :shortfall) pos-group))
-                                       total-value (reduce + 0 (map (fn [p]
-                                                                      (+ (long (:principal p 0))
-                                                                         (long (:realized-yield p 0))
-                                                                         (max 0 (long (:unrealized-yield p 0)))))
-                                                                    pos-group))]
+                                       total-value (reduce + 0 (map position-shortfall-value pos-group))]
                                    (when (> total-basis total-value)
                                      {:module-id mid :token tok
                                       :total-basis total-basis
@@ -157,18 +170,6 @@
     {:holds? (empty? violations)
      :violations (vec violations)
      :checks {:aggregate-shortfall-within-value (if (seq violations) :fail :pass)}}))
-
-(defn- position-shortfall-value
-  "Total value backing a position: principal + realized-yield + max(0, unrealized-yield)."
-  [p]
-  (+ (long (:principal p 0))
-     (long (:realized-yield p 0))
-     (max 0 (long (:unrealized-yield p 0)))))
-
-(defn- position-shortfall-basis
-  "Shortfall basis-amount for a position (0 when no shortfall or nil basis)."
-  [p]
-  (long (or (get-in p [:shortfall :basis-amount]) 0)))
 
 (defn check-aggregate-shortfall
   "Verify the total recorded shortfall across all positions is within available
@@ -254,7 +255,8 @@
   "Verify shortfall detection correctness:
 
    1. Over-detection: no position's shortfall basis-amount exceeds its
-      total economic value (principal + realized-yield + max(0, unrealized-yield)).
+      total economic value (principal + realized-yield + max(0, unrealized-yield)
+      + deferred-amount).
       A basis larger than the position means the shortfall was over-counted.
 
    2. Under-detection: when a module/token is in shortfall liquidity mode
@@ -276,7 +278,8 @@
                                principal (long (:principal pos 0))
                                realized (long (:realized-yield pos 0))
                                unrealized (long (:unrealized-yield pos 0))
-                               total-value (+ principal realized (max 0 unrealized))
+                               deferred (long (or (get-in pos [:shortfall :deferred-amount]) 0))
+                               total-value (+ principal realized (max 0 unrealized) deferred)
                                shortfall-mode? (and (= liquidity-mode :shortfall)
                                                     (< available-ratio 1.0))]
                            (cond

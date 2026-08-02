@@ -2,7 +2,7 @@
 
 Source of truth: scenario contract schema, canonical transition registry, and repository scenario examples.
 
-Definitions hash: `1730484672`
+Definitions hash: `743884729`
 
 ## 1) Required top-level fields
 
@@ -54,10 +54,6 @@ Definitions hash: `1730484672`
 
 | File | Scenario ID | Schema version | Actions present |
 |---|---|---|---|
-| `S88_yield-accrual-efficiency.json` | `s88-yield-accrual-efficiency` | `1.0` | `create_escrow`, `release` |
-| `S108_negative-yield-mild.json` | `s108-negative-yield-mild` | `1.0` | `create_escrow`, `recipient-cancel`, `sender-cancel`, `set-yield-risk`, `trigger-accrue` |
-| `S79_yield-negative-yield-dispute-refund-path.json` | `unknown` | `unknown` | `create_escrow`, `execute_resolution`, `raise_dispute`, `register_stake`, `set-yield-risk`, `trigger-accrue` |
-| `S68_yield-aave-long-horizon-10y-monthly-accrual.json` | `unknown` | `unknown` | `create_escrow`, `release` |
 
 ## 6) Authoring checklist
 
