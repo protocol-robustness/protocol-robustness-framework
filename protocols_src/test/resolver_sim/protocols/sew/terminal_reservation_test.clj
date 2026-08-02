@@ -3,10 +3,11 @@
             [resolver-sim.protocols.sew :as sew]))
 
 (defn- hash-ref [label] (str "sha256:" (format "%064x" (hash label))))
+(defn- digest [label] (format "%064x" (hash label)))
 (def reserved {:status :reserved :research-assignment/hash (hash-ref :assignment)
                :researcher-force-authorisation/hash (hash-ref :authorisation)
                :researcher-force-authorisation/consumption-key :consumption/key
-               :sew/authorization-id "fa-0" :sew/scope-hash "scope"
+               :sew/authorization-id "fa-0" :sew/scope-hash (digest :scope)
                :reservation/hash (hash-ref :reservation)
                :reservation/execution-attempt-id :attempt/one})
 (def produced-terminal {:status :consumed :consumption/effect-outcome :produced
@@ -27,6 +28,38 @@
     (is (false? (:committed? (sew/finalize-consensus-reservation!
                               registry :consumption/key reserved
                               (assoc produced-terminal :execution-evidence/hash (hash-ref :other))))))))
+
+(deftest terminal-cas-is-linearizable-under-contention
+  (let [registry (atom {:consumption/key reserved})
+        start (promise)
+        left (assoc produced-terminal :execution-evidence/hash (hash-ref :left))
+        right (assoc produced-terminal :execution-evidence/hash (hash-ref :right))
+        run (fn [terminal]
+              (future @start (sew/finalize-consensus-reservation!
+                              registry :consumption/key reserved terminal)))
+        left-run (run left)
+        right-run (run right)
+        results (do (deliver start true) [(deref left-run) (deref right-run)])
+        winner (first (filter :committed? results))
+        loser (first (remove :committed? results))]
+    (is (= 1 (count (filter :committed? results))))
+    (is (= :terminal-binding-conflict (:reason loser)))
+    (is (= (:binding winner) (get @registry :consumption/key)))
+    (is (= :resumed
+           (:mode (sew/finalize-consensus-reservation!
+                   registry :consumption/key reserved
+                   (select-keys (:binding winner) (keys produced-terminal))))))))
+
+(deftest terminal-record-hash-commits-every-field
+  (let [registry (atom {:consumption/key reserved})
+        record (:binding (sew/finalize-consensus-reservation!
+                          registry :consumption/key reserved produced-terminal))]
+    (is (sew/valid-consensus-terminal-reservation? record))
+    (doseq [key (disj (set (keys record)) :terminal/hash)]
+      (is (not (sew/valid-consensus-terminal-reservation?
+                (assoc record key (if (= key :status) :failed-after-consumption
+                                      (str "tampered-" (name key))))))
+          (str "tampering " key " invalidates terminal record")))))
 
 (deftest terminal-cas-enforces-complete-status-outcome-table
   (doseq [[status outcome correlation?] [[:consumed :produced true]

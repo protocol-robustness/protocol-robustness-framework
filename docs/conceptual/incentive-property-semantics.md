@@ -137,18 +137,18 @@ properties owned by that concept.
   `subgame-counterfactual`; `:inconclusive` when no proper subgames / no cancel
   decision nodes are found; `:pass`/`:fail` from bounded regret vs threshold.
 - **`folk-theorem-cooperation-region`** (legacy catalog id) — evaluates a
-  **model-specific repeated-game deterrence threshold**, not a general
-  Folk-theorem claim: `discount-factor >= (U_malicious - U_honest) / U_honest`.
-  It assumes `U_honest` is the per-period cooperative baseline and permanent
-  punishment payoff is normalized to zero. Both utilities must be finite and
-  `U_honest` strictly positive; missing, non-finite, zero, or negative utility
-  is `:inconclusive`. Discount must be finite and in `[0, 1]`, otherwise the
-  result is `:inconclusive`. Equality passes. A computed threshold `> 1` is an
-  explicit `:fail` (`:infeasible-threshold`), because no valid discount can meet
-  it. This condition is distinct from the separate grim-trigger approximation.
-  It remains **not wired** to the single-trace dispatcher because that dispatcher
-  does not supply multi-epoch evidence; declaring it in a single-trace theory
-  block resolves to `:inconclusive :unsupported-concept`.
+  **model-specific grim-trigger deterrence threshold**, not a general
+  Folk-theorem claim. It derives from `R / (1 - δ) >= T + δP / (1 - δ)`, so
+  `discount-factor >= (T - R) / (T - P)`, where `R=U_honest` is the cooperative
+  per-period payoff, `T=U_malicious` is the one-shot deviation payoff, and `P`
+  is the per-period punishment payoff. `P` defaults to zero for the current
+  model. All payoffs must be finite and `U_honest` strictly positive; missing or
+  invalid utility is `:inconclusive`. Discount must be finite and in `[0, 1]`.
+  Equality passes. A computed threshold `> 1` is an explicit `:fail`
+  (`:infeasible-threshold`), because no valid discount can meet it. It remains
+  **not wired** to the single-trace dispatcher because that dispatcher does not
+  supply multi-epoch evidence; declaring it in a single-trace theory block
+  resolves to `:inconclusive :unsupported-concept`.
 
 ## Alias Result Labelling
 

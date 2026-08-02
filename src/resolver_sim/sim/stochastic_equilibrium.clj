@@ -558,20 +558,26 @@
 (defn evaluate-repeated-game-deterrence-threshold
   "Evaluate this model's repeated-game deterrence threshold.
 
-   This is not a general Folk-theorem result. It applies the model-specific
-   normalization
+   This is not a general Folk-theorem result. It is the model-specific
+   grim-trigger deterrence condition derived from
 
-     discount-factor >= (U_malicious - U_honest) / U_honest
+     R / (1 - δ) >= T + δ P / (1 - δ)
+     δ >= (T - R) / (T - P)
 
-   under two explicit assumptions: `U_honest` is the per-period cooperative
-   baseline, and the permanent-punishment payoff is normalized to zero. Both
-   utilities must be finite and `U_honest` must be strictly positive. The
-   discount factor is a per-period discount and must be in [0, 1]. Equality
-   satisfies the threshold. A threshold above 1 is explicitly infeasible,
-   because no valid discount factor can meet it.
+   where `R` is `U_honest` (the cooperative per-period payoff), `T` is
+   `U_malicious` (the one-shot deviation payoff), and `P` is the per-period
+   punishment payoff. `punishment-payoff` defaults to zero, preserving the
+   model's zero-punishment normalization, for which the denominator is
+   `U_malicious`.
+
+   All payoffs must be finite and `U_honest` strictly positive. The discount
+   factor is per-period and must be in [0, 1]. Equality satisfies the threshold.
+   A threshold above 1 is explicitly infeasible because no valid discount can
+   meet it.
 
    `multi-epoch-result` — result from run-multi-epoch
    `discount-factor` — per-period discount factor (default 0.95)
+   `punishment-payoff` — per-period payoff after deviation (default 0.0)
 
    Returns {:status :pass | :fail | :inconclusive
             :basis :single-simulation-evidence
@@ -579,8 +585,9 @@
             :distance-to-boundary double
             :binding-constraint kw | nil
             :detail string}"
-  [multi-epoch-result & {:keys [discount-factor]
-                         :or {discount-factor 0.95}}]
+  [multi-epoch-result & {:keys [discount-factor punishment-payoff]
+                         :or {discount-factor 0.95
+                              punishment-payoff 0.0}}]
   (let [stats (:aggregated-stats multi-epoch-result {})
         honest-profit (:honest-mean-profit stats)
         malice-profit (:malice-mean-profit stats)
@@ -604,6 +611,15 @@
        :binding-constraint :discount-factor
        :reason :discount-factor-out-of-range
        :detail "discount-factor must be in [0, 1]"}
+
+      (not (finite-number? punishment-payoff))
+      {:status :inconclusive
+       :basis :single-simulation-evidence
+       :deterrence? false
+       :cooperation-region? false
+       :binding-constraint :punishment-payoff
+       :reason :missing-or-invalid-punishment-payoff
+       :detail "punishment-payoff must be a finite utility"}
 
       (not (finite-number? honest-profit))
       {:status :inconclusive
@@ -634,40 +650,57 @@
 
       :else
       (let [df (double discount-factor)
-            threshold (/ (- (double malice-profit) (double honest-profit))
-                         (double honest-profit))
-            distance (- df threshold)
-            deterrence? (>= distance 0.0)]
-        (if (> threshold 1.0)
-          {:status :fail
+            reward (double honest-profit)
+            temptation (double malice-profit)
+            punishment (double punishment-payoff)
+            denominator (- temptation punishment)]
+        (if (zero? denominator)
+          {:status :inconclusive
            :basis :single-simulation-evidence
            :discount-factor df
-           :honest-mean-profit (double honest-profit)
-           :malice-mean-profit (double malice-profit)
-           :threshold threshold
+           :honest-mean-profit reward
+           :malice-mean-profit temptation
+           :punishment-payoff punishment
            :deterrence? false
            :cooperation-region? false
-           :distance-to-boundary distance
-           :binding-constraint :threshold
-           :reason :infeasible-threshold
-           :detail (format (str "repeated-game deterrence threshold is infeasible "
-                                "(discount=%.3f, threshold=%.3f > 1)")
-                           df threshold)}
-          {:status (if deterrence? :pass :fail)
-           :basis :single-simulation-evidence
-           :discount-factor df
-           :honest-mean-profit (double honest-profit)
-           :malice-mean-profit (double malice-profit)
-           :threshold threshold
-           :deterrence? deterrence?
-           ;; Retained while callers migrate from the former folk-theorem name.
-           :cooperation-region? deterrence?
-           :distance-to-boundary distance
-           :binding-constraint (when (not deterrence?) :discount-factor)
-           :detail (format (str "repeated-game deterrence threshold: %s "
-                                "(discount=%.3f, threshold=%.3f, distance=%.4f)")
-                           (if deterrence? "met" "not met")
-                           df threshold distance)})))))
+           :binding-constraint :punishment-payoff
+           :reason :undefined-deterrence-threshold
+           :detail "U_malicious must differ from punishment-payoff"}
+          (let [threshold (/ (- temptation reward) denominator)
+                distance (- df threshold)
+                deterrence? (>= distance 0.0)]
+            (if (> threshold 1.0)
+              {:status :fail
+               :basis :single-simulation-evidence
+               :discount-factor df
+               :honest-mean-profit reward
+               :malice-mean-profit temptation
+               :punishment-payoff punishment
+               :threshold threshold
+               :deterrence? false
+               :cooperation-region? false
+               :distance-to-boundary distance
+               :binding-constraint :threshold
+               :reason :infeasible-threshold
+               :detail (format (str "repeated-game deterrence threshold is infeasible "
+                                    "(discount=%.3f, threshold=%.3f > 1)")
+                               df threshold)}
+              {:status (if deterrence? :pass :fail)
+               :basis :single-simulation-evidence
+               :discount-factor df
+               :honest-mean-profit reward
+               :malice-mean-profit temptation
+               :punishment-payoff punishment
+               :threshold threshold
+               :deterrence? deterrence?
+               ;; Retained while callers migrate from the former folk-theorem name.
+               :cooperation-region? deterrence?
+               :distance-to-boundary distance
+               :binding-constraint (when (not deterrence?) :discount-factor)
+               :detail (format (str "repeated-game deterrence threshold: %s "
+                                    "(discount=%.3f, threshold=%.3f, distance=%.4f)")
+                               (if deterrence? "met" "not met")
+                               df threshold distance)})))))))
 
 (defn evaluate-folk-theorem-region
   "Deprecated compatibility alias for `evaluate-repeated-game-deterrence-threshold`.

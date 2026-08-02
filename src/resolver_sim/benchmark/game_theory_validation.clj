@@ -227,7 +227,7 @@
     :wired? false
     :implemented? true
     :title "Repeated-game deterrence threshold (model-specific)"
-    :summary "Model-specific repeated-game deterrence threshold: discount >= (U_malicious - U_honest) / U_honest, assuming U_honest is the cooperative baseline and punishment payoff is normalized to zero. Utilities must be finite with U_honest > 0, discount must be in [0, 1], equality passes, and threshold > 1 explicitly fails as infeasible. This is not a general Folk-theorem claim and is not wired into the single-trace dispatcher."}])
+    :summary "Model-specific grim-trigger deterrence threshold: discount >= (T - R) / (T - P), where R=U_honest, T=U_malicious, and P is the punishment payoff (default 0). Utilities must be finite with U_honest > 0, discount must be in [0, 1], equality passes, and threshold > 1 explicitly fails as infeasible. This is not a general Folk-theorem claim and is not wired into the single-trace dispatcher."}])
 
 (def run-strategic-claim-validation strategic/run-strategic-claim-validation)
 

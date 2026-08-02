@@ -7,6 +7,7 @@
             [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.protocols.sew.accounting :as accounting]
+            [resolver-sim.protocols.sew :as sew]
             [resolver-sim.io.content-addressed-store :as store]))
 
 (def ^:private input-keys
@@ -103,7 +104,7 @@
                   :reservation/hash (:reservation/hash reservation)
                   :reservation/execution-attempt-id (:reservation/execution-attempt-id reservation)
                   :public-authorisation/id auth-id
-                  :public-authorisation/scope-hash (str "sha256:" recomputed-scope)
+                  :public-authorisation/scope-hash (sew/qualify-sew-scope-hash recomputed-scope)
                   :effect/type :held-adjustment
                   :effect/id adjustment-id
                   :effect/artifact-hash (:artifact/hash artifact)})

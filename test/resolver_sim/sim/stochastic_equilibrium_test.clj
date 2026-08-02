@@ -464,7 +464,7 @@
   (testing "a threshold above one explicitly fails because no valid discount can meet it"
     (let [result {:aggregated-stats {:honest-mean-profit 10.0
                                      :malice-mean-profit 300.0}}
-          report (sut/evaluate-repeated-game-deterrence-threshold result)]
+          report (sut/evaluate-repeated-game-deterrence-threshold result :punishment-payoff 20.0)]
       (is (= :fail (:status report)))
       (is (= :infeasible-threshold (:reason report)))
       (is (= :threshold (:binding-constraint report)))
@@ -477,17 +477,28 @@
     (testing "a discount strictly above the threshold passes"
       (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.6)]
         (is (= :pass (:status report)))
-        (is (= 0.5 (:threshold report)))
+        (is (= (/ 1.0 3.0) (:threshold report)))
         (is (pos? (:distance-to-boundary report)))))
     (testing "equality passes"
-      (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.5)]
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor (/ 1.0 3.0))]
         (is (= :pass (:status report)))
         (is (true? (:deterrence? report)))
         (is (zero? (:distance-to-boundary report)))))
     (testing "a discount below the threshold fails"
-      (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.49)]
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.32)]
         (is (= :fail (:status report)))
         (is (neg? (:distance-to-boundary report)))))))
+
+(deftest test-repeated-game-deterrence-uses-punishment-payoff
+  (let [result {:aggregated-stats {:honest-mean-profit 100.0
+                                   :malice-mean-profit 150.0}}
+        report (sut/evaluate-repeated-game-deterrence-threshold
+                result :discount-factor 0.4 :punishment-payoff 50.0)]
+    ;; (T - R) / (T - P) = 50 / 100 = 0.5; a zero-punishment model would
+    ;; instead yield 1/3, so this distinguishes the general derivation.
+    (is (= 0.5 (:threshold report)))
+    (is (= :fail (:status report)))
+    (is (= 50.0 (:punishment-payoff report)))))
 
 (deftest test-repeated-game-deterrence-validates-discount-domain
   (let [result {:aggregated-stats {:honest-mean-profit 100.0

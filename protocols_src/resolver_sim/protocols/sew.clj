@@ -81,13 +81,25 @@
              :held/workflow-id workflow-id}
             parameter-attribution))))
 
+(defn qualify-sew-scope-hash
+  "Convert the canonical internal Sew scope digest to its external SHA-256
+   reference. Bare digests are retained only inside legacy Sew records."
+  [bare-digest]
+  (when-not (and (string? bare-digest) (re-matches #"[0-9a-f]{64}" bare-digest))
+    (throw (ex-info "Invalid bare Sew scope digest" {:reason :invalid-sew-scope-hash})))
+  (str "sha256:" bare-digest))
+
+(defn strip-sew-scope-hash-reference
+  "Validate and remove the external SHA-256 prefix from a Sew scope reference."
+  [reference]
+  (when-not (and (string? reference) (re-matches #"sha256:[0-9a-f]{64}" reference))
+    (throw (ex-info "Invalid qualified Sew scope reference" {:reason :invalid-sew-scope-reference})))
+  (subs reference (count "sha256:")))
+
 (defn public-force-authorisation-scope-ref
-  "Return the algorithm-qualified public commitment for a legacy internal
-   Sew scope digest. Internal stored scope hashes remain unchanged for
-   compatibility; researcher artifacts must use this canonical reference."
+  "Compatibility name for `qualify-sew-scope-hash`."
   [scope-hash]
-  (when (string? scope-hash)
-    (str "sha256:" scope-hash)))
+  (qualify-sew-scope-hash scope-hash))
 
 (defn- has-active-dispute-for-resolver?
   [world resolver-addr]
@@ -1006,13 +1018,47 @@
   (str "sha256:" (hash/domain-hash :consensus-terminal-reservation
                                     (dissoc record :terminal/hash))))
 
+(def ^:private terminal-reservation-anchor-keys
+  [:research-assignment/hash :researcher-force-authorisation/hash
+   :reservation/hash :reservation/execution-attempt-id
+   :researcher-force-authorisation/consumption-key
+   :sew/authorization-id :sew/scope-hash])
+
+(def ^:private terminal-reservation-record-keys
+  (into #{:artifact/type :artifact/version :terminal/hash}
+        (concat terminal-reservation-anchor-keys terminal-reservation-allowed-keys)))
+
+(declare terminal-status-outcome-valid?)
+
 (defn valid-consensus-terminal-reservation?
-  "Structural self-hash check for an immutable terminal reservation decision.
-   It does not resolve or authenticate the referenced prepared artifacts."
+  "Validate the complete terminal reservation artifact contract: strict schema,
+   original reservation anchors, status/outcome and correlation presence rules,
+   canonical SHA-256 references, and the domain-separated self-hash. It does
+   not resolve the referenced prepared artifacts."
   [record]
-  (and (= :consensus-terminal-reservation (:artifact/type record))
-       (= 1 (:artifact/version record))
-       (= (:terminal/hash record) (terminal-reservation-hash record))))
+  (let [status (:status record)
+        outcome (:consumption/effect-outcome record)
+        correlation? (contains? record :correlation/hash)
+        required-ref-keys (cond-> (concat [:research-assignment/hash
+                                           :researcher-force-authorisation/hash
+                                           :reservation/hash]
+                                          (remove #{:consumption/effect-outcome}
+                                                  terminal-reservation-root-keys))
+                            correlation? (conj :correlation/hash))]
+    (and (map? record)
+         (every? terminal-reservation-record-keys (keys record))
+         (= :consensus-terminal-reservation (:artifact/type record))
+         (= 1 (:artifact/version record))
+         (terminal-status-outcome-valid? status outcome)
+         (or (not= outcome :not-produced) (not correlation?))
+         (or (not (contains? #{:produced :reversed} outcome)) correlation?)
+         (every? #(hash-ref/valid-sha256-ref? (get record %)) required-ref-keys)
+         (and (keyword? (:researcher-force-authorisation/consumption-key record))
+              (some? (namespace (:researcher-force-authorisation/consumption-key record))))
+         (and (string? (:sew/authorization-id record))
+              (not (empty? (:sew/authorization-id record))))
+         (boolean (re-matches #"[0-9a-f]{64}" (:sew/scope-hash record)))
+         (= (:terminal/hash record) (terminal-reservation-hash record)))))
 
 (defn- terminal-status-outcome-valid? [status outcome]
   (contains? #{[:consumed :produced]
