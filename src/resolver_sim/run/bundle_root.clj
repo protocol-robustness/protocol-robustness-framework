@@ -26,7 +26,10 @@
   (:import [java.security MessageDigest]
            [java.util Arrays]))
 
-(def ^:const schema-version "bundle-root.v1")
+(def ^:const schema-version "bundle-root.v2")
+(def ^:const legacy-schema-version "bundle-root.v1")
+
+(declare compute-json-hash)
 
 (defn- json-encode
   "Canonical JSON encoding: sorted keys, no whitespace.
@@ -197,15 +200,14 @@
    Optional :protocol/force-authorisations and :protocol/force-authorisations-consumed
    keys in result are emitted as a forensic protocol-state witness and hashed
    into :protocol/state-hashes.
-   Returns a bundle-root.v1 map with:
+   Returns a bundle-root.v2 map with:
    - run request (for reproducibility)
    - registry snapshot hashes
    - protocol state hashes (when provided)
    - execution environment
    - execution summary
    - normalized overview hash
-   - self-referential bundle hash (native Clojure canonical encoding)
-   - self-referential JSON hash (standalone-verifiable canonical JSON)"
+   - a self-referential canonical-JSON hash (standalone-verifiable)\n\n   Historical bundle-root.v1 values remain identifiable through\n   `verify-bundle-content`, but cannot be classified as content-verified\n   runnable roots because their binary/domain preimage differs."
   [request result]
   (let [overview (overview/build-overview result)
         overview-h (overview/overview-hash overview)
@@ -298,29 +300,72 @@
                        {:schema "sensitivity-report-reference"
                         :format "sensitivity-report.v2"
                         :path paths/sensitivity-report}}))
-        bundle-hash (hc/hash-with-intent {:hash/intent :bundle-root} base)]
+        ;; :bundle/hash is the portable canonical-JSON content address verified
+        ;; by compute-json-hash. Keeping construction and verification on this
+        ;; single projection prevents an ID/hash pair from blessing altered data.
+        bundle-hash (compute-json-hash base)]
     (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash)))
 
 ;; ── Bundle root validation ────────────────────────────────────────────────────
 
 (defn compute-json-hash
-  "Compute the JSON-canonical hash of a bundle root.
+  "Compute the canonical content address of a bundle root.
    Strips :bundle/id and :bundle/hash, serializes the rest as canonical
    JSON (sorted keys, no whitespace), then computes
-   SHA-256(\"BUNDLE_ROOT_V1\" || canonical-json-bytes).
+   SHA-256(\"BUNDLE_ROOT_V2\" || canonical-json-bytes).
 
-   Returns a 64-char hex string.  Verifiable in any language with a JSON
-   library and SHA-256 M-bM-^@M-^T no Clojure runtime needed."
+   This function defines the bundle-root.v2 contract. Returns a 64-char hex
+   string and is the authoritative value for both
+   :bundle/id and :bundle/hash and is verifiable without a Clojure runtime."
   [bundle-root]
   (let [preimage (dissoc bundle-root :bundle/id :bundle/hash)
         json-str (json-encode-safe preimage)
-        tag-bytes (.getBytes "BUNDLE_ROOT_V1" "UTF-8")
+        tag-bytes (.getBytes "BUNDLE_ROOT_V2" "UTF-8")
         canon-bytes (.getBytes json-str "UTF-8")
         combined (Arrays/copyOf tag-bytes (+ (alength tag-bytes) (alength canon-bytes)))
         _ (System/arraycopy canon-bytes 0 combined (alength tag-bytes) (alength canon-bytes))
         digest (MessageDigest/getInstance "SHA-256")
         hash-bytes (.digest digest combined)]
     (apply str (map #(format "%02x" (bit-and % 0xff)) hash-bytes))))
+
+(defn compute-v1-hash
+  "Compute the historical bundle-root.v1 binary/domain hash without changing
+   its meaning. This is retained only to identify legacy commitments."
+  [bundle-root]
+  (hc/hash-with-intent {:hash/intent :bundle-root}
+                       (dissoc bundle-root :bundle/id :bundle/hash)))
+
+(defn verify-bundle-content
+  "Classify a bundle root against the hash contract selected by its schema.
+   v1 roots can be integrity-identified, but are deliberately not elevated to
+   content-verified/runnable because v1 did not use the portable v2 contract."
+  [bundle-root]
+  (let [schema (:bundle/schema-version bundle-root)
+        declared (:bundle/hash bundle-root)
+        id (:bundle/id bundle-root)]
+    (cond
+      (or (nil? declared) (nil? id))
+      {:status :invalid :reason :missing-bundle-hash}
+
+      (not= id declared)
+      {:status :invalid :reason :bundle-id-hash-mismatch}
+
+      (= legacy-schema-version schema)
+      (if (= declared (compute-v1-hash bundle-root))
+        {:status :legacy-not-content-verified
+         :reason :legacy-binary-domain-hash}
+        {:status :invalid :reason :legacy-bundle-content-hash-mismatch})
+
+      (= schema-version schema)
+      (let [computed (compute-json-hash bundle-root)]
+        (if (= declared computed)
+          {:status :content-verified :computed-hash computed}
+          {:status :invalid
+           :reason :bundle-content-hash-mismatch
+           :computed-hash computed}))
+
+      :else
+      {:status :invalid :reason :unsupported-bundle-schema})))
 
 (defn structurally-valid?
   "Validate only the immutable inner bundle-root structure. This does not

@@ -5,6 +5,17 @@
   (:require [resolver-sim.time.context :as time-ctx]
             [resolver-sim.protocols.protocol :as proto]))
 
+(defn- epoch-second
+  "Canonicalize a supported replay event time to Unix seconds.
+
+   Replay clocks and protocol deadlines have second precision. `Instant` values
+   therefore compare by their epoch second; sub-second precision is deliberately
+   not represented in the world clock."
+  [event-time]
+  (if (number? event-time)
+    (long event-time)
+    (.getEpochSecond ^java.time.Instant event-time)))
+
 (defn advance-world-time
   "Advance :block-ts and scenario-step counter atomically.
    Returns {:world w' :delta-ms n :advanced? bool}.
@@ -15,8 +26,7 @@
    Throws when :block-ts is missing (uninitialized world)."
   [world event-time]
   (let [now-ts       (time-ctx/block-ts world)
-        event-ts     (if (number? event-time) (long event-time)
-                         (.getEpochSecond ^java.time.Instant event-time))
+        event-ts     (epoch-second event-time)
         delta-seconds (- event-ts now-ts)
         world'       (time-ctx/advance-time world {:to event-ts})]
     {:world     world'
@@ -35,7 +45,8 @@
                                  :on-expired :evidence-deadline-exceeded}
    "execute_pending_settlement" {:kind :settlement :boundary :at-or-after
                                  :subject #(get-in % [:params :workflow-id])
-                                 :on-expired :appeal-window-not-expired}
+                                 :on-expired :appeal-window-not-expired
+                                 :rule-id :sew/appeal-window-open}
    "escalate_dispute"           {:kind :appeal :boundary :before
                                  :subject #(get-in % [:params :workflow-id])
                                  :on-expired :appeal-window-expired}
@@ -59,8 +70,7 @@
                {:ok? false :error :invalid-event-time}))}
    {:id :non-regressive-time
     :check (fn [{:keys [event-time now]}]
-             (let [event-ts (if (number? event-time) (long event-time)
-                                (.getEpochSecond ^java.time.Instant event-time))]
+             (let [event-ts (epoch-second event-time)]
                (if (< event-ts now)
                  {:ok? false :error :time-regression}
                  {:ok? true})))}
@@ -73,19 +83,21 @@
                  (if (nil? deadline)
                    {:ok? true}  ;; no deadline configured for this workflow
                    (let [boundary  (:boundary cfg)
+                         event-ts  (epoch-second event-time)
                          expired? (case boundary
-                                    :before     (>= (long event-time) (long deadline))
-                                    :at-or-after (< (long event-time) (long deadline)))]
+                                    :before     (>= event-ts (long deadline))
+                                    :at-or-after (< event-ts (long deadline)))]
                      (if expired?
-                       {:ok? false
-                        :error    (:on-expired cfg)
-                        :guard-context {:temporal/rule :deadline-enforcement
-                                        :temporal/deadline-kind (:kind cfg)
-                                        :temporal/event-time event-time
-                                        :temporal/deadline deadline
-                                        :temporal/boundary-policy boundary
-                                        :temporal/subject-id subject
-                                        :temporal/decision :reject}}
+                       (cond-> {:ok? false
+                                :error (:on-expired cfg)
+                                :guard-context {:temporal/rule :deadline-enforcement
+                                                :temporal/deadline-kind (:kind cfg)
+                                                :temporal/event-time event-ts
+                                                :temporal/deadline deadline
+                                                :temporal/boundary-policy boundary
+                                                :temporal/subject-id subject
+                                                :temporal/decision :reject}}
+                         (:rule-id cfg) (assoc :rule-id (:rule-id cfg)))
                        {:ok? true}))))
                {:ok? true}))}])
 
@@ -103,7 +115,7 @@
             (let [r (check ctx)]
               (if (:ok? r)
                 nil
-                (reduced (assoc r :rule-id id)))))
+                (reduced (assoc r :rule-id (or (:rule-id r) id))))))
           nil
           rules))
 

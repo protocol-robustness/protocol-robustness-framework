@@ -155,7 +155,7 @@
    failures prohibit a correlation rather than inventing a synthetic effect."
   [{:keys [correlation consumption-receipt] :as fields}]
   (when-not (= "force-authorisation-consumption.v2"
-                (:schema-version consumption-receipt))
+               (:schema-version consumption-receipt))
     (throw (ex-info "Execution evidence v2 requires a receipt v2" {})))
   (when-not (:valid? (rfa/validate-consumption-receipt consumption-receipt))
     (throw (ex-info "Execution evidence v2 requires a valid receipt v2" {})))
@@ -243,7 +243,7 @@
                  (conj :invalid-effect-correlation-reference)
                  (not= (:evidence-profile/hash profile)
                        (str "sha256:" (hc/domain-hash :force-authorised-execution-evidence-v2
-                                                       (dissoc profile :evidence-profile/hash))))
+                                                      (dissoc profile :evidence-profile/hash))))
                  (conj :evidence-hash-mismatch))]
     {:valid? (empty? errors) :errors errors}))
 

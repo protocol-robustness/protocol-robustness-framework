@@ -1,25 +1,107 @@
-{:schema/version :prf.protocol-boundaries/v1
- :core/source-roots ["src/resolver_sim/cli"
-                     "src/resolver_sim/core"
-                     "src/resolver_sim/evidence"
-                     "src/resolver_sim/reference"
-                     "src/resolver_sim/run"]
- :core/source-files ["src/resolver_sim/benchmark/game_theory_validation.clj"
-                      "src/resolver_sim/commands/scenario_extraction.clj"
-                      "src/resolver_sim/io/claimable_classification_emitter.clj"
-                      "src/resolver_sim/validation/scenario_registry.clj"
-                      "src/resolver_sim/sim/trace_score.clj"
-                      "src/resolver_sim/scenario/subgame_counterfactual.clj"
-                      "src/resolver_sim/benchmark/runner.clj"
-                      "src/resolver_sim/io/scenario_runner.clj"
-                      "src/resolver_sim/execution/child.clj"
-                      "src/resolver_sim/sim/reference_validation.clj"
-                      "src/resolver_sim/sim/reference_validation_evidence.clj"]
- :forbidden/core-namespace-prefixes ["resolver-sim.protocols.sew"]
- :extension/source-roots {"sew" ["protocols_src"]}
- :rules [{:id :core-does-not-import-protocol-implementations
-          :description "Core framework namespaces may depend on adapter interfaces and registries, not a named protocol implementation."}
-         {:id :extension-depends-on-core
-          :description "Protocol extensions may depend on core; core may not require an extension namespace."}
+{:schema/version :prf.protocol-boundaries/v2
+ :core/source-roots ["src"]
+ :extension/namespace-prefixes ["resolver-sim.protocols.sew"]
+
+ ;; Every exception is an existing, reviewed framework-to-Sew bridge.  Entries
+ ;; are exact fully-qualified namespaces or vars, never a file- or prefix-wide
+ ;; waiver; see docs/architecture/PROTOCOL_EXTENSION_BOUNDARIES.md.
+ :approved/extension-dependencies
+ [{:file "src/resolver_sim/protocols/registry.clj"
+   :dependency "resolver-sim.protocols.sew/protocol"
+   :kind :adapter-registry
+   :reason "The registry holds an unloaded adapter symbol and performs the documented optional-extension bootstrap."}
+  {:file "src/resolver_sim/sim/batch.clj"
+   :dependency "resolver-sim.protocols.sew.research-models.resolver-ring"
+   :kind :legacy-static-bridge
+   :reason "Existing Sew research-model integration; source relocation is outside WP7 configuration/test scope."}
+  {:file "src/resolver_sim/sim/fixtures.clj"
+   :dependency "resolver-sim.protocols.sew.invariant-scenarios"
+   :kind :legacy-static-bridge
+   :reason "Existing Sew fixture integration; source relocation is outside WP7 configuration/test scope."}
+  {:file "src/resolver_sim/sim/reference_validation.clj"
+   :dependency "resolver-sim.protocols.sew/replay-with-sew-protocol"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew reference-validation adapter entrypoint."}
+  {:file "src/resolver_sim/sim/reference_validation.clj"
+   :dependency "resolver-sim.protocols.sew.io.trace-export/export-trace-fixture"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew trace-fixture export entrypoint."}
+  {:file "src/resolver_sim/sim/reference_validation.clj"
+   :dependency "resolver-sim.protocols.sew.io.trace-export/write-fixture-file"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew trace-fixture writer entrypoint."}
+  {:file "src/resolver_sim/sim/reference_validation_evidence.clj"
+   :dependency "resolver-sim.protocols.sew.invariants/world-invariant-ids"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew invariant evidence projection."}
+  {:file "src/resolver_sim/sim/reference_validation_evidence.clj"
+   :dependency "resolver-sim.protocols.sew.invariants/check-all"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew invariant evidence evaluation."}
+  {:file "src/resolver_sim/benchmark/runner.clj"
+   :dependency "resolver-sim.protocols.sew.invariants/canonical-ids"
+   :kind :adapter-bridge
+   :reason "Protocol-native post-replay invariant bridge pending a registry capability."}
+  {:file "src/resolver_sim/benchmark/runner.clj"
+   :dependency "resolver-sim.protocols.sew.invariants/check-all"
+   :kind :adapter-bridge
+   :reason "Protocol-native post-replay invariant bridge pending a registry capability."}
+  {:file "src/resolver_sim/benchmark/runner.clj"
+   :dependency "resolver-sim.protocols.sew/replay-with-sew-protocol"
+   :kind :adapter-bridge
+   :reason "Sew replay bridge pending a SimulationAdapter-only replay path."}
+  {:file "src/resolver_sim/validation/scenario_registry.clj"
+   :dependency "resolver-sim.protocols.sew.invariant-scenarios/validate-all-scenarios!"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew scenario-registry validation."}
+  {:file "src/resolver_sim/validation/scenario_registry.clj"
+   :dependency "resolver-sim.protocols.sew.invariant-scenarios/scenario-type-registry"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew scenario-registry metadata."}
+  {:file "src/resolver_sim/commands/scenario_extraction.clj"
+   :dependency "resolver-sim.protocols.sew.claimable-classification/build-document"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew claimable-classification command implementation."}
+  {:file "src/resolver_sim/commands/invariants_run.clj"
+   :dependency "resolver-sim.protocols.sew.invariant-scenarios/all-scenarios"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew invariant-run command scenario enumeration."}
+  {:file "src/resolver_sim/commands/witness_build.clj"
+   :dependency "resolver-sim.protocols.sew.procedure-evidence/sew-evidence-adapter"
+   :kind :legacy-symbol-bridge
+   :reason "Sew procedure-evidence adapter symbol selected by protocol ID."}
+  {:file "src/resolver_sim/execution/child.clj"
+   :dependency "resolver-sim.protocols.sew.invariants/check-all"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew child-execution invariant evaluation."}
+  {:file "src/resolver_sim/time/invariants.clj"
+   :dependency "resolver-sim.protocols.sew.types/terminal-states"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew terminal-state compatibility lookup."}
+  {:file "src/resolver_sim/io/scenario_runner.clj"
+   :dependency "resolver-sim.protocols.sew/replay-with-sew-protocol"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew scenario replay compatibility entrypoint."}
+  {:file "src/resolver_sim/io/scenario_runner.clj"
+   :dependency "resolver-sim.protocols.sew.narrative/scenario-outline"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew scenario narrative compatibility entrypoint."}
+  {:file "src/resolver_sim/io/scenario_runner.clj"
+   :dependency "resolver-sim.protocols.sew.invariant-scenarios/all-scenarios"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew scenario enumeration compatibility entrypoint."}
+  {:file "src/resolver_sim/io/scenario_runner.clj"
+   :dependency "resolver-sim.protocols.sew.invariant-scenarios/scenario-type-registry"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew scenario metadata compatibility entrypoint."}
+  {:file "src/resolver_sim/io/claimable_classification_emitter.clj"
+   :dependency "resolver-sim.protocols.sew.claimable-classification"
+   :kind :legacy-dynamic-bridge
+   :reason "Sew claimable-classification namespace is constructed for an optional command."}]
+
+ :rules [{:id :framework-does-not-depend-on-protocol-implementations
+          :description "Every src production namespace is scanned. Direct require/use/import and literal namespace-resolution references to extension prefixes fail unless an exact reviewed bridge is configured."}
+         {:id :extension-depends-on-framework
+          :description "Protocol extensions may depend on framework interfaces and registries; framework code must not introduce named extension dependencies."}
          {:id :prf-jar-excludes-extension-sources
           :description "The PRF distribution is built from src and resources only; Sew source and corpus are supplied by :with-sew."}]}

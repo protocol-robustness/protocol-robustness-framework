@@ -125,6 +125,16 @@
     (not= :pinned (:mode runner-selection)) bundle-status-non-canonical
     :else bundle-status-canonical))
 
+(defn- bundle-content-verification
+  "Resolve the bundle-root verifier lazily to avoid a namespace cycle:
+   bundle-root depends on criteria for structural checks."
+  [bundle-root]
+  (try
+    (when-let [f (requiring-resolve 'resolver-sim.run.bundle-root/verify-bundle-content)]
+      (f bundle-root))
+    (catch Exception _
+      nil)))
+
 (defn runnable-bundle-root?
   "Check whether a bundle root is runnable (reproducible).
 
@@ -132,13 +142,16 @@
    - run request is present and valid
    - runner selection resolves to a known runner
    - registry snapshots are present
-   - canonical status is consistent
+   - :bundle/id and :bundle/hash both match the recomputed canonical content
+     address
 
-   Returns {:runnable? true} or {:runnable? false :errors [...]}."
+   Returns {:runnable? true} or {:runnable? false :errors [...]}.
+   "
   [bundle-root]
   (let [run-request (:run/request bundle-root)
         request-valid (when run-request (validate-run-request run-request))
         has-registries? (contains? bundle-root :registry/snapshot)
+        content-verification (bundle-content-verification bundle-root)
         errors (cond-> []
                  (nil? run-request)
                  (conj {:code :missing-run-request})
@@ -175,14 +188,29 @@
                         :bundle/id (:bundle/id bundle-root)
                         :bundle/hash (:bundle/hash bundle-root)})
 
+                 (nil? content-verification)
+                 (conj {:code :bundle-content-hash-unverifiable})
+
+                 (= :legacy-not-content-verified (:status content-verification))
+                 (conj {:code :legacy-not-content-verified
+                        :reason (:reason content-verification)})
+
+                 (and content-verification
+                      (= :invalid (:status content-verification)))
+                 (conj (cond-> {:code (:reason content-verification)}
+                         (:computed-hash content-verification)
+                         (assoc :computed-hash (:computed-hash content-verification))))
+
                  (not (contains? bundle-root :overview/hash))
                  (conj {:code :missing-overview-hash})
 
                  (not (contains? bundle-root :bundle/hash))
                  (conj {:code :missing-bundle-hash}))]
     (if (seq errors)
-      {:runnable? false :errors errors}
-      {:runnable? true})))
+      (cond-> {:runnable? false :errors errors}
+        (= :legacy-not-content-verified (:status content-verification))
+        (assoc :status :legacy-not-content-verified))
+      {:runnable? true :status :content-verified})))
 
 (defn valid-runner-selection?
   "Check whether a runner selection map is valid for execution.

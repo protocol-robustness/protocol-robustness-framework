@@ -221,6 +221,79 @@
               (:violations (inv/check-pro-rata-accounting-reconciles
                             (assoc-in world [:yield/pro-rata-propagations "p1" :accounting-entries 1 :account] :other-credit)))))))
 
+(defn- accounting-world-with-position-hashes []
+  (let [world (assoc (accounting-world)
+                     :yield/positions
+                     {"alice" {:status :withdrawn :token :USDC}
+                      "bob" {:status :withdrawn :token :USDC}})
+        app (get-in world [:yield/applied-pro-rata-propagations "p1"])
+        app (reduce (fn [application [idx participant-id]]
+                      (let [position (get-in world [:yield/positions participant-id])]
+                        (-> application
+                            (assoc-in [:participants idx :position-id] participant-id)
+                            (assoc-in [:participants idx :position-after] position)
+                            (assoc-in [:participants idx :position-after-hash]
+                                      (pf/application-hash position)))))
+                    app
+                    (map-indexed vector ["alice" "bob"]))
+        app (assoc app :application/hash (pf/application-hash app))]
+    (assoc-in world [:yield/applied-pro-rata-propagations "p1"] app)))
+
+(deftest post-application-position-hash-reconciliation
+  (let [world (accounting-world-with-position-hashes)
+        result (inv/check-pro-rata-accounting-reconciles world)
+        state-tampered (assoc-in world [:yield/positions "alice" :status] :active)
+        snapshot-tampered (assoc-in world
+                                    [:yield/applied-pro-rata-propagations "p1"
+                                     :participants 0 :position-after :status]
+                                    :active)]
+    (is (:holds? result))
+    (is (= :pass (get-in result [:checks :position-after-hash-valid])))
+    (is (some #(and (= :position-after-hash-mismatch (:reason %))
+                    (= :authoritative-position (:source %)))
+              (:violations (inv/check-pro-rata-accounting-reconciles state-tampered))))
+    (is (some #(and (= :position-after-hash-mismatch (:reason %))
+                    (= :application-snapshot (:source %)))
+              (:violations (inv/check-pro-rata-accounting-reconciles snapshot-tampered))))))
+
+(deftest later-position-transition-makes-prior-application-historical
+  (let [world (accounting-world-with-position-hashes)
+        earlier (get-in world [:yield/applied-pro-rata-propagations "p1"])
+        later-position {:status :settled :token :USDC}
+        later-participant (-> (first (:participants earlier))
+                              (assoc :position-id "alice"
+                                     :position-after later-position
+                                     :position-after-hash (pf/application-hash later-position)
+                                     :withdrawn {:token :USDC :before 40 :delta 0 :after 40}
+                                     :cumulative-fulfilled {:before 40 :delta 0 :after 40}))
+        later (-> earlier
+                  (assoc :propagation-id "p2"
+                         :application-order {:schema-version "pro-rata-application-order.v2"
+                                             :step 1 :event-id 1}
+                         :participants [later-participant]
+                         :source-account {:account :shared-liquidity :token :USDC
+                                          :before 40 :delta 0 :after 40})
+                  (dissoc :application/hash))
+        later (assoc later :application/hash (pf/application-hash later))
+        transitioned (-> world
+                         (assoc-in [:yield/positions "alice"] later-position)
+                         (assoc-in [:yield/applied-pro-rata-propagations "p2"] later))
+        result (inv/check-pro-rata-accounting-reconciles transitioned)
+        reconciliation (:position-after-hash-reconciliation result)]
+    (is (:holds? result))
+    (is (some #(and (= "p1" (:propagation-id %))
+                    (= "alice" (:participant-id %))
+                    (= "alice" (:position-id %))
+                    (= :historical-not-live-reconcilable (:classification %)))
+              reconciliation))
+    (is (some #(and (= "p2" (:propagation-id %))
+                    (= "alice" (:participant-id %))
+                    (= :live-authoritative (:classification %)))
+              reconciliation))
+    (is (not-any? #(and (= "p1" (:propagation-id %))
+                        (= :authoritative-position (:source %)))
+                  (:violations result)))))
+
 (deftest exact-credit-reconciliation
   (testing "valid credits form a bijection with fulfilments"
     (is (empty? (inv/exact-credit-violations [(propagation valid-entries)]))))

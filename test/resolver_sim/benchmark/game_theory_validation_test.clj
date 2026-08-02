@@ -7,6 +7,7 @@
             [resolver-sim.io.scenarios]
             [resolver-sim.protocols.sew.accounting :as sew-accounting]
             [resolver-sim.protocols.sew.types :as sew-types]
+            [resolver-sim.scenario.equilibrium :as equilibrium]
             [resolver-sim.scenario.suites]
             [resolver-sim.benchmark.game-theory-validation :as sut]))
 
@@ -200,6 +201,23 @@
        (sut/run-equilibrium-validation :suite :suites/not-registered
                                        :out-dir (str (System/getProperty "java.io.tmpdir")
                                                      "/prf-game-theory-invalid-suite")))))
+
+(deftest folk-theorem-catalogue-accurately-reports-multi-epoch-only-coverage
+  (let [concept (some #(when (= :folk-theorem-cooperation-region (:id %)) %)
+                      (:equilibrium-concepts (sut/list-game-theory-checks)))]
+    (is (some? concept))
+    (is (true? (:catalogued? concept)))
+    (is (true? (:implemented? concept)))
+    (is (false? (:wired? concept))
+        "the terminal-trace dispatcher has no multi-epoch evidence input")
+    (is (re-find #"U_honest > 0" (:summary concept)))
+    (is (re-find #"not wired" (:summary concept)))
+    (let [trace-result (get (equilibrium/evaluate-equilibrium-concepts
+                             [:folk-theorem-cooperation-region] {})
+                            :folk-theorem-cooperation-region)]
+      (is (= :inconclusive (:status trace-result)))
+      (is (= :unsupported-concept (:reason trace-result)))
+      (is (= :absent-evidence (:basis trace-result))))))
 
 (deftest held-custody-closed-form-validation-emits-artifact
   (let [out-dir (str (System/getProperty "java.io.tmpdir")

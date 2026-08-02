@@ -110,7 +110,7 @@
     "Solvency or whole-protocol balance-sheet assertions."
     "External custody provider holdings or off-ledger balances."
     "Force-authorisation governance semantics, which are owned by the force-authorisation concept."
-    "Concrete protocol-ledger mutation and protocol-specific balance representation (the world-state write behind add-held/sub-held) — owned by the protocol accounting/application layer (see core-protocol-boundary). Held custody derives and verifies first-class artifacts; it does not perform authoritative ledger writes."
+    "Concrete protocol-ledger mutation and protocol-specific balance representation (the world-state write behind add-held/sub-held) — owned by the protocol accounting/application layer (see :framework/protocol-extension-boundary). Held custody derives and verifies first-class artifacts; it does not perform authoritative ledger writes."
     "Protocol-specific scope-authorisation validation — outside this concept and enforced by the protocol accounting layer. Held-custody mutation nevertheless requires that validation to have succeeded before the ledger or derived index is changed. Low-level ledger/index updates are internal implementation details downstream of an authorised adjustment, not independent mutation surfaces."
     "Selection of the economic event, policy rule, or entitlement that causes a held adjustment (the reason/meaning of add-held) — owned by protocol policy."
     "Transfer of tokens or actual movement of custody, and establishment of solvency or real asset custody — owned by the application or adapter layer."]

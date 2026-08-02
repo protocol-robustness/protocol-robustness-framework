@@ -1,12 +1,12 @@
-{:concept/id :framework/core-protocol-boundary
+{:concept/id :framework/protocol-extension-boundary
  :concept/type :framework
  :concept/layer :framework-explanation
- :concept/name "Core–protocol ownership boundary"
+ :concept/name "Framework–protocol extension ownership boundary"
  :concept/summary
- "The core–protocol ownership boundary distinguishes responsibilities between the generic protocol-independent core, protocol-specific adapters, and concrete accounting layers. It records where abstract policies and artifacts live, where protocol-state translation happens, and where concrete ledger mutation occurs, so that the generic core is not conflated with a protocol-specific implementation."
+ "The framework–protocol extension ownership boundary distinguishes responsibilities between the generic protocol-independent framework, protocol-specific extensions (adapters), and concrete accounting layers. It records where abstract policies and artifacts live, where protocol-state translation happens, and where concrete ledger mutation occurs, so that the generic framework is not conflated with a protocol-specific implementation."
 
  :concept/stakeholder-question
- "Which layer owns abstract policies and verification, which owns protocol-state translation, and which owns concrete ledger mutation?"
+ "Which framework layer owns abstract policies and verification, which protocol extension owns protocol-state translation, and which layer owns concrete ledger mutation?"
 
  :concept/protocols #{:protocol/sew-v1 :protocol/prf}
 
@@ -18,25 +18,25 @@
 
  :concept/note
   "Ownership boundaries:
-   - Generic core owns abstract policies, artifacts, and verification.
-   - Protocol-specific adapters own translation between protocol state and generic inputs/effects.
+   - The generic framework owns abstract policies, artifacts, and verification.
+   - Protocol-specific extensions (adapters) own translation between protocol state and generic inputs/effects.
    - Concrete accounting owns protocol-ledger mutation.
    - Receipts bind abstract effects to concrete state changes.
    Concrete-accounting ledger mutation is scope-authorised: the low-level ledger/index write runs only after the applicable scope (position/account partitioning, and force-authorisation status/scope for exceptional reasons) has been validated. The low-level write is an internal implementation detail, not an independent public mutation surface.
-   A source-code import prohibition (e.g. generic core must not import a specific protocol) is an architectural direction; it does not by itself prove the generic core is protocol-independent."
+   A source-code import prohibition (e.g. the generic framework must not import a specific protocol extension) is an architectural direction; it does not by itself prove the framework is protocol-independent."
 
  :concept/roles
- {:core-owner {:description "Entity or layer responsible for generic policies, artifacts, and verification."
-               :maps-to [:protocol.actor/resolution-module]}
-  :adapter-owner {:description "Layer responsible for translating protocol state to/from generic inputs and effects."
+ {:framework-owner {:description "Entity or layer responsible for generic policies, artifacts, and verification."
+                    :maps-to [:protocol.actor/resolution-module]}
+  :extension-owner {:description "Protocol extension layer responsible for translating protocol state to/from generic inputs and effects."
                   :maps-to [:protocol.actor/resolution-module]}
   :accounting-owner {:description "Layer responsible for concrete protocol-ledger mutation."
                      :maps-to [:protocol.actor/resolution-module]}}
 
  :concept/entities
- {:generic-core {:description "Protocol-independent layer owning abstract policies, artifacts, and verification."
-                 :maps-to [:protocol.entity/module]}
-  :protocol-adapter {:description "Layer translating protocol-specific state to/from generic inputs and effects."
+ {:generic-framework {:description "Protocol-independent layer owning abstract policies, artifacts, and verification."
+                      :maps-to [:protocol.entity/module]}
+  :protocol-extension {:description "Protocol extension layer translating protocol-specific state to/from generic inputs and effects."
                      :maps-to [:protocol.entity/module]}
   :concrete-accounting {:description "Layer owning concrete protocol-ledger mutation."
                         :maps-to [:protocol.entity/module]}
@@ -58,18 +58,18 @@
                       :maps-to [:protocol.outcome/adversarial-resolution]}}
 
  :concept/failure-modes
- [{:failure/id :core-protocol-coupling
-   :failure/name "Core–protocol coupling"
-   :failure/summary "The generic core depends on a protocol-specific implementation, breaking protocol independence."
+ [{:failure/id :framework-protocol-extension-coupling
+   :failure/name "Framework–protocol extension coupling"
+   :failure/summary "The generic framework depends on a protocol-specific extension, breaking protocol independence."
    :protocol-mechanisms [:import-boundary :adapter]
-   :stakeholder-impact "The generic core can no longer serve other protocols independently."}]
+   :stakeholder-impact "The generic framework can no longer serve other protocols independently."}]
 
  :concept/assumptions
- ["The generic core owns abstract policies, artifacts, and verification."
-  "Protocol-specific adapters own translation between protocol state and generic inputs/effects."
+ ["The generic framework owns abstract policies, artifacts, and verification."
+  "Protocol-specific extensions (adapters) own translation between protocol state and generic inputs/effects."
   "Concrete accounting owns protocol-ledger mutation."
   "Receipts bind abstract effects to concrete state changes."
-  "An import prohibition is an architectural direction, not proof of protocol independence by itself."
+  "An import prohibition is an architectural direction, not proof that the framework is protocol-independent by itself."
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
@@ -82,5 +82,5 @@
   "External services called dynamically or through configuration."]
 
  :concept/metrics
- {:adapter-count {:description "Number of protocol adapters bound to the generic core."
+ {:adapter-count {:description "Number of protocol extensions (adapters) bound to the generic framework."
                   :source :derived-from-trace}}}

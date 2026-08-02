@@ -47,6 +47,7 @@
       (is (= :same-incident (:relationship/type rel)))
       (is (= 2 (count (:relationship/members rel))))
       (is (= #{:audit-only} (:relationship/semantics rel)))
+      (is (= rc/related-claims-version-v3 (:related-claims/version rel)))
       (is (some? (:relationship/hash rel)))
       (is (= 1 (get world' :next-related-claim-id 0))))))
 
@@ -186,7 +187,7 @@
     (is (= (:relationship/hash rel)
            (rc/related-claims-hash (:relationship/members rel)
                                    (:relationship/creator-provenance rel)))
-        "V2 hash commits members AND creator provenance")
+        "V3 hash commits members, creator provenance, and default semantics")
     (let [hash1 (rc/related-claims-hash
                  [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}
                   {:claim/kind :sew/workflow :workflow/id 1 :claim/scope-hash "b"}]
@@ -195,35 +196,79 @@
                  [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}
                   {:claim/kind :sew/workflow :workflow/id 1 :claim/scope-hash "b"}]
                  {:actor/address "0xGov"})]
-      (is (= hash1 hash2) "V2 hash is deterministic"))
+      (is (= hash1 hash2) "V3 hash is deterministic"))
     (let [hash3 (rc/related-claims-hash
                  [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}
                   {:claim/kind :sew/workflow :workflow/id 2 :claim/scope-hash "b"}]
                  {:actor/address "0xGov"})]
-      (is (not= (:relationship/hash rel) hash3) "V2 hash changes when members change"))))
+      (is (not= (:relationship/hash rel) hash3) "V3 hash changes when members change"))))
 
 (deftest related-claims-hash-version-boundary
-  (testing "identical members with different authenticated creator provenance produce different V2 hashes"
-    (let [members [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}]
-          h-gov (rc/related-claims-hash members {:actor/address "0xGov"})
-          h-other (rc/related-claims-hash members {:actor/address "0xOther"})]
-      (is (not= h-gov h-other))))
-  (testing "V1 and V2 are domain-separated and cannot collide"
-    (let [members [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}]
-          v1 (rc/related-claims-hash-v1 members)
-          v2 (rc/related-claims-hash members {:actor/address "0xGov"})]
-      (is (not= v1 v2))))
-  (testing "V1 artifacts remain verifiable under the V1 preimage"
-    (let [members [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}]
-          v1a (rc/related-claims-hash-v1 members)
-          v1b (rc/related-claims-hash-v1 members)]
-      (is (= v1a v1b))))
-  (testing "a V1 artifact cannot be presented as authenticated by attaching creator metadata outside its hash"
-    (let [members [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}]
-          v1-hash (rc/related-claims-hash-v1 members)
-          v2-hash (rc/related-claims-hash members {:actor/address "0xGov"})]
-      (is (not= v1-hash v2-hash)
-          "V1 hash never equals the V2 authenticated hash for the same members"))))
+  (let [members [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}]
+        provenance {:actor/address "0xGov"}]
+    (testing "creator provenance changes both V2 and V3 commitments"
+      (is (not= (rc/related-claims-hash-v2 members provenance)
+                (rc/related-claims-hash-v2 members {:actor/address "0xOther"})))
+      (is (not= (rc/related-claims-hash-v3 members provenance #{:audit-only})
+                (rc/related-claims-hash-v3 members {:actor/address "0xOther"}
+                                           #{:audit-only}))))
+    (testing "V2 deliberately excludes semantics while V3 commits it"
+      (let [v2-record {:related-claims/version rc/related-claims-version-v2
+                       :relationship/members members
+                       :relationship/semantics #{:audit-only}
+                       :relationship/creator-provenance provenance
+                       :relationship/hash (rc/related-claims-hash-v2 members provenance)}]
+        (is (:valid? (rc/verify-related-claims-hash
+                      (assoc v2-record :relationship/semantics #{:shared-evidence}))))
+        (is (not= (rc/related-claims-hash-v3 members provenance #{:audit-only})
+                  (rc/related-claims-hash-v3 members provenance #{:shared-evidence})))))
+    (testing "V1, V2, and V3 are domain-separated"
+      (let [v1 (rc/related-claims-hash-v1 members)
+            v2 (rc/related-claims-hash-v2 members provenance)
+            v3 (rc/related-claims-hash-v3 members provenance #{:audit-only})]
+        (is (not= v1 v2))
+        (is (not= v2 v3))
+        (is (= v3 (rc/related-claims-hash members provenance)))))))
+
+(deftest related-claims-historical-hash-migration-and-authentication-boundary
+  (let [members [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}]
+        provenance {:actor/type :governance :actor/address gov}
+        v1 {:related-claims/version rc/related-claims-version
+            :relationship/members members
+            :relationship/hash (rc/related-claims-hash-v1 members)}
+        v2 {:related-claims/version rc/related-claims-version-v2
+            :relationship/members members
+            :relationship/semantics #{:shared-evidence}
+            :relationship/creator-provenance provenance
+            :relationship/hash (rc/related-claims-hash-v2 members provenance)}
+        ctx {:governance-identity gov}]
+    (testing "historical artifacts remain hash-verifiable under their own contracts"
+      (is (:valid? (rc/verify-related-claims-hash v1)))
+      (is (:valid? (rc/verify-related-claims-hash v2)))
+      (is (:valid? (rc/verify-related-claims-hash
+                    (assoc v2 :relationship/semantics #{:audit-only})))
+          "V2 semantics are intentionally not part of its historical preimage")
+      (is (contains? (:reasons (rc/verify-related-claims-hash
+                                (assoc v2 :relationship/hash
+                                       (rc/related-claims-hash-v3 members provenance
+                                                                  #{:shared-evidence}))))
+                     :relationship-hash-mismatch)
+          "the accidental V2-with-semantics preimage is not reinterpreted as V2"))
+    (testing "historical records cannot be upgraded into strict authentication"
+      (doseq [record [v1 (assoc v2 :relationship/authenticated? true
+                                    :relationship/assurance :address-bound)]]
+        (is (false? (rc/authenticated-related-claims? ctx record)))
+        (is (contains? (:reasons (rc/verify-authenticated-related-claims ctx record))
+                       :unsupported-relationship-version))))
+    (testing "a V3 hash rejects semantic mutation"
+      (let [v3 {:related-claims/version rc/related-claims-version-v3
+                :relationship/members members
+                :relationship/semantics #{:audit-only}
+                :relationship/creator-provenance provenance
+                :relationship/hash (rc/related-claims-hash-v3 members provenance #{:audit-only})}]
+        (is (:valid? (rc/verify-related-claims-hash v3)))
+        (is (false? (:valid? (rc/verify-related-claims-hash
+                               (assoc v3 :relationship/semantics #{:shared-evidence})))))))))
 
 (deftest related-claims-members-exist-invariant
   (let [w (world-with-escrows 2)
@@ -403,7 +448,9 @@
         (is (true? (:relationship/authenticated? rec)))
         (is (= "0xGov" (get-in rec [:relationship/creator-provenance :actor/address])))
         (is (some? (:relationship/hash rec)))
-        (is (rc/authenticated-related-claims? rec))))))
+        (is (rc/authenticated-related-claims? gov-ctx rec))
+        (is (false? (rc/authenticated-related-claims? rec))
+            "the compatibility arity fails closed without governance context")))))
 
 (deftest grant-related-claims-rejects-non-governance
   (testing "grant-related-claims by a non-governance actor is rejected"
@@ -441,7 +488,7 @@
       (is (= :invalid-related-claims (:error result))))))
 
 (deftest unauthenticated-direct-builder-not-authenticated
-  (testing "a direct-builder V2 record is unconditionally unauthenticated"
+  (testing "a direct-builder V3 record is unconditionally unauthenticated"
     (let [w (world-with-escrows 2)
           result (rc/create-related-claims! w
                    {:type :same-incident
@@ -498,7 +545,7 @@
           rec (get-in r [:world :related-claims (:relationship-id r)])]
       (is (= :address-bound (:relationship/assurance rec)))
       (is (true? (:relationship/authenticated? rec)))
-      (is (rc/authenticated-related-claims? rec))))
+      (is (rc/authenticated-related-claims? ctx rec))))
   (testing "explicit legacy mode produces a role-declared (weaker) record that does NOT satisfy the strict predicate"
     (let [w (world-with-escrows 2)
           ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}
@@ -509,7 +556,7 @@
           rec (get-in r [:world :related-claims (:relationship-id r)])]
       (is (= :role-declared (:relationship/assurance rec)))
       (is (false? (:relationship/authenticated? rec)))
-      (is (false? (rc/authenticated-related-claims? rec))
+      (is (false? (rc/authenticated-related-claims? ctx rec))
           "legacy role-only must NOT satisfy the strict authenticated predicate")))
   (testing "explicit open mode produces an open record that does NOT satisfy the strict predicate"
     (let [w (world-with-escrows 2)
@@ -520,7 +567,47 @@
           r (rc-apply ctx w ev)
           rec (get-in r [:world :related-claims (:relationship-id r)])]
       (is (= :open (:relationship/assurance rec)))
-      (is (false? (rc/authenticated-related-claims? rec))))))
+      (is (false? (rc/authenticated-related-claims? ctx rec))))))
+
+(deftest authenticated-related-claims-verifies-hash-bound-provenance
+  (let [w (world-with-escrows 2)
+        ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}
+             :governance-identity "0xGov"}
+        event {:seq 0 :time 1000 :agent "gov" :action "grant-related-claims"
+               :params {:type :same-incident :workflow-ids [0 1] :reason "audit"}}
+        result (rc-apply ctx w event)
+        record (get-in result [:world :related-claims (:relationship-id result)])]
+    (testing "a restricted governance record verifies with its originating context"
+      (is (:valid? (rc/verify-authenticated-related-claims ctx record)))
+      (is (rc/authenticated-related-claims? ctx record)))
+    (testing "forged top-level and nested assurance labels do not authenticate"
+      (let [forged-top (assoc record :relationship/assurance :open)
+            forged-nested (assoc-in record
+                                    [:relationship/creator-provenance
+                                     :authorization/provenance
+                                     :authorization/assurance]
+                                    :role-declared)]
+        (is (false? (rc/authenticated-related-claims? ctx forged-top)))
+        (is (contains? (:reasons (rc/verify-authenticated-related-claims ctx forged-top))
+                       :relationship-assurance-not-address-bound))
+        (is (false? (rc/authenticated-related-claims? ctx forged-nested)))
+        (is (contains? (:reasons (rc/verify-authenticated-related-claims ctx forged-nested))
+                       :relationship-hash-mismatch))))
+    (testing "member, semantics, and provenance edits leave a stale relationship hash"
+      (doseq [stale [(update record :relationship/members
+                            (fn [members]
+                              (assoc (vec members) 1
+                                     (assoc (second members) :workflow/id 99))))
+                     (assoc record :relationship/semantics #{:batch-force-authorisation})
+                     (assoc-in record [:relationship/creator-provenance :actor/address] "0xMallory")]]
+        (is (false? (rc/authenticated-related-claims? ctx stale)))
+        (is (contains? (:reasons (rc/verify-authenticated-related-claims ctx stale))
+                       :relationship-hash-mismatch))))
+    (testing "the supplied context must bind the creator to its active configured address"
+      (let [wrong-context (assoc ctx :governance-identity "0xOther")]
+        (is (false? (rc/authenticated-related-claims? wrong-context record)))
+        (is (contains? (:reasons (rc/verify-authenticated-related-claims wrong-context record))
+                       :creator-address-mismatch))))))
 
 (deftest attached-auth-flag-cannot-upgrade-uncommitted-record
   (testing "changing/attaching an authentication flag outside the committed provenance cannot upgrade an artifact"

@@ -380,11 +380,11 @@
     :concept/status :draft
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
-   {:concept/id    :framework/core-protocol-boundary
+   {:concept/id    :framework/protocol-extension-boundary
     :concept/type  :framework
     :concept/layer :framework-explanation
     :concept/file  "data/concepts/framework/core_protocol_boundary.edn"
-    :concept/name  "Core–protocol ownership boundary"
+    :concept/name  "Framework–protocol extension ownership boundary"
     :concept/status :draft
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 

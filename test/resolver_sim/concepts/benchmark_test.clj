@@ -78,7 +78,7 @@
       (testing "held-custody is a related concept (add-held adjacency)"
         (is (some #(= % :framework/held-custody) (:concept/related yield-c))))
       (testing "out-of-scope assigns concrete ledger mutation to protocol accounting"
-        (is (some #(re-find #"(?i)protocol accounting|core-protocol-boundary" %) (:concept/out-of-scope yield-c)))))))
+        (is (some #(re-find #"(?i)protocol accounting|protocol-extension-boundary" %) (:concept/out-of-scope yield-c)))))))
 
 (deftest semantic-commitments-generic-categories
   (testing "semantic-commitments concept defines generic categories, not research-command-specific"

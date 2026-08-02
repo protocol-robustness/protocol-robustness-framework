@@ -449,31 +449,81 @@
       (is (= :inconclusive (:status report))))))
 
 ;; ───────────────────────────────────────────────────────────────────────────
-;; Folk theorem cooperation region
+;; Repeated-game deterrence threshold
 ;; ───────────────────────────────────────────────────────────────────────────
 
-(deftest test-folk-theorem-inside-region
-  (testing "Folk theorem cooperation region detected when stable"
+(deftest test-repeated-game-deterrence-threshold-is-met
+  (testing "the normalized-baseline threshold passes when deterrence holds"
     (let [result {:aggregated-stats {:honest-mean-profit 100.0
                                      :malice-mean-profit 80.0}}
-          report (sut/evaluate-folk-theorem-region result)]
+          report (sut/evaluate-repeated-game-deterrence-threshold result)]
       (is (= :pass (:status report)))
-      (is (true? (:cooperation-region? report))))))
+      (is (true? (:deterrence? report))))))
 
-(deftest test-folk-theorem-outside-region
-  (testing "Folk theorem cooperation region not detected when gain exceeds punishment"
+(deftest test-repeated-game-deterrence-threshold-infeasible
+  (testing "a threshold above one explicitly fails because no valid discount can meet it"
     (let [result {:aggregated-stats {:honest-mean-profit 10.0
                                      :malice-mean-profit 300.0}}
-          report (sut/evaluate-folk-theorem-region result)]
+          report (sut/evaluate-repeated-game-deterrence-threshold result)]
       (is (= :fail (:status report)))
-      (is (false? (:cooperation-region? report))))))
+      (is (= :infeasible-threshold (:reason report)))
+      (is (= :threshold (:binding-constraint report)))
+      (is (> (:threshold report) 1.0))
+      (is (false? (:deterrence? report))))))
+
+(deftest test-repeated-game-deterrence-threshold-boundaries
+  (let [result {:aggregated-stats {:honest-mean-profit 100.0
+                                   :malice-mean-profit 150.0}}]
+    (testing "a discount strictly above the threshold passes"
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.6)]
+        (is (= :pass (:status report)))
+        (is (= 0.5 (:threshold report)))
+        (is (pos? (:distance-to-boundary report)))))
+    (testing "equality passes"
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.5)]
+        (is (= :pass (:status report)))
+        (is (true? (:deterrence? report)))
+        (is (zero? (:distance-to-boundary report)))))
+    (testing "a discount below the threshold fails"
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.49)]
+        (is (= :fail (:status report)))
+        (is (neg? (:distance-to-boundary report)))))))
+
+(deftest test-repeated-game-deterrence-validates-discount-domain
+  (let [result {:aggregated-stats {:honest-mean-profit 100.0
+                                   :malice-mean-profit 110.0}}]
+    (doseq [discount-factor [-0.01 1.01]]
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold
+                    result :discount-factor discount-factor)]
+        (is (= :inconclusive (:status report)))
+        (is (= :discount-factor-out-of-range (:reason report)))))
+    (doseq [discount-factor [0.0 1.0]]
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold
+                    result :discount-factor discount-factor)]
+        (is (not= :inconclusive (:status report)))
+        (is (= discount-factor (:discount-factor report)))))))
+
+(deftest test-repeated-game-deterrence-requires-finite-utilities
+  (doseq [[honest-profit malice-profit expected-reason]
+          [[0.0 20.0 :non-positive-honest-utility]
+           [-10.0 20.0 :non-positive-honest-utility]
+           [nil 20.0 :missing-or-invalid-honest-utility]
+           [Double/NEGATIVE_INFINITY 20.0 :missing-or-invalid-honest-utility]
+           [100.0 nil :missing-or-invalid-malice-utility]
+           [100.0 Double/POSITIVE_INFINITY :missing-or-invalid-malice-utility]]]
+    (let [report (sut/evaluate-repeated-game-deterrence-threshold
+                  {:aggregated-stats {:honest-mean-profit honest-profit
+                                      :malice-mean-profit malice-profit}})]
+      (is (= :inconclusive (:status report)))
+      (is (= expected-reason (:reason report)))
+      (is (false? (:deterrence? report))))))
 
 ;; ───────────────────────────────────────────────────────────────────────────
-;; Grim-trigger and Folk theorem in combined evaluation
+;; Grim-trigger and repeated-game deterrence in combined evaluation
 ;; ───────────────────────────────────────────────────────────────────────────
 
-(deftest test-combined-output-includes-grim-trigger
-  (testing "evaluate-stochastic-equilibrium includes grim-trigger and folk-theorem keys"
+(deftest test-combined-output-includes-deterrence-threshold
+  (testing "evaluate-stochastic-equilibrium includes grim-trigger and repeated-game-deterrence keys"
     (let [result {:initial-resolver-count 100
                   :initial-composition {:honest-count 50 :lazy-count 25
                                         :malicious-count 20 :collusive-count 5
@@ -490,4 +540,6 @@
                                      :malice-avg-win-rate 0.3}}
           report (sut/evaluate-stochastic-equilibrium result)]
       (is (contains? report :grim-trigger))
-      (is (contains? report :folk-theorem)))))
+      (is (contains? report :repeated-game-deterrence))
+      (is (contains? report :folk-theorem)
+          "deprecated compatibility key remains available"))))

@@ -86,6 +86,6 @@
     (is (contains? (set (:errors (evidence/validate-force-authorised-execution-evidence-any appended)))
                    :v2-field-on-v1))
     (is (false? (:valid? (evidence/validate-force-authorised-execution-evidence-v2
-                           (dissoc v2 :execution/effect-correlation-hash)))))
+                          (dissoc v2 :execution/effect-correlation-hash)))))
     (is (false? (:valid? (evidence/validate-force-authorised-execution-evidence-v2
-                           (assoc v2 :execution/effect-correlation-hash (hash-ref :other))))))))
+                          (assoc v2 :execution/effect-correlation-hash (hash-ref :other))))))))

@@ -1,6 +1,7 @@
 (ns resolver-sim.contract-model.replay-temporal-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.contract-model.replay :as replay]
+            [resolver-sim.contract-model.replay.temporal :as temporal]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.time.context :as time-ctx]
@@ -98,14 +99,16 @@
     (let [scenario {:scenario-id "instant-time-check"
                     :schema-version "1.1"
                     :scenario-author "@test"
-                    :agents [{:id "alice" :type "honest" :address "0xAlice"}]
+                    :agents [{:id "buyer" :type "honest" :address "0xBuyer"}
+                             {:id "seller" :type "honest" :address "0xSeller"}]
                     :events []}
           world    (time-ctx/with-temporal-context
                      (proto/init-world sew/protocol scenario)
                      {:block-ts 1000})
           context  (temporal-step-context scenario)
           inst     (java.time.Instant/ofEpochSecond 1005)
-          event    {:seq 0 :time inst :agent "alice" :action "set-paused" :params {:paused? true}}
+          event    {:seq 0 :time inst :agent "buyer" :action "create_escrow"
+                    :params {:token "USDC" :to "0xSeller" :amount 6000}}
           step     (replay/process-step sew/protocol context world event)]
       (is (= :ok (get-in step [:trace-entry :result])))
       (is (= 1005 (get-in step [:trace-entry :time-after :block-ts])))))
@@ -126,6 +129,27 @@
       (is (= :rejected (get-in step [:trace-entry :result])))
       (is (= :time-regression (get-in step [:trace-entry :error])))
       (is (= 2000 (get-in step [:trace-entry :time-after :block-ts]))))))
+
+(deftest instant-deadline-policy
+  (testing "Instant deadlines use the replay clock's epoch-second precision"
+    (let [rules    (temporal/effective-temporal-rules {})
+          protocol (reify proto/TemporalDeadlines
+                     (deadline-for [_ _ _ _ _] 1180))
+          ctx      {:event {:action "execute_pending_settlement"
+                            :params {:workflow-id 0}}
+                    :context {}
+                    :protocol protocol
+                    :world {}
+                    :now 0}
+          before   (temporal/evaluate-temporal-rules
+                    rules
+                    (assoc ctx :event-time (java.time.Instant/ofEpochSecond 1179 999999999)))
+          at       (temporal/evaluate-temporal-rules
+                    rules
+                    (assoc ctx :event-time (java.time.Instant/ofEpochSecond 1180)))]
+      (is (= :sew/appeal-window-open (:rule-id before)))
+      (is (= 1179 (get-in before [:guard-context :temporal/event-time])))
+      (is (nil? at)))))
 
 (deftest sew-appeal-window-rule-triggers-via-replay
   (testing "Sew temporal rule rejects execute_pending_settlement before appeal deadline"
@@ -156,11 +180,17 @@
                              ;; before appeal window expires (1120 + 60 = 1180)
                              {:seq 3 :time 1130 :agent "keeper" :action "execute_pending_settlement"
                               :params {:workflow-id 0}}]}
-          result (sew/replay-with-sew-protocol scenario)
-          entry  (some #(when (= 3 (:seq %)) %) (:trace result))]
+          result      (sew/replay-with-sew-protocol scenario)
+          entry       (some #(when (= 3 (:seq %)) %) (:trace result))
+          at-deadline (sew/replay-with-sew-protocol
+                       (assoc-in scenario [:events 3 :time] 1180))
+          boundary    (some #(when (= 3 (:seq %)) %) (:trace at-deadline))]
       (is (= :rejected (:result entry)))
       (is (= :appeal-window-not-expired (:error entry)))
-      (is (= :sew/appeal-window-open (:temporal-rule-id entry))))))
+      (is (= :sew/appeal-window-open (:temporal-rule-id entry)))
+      (testing "the settlement deadline is inclusive"
+        (is (= :ok (:result boundary)))
+        (is (= 1180 (get-in boundary [:time-after :block-ts])))))))
 
 (deftest temporal-rule-metadata-propagates-to-trace-artifact
   (testing "exported trace artifact preserves temporal rule id on rejected step"

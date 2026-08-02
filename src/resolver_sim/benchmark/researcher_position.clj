@@ -149,6 +149,10 @@
                       (when-not (keyword? id)
                         (throw (ex-info "Target :id must be a keyword"
                                         {:id id})))
+                      (when-not (and (string? (:hash t))
+                                     (re-matches #"sha256:.+" (:hash t)))
+                        (throw (ex-info "Target :hash must be a sha256 content reference"
+                                        {:hash (:hash t)})))
                       {:kind kind
                        :id id
                        :hash (:hash t)
@@ -181,13 +185,24 @@
   (get-in position [:position/dimensions dimension :targets] []))
 
 (defn position-valid?
-  "Quick structural validity check for a researcher position."
+  "Validate the structural and content-hash integrity required for a position
+   to be used as a certificate source."
   [position]
   (and (= schema-version (:schema-version position))
        (some? (:benchmark/content-root position))
        (some? (:researcher/id position))
-       (some? (:position/hash position))
-       (some? (:position/outcome-hash position))))
+       (some? (:position/outcome-hash position))
+       (string? (:position/hash position))
+       (= (:position/hash position)
+          (str "sha256:" (hc/domain-hash :researcher-position
+                                         (dissoc position :position/hash))))
+       (every? (fn [target]
+                 (and (contains? target-kinds (:kind target))
+                      (keyword? (:id target))
+                      (string? (:hash target))
+                      (re-matches #"sha256:.+" (:hash target))
+                      (contains? target-statuses (:status target))))
+               (:position/targets position []))))
 
 (defn position-targets
   "Return the theorem/conclusion targets for a position, or empty vector."

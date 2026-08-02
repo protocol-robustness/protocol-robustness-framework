@@ -875,7 +875,7 @@
 
 (defn- receipt-v2-hash [receipt]
   (str "sha256:" (hc/domain-hash :force-authorisation-consumption-v2
-                                  (dissoc receipt :consumption/hash))))
+                                 (dissoc receipt :consumption/hash))))
 
 (defn build-consumption-receipt-v2
   "Build a status-aware v2 receipt. Correlation is accepted only as a validated
@@ -899,7 +899,7 @@
     (when (and prohibited? correlation)
       (throw (ex-info "not-produced receipt must not carry a correlation artifact" {})))
     (let [v1 (build-consumption-receipt (dissoc fields :correlation :consumption/effect-outcome
-                                                   :consumption/effect-correlation-hash))
+                                                :consumption/effect-correlation-hash))
           base (cond-> (assoc (dissoc v1 :consumption/hash)
                               :schema-version receipt-v2-schema-version
                               :consumption/effect-outcome effect-outcome)

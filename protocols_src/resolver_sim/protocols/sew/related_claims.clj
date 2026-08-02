@@ -28,12 +28,18 @@
   "related-claims.v1")
 
 (def ^:const related-claims-domain-v2
-  "V2 domain tag — commits members AND authenticated creator provenance."
+  "V2 domain tag — commits members and creator provenance, but not semantics."
   "related-claims.v2")
+
+(def ^:const related-claims-domain-v3
+  "V3 domain tag — commits members, creator provenance, and semantics."
+  "related-claims.v3")
 
 (def ^:const related-claims-version 1)
 
 (def ^:const related-claims-version-v2 2)
+
+(def ^:const related-claims-version-v3 3)
 
 (def ^:const default-semantics
   "Default relationship semantics set for v1.
@@ -68,20 +74,69 @@
                                   (for [m members]
                                     (select-keys m [:claim/kind :workflow/id :claim/scope-hash]))))))
 
-(defn related-claims-hash
-  "V2 canonical hash for a related-claims relationship. Commits sorted members
-   PLUS the authenticated creator provenance, so the creator is hash-bound and
-   cannot be presented as authenticated merely by attaching metadata outside the
-   committed preimage. V1 and V2 are domain-separated (related-claims.v1 vs
-   related-claims.v2) and cannot collide."
+(defn- canonical-members
+  [members]
+  (vec (sort-by (juxt :workflow/id :claim/kind)
+                (for [m members]
+                  (select-keys m [:claim/kind :workflow/id :claim/scope-hash])))))
+
+(defn related-claims-hash-v2
+  "Historical V2 canonical hash. V2 commits members and creator provenance only;
+   semantics were deliberately outside this contract. Retained for validating
+   readable V2 artifacts, not for creating or authenticating new records."
   [members creator-provenance]
   (hash/domain-hash related-claims-domain-v2
                     {:related-claims/schema-version "related-claims.v2"
-                     :relationship/members
-                     (vec (sort-by (juxt :workflow/id :claim/kind)
-                                   (for [m members]
-                                     (select-keys m [:claim/kind :workflow/id :claim/scope-hash]))))
+                     :relationship/members (canonical-members members)
                      :relationship/creator-provenance (or creator-provenance {})}))
+
+(defn related-claims-hash-v3
+  "V3 canonical hash. Commits members, creator provenance, and semantics."
+  [members creator-provenance semantics]
+  (hash/domain-hash related-claims-domain-v3
+                    {:related-claims/schema-version "related-claims.v3"
+                     :relationship/members (canonical-members members)
+                     :relationship/semantics semantics
+                     :relationship/creator-provenance (or creator-provenance {})}))
+
+(defn related-claims-hash
+  "Compatibility wrapper for the current V3 hash contract. Existing two-arity
+   callers receive a V3 commitment using `default-semantics`; the three-arity
+   form commits the supplied semantics. Use an explicitly versioned function
+   when validating a historical V1 or V2 artifact."
+  ([members creator-provenance]
+   (related-claims-hash-v3 members creator-provenance default-semantics))
+  ([members creator-provenance semantics]
+   (related-claims-hash-v3 members creator-provenance semantics)))
+
+(defn verify-related-claims-hash
+  "Validate a relationship hash under the schema version recorded on the artifact.
+   V1 and V2 remain readable and hash-verifiable. This is integrity validation,
+   not authentication: only V3 records can satisfy the strict authenticator."
+  [relationship]
+  (let [version (:related-claims/version relationship)
+        expected (case version
+                   1 (related-claims-hash-v1 (:relationship/members relationship))
+                   2 (related-claims-hash-v2 (:relationship/members relationship)
+                                             (:relationship/creator-provenance relationship))
+                   3 (related-claims-hash-v3 (:relationship/members relationship)
+                                             (:relationship/creator-provenance relationship)
+                                             (:relationship/semantics relationship))
+                   nil)
+        reasons (cond-> #{}
+                  (not (map? relationship)) (conj :invalid-relationship)
+                  (not (contains? #{related-claims-version
+                                    related-claims-version-v2
+                                    related-claims-version-v3}
+                                  version))
+                  (conj :unsupported-relationship-version)
+                  (and (= related-claims-version-v3 version)
+                       (not= default-semantics (:relationship/semantics relationship)))
+                  (conj :unsupported-semantics)
+                  (and expected (not= (:relationship/hash relationship) expected))
+                  (conj :relationship-hash-mismatch))]
+    {:valid? (empty? reasons)
+     :reasons reasons}))
 
 ;; ---------------------------------------------------------------------------
 ;; Accessors
@@ -216,7 +271,7 @@
                      :created-by created-by}))))
 
 (defn- build-creator-provenance
-  "Canonical projection of the creator provenance committed by the V2 hash.
+  "Canonical projection of the creator provenance committed by the V2 and V3 hashes.
    Includes :authorization/assurance so the assurance classification is hash-bound."
   [created-by]
   (select-keys created-by
@@ -235,24 +290,97 @@
      :unauthenticated— direct builder construction (never authenticated)."
   #{:address-bound :role-declared :open :unauthenticated})
 
+(defn- configured-governance-address
+  "Return the configured governance address from an execution context, or nil
+   for absent/malformed configuration. Authentication must fail closed in either
+   case; action dispatch performs the user-facing configuration validation."
+  [context]
+  (let [identity (:governance-identity context)]
+    (cond
+      (string? identity) (when (seq identity) identity)
+      (map? identity) (let [address (:governance/address identity)]
+                        (when (and (string? address) (seq address)) address))
+      :else nil)))
+
+(defn verify-authenticated-related-claims
+  "Verify an address-bound V3 relationship against its active execution context.
+   V1 and V2 records are still hash-verifiable through
+   `verify-related-claims-hash`, but cannot authenticate because their contracts
+   do not commit the full current relationship semantics."
+  [context relationship]
+  (let [creator-provenance (:relationship/creator-provenance relationship)
+        nested-provenance (:authorization/provenance creator-provenance)
+        configured-address (configured-governance-address context)
+        hash-verification (try
+                            (verify-related-claims-hash relationship)
+                            (catch Exception _ {:valid? false
+                                                :reasons #{:relationship-hash-mismatch}}))
+        reasons (cond-> (set (:reasons hash-verification))
+                  (not (map? relationship)) (conj :invalid-relationship)
+                  (not= related-claims-version-v3 (:related-claims/version relationship))
+                  (conj :unsupported-relationship-version)
+                  (not= :restricted (keyword (or (:governance-mode context) :restricted)))
+                  (conj :governance-mode-not-restricted)
+                  (nil? configured-address) (conj :governance-identity-not-configured)
+                  (not= :address-bound (:relationship/assurance relationship))
+                  (conj :relationship-assurance-not-address-bound)
+                  (not (true? (:relationship/authenticated? relationship)))
+                  (conj :relationship-not-authenticated)
+                  (not (map? creator-provenance)) (conj :missing-creator-provenance)
+                  (and (map? creator-provenance)
+                       (not= creator-provenance (build-creator-provenance creator-provenance)))
+                  (conj :noncanonical-creator-provenance)
+                  (not= :governance (:actor/type creator-provenance))
+                  (conj :invalid-creator-type)
+                  (not= :governance (:authorization/type creator-provenance))
+                  (conj :invalid-authorization-type)
+                  (not= :with-governance-actor (:authorization/check creator-provenance))
+                  (conj :invalid-authorization-check)
+                  (not= :governance (:authorization/source creator-provenance))
+                  (conj :invalid-authorization-source)
+                  (not= :restricted (:authorization/governance-mode creator-provenance))
+                  (conj :creator-governance-mode-not-restricted)
+                  (not= :address-bound (:authorization/authentication-mode creator-provenance))
+                  (conj :creator-authentication-mode-not-address-bound)
+                  (not= :address-bound (:authorization/assurance creator-provenance))
+                  (conj :creator-assurance-not-address-bound)
+                  (not (true? (:authorization/address-bound? creator-provenance)))
+                  (conj :creator-address-not-bound)
+                  (not= configured-address (:actor/address creator-provenance))
+                  (conj :creator-address-mismatch)
+                  (not (map? nested-provenance)) (conj :missing-authorization-provenance)
+                  (not= (:actor/address creator-provenance)
+                        (:authorization/actor-address nested-provenance))
+                  (conj :provenance-actor-address-mismatch)
+                  (not= configured-address
+                        (:authorization/configured-governance-address nested-provenance))
+                  (conj :provenance-configured-address-mismatch)
+                  (not= :restricted (:authorization/governance-mode nested-provenance))
+                  (conj :provenance-governance-mode-not-restricted)
+                  (not= :address-bound (:authorization/authentication-mode nested-provenance))
+                  (conj :provenance-authentication-mode-not-address-bound)
+                  (not= :address-bound (:authorization/assurance nested-provenance))
+                  (conj :provenance-assurance-not-address-bound)
+                  (not (true? (:authorization/address-bound? nested-provenance)))
+                  (conj :provenance-address-not-bound))]
+    {:valid? (empty? reasons)
+     :reasons reasons}))
+
 (defn authenticated-related-claims?
-  "STRICT authenticated predicate. True only for a record produced by the
-   governance-gated action in restricted/address-bound mode, with creator
-   provenance committed by its hash. Legacy (:role-declared), open, and direct
-   (:unauthenticated) records do NOT satisfy this predicate, even with creator
-   metadata attached outside the hash."
-  [relationship]
-  (and (= :address-bound (:relationship/assurance relationship))
-       (some? (:relationship/creator-provenance relationship))
-       (= :address-bound
-          (get-in relationship [:relationship/creator-provenance :authorization/assurance]))))
+  "True only when `relationship` verifies against a supplied execution context.
+   The one-argument compatibility form fails closed because it has no configured
+   governance identity with which to validate the creator-address binding."
+  ([relationship]
+   (authenticated-related-claims? nil relationship))
+  ([context relationship]
+   (:valid? (verify-authenticated-related-claims context relationship))))
 
 ;; ---------------------------------------------------------------------------
 ;; Builder
 ;; ---------------------------------------------------------------------------
 
 (defn- build-related-claims-record
-  "Construct a V2 related-claims record map without storing it.
+  "Construct a V3 related-claims record map without storing it.
    `assurance` is the derived assurance classification (:address-bound,
    :role-declared, :open, or :unauthenticated). Authenticated is true ONLY for
    :address-bound."
@@ -264,8 +392,8 @@
                            (assoc :claim/scope-hash scope-hash)
                            (update :workflow/id t/normalize-workflow-id))))
         relationship-id (get world :next-related-claim-id 0)
-        rel-hash (related-claims-hash wf-members creator-provenance)]
-    {:related-claims/version related-claims-version-v2
+        rel-hash (related-claims-hash wf-members creator-provenance (or semantics default-semantics))]
+    {:related-claims/version related-claims-version-v3
      :relationship/id relationship-id
      :relationship/type type
      :relationship/status :active
@@ -291,7 +419,7 @@
                      :opts (select-keys opts [:authenticated? :assurance])}))))
 
 (defn create-related-claims-with-assurance!
-  "Authenticated-path builder, intended to be invoked ONLY by the governance-gated
+  "Authenticated-path V3 builder, intended to be invoked ONLY by the governance-gated
    grant-related-claims action. `assurance` is derived from governance-check
    (:address-bound restricted, :role-declared legacy, :open open). This is the
    only path that produces an :address-bound (authenticated) record. External
@@ -340,7 +468,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn create-related-claims!
-  "Create a new related-claims relationship (V2) via DIRECT construction.
+  "Create a new related-claims relationship (V3) via DIRECT construction.
    Validates members exist, no duplicates, type is allowed, membership is
    non-empty, semantics are exactly v1's #{:audit-only}, and an explicit
    well-formed `created-by` creator provenance is supplied (no hardcoded default).

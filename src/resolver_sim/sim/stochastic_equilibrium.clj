@@ -552,45 +552,130 @@
                        deviation-gain punishment-loss)})))
 
 ;; ---------------------------------------------------------------------------
-;; Folk-theorem region detection
+;; Repeated-game deterrence threshold
 ;; ---------------------------------------------------------------------------
 
-(defn evaluate-folk-theorem-region
-  "Identify the parameter region where cooperation is sustainable under the
-   grim-trigger Folk theorem.
+(defn evaluate-repeated-game-deterrence-threshold
+  "Evaluate this model's repeated-game deterrence threshold.
 
-   Given a multi-epoch result, estimate whether the current parameter set
-   falls in the 'cooperation region' where:
+   This is not a general Folk-theorem result. It applies the model-specific
+   normalization
+
      discount-factor >= (U_malicious - U_honest) / U_honest
 
-   Also reports distance-to-boundary for sensitivity analysis.
+   under two explicit assumptions: `U_honest` is the per-period cooperative
+   baseline, and the permanent-punishment payoff is normalized to zero. Both
+   utilities must be finite and `U_honest` must be strictly positive. The
+   discount factor is a per-period discount and must be in [0, 1]. Equality
+   satisfies the threshold. A threshold above 1 is explicitly infeasible,
+   because no valid discount factor can meet it.
 
    `multi-epoch-result` — result from run-multi-epoch
+   `discount-factor` — per-period discount factor (default 0.95)
 
    Returns {:status :pass | :fail | :inconclusive
             :basis :single-simulation-evidence
-            :cooperation-region? bool
+            :deterrence? bool
             :distance-to-boundary double
             :binding-constraint kw | nil
             :detail string}"
-  [multi-epoch-result]
-  (let [grim (evaluate-grim-trigger-stability multi-epoch-result)
-        df (:discount-factor grim)
-        threshold (:threshold grim)
-        distance (- df threshold)
-        cooperation? (and (:stable? grim) (pos? distance))]
-    {:status (if cooperation? :pass :fail)
-     :basis :single-simulation-evidence
-     :discount-factor df
-     :threshold threshold
-     :cooperation-region? cooperation?
-     :distance-to-boundary distance
-     :binding-constraint (when (not cooperation?) :discount-factor)
-     :grim-trigger-result grim
-     :detail (format (str "Folk theorem cooperation region: %s "
-                          "(discount=%.3f, threshold=%.3f, distance=%.4f)")
-                     (if cooperation? "inside" "outside")
-                     df threshold distance)}))
+  [multi-epoch-result & {:keys [discount-factor]
+                         :or {discount-factor 0.95}}]
+  (let [stats (:aggregated-stats multi-epoch-result {})
+        honest-profit (:honest-mean-profit stats)
+        malice-profit (:malice-mean-profit stats)
+        finite-number? #(and (number? %) (Double/isFinite (double %)))]
+    (cond
+      (not (finite-number? discount-factor))
+      {:status :inconclusive
+       :basis :single-simulation-evidence
+       :deterrence? false
+       :cooperation-region? false
+       :binding-constraint :discount-factor
+       :reason :invalid-discount-factor
+       :detail "discount-factor must be a finite number in [0, 1]"}
+
+      (not (<= 0.0 (double discount-factor) 1.0))
+      {:status :inconclusive
+       :basis :single-simulation-evidence
+       :discount-factor (double discount-factor)
+       :deterrence? false
+       :cooperation-region? false
+       :binding-constraint :discount-factor
+       :reason :discount-factor-out-of-range
+       :detail "discount-factor must be in [0, 1]"}
+
+      (not (finite-number? honest-profit))
+      {:status :inconclusive
+       :basis :single-simulation-evidence
+       :deterrence? false
+       :cooperation-region? false
+       :binding-constraint :honest-mean-profit
+       :reason :missing-or-invalid-honest-utility
+       :detail "honest-mean-profit must be a finite positive utility"}
+
+      (not (finite-number? malice-profit))
+      {:status :inconclusive
+       :basis :single-simulation-evidence
+       :deterrence? false
+       :cooperation-region? false
+       :binding-constraint :malice-mean-profit
+       :reason :missing-or-invalid-malice-utility
+       :detail "malice-mean-profit must be a finite utility"}
+
+      (not (pos? (double honest-profit)))
+      {:status :inconclusive
+       :basis :single-simulation-evidence
+       :deterrence? false
+       :cooperation-region? false
+       :binding-constraint :honest-mean-profit
+       :reason :non-positive-honest-utility
+       :detail "honest-mean-profit must be positive for the normalized cooperative baseline"}
+
+      :else
+      (let [df (double discount-factor)
+            threshold (/ (- (double malice-profit) (double honest-profit))
+                         (double honest-profit))
+            distance (- df threshold)
+            deterrence? (>= distance 0.0)]
+        (if (> threshold 1.0)
+          {:status :fail
+           :basis :single-simulation-evidence
+           :discount-factor df
+           :honest-mean-profit (double honest-profit)
+           :malice-mean-profit (double malice-profit)
+           :threshold threshold
+           :deterrence? false
+           :cooperation-region? false
+           :distance-to-boundary distance
+           :binding-constraint :threshold
+           :reason :infeasible-threshold
+           :detail (format (str "repeated-game deterrence threshold is infeasible "
+                                "(discount=%.3f, threshold=%.3f > 1)")
+                           df threshold)}
+          {:status (if deterrence? :pass :fail)
+           :basis :single-simulation-evidence
+           :discount-factor df
+           :honest-mean-profit (double honest-profit)
+           :malice-mean-profit (double malice-profit)
+           :threshold threshold
+           :deterrence? deterrence?
+           ;; Retained while callers migrate from the former folk-theorem name.
+           :cooperation-region? deterrence?
+           :distance-to-boundary distance
+           :binding-constraint (when (not deterrence?) :discount-factor)
+           :detail (format (str "repeated-game deterrence threshold: %s "
+                                "(discount=%.3f, threshold=%.3f, distance=%.4f)")
+                           (if deterrence? "met" "not met")
+                           df threshold distance)})))))
+
+(defn evaluate-folk-theorem-region
+  "Deprecated compatibility alias for `evaluate-repeated-game-deterrence-threshold`.
+   The calculation is a model-specific repeated-game deterrence threshold, not a
+   general Folk-theorem condition."
+  [multi-epoch-result & {:as options}]
+  (apply evaluate-repeated-game-deterrence-threshold multi-epoch-result
+         (mapcat identity options)))
 
 (def ^:private mechanism-proxy-evaluators
   [evaluate-mech-budget-balance
@@ -643,8 +728,8 @@
 
 (defn evaluate-stochastic-equilibrium
   "Evaluate all stochastic equilibrium claims, mechanism-property proxies,
-   grim-trigger stability, and Folk-theorem cooperation region against a
-   multi-epoch result map.
+   grim-trigger stability, and the model-specific repeated-game deterrence
+   threshold against a multi-epoch result map.
 
    The result map is the return value of resolver-sim.sim.multi-epoch/run-multi-epoch.
 
@@ -652,8 +737,9 @@
      {:claim-results           [{:claim-id :status :basis :evidence :detail} ...]
       :mechanism-proxy-results {property-kw → result-map}
       :mechanism-proxy-status  :pass | :fail | :inconclusive
-      :grim-trigger            result-map
-      :folk-theorem            result-map
+      :grim-trigger                  result-map
+      :repeated-game-deterrence       result-map
+      :folk-theorem                   result-map (deprecated compatibility alias)
       :overall-status          :pass | :fail | :inconclusive
       :pass-count              int
       :fail-count              int
@@ -664,7 +750,7 @@
   (let [claim-results    (mapv #(% multi-epoch-result) evaluators)
         mech-proxies     (evaluate-mechanism-proxies multi-epoch-result)
         grim-trigger     (evaluate-grim-trigger-stability multi-epoch-result)
-        folk-theorem     (evaluate-folk-theorem-region multi-epoch-result)
+        repeated-game-deterrence (evaluate-repeated-game-deterrence-threshold multi-epoch-result)
         pass-count       (count (filter #(= :pass (:status %)) claim-results))
         fail-count       (count (filter #(= :fail (:status %)) claim-results))
         inc-count        (count (filter #(= :inconclusive (:status %)) claim-results))
@@ -676,8 +762,10 @@
                                  pass-count (count claim-results) fail-count inc-count)]
     (merge
      {:claim-results       claim-results
-      :grim-trigger        grim-trigger
-      :folk-theorem        folk-theorem
+      :grim-trigger               grim-trigger
+      :repeated-game-deterrence    repeated-game-deterrence
+      ;; Retained while callers migrate from the former folk-theorem key.
+      :folk-theorem                repeated-game-deterrence
       :overall-status      overall
       :pass-count          pass-count
       :fail-count          fail-count

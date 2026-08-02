@@ -69,6 +69,29 @@
   (rrr/build-report {:outcome-manifest m :researcher-id id
                      :runner-info ri :evidence-refs er :run-id ru}))
 
+(defn- finalised-report-for [id m]
+  (let [report (report-for id m)]
+    (assoc report :researcher-run-report/hash
+           (str "sha256:" (hc/domain-hash :researcher-run-report report)))))
+
+(defn- certificate-round [content-root ids]
+  (rr/build-review-round
+   {:benchmark/content-root content-root
+    :review-round/purpose :model-admission
+    :review-round/members (mapv (fn [id role] {:researcher/id id :role role})
+                                ids
+                                [:model-steward :independent-reproducer :adversarial-reviewer])
+    :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+    :review-round/policy-root "sha256:integration-policy"}))
+
+(defn- certificate-position [report dimensions & [targets]]
+  (cond-> {:benchmark/content-root (:benchmark/content-root report)
+           :researcher/id (:researcher/id report)
+           :outcome-hash (:researcher-run-report/outcome-hash report)
+           :dimensions dimensions}
+    (seq targets) (assoc :position/targets targets)
+    true rp/build-position))
+
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; 0. Pre-conditions — builders reject invalid inputs before constructing
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -465,11 +488,13 @@
 
 (deftest pre-certificate-checks-valid
   (let [m (manifest)
-        round {:benchmark/content-root "sha256:content" :review-round/id "rr:t"
-               :review-round/purpose :model-admission}
-        reports [(report-for "a" m) (report-for "b" m) (report-for "c" m)]
-        positions [(pos "a") (pos "b") (pos "c")]
-        result (tmc/pre-certificate-checks {:review-round round :reports reports :positions positions})]
+        round (certificate-round (:benchmark/content-root m) ["a" "b" "c"])
+        reports [(finalised-report-for "a" m) (finalised-report-for "b" m) (finalised-report-for "c" m)]
+        positions (mapv #(certificate-position % {:publication {:status :publish}}) reports)
+        result (tmc/pre-certificate-checks
+                {:review-round round
+                 :canonical-indices (ci/build-canonical-indices round)
+                 :reports reports :positions positions})]
     (is (:pre-certificate-valid? result))))
 
 (deftest pre-certificate-checks-reject-fewer-than-three-reports
@@ -531,10 +556,11 @@
 
 (deftest lifecycle-positions-and-certificate
   (let [m (manifest)
-        round {:benchmark/content-root "sha256:content" :review-round/id "rr:int"
-               :review-round/purpose :model-admission}
-        reports [(report-for "a" m) (report-for "b" m) (report-for "c" m)]
-        positions [(pos "a") (pos "b") (pos "c" :authority :not-reviewed)]
+        round (certificate-round (:benchmark/content-root m) ["a" "b" "c"])
+        reports [(finalised-report-for "a" m) (finalised-report-for "b" m) (finalised-report-for "c" m)]
+        positions [(certificate-position (nth reports 0) {:reproduction {:status :reproduced} :model-authority {:status :adequate} :evidence {:status :sufficient} :publication {:status :publish}})
+                   (certificate-position (nth reports 1) {:reproduction {:status :reproduced} :model-authority {:status :adequate} :evidence {:status :sufficient} :publication {:status :publish}})
+                   (certificate-position (nth reports 2) {:reproduction {:status :reproduced} :model-authority {:status :not-reviewed} :evidence {:status :sufficient} :publication {:status :publish}})]
         cert (tmc/build-certificate {:review-round round :reports reports :positions positions})
         auth (get-in cert [:model-consensus :model-authority])]
     (is (= :unanimous (:status auth)))
@@ -552,9 +578,9 @@
 
 (deftest corruption-validate-certificate-rejects-hash-tamper
   (let [m (manifest)
-        round {:benchmark/content-root "sha256:c" :review-round/id "rr:t" :review-round/purpose :model-admission}
-        reports [(report-for "a" m) (report-for "b" m) (report-for "c" m)]
-        pos [(pos "a") (pos "b") (pos "c")]
+        round (certificate-round (:benchmark/content-root m) ["a" "b" "c"])
+        reports [(finalised-report-for "a" m) (finalised-report-for "b" m) (finalised-report-for "c" m)]
+        pos (mapv #(certificate-position % {:reproduction {:status :reproduced} :model-authority {:status :adequate} :evidence {:status :sufficient} :publication {:status :publish}}) reports)
         cert (-> (tmc/build-certificate {:review-round round :reports reports :positions pos})
                  (tmc/finalise-certificate!))
         bad (assoc cert :certificate/hash "sha256:fake")]
@@ -633,34 +659,20 @@
                          :outcomes/conclusions
                          [{:conclusion/id :conclusion/partial-fill-correctness
                            :conclusion/hash (:conclusion/hash c)}]))
-        round {:benchmark/content-root "sha256:content"
-               :review-round/id "rr:hier"
-               :review-round/purpose :model-admission}
-        reports [(report-for "a" manifest)
-                 (report-for "b" manifest)
-                 (report-for "c" manifest)]
-        positions [(rp/build-position
-                    {:benchmark/content-root "sha256:content"
-                     :researcher/id "a" :outcome-hash "sha256:o"
-                     :dimensions {:publication {:status :publish}}
-                     :position/targets
-                     [{:kind :theorem :id :theorem/quota-bounded
-                       :hash (:theorem/hash th) :status :reproduced}]})
-                   (rp/build-position
-                    {:benchmark/content-root "sha256:content"
-                     :researcher/id "b" :outcome-hash "sha256:o"
-                     :dimensions {:publication {:status :publish}}
-                     :position/targets
-                     [{:kind :theorem :id :theorem/quota-bounded
-                       :hash (:theorem/hash th) :status :reproduced}]})
-                   (rp/build-position
-                    {:benchmark/content-root "sha256:content"
-                     :researcher/id "c" :outcome-hash "sha256:o"
-                     :dimensions {:publication {:status :publish}}
-                     :position/targets
-                     [{:kind :theorem :id :theorem/quota-bounded
-                       :hash (:theorem/hash th) :status :qualified
-                       :rationale "Matches but coalition not evaluated."}]})]
+        round (certificate-round (:benchmark/content-root manifest) ["a" "b" "c"])
+        reports [(finalised-report-for "a" manifest)
+                 (finalised-report-for "b" manifest)
+                 (finalised-report-for "c" manifest)]
+        positions [(certificate-position (nth reports 0) {:publication {:status :publish}}
+                                         [{:kind :theorem :id :theorem/quota-bounded
+                                           :hash (:theorem/hash th) :status :reproduced}])
+                   (certificate-position (nth reports 1) {:publication {:status :publish}}
+                                         [{:kind :theorem :id :theorem/quota-bounded
+                                           :hash (:theorem/hash th) :status :reproduced}])
+                   (certificate-position (nth reports 2) {:publication {:status :publish}}
+                                         [{:kind :theorem :id :theorem/quota-bounded
+                                           :hash (:theorem/hash th) :status :qualified
+                                           :rationale "Matches but coalition not evaluated."}])]
         cert (tmc/build-certificate
               {:review-round round :reports reports :positions positions})]
     (is (om/manifest-valid? manifest))
@@ -670,7 +682,7 @@
     (is (tmc/certificate-valid? cert))
     (is (contains? cert :theorem-consensus))
     (is (contains? cert :conclusion-consensus))
-    (let [th-cons (get-in cert [:theorem-consensus :theorem/quota-bounded])]
+    (let [th-cons (get-in cert [:theorem-consensus [:theorem/quota-bounded (:theorem/hash th)]])]
       (is (= :majority-with-dissent (:status th-cons)))
       (is (= 2 (count (:supporting-members th-cons))))
       (is (= 1 (count (:dissenting-members th-cons)))))))
@@ -1817,7 +1829,7 @@
                  {:review-member/key 1 :researcher/id "researcher-b" :role :independent-reproducer}
                  {:review-member/key 2 :researcher/id "researcher-c" :role :adversarial-reviewer}]
         round (rr/build-review-round
-               {:benchmark/content-root "sha256:lifecycle"
+               {:benchmark/content-root (:benchmark/content-root base-input)
                 :review-round/purpose :model-admission
                 :review-round/members members
                 :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
@@ -1829,39 +1841,27 @@
         case-set (cs/build-case-set plan)
         case-root (cs/compute-case-set-root case-set)
         manifest (om/build-manifest base-input)
-        reports [(rrr/build-report {:outcome-manifest manifest
-                                    :researcher-id "researcher-a"
-                                    :runner-info runner-info
-                                    :evidence-refs evidence-refs
-                                    :run-id "lifecycle-a"})
-                 (rrr/build-report {:outcome-manifest manifest
-                                    :researcher-id "researcher-b"
-                                    :runner-info runner-info
-                                    :evidence-refs evidence-refs
-                                    :run-id "lifecycle-b"})
-                 (rrr/build-report {:outcome-manifest manifest
-                                    :researcher-id "researcher-c"
-                                    :runner-info runner-info
-                                    :evidence-refs evidence-refs
-                                    :run-id "lifecycle-c"})]
+        reports [(finalised-report-for "researcher-a" manifest)
+                 (finalised-report-for "researcher-b" manifest)
+                 (finalised-report-for "researcher-c" manifest)]
         positions [(rp/build-position
-                    {:benchmark/content-root "sha256:lifecycle"
+                    {:benchmark/content-root (:benchmark/content-root base-input)
                      :researcher/id "researcher-a"
-                     :outcome-hash "sha256:lifecycle-outcome"
+                     :outcome-hash (:researcher-run-report/outcome-hash (nth reports 0))
                      :dimensions {:publication {:status :publish}
                                   :model-state {:status :adequate}
                                   :evidence {:status :sufficient}}})
                    (rp/build-position
-                    {:benchmark/content-root "sha256:lifecycle"
+                    {:benchmark/content-root (:benchmark/content-root base-input)
                      :researcher/id "researcher-b"
-                     :outcome-hash "sha256:lifecycle-outcome"
+                     :outcome-hash (:researcher-run-report/outcome-hash (nth reports 1))
                      :dimensions {:publication {:status :publish}
                                   :model-state {:status :adequate}
                                   :evidence {:status :sufficient}}})
                    (rp/build-position
-                    {:benchmark/content-root "sha256:lifecycle"
+                    {:benchmark/content-root (:benchmark/content-root base-input)
                      :researcher/id "researcher-c"
-                     :outcome-hash "sha256:lifecycle-outcome"
+                     :outcome-hash (:researcher-run-report/outcome-hash (nth reports 2))
                      :dimensions {:publication {:status :publish}
                                   :model-state {:status :incomplete}
                                   :evidence {:status :insufficient}}})]

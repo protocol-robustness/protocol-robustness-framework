@@ -33,9 +33,34 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.review.position-group :as pg]
+            [resolver-sim.benchmark.researcher-position :as rp]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]))
 
-(def ^:const schema-version "three-member-research-certificate.v1")
+(def ^:const schema-version "three-member-research-certificate.v2")
+(def ^:const legacy-schema-version "three-member-research-certificate.v1")
+
+(defn- hash-reference?
+  "A portable content-addressed hash reference.  Older fixtures use short
+   digests, so validation deliberately does not impose a digest length here."
+  [value]
+  (and (string? value) (boolean (re-matches #"sha256:.+" value))))
+
+(defn- position-hash-valid? [position]
+  (and (rp/position-valid? position)
+       (= (:position/hash position)
+          (str "sha256:"
+               (hc/domain-hash :researcher-position
+                               (dissoc position :position/hash))))))
+
+(defn- report-hash-valid? [report]
+  ;; A report builder hashes its unsigned, unfinalised representation.
+  (let [declared (:researcher-run-report/hash report)
+        preimage (assoc report
+                        :researcher-run-report/hash nil
+                        :researcher/signature nil)]
+    (and (hash-reference? declared)
+         (= declared (str "sha256:"
+                          (hc/domain-hash :researcher-run-report preimage))))))
 
 ;; ── Outcome grouping ──────────────────────────────────────────────────────
 
@@ -75,6 +100,7 @@
             plan-roots (set (map :execution/plan-root reports))
             domain-roots (set (map :execution/parameter-domain-root reports))
             sampling-roots (set (map :execution/sampling-policy-root reports))
+            realised-parameter-roots (set (map :execution/realised-parameter-set-root reports))
             case-roots (set (map :execution/generated-case-set-root reports))
             eval-policies (set (map :benchmark/evaluation-policy-root reports))]
         (cond
@@ -83,6 +109,7 @@
                (= 1 (count plan-roots))
                (= 1 (count domain-roots))
                (= 1 (count sampling-roots))
+               (= 1 (count realised-parameter-roots))
                (= 1 (count case-roots))
                (= 1 (count eval-policies)))
           :exact-replication
@@ -92,6 +119,7 @@
                (= 1 (count plan-roots))
                (= 1 (count domain-roots))
                (= 1 (count sampling-roots))
+               (= 1 (count realised-parameter-roots))
                (not= 1 (count case-roots)))
           :independent-sampling
           (and (= 1 (count content-roots))
@@ -204,8 +232,9 @@
 ;; ── Theorem/conclusion-level consensus ────────────────────────────────────
 
 (defn- collect-targets
-  "Collect all targets of a given :kind from positions.
-   Returns a map of target-id -> [{:researcher/id :position/hash :status :rationale}]."
+  "Collect targets by their complete content identity [kind id hash].
+   A certificate never silently treats distinct content under one item ID as
+   one consensus item."
   [positions kind]
   (let [entries (mapcat (fn [pos]
                           (keep (fn [t]
@@ -218,7 +247,7 @@
                                      :rationale (:rationale t)}))
                                 (:position/targets pos [])))
                         positions)]
-    (group-by :target/id entries)))
+    (group-by (juxt :kind :target/id :target/hash) entries)))
 
 (defn per-item-consensus
   "Compute consensus for one theorem or conclusion across positions.
@@ -291,9 +320,10 @@
   [positions]
   (let [all-ids (mapv :researcher/id positions)
         theorems (collect-targets positions :theorem)]
-    (reduce-kv (fn [m theorem-id entries]
-                 (assoc m theorem-id
-                        (per-item-consensus theorem-id :theorem entries all-ids)))
+    (reduce-kv (fn [m [_ theorem-id theorem-hash] entries]
+                 (assoc m [theorem-id theorem-hash]
+                        (assoc (per-item-consensus theorem-id :theorem entries all-ids)
+                               :item/hash theorem-hash)))
                {}
                theorems)))
 
@@ -302,9 +332,10 @@
   [positions]
   (let [all-ids (mapv :researcher/id positions)
         conclusions (collect-targets positions :conclusion)]
-    (reduce-kv (fn [m conclusion-id entries]
-                 (assoc m conclusion-id
-                        (per-item-consensus conclusion-id :conclusion entries all-ids)))
+    (reduce-kv (fn [m [_ conclusion-id conclusion-hash] entries]
+                 (assoc m [conclusion-id conclusion-hash]
+                        (assoc (per-item-consensus conclusion-id :conclusion entries all-ids)
+                               :item/hash conclusion-hash)))
                {}
                conclusions)))
 
@@ -341,48 +372,60 @@
 ;; ── Certificate pre-conditions ───────────────────────────────────────────
 
 (defn pre-certificate-checks
-  "Pre-condition checks that must pass BEFORE building a certificate.
-   
-    Verifies:
-      1. Review round has a content-root
-      2. Three reports are provided
-      3. Three positions are provided (may contain absent-statuses)
-      4. All reports have consistent content-roots
-      5. All reports have outcome-hashes (required for grouping)
-      6. All positions reference the same content-root
-      7. All positions have outcome-hashes
-   
-    The canonical-indices artifact is auto-produced by build-certificate
-    and is not checked here.
-   
-    Returns {:pre-certificate-valid? bool :errors [string]}."
-  [{:keys [review-round reports positions]}]
-  (let [errors (atom [])]
-    ;; 1. Review round content root
-    (when-not (some? (:benchmark/content-root review-round))
-      (swap! errors conj "review-round missing :benchmark/content-root"))
-    ;; 2. Three reports
-    (when-not (= 3 (count reports))
-      (swap! errors conj (str "expected 3 reports, got " (count reports))))
-    ;; 3. Three positions
-    (when-not (= 3 (count positions))
-      (swap! errors conj (str "expected 3 positions, got " (count positions))))
-    ;; 4. Report content root consistency
-    (let [roots (set (map :benchmark/content-root reports))]
-      (when (> (count roots) 1)
-        (swap! errors conj (str "inconsistent content-roots across reports: " roots))))
-    ;; 5. Reports have outcome-hashes
+  "Validate the complete, membership-bound three-member input cell.
+   This is deliberately stricter than a count check: every supplied artifact
+   must join one-to-one with the frozen round membership and canonical index."
+  [{:keys [review-round reports positions canonical-indices]}]
+  (let [errors (atom [])
+        member-ids (vec (rr/member-ids review-round))
+        report-ids (mapv :researcher/id reports)
+        position-ids (mapv :researcher/id positions)
+        index-ids (mapv :researcher/id
+                        (:review-member/canonical-indices canonical-indices))
+        content-root (:benchmark/content-root review-round)]
+    (when-not (rr/round-valid? review-round)
+      (swap! errors conj "review-round is not a valid frozen three-member round"))
+    (when-not (and (= 3 (count member-ids)) (= 3 (count (set member-ids)))
+                   (every? string? member-ids))
+      (swap! errors conj "review-round must authorize exactly three distinct researcher IDs"))
+    (doseq [[label ids] [[:reports report-ids] [:positions position-ids]
+                         [:canonical-indices index-ids]]]
+      (when-not (and (= 3 (count ids)) (= 3 (count (set ids))))
+        (swap! errors conj (str label " must contain exactly one artifact per distinct member")))
+      (when-not (= (set member-ids) (set ids))
+        (swap! errors conj (str label " researcher IDs must exactly match review-round members"))))
+    (when-not (and (= (set report-ids) (set position-ids))
+                   (= (set report-ids) (set index-ids)))
+      (swap! errors conj "reports, positions, and canonical-indices must have one-to-one member joins"))
+    (when-not (= :valid (:status (ci/verify-canonical-indices canonical-indices review-round)))
+      (swap! errors conj "canonical-indices is not valid for review-round"))
     (doseq [r reports]
-      (when-not (some? (:researcher-run-report/outcome-hash r))
-        (swap! errors conj (str "report " (:researcher/id r) " missing outcome-hash"))))
-    ;; 6. Position content root consistency
-    (let [pos-roots (set (map :benchmark/content-root positions))]
-      (when (> (count pos-roots) 1)
-        (swap! errors conj (str "inconsistent content-roots across positions: " pos-roots))))
-    ;; 7. Positions have outcome-hashes
+      (when-not (report-hash-valid? r)
+        (swap! errors conj (str "report " (:researcher/id r) " has invalid content hash")))
+      (when-not (= content-root (:benchmark/content-root r))
+        (swap! errors conj (str "report " (:researcher/id r) " content-root does not bind review-round")))
+      (when-not (hash-reference? (:researcher-run-report/outcome-hash r))
+        (swap! errors conj (str "report " (:researcher/id r) " has missing or malformed outcome-hash"))))
     (doseq [p positions]
-      (when-not (some? (:position/outcome-hash p))
-        (swap! errors conj (str "position " (:researcher/id p) " missing outcome-hash"))))
+      (when-not (position-hash-valid? p)
+        (swap! errors conj (str "position " (:researcher/id p) " has invalid content hash")))
+      (when-not (= content-root (:benchmark/content-root p))
+        (swap! errors conj (str "position " (:researcher/id p) " content-root does not bind review-round")))
+      (when-not (hash-reference? (:position/outcome-hash p))
+        (swap! errors conj (str "position " (:researcher/id p) " has missing or malformed outcome-hash")))
+      (doseq [target (rp/position-targets p)]
+        (when-not (and (contains? #{:theorem :conclusion} (:kind target))
+                       (keyword? (:id target))
+                       (hash-reference? (:hash target)))
+          (swap! errors conj (str "position " (:researcher/id p)
+                                  " has malformed theorem/conclusion target")))))
+    (doseq [id member-ids]
+      (let [report (first (filter #(= id (:researcher/id %)) reports))
+            position (first (filter #(= id (:researcher/id %)) positions))]
+        (when (and report position
+                   (not= (:researcher-run-report/outcome-hash report)
+                         (:position/outcome-hash position)))
+          (swap! errors conj (str "report and position outcome-hash mismatch for " id)))))
     {:pre-certificate-valid? (empty? @errors) :errors @errors}))
 
 ;; ── Certificate builder ───────────────────────────────────────────────────
@@ -400,22 +443,15 @@
    it is verified against the review round.  When absent, it is auto-produced."
   [{:keys [review-round reports positions force-authorisations disagreements canonical-indices]
     :or {force-authorisations [] disagreements []}}]
-  (let [pre-checks (pre-certificate-checks {:review-round review-round
-                                            :reports reports
-                                            :positions positions})]
+  ;; Every certificate carries the exact resolved source inputs.  This makes
+  ;; loaded semantic validation possible without trusting summary fields.
+  (let [ci-artifact (or canonical-indices (ci/build-canonical-indices review-round))
+        pre-checks (pre-certificate-checks {:review-round review-round
+                                            :canonical-indices ci-artifact
+                                            :reports reports :positions positions})]
     (when-not (:pre-certificate-valid? pre-checks)
       (throw (ex-info "Certificate pre-conditions not met"
-                      {:errors (:errors pre-checks)}))))
-  ;; Build or verify the canonical-indices artifact.
-  ;; Every certificate now includes canonical indices regardless of key presence.
-  (let [ci-artifact (or canonical-indices
-                        (ci/build-canonical-indices review-round))]
-    (when canonical-indices
-      (let [verification (ci/verify-canonical-indices ci-artifact review-round)]
-        (when-not (= :valid (:status verification))
-          (throw (ex-info "Canonical-indices verification failed"
-                          {:errors (:errors verification)
-                           :status (:status verification)})))))
+                      {:errors (:errors pre-checks)})))
     (when (nil? ci-artifact)
       (throw (ex-info "Failed to produce canonical-indices artifact"
                       {:review-round/id (:review-round/id review-round)})))
@@ -438,6 +474,12 @@
        :review-member-canonical-indices ci-artifact
        :review-member-canonical-indices/hash
        (:review-member-canonical-indices/hash ci-artifact)
+       :certificate/inputs
+       {:version 1
+        :review-round review-round
+        :canonical-indices ci-artifact
+        :reports (vec reports)
+        :positions (vec positions)}
        :model-consensus
        (reduce (fn [m dim]
                  (assoc m dim (enrich-consensus-with-keys
@@ -468,13 +510,8 @@
                   (per-conclusion-consensus positions))
        :member-positions
        (mapv (fn [pos]
-               (let [report (some #(when (= (:researcher/id %)
-                                            (:researcher/id pos))
-                                     %)
-                                  reports)]
-                 (when-not report
-                   (throw (ex-info "No matching report found for position"
-                                   {:researcher/id (:researcher/id pos)})))
+               (let [report (get (into {} (map (juxt :researcher/id identity) reports))
+                                 (:researcher/id pos))]
                  {:researcher/id (:researcher/id pos)
                   :position/hash (:position/hash pos)
                   :outcome-hash (:position/outcome-hash pos)
@@ -499,11 +536,12 @@
     (assoc certificate :certificate/hash (str "sha256:" c-hash))))
 
 (defn certificate-valid?
-  "Quick structural check for builder-produced certificates."
+  "Quick structural check for a recomputable v2 certificate."
   [certificate]
   (and (= schema-version (:schema-version certificate))
        (some? (:review-round/id certificate))
        (some? (:benchmark/content-root certificate))
+       (map? (:certificate/inputs certificate))
        (some? (:execution certificate))))
 
 (defn certificate-finalised?
@@ -512,37 +550,51 @@
   (some? (:certificate/hash certificate)))
 
 (defn validate-certificate
-  "Standalone validator for a loaded three-member certificate.
-   
-   Checks schema version, required fields, execution status,
-   consensus structure, and member-position references.
-   
-   Returns {:valid? bool :errors [string]}."
+  "Validate a loaded certificate and, for v2, independently recompute it from
+   its embedded resolved input block.  v1 is retained as readable legacy data
+   but is never reported as validated consensus."
   [certificate]
-  (let [errors (atom [])]
-    (when-not (= schema-version (:schema-version certificate))
-      (swap! errors conj (str "expected schema-version " schema-version
-                              " got " (:schema-version certificate))))
-    (when-not (some? (:review-round/id certificate))
-      (swap! errors conj "missing :review-round/id"))
-    (when-not (some? (:benchmark/content-root certificate))
-      (swap! errors conj "missing :benchmark/content-root"))
-    (when-not (some? (:execution certificate))
-      (swap! errors conj "missing :execution"))
-    (let [exec (:execution certificate)]
-      (when-not (:status exec)
-        (swap! errors conj "missing :execution/status"))
-      (when-not (:outcome-groups exec)
-        (swap! errors conj "missing :execution/outcome-groups")))
-    (doseq [f [:model-consensus :incentive-consensus :other-consensus
-               :theorem-consensus :conclusion-consensus :member-positions]]
-      (when-not (contains? certificate f)
-        (swap! errors conj (str "missing " (name f)))))
-    (when (some? (:certificate/hash certificate))
-      (let [hash-input (dissoc certificate :certificate/hash :review-member-canonical-indices)
-            expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
-        (when-not (= expected (:certificate/hash certificate))
-          (swap! errors conj (str "certificate/hash mismatch: declared "
-                                  (:certificate/hash certificate)
-                                  " computed " expected)))))
-    {:valid? (empty? @errors) :errors @errors}))
+  (cond
+    (= legacy-schema-version (:schema-version certificate))
+    {:valid? false :status :legacy-not-recomputable
+     :errors ["legacy certificate lacks resolvable certificate inputs"]}
+
+    (not= schema-version (:schema-version certificate))
+    {:valid? false :status :invalid-schema
+     :errors [(str "expected schema-version " schema-version
+                   " got " (:schema-version certificate))]}
+
+    :else
+    (let [errors (atom [])
+          inputs (:certificate/inputs certificate)]
+      (when-not (and (= 1 (:version inputs))
+                     (map? (:review-round inputs))
+                     (map? (:canonical-indices inputs))
+                     (vector? (:reports inputs))
+                     (vector? (:positions inputs)))
+        (swap! errors conj "missing or malformed recomputable :certificate/inputs"))
+      (when (empty? @errors)
+        (try
+          (let [recomputed (build-certificate
+                            {:review-round (:review-round inputs)
+                             :canonical-indices (:canonical-indices inputs)
+                             :reports (:reports inputs)
+                             :positions (:positions inputs)
+                             :force-authorisations (:force-authorisations certificate)
+                             :disagreements (:unresolved-disagreements certificate)})
+                stored-body (dissoc certificate :certificate/hash)
+                recomputed-body (dissoc recomputed :certificate/hash)]
+            (when-not (= stored-body recomputed-body)
+              (swap! errors conj "certificate consensus or source bindings do not recompute from inputs")))
+          (catch clojure.lang.ExceptionInfo e
+            (swap! errors conj (str "certificate inputs invalid: " (.getMessage e)))))
+        (when-not (hash-reference? (:certificate/hash certificate))
+          (swap! errors conj "missing or malformed :certificate/hash"))
+        (when (hash-reference? (:certificate/hash certificate))
+          (let [hash-input (dissoc certificate :certificate/hash :review-member-canonical-indices)
+                expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
+            (when-not (= expected (:certificate/hash certificate))
+              (swap! errors conj "certificate/hash mismatch"))))
+        {:valid? (empty? @errors)
+         :status (if (empty? @errors) :valid :invalid)
+         :errors @errors}))))

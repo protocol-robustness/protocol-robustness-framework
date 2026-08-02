@@ -3,7 +3,8 @@
             [resolver-sim.benchmark.review.three-member-certificate :as tmc]
             [resolver-sim.benchmark.researcher-position :as rp]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]
-            [resolver-sim.benchmark.review-round :as rr]))
+            [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.hash.canonical :as hc]))
 
 (defn- make-report [id outcome-hash & {:keys [mi plan domain sampling params cases eval-policy model-root content-root]
                                        :or {content-root "sha256:cr" model-root "sha256:m"
@@ -11,19 +12,17 @@
                                             domain "sha256:domain" sampling "sha256:samp"
                                             params "sha256:p" cases "sha256:c"
                                             eval-policy "sha256:ep"}}]
-  {:researcher/id id
-   :researcher-run-report/outcome-hash outcome-hash
-   :benchmark/content-root content-root
-   :benchmark/model-root model-root
-   :benchmark/evaluation-policy-root eval-policy
-   :execution/content-root content-root
-   :execution/model-root model-root
-   :execution/model-instance-root mi
-   :execution/plan-root plan
-   :execution/parameter-domain-root domain
-   :execution/sampling-policy-root sampling
-   :execution/realised-parameter-set-root params
-   :execution/generated-case-set-root cases})
+  (let [report {:schema-version "researcher-run-report.v1"
+                :researcher/id id :researcher-run-report/outcome-hash outcome-hash
+                :benchmark/content-root content-root :benchmark/model-root model-root
+                :benchmark/evaluation-policy-root eval-policy
+                :execution/content-root content-root :execution/model-root model-root
+                :execution/model-instance-root mi :execution/plan-root plan
+                :execution/parameter-domain-root domain :execution/sampling-policy-root sampling
+                :execution/realised-parameter-set-root params :execution/generated-case-set-root cases
+                :researcher-run-report/hash nil :researcher/signature nil}]
+    (assoc report :researcher-run-report/hash
+           (str "sha256:" (hc/domain-hash :researcher-run-report report)))))
 
 (def reports-exact
   [(make-report "a" "sha256:A")
@@ -51,26 +50,27 @@
    :publication {:status publication}})
 
 (defn- make-pos [id & {:keys [authority-status evidence-status publication-status]
-                       :or {authority-status :adequate
-                            evidence-status :sufficient
+                       :or {authority-status :adequate evidence-status :sufficient
                             publication-status :publish}}]
-  {:researcher/id id
-   :position/hash (str "sha256:pos-" id)
-   :position/outcome-hash "sha256:A"
-   :position/dimensions (dims :model-authority authority-status
-                              :evidence evidence-status
-                              :publication publication-status)})
+  (rp/build-position {:benchmark/content-root "sha256:cr" :researcher/id id
+                      :outcome-hash "sha256:A"
+                      :dimensions (dims :model-authority authority-status
+                                        :evidence evidence-status
+                                        :publication publication-status)}))
 
 (defn- make-pos-absent [id]
-  {:researcher/id id
-   :position/hash (str "sha256:pos-" id)
-   :position/outcome-hash "sha256:A"
-   :position/dimensions {}})
+  (rp/build-position {:benchmark/content-root "sha256:cr" :researcher/id id
+                      :outcome-hash "sha256:A" :dimensions {}}))
 
 (def ^:private default-round
-  {:benchmark/content-root "sha256:cr"
-   :review-round/id "review-round:test"
-   :review-round/purpose :model-admission})
+  (rr/build-review-round
+   {:benchmark/content-root "sha256:cr"
+    :review-round/purpose :model-admission
+    :review-round/members [{:researcher/id "a" :role :model-steward}
+                           {:researcher/id "b" :role :independent-reproducer}
+                           {:researcher/id "c" :role :adversarial-reviewer}]
+    :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+    :review-round/policy-root "sha256:policy"}))
 
 (defn- make-cert [reports positions]
   (tmc/build-certificate
@@ -201,17 +201,13 @@
 
 (defn- make-pos-with-targets
   [id & {:keys [targets] :or {targets []}}]
-  {:researcher/id id
-   :position/hash (str "sha256:pos-" id)
-   :position/outcome-hash "sha256:A"
-   :position/dimensions {:model-state {:status :adequate}
-                         :model-authority {:status :adequate}
-                         :model-transitions {:status :adequate}
-                         :incentives-strategies {:status :adequate}
-                         :evidence {:status :sufficient}
-                         :claims {:status :supported}
-                         :publication {:status :publish}}
-   :position/targets targets})
+  (rp/build-position
+   {:benchmark/content-root "sha256:cr" :researcher/id id :outcome-hash "sha256:A"
+    :dimensions {:model-state {:status :adequate} :model-authority {:status :adequate}
+                 :model-transitions {:status :adequate} :incentives-strategies {:status :adequate}
+                 :evidence {:status :sufficient} :claims {:status :supported}
+                 :publication {:status :publish}}
+    :position/targets targets}))
 
 (deftest per-theorem-consensus-unanimous
   (let [posses [(make-pos-with-targets "a"
@@ -224,8 +220,8 @@
                                        :targets [{:kind :theorem :id :theorem/quota-bounded
                                                   :hash "sha256:th1" :status :reproduced}])]
         consensus (tmc/per-theorem-consensus posses)]
-    (is (contains? consensus :theorem/quota-bounded))
-    (let [th (get consensus :theorem/quota-bounded)]
+    (is (contains? consensus [:theorem/quota-bounded "sha256:th1"]))
+    (let [th (get consensus [:theorem/quota-bounded "sha256:th1"])]
       (is (= :unanimous (:status th)))
       (is (= 3 (count (:supporting-members th))))
       (is (empty? (:dissenting-members th))))))
@@ -241,7 +237,7 @@
                                        :targets [{:kind :theorem :id :theorem/incentive-compatibility
                                                   :hash "sha256:th2" :status :challenged}])]
         consensus (tmc/per-theorem-consensus posses)]
-    (let [th (get consensus :theorem/incentive-compatibility)]
+    (let [th (get consensus [:theorem/incentive-compatibility "sha256:th2"])]
       (is (= :majority-with-dissent (:status th)))
       (is (= 2 (count (:supporting-members th))))
       (is (= 1 (count (:dissenting-members th)))))))
@@ -256,7 +252,7 @@
                 (make-pos-with-targets "c"
                                        :targets [])]
         consensus (tmc/per-conclusion-consensus posses)]
-    (let [th (get consensus :conclusion/partial-fill)]
+    (let [th (get consensus [:conclusion/partial-fill "sha256:c1"])]
       (is (= :unanimous (:status th)))
       (is (= 2 (count (:supporting-members th))))
       (is (= 1 (count (:absent-members th)))))))
@@ -296,7 +292,7 @@
                                                            :hash "sha256:t" :status :reproduced}])])]
     (is (contains? cert :theorem-consensus))
     (is (contains? cert :conclusion-consensus))
-    (let [th-cons (get-in cert [:theorem-consensus :theorem/quota-bounded])]
+    (let [th-cons (get-in cert [:theorem-consensus [:theorem/quota-bounded "sha256:t"]])]
       (is (= :unanimous (:status th-cons)))
       (is (= 3 (count (:supporting-members th-cons)))))))
 
@@ -463,7 +459,7 @@
         positions [(rp/build-position
                     {:benchmark/content-root "sha256:cr"
                      :researcher/id "a"
-                     :outcome-hash "sha256:o"
+                     :outcome-hash "sha256:A"
                      :dimensions {:model-state {:status :adequate}
                                   :model-authority {:status :adequate}
                                   :model-transitions {:status :adequate}
@@ -478,7 +474,7 @@
                    (rp/build-position
                     {:benchmark/content-root "sha256:cr"
                      :researcher/id "b"
-                     :outcome-hash "sha256:o"
+                     :outcome-hash "sha256:A"
                      :dimensions {:model-state {:status :adequate}
                                   :model-authority {:status :adequate}
                                   :model-transitions {:status :adequate}
@@ -493,7 +489,7 @@
                    (rp/build-position
                     {:benchmark/content-root "sha256:cr"
                      :researcher/id "c"
-                     :outcome-hash "sha256:o"
+                     :outcome-hash "sha256:A"
                      :dimensions {:model-state {:status :adequate}
                                   :model-authority {:status :adequate}
                                   :model-transitions {:status :adequate}
@@ -522,19 +518,19 @@
     (is (some? (:review-member-canonical-indices/hash cert))
         "canonical-indices hash bound in certificate")
     ;; Per-theorem consensus is computed
-    (is (contains? (:theorem-consensus cert) :theorem/quota-bounded)
+    (is (contains? (:theorem-consensus cert) [:theorem/quota-bounded "sha256:th1"])
         "quota-bounded theorem consensus present")
-    (is (contains? (:theorem-consensus cert) :theorem/settlement-consistency)
+    (is (contains? (:theorem-consensus cert) [:theorem/settlement-consistency "sha256:th2"])
         "settlement-consistency theorem consensus present")
-    (let [qb (get-in cert [:theorem-consensus :theorem/quota-bounded])
-          sc (get-in cert [:theorem-consensus :theorem/settlement-consistency])]
+    (let [qb (get-in cert [:theorem-consensus [:theorem/quota-bounded "sha256:th1"]])
+          sc (get-in cert [:theorem-consensus [:theorem/settlement-consistency "sha256:th2"]])]
       (is (= :unanimous (:status qb)) "quota-bounded unanimous")
       (is (= 3 (count (:supporting-members qb))) "all three support quota-bounded")
       (is (= :majority-with-dissent (:status sc)) "settlement-consistency majority-with-dissent")
       (is (= 2 (count (:supporting-members sc))) "two support")
       (is (= 1 (count (:dissenting-members sc))) "one dissents"))
     ;; Key-enriched consensus vectors are present for keyed rounds
-    (let [qb (get-in final [:theorem-consensus :theorem/quota-bounded])]
+    (let [qb (get-in final [:theorem-consensus [:theorem/quota-bounded "sha256:th1"]])]
       (is (some? (:supporting-member-indices qb)) "keyed round emits index vectors"))
     ;; Member positions agree with canonical indices
     (doseq [pos (:member-positions cert)]
@@ -606,5 +602,67 @@
         "legacy unkeyed round certificate must validate")
     (is (some? (:review-member-canonical-indices/hash cert))
         "legacy certificate now has canonical-indices hash (auto-produced)")))
+
+;; ── WP5 integrity regressions ──────────────────────────────────────────────
+
+(defn- valid-inputs []
+  (let [reports reports-exact
+        positions [(make-pos "a") (make-pos "b") (make-pos "c")]]
+    {:review-round default-round
+     :canonical-indices (ci/build-canonical-indices default-round)
+     :reports reports :positions positions}))
+
+(deftest certificate-rejects-non-one-to-one-member-joins
+  (let [{:keys [review-round canonical-indices reports positions]} (valid-inputs)
+        result (tmc/pre-certificate-checks
+                {:review-round review-round :canonical-indices canonical-indices
+                 :reports [(first reports) (first reports) (nth reports 2)]
+                 :positions positions})]
+    (is (not (:pre-certificate-valid? result)))
+    (is (some #(re-find #"one artifact per distinct member|exactly match" %)
+              (:errors result)))))
+
+(deftest certificate-rejects-root-and-outcome-binding-mismatches
+  (let [{:keys [review-round canonical-indices reports positions]} (valid-inputs)
+        root-result (tmc/pre-certificate-checks
+                     {:review-round review-round :canonical-indices canonical-indices
+                      :reports (assoc reports 0 (assoc (first reports)
+                                                       :benchmark/content-root "sha256:other"))
+                      :positions positions})
+        outcome-result (tmc/pre-certificate-checks
+                        {:review-round review-round :canonical-indices canonical-indices
+                         :reports reports
+                         :positions (assoc positions 0 (rp/build-position
+                                                        {:benchmark/content-root "sha256:cr"
+                                                         :researcher/id "a" :outcome-hash "sha256:other"
+                                                         :dimensions (dims)}))})]
+    (is (not (:pre-certificate-valid? root-result)))
+    (is (some #(re-find #"content-root" %) (:errors root-result)))
+    (is (not (:pre-certificate-valid? outcome-result)))
+    (is (some #(re-find #"outcome-hash mismatch" %) (:errors outcome-result)))))
+
+(deftest realised-parameters-are-part-of-exact-replication
+  (is (not= :exact-replication
+            (tmc/replication-type
+             [(make-report "a" "sha256:A" :params "sha256:p1")
+              (make-report "b" "sha256:A" :params "sha256:p2")
+              (make-report "c" "sha256:A" :params "sha256:p1")]))))
+
+(deftest theorem-consensus-is-bound-to-content-hash
+  (let [positions [(make-pos-with-targets "a" :targets [{:kind :theorem :id :theorem/x :hash "sha256:h1" :status :reproduced}])
+                   (make-pos-with-targets "b" :targets [{:kind :theorem :id :theorem/x :hash "sha256:h2" :status :reproduced}])
+                   (make-pos-with-targets "c" :targets [{:kind :theorem :id :theorem/x :hash "sha256:h1" :status :reproduced}])]
+        consensus (tmc/per-theorem-consensus positions)]
+    (is (= #{[:theorem/x "sha256:h1"] [:theorem/x "sha256:h2"]}
+           (set (keys consensus))))
+    (is (= 2 (count (get-in consensus [[:theorem/x "sha256:h1"] :supporting-members]))))))
+
+(deftest loaded-validation-recomputes-consensus
+  (let [{:keys [review-round canonical-indices reports positions]} (valid-inputs)
+        cert (tmc/build-certificate {:review-round review-round :canonical-indices canonical-indices
+                                     :reports reports :positions positions})
+        tampered (assoc-in cert [:other-consensus :publication :status] :contested)
+        self-hashed (tmc/finalise-certificate! tampered)]
+    (is (not (:valid? (tmc/validate-certificate self-hashed))))))
 
 

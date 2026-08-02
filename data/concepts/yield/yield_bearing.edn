@@ -166,4 +166,4 @@
   ["Real-world APY, APR, or investment returns."
    "Market risk, impermanent loss, or oracle price deviations."
    "Tax treatment of yield as income or capital gain."
-   "Concrete protocol-ledger mutation behind add-held / sub-held adjustments — owned by the protocol accounting layer (see held-custody and core-protocol-boundary). Yield determines the economic reason and custody classification; it does not perform authoritative ledger writes."]}
+   "Concrete protocol-ledger mutation behind add-held / sub-held adjustments — owned by the protocol accounting layer (see held-custody and :framework/protocol-extension-boundary). Yield determines the economic reason and custody classification; it does not perform authoritative ledger writes."]}

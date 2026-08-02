@@ -43,7 +43,7 @@
   "Return the domain-separated canonical hash reference for a correlation."
   [correlation]
   (str "sha256:" (hc/domain-hash :authorised-effect-correlation
-                                  (preimage correlation))))
+                                 (preimage correlation))))
 
 (defn correlation-error
   "Return a stable structural error keyword, or nil for a valid correlation."
@@ -73,7 +73,7 @@
    public-authorisation and effect identities."
   [fields]
   (let [correlation (assoc fields :artifact/type artifact-type
-                                  :artifact/version schema-version)
+                           :artifact/version schema-version)
         error (correlation-error correlation)]
     (when (and error (not= error :correlation-hash-mismatch))
       (throw (ex-info "Authorised effect correlation build failed" {:error error})))

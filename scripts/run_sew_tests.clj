@@ -35,6 +35,7 @@
     resolver-sim.protocols.sew.held-custody-test-env-test
     resolver-sim.protocols.sew.terminal-state-snapshot-test
     resolver-sim.protocols.sew.authorised-effect-correlation-test
+    resolver-sim.protocols.sew.terminal-reservation-test
     resolver-sim.protocols.sew.forking-strategist-expectations-test
     resolver-sim.protocols.sew.funds-ledger-projection-test
     resolver-sim.protocols.sew.governance-gates-test

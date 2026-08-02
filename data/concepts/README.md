@@ -152,7 +152,7 @@ data/concepts/
 │   ├── review_certificate.edn            ← review certificate
 │   ├── review_member_canonical_indices.edn← review-member canonical indices
 │   ├── procedure_execution_witness.edn   ← procedure execution witness
-│   ├── core_protocol_boundary.edn        ← core–protocol ownership boundary
+│   ├── core_protocol_boundary.edn        ← framework–protocol extension ownership boundary
 │   └── semantic_commitments.edn          ← semantic commitments
 ├── mechanism/
 │   └── pro_rata_allocation.edn           ← deterministic pro-rata allocation

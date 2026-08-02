@@ -40,7 +40,8 @@
             [resolver-sim.yield.expectations             :as yield-exp]
             [resolver-sim.yield.evidence                 :as yield-evi]
             [resolver-sim.time.context                   :as time-ctx]
-            [resolver-sim.hash.canonical                 :as hash]))
+            [resolver-sim.hash.canonical                 :as hash]
+            [resolver-sim.hash.reference                 :as hash-ref]))
 
 ;; ---------------------------------------------------------------------------
 ;; Constants
@@ -989,6 +990,95 @@
           (if (compare-and-set! registry state (dissoc state consumption-key))
             true
             (recur)))))))
+
+(def ^:private terminal-consensus-statuses
+  #{:consumed :failed-after-consumption :rolled-back-after-consumption})
+
+(def ^:private terminal-reservation-root-keys
+  [:outcome-manifest/hash :consumption/receipt-hash :execution-evidence/hash
+   :sew/world-before-root :sew/world-after-root :sew/world-snapshot-hash
+   :event-evidence/root :consumption/effect-outcome])
+
+(def ^:private terminal-reservation-allowed-keys
+  (conj (set terminal-reservation-root-keys) :status :correlation/hash))
+
+(defn- terminal-reservation-hash [record]
+  (str "sha256:" (hash/domain-hash :consensus-terminal-reservation
+                                    (dissoc record :terminal/hash))))
+
+(defn valid-consensus-terminal-reservation?
+  "Structural self-hash check for an immutable terminal reservation decision.
+   It does not resolve or authenticate the referenced prepared artifacts."
+  [record]
+  (and (= :consensus-terminal-reservation (:artifact/type record))
+       (= 1 (:artifact/version record))
+       (= (:terminal/hash record) (terminal-reservation-hash record))))
+
+(defn- terminal-status-outcome-valid? [status outcome]
+  (contains? #{[:consumed :produced]
+               [:failed-after-consumption :produced]
+               [:failed-after-consumption :not-produced]
+               [:rolled-back-after-consumption :reversed]}
+             [status outcome]))
+
+(defn finalize-consensus-reservation!
+  "Atomically transition one exact consensus reservation to an immutable terminal
+   binding. The caller supplies the reservation observed during preparation and
+   a fully prepared terminal record. A matching completed record resumes
+   idempotently; any different terminal binding conflicts. This function never
+   publishes indexes and never returns a candidate world."
+  [registry consumption-key reserved-binding terminal]
+  (when-not (instance? clojure.lang.IAtom registry)
+    (throw (ex-info "Consensus reservation registry is unavailable"
+                    {:reason :reservation-registry-unavailable})))
+  (when-not (= :reserved (:status reserved-binding))
+    (throw (ex-info "Terminal transition requires a reserved binding"
+                    {:reason :reservation-not-reserved})))
+  (when-let [unknown (seq (remove terminal-reservation-allowed-keys (keys terminal)))]
+    (throw (ex-info "Terminal reservation has unknown fields"
+                    {:reason :unknown-terminal-key :keys unknown})))
+  (when-let [missing (seq (remove #(contains? terminal %) terminal-reservation-root-keys))]
+    (throw (ex-info "Terminal reservation binding is incomplete"
+                    {:reason :missing-terminal-root :keys missing})))
+  (let [status (:status terminal)
+        effect-outcome (:consumption/effect-outcome terminal)
+        correlation? (contains? terminal :correlation/hash)]
+    (when-not (and (contains? terminal-consensus-statuses status)
+                   (terminal-status-outcome-valid? status effect-outcome))
+      (throw (ex-info "Invalid terminal status/effect-outcome combination"
+                      {:reason :invalid-terminal-status-outcome
+                       :status status :effect-outcome effect-outcome})))
+    (when (and (contains? #{:produced :reversed} effect-outcome) (not correlation?))
+      (throw (ex-info "Terminal effect requires a correlation root"
+                      {:reason :missing-effect-correlation})))
+    (when (and (= :not-produced effect-outcome) correlation?)
+      (throw (ex-info "No-effect terminal binding must omit correlation"
+                      {:reason :unexpected-effect-correlation})))
+    (doseq [key (cond-> terminal-reservation-root-keys
+                  correlation? (conj :correlation/hash))
+            :when (and (not= key :consumption/effect-outcome)
+                       (not (hash-ref/valid-sha256-ref? (get terminal key))))]
+      (throw (ex-info "Terminal reservation has malformed hash reference"
+                      {:reason :invalid-terminal-root :key key})))
+    (loop []
+      (let [state @registry
+            current (get state consumption-key)]
+        (cond
+          (and (map? current) (valid-consensus-terminal-reservation? current)
+               (= (dissoc current :terminal/hash) (dissoc (merge current terminal) :terminal/hash)))
+          {:committed? true :mode :resumed :binding current}
+
+          (= current reserved-binding)
+          (let [base (merge current terminal
+                            {:artifact/type :consensus-terminal-reservation
+                             :artifact/version 1})
+                terminal-record (assoc base :terminal/hash (terminal-reservation-hash base))]
+            (if (compare-and-set! registry state (assoc state consumption-key terminal-record))
+              {:committed? true :mode :new :binding terminal-record}
+              (recur)))
+
+          :else
+          {:committed? false :reason :terminal-binding-conflict :existing current})))))
 
 (defmethod apply-action "grant-consensus-force-authorisation"
   [context world event]

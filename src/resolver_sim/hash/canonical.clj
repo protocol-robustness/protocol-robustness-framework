@@ -120,6 +120,7 @@
    :sew-terminal-state-snapshot "SEW_TERMINAL_STATE_SNAPSHOT_V1"
    :staged-event-evidence "STAGED_EVENT_EVIDENCE_V1"
    :terminal-evidence-publication "TERMINAL_EVIDENCE_PUBLICATION_V1"
+   :consensus-terminal-reservation "CONSENSUS_TERMINAL_RESERVATION_V1"
    :generated-case-set "GENERATED_CASE_SET_V1"
    :pro-rata-allocation-evidence "PRO_RATA_ALLOCATION_EVIDENCE_V1"
    :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"

@@ -123,7 +123,7 @@ properties owned by that concept.
 | `resolver-reputation-spe` | equilibrium-concept | `framework/incentive` (semantic home) | yes | yes | `check-resolver-reputation-spe` | — |
 | `resolver-reputation-profile-matrix` | equilibrium-concept | `framework/incentive` (semantic home) | yes | yes | `check-resolver-reputation-profile-matrix` | — |
 | `cancellation-dominance` | equilibrium-concept | `framework/incentive` (semantic home) | yes | yes | `check-cancellation-dominance` | — |
-| `folk-theorem-cooperation-region` | equilibrium-concept | `framework/incentive` (semantic home) | **no** | yes | `evaluate-folk-theorem-region` (multi-epoch) | — |
+| `folk-theorem-cooperation-region` | equilibrium-concept | `framework/incentive` (semantic home) | **no** | yes | `evaluate-repeated-game-deterrence-threshold` (multi-epoch; legacy catalog id) | — |
 
 ### Semantics (pass / inconclusive / fail)
 
@@ -136,9 +136,19 @@ properties owned by that concept.
 - **SPE family / `cancellation-dominance`** — delegate to
   `subgame-counterfactual`; `:inconclusive` when no proper subgames / no cancel
   decision nodes are found; `:pass`/`:fail` from bounded regret vs threshold.
-- **`folk-theorem-cooperation-region`** — declared and implemented (multi-epoch) but
-  **not wired**; if declared in a single-trace theory block it resolves to
-  `:inconclusive :unsupported-concept`.
+- **`folk-theorem-cooperation-region`** (legacy catalog id) — evaluates a
+  **model-specific repeated-game deterrence threshold**, not a general
+  Folk-theorem claim: `discount-factor >= (U_malicious - U_honest) / U_honest`.
+  It assumes `U_honest` is the per-period cooperative baseline and permanent
+  punishment payoff is normalized to zero. Both utilities must be finite and
+  `U_honest` strictly positive; missing, non-finite, zero, or negative utility
+  is `:inconclusive`. Discount must be finite and in `[0, 1]`, otherwise the
+  result is `:inconclusive`. Equality passes. A computed threshold `> 1` is an
+  explicit `:fail` (`:infeasible-threshold`), because no valid discount can meet
+  it. This condition is distinct from the separate grim-trigger approximation.
+  It remains **not wired** to the single-trace dispatcher because that dispatcher
+  does not supply multi-epoch evidence; declaring it in a single-trace theory
+  block resolves to `:inconclusive :unsupported-concept`.
 
 ## Alias Result Labelling
 

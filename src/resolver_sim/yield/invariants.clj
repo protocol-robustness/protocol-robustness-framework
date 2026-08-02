@@ -288,6 +288,82 @@
   [(:run-id order) (:execution-id order) (:scenario-id order)
    (:step order) (:event-id order)])
 
+(defn- position-hash
+  "Return the canonical position hash used by pro-rata application records.
+   Position data may contain ratios, which are normalized at this boundary to
+   match the committed application hash format."
+  [position]
+  (letfn [(walk [value]
+            (cond
+              (instance? clojure.lang.Ratio value) (long (Math/round (double value)))
+              (instance? Double value) (double value)
+              (instance? Float value) (double value)
+              (map? value) (persistent! (reduce-kv (fn [m k v]
+                                                     (assoc! m (walk k) (walk v)))
+                                                   (transient {})
+                                                   value))
+              (vector? value) (mapv walk value)
+              (set? value) (set (map walk value))
+              :else value))]
+    (partial-fill/application-hash
+     (if (map? position) (walk position) {:value (walk position)}))))
+
+(defn- position-after-hash-violations
+  "Reconcile every committed post-application position hash with its snapshot.
+   Only the latest application for a participant/position can additionally
+   reconcile to live authoritative state; earlier records are historical."
+  [world applications]
+  (let [records (mapcat (fn [application]
+                          (for [participant (:participants application)
+                                :when (:position-after-hash participant)]
+                            {:application application :participant participant}))
+                        applications)
+        position-key (fn [{:keys [participant]}]
+                       [(:participant-id participant)
+                        (or (:position-id participant) (:participant-id participant))])
+        latest-by-position
+        (into {}
+              (map (fn [[key position-records]]
+                     [key
+                      (last (sort-by #(application-order-key
+                                       (get-in % [:application :application-order]))
+                                     position-records))]))
+              (group-by position-key records))
+        reconcile-record
+        (fn [{:keys [application participant] :as record}]
+          (let [participant-id (:participant-id participant)
+                position-id (or (:position-id participant) participant-id)
+                expected (:position-after-hash participant)
+                snapshot-hash (position-hash (:position-after participant))
+                latest? (= record (get latest-by-position (position-key record)))
+                authoritative-position (get-in world [:yield/positions participant-id])
+                authoritative-hash (when latest? (position-hash authoritative-position))
+                base {:propagation-id (:propagation-id application)
+                      :participant-id participant-id
+                      :position-id position-id
+                      :expected expected}
+                classification (assoc base :classification
+                                      (if latest?
+                                        :live-authoritative
+                                        :historical-not-live-reconcilable))
+                violations (cond-> []
+                             (not= expected snapshot-hash)
+                             (conj (assoc base
+                                          :reason :position-after-hash-mismatch
+                                          :observed snapshot-hash
+                                          :source :application-snapshot
+                                          :classification :tampered))
+                             (and latest? (not= expected authoritative-hash))
+                             (conj (assoc base
+                                          :reason :position-after-hash-mismatch
+                                          :observed authoritative-hash
+                                          :source :authoritative-position
+                                          :classification :tampered)))]
+            {:classification classification :violations violations}))
+        reconciliations (mapv reconcile-record records)]
+    {:classifications (mapv :classification reconciliations)
+     :violations (vec (mapcat :violations reconciliations))}))
+
 (defn chain-violations
   "Test-facing validation of canonical application ordering and account chains."
   [world applications]
@@ -785,6 +861,7 @@
   [world]
   (let [props (vals (:yield/pro-rata-propagations world {}))
         applications (vals (:yield/applied-pro-rata-propagations world {}))
+        position-after-reconciliation (position-after-hash-violations world applications)
         failures (concat (mapcat (fn [p]
                                    (let [id (:propagation/id p)
                                          a (get-in world [:yield/applied-pro-rata-propagations id])
@@ -886,6 +963,7 @@
                          (cumulative-fulfilment-violations applications)
                          (application-obligation-violations props applications)
                          (closed-history-violations applications)
+                         (:violations position-after-reconciliation)
                          (deferred-deadline-violations world))]
 
     (let [failures (vec failures)
@@ -980,6 +1058,7 @@
        :categories categories
        :valid? holds?
        :holds? holds?
+       :position-after-hash-reconciliation (:classifications position-after-reconciliation)
        :violations failures})))
 
 (defn check-pro-rata-propagation-complete

@@ -226,8 +226,8 @@
     :catalogued? true
     :wired? false
     :implemented? true
-    :title "Folk theorem cooperation region"
-    :summary "Cooperation is sustainable under grim trigger when discount >= (U_malicious - U_honest) / U_honest. Implemented as a multi-epoch analysis but not wired into the trace-end dispatcher."}])
+    :title "Repeated-game deterrence threshold (model-specific)"
+    :summary "Model-specific repeated-game deterrence threshold: discount >= (U_malicious - U_honest) / U_honest, assuming U_honest is the cooperative baseline and punishment payoff is normalized to zero. Utilities must be finite with U_honest > 0, discount must be in [0, 1], equality passes, and threshold > 1 explicitly fails as infeasible. This is not a general Folk-theorem claim and is not wired into the single-trace dispatcher."}])
 
 (def run-strategic-claim-validation strategic/run-strategic-claim-validation)
 
@@ -417,7 +417,7 @@
    {:title "Mechanism properties"
     :body "Properties of the protocol's incentive structure checked against terminal world state and accumulated metrics:\n\n- Budget balance — total funds in = total funds out + fees\n- Incentive compatibility — no actor profits from adversarial action\n- Individual rationality — honest participants don't end with negative payoff\n- Collusion resistance — coalitions don't profit relative to baseline\n- Sybil resistance — multiple identities don't increase payoff\n- Stake flow conservation — resolver stakes flow correctly through lifecycle"}
    {:title "Equilibrium concepts"
-    :body "Game-theoretic solution concepts checked against the trace:\n\n- Nash equilibrium — no unilateral profitable deviation\n- Dominant strategy — every player has a strategy optimal against all opponents\n- Subgame perfect equilibrium (SPE) — backward-induction: no ex-post profitable deviation at any subgame\n- Bounded epsilon-SPE — deviations must exceed epsilon threshold\n- Reputation SPE — resolver reputation penalties deter strategic slashing\n- Cancellation dominance — mutual cancel dominates unilateral default\n- Folk theorem cooperation region — grim-trigger cooperation sustainability with discount factor\n- Trace-conditioned epsilon-SPE — bounded regret analysis from single observed trace"}
+    :body "Game-theoretic solution concepts checked against the trace:\n\n- Nash equilibrium — no unilateral profitable deviation\n- Dominant strategy — every player has a strategy optimal against all opponents\n- Subgame perfect equilibrium (SPE) — backward-induction: no ex-post profitable deviation at any subgame\n- Bounded epsilon-SPE — deviations must exceed epsilon threshold\n- Reputation SPE — resolver reputation penalties deter strategic slashing\n- Cancellation dominance — mutual cancel dominates unilateral default\n- Repeated-game deterrence threshold — grim-trigger cooperation sustainability with discount factor\n- Trace-conditioned epsilon-SPE — bounded regret analysis from single observed trace"}
    {:title "Claim-strength taxonomy"
     :body "Each result declares its evidential basis:\n\n- :single-trace-terminal-proxy — terminal world state only\n- :single-trace-metric-proxy — accumulated metrics from one trace\n- :absent-evidence — required fields missing → inconclusive\n- :not-applicable — property cannot apply in this context\n- :multi-trace-required — only meaningful across N traces\n- :multi-epoch-required — only meaningful across epochs"}
    {:title "Severity"

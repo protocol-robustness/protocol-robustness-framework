@@ -31,7 +31,7 @@
 
 (deftest build-bundle-root-has-required-top-level-keys
   (let [bundle (br/build-bundle-root sample-request sample-result)]
-    (is (= "bundle-root.v1" (:bundle/schema-version bundle)))
+    (is (= "bundle-root.v2" (:bundle/schema-version bundle)))
     (is (some? (:bundle/id bundle)))
     (is (some? (:bundle/hash bundle)))
     (is (= (:bundle/id bundle) (:bundle/hash bundle)))
@@ -151,10 +151,34 @@
         "bundle/hash should differ when protocol state differs")))
 
 (deftest bundle-root-is-runnable
-  (let [bundle (assoc (br/build-bundle-root sample-request sample-result)
-                      :dag/root-node-hash "test-dag-root-hash")
+  (let [bundle (br/build-bundle-root sample-request sample-result)
         check (br/runnable? bundle)]
+    (is (= (:bundle/hash bundle) (br/compute-json-hash bundle)))
     (is (:runnable? check))))
+
+(deftest bundle-root-v1-is-identified-as-legacy
+  (let [v2 (br/build-bundle-root sample-request sample-result)
+        v1-base (assoc v2 :bundle/schema-version "bundle-root.v1")
+        v1-hash (br/compute-v1-hash v1-base)
+        legacy (assoc v1-base :bundle/id v1-hash :bundle/hash v1-hash)
+        check (br/runnable? legacy)]
+    (is (= :legacy-not-content-verified (:status check)))
+    (is (not (:runnable? check)))
+    (is (some #(= :legacy-not-content-verified (:code %)) (:errors check)))))
+
+(deftest bundle-root-runnable-rejects-content-tampering
+  (let [bundle (br/build-bundle-root sample-request sample-result)
+        tampered (assoc-in bundle [:execution/summary :status] :fail)
+        check (br/runnable? tampered)]
+    (is (not (:runnable? check)))
+    (is (some #(= :bundle-content-hash-mismatch (:code %)) (:errors check)))))
+
+(deftest bundle-root-runnable-rejects-tampered-run-request
+  (let [bundle (br/build-bundle-root sample-request sample-result)
+        tampered (assoc-in bundle [:run/request :suite/key] :different-suite)
+        check (br/runnable? tampered)]
+    (is (not (:runnable? check)))
+    (is (some #(= :bundle-content-hash-mismatch (:code %)) (:errors check)))))
 
 (deftest bundle-root-runnable-fails-without-run-request
   (let [bundle (dissoc (br/build-bundle-root sample-request sample-result) :run/request)
