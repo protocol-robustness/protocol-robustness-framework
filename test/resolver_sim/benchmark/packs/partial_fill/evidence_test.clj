@@ -420,3 +420,38 @@
   (let [r (pfev/build-partial-fill-verification-report (real-world))]
     (is (false? (pfev/valid-partial-fill-verification-report?
                  (dissoc r :report/preimage))))))
+
+;; ── partial-fill-decisions-summary file-artifact ─────────────────────────
+
+(deftest partial-fill-decisions-summary-roundtrip
+  (let [r (pfev/build-partial-fill-decisions-summary (real-world))]
+    (is (= "partial-fill-decisions-summary.v1" (:schema-version r)))
+    (is (= :partial-fill-decisions-summary (:artifact/kind r)))
+    (is (= 1 (:decision-count r)))
+    (is (= 100 (get-in r [:totals :owed])))
+    (is (= 30 (get-in r [:totals :filled])))
+    (is (= 70 (get-in r [:totals :deferred])))
+    (is (= {:partial-fill 1} (:outcome-counts r)))
+    (is (= {:numerator 3 :denominator 10} (get-in r [:fill-ratio :min])))
+    (is (true? (get-in r [:integrity :decision-integrity?])))
+    (is (= :evaluated-pass (:classification r)))
+    (is (empty? (get-in r [:failures :invalid-decision-hashes])))
+    (is (true? (pfev/valid-partial-fill-decisions-summary? r)))))
+
+(deftest partial-fill-decisions-summary-tamper-detected
+  (let [r (pfev/build-partial-fill-decisions-summary (real-world))]
+    (is (false? (pfev/valid-partial-fill-decisions-summary?
+                 (assoc r :decision-count 99))))
+    (is (false? (pfev/valid-partial-fill-decisions-summary?
+                 (assoc r :artifact/hash "sha256:forged"))))
+    (is (false? (pfev/valid-partial-fill-decisions-summary?
+                 (assoc r :schema-version "wrong.v9"))))
+    (is (false? (pfev/valid-partial-fill-decisions-summary?
+                 (dissoc r :artifact/preimage))))))
+
+(deftest partial-fill-decisions-summary-empty-is-not-evaluated
+  (let [r (pfev/build-partial-fill-decisions-summary {})]
+    (is (= 0 (:decision-count r)))
+    (is (= :not-evaluated (:classification r)))
+    (is (nil? (get-in r [:fill-ratio :median])))
+    (is (true? (pfev/valid-partial-fill-decisions-summary? r)))))

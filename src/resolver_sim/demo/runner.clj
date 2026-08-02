@@ -12,6 +12,7 @@
             [clojure.data.json :as json]
             [clojure.java.shell :as shell]
             [resolver-sim.demo.spec :as demo-spec]
+            [resolver-sim.vcs :as vcs]
             [resolver-sim.demo.screen :as screen]
             [resolver-sim.evidence.config :as evcfg]))
 
@@ -21,10 +22,7 @@
   (str (java.time.Instant/now)))
 
 (defn- git-commit []
-  (try
-    (let [{:keys [exit out]} (shell/sh "git" "rev-parse" "HEAD")]
-      (when (zero? exit) (str/trim out)))
-    (catch Exception _ nil)))
+  (vcs/commit-sha))
 
 (defn- ensure-dir!
   "Create directory if it doesn't exist, return the File."

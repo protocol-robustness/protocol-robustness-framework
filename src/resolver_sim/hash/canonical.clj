@@ -374,6 +374,17 @@
                              (map (fn [e] [:encode e]) (reverse x)))
                        done))
 
+              ;; LazySeq / PersistentList / Cons are not canonical-encodable as
+              ;; their runtime type; realize them to vectors (matching the
+              ;; pre-hash normalization elsewhere) so their contents encode
+              ;; deterministically as an array.
+              (instance? clojure.lang.ISeq x)
+              (let [v (vec x)
+                    n (count v)]
+                (recur (into (conj work [:array n])
+                             (map (fn [e] [:encode e]) (reverse v)))
+                       done))
+
               (instance? clojure.lang.IPersistentMap x)
               (let [n (count x)
                     pairs (mapv (fn [[k val]]

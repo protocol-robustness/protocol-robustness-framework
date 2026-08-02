@@ -219,10 +219,13 @@
      artifact    — artifact map
      sensitivity — provenance map from effective-sensitivity or nil
 
-   Returns the artifact with sensitivity attached (or unchanged if
-   sensitivity is nil)."
+   Returns the artifact with sensitivity attached (or unchanged when
+   sensitivity is nil, not a map, or lacks a committed :sentinel/effective-level —
+   an empty or malformed sensitivity map must not be attached as provenance
+   without a level)."
   [artifact sensitivity]
-  (if sensitivity
+  (if (and (map? sensitivity)
+           (some? (:sentinel/effective-level sensitivity)))
     (let [;; Determine artifact type by shape
           is-evidence-node? (contains? artifact :policy-output)
           is-attestation? (or (:attestation/id artifact)

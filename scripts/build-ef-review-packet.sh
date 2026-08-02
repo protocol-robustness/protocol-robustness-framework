@@ -62,7 +62,7 @@ packet_refs \
   bin/prf-runner-sew-0.1.0-uber.jar \
   inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn \
   inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn \
-  inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn \
+  inputs/scenarios/S-NC-001-freeze-active-dispute-negative-control.edn \
   docs/specs/SEW_CUSTODY_EXPOSURE_V1.md \
   inputs/benchmarks/force-authorisation-custody-v1.edn \
   inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json \
@@ -98,27 +98,27 @@ fi
 (
   cd "$OUTPUT_DIR/evidence"
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
-    run-scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
+    run-scenario --scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
     --run-root scenario-rejected
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-scenario --run-root scenario-rejected
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
-    run-scenario classpath:scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn \
+    run-scenario --scenario classpath:scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn \
     --run-root scenario-pro-rata
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-scenario --run-root scenario-pro-rata
   # This scenario reaches an unsuppressed invariant violation. Its non-zero
   # semantic outcome is expected; the completed package must still verify.
   if java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
-       run-scenario classpath:scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn \
+       run-scenario --scenario classpath:scenarios/edn/S-NC-001-freeze-active-dispute-negative-control.edn \
        --run-root scenario-semantic-failure; then
-    echo "Expected DR-N-002 to conclude with a semantic failure" >&2
+    echo "Expected S-NC-001 to conclude with a semantic failure" >&2
     exit 1
   fi
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-scenario --run-root scenario-semantic-failure
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
-    run-benchmark force-authorisation-custody-v1 \
+    run-benchmark prf-core/force-authorisation-custody-v1 \
     --run-root benchmark-force-authorisation
   java -jar "$OUTPUT_DIR/bin/prf-runner-sew-0.1.0-uber.jar" -m resolver-sim.cli.main \
     verify-benchmark --run-root benchmark-force-authorisation
@@ -134,7 +134,7 @@ clojure -M "$PROJECT_DIR/scripts/render_scenario_diagnostic.clj" \
 
 REJECTED_INPUT_REF="$(ref_for inputs/scenarios/S-DR-084-evidence-after-settlement-rejected.edn)"
 PRO_RATA_INPUT_REF="$(ref_for inputs/scenarios/Y06_multi-party-pro-rata-shortfall.edn)"
-FAILURE_INPUT_REF="$(ref_for inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn)"
+FAILURE_INPUT_REF="$(ref_for inputs/scenarios/S-NC-001-freeze-active-dispute-negative-control.edn)"
 CUSTODY_EXPOSURE_SPEC_REF="$(ref_for docs/specs/SEW_CUSTODY_EXPOSURE_V1.md)"
 BENCHMARK_INPUT_REF="$(ref_for inputs/benchmarks/force-authorisation-custody-v1.edn)"
 PRO_RATA_INSUFFICIENT_VECTOR_REF="$(ref_for inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json)"
@@ -188,7 +188,7 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
     },
     {
       "id": "scenario-semantic-failure",
-      "input": "inputs/scenarios/DR-N-002-reversal-slash-appeal-rejected.edn",
+      "input": "inputs/scenarios/S-NC-001-freeze-active-dispute-negative-control.edn",
       "input_sha256": "$FAILURE_INPUT_REF",
       "bundle_root": "evidence/scenario-semantic-failure",
       "semantic_outcome": "fail",

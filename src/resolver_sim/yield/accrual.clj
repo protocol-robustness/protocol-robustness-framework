@@ -148,6 +148,37 @@
                 (get-in world [:yield/held-balances tok])
                 0)))))
 
+(defn- module-recoverable-metrics
+  "Module-wide solvency metrics for a module/token:
+   {:recoverable n :module-liabilities n :net-solvent n :all-positions-yield n}.
+
+   net-solvent = recoverable - (sum of all position principals + realized-yield +
+   deferred-yield). all-positions-yield = sum of unrealized-yield across active
+   positions. These are shared by the per-position recoverable-liquidity cap and
+   the module-level batch coordinator so both evaluate the same headroom."
+  [world module-id token]
+  (let [tok (normalize-token token)
+        positions (:yield/positions world {})
+        recoverable (resolve-recoverable-liquidity world module-id token)
+        module-liabilities (reduce + 0
+                                   (for [[_ p] positions
+                                         :when (and (= (:module/id p) module-id)
+                                                    (= (normalize-token (:token p)) tok))]
+                                     (+ (max 0 (long (:principal p 0)))
+                                        (max 0 (long (:realized-yield p 0)))
+                                        (max 0 (long (:deferred-yield p 0))))))
+        net-solvent (max 0 (- recoverable module-liabilities))
+        all-positions-yield (reduce + 0
+                                    (for [[_ p] positions
+                                          :when (and (= (:module/id p) module-id)
+                                                     (= (normalize-token (:token p)) tok)
+                                                     (pos/active? p))]
+                                      (max 0 (long (:unrealized-yield p 0)))))]
+    {:recoverable recoverable
+     :module-liabilities module-liabilities
+     :net-solvent net-solvent
+     :all-positions-yield all-positions-yield}))
+
 (defn- resolve-negative-yield-floor
   "Get the configured negative yield floor for a module/token.
    Default: principal (position value cannot go below principal + floor-margin)."
@@ -416,33 +447,22 @@
   [decision world opts]
   (let [module-id (:module-id decision)
         token (:token decision)
-        pos (:position decision)
-        tok (normalize-token token)]
+        pos (:position decision)]
     (if (and pos (:unrealized-yield-delta decision) (pos? (:unrealized-yield-delta decision)))
-      (let [recoverable (resolve-recoverable-liquidity world module-id token)
-            current-unrealized (max 0 (long (:unrealized-yield pos 0)))
-            ;; Compute net module solvency: total liabilities (principal + realized + deferred)
-            positions (:yield/positions world {})
-            module-liabilities (reduce + 0
-                                       (for [[oid p] positions
-                                             :when (and (= (:module/id p) module-id)
-                                                        (= (normalize-token (:token p)) tok))]
-                                         (+ (max 0 (long (:principal p 0)))
-                                            (max 0 (long (:realized-yield p 0)))
-                                            (max 0 (long (:deferred-yield p 0))))))
-            net-solvent (max 0 (- recoverable module-liabilities))
-            ;; Optimized path: use provided total if available, otherwise compute
+      (let [{:keys [recoverable module-liabilities net-solvent] :as metrics}
+            (module-recoverable-metrics world module-id token)
+            ;; Optimized path: use provided module-wide total if available
             all-positions-yield (or (:total-unrealized-yield opts)
-                                    (reduce + 0
-                                            (for [[oid p] positions
-                                                  :when (and (= (:module/id p) module-id)
-                                                             (= (normalize-token (:token p)) tok)
-                                                             (pos/active? p))]
-                                              (max 0 (long (:unrealized-yield p 0))))))
-            projected-total (+ current-unrealized (:unrealized-yield-delta decision))]
+                                    (:all-positions-yield metrics))
+            ;; Projected module-wide unrealized after this position's accrual.  The
+            ;; per-position view is a first-pass check; the module-level coordinator
+            ;; (see coordinate-recoverable-liquidity-cap) enforces the shared headroom
+            ;; across a batch so positions do not independently spend the same
+            ;; net-solvent space.
+            projected-total (+ all-positions-yield (:unrealized-yield-delta decision))]
         (if (and (pos? net-solvent) (> projected-total net-solvent))
-          (let [realizable (max 0 (- net-solvent current-unrealized))
-                unrealized-excess (max 0 (- (:unrealized-yield-delta decision) realizable))]
+          (let [unrealized-excess (max 0 (- projected-total net-solvent))
+                realizable (max 0 (- (:unrealized-yield-delta decision) unrealized-excess))]
             (-> decision
                 (update :unrealized-yield-delta #(min % realizable))
                 (update :deferred-yield-delta + unrealized-excess)
@@ -459,13 +479,71 @@
           decision))
       decision)))
 
+(defn coordinate-recoverable-liquidity-cap
+  "Enforce the recoverable-liquidity cap at module granularity across a batch of
+   decisions that were all computed against the same pre-accrual snapshot.
+
+   The per-position cap in `apply-recoverable-liquidity-cap` evaluates each
+   position against the module-wide net-solvent independently. In a batch
+   (module `accrue` computes every active position's decision from the same
+   world), each position would otherwise claim the full net-solvent headroom and
+   the module would over-realize beyond its recoverable assets. This coordinator
+   recomputes the module-wide projected unrealized total and, when it exceeds
+   net-solvent, scales each position's realized delta down proportionally,
+   moving the excess to deferred.
+
+   Returns the batch of decisions with :unrealized-yield-delta /
+   :deferred-yield-delta adjusted and :recoverable-liquidity-cap short-circuit
+   recorded when the module-wide cap was exceeded."
+  [world module-id token decisions]
+  (let [{:keys [net-solvent all-positions-yield]}
+        (module-recoverable-metrics world module-id token)
+        deltas (mapv #(max 0 (long (:unrealized-yield-delta % 0))) decisions)
+        total-delta (reduce + 0 deltas)
+        projected-total (+ all-positions-yield total-delta)
+        excess (max 0 (- projected-total net-solvent))]
+    (if (and (pos? net-solvent) (pos? excess) (pos? total-delta))
+      (let [scale (/ (max 0 (- total-delta excess)) total-delta)]
+        (mapv (fn [decision delta]
+                (if (pos? delta)
+                  (let [realizable (long (* delta scale))
+                        deferred-excess (- delta realizable)]
+                    (if (pos? deferred-excess)
+                      (-> decision
+                          (update :unrealized-yield-delta (constantly realizable))
+                          (update :deferred-yield-delta + deferred-excess)
+                          (update :short-circuits conj :recoverable-liquidity-cap)
+                          (update :evidence assoc
+                                  :recoverable-liquidity-cap-batch-applied true
+                                  :net-solvent net-solvent
+                                  :all-positions-yield all-positions-yield
+                                  :projected-total projected-total
+                                  :module-excess excess))
+                      decision))
+                  decision))
+              decisions deltas))
+      decisions)))
+
+(defn- floor-ratio
+  "Floor an exact ratio to the nearest integer toward negative infinity.
+   Unlike `long` (which truncates toward zero), floor preserves the full value
+   of a negative accrual so fractional losses are never silently dropped."
+  [x]
+  (let [r (m/ratio x)
+        n (if (ratio? r) (.numerator ^clojure.lang.Ratio r) (biginteger r))
+        d (if (ratio? r) (.denominator ^clojure.lang.Ratio r) 1)
+        q (quot n d)
+        rem (rem n d)]
+    (if (and (neg? n) (not (zero? rem))) (dec q) q)))
+
 (defn- compute-final-deltas
   "Given the decision with final-index set (after all index-modifying short
    circuits), compute accrual deltas from position state using exact arithmetic
    with dust accumulation. This is the single point where deltas are computed.
 
    Positive deltas are quantized with dust carry-forward.
-   Negative deltas pass through as-is (full loss recognized immediately)."
+   Negative deltas pass through as-is (full loss recognized immediately), floored
+   toward negative infinity so sub-unit losses are not truncated away."
   [decision]
   (let [pos (:position decision)]
     (if pos
@@ -475,13 +553,13 @@
             prev-value-exact (m/current-value-exact shares prev-index)
             final-value-exact (m/current-value-exact shares final-index)
             delta-exact (- final-value-exact prev-value-exact)
+            prior-dust (m/ratio (or (:accrual-dust-remainder pos) 0))
             ;; Positive delta: quantize and carry forward sub-unit dust.
             ;; Negative delta: pass through unquantized so losses are recognized.
             {:keys [units carry]}
             (if (pos? delta-exact)
-              (let [dust-carry (m/ratio (or (:accrual-dust-remainder pos) 0))]
-                (m/quantize-with-carry delta-exact dust-carry))
-              {:units (long delta-exact) :carry 0})]
+              (m/quantize-with-carry delta-exact prior-dust)
+              {:units (floor-ratio delta-exact) :carry 0})]
         (-> decision
             (assoc :attempted-accrual-delta units
                    :final-accrual-delta units
@@ -495,7 +573,7 @@
                    :exact-final-value final-value-exact)
             (assoc-in [:evidence :shares] (m/ratio->json shares))
             (assoc-in [:evidence :delta-exact] (m/ratio->json delta-exact))
-            (assoc-in [:evidence :dust-carry-prior] (m/ratio->json carry))
+            (assoc-in [:evidence :dust-carry-prior] (m/ratio->json prior-dust))
             (assoc-in [:evidence :final-units] units)
             (assoc-in [:evidence :dust-carry-after] (m/ratio->json (if (pos? delta-exact) carry 0)))))
       (-> decision

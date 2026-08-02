@@ -88,11 +88,11 @@ Real-world impact scales with arbitrator centralization. A protocol with one pri
 ## Reproducibility
 
 ```bash
-# Start gRPC server
-bb adv:server
+# Run scenario F10 through replay
+bb run:scenario f10-cascade-escalation-drain --run-root /tmp/prf-run
 
-# Run scenario F10
-bb adv:broad
+# Package portable evidence
+bb evidence:pack /tmp/prf-run
 ```
 
 Expected output:

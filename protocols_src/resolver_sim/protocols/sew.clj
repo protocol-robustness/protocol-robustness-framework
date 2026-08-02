@@ -393,6 +393,7 @@
     "set-yield-risk"
     "force-reversal-slash"
     "grant-force-authorisation"
+    "grant-force-authorization"
     "grant-consensus-force-authorisation"
     "grant-related-claims-force-authorisation"
     "revoke-force-authorisation"
@@ -1844,8 +1845,10 @@
             resolver-addr (:resolver-addr p)
             coverage     (:coverage p 0)
             senior-bond  (get-in world [:senior-bonds senior-addr])]
-        (if (nil? senior-bond)
-          (t/fail :senior-not-registered)
+        (if (neg? coverage)
+          (t/fail :invalid-coverage-amount)
+          (if (nil? senior-bond)
+            (t/fail :senior-not-registered)
           (if (nil? resolver-addr)
             (t/fail :invalid-resolver-addr)
             (let [new-reserved (+ (:reserved-coverage senior-bond) coverage)
@@ -1854,7 +1857,7 @@
                 (t/fail :senior-coverage-exceeded)
                 (let [w (assoc-in world [:senior-bonds senior-addr :reserved-coverage]
                                   new-reserved)]
-                  (t/ok (assoc-in w [:resolver-senior resolver-addr] senior-addr)))))))))))
+                  (t/ok (assoc-in w [:resolver-senior resolver-addr] senior-addr))))))))))))
 
 (defmethod apply-action "propose-fraud-slash"
   [{:keys [agent-index] :as context} world event]

@@ -52,6 +52,36 @@
           result (sew/apply-action ctx (t/empty-world 1000) event)]
       (is (= :not-governance (:error result))))))
 
+(defn- delegate-senior-world []
+  (assoc-in (t/empty-world 1000) [:senior-bonds "0xsenior"]
+            {:coverage-max 10000 :reserved-coverage 0}))
+
+(defn- delegate-senior-result [world coverage]
+  (sew/apply-action
+   {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}
+    :governance-identity "0xGov"
+    :governance-mode :legacy}
+   world
+   {:seq 1 :time 1000 :agent "gov" :action "delegate_to_senior"
+    :params {:senior-addr "0xsenior" :resolver-addr "0xjunior" :coverage coverage}}))
+
+(deftest delegate-to-senior-rejects-negative-coverage
+  (testing "a negative reserved coverage cannot shrink the senior's reserved coverage"
+    (let [result (delegate-senior-result (delegate-senior-world) -100)]
+      (is (false? (:ok result)))
+      (is (= :invalid-coverage-amount (:error result))))))
+
+(deftest delegate-to-senior-reserves-valid-coverage
+  (let [result (delegate-senior-result (delegate-senior-world) 8000)]
+    (is (:ok result))
+    (is (= 8000 (get-in result [:world :senior-bonds "0xsenior" :reserved-coverage])))
+    (is (= "0xsenior" (get-in result [:world :resolver-senior "0xjunior"])))))
+
+(deftest delegate-to-senior-still-rejects-coverage-over-max
+  (let [result (delegate-senior-result (delegate-senior-world) 10001)]
+    (is (false? (:ok result)))
+    (is (= :senior-coverage-exceeded (:error result)))))
+
 (deftest activate-resolver-overflow-record-carries-normalized-envelope
   (let [ctx {:agent-index {"gov" {:id "gov" :address "0xGov" :role "governance"}}
              :governance-identity "0xGov"

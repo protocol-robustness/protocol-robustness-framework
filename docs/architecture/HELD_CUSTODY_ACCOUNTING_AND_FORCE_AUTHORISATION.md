@@ -33,6 +33,47 @@ flowchart TD
     G --> I[final-held-summary]
 ```
 
+## Adjustment projection and held-account classification
+
+A held adjustment is the **authoritative event**. The held-ledger index is not
+an independent ledger but a set of **deterministic cumulative projections** of
+that same event across five query and assurance dimensions
+(`src/resolver_sim/accounting/held_ledger_index.clj`):
+`:by-token`, `:by-position`, `:by-account`, `:by-owner`, `:by-workflow`.
+
+This is projection, not propagation between economic actors: indexing the same
+adjustment across five dimensions does **not** redistribute value between
+claims, positions, recipients, or accounts. Each adjustment lands once and is
+summed into every dimension that applies. Replay (`replay-held-adjustment-state`)
+reconstructs these projections from the adjustment sequence; when
+`[:params :held-adjustments/complete?]` is true, invariants require the replayed
+views to match the materialized world.
+
+The `:held/account` dimension classifies held value into a recognized controlled
+vocabulary derived from the reason-derived `held-position-policy`
+(`protocols_src/.../sew/accounting.clj`):
+
+| Held account class | Reasons |
+|---|---|
+| `:escrow-principal` | escrow-principal-deposited, escrow-settlement-released/refunded, force-authorised-release/refund, deferred-yield-reclassified-out, partial-fill-principal-loss, yield-negative-excess |
+| `:yield-custody` | deferred-yield-reserved, yield-accrued, yield-distributed, deferred-yield-claimed |
+| `:appeal-bond` | appeal-bond-posted, -returned, -slashed, -forfeited |
+| `:resolver-yield` | resolver-yield-accrued, -loss, -withdrawn |
+| `:resolver-slash-custody` | resolver-slash-custody-debited |
+| `:held` | generic fallback classification |
+
+Each reason maps to exactly one account class plus the `:scope-keys` that define
+its custody position scope. When a reason has a policy entry, an explicitly
+supplied `:held/account` that conflicts with the reason's class is rejected
+(`:invalid-held-adjustment`). A reason without a policy entry is **not** globally
+rejected: it falls back to an account override or the `:held/unspecified`
+classification. The `:by-account` index therefore aggregates by whatever class is
+recorded, and `:by-position` keys are `[:held/position <token> <account> <scope...>]`.
+
+This is a controlled vocabulary within held custody, not a framework-wide
+accounting taxonomy; it does not by itself classify balances, claims,
+liabilities, write-downs, or settlement outcomes outside the held-ledger.
+
 ## Canonical adjustment model
 
 `resolver-sim.protocols.sew.accounting/add-held` and `sub-held` use the same `adjust-held` path. Their required call shape is:

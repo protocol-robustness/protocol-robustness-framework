@@ -14,7 +14,7 @@ Registered review-gate commands and their current backstop tier.
 - `bb test` — run the canonical project test gate.
 - `make concepts-check` — validate concept data files and the concept registry (default tier; PRF CLI: `java -jar prf.jar concepts validate`).
 - `bb scenarios:validate` — validate the invariant scenario registry and registered scenario suites.
-- `bb benchmark:validate` — validate benchmark pack definitions and referenced resources.
+- `java -jar prf.jar benchmark validate` — validate benchmark pack definitions and referenced resources (default tier; PRF CLI, no bb wrapper).
 - `bb artifact-registry:validate` — validate the default artifact registry if present.
 - `bb replay:determinism --suite suite/reference-validation-v1` — run a two-pass deterministic replay self-test for the reference validation suite (the `--runs` flag is accepted but ignored; the self-test always runs two passes).
 

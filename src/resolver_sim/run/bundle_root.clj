@@ -22,7 +22,8 @@
             [resolver-sim.io.paths :as paths]
             [resolver-sim.run.overview :as overview]
             [resolver-sim.run.criteria :as criteria]
-            [resolver-sim.sensitivity.propagation :as prop])
+            [resolver-sim.sensitivity.propagation :as prop]
+            [resolver-sim.vcs :as vcs])
   (:import [java.security MessageDigest]
            [java.util Arrays]))
 
@@ -167,20 +168,14 @@
 ;; ── Environment helpers ───────────────────────────────────────────────────────
 
 (defn- git-commit
+  "Current VCS HEAD SHA via the jj-then-git resolver, or nil when unavailable."
   []
-  (try
-    (let [proc (.exec (Runtime/getRuntime) (into-array String ["git" "rev-parse" "HEAD"]))
-          reader (java.io.BufferedReader. (java.io.InputStreamReader. (.getInputStream proc)))]
-      (.trim (.readLine reader)))
-    (catch Exception _ nil)))
+  (vcs/commit-sha))
 
 (defn- git-dirty?
+  "True when the working copy has uncommitted changes (jj-then-git)."
   []
-  (try
-    (let [proc (.exec (Runtime/getRuntime) (into-array String ["git" "status" "--porcelain"]))
-          reader (java.io.BufferedReader. (java.io.InputStreamReader. (.getInputStream proc)))]
-      (some? (.readLine reader)))
-    (catch Exception _ nil)))
+  (vcs/dirty?))
 
 (defn environment
   "Capture the current execution environment."

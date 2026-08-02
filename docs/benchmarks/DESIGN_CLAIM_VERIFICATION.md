@@ -254,4 +254,4 @@ All levels 1-2 machinery is implemented and operational:
 | Evidence-node data not available post-replay | Low | Level 1 checks need only the scenario result map, which the adapter already produces |
 | Report builder expects different claim shape | Low | `build-report` passes `:claim-results` through unchanged — shape is defined by the claim evaluators |
 | Level 2 invariant-based proxy is wrong | Low | Each Level 2 claim lists explicit invariant IDs. Adding/removing an invariant changes the check. Reviewed per claim. |
-| Deferred Level 3 claims not validated | Low | `bb benchmarks:validate` checks that deferred scenario claims are explicitly declared via `:benchmark/deferred-scenario-claims`. |
+| Deferred Level 3 claims not validated | Low | `java -jar prf.jar benchmark validate` checks that deferred scenario claims are explicitly declared via `:benchmark/deferred-scenario-claims`. |

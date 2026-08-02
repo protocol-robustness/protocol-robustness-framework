@@ -220,6 +220,24 @@
     (let [world {:yield/positions {}}]
       (is (inv/holds? :yield/aggregate world)))))
 
+(deftest aggregate-accepts-negative-unrealized-shortfall
+  (testing "a legitimate negative-unrealized shortfall (basis folds the loss) reconciles"
+    (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
+                                        :principal 100 :realized-yield 0 :unrealized-yield -20
+                                        :shortfall {:basis-amount 80 :fulfilled-amount 50
+                                                    :deferred-amount 30 :haircut-amount 20}}}}]
+      (is (inv/holds? :yield/aggregate world))
+      (is (inv/holds? :yield/aggregate-shortfall-cap world)))))
+
+(deftest aggregate-still-rejects-genuine-split-imbalance-with-negative-unrealized
+  (testing "a real imbalance is not masked by the negative-unrealized term"
+    (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
+                                        :principal 100 :realized-yield 0 :unrealized-yield -20
+                                        :shortfall {:basis-amount 80 :fulfilled-amount 50
+                                                    :deferred-amount 20 :haircut-amount 20}}}}]
+      ;; splits 90 + (-20) = 70 != basis 80
+      (is (not (inv/holds? :yield/aggregate world))))))
+
 (deftest aggregate-separates-modules
   (testing "aggregate consistency separates different module/token pairs"
     (let [world {:yield/positions {"u1" {:module/id :m1 :token :t1 :status :unwinding

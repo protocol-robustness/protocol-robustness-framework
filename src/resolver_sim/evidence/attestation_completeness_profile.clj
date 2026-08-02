@@ -147,7 +147,6 @@
   [profile evidence-state]
   (let [rules (:profile/rules profile)
         required (:evidence/required rules)
-        optional (:evidence/optional rules)
         sensitivity-controlled (:evidence/sensitivity-controlled rules)
         missing-decision (:sensitivity/missing-decision rules)
         empty-decision (:sensitivity/empty-evidence-set rules)
@@ -156,13 +155,11 @@
         present-categories (set (keep (comp category-from-object-kind :object/kind) objects))
 
         missing-required (clojure.set/difference required present-categories)
-        missing-optional (clojure.set/difference optional present-categories)
         missing-sensitivity (clojure.set/difference sensitivity-controlled present-categories)
 
         sensitivity-decision (:sensitivity/decision evidence-state)
 
         has-missing-required? (seq missing-required)
-        has-missing-optional? (seq missing-optional)
         has-missing-sensitivity? (seq missing-sensitivity)
         has-empty? (empty? objects)
 
@@ -190,8 +187,12 @@
            (seq present-categories))
       :hash-linked
 
-      ;; Everything present
-      (every? (set (concat required optional sensitivity-controlled)) present-categories)
+      ;; Everything required is present (all required categories covered).
+      ;; N.B. this checks REQUIRED -> present, not the reverse: previously it
+      ;; verified only that every present category was a known category, which
+      ;; let a bundle missing a required category (e.g. :attestation-records)
+      ;; be mislabelled :fully-verified.
+      (clojure.set/subset? required present-categories)
       :fully-verified
 
       ;; Partially verified permissive mode

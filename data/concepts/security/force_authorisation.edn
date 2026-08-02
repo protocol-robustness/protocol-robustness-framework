@@ -50,7 +50,22 @@
    :maps-to [:protocol.outcome/single-use-enforced :protocol.outcome/expiry-enforced]}
   :force-authorisation/lifecycle-summary
   {:description "A reviewer-facing summary of a force-authorisation execution chain with decision, execution, verification, and qualification sections (decision status, approvals/dissents, threshold, terminal consumption status, receipt hash, and provenance references)."
-   :maps-to [:protocol.action/report]}}
+   :maps-to [:protocol.action/report]}
+  :force-authorisation/decision-status
+  {:description "The decision outcome vocabulary of a researcher-consensus force-authorisation: :force-authorisation/approved, :force-authorisation/approved-with-dissent, or :force-authorisation/declined."
+   :maps-to [:protocol.outcome/decided]}
+  :force-authorisation/approved
+  {:description "The authorisation is effective and approved (plain-language gloss: 'accept')."
+   :maps-to [:protocol.outcome/decided]}
+  :force-authorisation/approved-with-dissent
+  {:description "The authorisation is effective and approved despite recorded dissenting positions. Dissent is a decision-process observation (consensus was not unanimous); it is recorded with a :dissent/reason but carries no executable qualification that alters the permitted action, scope, validity, or execution conditions. This is NOT 'accept with qualification'."
+   :maps-to [:protocol.outcome/decided]}
+  :force-authorisation/declined
+  {:description "The authorisation did not reach the required approval threshold and is not effective."
+   :maps-to [:protocol.outcome/decided]}
+  :force-authorisation/qualified-acceptance
+  {:description "A distinct decision form (conditional, scoped, caveated, or modified acceptance) that is currently NOT implemented. It is not a synonym for :approved-with-dissent. Introducing it would require a represented, committed, verified, and enforced qualification that changes the permitted action, scope, validity, or execution conditions."
+   :maps-to [:protocol.outcome/decided]}}
 
  :concept/roles
  {:governance-authoriser
@@ -179,7 +194,8 @@
   "Scope integrity depends on content-addressed hashing of the grant-time parameters."
   "The consumption registry is append-only and cannot be rewritten."
   "Evidence ordering (grant before execution) is independently verifiable."
-  "Lifecycle is strictly ordered: a grant must precede execution, execution must precede consumption during finalization, and expiry or revocation must precede execution to be valid."]
+  "Lifecycle is strictly ordered: a grant must precede execution, execution must precede consumption during finalization, and expiry or revocation must precede execution to be valid."
+  "Dissent concerns the decision process (consensus was not unanimous); qualification concerns the content or effect of the decision. :approved-with-dissent records dissent but applies no operative qualification, so it is not equivalent to 'accept with qualification'."]
 
  :concept/out-of-scope
  ["Safety or correctness of the authorised change."

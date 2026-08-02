@@ -233,6 +233,7 @@ See `data/notebooks.edn` for the full registry with descriptions and maturity le
 |---|---|
 | `framework/evidence-invariant-mapping.md` | Evidence-to-invariant mapping |
 | `framework/invariant-parity.md` | Invariant parity between simulation and Solidity |
+| `framework/SOLIDITY_EQUIVALENCE_CORE_V1.md` | `solidity-equivalence-core-v1` cross-implementation invariant profile |
 | `framework/patch-fraud-slash-accounting.md` | Fraud/slash accounting patch |
 | `framework/temporal-rules.md` | Temporal rule definitions |
 

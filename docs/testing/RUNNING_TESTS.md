@@ -177,7 +177,7 @@ bb trace:solidity:verify --sew-repo ../sew-protocol
 ### Transition/guard coverage release gate
 
 ```bash
-bb report:release-gate
+bb test   # runs scripts/validate/coverage_gates.py (max-unhit-transitions gate)
 ```
 
 Prints:
@@ -186,10 +186,14 @@ Prints:
 - purpose-grouped hit maps
 - explicit **unhit transition backlog** for release-candidate closure
 
+The generated `docs/generated/transition-guard-catalog.md` (via
+`make core-generated-docs-generate`) exposes the per-transition hit counts and
+the unhit backlog.
+
 ### Adversarial profitability surfaces (rational-agent coverage)
 
 ```bash
-bb adv:sweep
+clojure -M:run -- -p data/params/phase-i-all-mechanisms.edn   # 1D profitability sweep
 ```
 
 Outputs:
@@ -198,10 +202,10 @@ Outputs:
 - `results/profitability-surfaces/<timestamp>/regions.json`
 - `results/profitability-surfaces/<timestamp>/promotions.json`
 
-For expanded promotion backlog:
+For the expanded promotion backlog, run the multi-epoch sweep:
 
 ```bash
-bb adv:sweep:promote
+clojure -M:run -- -p data/params/phase-j-baseline-stable.edn -m
 ```
 
 ### Run specific phase

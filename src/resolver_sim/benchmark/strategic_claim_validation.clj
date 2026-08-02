@@ -11,9 +11,12 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.runner :as runner]
+            [resolver-sim.benchmark.strategic-property-results :as spr]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.scenario.suites :as suites]
+            [resolver-sim.validation.deviation-contract :as dc]
             [resolver-sim.yield.partial-fill :as partial-fill]
+            [resolver-sim.yield.strategic-partial-fill :as strategic-partial-fill]
             [resolver-sim.validation.gate :as gate]))
 
 (def strategic-claim-catalog
@@ -28,7 +31,8 @@
                        :allocation/shortfall]
     :closed-form-check-ids #{:partial-fill/conservation
                              :partial-fill/per-claim-conservation}
-    :deviation-set-ids #{:partial-fill/claimant-monotonicity}
+    :deviation-set-ids #{:partial-fill/claimant-monotonicity
+                         :partial-fill/claimant-split-merge-sybil}
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/partial-fill
                         :allocation/shortfall}}
@@ -317,6 +321,27 @@
        :check-results (vec level-checks)
        :evidence-references (vec (mapcat :evidence-references matched-scenarios))})))
 
+(defn- strategic-properties-for-claim
+  "Run the strategic-property validation for a claim's declared deviation sets.
+
+   Resolves each :deviation-set-ids entry to a registered deviation contract,
+   unions the contracts' deviation generators, and runs the exhaustive
+   strategic-partial-fill validation. Returns the raw
+   {:properties [...] :summary {...}} artifact, or nil when the claim declares
+   no deviation sets.
+
+   The unioned deviations are passed explicitly (no :contract-id) because
+   validate-strategic-properties would otherwise derive the deviation set from a
+   single contract and silently ignore the others."
+  [claim-spec]
+  (let [set-ids (seq (:deviation-set-ids claim-spec))]
+    (when set-ids
+      (let [contracts (keep dc/get-contract set-ids)
+            deviations (into #{} (mapcat :deviation-generators) contracts)]
+        (strategic-partial-fill/validate-strategic-properties
+         :deviations deviations
+         :max-states 500)))))
+
 (defn- strategic-claim-artifact
   [claim-spec manifest evidence]
   (let [suite-key (:benchmark/scenario-suite manifest)
@@ -351,6 +376,18 @@
                                               results-by-path
                                               claim-spec))
                              (:mechanism-levels claim-spec))
+        strategic-artifact (strategic-properties-for-claim claim-spec)
+        strategic-properties (or (:properties strategic-artifact) [])
+        strategic-property-results (spr/strategic-properties->results strategic-artifact)
+        strategic-deviation-results (spr/strategic-properties->deviation-results
+                                     strategic-artifact)
+        level-verdicts (if (seq strategic-properties)
+                         (mapv (fn [entry]
+                                 (if (= :allocation/partial-fill (:mechanism-level entry))
+                                   (assoc entry :properties strategic-properties)
+                                   entry))
+                               level-verdicts)
+                         level-verdicts)
         coverage-gaps (->> level-verdicts
                            (filter #(= :uncovered (:verdict %)))
                            (mapv (fn [entry]
@@ -373,15 +410,15 @@
                              (or combined-integrity {:gate :integrity :verdict :pass})
                              all-check-results
                              :assumptions {:claim-id (:claim/id claim-spec)})
-        ;; Strategic gate — currently collects deviation-resistance results
-        ;; from available level-verdict properties. As strategic checks
-        ;; (split/merge/sybil etc.) are integrated into the claim pipeline,
-        ;; their results will feed into this gate automatically.
+        ;; Strategic gate — deviation-resistance results come from the claim's
+        ;; declared deviation sets (split/merge/permute/sybil/inflate) run through
+        ;; strategic-partial-fill and routed into the gate as deviation results.
         strategic-gate (gate/evaluate-strategic-gate
                         economic-model-gate
-                        (mapcat :properties level-verdicts)
+                        strategic-deviation-results
                         []
-                        :contract-id nil
+                        :contract-id (some (comp :contract/id dc/get-contract)
+                                           (:deviation-set-ids claim-spec))
                         :scope {:mechanism-levels (:mechanism-levels claim-spec)})]
     {:artifact/kind artifact-kind
      :artifact/version artifact-version
@@ -394,6 +431,7 @@
      :matched-scenarios matched-scenarios
      :level-verdicts level-verdicts
      :coverage-gaps coverage-gaps
+     :strategic-property-results strategic-property-results
      :gates {:integrity (first integrity-verdicts)
              :economic-model economic-model-gate
              :strategic strategic-gate}
@@ -410,6 +448,9 @@
                :passed-level-count passed-level-count
                :failed-level-count failed-level-count
                :uncovered-level-count uncovered-level-count
+               :strategic-property-count (count strategic-properties)
+               :strategic-property-violations (count (filter #(= :violated (:verdict %))
+                                                             strategic-deviation-results))
                :gates-blocked? (some #(= :blocked (:verdict %))
                                      [(first integrity-verdicts)
                                       economic-model-gate
@@ -419,7 +460,8 @@
                             (not (some #(= :blocked (:verdict %))
                                        [(first integrity-verdicts)
                                         economic-model-gate
-                                        strategic-gate])))}}))
+                                        strategic-gate]))
+                            (not (= :violated (:verdict strategic-gate))))}}))
 
 (defn- valid-coverage-gap?
   [gap]

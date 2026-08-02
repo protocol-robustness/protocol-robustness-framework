@@ -81,7 +81,7 @@ Optional fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `:concept/shadows-global?` | `Boolean` | When true, this benchmark-local concept intentionally shadows a global concept with the same ID in `data/concepts/`. Required when a local concept ID duplicates a global one. Without it, `bb benchmarks:validate` reports a collision error. |
+| `:concept/shadows-global?` | `Boolean` | When true, this benchmark-local concept intentionally shadows a global concept with the same ID in `data/concepts/`. Required when a local concept ID duplicates a global one. Without it, `java -jar prf.jar benchmark validate` reports a collision error. |
 | `:benchmark/deferred-scenario-claims` | `#{<qualified-kw> …}` | Scenario-level claims (`:benchmark/scenarios[*].:claim`) that are not in the claim registry because they represent Level 3 semantic claims not yet evaluated. Without this field, unresolved scenario claims cause validation failure. |
 
 
@@ -95,7 +95,7 @@ and SHOULD carry a `:benchmark/status-updated` date.
 
 | Status | Meaning | Promotion criteria | Deprecation criteria |
 |--------|---------|--------------------|----------------------|
-| `:active` | Ready for use. All Level 1 mechanical claims have evaluators. Suite scenarios execute and produce reproducible evidence. | Promoted from `:experimental` when all claims have evaluators, evidence is reproducible, and the pack passes `bb benchmarks:validate` cleanly for one release cycle. | N/A |
+| `:active` | Ready for use. All Level 1 mechanical claims have evaluators. Suite scenarios execute and produce reproducible evidence. | Promoted from `:experimental` when all claims have evaluators, evidence is reproducible, and the pack passes `java -jar prf.jar benchmark validate` cleanly for one release cycle. | N/A |
 | `:experimental` | Under development. Some claims may be deferred (Level 3 semantic). Scenarios or evaluators may change without notice. | Created at pack inception. Remains `:experimental` until all claims are evaluable and evidence is reproducible. | May be promoted to `:active` or retired to `:deprecated` without a formal sunset. |
 | `:deprecated` | No longer maintained. Replaced by a newer pack version or superseded by a different approach. | No promotion path. | Should set `:deprecated-on` date and `:replaced-by` pointing to the replacement benchmark ID. May be removed from the registry after one quarter. |
 

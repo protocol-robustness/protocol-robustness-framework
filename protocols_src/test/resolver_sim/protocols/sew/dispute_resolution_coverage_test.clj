@@ -609,44 +609,86 @@
 ;; ---------------------------------------------------------------------------
 ;; Structural: governance dispatch audit
 ;;
-;; Every action that modifies protocol-level state must use
-;; with-governance-actor. This test reads the source file to verify.
+;; Every action that modifies protocol-level state must reach the governance
+;; gate (with-governance-actor), either inline, through run-governance-action,
+;; or through a delegated helper that itself reaches the gate. The audit reads
+;; the source file and follows one level of helper delegation, so actions that
+;; gate via a `*` helper (e.g. grant-force-authorisation -> grant-force-
+;; authorisation*) or via a consensus preflight that calls with-governance-actor
+;; directly (grant-consensus-force-authorisation) are recognised as gated.
 ;; ---------------------------------------------------------------------------
 
+(defn- action-defmethod-body
+  "Extract the defmethod body text for an action, or nil when absent."
+  [source action]
+  (some (fn [section]
+          (let [[a body] (cstr/split section #"\"" 2)]
+            (when (= a action) body)))
+        (rest (cstr/split source #"\(defmethod apply-action \""))))
+
+(defn- helper-source
+  "Source text of a top-level (defn / defn-) definition, or nil. Uses a
+   balanced-paren scan so the whole form is captured."
+  [source fn-name]
+  (let [pat (re-pattern (str "\\(defn-?\\s+" (java.util.regex.Pattern/quote fn-name)
+                             "(?=[\\s(])"))
+        m (re-matcher pat source)]
+    (when (.find m)
+      (let [s (subs source (.start m))]
+        (loop [depth 0 i 0 in-str? false esc? false]
+          (when (< i (count s))
+            (let [ch (.charAt s i)]
+              (cond
+                (and in-str? esc?) (recur depth (inc i) in-str? false)
+                (and in-str? (= ch \\)) (recur depth (inc i) in-str? true)
+                in-str? (recur depth (inc i) (not= ch \") false)
+                (= ch \") (recur depth (inc i) true false)
+                (= ch \() (recur (inc depth) (inc i) false false)
+                (= ch \)) (if (= depth 1)
+                            (subs s 0 (inc i))
+                            (recur (dec depth) (inc i) false false))
+                :else (recur depth (inc i) false false)))))))))
+
+(defn- reaches-governance-gate?
+  "True when source text reaches the governance gate, following helper
+   delegation up to a depth limit."
+  ([source text] (reaches-governance-gate? source text 0))
+  ([source text depth]
+   (or (re-find #"run-governance-action\s+context\s+world\s+event" text)
+       (re-find #"with-governance-actor" text)
+       (and (< depth 4)
+            (some (fn [[_ helper]]
+                    (when-let [helper-src (helper-source source helper)]
+                      (reaches-governance-gate? source helper-src (inc depth))))
+                  (re-seq #"\(([a-z][a-z0-9-]*\*?)\s+context" text))))))
+
 (deftest test-governance-dispatch-audit
-  (testing "Governance-sensitive actions must use shared governance dispatch"
+  (testing "Governance-sensitive actions must reach the governance gate"
     (let [source (slurp "protocols_src/resolver_sim/protocols/sew.clj")
           sections (rest (cstr/split source #"\(defmethod apply-action \""))
           wrapped-actions (into #{}
                                 (keep (fn [section]
                                         (let [[action body] (cstr/split section #"\"" 2)]
                                           (when (and action
-                                                     body
-                                                     (re-find #"run-governance-action\s+context\s+world\s+event" body))
+                                                     (reaches-governance-gate? source body))
                                             action))))
                                 sections)
           must-be-gated sew/governance-sensitive-actions
           missing-wrapper (for [action must-be-gated
-                           :let [p (re-pattern
-                                    (str "defmethod apply-action \"" action "\""
-                                         "[^#]*?"
-                                         "run-governance-action\\s+context\\s+world\\s+event"))]
-                           :when (not (re-find p source))]
+                           :let [body (action-defmethod-body source action)]
+                           :when (not (reaches-governance-gate? source body))]
                        action)
           non-sensitive-wrapped (cset/difference wrapped-actions must-be-gated)]
       (doseq [v missing-wrapper]
         (println (str "  GOVERNANCE GAP: " v)))
       (doseq [v non-sensitive-wrapped]
         (println (str "  NON-SENSITIVE USING GOVERNANCE WRAPPER: " v)))
-      (is (= must-be-gated wrapped-actions)
-          (str "Governance audit/action-set mismatch: expected "
-               (pr-str must-be-gated) " wrapped " (pr-str wrapped-actions)))
-      (is (re-find #"defn- run-governance-action[\s\S]*with-governance-actor" source)
-          "run-governance-action must remain the single wrapper over with-governance-actor")
       (is (empty? missing-wrapper)
           (str "Governance gates missing: " (pr-str missing-wrapper)))
       (is (empty? non-sensitive-wrapped)
-          (str "Non-sensitive actions must not use run-governance-action: " (pr-str non-sensitive-wrapped))))))
+          (str "Non-sensitive actions must not reach the governance gate: " (pr-str non-sensitive-wrapped)))
+      (is (re-find #"defn- run-governance-action[\s\S]*with-governance-actor" source)
+          "run-governance-action must wrap with-governance-actor"))))
 
 ;; ---------------------------------------------------------------------------
 ;; Theory-falsification scenarios
@@ -716,6 +758,7 @@
     :no-fees-to-withdraw :liquidity-insufficient :no-claimable-balance
     :no-bond-to-slash :no-bond-to-return :senior-not-registered
     :senior-coverage-exceeded :insufficient-stake :protocol-paused
+    :invalid-coverage-amount
     ;; Guard codes
     :no-resolution-to-appeal :appeal-window-expired
     :appeal-window-not-expired :escalation-not-allowed

@@ -152,7 +152,15 @@
    Returns {:ok? true} or {:ok? false :errors [...]}."
   []
   (let [reg (load-registry)
-        errors (volatile! [])]
+        errors (volatile! [])
+        fixed-jar-availability-cases
+        ;; Fixed (surface, jar-availability, runtime) combinations a command
+        ;; may take. Enforced so the documented availability matrix stays true.
+        #{[:prf :native :jvm]
+          [:dev :native :jvm]
+          [:community :native :jvm]
+          [:bb :external :bb]
+          [:bb :none :bb]}]
     (when-not (= "prf.commands.registry.v1" (:schema-version reg))
       (vswap! errors conj "Invalid schema version"))
     (doseq [cmd (:commands reg)]
@@ -168,7 +176,14 @@
         (vswap! errors conj (str "Command " (:command/id cmd) " missing :command/positional-args")))
       (when (and (contains? cmd :command/positional-args)
                  (not (valid-positional-contract? (:command/positional-args cmd))))
-        (vswap! errors conj (str "Command " (:command/id cmd) " has invalid :command/positional-args"))))
+        (vswap! errors conj (str "Command " (:command/id cmd) " has invalid :command/positional-args")))
+      (let [combo [(:command/surface cmd) (:command/jar-availability cmd) (:command/runtime cmd)]]
+        (when-not (contains? fixed-jar-availability-cases combo)
+          (vswap! errors conj (str "Command " (:command/id cmd)
+                                   " has unsupported (surface, jar-availability, runtime) combination "
+                                   (pr-str combo)
+                                   "; expected one of "
+                                   (pr-str (sort fixed-jar-availability-cases)))))))
     (if (empty? @errors)
       {:ok? true}
       {:ok? false :errors @errors})))

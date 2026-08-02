@@ -305,12 +305,18 @@
                                  :position-id owner-id
                                  :now now
                                  :dt dt})])))]
-        (reduce (fn [next-world [_ decision]]
-                  (accrual/apply-accrual-decision-with-attribution
-                   next-world
-                   decision))
-                world
-                decisions)))))
+        ;; All decisions were computed against the same pre-accrual snapshot, so the
+        ;; recoverable-liquidity cap must be coordinated at module granularity —
+        ;; otherwise each position independently spends the same net-solvent headroom.
+        (let [coordinated (accrual/coordinate-recoverable-liquidity-cap
+                           world module-id token
+                           (mapv second decisions))]
+          (reduce (fn [next-world [[owner-id _] decision]]
+                    (accrual/apply-accrual-decision-with-attribution
+                     next-world
+                     decision))
+                  world
+                  (mapv vector decisions coordinated)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; single withdrawal

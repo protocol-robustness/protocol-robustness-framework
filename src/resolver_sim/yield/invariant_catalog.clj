@@ -43,7 +43,7 @@
     :prf-tags [:liquidity-shortfall :conservation :aggregate]}
 
    :yield/aggregate-shortfall
-   {:description "Total recorded shortfall across all positions is within available value for each (module-id, token) pair."
+   {:description "Compatibility alias of :yield/aggregate-shortfall-cap: the summed shortfall basis of each (module-id, token) pair does not exceed the summed position value of that pair."
     :prf-tags [:liquidity-shortfall :conservation :aggregate]}
 
    :yield/aggregate

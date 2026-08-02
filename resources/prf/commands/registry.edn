@@ -599,6 +599,7 @@
    :command/title "Build framework-only CLI JAR"
    :command/category :build
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "build:prf"
    :command/positional-args {:min 0 :max 0}
@@ -609,6 +610,7 @@
    :command/title "Build sew uberjar"
    :command/category :build
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "build:sew"
    :command/positional-args {:min 0 :max 0}
@@ -619,6 +621,7 @@
     :command/title "Build CLI uberjar"
     :command/category :build
     :command/surface :bb
+    :command/jar-availability :none
     :command/runtime :bb
     :command/bb-task "build:prf"
     :command/positional-args {:min 0 :max 0}
@@ -629,6 +632,7 @@
    :command/title "Build all uberjars"
    :command/category :build
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "build"
    :command/positional-args {:min 0 :max 0}
@@ -679,6 +683,7 @@
    :command/title "Package evidence pack"
    :command/category :evidence
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "evidence:pack"
    :command/positional-args {:min 0 :max 0}
@@ -689,6 +694,7 @@
    :command/title "Verify evidence pack"
    :command/category :evidence
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "evidence:verify"
    :command/positional-args {:min 0 :max 0}
@@ -699,6 +705,7 @@
    :command/title "Sync trace fixtures"
    :command/category :fixtures
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "fixtures:sync"
    :command/positional-args {:min 0 :max 0}
@@ -709,6 +716,7 @@
    :command/title "Check shadow registry"
    :command/category :validation
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "shadow:check"
    :command/positional-args {:min 0 :max 0}
@@ -719,6 +727,7 @@
    :command/title "Shadow registry report"
    :command/category :validation
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "shadow:report"
    :command/positional-args {:min 0 :max 0}
@@ -729,6 +738,7 @@
    :command/title "Start JMX monitor"
    :command/category :maintenance
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "monitor"
    :command/positional-args {:min 0 :max 0}
@@ -740,6 +750,7 @@
    :command/title "Open notebook hub"
    :command/category :notebook
    :command/surface :bb
+   :command/jar-availability :none
    :command/runtime :bb
    :command/bb-task "notebook:index"
    :command/positional-args {:min 0 :max 0}
@@ -750,6 +761,7 @@
     :command/title "Validate workspace"
     :command/category :maintenance
     :command/surface :bb
+    :command/jar-availability :none
     :command/runtime :bb
     :command/bb-task "workspace:doctor"
     :command/positional-args {:min 0 :max 0}

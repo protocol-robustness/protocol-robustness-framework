@@ -26,6 +26,7 @@
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.logging :as log]
             [resolver-sim.definitions.passive-registries :as passive-registries]
+            [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.hash.canonical :as hc]))
 (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
 (defn- p [x] (str x))
@@ -272,6 +273,10 @@
               {:type :fn}
               (instance? clojure.lang.Var x)
               (str x)
+              (satisfies? resolver-sim.protocols.protocol/SimulationAdapter x)
+              ;; Runtime protocol adapter objects (e.g. YieldProviderProtocol)
+              ;; are not persistable; persist their canonical protocol id instead.
+              (proto/protocol-id x)
               ;; Sequence types (LazySeq, PersistentList, Cons, ...) are not
               ;; canonical-bytes encodable. Realize them as vectors so claim
               ;; results / attestations can be hashed and persisted.

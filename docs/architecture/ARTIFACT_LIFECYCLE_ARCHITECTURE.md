@@ -78,7 +78,7 @@ Generated documentation is tracked because it is a repository reference surface,
 
 ### 4.1 Scenario execution
 
-`bb run:scenario`, scenario search, and `bb evidence:build` run a scenario through replay and create local output. The intended artifact families are:
+`bb run:scenario`, scenario search, and `bb evidence:pack` run a scenario through replay and create local output. The intended artifact families are:
 
 | Family | Typical contents | Purpose |
 |---|---|---|

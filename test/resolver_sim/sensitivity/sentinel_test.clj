@@ -316,6 +316,24 @@
     (is (= :sensitivity/private (get-in result [:policy-output :sensitivity :level])))
     (is (= "5M" (get-in result [:policy-output :sensitivity :risk-meta :value-at-risk])))))
 
+(deftest attach-sensitivity-ignores-malformed-sensitivity
+  (testing "an empty sensitivity map must not be attached as provenance without a level"
+    (let [artifact {:node-hash "sha256:n"}]
+      (is (= artifact (prop/attach-sensitivity artifact {}))
+          "empty map attaches nothing")
+      (is (= artifact (prop/attach-sensitivity artifact {:sentinel/effective-level nil}))
+          "nil level attaches nothing")
+      (is (= artifact (prop/attach-sensitivity artifact {:sentinel/decision :allowed}))
+          "a map without :sentinel/effective-level attaches nothing")
+      (is (= artifact (prop/attach-sensitivity artifact :not-a-map))
+          "a non-map sensitivity attaches nothing"))))
+
+(deftest attach-sensitivity-attaches-attestation-metadata
+  (let [artifact {:attestation/id "sha256:a"}
+        sens {:sentinel/effective-level :sensitivity/private}
+        result (prop/attach-sensitivity artifact sens)]
+    (is (= sens (get-in result [:attestation/metadata :sensitivity])))))
+
 (deftest merge-sensitivity-picks-highest
   (let [sensitivities [{:level :sensitivity/internal}
                        {:level :sensitivity/private}

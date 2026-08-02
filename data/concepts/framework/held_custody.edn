@@ -14,12 +14,35 @@
 
  :concept/protocols #{:protocol/sew-v1 :protocol/prf}
 
- :concept/related
-  [:framework/content-root
-   :framework/research-command
-   :framework/semantic-commitments
-   :concept/conservation
-   :yield/yield-bearing]
+  :concept/related
+   [:framework/content-root
+    :framework/research-command
+    :framework/semantic-commitments
+    :concept/conservation
+    :yield/yield-bearing]
+
+  :concept/vocabulary
+  {:held-account/class
+   {:description "The held custody account class that classifies held value. The recognized controlled vocabulary is derived from the reason-derived held-position policy: :held-account/escrow-principal, :held-account/yield-custody, :held-account/appeal-bond, :held-account/resolver-slash-custody, :held-account/resolver-yield, and :held-account/held. When a reason has a policy entry, an explicitly supplied :held/account that conflicts with the reason's class is rejected (:invalid-held-adjustment); a reason without a policy entry falls back to an account override or an unspecified classification rather than being rejected outright. This is a controlled vocabulary within held custody, not a framework-wide accounting taxonomy."
+    :maps-to [:protocol.parameter/held-account]}
+   :held-account/escrow-principal
+   {:description "Held value for escrow principal (deposited, released, refunded, force-authorised, partial-fill loss, negative-yield excess)."
+    :maps-to [:protocol.parameter/held-account]}
+   :held-account/yield-custody
+   {:description "Held value for yield accrual and distribution reserved in yield custody."
+    :maps-to [:protocol.parameter/held-account]}
+   :held-account/appeal-bond
+   {:description "Held value for appeal / challenge bonds posted, returned, slashed, or forfeited."
+    :maps-to [:protocol.parameter/held-account]}
+   :held-account/resolver-slash-custody
+   {:description "Held value for resolver stake debited by a slash into slash custody."
+    :maps-to [:protocol.parameter/held-account]}
+   :held-account/resolver-yield
+   {:description "Held value for yield accrued to a resolver's stake position."
+    :maps-to [:protocol.parameter/held-account]}
+   :held-account/held
+   {:description "Generic held classification used when no narrower account class applies."
+    :maps-to [:protocol.parameter/held-account]}}
 
  :concept/roles
  {:custody-observer {:description "Entity that examines held-custody artifacts to verify custody integrity."
@@ -36,8 +59,8 @@
                           :maps-to [:protocol.entity/evidence]}
   :held-adjustment-ledger {:description "Ordered canonical sequence of held-adjustments used to derive indexes and replay final balances."
                            :maps-to [:protocol.entity/ledger]}
-  :held-ledger-index {:description "Derived views: by-token, by-position, by-account, by-owner, by-workflow. Always non-negative for token/position/account/workflow; by-owner is net custody-flow attribution and may be negative."
-                      :maps-to [:protocol.entity/evidence]}
+   :held-ledger-index {:description "Deterministic cumulative projections of the authoritative held-adjustment sequence across five query/assurance dimensions: by-token, by-position, by-account, by-owner, by-workflow. Each adjustment is the authoritative event; these dimensions index that same event, they do not redistribute value between claims, positions, or recipients. Always non-negative for token/position/account/workflow; by-owner is net custody-flow attribution and may be negative."
+                       :maps-to [:protocol.entity/evidence]}
   :held-custody-artifact-hash {:description "Canonical content hash of a held-custody artifact under :hash/intent :evidence-record."
                                :maps-to [:protocol.entity/canonical-hash]}}
 
@@ -103,6 +126,7 @@
   "A held-custody artifact hash commits to the canonical evidence-record projection; incidental fields are excluded. Artifact v2 is classified as :legacy-v2, while v3 is classified as :attributed-v3 or :unattributed-v3; only v3 commits parameter provenance."
   "Parameter attribution is structural and unresolved: it neither resolves a context/address nor proves the selected parameter, its value, policy applicability, or amount consistency."
   "An abstract add-held is determined by its asset/unit, amount, custody subject, and reason/adjustment type under an already-selected policy interpretation; it does not by itself select that policy or decide the economic event justifying the increase."
+  "A held adjustment is the authoritative event; the five held-ledger index dimensions are deterministic cumulative projections of that event, not a redistribution of value between claims, positions, or recipients."
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope

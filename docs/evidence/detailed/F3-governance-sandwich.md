@@ -86,11 +86,11 @@ This is a governance privilege escalation that is structurally indistinguishable
 ## Reproducibility
 
 ```bash
-# Start gRPC server
-bb adv:server
+# Run scenario F3 through replay
+bb run:scenario f3-governance-sandwich --run-root /tmp/prf-run
 
-# Run scenario F3
-bb adv:broad
+# Package portable evidence
+bb evidence:pack /tmp/prf-run
 ```
 
 Expected output:

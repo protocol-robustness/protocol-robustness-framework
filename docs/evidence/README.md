@@ -34,14 +34,15 @@ bb trace:diff \
   ./data/fixtures/traces/governance-decay-exploit.trace.json \
   results/trace-compare/s01-vs-governance-decay
 
-# Run invariant suite (deterministic scenarios S01–S41+)
+# Run canonical deterministic invariant target (S01–S41)
 bb test:invariants
 
 # Run full fixture suites (all 116 scenarios)
 bb test:suites
 
-# Generate evidence artifacts for a single scenario
-bb evidence:build --scenario data/fixtures/traces/s08-state-machine-attack-gauntlet.trace.json
+# Run a scenario through replay and package portable evidence
+bb run:scenario s08-state-machine-attack-gauntlet --run-root /tmp/prf-run
+bb evidence:pack /tmp/prf-run
 
 ```
 

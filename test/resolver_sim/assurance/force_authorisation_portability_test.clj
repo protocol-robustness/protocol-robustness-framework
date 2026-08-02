@@ -337,9 +337,11 @@
     (is (= :force-auth-lifecycle-summary (:artifact/kind r)))
     (is (= 2 (:total r)))
     (is (= 1 (:consumed r)))
-    (is (= 1 (:active r)))
+    (is (= 1 (:created r)))
     (is (= 0 (:orphan-consumptions r)))
     (is (true? (:lifecycle-consistent? r)))
+    (is (= "force-auth-lifecycle-summary.v2" (:schema-version r)))
+    (is (= {:consumed 1 :active 1} (:counts-by-status r)))
     (is (true? (fa-ev/valid-force-auth-lifecycle-summary? r)))))
 
 (deftest force-auth-lifecycle-summary-evidence-detects-orphans
@@ -357,6 +359,48 @@
                  (assoc r :total 99))))
     (is (false? (fa-ev/valid-force-auth-lifecycle-summary?
                  (assoc r :artifact/hash "sha256:forged"))))))
+
+(deftest force-auth-lifecycle-summary-v2-dimensions
+  (testing "lifecycle v2 surfaces outstanding usable, assurance/governance counts, and time range"
+    (let [active (assoc (hash-bound-auth "fa-0" :active) :created-at 100)
+          consumed (assoc (hash-bound-auth "fa-1" :consumed) :created-at 200 :executed-by "0xgov")
+          r (fa-ev/build-force-auth-lifecycle-summary
+             {:authorisations {"fa-0" active "fa-1" consumed}
+              :consumption-registry {"fa-1" {:consumed-at 500 :consumed-by "0xrelayer"}}
+              :now 50
+              :assurance {"fa-0" :address-bound "fa-1" :role-declared}
+              :governance-mode {"fa-0" :restricted "fa-1" :legacy}
+              :creator-provenance {"fa-0" :direct-session}})]
+      (is (= 1 (:outstanding-usable r)))
+      (is (= 1 (:consumption-count r)))
+      (is (= 1 (:conflicting-consumers r)))
+      (is (= {:address-bound 1 :role-declared 1} (:assurance-counts r)))
+      (is (= {:restricted 1 :legacy 1} (:governance-mode-counts r)))
+      (is (= {:direct-session 1} (:creator-provenance-counts r)))
+      (is (= 100 (get-in r [:time-range :created-at-earliest])))
+      (is (= 200 (get-in r [:time-range :created-at-latest])))
+      (is (= 500 (get-in r [:time-range :consumed-at-earliest])))
+      (is (true? (fa-ev/valid-force-auth-lifecycle-summary? r))))))
+
+(deftest force-auth-lifecycle-summary-v2-expiry-triage
+  (let [expired (assoc (hash-bound-auth "fa-0" :active) :expires-at 100)
+        r (fa-ev/build-force-auth-lifecycle-summary
+           {:authorisations {"fa-0" expired}
+            :consumption-registry {}
+            :now 500})]
+    (is (= 1 (:expired r)))
+    (is (= ["fa-0"] (:expired-after-window (:triage r))))
+    (is (true? (fa-ev/valid-force-auth-lifecycle-summary? r)))))
+
+(deftest force-auth-lifecycle-summary-v1-migration-reader
+  (testing "a v1-shaped lifecycle summary validates under the v1 reader, v2 does not"
+    (let [v1 (fa-ev/build-force-auth-lifecycle-summary-v1
+              {:authorisations {"fa-0" (hash-bound-auth "fa-0" :consumed)}
+               :consumption-registry {"fa-0" {:consumed-at 500}}})]
+      (is (= "force-auth-lifecycle-summary.v1" (:schema-version v1)))
+      (is (true? (fa-ev/valid-force-auth-lifecycle-summary-v1? v1)))
+      (is (false? (fa-ev/valid-force-auth-lifecycle-summary? v1))
+          "a v1 artifact is not a valid v2 artifact"))))
 
 ;; ── force-auth-add-held-summary ────────────────────────────────────────────
 
@@ -501,3 +545,20 @@
                  (assoc r :total 99))))
     (is (false? (fa-ev/valid-force-auth-add-held-summary?
                  (assoc r :artifact/hash "sha256:forged"))))))
+
+(deftest force-auth-add-held-summary-v2-schema
+  (let [r (fa-ev/build-force-auth-add-held-summary
+           {:artifacts [(sample-add-held :USDC 100 :in)]})]
+    (is (= "force-auth-add-held-summary.v2" (:schema-version r)))
+    (is (true? (fa-ev/valid-force-auth-add-held-summary? r)))
+    (is (false? (fa-ev/valid-force-auth-add-held-summary-v1? r))
+        "a v2 artifact is not a valid v1 artifact")))
+
+(deftest force-auth-add-held-summary-v1-migration-reader
+  (testing "a v1-shaped artifact validates under the v1 reader, v2 does not"
+    (let [v1 (fa-ev/build-force-auth-add-held-summary-v1
+              {:artifacts [(sample-add-held :USDC 100 :in)]})]
+      (is (= "force-auth-add-held-summary.v1" (:schema-version v1)))
+      (is (true? (fa-ev/valid-force-auth-add-held-summary-v1? v1)))
+      (is (false? (fa-ev/valid-force-auth-add-held-summary? v1))
+          "a v1 artifact is not a valid v2 artifact"))))

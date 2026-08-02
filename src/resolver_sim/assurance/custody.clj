@@ -555,6 +555,194 @@
         expected (hash/hash-with-intent {:hash/intent :evidence-content} content)]
     (= expected (:evidence/hash artifact))))
 
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Held-custody summary file-artifact
+;; ═══════════════════════════════════════════════════════════════════════════
+;;
+;; A single auditor entry point over the whole custody exposure story: counts
+;; and amounts by custody dimension, opening/flow/closing by token, attribution
+;; posture, completeness, and closed-form failure counts with triage. This is a
+;; projection/report — it is not a second verifier; it aggregates the existing
+;; ledger, index, artifacts, and closed-form checks.
+
+(def held-custody-summary-schema-version "held-custody-summary.v1")
+(def held-custody-summary-verifier-id "held-custody-summary-verifier.v1")
+
+(defn- finalize-artifact
+  "Attach the content hash and exact preimage to an artifact body."
+  [body]
+  (let [hash (str "sha256:"
+                  (hash/hash-with-intent {:hash/intent :evidence-record} body))]
+    (assoc body
+           :artifact/hash hash
+           :artifact/preimage (pr-str body))))
+
+(defn- guarded-closed-form-checks
+  "Run the closed-form checks, returning {:results [...]} without throwing so a
+   summary can count failures rather than fail."
+  [artifacts]
+  (try {:results (held-custody-closed-form-checks artifacts)}
+       (catch Exception e
+         {:results (get-in (ex-data e) [:check-results] [])})))
+
+(defn- tally-count
+  "Count adjustments by a field value."
+  [adjustments k]
+  (into (sorted-map)
+        (reduce (fn [acc a]
+                  (let [v (get a k)]
+                    (if (some? v) (update acc v (fnil + 0) 1) acc)))
+                {}
+                adjustments)))
+
+(defn- tally-amount
+  "Sum adjustment amounts by a field value."
+  [adjustments k]
+  (into (sorted-map)
+        (reduce (fn [acc a]
+                  (let [v (get a k)]
+                    (if (some? v) (update acc v (fnil + 0) (long (or (:amount a) 0))) acc)))
+                {}
+                adjustments)))
+
+(defn- token-flows
+  "Per-token opening (first :held/before), in, out, and closing (total-held)."
+  [adjustments total-held]
+  (let [openings (reduce (fn [acc a]
+                           (let [t (:token a)]
+                             (if (and t (nil? (get acc t)))
+                               (assoc acc t (long (:held/before a 0)))
+                               acc)))
+                         {}
+                         adjustments)
+        flows (reduce (fn [acc a]
+                        (let [t (:token a)
+                              amt (long (or (:amount a) 0))
+                              dir (:held/direction a)]
+                          (if (= :in dir)
+                            (update-in acc [t :in] (fnil + 0) amt)
+                            (update-in acc [t :out] (fnil + 0) amt))))
+                      {}
+                      adjustments)]
+    (into (sorted-map)
+          (map (fn [[t closing]]
+                 (let [f (get flows t {})]
+                   [t {:opening (get openings t 0)
+                       :in (get f :in 0)
+                       :out (get f :out 0)
+                       :closing (long (or closing 0))}]))
+               total-held))))
+
+(defn- attribution-classification-counts
+  "Extract attribution classification counts from the closed-form
+   parameter-attribution check result."
+  [check-results]
+  (let [pa (some #(when (= :held-custody/parameter-attribution (:check/id %)) %)
+                 check-results)
+        details (:details pa)]
+    (or (:valid-classification-counts details)
+        {:legacy-v2 0 :unattributed-v3 0 :attributed-v3 0})))
+
+(defn build-held-custody-summary
+  "Build the versioned, content-addressed held-custody summary file-artifact.
+
+   opts:
+     :adjustments   held-adjustment ledger (vector of adjustment maps)
+     :artifacts     derived held-custody artifacts (vector)
+     :total-held    observed closing balance per token
+     :completeness  completeness declaration — either a boolean or a map that
+                    may carry :held-adjustments/complete?
+
+   Commits counts and amounts by custody dimension, opening/flow/closing per
+   token, adjustment sequence range and artifact-chain head, attribution
+   posture, completeness/reconciliation posture, closed-form failure counts by
+   check, and triage vectors for predecessor breaks, invalid artifacts,
+   overdraw attempts, and replay mismatches."
+  [{:keys [adjustments artifacts total-held completeness]}]
+  (let [adjustments (vec (or adjustments []))
+        artifacts (vec (or artifacts []))
+        total-held (or total-held {})
+        ordered (sort-by held-adjustment-order adjustments)
+        closed-form (guarded-closed-form-checks artifacts)
+        check-results (:results closed-form)
+        check-status (into {} (map (fn [r] [(:check/id r) (:status r)]) check-results))
+        check-failure-counts (into {}
+                                   (map (fn [r] [(:check/id r) (count (:violations (:details r)))]))
+                                   check-results)
+        pa-details (some #(when (= :held-custody/parameter-attribution (:check/id %)) (:details %))
+                         check-results)
+        predecessor-details (some #(when (= :held-custody/predecessor-continuity (:check/id %)) (:details %))
+                                  check-results)
+        replay-details (some #(when (= :held-custody/sequence-replay (:check/id %)) (:details %))
+                             check-results)
+        complete? (if (map? completeness)
+                    (get completeness :held-adjustments/complete? true)
+                    (if (nil? completeness) true completeness))
+        replayed-state (try (replay-held-adjustment-state adjustments)
+                            (catch Exception _ nil))
+        replayed-closing (get-in replayed-state [:total-held] {})
+        reconciliation-valid? (and replayed-state
+                                   (= replayed-closing total-held))
+        invalid-artifacts (into []
+                                (keep (fn [a]
+                                        (when-not (artifact-content-hash-valid? a)
+                                          (:held-adjustment/id a))))
+                                artifacts)
+        overdraw (into []
+                       (keep (fn [a]
+                               (when (neg? (long (:held/after a 0)))
+                                 (:held-adjustment/id a))))
+                       artifacts)
+        body {:schema-version held-custody-summary-schema-version
+              :artifact/kind :held-custody-summary
+              :artifact/verifier held-custody-summary-verifier-id
+              :adjustment-count (count adjustments)
+              :artifact-count (count artifacts)
+              :adjustment-sequence-range (when (seq ordered)
+                                           {:first (held-adjustment-order (first ordered))
+                                            :last (held-adjustment-order (last ordered))})
+              :artifact-chain-head (let [ordered-arts (sort-by held-adjustment-order artifacts)]
+                                     (:artifact/hash (last ordered-arts)))
+              :by-token (tally-count adjustments :token)
+              :by-direction (tally-count adjustments :held/direction)
+              :by-account (tally-count adjustments :held/account)
+              :by-owner (tally-count adjustments :owner/address)
+              :by-position (tally-count adjustments :held/position-id)
+              :by-workflow (tally-count adjustments :held/workflow-id)
+              :by-reason (tally-count adjustments :held/reason)
+              :amount-by-token (tally-amount adjustments :token)
+              :amount-by-direction (tally-amount adjustments :held/direction)
+              :amount-by-account (tally-amount adjustments :held/account)
+              :amount-by-owner (tally-amount adjustments :owner/address)
+              :token-balances (token-flows adjustments total-held)
+              :attribution-counts (attribution-classification-counts check-results)
+              :attribution-invalid-count (get-in pa-details [:invalid-artifact-count] 0)
+              :completeness {:held-adjustments/complete? complete?
+                             :replayed-closing replayed-closing
+                             :observed-closing total-held
+                             :reconciliation-valid? reconciliation-valid?}
+              :closed-form-failure-counts check-failure-counts
+              :closed-form-status check-status
+              :triage {:broken-predecessor-links (mapv :held-adjustment/id (:violations predecessor-details))
+                       :invalid-artifacts invalid-artifacts
+                       :overdraw-attempts overdraw
+                       :replay-mismatches (mapv :held-adjustment/id (:violations replay-details))}}]
+    (finalize-artifact body)))
+
+(defn valid-held-custody-summary?
+  "Re-verify a held-custody-summary file-artifact."
+  [report]
+  (and (map? report)
+       (= held-custody-summary-schema-version (:schema-version report))
+       (= :held-custody-summary (:artifact/kind report))
+       (= held-custody-summary-verifier-id (:artifact/verifier report))
+       (string? (:artifact/hash report))
+       (string? (:artifact/preimage report))
+       (let [body (dissoc report :artifact/hash :artifact/preimage)]
+         (= (:artifact/hash report)
+            (str "sha256:"
+                 (hash/hash-with-intent {:hash/intent :evidence-record} body))))))
+
 (defn verify-settlement-evidence-fidelity
   "For every terminal settlement evidence artifact (:escrow-released /
    :escrow-refunded), require :finalize/write-down to equal the ledger-derived

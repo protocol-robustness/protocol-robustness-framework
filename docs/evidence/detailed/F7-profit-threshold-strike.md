@@ -89,11 +89,11 @@ The problem cannot be solved by the protocol alone: the resolver's economic thre
 ## Reproducibility
 
 ```bash
-# Start gRPC server
-bb adv:server
+# Run scenario F7 through replay
+bb run:scenario f7-profit-threshold-strike --run-root /tmp/prf-run
 
-# Run scenario F7
-bb adv:broad
+# Package portable evidence
+bb evidence:pack /tmp/prf-run
 ```
 
 Expected output:

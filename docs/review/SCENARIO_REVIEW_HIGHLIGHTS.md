@@ -56,7 +56,7 @@ claim.
 
 ## Reversal review
 
-`DR-N-002-reversal-slash-appeal-rejected` is the generated semantic-failure
+`S-NC-001-freeze-active-dispute-negative-control` is the generated semantic-failure
 control. Review it as a completed execution with a failed semantic result:
 
 ```text

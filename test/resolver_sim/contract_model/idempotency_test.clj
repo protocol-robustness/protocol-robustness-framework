@@ -37,3 +37,15 @@
     (is (:ok g0))
     (is (false? (:ok g1)))
     (is (= :duplicate-operation (:error g1)))))
+
+(deftest apply-once-rejects-non-map-transition-result
+  (let [op-key [:demo :bad-shape 1]]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"must return a transition result map"
+                          (idem/apply-once {} op-key (fn [_] :not-a-map))))))
+
+(deftest apply-once-rejects-transition-result-missing-ok
+  (let [op-key [:demo :no-ok 1]]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"must carry an :ok field"
+                          (idem/apply-once {} op-key (fn [_] {:world {}}))))))

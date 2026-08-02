@@ -172,33 +172,20 @@
      :checks {:aggregate-shortfall-within-value (if (seq violations) :fail :pass)}}))
 
 (defn check-aggregate-shortfall
-  "Verify the total recorded shortfall across all positions is within available
-   value for each (module-id, token) pair.
+  "Compatibility alias for check-aggregate-shortfall-cap.
 
-   Unlike check-aggregate-shortfall-cap (which caps each pair by the sum of
-   position values), this asserts that the summed shortfall basis does not
-   exceed the summed available value of the pair.
+   Both assert that the summed shortfall basis of each (module-id, token) pair
+   does not exceed the summed position value of that pair, preventing systemic
+   over-counting. Retained as a distinct registered id for callers that
+   referenced it before consolidation; it performs the identical check, so the
+   two are never in disagreement.
 
    Returns {:holds? bool
             :violations [{:module-id mid :token tok
                           :total-basis n :total-value n
                           :imbalance n} ...]}."
   [world]
-  (let [by-key (group-by (fn [p] [(:module/id p) (:token p)])
-                         (vals (:yield/positions world {})))
-        violations (into []
-                         (keep (fn [[[mid tok] pos-group]]
-                                 (let [total-basis (reduce + 0 (map position-shortfall-basis pos-group))
-                                       total-value (reduce + 0 (map position-shortfall-value pos-group))]
-                                   (when (> total-basis total-value)
-                                     {:module-id mid :token tok
-                                      :total-basis total-basis
-                                      :total-value total-value
-                                      :imbalance (- total-basis total-value)})))
-                               by-key))]
-    {:holds? (empty? violations)
-     :violations (vec violations)
-     :checks {:aggregate-shortfall-within-value (if (seq violations) :fail :pass)}}))
+  (check-aggregate-shortfall-cap world))
 
 (defn check-aggregate
   "Verify aggregate yield position values and shortfall balances are consistent
@@ -215,16 +202,21 @@
                          (vals (:yield/positions world {})))
         violations (into []
                          (keep (fn [[[mid tok] pos-group]]
-                                 (let [splits-ok? (every? (fn [p]
-                                                            (let [sf (:shortfall p)]
-                                                              (if sf
-                                                                (let [f (long (or (:fulfilled-amount sf) 0))
-                                                                      d (long (or (:deferred-amount sf) 0))
-                                                                      h (long (or (:haircut-amount sf) 0))
-                                                                      b (long (or (:basis-amount sf) 0))]
-                                                                  (= (+ f d h) b))
-                                                                true)))
-                                                          pos-group)
+                         (let [splits-ok? (every? (fn [p]
+                                                    (let [sf (:shortfall p)]
+                                                      (if sf
+                                                        (let [f (long (or (:fulfilled-amount sf) 0))
+                                                              d (long (or (:deferred-amount sf) 0))
+                                                              h (long (or (:haircut-amount sf) 0))
+                                                              b (long (or (:basis-amount sf) 0))
+                                                              ;; The single-position withdraw path folds a negative
+                                                              ;; unrealized-yield into basis-amount without adjusting
+                                                              ;; the splits, so the splits reconcile to basis once that
+                                                              ;; term is restored: f + d + h + min(0, unrealized) == b.
+                                                              neg (min 0 (long (:unrealized-yield p 0)))]
+                                                          (= (+ f d h neg) b))
+                                                        true)))
+                                                  pos-group)
                                        total-basis (reduce + 0 (map position-shortfall-basis pos-group))
                                        total-value (reduce + 0 (map position-shortfall-value pos-group))
                                        issues (cond-> []

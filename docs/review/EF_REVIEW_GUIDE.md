@@ -126,14 +126,14 @@ pro-rata evidence artifact. The benchmark deliberately does not exercise the
 pro-rata allocation, shared-withdrawal propagation, or mechanism-evidence paths.
 
 The packet generator executes and verifies the safe rejected-interaction control,
-the pro-rata scenario, `DR-N-002` as the completed semantic-failure control, and
-the benchmark as evidence examples. `DR-N-002` reaches an unsuppressed invariant
+the pro-rata scenario, `S-NC-001` as the completed semantic-failure control, and
+the benchmark as evidence examples. `S-NC-001` reaches an unsuppressed invariant
 violation without aborting the outer lifecycle; its successful package
 verification demonstrates that lifecycle completion, content integrity, and
 runnability are distinct from semantic success. Its reviewer-facing diagnostic
 diagram is available at `diagnostics/scenario-semantic-failure/diagnostic.md`
 (with Mermaid source in `diagnostic.mmd`); it is derived and non-authoritative.
-`S-NC-001` remains included as an explicitly labelled manual negative-control
+`DR-N-002` remains included as an explicitly labelled manual negative-control
 input; it is not the generated package example in this packet.
 
 For a concise review order, high-value claim categories, value-at-risk framing,

@@ -42,7 +42,9 @@
    ;; its fixture supplies successful implementations for the package phases.
    :build-attestation-bundle (fn [_ _] {})
    :write-canonical-assurance (fn [_ _] {})
+   :write-verdict-policy (fn [_ _] {})
    :write-diagnostic (fn [_ _] {})
+   :write-pro-rata-mechanism-index (fn [_ _] {})
    :refresh-inventory (fn [_ _] {})
    :refresh-registry (fn [_ _] {})
    :revalidate-registry (fn [_ _] {})
@@ -233,7 +235,8 @@
         (is (not (.exists (io/file root ".run.lock"))))
         (is (= [:check-runtime :execute :write-manifest :extract-artifacts
                 :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence
-                :build-attestation-bundle :write-canonical-assurance :write-diagnostic
+                :build-attestation-bundle :write-canonical-assurance :write-verdict-policy
+                :write-diagnostic :write-pro-rata-mechanism-index
                 :refresh-inventory :refresh-registry :revalidate-registry :write-package-index :complete]
                (mapv :phase (:phases result)))))
       (finally (delete-tree! root)))))

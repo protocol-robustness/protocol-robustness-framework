@@ -174,6 +174,39 @@
     (is (map? (:summary result)))
     (is (number? (get-in result [:summary :total-checks])))))
 
+(deftest verify-empty-bundle-is-invalid-under-review
+  (testing "an empty evidence bundle under the review profile is :invalid, not :hash-linked"
+    (let [bundle (ab/build-attestation-bundle
+                  {:attestations []
+                   :claim-results []
+                   :evidence-nodes []
+                   :registries {:attestors registries/attestor-registry
+                                :claim-definitions registries/claim-definition-registry
+                                :hash-intents hc/hash-intents}
+                   :sensitivity-report {:decision :allowed :report-hash "sha256:r"}})
+          result (ab/verify-attestation-bundle bundle)]
+      (is (= :invalid (:bundle/status result)))
+      (is (false? (:valid? result)))
+      (is (some #(and (= :completeness-profile-evaluated (:check/id %))
+                      (= :fail (:check/status %)))
+                (:checks result))
+          "the completeness-profile evaluation is now a failing check for empty evidence"))))
+
+(deftest verify-no-attestations-with-claim-results-is-partially-verified
+  (testing "a review bundle missing required attestation-records is :partially-verified"
+    (let [bundle (ab/build-attestation-bundle
+                  {:attestations []
+                   :claim-results [{:claim-result-hash "sha256:c"
+                                    :claim-id :conservation :holds? true :status :pass}]
+                   :registries {:attestors registries/attestor-registry
+                                :claim-definitions registries/claim-definition-registry
+                                :hash-intents hc/hash-intents}
+                   :sensitivity-report {:decision :allowed :report-hash "sha256:r"}})
+          result (ab/verify-attestation-bundle bundle)]
+      (is (= :partially-verified (:bundle/status result)))
+      (is (true? (:valid? result)))
+      (is (false? (:verified? result)) "missing required attestations is never :verified?"))))
+
 ;; ── Bundle status levels ────────────────────────────────────────────────────
 
 (deftest status-hash-linked
@@ -181,6 +214,8 @@
     (let [a (build-a :signed-at "2025-01-01T00:00:00Z")
           bundle (ab/build-attestation-bundle
                   {:attestations [a]
+                   :claim-results [{:claim-result-hash "sha256:cr"
+                                    :claim-id :conservation :holds? true :status :pass}]
                    :registries {:attestors registries/attestor-registry
                                 :claim-definitions registries/claim-definition-registry
                                 :hash-intents hc/hash-intents}
@@ -188,7 +223,7 @@
                                         :report-hash "sha256:ok"}})
           result (ab/verify-attestation-bundle bundle)]
       (is (= :hash-linked (:bundle/status result))
-          "in-memory bundles have file-not-found warnings -> :hash-linked")
+          "in-memory complete bundles have file-not-found warnings -> :hash-linked")
       (is (true? (:valid? result))))))
 
 (deftest status-invalid-on-version-mismatch
@@ -220,6 +255,8 @@
   (let [a (build-a :signed-at "2025-01-01T00:00:00Z")
         base-bundle (ab/build-attestation-bundle
                      {:attestations [a]
+                      :claim-results [{:claim-result-hash "sha256:cr"
+                                       :claim-id :conservation :holds? true :status :pass}]
                       :registries {:attestors registries/attestor-registry
                                    :claim-definitions registries/claim-definition-registry
                                    :hash-intents hc/hash-intents}
@@ -435,3 +472,14 @@
         "review profile: empty evidence → :invalid (empty-set decision :fail)")
     (is (not= :invalid dev-status)
         "development profile: empty evidence → not :invalid (empty-set decision :warn)")))
+
+(deftest review-profile-not-fully-verified-when-attestations-missing
+  (testing "a review bundle with claim results but no attestation-records is not :fully-verified"
+    (let [review-profile (acp/make-profile :review {})
+          status (acp/evaluate-evidence-status
+                  review-profile
+                  {:bundle/objects [{:object/kind :claim-result :object/hash "sha256:c"}]
+                   :sensitivity/decision :allowed})]
+      (is (not= :fully-verified status)
+          "missing required :attestation-records must not be labelled :fully-verified")
+      (is (= :partially-verified status)))))

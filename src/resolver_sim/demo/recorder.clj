@@ -18,7 +18,8 @@
             [clojure.data.json :as json]
             [clojure.java.shell :as shell]
             [resolver-sim.demo.spec :as demo-spec]
-            [resolver-sim.evidence.config :as evcfg]))
+            [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.vcs :as vcs]))
 
 ;; ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -26,10 +27,7 @@
   (str (java.time.Instant/now)))
 
 (defn- git-commit []
-  (try
-    (let [{:keys [exit out]} (shell/sh "git" "rev-parse" "HEAD")]
-      (when (zero? exit) (str/trim out)))
-    (catch Exception _ nil)))
+  (vcs/commit-sha))
 
 (defn- ensure-dir! [path]
   (let [f (io/file path)] (.mkdirs f) f))

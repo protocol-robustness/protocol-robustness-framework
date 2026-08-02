@@ -136,7 +136,7 @@ pipeline. Specifically:
 |---|---|---|
 | Evidence chain finalization | `:registry-hash-verifies`, `:registry-hash-signed`, `:cursor-verifies`, `:tsa-token-verified`, `:evidence-chain-reconciled` | Called by `chain/finalize-and-attest!` |
 | Run completion | `:forensic-grade` (composite) | After all five audit claims pass |
-| User-initiated | Any registered claim | Via `bb forensic:claim-evaluate` |
+| User-initiated | Any registered claim | Automatically during a `bb forensic:run` evaluation |
 
 ### 4.3 What Goes in `claims/` vs `attestations/`
 

@@ -89,7 +89,7 @@ Files live in: `data/fixtures/traces/*.trace.json`
 
 Optional extension grid (after quick pass):
 - compare replay-result JSONs from fresh runs (if available),
-- add profitability surface outputs from `bb adv:sweep`.
+- add profitability surface outputs from `clojure -M:run -- -p <params>.edn`.
 
 ---
 

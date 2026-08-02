@@ -97,7 +97,7 @@ java -jar target/prf-runner-sew-0.1.0-uber.jar \
 ```
 
 Registered suites remain reusable internal execution-set definitions for CI,
-fixtures, and benchmark membership. `bb run:scenario:suite` and
+fixtures, and benchmark membership. `bb run:scenario:suites` and
 `run-invariants` are legacy/internal runners; they are not canonical bundle
 producers. A public `run-suite` command is deferred until a concrete consumer
 needs a finalized execution-set bundle without benchmark claims.

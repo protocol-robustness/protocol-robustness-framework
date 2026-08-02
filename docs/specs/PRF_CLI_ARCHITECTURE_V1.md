@@ -35,7 +35,7 @@ Every command carries metadata:
 | `:command/category` | Functional category: `:validation`, `:evidence`, `:scenario`, `:benchmark`, `:concept`, `:maintenance` |
 | `:command/surface` | Always `:prf` |
 | `:command/backstop-tier` | Backstop tier: `:fast`, `:default`, `:full`, or `:manual` |
-| `:command/jar-availability` | `:native` (has JVM handler) |
+| `:command/jar-availability` | `:native` (has JVM handler), `:external` (separate JAR artifact), `:none` (pure `bb` task, no JAR command) |
 | `:command/runtime` | `:jvm` |
 | `:command/options` | Declared CLI flags and their types |
 | `:command/outputs` | Expected output paths |
@@ -249,26 +249,70 @@ Or an integer exit code directly (for simple pass/fail commands).
 
 ## 7. Parity with Babashka Tasks
 
-The JAR CLI mirrors the `bb <command>` surface. Every native JAR command has a
-corresponding `bb` task that wraps it. The `commands:validate` command enforces
-parity between the registry, the dispatch table, and the bb task definitions.
+The JAR CLI mirrors the `bb <command>` surface. Each registered command carries
+a `:command/surface` (how it is exposed) and a `:command/jar-availability`
+(whether and where it is available as a JAR command). `commands:validate`
+enforces parity between the registry, the dispatch table, and the bb task
+definitions.
+
+### Fixed-case availability matrix
+
+Every command falls into exactly one (surface × jar-availability) case:
+
+| Surface | Jar availability | Runtime | Count | Meaning |
+|---|---|---|---|---|
+| `:prf` | `:native` | `:jvm` | 34 | Standard PRF JAR (`prf.jar`) CLI commands |
+| `:dev` | `:native` | `:jvm` | 1 | Developer-only JAR command (`run-invariants`) |
+| `:community` | `:native` | `:jvm` | 9 | Community task commands shipped in the JAR |
+| `:bb` | `:external` | `:bb` | 9 | `bb` task requiring an external JAR artifact |
+| `:bb` | `:none` | `:bb` | 12 | Pure `bb` task; not a JAR command |
+
+`jar-availability` describes **registry/implementation availability**, not
+inclusion in every build artifact. `:native` means the command is implemented
+as a JVM command and is distributable within a PRF JAR; whether a particular
+built JAR actually contains it is a separate concern. Three distinct layers:
+
+- **Registry availability** — `:native` commands are real JVM commands and must
+  have a dispatch handler in `resolver-sim.cli.dispatch` (enforced by
+  `commands:validate`). `:external` and `:none` commands are `:bb`-surface tasks,
+  not JVM-dispatchable from a PRF JAR.
+- **Artifact inclusion** — a command may be `:native` yet still absent from a
+  given built artifact. Native commands in `sew-command-ids` (`dispatch.clj`)
+  are **artifact-gated** on the Sew distribution and are unavailable in a
+  PRF-core-only artifact.
+- **Runtime availability** — `command-available?` (`dispatch.clj`) returns
+  false when a Sew-gated command is invoked on a distribution that lacks Sew;
+  the command is not runnable there even though it is a `:native` JVM command.
+
+`:jar-availability :external` — the `bb` task builds or invokes a JAR artifact
+that is not part of the standard `prf.jar` (e.g. attestation signing,
+test-suite runners). It is registered as `:bb`-surface with a `:command/bb-task`
+and is reported by `commands:validate` as a bb task, not as a runnable `prf.jar`
+command. Presence, freshness, and version compatibility of the external artifact
+are the responsibility of the invoking `bb` task, not the registry.
+
+### bb-surface commands wrapping native JAR commands
 
 | bb task | JAR command |
 |---|---|
 | `bb backstop` | `java -jar prf.jar backstop` |
 | `bb backstop:fast` | `java -jar prf.jar backstop --fast` |
 | `bb commands:validate` | `java -jar prf.jar commands validate` |
-| `bb evidence:verify-chain` | `java -jar prf.jar evidence verify-chain` |
-| `bb evidence:validate` | `java -jar prf.jar evidence validate` |
-| `bb evidence:coverage` | `java -jar prf.jar evidence coverage` |
-| `bb evidence:backstop` | `java -jar prf.jar evidence backstop` |
 | `bb validate` | `java -jar prf.jar validate` |
-| `bb benchmark:validate` | `java -jar prf.jar benchmark validate` |
 | `bb run:scenario` | `java -jar prf.jar run-scenario` |
-| `bb run:invariants` | `java -jar prf.jar run-invariants` |
-| `bb run:benchmark` | `java -jar prf.jar run-benchmark` |
 | `bb fmt:check` | `java -jar prf.jar fmt check` |
 | `bb lint` | `java -jar prf.jar lint` |
+
+### PRF-only JAR commands (no `bb` wrapper)
+
+The remaining `:native` JAR commands are invoked directly via the JAR and have
+no `bb` wrapper — e.g. `evidence verify-chain`, `evidence validate`,
+`evidence coverage`, `evidence backstop`, `concepts validate`,
+`benchmark validate`, `run-invariants`, `run-benchmark`, `assure-package`,
+`pre-application checks`, `scenario list|pick|compare|run-search`, `suite list`,
+`verify-run`, `verify-benchmark`, `verify-scenario`, `notebook focus|latest|runs`,
+and the `community task *` commands. See `resources/prf/commands/registry.edn`
+for the authoritative full list.
 
 ## 8. Related Tests
 
@@ -287,5 +331,5 @@ parity between the registry, the dispatch table, and the bb task definitions.
 | Registry validation command | `src/resolver_sim/commands/registry_validate.clj` |
 | CLI uberjar build | `build.clj` (variant `:cli`) |
 | Build task definition | `bb.edn` (`build:cli` at line 1211) |
-| Command listing (bb surface) | `docs/COMMANDS.md` |
+| Command listing (bb surface) | `docs/specs/COMMANDS.md` |
 | Backstop spec | `src/resolver_sim/commands/backstop.clj` |

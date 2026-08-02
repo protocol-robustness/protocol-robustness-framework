@@ -1137,6 +1137,95 @@
                                         :extra {:held/workflow-id 42
                                                 :owner/address bob}})))))
 
+;; ── ensure-force-authorisation-usable! fail-closed matrix ────────────────
+
+(defn- fa-guard-world
+  "A single-claim force-authorisation world whose grant scope matches the scope
+   derived by a force-authorised sub-held. Callers override record fields to
+   isolate one guard path."
+  [auth-id & {:keys [status consumed? starts-at expires-at scope scope-hash]
+              :or {status :active}}]
+  (let [scope (or scope
+                  {:authorization/id auth-id
+                   :authorization/type :force-authorisation
+                   :held/direction :out
+                   :token usdc
+                   :amount 40
+                   :held/account :escrow-principal
+                   :owner/address bob
+                   :held/reason :force-authorised-release
+                   :held/workflow-id 42})]
+    {:total-held {usdc 100}
+     :held/positions {[:held/position usdc :escrow-principal 42] 100}
+     :held-ledger/index {:by-token {usdc 100}
+                         :by-position {[:held/position usdc :escrow-principal 42] 100}}
+     :force-authorisations
+     {auth-id (cond-> {:authorization/id auth-id
+                       :authorization/status status
+                       :consumed? (boolean consumed?)
+                       :starts-at (long (or starts-at 0))
+                       :authorization/scope scope
+                       :authorization/scope-hash (or scope-hash
+                                                     (hash/domain-hash "force-authorisation-scope" scope))}
+                (some? expires-at) (assoc :expires-at (long expires-at)))}}))
+
+(defn- fa-sub-held!
+  "Run a force-authorised sub-held against a guard world and return the ex-data
+   :type (or nil on success)."
+  [world auth-id & {:keys [provenance-scope-hash]}]
+  (let [auth-prov {:authorization/type :force-authorisation
+                   :authorization/id auth-id
+                   :authorization/scope-hash
+                   (or provenance-scope-hash
+                       (hash/domain-hash "force-authorisation-scope"
+                                         (get-in world [:force-authorisations auth-id :authorization/scope])))}]
+    (try
+      (ac/sub-held world usdc 40
+                   {:action "finalize-released"
+                    :reason :force-authorised-release
+                    :authorization-provenance auth-prov
+                    :extra {:held/workflow-id 42 :owner/address bob}})
+      nil
+      (catch clojure.lang.ExceptionInfo e
+        (:type (ex-data e))))))
+
+(deftest force-authorisation-guard-rejects-each-invalid-lifecycle-state
+  (let [auth-id "fa-guard-matrix"]
+    (testing "record with a non-active status is rejected"
+      (is (= :authorization/not-active
+             (fa-sub-held! (fa-guard-world auth-id :status :revoked) auth-id))))
+    (testing "record not yet started is rejected"
+      (is (= :authorization/not-yet-started
+             (fa-sub-held! (fa-guard-world auth-id :starts-at 1000) auth-id))))
+    (testing "record past its expiry is rejected"
+      (is (= :authorization/expired
+             (fa-sub-held! (fa-guard-world auth-id :expires-at 0) auth-id))))))
+
+(deftest force-authorisation-guard-rejects-invalid-scope-bindings
+  (let [auth-id "fa-guard-scope"
+        no-scope-world (update-in (fa-guard-world auth-id)
+                                  [:force-authorisations auth-id]
+                                  dissoc :authorization/scope :authorization/scope-hash)]
+    (testing "record lacking an immutable scope is rejected"
+      (is (= :authorization/missing-scope
+             (fa-sub-held! no-scope-world auth-id))))
+    (testing "grant scope-hash that does not authenticate the derived scope is rejected"
+      (is (= :authorization/grant-scope-hash-mismatch
+             (fa-sub-held! (fa-guard-world auth-id :scope-hash "0xdifferent") auth-id))))
+    (testing "provenance scope-hash that does not match the grant is rejected"
+      (is (= :authorization/provenance-scope-mismatch
+             (fa-sub-held! (fa-guard-world auth-id) auth-id
+                           :provenance-scope-hash "0xforged-provenance"))))))
+
+(deftest force-authorisation-guard-rejects-re-consumption
+  (testing "a record already present in the consumed registry is rejected"
+    (let [auth-id "fa-guard-reconsume"
+          world (assoc-in (fa-guard-world auth-id)
+                          [:force-authorisations/consumed auth-id]
+                          {:consumed? true})]
+      (is (= :authorization/already-consumed
+             (fa-sub-held! world auth-id))))))
+
 ;; ── Related-claims force-authorisation consumption ────────────────────────────
 
 (deftest force-authorised-sub-held-related-claims-member-consumed

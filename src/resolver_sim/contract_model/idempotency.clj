@@ -37,6 +37,16 @@
      :extra {:idempotency :no-op-duplicate
              :op-key op-key}}
     (let [result (apply-fn world)]
+      (when-not (map? result)
+        (throw (ex-info "apply-once apply-fn must return a transition result map"
+                        {:reason :invalid-transition-result
+                         :op-key op-key
+                         :result result})))
+      (when-not (contains? result :ok)
+        (throw (ex-info "apply-once apply-fn result must carry an :ok field"
+                        {:reason :transition-result-missing-ok
+                         :op-key op-key
+                         :result result})))
       (if (:ok result)
         (-> result
             (update :world mark-applied op-key)

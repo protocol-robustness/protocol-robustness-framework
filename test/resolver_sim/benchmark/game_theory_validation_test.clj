@@ -87,7 +87,14 @@
                           "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
                           "scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
                           "scenarios/edn/S104_resolver-stake-shortfall.edn" scenario-104
-                          (throw (ex-info "unexpected scenario path" {:path path}))))]
+                          (throw (ex-info "unexpected scenario path" {:path path}))))
+                      resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                      (fn [& _]
+                        {:summary {:states-examined 100}
+                         :properties
+                         [{:property :strategy/split-invariance
+                           :status :verified :verdict :verified
+                           :state-count 100 :violation-count 0}]})]
           (sut/run-strategic-claim-validation :out-dir out-dir))
         level-verdicts (into {}
                              (map (juxt :mechanism-level identity))
@@ -201,6 +208,138 @@
        (sut/run-equilibrium-validation :suite :suites/not-registered
                                        :out-dir (str (System/getProperty "java.io.tmpdir")
                                                      "/prf-game-theory-invalid-suite")))))
+
+(deftest strategic-property-violation-propagates-to-artifact
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-strategic-violation")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}
+                                        {:scenario/id "S103_negative-yield-shortfall-cascade"
+                                         :dimension :allocation/shortfall
+                                         :claim :conservation}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        scenario-103 {:scenario-id "s103-negative-yield-shortfall-cascade"
+                      :title "Negative Yield and Liquidity Shortfall Cascade"
+                      :purpose "yield-stress"
+                      :threat-tags ["negative-yield" "shortfall" "deferred-recovery"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}
+                            {:file "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :simulator/scenario-path "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "b"))
+                             :invariant-results [{:id :inv/b :result :pass}]}]}
+        {:keys [exit-code artifact]}
+        (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                      resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                      resolver-sim.scenario.suites/suite-paths
+                      (fn [_]
+                        ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"])
+                      resolver-sim.io.scenarios/load-scenario-file
+                      (fn [path]
+                        (case path
+                          "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
+                          "scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
+                          (throw (ex-info "unexpected scenario path" {:path path}))))
+                      resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                      (fn [& _]
+                        {:summary {:states-examined 100}
+                         :properties
+                         [{:property :allocation/exact-merge-invariance
+                           :status :violated :verdict :violated
+                           :state-count 100 :violation-count 1
+                           :counterexample {:claims [1 1 1] :liquidity 1}}]})]
+          (sut/run-strategic-claim-validation
+           :claim-id :claim/pro-rata-shortfall-conservation
+           :out-dir out-dir))
+        strategic-results (:strategic-property-results artifact)]
+    (testing "a violated strategic property surfaces as a property-violated result"
+      (is (some #(and (= :allocation/exact-merge-invariance (:property %))
+                      (= :fail (:status %))
+                      (= :property-violated (:reason %)))
+                strategic-results))
+      (is (= :violated (get-in artifact [:gates :strategic :verdict])))
+      (is (= :strategic-violated (:gates-summary artifact)))
+      (is (false? (get-in artifact [:summary :valid?])))
+      (is (= 1 (get-in artifact [:summary :strategic-property-violations])))
+      (is (= 1 (get-in artifact [:summary :strategic-property-count]))))))
+
+(deftest strategic-property-verified-keeps-artifact-valid
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-strategic-verified")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}
+                                        {:scenario/id "S103_negative-yield-shortfall-cascade"
+                                         :dimension :allocation/shortfall
+                                         :claim :conservation}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        scenario-103 {:scenario-id "s103-negative-yield-shortfall-cascade"
+                      :title "Negative Yield and Liquidity Shortfall Cascade"
+                      :purpose "yield-stress"
+                      :threat-tags ["negative-yield" "shortfall" "deferred-recovery"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}
+                            {:file "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :simulator/scenario-path "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "b"))
+                             :invariant-results [{:id :inv/b :result :pass}]}]}
+        {:keys [exit-code artifact]}
+        (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                      resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                      resolver-sim.scenario.suites/suite-paths
+                      (fn [_]
+                        ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"])
+                      resolver-sim.io.scenarios/load-scenario-file
+                      (fn [path]
+                        (case path
+                          "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
+                          "scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
+                          (throw (ex-info "unexpected scenario path" {:path path}))))
+                      resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                      (fn [& _]
+                        {:summary {:states-examined 100}
+                         :properties
+                         [{:property :strategy/split-invariance
+                           :status :verified :verdict :verified
+                           :state-count 100 :violation-count 0}]})]
+          (sut/run-strategic-claim-validation
+           :claim-id :claim/pro-rata-shortfall-conservation
+           :out-dir out-dir))]
+    (testing "a verified strategic property keeps the gate verified and artifact valid"
+      (is (some #(and (= :strategy/split-invariance (:property %))
+                      (= :pass (:status %)))
+                (:strategic-property-results artifact)))
+      (is (= :verified (get-in artifact [:gates :strategic :verdict])))
+      (is (= :all-pass (:gates-summary artifact)))
+      (is (true? (get-in artifact [:summary :valid?])))
+      (is (zero? (get-in artifact [:summary :strategic-property-violations]))))))
 
 (deftest folk-theorem-catalogue-accurately-reports-multi-epoch-only-coverage
   (let [concept (some #(when (= :folk-theorem-cooperation-region (:id %)) %)

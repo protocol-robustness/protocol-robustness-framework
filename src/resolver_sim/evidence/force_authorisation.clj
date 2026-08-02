@@ -86,11 +86,32 @@
 (def ^:private lifecycle-schema-version "force-auth-lifecycle.v1")
 (def ^:private lifecycle-verifier-id "force-auth-lifecycle-verifier.v1")
 
-(def ^:private lifecycle-summary-schema-version "force-auth-lifecycle-summary.v1")
+(def ^:private lifecycle-summary-schema-version "force-auth-lifecycle-summary.v2")
+(def ^:private lifecycle-summary-v1-schema-version "force-auth-lifecycle-summary.v1")
 (def ^:private lifecycle-summary-verifier-id "force-auth-lifecycle-summary-verifier.v1")
 
-(def ^:private add-held-summary-schema-version "force-auth-add-held-summary.v1")
+(def ^:private lifecycle-summary-v2-only-keys
+  "Top-level keys introduced in v2 (absent from v1)."
+  [:counts-by-status :counts-by-authorization-type :created :revoked
+   :failed-after-consumption :rolled-back :outstanding-usable :consumption-count
+   :conflicting-consumers :assurance-counts :governance-mode-counts
+   :creator-provenance-counts :time-range :triage])
+
+(def ^:private add-held-summary-schema-version "force-auth-add-held-summary.v2")
+(def ^:private add-held-summary-v1-schema-version "force-auth-add-held-summary.v1")
 (def ^:private add-held-summary-verifier-id "force-auth-add-held-summary-verifier.v1")
+
+(def ^:private add-held-summary-v2-only-keys
+  "Top-level keys introduced in v2 (absent from v1)."
+  [:invalid-artifacts :unverified-authorization-ids :min-amount :max-amount
+   :consumed-at-earliest :consumed-at-latest :distinct-tokens :distinct-accounts
+   :distinct-owners :amount-by-token :amount-by-direction :amount-by-account
+   :amount-by-owner])
+
+(def ^:private add-held-summary-v1-category-keys
+  "The sub-categories catalogued in v1 (v2 added :by-owner, :by-position-id,
+   :by-authorization-type)."
+  [:by-account :by-reason :by-authorization :by-consumed-by :by-token-direction])
 
 (defn- finalize-artifact
   "Attach the content hash and exact preimage to an artifact body."
@@ -224,33 +245,112 @@
    opts:
      :authorisations        map of {auth-id record}
      :consumption-registry  map of {auth-id consumption-entry}
-     :now                   current block time for expiry classification"
+     :now                   current block time for expiry/usability classification
+     :assurance              (optional) map of auth-id -> assurance class keyword
+     :governance-mode        (optional) map of auth-id -> governance mode keyword
+     :creator-provenance     (optional) map of auth-id -> creator provenance keyword"
   [opts]
   (let [auths (fa/normalize-force-authorisation-records (:authorisations opts))
         registry (fa/normalize-force-authorisation-consumption-registry
                   (:consumption-registry opts))
         now (long (or (:now opts) 0))
+        assurance (or (:assurance opts) {})
+        governance (or (:governance-mode opts) {})
+        provenance (or (:creator-provenance opts) {})
         statuses (mapv :authorization/status (vals auths))
-        expired (count (filter (fn [r]
-                                 (and (:expires-at r) (>= now (long (:expires-at r)))))
-                               (vals auths)))
+        records (vals auths)
+        expired? (fn [r] (and (:expires-at r) (>= now (long (:expires-at r)))))
+        expired (count (filter expired? records))
+        consumed-ids (set (keys registry))
+        outstanding-usable
+        (count (filter (fn [[_ r]]
+                         (:valid? (fa/verify-authorisation-usable
+                                   r registry (:authorization/scope r) now)))
+                       auths))
+        consumed-by (into {} (map (fn [[id r]] [id (:consumed-by r)]) registry))
+        conflicting-consumers
+        (count (filter (fn [[id r]]
+                         (and (consumed-ids id)
+                              (some? (:executed-by r))
+                              (not= (:executed-by r) (get consumed-by id))))
+                       auths))
+        ids (keys auths)
+        created-ats (keep #(get-in % [:created-at]) records)
+        consumed-ats (keep :consumed-at (vals registry))
+        time-range {:created-at-earliest (when (seq created-ats) (apply min created-ats))
+                    :created-at-latest (when (seq created-ats) (apply max created-ats))
+                    :consumed-at-earliest (when (seq consumed-ats) (apply min consumed-ats))
+                    :consumed-at-latest (when (seq consumed-ats) (apply max consumed-ats))}
+        scope-hash-mismatches
+        (vec (sort (filter (fn [id]
+                             (let [r (get auths id)]
+                               (and (:authorization/scope-hash r)
+                                    (fa/scope-hash-mismatch? r (:authorization/scope r)))))
+                           ids)))
         body {:schema-version lifecycle-summary-schema-version
               :artifact/kind :force-auth-lifecycle-summary
               :artifact/verifier lifecycle-summary-verifier-id
               :total (count auths)
-              :active (count (filter #(= :active %) statuses))
+              :counts-by-status (into (sorted-map) (frequencies statuses))
+              :counts-by-authorization-type (into (sorted-map)
+                                                  (frequencies (map :authorization/type records)))
+              :created (count (filter #(= :active %) statuses))
               :consumed (count (filter #(= :consumed %) statuses))
+              :revoked (count (filter #(= :revoked %) statuses))
               :expired expired
+              :failed-after-consumption (count (filter #(= :failed-after-consumption %) statuses))
+              :rolled-back (count (filter #(= :rolled-back %) statuses))
+              :outstanding-usable outstanding-usable
+              :consumption-count (count registry)
+              :conflicting-consumers conflicting-consumers
               :orphan-consumptions (count (remove #(contains? auths %) (keys registry)))
+              :assurance-counts (into (sorted-map) (frequencies (vals assurance)))
+              :governance-mode-counts (into (sorted-map) (frequencies (vals governance)))
+              :creator-provenance-counts (into (sorted-map) (frequencies (vals provenance)))
+              :time-range time-range
+              :triage {:invalid-scope-hash scope-hash-mismatches
+                       :expired-after-window (vec (sort (map :authorization/id (filter expired? records))))}
               :lifecycle-consistent?
               (:holds? (fa/verify-authorisation-lifecycle-consistency auths registry))}]
     (finalize-artifact body)))
 
 (defn valid-force-auth-lifecycle-summary?
-  "Re-verify a force-auth-lifecycle-summary evidence artifact."
+  "Re-verify a force-auth-lifecycle-summary evidence artifact (v2)."
   [report]
   (valid-artifact? report lifecycle-summary-schema-version
                    :force-auth-lifecycle-summary lifecycle-summary-verifier-id))
+
+(defn downgrade-force-auth-lifecycle-summary-v2->v1
+  "Project a v2 lifecycle summary body back to the v1 shape (for migration
+   verification). Discards the v2-only keys."
+  [report]
+  (-> (reduce dissoc report lifecycle-summary-v2-only-keys)
+      (dissoc :artifact/hash :artifact/preimage)
+      (assoc :schema-version lifecycle-summary-v1-schema-version)
+      (assoc :artifact/kind :force-auth-lifecycle-summary)
+      (assoc :artifact/verifier lifecycle-summary-verifier-id)))
+
+(defn build-force-auth-lifecycle-summary-v1
+  "Build a v1-shaped lifecycle summary artifact. Provided for migration and
+   backward-compatibility testing; production callers should use the v2 builder."
+  [opts]
+  (finalize-artifact (downgrade-force-auth-lifecycle-summary-v2->v1
+                      (build-force-auth-lifecycle-summary opts))))
+
+(defn valid-force-auth-lifecycle-summary-v1?
+  "Migration reader for persisted v1 force-auth-lifecycle-summary artifacts:
+   verifies schema-version, kind, and verifier, then recomputes the v1 content
+   hash by projecting away the v2-only fields."
+  [report]
+  (and (map? report)
+       (= lifecycle-summary-v1-schema-version (:schema-version report))
+       (= :force-auth-lifecycle-summary (:artifact/kind report))
+       (= lifecycle-summary-verifier-id (:artifact/verifier report))
+       (string? (:artifact/hash report))
+       (string? (:artifact/preimage report))
+       (let [body (downgrade-force-auth-lifecycle-summary-v2->v1 report)]
+         (= (:artifact/hash report)
+            (str "sha256:" (hash/domain-hash :evidence-record body))))))
 
 ;; ── force-auth-add-held-summary ────────────────────────────────────────────
 
@@ -345,7 +445,45 @@
     (finalize-artifact body)))
 
 (defn valid-force-auth-add-held-summary?
-  "Re-verify a force-auth-add-held-summary evidence artifact."
+  "Re-verify a force-auth-add-held-summary evidence artifact (v2)."
   [report]
   (valid-artifact? report add-held-summary-schema-version
                    :force-auth-add-held-summary add-held-summary-verifier-id))
+
+(defn downgrade-add-held-summary-v2->v1
+  "Project a v2 summary artifact body back to the v1 shape (for migration
+   verification). Discards the v2-only keys and v2-only category dimensions."
+  [report]
+  (let [v1-categories (select-keys (:categories report)
+                                   add-held-summary-v1-category-keys)
+        without-v2 (reduce dissoc report add-held-summary-v2-only-keys)]
+    (-> without-v2
+        (dissoc :artifact/hash :artifact/preimage)
+        (assoc :schema-version add-held-summary-v1-schema-version)
+        (assoc :artifact/kind :force-auth-add-held-summary)
+        (assoc :artifact/verifier add-held-summary-verifier-id)
+        (assoc :categories v1-categories))))
+
+(defn build-force-auth-add-held-summary-v1
+  "Build a v1-shaped summary artifact from a collection of force-auth-add-held
+   artifacts. Provided for migration/backward-compatibility testing; production
+   callers should use the v2 builder."
+  [opts]
+  (let [v2 (build-force-auth-add-held-summary opts)
+        v1-body (downgrade-add-held-summary-v2->v1 v2)]
+    (finalize-artifact v1-body)))
+
+(defn valid-force-auth-add-held-summary-v1?
+  "Migration reader for persisted v1 artifacts: verifies schema-version, kind,
+   and verifier, then recomputes the v1 content hash by projecting away the
+   v2-only fields."
+  [report]
+  (and (map? report)
+       (= add-held-summary-v1-schema-version (:schema-version report))
+       (= :force-auth-add-held-summary (:artifact/kind report))
+       (= add-held-summary-verifier-id (:artifact/verifier report))
+       (string? (:artifact/hash report))
+       (string? (:artifact/preimage report))
+       (let [v1-body (downgrade-add-held-summary-v2->v1 report)]
+         (= (:artifact/hash report)
+            (str "sha256:" (hash/domain-hash :evidence-record v1-body))))))

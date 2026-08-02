@@ -86,13 +86,40 @@
                (:build/inputs definition))
        (= (:default-build/hash definition) (definition-hash definition))))
 
+(defn- validate-smoke!
+  "Fail-closed construction guard for packaged-JAR smoke evidence.
+
+   When a smoke result is supplied it must assert a passed native-command-
+   resolution run, and any referenced log file must already be captured with a
+   matching sha256. A nil smoke is allowed to be constructed (so a bundle can be
+   built without smoke), but verification then fails the required smoke check."
+  [jar smoke]
+  (when (some? smoke)
+    (when-not (and (= :passed (:smoke/status smoke))
+                   (= :native-command-resolution (:smoke/route smoke)))
+      (fail! "Smoke evidence does not assert a passed native-command-resolution run"
+             :invalid-default-build-smoke
+             {:smoke smoke}))
+    (when-let [log (:smoke/log smoke)]
+      (let [file (io/file (.getParentFile jar) (:path log))
+            actual (hash-ref/sha256-ref-file (.getPath file))]
+        (when (or (not (hash-ref/valid-sha256-ref? (:sha256 log)))
+                  (not= (:sha256 log) actual))
+          (fail! "Smoke log evidence does not match the captured log file"
+                 :default-build-smoke-log-mismatch
+                 {:path (:path log)
+                  :declared (:sha256 log)
+                  :actual actual}))))))
+
 (defn build-attestation
   "Bind an actual JAR and a successful packaged-JAR smoke result to a valid
    default-build definition. The caller supplies the smoke result because the
    smoke is intentionally an operational subprocess concern, not library code.
 
    Required smoke shape: {:smoke/status :passed :smoke/route
-   :native-command-resolution}."
+   :native-command-resolution}. Construction is fail-closed: a supplied smoke
+   that does not assert a passed native-command-resolution run, or whose log
+   reference does not match the captured log file, is rejected at build time."
   [{:keys [definition jar-file smoke builder-identity]}]
   (when-not (valid-definition? definition)
     (fail! "Cannot attest an invalid default build definition"
@@ -102,6 +129,7 @@
     (when-not jar-sha
       (fail! "Cannot attest a missing JAR" :default-build-jar-missing
              {:jar-file (str jar-file)}))
+    (validate-smoke! jar smoke)
     (let [attestation {:schema-version attestation-schema
                        :attestation/build-definition-hash (:default-build/hash definition)
                        :attestation/artifact {:path (.getName jar)

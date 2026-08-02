@@ -197,7 +197,7 @@ Every diagnostic run produces:
 - **Evidence chains** — linked audit trails connecting evidence artifacts across
   the replay. Every diagnostic claim is backed by a retrievable artifact.
 - **Suite verification** — cross-scenario assertion suite with expectations,
-  claims, and invariant profiles. Run mode: `bb test:sew` / `bb test:yield`.
+  claims, and invariant profiles. Run mode: `bb test:quick-sew` / `bb test:yield`.
 - **Clerk notebooks** — interactive replay with live state inspection for
   deep-dive diagnostics.
 

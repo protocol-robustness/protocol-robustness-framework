@@ -40,8 +40,10 @@
     "lineage-conservation-verification": "lineage-conservation-verification.v1",
     "force-auth-add-held": "force-auth-add-held.v1",
     "force-auth-lifecycle": "force-auth-lifecycle.v1",
-    "force-auth-lifecycle-summary": "force-auth-lifecycle-summary.v1",
-    "force-auth-add-held-summary": "force-auth-add-held-summary.v1"
+    "force-auth-lifecycle-summary": "force-auth-lifecycle-summary.v2",
+    "force-auth-add-held-summary": "force-auth-add-held-summary.v2",
+    "held-custody-summary": "held-custody-summary.v1",
+    "partial-fill-decisions-summary": "partial-fill-decisions-summary.v1"
   },
   "producers": {
     "summary": "summary-emitter.v1",
@@ -64,7 +66,9 @@
     "force-auth-add-held-verifier": "force-auth-add-held-verifier.v1",
     "force-auth-lifecycle-verifier": "force-auth-lifecycle-verifier.v1",
     "force-auth-lifecycle-summary-verifier": "force-auth-lifecycle-summary-verifier.v1",
-    "force-auth-add-held-summary-verifier": "force-auth-add-held-summary-verifier.v1"
+    "force-auth-add-held-summary-verifier": "force-auth-add-held-summary-verifier.v1",
+    "held-custody-summary-verifier": "held-custody-summary-verifier.v1",
+    "partial-fill-decisions-summary-verifier": "partial-fill-decisions-summary-verifier.v1"
   },
   "importance": {
     "CORE": 0,
@@ -72,6 +76,34 @@
     "TRACE": 2
   },
   "artifacts": [
+    {
+      "id": "partial-fill-decisions-summary",
+      "file": "partial-fill-decisions-summary.json",
+      "kind": "summary",
+      "schema_key": "partial-fill-decisions-summary",
+      "producer_key": "partial-fill-decisions-summary-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "partial-fill-decision.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "held-custody-summary",
+      "file": "held-custody-summary.json",
+      "kind": "summary",
+      "schema_key": "held-custody-summary",
+      "producer_key": "held-custody-summary-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "held-custody-adjustment.artifact.v3"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
     {
       "id": "test-summary",
       "file": "test-summary.json",

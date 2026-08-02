@@ -22,7 +22,7 @@
  {:invariant-profile
   "solidity-equivalence-core-v1 (version 1).  See etc/solidity-invariant-profile.edn
    for the full mapping of Clojure invariants to Solidity check functions.
-   8 invariants checked: conservation-of-funds, dispute-level-bounded,
+   7 invariants checked: conservation-of-funds, dispute-level-bounded,
    terminal-payout-exclusivity, held-reconstruction, state-transition-valid,
    escalation-monotonic, terminal-state-immutable."
 

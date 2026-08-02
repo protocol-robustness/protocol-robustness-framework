@@ -595,8 +595,162 @@
        (= verification-report-verifier-id (:artifact/verifier report))
        (string? (:report/hash report))
        (string? (:report/preimage report))
-       (let [body (dissoc report :report/hash :report/preimage)]
-         (= (:report/hash report)
+        (let [body (dissoc report :report/hash :report/preimage)]
+          (= (:report/hash report)
+             (str "sha256:"
+                  (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
+
+;; ── Partial-fill decisions summary file-artifact ─────────────────────────
+;;
+;; A projection/report aggregate over the partial-fill decision set. It
+;; distinguishes "a partial fill happened" from "the partial fill was exact,
+;; capacity-respecting, and decidable" by surfacing the verifier's failures
+;; alongside amount, count, and fill-ratio aggregates. Not a second verifier.
+
+(def partial-fill-summary-schema-version
+  "Version of the partial-fill decisions summary artifact."
+  "partial-fill-decisions-summary.v1")
+
+(def partial-fill-summary-verifier-id
+  "Producer identifier for the partial-fill decisions summary artifact."
+  "partial-fill-decisions-summary-verifier.v1")
+
+(defn- finalize-artifact
+  "Attach the content hash and exact preimage to an artifact body."
+  [body]
+  (let [hash (str "sha256:"
+                  (hc/hash-with-intent {:hash/intent :evidence-record} body))]
+    (assoc body
+           :artifact/hash hash
+           :artifact/preimage (pr-str body))))
+
+(defn- sum-totals [decisions field]
+  (long (reduce + 0 (map #(reduce + 0 (vals (get % field {}))) decisions))))
+
+(defn- gcd [a b]
+  (loop [a (long a) b (long b)]
+    (if (zero? b) (Math/abs a) (recur b (mod a b)))))
+
+(defn- reduce-fraction
+  "Reduce a fraction to {:numerator n :denominator d} (integers, encodable)."
+  [n d]
+  (let [g (gcd (long n) (long d))]
+    (if (zero? g)
+      {:numerator 0 :denominator 1}
+      {:numerator (long (/ n g)) :denominator (long (/ d g))})))
+
+(defn- fraction-add
+  "Average two fractions (n1/d1 + n2/d2)/2 as a reduced fraction."
+  [a b]
+  (reduce-fraction (+ (* (:numerator a) (:denominator b))
+                      (* (:numerator b) (:denominator a)))
+                   (* 2 (:denominator a) (:denominator b))))
+
+(defn- median-fraction [sorted]
+  (let [n (count sorted)
+        mid (quot n 2)]
+    (if (odd? n)
+      (nth sorted mid)
+      (fraction-add (nth sorted (dec mid)) (nth sorted mid)))))
+
+(defn build-partial-fill-decisions-summary
+  "Build the versioned, content-addressed partial-fill decisions summary
+   file-artifact over the decisions in a world.
+
+   Aggregates claim totals, counts and amounts by token/claimant/outcome, fill
+   ratios (min/max/median), committed vs allocated liquidity, and the verifier's
+   decision-integrity and reconciliation failures as triage vectors. Missing or
+   malformed evidence is non-passing."
+  [final-world & {:keys [committed-root case-scope expected-claims expected-count
+                         unique-claims?]}]
+  (let [decisions (vals (get-in final-world [:yield/partial-fill-decisions] {}))
+        verification (verify-partial-fill-decisions final-world
+                                                    :committed-root committed-root
+                                                    :case-scope case-scope
+                                                    :expected-claims expected-claims
+                                                    :expected-count expected-count
+                                                    :unique-claims? unique-claims?)
+        owed-total (sum-totals decisions :requested)
+        filled-total (sum-totals decisions :filled)
+        deferred-total (sum-totals decisions :deferred)
+        shortage-total (reduce + 0
+                               (map #(long (get-in % [:evidence :shortage] 0))
+                                    decisions))
+        available-total (reduce + 0
+                                (map #(long (get-in % [:evidence :available-liquidity] 0))
+                                     decisions))
+        outcomes (frequencies (map :settlement-mode decisions))
+        by-token-count (into (sorted-map)
+                             (frequencies (map :token decisions)))
+        by-token-amount (into (sorted-map)
+                              (reduce (fn [acc d]
+                                        (update acc (:token d)
+                                                (fnil + 0) (long (reduce + 0 (vals (:filled d))))))
+                                      {}
+                                      decisions))
+        claimants (frequencies (mapcat (fn [d] (keys (:requested d))) decisions))
+        fill-ratios (->> decisions
+                         (mapcat (fn [d]
+                                   (for [k (keys (:requested d))
+                                         :let [owed (long (get-in d [:requested k] 0))
+                                               filled (long (get-in d [:filled k] 0))]]
+                                     (when (pos? owed) (reduce-fraction filled owed)))))
+                         (remove nil?)
+                         (sort-by (fn [r] (/ (double (:numerator r)) (double (:denominator r)))))
+                         vec)
+        fully-filled (count (filter #(every? zero? (vals (:deferred %))) decisions))
+        fully-deferred (count (filter #(and (seq (:deferred %))
+                                            (every? zero? (vals (:filled %))))
+                                      decisions))
+        violation-idxs (fn [code] (mapv :decision/id (filter #(= code (:code %)) (:violations verification))))
+        reconciliation-failures (filterv #(= :per-claim-inexact (:code %))
+                                         (:violations verification))
+        body {:schema-version partial-fill-summary-schema-version
+              :artifact/kind :partial-fill-decisions-summary
+              :artifact/verifier partial-fill-summary-verifier-id
+              :decision-count (count decisions)
+              :claim-count (count (distinct (mapcat (fn [d] (keys (:requested d))) decisions)))
+              :totals {:owed owed-total
+                       :filled filled-total
+                       :deferred deferred-total
+                       :shortage shortage-total
+                       :available-liquidity available-total
+                       :allocated filled-total}
+              :outcome-counts (into (sorted-map) outcomes)
+              :fully-filled-count fully-filled
+              :fully-deferred-count fully-deferred
+              :fill-ratio {:min (first fill-ratios)
+                           :max (last fill-ratios)
+                           :median (when (seq fill-ratios)
+                                     (median-fraction fill-ratios))}
+              :by-token-count by-token-count
+              :by-token-amount by-token-amount
+              :by-claimant (into (sorted-map) claimants)
+              :integrity {:decision-integrity? (:decision-integrity? verification)
+                          :root-recomputed (:root-recomputed verification)
+                          :expected-fill-mode (:expected-fill-mode verification)
+                          :aggregate-drift (:aggregate-drift verification)}
+              :classification (:classification verification)
+              :failures {:invalid-decision-hashes (violation-idxs :invalid-decision-hash)
+                         :over-capacity-decisions (violation-idxs :over-capacity-fill)
+                         :mislabeled-full-fills (violation-idxs :under-capacity-misclassified)
+                         :reconciliation-failures (mapv (fn [v]
+                                                          (select-keys v
+                                                                       [:key :owed :filled :deferred :delta]))
+                                                        reconciliation-failures)}}]
+    (finalize-artifact body)))
+
+(defn valid-partial-fill-decisions-summary?
+  "Re-verify a partial-fill-decisions-summary file-artifact."
+  [report]
+  (and (map? report)
+       (= partial-fill-summary-schema-version (:schema-version report))
+       (= :partial-fill-decisions-summary (:artifact/kind report))
+       (= partial-fill-summary-verifier-id (:artifact/verifier report))
+       (string? (:artifact/hash report))
+       (string? (:artifact/preimage report))
+       (let [body (dissoc report :artifact/hash :artifact/preimage)]
+         (= (:artifact/hash report)
             (str "sha256:"
                  (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
 

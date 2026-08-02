@@ -611,7 +611,11 @@
                                       :sensitivity/report-hash (get-in bundle
                                                                        [:bundle/sensitivity :sentinel/report-hash])})]
                          {:check/id :completeness-profile-evaluated
-                          :check/status :pass
+                          :check/status (case status
+                                          :invalid :fail
+                                          :blocked-by-sensitivity-policy :blocked
+                                          :partially-verified :warning
+                                          :pass)
                           :evidence-status status
                           :profile/mode (:profile/mode completeness-profile-ref)})
                        {:check/id :completeness-profile-evaluated
@@ -643,21 +647,30 @@
          sens-warnings (filter #(and (= :warning (:check/status %))
                                      (= :sensitivity-sentinel-approved (:check/id %)))
                                checks)
-         other-warnings (filter #(and (= :warning (:check/status %))
-                                      (not= :sensitivity-sentinel-approved (:check/id %)))
-                                checks)
-         all-pass? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
-         status (cond
-                  (seq unknown) :invalid
-                  (seq failures) :invalid
-                  (seq blocked) :blocked-by-sensitivity-policy
-                  (seq policy-constrained) :internal-retention
-                  (seq sens-warnings) :unverified-sensitivity
-                  (and (empty? other-warnings) all-pass?) :fully-verified
-                  (some #(= :warning (:check/status %))
-                        (filter #(= :subject-content-available (:check/id %)) checks))
-                  :partially-verified
-                  :else :hash-linked)]
+          other-warnings (filter #(and (= :warning (:check/status %))
+                                       (not= :sensitivity-sentinel-approved (:check/id %)))
+                                 checks)
+          all-pass? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
+          ;; The completeness-profile evaluation now drives the bundle-level
+          ;; status: :invalid / :blocked-by-sensitivity-policy propagate through
+          ;; the failure/blocked collections above, and a missing-required
+          ;; (:partially-verified) completeness outcome surfaces explicitly
+          ;; instead of collapsing to :hash-linked.
+          evidence-status (get-in (some #(when (= :completeness-profile-evaluated (:check/id %)) %)
+                                        checks)
+                                  [:evidence-status])
+          status (cond
+                   (seq unknown) :invalid
+                   (seq failures) :invalid
+                   (seq blocked) :blocked-by-sensitivity-policy
+                   (seq policy-constrained) :internal-retention
+                   (= :partially-verified evidence-status) :partially-verified
+                   (seq sens-warnings) :unverified-sensitivity
+                   (and (empty? other-warnings) all-pass?) :fully-verified
+                   (some #(= :warning (:check/status %))
+                         (filter #(= :subject-content-available (:check/id %)) checks))
+                   :partially-verified
+                   :else :hash-linked)]
      (let [valid? (and (empty? failures) (empty? blocked) (empty? policy-constrained) (empty? unknown))
            verified? (contains? fully-verified-statuses status)]
        {:valid? valid?
