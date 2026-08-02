@@ -288,11 +288,15 @@
       :else
       (if-let [[cmd-path cmd-args] (command-path arguments)]
         (if-let [[cmd-id _] (resolve-command cmd-path)]
-          (if-let [handler-var (handler-for cmd-id)]
-            (run-command handler-var options cmd-path cmd-args args)
-            (do (println "Unknown command:" cmd-path)
-                (println "Run 'java -jar prf.jar help' for available commands.")
-                2))
+          (let [cmd (registry/get-command cmd-id)]
+            (if-let [argument-error (registry/positional-args-error cmd cmd-args)]
+              (do (println argument-error)
+                  2)
+              (if-let [handler-var (handler-for cmd-id)]
+                (run-command handler-var options cmd-path cmd-args args)
+                (do (println "Unknown command:" cmd-path)
+                    (println "Run 'java -jar prf.jar help' for available commands.")
+                    2))))
           (do (println "Unknown command:" cmd-path)
               (println "Run 'java -jar prf.jar help' for available commands.")
               2))

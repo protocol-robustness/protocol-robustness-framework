@@ -299,26 +299,31 @@
     (is (custody/held-history-zero-origin? []))))
 
 (deftest reconstruction-invariant-not-evaluated-without-complete-flag
-  (let [w (base-world)]
-    (is (:holds? (inv/held-adjustments-reconstruct-total-held? w)))
-    (is (= :not-evaluated (:status (inv/held-adjustments-reconstruct-total-held? w))))
-    (is (= :held-history-not-declared-complete
-           (:reason (inv/held-adjustments-reconstruct-total-held? w))))
-    (is (:holds? (inv/held-custody-closed-form? w)))
-    (is (= :not-evaluated (:status (inv/held-custody-closed-form? w))))))
+  (let [w (base-world)
+        reconstruction (inv/held-adjustments-reconstruct-total-held? w)
+        closed-form (inv/held-custody-closed-form? w)
+        artifacts (inv/held-artifacts-derived-from-adjustments? w)]
+    (doseq [result [reconstruction closed-form artifacts]]
+      (is (false? (:holds? result)))
+      (is (= :not-evaluated (:status result)))
+      (is (= :not-evaluated-incomplete-history (:classification result)))
+      (is (false? (inv/custody-validation-pass? result))))
+    (is (= :held-history-not-declared-complete (:reason reconstruction)))))
 
-(deftest reconstruction-invariant-not-evaluated-when-history-not-zero-origin
+(deftest reconstruction-invariant-fails-when-declared-history-is-not-zero-origin
   (let [w (-> (base-world)
               (assoc-in [:params :held-adjustments/complete?] true)
               (update :held-adjustments
                       (fn [adjs]
                         (mapv #(assoc % :held/before (+ 100 (:held/before %))
                                         :held/after (+ 100 (:held/after %)))
-                              adjs))))]
-    (is (:holds? (inv/held-adjustments-reconstruct-total-held? w)))
-    (is (= :not-evaluated (:status (inv/held-adjustments-reconstruct-total-held? w))))
-    (is (= :held-history-missing-opening-state
-           (:reason (inv/held-adjustments-reconstruct-total-held? w))))))
+                              adjs))))
+        result (inv/held-adjustments-reconstruct-total-held? w)]
+    (is (false? (:holds? result)))
+    (is (= :evaluated (:status result)))
+    (is (= :evaluated-fail (:classification result)))
+    (is (false? (inv/custody-validation-pass? result)))
+    (is (= :held-history-invalid-opening-state (:reason result)))))
 
 (deftest final-held-summary-reports-missing-opening-state
   (let [non-zero-origin (assoc (t/empty-world) :held-adjustments
@@ -353,15 +358,14 @@
           "canonical init-world declares held-adjustment completeness")
       (is (= :evaluated (:status rec))
           "ordinary run reaches evaluated/pass, not :not-evaluated")
-      (is (:holds? rec) "strong replay reconstructs final :total-held")
+      (is (inv/custody-validation-pass? rec) "strong replay reconstructs final :total-held")
       (is (= 0 (get-in world' [:total-held usdc] 0)))
       (is (custody/held-history-zero-origin? (:held-adjustments world'))
           "zero-origin contract holds"))))
 
-(deftest not-evaluated-distinguishable-from-evaluated-pass
-  (testing "An incomplete-history run is :not-evaluated (holds? true for compatibility),
-            while the same world with completeness declared is :evaluated/pass — the
-            :status field disambiguates where :holds? cannot."
+(deftest custody-classification-distinguishes-incomplete-from-evaluated-pass
+  (testing "Incomplete history is never positive assurance, while the same
+            complete world has an explicit evaluated-pass classification."
     (let [world0  (proto/init-world sew/protocol {:initial-block-time 1000})
           snap    (snap-fix/escrow-snapshot {:escrow-fee-bps 50 :appeal-window-duration 0})
           created (lc/create-escrow world0 alice usdc bob 1000
@@ -370,10 +374,11 @@
           incomplete (update-in world' [:params] dissoc :held-adjustments/complete?)
           incomplete-rec (inv/held-adjustments-reconstruct-total-held? incomplete)
           evaluated-rec  (inv/held-adjustments-reconstruct-total-held? world')]
-      (is (= :not-evaluated (:status incomplete-rec)))
-      (is (= :evaluated (:status evaluated-rec)))
-      (is (= (:holds? incomplete-rec) (:holds? evaluated-rec))
-          ":holds? is retained true for both; :status disambiguates not-evaluated from pass"))))
+      (is (= :not-evaluated-incomplete-history (:classification incomplete-rec)))
+      (is (= :evaluated-pass (:classification evaluated-rec)))
+      (is (false? (:holds? incomplete-rec)))
+      (is (inv/custody-validation-pass? evaluated-rec))
+      (is (false? (:all-hold? (inv/check-all incomplete)))))))
 
 (deftest canonical-held-mutation-preserves-completeness
   (testing "The canonical accounting mutation path (acct/add-held / acct/sub-held) does
@@ -392,7 +397,8 @@
       (is (true? (get-in world [:params :held-adjustments/complete?]))
           "canonical mutations preserve the completeness declaration")
       (is (= :evaluated (:status (inv/held-adjustments-reconstruct-total-held? world))))
-      (is (:holds? (inv/held-adjustments-reconstruct-total-held? world))))))
+      (is (inv/custody-validation-pass?
+           (inv/held-adjustments-reconstruct-total-held? world))))))
 
 (deftest adversarial-yield-direct-total-held-write-invalidates-completeness
   (testing "The adversarial yield module (:drain/:bloat) writes :total-held directly
@@ -604,7 +610,7 @@
           "recomputed leaf hash is not covered by the committed evidence-hash-set root"))))
 
 (deftest held-artifacts-must-match-derived-ledger-view
-  (let [world (-> (t/empty-world)
+  (let [world (-> (assoc-in (t/empty-world) [:params :held-adjustments/complete?] true)
                   (ac/add-held usdc 100 {:action "create-escrow"
                                          :reason :escrow-principal-deposited
                                          :extra {:held/workflow-id 0
@@ -614,7 +620,10 @@
         tampered (assoc-in world
                            [:held-artifacts "held-adjustment-0" :amount]
                            999)]
-    (is (:holds? (inv/held-artifacts-derived-from-adjustments? world)))
+    (is (inv/custody-validation-pass?
+         (inv/held-artifacts-derived-from-adjustments? world)))
+    (is (= :evaluated-fail
+           (:classification (inv/held-artifacts-derived-from-adjustments? tampered))))
     (is (false? (:holds? (inv/held-artifacts-derived-from-adjustments? tampered))))))
 
 (deftest held-adjustments-record-and-verify-parameter-attribution
@@ -1888,7 +1897,8 @@
         "changed terminal state detected")))
 
 (deftest check-all-healthy-world
-  (let [result (inv/check-all (base-world))]
+  (let [world (assoc-in (base-world) [:params :held-adjustments/complete?] true)
+        result (inv/check-all world)]
     (is (:all-hold? result))))
 
 (deftest single-resolution-payout-consistency-detects-dual-claimable

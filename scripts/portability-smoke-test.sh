@@ -71,12 +71,20 @@ echo "External CWD: $CWD_DIR"
   cd "$CWD_DIR"
   java -jar "$PRF_JAR_PATH" help > "$TEMP_DIR/prf-help.txt"
   grep -q "PRF CLI" "$TEMP_DIR/prf-help.txt"
+  # `commands validate` resolves every native handler. Registry validation
+  # deliberately excludes :external wrapper commands, which are checked via
+  # their bb-task parity rather than treated as JAR capabilities.
+  java -jar "$PRF_JAR_PATH" commands validate > "$TEMP_DIR/prf-commands-validate.txt"
+  grep -q "Command registry valid" "$TEMP_DIR/prf-commands-validate.txt"
   if grep -q "run-scenario\|run-benchmark" "$TEMP_DIR/prf-help.txt"; then
     echo "FAIL: framework-only JAR advertises Sew commands" >&2
     exit 1
   fi
 
   java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main help > "$TEMP_DIR/sew-help.txt"
+  java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
+    commands validate > "$TEMP_DIR/sew-commands-validate.txt"
+  grep -q "Command registry valid" "$TEMP_DIR/sew-commands-validate.txt"
   grep -q "run-scenario" "$TEMP_DIR/sew-help.txt"
   grep -q "run-benchmark" "$TEMP_DIR/sew-help.txt"
   java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
@@ -113,3 +121,4 @@ echo "PASS: framework-only JAR has the unified CLI and does not advertise Sew co
 echo "PASS: full Sew JAR runs bundled scenario and benchmark without CWD scatter"
 echo "PASS: completion records commit to final registry and validation report hashes"
 echo "PASS: built Sew JAR verifies completed scenario evidence-chain and benchmark assurance bundles"
+echo "PASS: each JAR resolves every declared native command; external wrappers are checked by bb-task parity"

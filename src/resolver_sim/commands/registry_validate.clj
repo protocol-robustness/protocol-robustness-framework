@@ -18,12 +18,12 @@
     (doseq [cmd-id (keys handlers)]
       (when-not (reg/get-command cmd-id)
         (swap! errors conj (str "Missing registry: " (name cmd-id)))))
-    (let [{:keys [ok? errors reg-errors]} (reg/validate-registry)]
-      (when-not ok?
-        (swap! errors into reg-errors)))
-    (let [{:keys [ok? errors path-errors]} (reg/validate-paths)]
-      (when-not ok?
-        (swap! errors into path-errors)))
+    (let [{valid? :ok? validation-errors :errors} (reg/validate-registry)]
+      (when-not valid?
+        (swap! errors into validation-errors)))
+    (let [{valid? :ok? validation-errors :errors} (reg/validate-paths)]
+      (when-not valid?
+        (swap! errors into validation-errors)))
     (doseq [cmd available-cmds]
       (when-not (dispatch/resolve-command (str/join " " (:path cmd)))
         (swap! errors conj (str "Not resolvable: " (:id cmd)))))

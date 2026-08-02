@@ -21,6 +21,7 @@
   :nextjournal.clerk/visibility {:code :fold}}
 (ns notebooks.researcher-interaction-topology
   (:require [nextjournal.clerk :as clerk]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.researcher-run-report :as rrr]
             [resolver-sim.benchmark.researcher-position :as rp]
@@ -113,35 +114,48 @@
 ;; dimension and emits integer key vectors alongside existing ID vectors.
 
 ^{::clerk/visibility {:code :hide :result :hide}}
+(defn- finalise-report
+  "Compute the content hash for an unsigned run report so it passes
+   certificate pre-checks.  Mirrors the test-suite helper."
+  [report]
+  (assoc report :researcher-run-report/hash
+         (str "sha256:" (hc/domain-hash :researcher-run-report report))))
+
+^{::clerk/visibility {:code :hide :result :hide}}
 (def reports
   (mapv (fn [id]
-          (rrr/build-report {:outcome-manifest manifest
-                             :researcher-id id
-                             :runner-info runner-info
-                             :evidence-refs evidence-refs
-                             :run-id (str "demo-run-" id)}))
+          (-> (rrr/build-report {:outcome-manifest manifest
+                                 :researcher-id id
+                                 :runner-info runner-info
+                                 :evidence-refs evidence-refs
+                                 :run-id (str "demo-run-" id)})
+              (finalise-report)))
         ["researcher-a" "researcher-b" "researcher-c"]))
+
+^{::clerk/visibility {:code :hide :result :hide}}
+(def outcome-hash
+  (:researcher-run-report/outcome-hash (first reports)))
 
 ^{::clerk/visibility {:code :hide :result :hide}}
 (def positions
   [(rp/build-position
     {:benchmark/content-root "sha256:demo-content"
      :researcher/id "researcher-a"
-     :outcome-hash "sha256:demo-outcome"
+     :outcome-hash outcome-hash
      :dimensions {:publication {:status :publish}
                   :model-state {:status :adequate}
                   :evidence {:status :sufficient}}})
    (rp/build-position
     {:benchmark/content-root "sha256:demo-content"
      :researcher/id "researcher-b"
-     :outcome-hash "sha256:demo-outcome"
+     :outcome-hash outcome-hash
      :dimensions {:publication {:status :publish}
                   :model-state {:status :adequate}
                   :evidence {:status :sufficient}}})
    (rp/build-position
     {:benchmark/content-root "sha256:demo-content"
      :researcher/id "researcher-c"
-     :outcome-hash "sha256:demo-outcome"
+     :outcome-hash outcome-hash
      :dimensions {:publication {:status :publish}
                   :model-state {:status :incomplete}
                   :evidence {:status :insufficient}}})])
@@ -331,33 +345,36 @@
    {:researcher/id "researcher-c" :role :adversarial-reviewer}])
 
 ^{::clerk/visibility {:code :fold :result :show}}
-(let [legacy-round
+(let [legacy-content-root (:benchmark/content-root manifest)
+      legacy-round
       (rr/build-review-round
-       {:benchmark/content-root "sha256:demo"
+       {:benchmark/content-root legacy-content-root
         :review-round/purpose :model-admission
         :review-round/members legacy-members
         :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
         :review-round/policy-root "sha256:policy"})
       legacy-reports
       (mapv (fn [id]
-              (rrr/build-report {:outcome-manifest manifest
-                                 :researcher-id id
-                                 :runner-info runner-info
-                                 :evidence-refs evidence-refs
-                                 :run-id (str "legacy-run-" id)}))
+              (-> (rrr/build-report {:outcome-manifest manifest
+                                     :researcher-id id
+                                     :runner-info runner-info
+                                     :evidence-refs evidence-refs
+                                     :run-id (str "legacy-run-" id)})
+                  (finalise-report)))
             ["researcher-a" "researcher-b" "researcher-c"])
+      legacy-outcome-hash (:researcher-run-report/outcome-hash (first legacy-reports))
       legacy-pos
       [(rp/build-position
-        {:benchmark/content-root "sha256:demo"
-         :researcher/id "researcher-a" :outcome-hash "sha256:o"
+        {:benchmark/content-root legacy-content-root
+         :researcher/id "researcher-a" :outcome-hash legacy-outcome-hash
          :dimensions {:publication {:status :publish}}})
        (rp/build-position
-        {:benchmark/content-root "sha256:demo"
-         :researcher/id "researcher-b" :outcome-hash "sha256:o"
+        {:benchmark/content-root legacy-content-root
+         :researcher/id "researcher-b" :outcome-hash legacy-outcome-hash
          :dimensions {:publication {:status :publish}}})
        (rp/build-position
-        {:benchmark/content-root "sha256:demo"
-         :researcher/id "researcher-c" :outcome-hash "sha256:o"
+        {:benchmark/content-root legacy-content-root
+         :researcher/id "researcher-c" :outcome-hash legacy-outcome-hash
          :dimensions {:publication {:status :publish}}})]
       legacy-cert
       (-> (tmc/build-certificate

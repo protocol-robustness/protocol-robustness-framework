@@ -30,6 +30,7 @@
    Comparison predicates distinguish exact replication, independent
    sampling and model-level corroboration. All predicates are symmetric."
   (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-theorem-outcome :as theorem]
             [resolver-sim.benchmark.research-conclusion :as conclusion]))
 
@@ -252,6 +253,8 @@
 
 ;; ── Comparison predicates (all symmetric) ─────────────────────────────────
 
+(declare hash-prefix-valid?)
+
 (defn- executed-content-root
   "Extract the executed content root from a manifest.
    For force-authorised runs, this is :executed-content-root in the FA section.
@@ -260,27 +263,37 @@
   (or (get-in manifest [:execution/force-authorisation :executed-content-root])
       (:benchmark/content-root manifest)))
 
+(def ^:private exact-scope-keys
+  [:benchmark/content-root
+   :benchmark/model-root
+   :execution/model-instance-root
+   :execution/plan-root
+   :execution/parameter-domain-root
+   :execution/sampling-policy-root
+   :execution/realised-parameter-set-root
+   :execution/generated-case-set-root
+   :benchmark/evaluation-policy-root
+   :schema-version])
+
 (defn exact-replication-scope?
-  "True when two manifests are from the same exact execution scope.
+  "True when two complete manifests are from the same exact execution scope.
    Required for direct byte-identical outcome-hash comparison.
 
-   Compares effective execution scope only — does NOT require equality
-   of authorisation provenance (authorisation-hash, reservation-hash,
-   consumption-key, execution-attempt-id, etc.) so that independently
-   authorised reproductions of the same branch can classify as exact
-   replication when they executed the same content."
+   All scope identity fields must be present on both manifests. This makes the
+   predicate safe for externally loaded manifests: matching absent roots never
+   qualify as exact replication. The predicate compares effective execution
+   scope only — not authorisation provenance — so independently authorised
+   reproductions of the same branch can classify as exact replication."
   [a b]
-  (and (= (:benchmark/content-root a) (:benchmark/content-root b))
-       (= (:benchmark/model-root a) (:benchmark/model-root b))
-       (= (:execution/model-instance-root a) (:execution/model-instance-root b))
-       (= (:execution/plan-root a) (:execution/plan-root b))
-       (= (:execution/parameter-domain-root a) (:execution/parameter-domain-root b))
-       (= (:execution/sampling-policy-root a) (:execution/sampling-policy-root b))
-       (= (:execution/realised-parameter-set-root a) (:execution/realised-parameter-set-root b))
-       (= (:execution/generated-case-set-root a) (:execution/generated-case-set-root b))
-       (= (:benchmark/evaluation-policy-root a) (:benchmark/evaluation-policy-root b))
-       (= (executed-content-root a) (executed-content-root b))
-       (= (:schema-version a) (:schema-version b))))
+  (let [root-keys (disj (set exact-scope-keys) :schema-version)]
+    (and (= schema-version (:schema-version a) (:schema-version b))
+         (every? #(and (hash-prefix-valid? (get a %))
+                       (hash-prefix-valid? (get b %)))
+                 root-keys)
+         (hash-prefix-valid? (executed-content-root a))
+         (hash-prefix-valid? (executed-content-root b))
+         (every? #(= (get a %) (get b %)) exact-scope-keys)
+         (= (executed-content-root a) (executed-content-root b)))))
 
 (defn exact-execution-scope?
   "Alias for exact-replication-scope?.  Same semantics."
@@ -351,6 +364,74 @@
   "True when v is a sha256: prefixed hash string (the canonical encoding)."
   [v]
   (and (string? v) (re-matches #"sha256:[0-9a-f]{64}" v)))
+
+(def ^:private command-output-roots
+  {:operational :outcomes/operational-root
+   :incentive :outcomes/incentive-root
+   :incentive-compatibility :outcomes/incentive-compatibility-root})
+
+(defn- requested-output-domains
+  "Return the baseline and include-selected output domains for command."
+  [research-command]
+  (into #{:operational} (:command/include research-command)))
+
+(defn outcome-complete-for-command?
+  "Validate that manifest contains every valid output root requested by a
+   validated research command. The command root must bind the manifest to that
+   exact command artifact; include domains require their corresponding output
+   roots, while unrequested domains remain optional.
+
+   Returns {:complete? bool :errors [string] :requested-domains #{...}}."
+  [research-command manifest]
+  (let [errors (atom [])
+        command-validation (command/validate-command research-command)
+        requested-domains (requested-output-domains research-command)]
+    (when-not (:valid? command-validation)
+      (swap! errors into (map #(str "invalid research command: " %)
+                              (:errors command-validation))))
+    (when-not (= (:command/hash research-command)
+                 (:execution/command-root manifest))
+      (swap! errors conj "manifest :execution/command-root does not bind the research command"))
+    (doseq [domain requested-domains]
+      (if-let [root-key (get command-output-roots domain)]
+        (let [root (get manifest root-key)]
+          (when-not (hash-prefix-valid? root)
+            (swap! errors conj (str "missing or invalid " root-key
+                                    " required by command domain " domain))))
+        (swap! errors conj (str "unsupported command include domain " domain))))
+    {:complete? (empty? @errors)
+     :errors @errors
+     :requested-domains requested-domains}))
+
+(defn exact-claim-scope?
+  "True when executions share exact operational scope, command semantic identity,
+   and request-defining semantic commitments. Command hashes need not match:
+   independent reproductions may use separately constructed command artifacts
+   with the same include semantics."
+  [manifest-a command-a manifest-b command-b]
+  (and (exact-execution-scope? manifest-a manifest-b)
+       (:valid? (command/validate-command command-a))
+       (:valid? (command/validate-command command-b))
+       (command/same-semantic-command? command-a command-b)
+       (= (:evidence/semantic-commitments manifest-a)
+          (:evidence/semantic-commitments manifest-b))))
+
+(defn identical-outcome?
+  "True when two complete, exact-claim-scope executions produced identical
+   applicable output roots. Scope equality alone intentionally does not imply
+   this result equality."
+  [manifest-a command-a manifest-b command-b]
+  (let [complete-a (outcome-complete-for-command? command-a manifest-a)
+        complete-b (outcome-complete-for-command? command-b manifest-b)
+        domains (:requested-domains complete-a)]
+    (and (:complete? complete-a)
+         (:complete? complete-b)
+         (= domains (:requested-domains complete-b))
+         (exact-claim-scope? manifest-a command-a manifest-b command-b)
+         (every? (fn [domain]
+                   (= (get manifest-a (get command-output-roots domain))
+                      (get manifest-b (get command-output-roots domain))))
+                 domains))))
 
 (def ^:const hash-bearing-root-keys
   "Top-level manifest keys that must carry a valid sha256: hash when present.

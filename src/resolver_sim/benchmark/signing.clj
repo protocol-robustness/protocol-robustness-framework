@@ -71,6 +71,12 @@
       :else
       (keys/public-key path))))
 
+(defn load-private-key!
+  "Load an Ed25519 private key for an explicitly local signing workflow.
+   Callers must not serialize or log the returned key."
+  [path password]
+  (load-private-key path password))
+
 (defn sign-hash [hash private-key-path password]
   (let [priv-key (load-private-key private-key-path password)
         signature (dsa/sign (codecs/str->bytes hash) {:alg :eddsa :key priv-key})]

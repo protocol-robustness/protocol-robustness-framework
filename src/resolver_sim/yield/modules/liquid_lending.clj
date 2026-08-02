@@ -524,7 +524,72 @@
         maximum-history-round (reduce max 0 (lineage-history-rounds position))]
     (inc (max (long active-round) maximum-history-round))))
 
+(defn- lineage-origin-reference
+  "Create the durable, independently verifiable origin commitment for a lineage.
+
+   This deliberately commits only the immutable identity, queue-domain, and
+   priority inputs. The mutable base position is later updated as it unwinds,
+   so hashing its full pre-deferral state cannot authenticate the origin after
+   the first partial fill."
+  [owner-id position]
+  {:schema-version "yield-lineage-origin.v1"
+   :position-id (base-position-id owner-id position)
+   :owner-id owner-id
+   :module-id (:module/id position)
+   :token (normalize-token (:token position))
+   :root-obligation-id (base-position-id owner-id position)
+   :original-priority (authoritative-original-priority owner-id position)})
+
+(defn- validate-active-deferred-lineage!
+  "Require and authenticate canonical lineage anchors on an active deferred
+   position. Missing fields are not treated as matching legacy absence."
+  [owner-id position]
+  (when-let [deferred (:deferred-position position)]
+    (when (= :deferred-withdrawal (:position/type deferred))
+      (doseq [key [:deferred/lineage-root
+                   :deferred/predecessor-hash
+                   :deferred/original-position
+                   :position/original-priority
+                   :position/root-obligation-id]]
+        (when (nil? (get deferred key))
+          (fail! "Active deferred position is missing a lineage anchor"
+                 :missing-deferred-lineage-anchor
+                 {:owner-id owner-id :missing key})))
+      (let [origin (:deferred/original-position deferred)
+            expected-origin (lineage-origin-reference owner-id position)
+            expected-root (canonical-hash-safe expected-origin)]
+        (when-not (= origin expected-origin)
+          (fail! "Deferred position origin does not match its base position"
+                 :deferred-lineage-origin-mismatch
+                 {:owner-id owner-id
+                  :expected expected-origin
+                  :actual origin}))
+        (when-not (= expected-root (:deferred/lineage-root deferred))
+          (fail! "Deferred lineage root does not authenticate its origin"
+                 :deferred-lineage-origin-root-mismatch
+                 {:owner-id owner-id
+                  :expected expected-root
+                  :actual (:deferred/lineage-root deferred)})))
+      (when-let [parent (get (:deferred-position-history position)
+                             (:position/parent-id deferred))]
+        (when-not (= (:deferred/lineage-root parent)
+                     (:deferred/lineage-root deferred))
+          (fail! "Deferred lineage root differs from its archived predecessor"
+                 :deferred-lineage-root-continuity-mismatch
+                 {:owner-id owner-id
+                  :parent-id (:position/parent-id deferred)
+                  :expected (:deferred/lineage-root parent)
+                  :actual (:deferred/lineage-root deferred)}))
+        (when-not (= (:position/id deferred) (:position/successor-id parent))
+          (fail! "Archived deferred predecessor does not link to active successor"
+                 :deferred-lineage-successor-mismatch
+                 {:owner-id owner-id
+                  :parent-id (:position/parent-id deferred)
+                  :expected-successor (:position/id deferred)
+                  :actual-successor (:position/successor-id parent)}))))))
+
 (defn- position-state-commitment [owner-id position]
+  (validate-active-deferred-lineage! owner-id position)
   ;; TODO(deferral.v1):
   ;; The deferred-position commitment below is the implicit deferral artifact.
   ;; resolver-sim.deferral formalizes this as deferral.v1 (stable :deferral/id +
@@ -552,16 +617,13 @@
        (base-position-id owner-id position))})
 
 (defn- lineage-root
-  "Return the genesis lineage root hash for this deferred lineage.
-   For the first deferral the root is the hash of the base position.
-   For subsequent deferrals the root is inherited from the prior deferred."
-  [position current-deferred]
+  "Return the durable genesis lineage root.
+   The first root authenticates an immutable origin reference rather than a
+   mutable full position snapshot; later deferrals inherit that same root."
+  [owner-id position current-deferred]
   (if current-deferred
     (get current-deferred :deferred/lineage-root)
-    (let [base-state (position-state-commitment (or (:owner/id position)
-                                                    (:position/participant-id position))
-                                                position)]
-      (:position-hash base-state))))
+    (canonical-hash-safe (lineage-origin-reference owner-id position))))
 
 (defn- predecessor-hash
   "Return the immediate predecessor hash for the deferred position chain.
@@ -1017,7 +1079,11 @@
                                                   :fulfilled-amount fulfilled
                                                   :deferred-amount deferred
                                                   :haircut-amount 0}))
-                              :deferred/lineage-root (lineage-root position current-deferred)
+                              :deferred/original-position
+                              (or (:deferred/original-position current-deferred)
+                                  (lineage-origin-reference participant-id position))
+                              :deferred/lineage-root
+                              (lineage-root participant-id position current-deferred)
                               :deferred/predecessor-hash (predecessor-hash position current-deferred)}]
                        (when (pos? deferred)
                          (propagation-policy/validate-deferred-position-schema m))
@@ -1739,8 +1805,35 @@
 
         (= (:status position) :unwinding)
         (let [old-position position
-              new-position (acct/claim-deferred world module-id position)
-              reclaimed (:reclaimed-amount new-position 0)]
+              recovered-position (acct/claim-deferred world module-id position)
+              reclaimed (:reclaimed-amount recovered-position 0)
+              active-deferred (:deferred-position old-position)
+              _ (when (and (pos? reclaimed) active-deferred)
+                  (let [outstanding (:position/current-amount active-deferred)]
+                    (when-not (= reclaimed outstanding)
+                      (fail! "Deferred claim amount differs from lineage outstanding amount"
+                             :deferred-claim-lineage-amount-mismatch
+                             {:owner-id owner-id
+                              :reclaimed reclaimed
+                              :outstanding outstanding
+                              :deferred-position-id (:position/id active-deferred)}))))
+              new-position
+              (if (and (pos? reclaimed) active-deferred)
+                (let [closed-deferred
+                      (assoc active-deferred
+                             :position/status :closed
+                             :position/closed-from-amount
+                             (:position/current-amount active-deferred)
+                             :position/current-amount 0
+                             :position/closed-by :claim-deferred
+                             :position/closed-reclaimed-amount reclaimed
+                             :position/closed-event-time (resolve-now world))]
+                  (-> recovered-position
+                      (dissoc :deferred-position)
+                      (update :deferred-position-history
+                              record-closed-deferred-position
+                              closed-deferred)))
+                recovered-position)]
           (if (pos? reclaimed)
             (let [world-with-position
                   (assoc-in world position-path new-position)

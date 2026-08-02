@@ -13,6 +13,7 @@
                      {:name "--full" :type :flag :doc "Run full tier"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Run the default review gate (backstop)."}
 
    {:command/id :backstop-fast
@@ -26,6 +27,7 @@
    :command/options [{:name "--full" :type :flag :doc "Run full tier"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Run the fast registered review gate."}
 
    {:command/id :backstop-full
@@ -39,6 +41,7 @@
     :command/bb-task "backstop:full"
     :command/options []
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run the extended review gate: yield + CLI default + notebooks + forensic-python + community + portability."}
 
   {:command/id :commands-validate
@@ -51,6 +54,7 @@
    :command/runtime :jvm
    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Validate the command registry, dispatch table, and bb wrapper parity."}
 
   {:command/id :evidence-verify-chain
@@ -65,6 +69,7 @@
                      {:name "--json" :type :flag :doc "Output as JSON"}
                      {:name "--strict" :type :flag :doc "Strict validation mode"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Verify evidence chain hashes and links for an artifact directory."}
 
   {:command/id :evidence-validate
@@ -78,6 +83,7 @@
      :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Validate evidence artifacts in a run directory."}
 
   {:command/id :evidence-coverage
@@ -91,6 +97,7 @@
      :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Check evidence coverage completeness."}
 
   {:command/id :evidence-backstop
@@ -106,6 +113,7 @@
                      {:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Run the evidence forensic review gate."}
 
   {:command/id :validate
@@ -119,6 +127,7 @@
    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}
                      {:name "--strict" :type :flag :doc "Strict validation mode"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Run the structural validation pipeline (lint + notebook checks)."}
 
   {:command/id :concepts-validate
@@ -131,6 +140,7 @@
    :command/runtime :jvm
    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Validate concept data files and the concept registry."}
 
    {:command/id :benchmark-list
@@ -143,6 +153,7 @@
     :command/runtime :jvm
     :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "List available benchmarks from the benchmark registry."}
 
    {:command/id :suite-list
@@ -155,6 +166,7 @@
     :command/runtime :jvm
     :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "List registered scenario suites with scenario counts and protocols."}
 
    {:command/id :benchmark-validate
@@ -167,6 +179,7 @@
     :command/runtime :jvm
     :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Validate benchmark pack definitions and referenced resources."}
 
    {:command/id :scenario-list
@@ -181,6 +194,7 @@
                       {:name "--protocol" :type :string :doc "Filter by protocol (e.g. sew-v1)"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "List available scenarios from the scenario catalog."}
 
    {:command/id :scenario-pick
@@ -194,6 +208,7 @@
     :command/options [{:name "--search" :type :string :doc "Filter scenarios by ID substring"}
                       {:name "--protocol" :type :string :doc "Filter by protocol (e.g. sew-v1)"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Interactively select and run scenarios from a numbered menu."}
 
    {:command/id :scenario-run-search
@@ -208,6 +223,7 @@
                       {:name "--report-format" :type :string :doc "report format: summary, failures, standard, verbose, or audit"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Find scenarios matching text and run each in an isolated run root."}
 
    {:command/id :scenario-compare
@@ -222,6 +238,7 @@
                        :default "results/trace-compare"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run two scenarios and compare their replay traces. Reports the first structural divergence."}
 
    {:command/id :run-scenario
@@ -237,6 +254,7 @@
                       {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
                       {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
     :command/outputs ["<run-root>/completion.json" "<run-root>/manifest/artifacts.json"]
+     :command/positional-args {:min 0 :max 0}
      :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. Registered suite execution is a separate future command."}
 
   {:command/id :verify-scenario
@@ -249,6 +267,7 @@
    :command/runtime :jvm
    :command/options [{:name "--run-root" :type :string :doc "Completed scenario bundle root"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Read-only verification of a completed scenario bundle, including its registry, evidence-chain finalizations, and evidence-set reconciliation."}
 
    {:command/id :invariants-run
@@ -262,6 +281,7 @@
     :command/options [{:name "--run-root" :type :string :doc "Target directory for the canonical run package" :required true}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs ["<run-root>/run-plan.json", "<run-root>/scenario-results.json", "<run-root>/completion.json"]
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run the full invariant registry suite and persist canonical evidence under --run-root."}
 
    {:command/id :verify-run
@@ -275,6 +295,7 @@
     :command/options [{:name "--run-root" :type :string :doc "Run package directory to verify" :required true}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Verify a completed canonical run package for completeness and integrity."}
 
    {:command/id :assure-package
@@ -288,6 +309,7 @@
     :command/options [{:name "--run-root" :type :string :doc "Run package directory to evaluate" :required true}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs ["<run-root>/package-assurance.json"]
+    :command/positional-args {:min 0 :max 0}
     :command/description "Evaluate whether a verified canonical run package satisfies release/assurance policy."}
 
    {:command/id :run-invariants
@@ -302,6 +324,7 @@
                       {:name "--suite-root" :type :string :doc "Suite root directory (contains manifest.edn)"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run the full protocol invariant suite (S01–S100 for sew-v1)."}
 
    {:command/id :benchmark-validate-jar
@@ -314,6 +337,7 @@
     :command/runtime :jvm
     :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Validate that every benchmark resolves through InputSource without filesystem fallback."}
 
    {:command/id :benchmark-smoke
@@ -328,6 +352,7 @@
                       {:name "--seed" :type :string :doc "Random seed for deterministic scenario selection"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Plan and execute a bounded benchmark smoke matrix (one scenario per benchmark)."}
 
    {:command/id :verify-benchmark
@@ -340,6 +365,7 @@
    :command/runtime :jvm
    :command/options [{:name "--run-root" :type :string :doc "Completed canonical benchmark root"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Recalculate and verify benchmark assurance, finalization, input-set, and completion commitments."}
 
    {:command/id :run-benchmark
@@ -356,6 +382,7 @@
                      {:name "--key" :type :string :doc "Path to private key for signing"}
                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 1 :max 1}
    :command/description "Run a registered or bundled benchmark as a canonical --run-root package, or use --output for a separate legacy export."}
 
   {:command/id :fmt-check
@@ -368,6 +395,7 @@
    :command/runtime :jvm
    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Check code formatting without rewriting files."}
 
    {:command/id :lint
@@ -380,6 +408,7 @@
     :command/runtime :jvm
     :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Lint source and test code with clj-kondo."}
 
    {:command/id :pre-application-checks
@@ -393,6 +422,7 @@
     :command/options [{:name "--manifest" :type :string :doc "Path to outcome manifest EDN file"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Validate that an outcome manifest is ready for benchmark execution."}
 
    {:command/id :run-simulation
@@ -409,6 +439,7 @@
                      {:name "--invariants" :type :flag :doc "Run deterministic invariant scenarios"}
                      {:name "--diff-traces" :type :flag :doc "Structural world diff between two replay JSON files"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Run a simulation, server, invariants, or diff-traces. Replaces the original flag-based CLI."}
 
   {:command/id :community-task-list
@@ -422,6 +453,7 @@
    :command/options [{:name "--benchmark-filter" :type :string :doc "Filter by benchmark ID"}
                      {:name "--suite-filter" :type :string :doc "Filter by suite ID"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "List available community tasks."}
 
   {:command/id :community-task-show
@@ -434,6 +466,7 @@
    :command/runtime :jvm
    :command/options [{:name "--task" :type :string :doc "Task reference" :required true}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Show community task details."}
 
   {:command/id :community-task-register
@@ -449,6 +482,7 @@
                      {:name "--suite-id" :type :string :doc "Suite ID"}
                      {:name "--claim-ids" :type :string :doc "Comma-separated claim IDs"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Register a new community task."}
 
   {:command/id :community-task-run
@@ -465,6 +499,7 @@
                      {:name "--dir" :type :string :doc "Artifact directory"}
                      {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Execute a community task and publish result."}
 
   {:command/id :community-task-reproduce
@@ -482,6 +517,7 @@
                      {:name "--dir" :type :string :doc "Artifact directory"}
                      {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Reproduce a community task result."}
 
   {:command/id :community-task-verify
@@ -496,6 +532,7 @@
                      {:name "--dir" :type :string :doc "Artifact directory"}
                      {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Verify a community task evidence chain."}
 
   {:command/id :community-task-report
@@ -510,6 +547,7 @@
                      {:name "--dir" :type :string :doc "Artifact directory"}
                      {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Generate a community task evidence report."}
 
   {:command/id :community-graph-export
@@ -525,6 +563,7 @@
                      {:name "--dir" :type :string :doc "Artifact directory"}
                      {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
    :command/outputs []
+   :command/positional-args {:min 0 :max 0}
    :command/description "Export a community task evidence graph."}
 
   {:command/id :community-mailbox-clear
@@ -537,6 +576,7 @@
     :command/runtime :jvm
     :command/options [{:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Clear all community mailbox messages."}
 
   {:command/id :compare-runs
@@ -551,6 +591,7 @@
                      {:name "--package-b" :type :string :required true}
                      {:name "--output" :type :string}]
    :command/outputs ["run-comparison.json"]
+   :command/positional-args {:min 0 :max 0}
    :command/description "Compare two completion-sealed run packages."}
 
   {:command/id :build-prf
@@ -560,6 +601,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "build:prf"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Build prf.jar: the framework-only unified CLI distribution."}
 
   {:command/id :build-sew
@@ -569,6 +611,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "build:sew"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Build prf-runner-sew uberjar (18 MB, full Sew replay)."}
 
    {:command/id :build-cli
@@ -578,6 +621,7 @@
     :command/surface :bb
     :command/runtime :bb
     :command/bb-task "build:prf"
+    :command/positional-args {:min 0 :max 0}
     :command/description "Build prf.jar — unified CLI uberjar."}
 
   {:command/id :build-all
@@ -587,7 +631,48 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "build"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Build core, sew, and CLI uberjars."}
+
+  {:command/id :build-attest
+   :command/path ["build" "attest"]
+   :command/title "Attest supported JAR builds"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :external
+   :command/runtime :bb
+   :command/bb-task "build:attest"
+   :command/options []
+   :command/outputs ["target/default-build-attestation-prf.edn"
+                     "target/default-build-attestation-sew.edn"]
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Build supported JARs, run packaged-JAR smoke validation, and emit fail-closed default-build attestation bundles."}
+
+  {:command/id :build-attest-sign
+   :command/path ["build" "attest" "sign"]
+   :command/title "Sign JAR build attestation"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :external
+   :command/runtime :bb
+   :command/bb-task "build:attest:sign"
+   :command/options []
+   :command/outputs []
+   :command/positional-args {:min 5 :max 5}
+   :command/description "Locally attach an Ed25519 release authorization to a default-build attestation bundle."}
+
+  {:command/id :build-attest-verify
+   :command/path ["build" "attest" "verify"]
+   :command/title "Verify signed JAR build attestation"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :external
+   :command/runtime :bb
+   :command/bb-task "build:attest:verify"
+   :command/options []
+   :command/outputs []
+   :command/positional-args {:min 4 :max 4}
+   :command/description "Verify a default-build attestation bundle and its release signatures against an explicit trust policy."}
 
   {:command/id :evidence-pack
    :command/path ["evidence" "pack"]
@@ -596,6 +681,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "evidence:pack"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Package a run directory into a portable evidence pack."}
 
   {:command/id :evidence-verify-pack
@@ -605,6 +691,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "evidence:verify"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Verify an evidence pack's file integrity."}
 
   {:command/id :fixtures-sync
@@ -614,6 +701,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "fixtures:sync"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Sync trace files from Clojure invariant scenario source."}
 
   {:command/id :shadow-check
@@ -623,6 +711,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "shadow:check"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Check simulation namespaces for Solidity shadow registry coverage."}
 
   {:command/id :shadow-report
@@ -632,6 +721,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "shadow:report"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Print a human-readable summary of the Solidity shadow registry."}
 
   {:command/id :monitor
@@ -641,6 +731,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "monitor"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Start JMX monitoring system."}
 
 
@@ -651,6 +742,7 @@
    :command/surface :bb
    :command/runtime :bb
    :command/bb-task "notebook:index"
+   :command/positional-args {:min 0 :max 0}
    :command/description "Open the notebook navigation hub in the browser."}
 
    {:command/id :workspace-doctor
@@ -660,6 +752,7 @@
     :command/surface :bb
     :command/runtime :bb
     :command/bb-task "workspace:doctor"
+    :command/positional-args {:min 0 :max 0}
     :command/description "Validate workspace structure, README, deps.edn, and path resolution."}
 
    {:command/id :test-yield
@@ -671,6 +764,7 @@
     :command/jar-availability :external
     :command/runtime :bb
     :command/bb-task "test:yield"
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run yield protocol unit tests (accrual, partial-fill, invariants, modules)."}
 
    {:command/id :test-yield-scenarios
@@ -682,6 +776,7 @@
     :command/jar-availability :external
     :command/runtime :bb
     :command/bb-task "test:yield-scenarios"
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run yield provider and Sew-yield integration JSON scenarios."}
 
    {:command/id :test-sew-yield-scenarios
@@ -693,6 +788,7 @@
     :command/jar-availability :external
     :command/runtime :bb
     :command/bb-task "test:sew-yield-scenarios"
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run Sew escrow + yield integration JSON scenarios."}
 
    {:command/id :test-dr3-coverage
@@ -704,6 +800,7 @@
     :command/jar-availability :external
     :command/runtime :bb
     :command/bb-task "test:dr3-coverage"
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run DR3 critical suite + release-mapping drift checks."}
 
    {:command/id :test-long-horizon
@@ -715,6 +812,7 @@
     :command/jar-availability :external
     :command/runtime :bb
     :command/bb-task "test:long-horizon"
+    :command/positional-args {:min 0 :max 0}
     :command/description "Run extended horizon scenarios (100/200/500/1000 epochs)."}
 
    {:command/id :notebook-focus
@@ -727,6 +825,7 @@
     :command/runtime :jvm
     :command/options [{:name "--run-id" :type :string :doc "Run ID to focus on" :required true}]
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Pin the notebook to a specific run-id."}
 
    {:command/id :notebook-latest
@@ -739,6 +838,7 @@
     :command/runtime :jvm
     :command/options []
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "Reset the notebook to always show the latest run."}
 
    {:command/id :notebook-runs
@@ -751,6 +851,7 @@
     :command/runtime :jvm
     :command/options []
     :command/outputs []
+    :command/positional-args {:min 0 :max 0}
     :command/description "List all available run-ids."}
 
    {:command/id :ref-file
@@ -764,4 +865,5 @@
     :command/options [{:name "--check" :type :string :doc "Verify a canonical refs file against file contents"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
+    :command/positional-args {:min 0 :max nil}
     :command/description "Compute canonical sha256:<hex> file references (sha256-ref-file) or verify a refs file."}]}

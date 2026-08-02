@@ -38,10 +38,13 @@ The framework currently uses `with-attribution` in these critical operations:
 
 ### Missing Usage (Should Be Added)
 
-1. **Deferred Claim Reclamation** (`claim-deferred`)
-   - Currently missing attribution context
-   - Should capture: reclaimed amounts, before/after states, ratio thresholds
-   - Impact: Risk monitoring cannot track claim recovery patterns
+1. **Deferred Claim Reclamation** (`claim-deferred`) — implemented
+   - Attribution context records module, position, and token; the captured
+     `:yield-claim-deferred` event records reclaimed amount and before/after
+     position state.
+   - Recovery monitoring can therefore correlate the claim with its position
+     lineage. Risk-ratio threshold provenance is not yet captured as a distinct
+     claim-field.
 
 2. **Emergency Unwind Operations** (`emergency-unwind`)
    - Currently missing attribution context  

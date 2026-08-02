@@ -108,6 +108,18 @@
           "lineage-root is present")
       (is (some? (:deferred/predecessor-hash d))
           "predecessor-hash is present")
+      (is (= {:schema-version "yield-lineage-origin.v1"
+              :position-id "alice"
+              :owner-id "alice"
+              :module-id :test-mod
+              :token :USDC
+              :root-obligation-id "alice"
+              :original-priority 0}
+             (:deferred/original-position d))
+          "first deferral commits a durable original-position reference")
+      (is (= (ll/canonical-hash-safe (:deferred/original-position d))
+             (:deferred/lineage-root d))
+          "lineage root authenticates the independently reconstructible origin")
       (is (= 0 (:position/original-priority d))
           "original-priority is preserved"))))
 
@@ -136,6 +148,194 @@
           "d2 predecessor-hash differs from d1 (different source position)")
       (is (= 0 (:position/original-priority d2))
           "original-priority still 0 across rounds"))))
+
+(deftest deferred-lineage-retains-priority-and-canonical-ordering
+  (testing "Repeated deferral cannot refresh an older claimant behind a newer one."
+    (let [world0 (deposit-owners base-world ["older" "newer"] 100)
+          ;; First shortfall gives the older position a deferred lineage.
+          world1 (-> world0
+                     (assoc-in [:total-held :USDC] 30)
+                     (ll/withdraw-shared test-mod {:owner-ids ["older"]
+                                                   :token "USDC"
+                                                   :allocation-mode :pro-rata}))
+          first-deferred (get-in world1 [:yield/positions "older" :deferred-position])
+          lineage-root (:deferred/lineage-root first-deferred)
+          ;; Submit reverse caller order; canonical order remains older then newer.
+          world2 (-> world1
+                     (assoc-in [:total-held :USDC] 30)
+                     (ll/withdraw-shared test-mod {:owner-ids ["newer" "older"]
+                                                   :token "USDC"
+                                                   :allocation-mode :pro-rata}))
+          older-deferred (get-in world2 [:yield/positions "older" :deferred-position])
+          decision (last (vals (:yield/partial-fill-decisions world2)))
+          witness (:allocation/priority-witness decision)]
+      (is (= 0 (:position/original-priority older-deferred)))
+      (is (= lineage-root (:deferred/lineage-root older-deferred)))
+      (is (= ["older" "newer"] (mapv :key witness)))
+      (is (= [0 1] (mapv :original-priority witness))))))
+
+(deftest tampered-deferred-priority-is-rejected-before-allocation
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        world1 (-> world0
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))
+        tampered (assoc-in world1
+                           [:yield/positions "alice" :deferred-position
+                            :position/original-priority]
+                           99)]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Position priority contradicts deferred lineage"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest missing-deferred-lineage-root-is-rejected-before-allocation
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        world1 (-> world0
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))
+        malformed (update-in world1 [:yield/positions "alice" :deferred-position]
+                             dissoc :deferred/lineage-root)]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"missing a lineage anchor"
+                          (ll/withdraw-shared malformed test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest tampered-original-position-reference-is-rejected-before-allocation
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        world1 (-> world0
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))
+        tampered (assoc-in world1
+                           [:yield/positions "alice" :deferred-position
+                            :deferred/original-position :position-id]
+                           "forged-origin")]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"origin does not match its base position"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest tampered-original-position-root-is-rejected-before-allocation
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        world1 (-> world0
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))
+        tampered (assoc-in world1
+                           [:yield/positions "alice" :deferred-position
+                            :deferred/lineage-root]
+                           "forged-root")]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"root does not authenticate its origin"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest repeated-deferred-lineage-root-must-match-archived-predecessor
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        world1 (-> world0
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))
+        world2 (-> world1
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))
+        parent-id (get-in world2 [:yield/positions "alice" :deferred-position
+                                  :position/parent-id])
+        tampered (assoc-in world2
+                           [:yield/positions "alice" :deferred-position-history
+                            parent-id :deferred/lineage-root]
+                           "tampered-root")]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"lineage root differs from its archived predecessor"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest claim-deferred-closes-and-archives-active-lineage
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        deferred-world (-> world0
+                           (assoc-in [:total-held :USDC] 30)
+                           (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                         :token "USDC"
+                                                         :allocation-mode :pro-rata}))
+        active (get-in deferred-world [:yield/positions "alice" :deferred-position])
+        settled (ll/claim-deferred deferred-world test-mod {:owner/id "alice"})
+        position (get-in settled [:yield/positions "alice"])
+        archived (get-in position [:deferred-position-history
+                                  (:position/id active)])]
+    (is (= :withdrawn (:status position)))
+    (is (= 70 (:reclaimed-amount position)))
+    (is (nil? (:deferred-position position))
+        "a settled deferred claim must not remain active")
+    (is (= :closed (:position/status archived)))
+    (is (= 70 (:position/closed-from-amount archived)))
+    (is (= 0 (:position/current-amount archived)))
+    (is (= :claim-deferred (:position/closed-by archived)))
+    (is (= 70 (:position/closed-reclaimed-amount archived)))
+    (is (= (:deferred/original-position active)
+           (:deferred/original-position archived)))
+    (is (= (:deferred/lineage-root active)
+           (:deferred/lineage-root archived)))))
+
+(deftest claim-deferred-rejects-lineage-outstanding-mismatch
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        deferred-world (-> world0
+                           (assoc-in [:total-held :USDC] 30)
+                           (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                         :token "USDC"
+                                                         :allocation-mode :pro-rata}))
+        tampered (assoc-in deferred-world
+                           [:yield/positions "alice" :deferred-position
+                            :position/current-amount]
+                           69)]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"claim amount differs from lineage outstanding amount"
+                          (ll/claim-deferred tampered test-mod {:owner/id "alice"})))))
+
+(deftest full-fill-creates-no-deferred-successor
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        settled (-> world0
+                    (assoc-in [:total-held :USDC] 100)
+                    (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                  :token "USDC"
+                                                  :allocation-mode :pro-rata}))]
+    (is (nil? (get-in settled [:yield/positions "alice" :deferred-position])))
+    (is (empty? (get-in settled [:yield/positions "alice"
+                                 :deferred-position-history] {})))))
+
+(deftest equal-primary-priorities-use-deterministic-owner-tie-break
+  (let [world0 (deposit-owners base-world ["bravo" "alpha"] 100)
+        ;; Equal primary priorities are not produced by normal deposits, but
+        ;; this fixture verifies the deterministic secondary ordering used by
+        ;; replay if a migration supplies equal legacy priorities.
+        world1 (assoc-in world0 [:yield/positions "alpha" :original-priority] 0)
+        world2 (assoc-in world1 [:total-held :USDC] 30)
+        result (ll/withdraw-shared world2 test-mod
+                                   {:owner-ids ["bravo" "alpha"]
+                                    :token "USDC"
+                                    :allocation-mode :pro-rata})
+        decision (last (vals (:yield/partial-fill-decisions result)))
+        witness (:allocation/priority-witness decision)]
+    (is (= ["alpha" "bravo"] (mapv :key witness)))
+    (is (= [0 0] (mapv :original-priority witness)))))
 
 (deftest deferred-position-rejects-unsupported-shortfall-reason
   (testing "withdraw-shared with a propagation that would produce an unsupported reason fails"

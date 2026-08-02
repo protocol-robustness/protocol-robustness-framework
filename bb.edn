@@ -970,6 +970,20 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
   {:doc "Build the two supported distributions: prf and sew."
    :depends [build:prf build:sew]}
 
+  build:attest
+  {:doc "Build both supported JARs, run the packaged-JAR smoke gate, and emit fail-closed default-build attestation bundles under target/."
+   :depends [build]
+   :task (clojure "-M" "-m" "resolver-sim.build.default-attestation-cli"
+                  "all" "target/prf.jar" "target/prf-runner-sew-0.1.0-uber.jar" "target")}
+
+  build:attest:sign
+  {:doc "Locally sign a default-build attestation bundle. Usage: bb build:attest:sign <bundle.edn> <prf|sew> <key-id> <private-key> <release-metadata.edn>"
+   :task (apply clojure "-M" "-m" "resolver-sim.build.default-attestation-sign-cli" *command-line-args*)}
+
+  build:attest:verify
+  {:doc "Verify a signed default-build attestation bundle against an explicit trust policy. Usage: bb build:attest:verify <bundle.edn> <artifact-root> <prf|sew> <trust-policy.edn>"
+   :task (apply clojure "-M" "-m" "resolver-sim.build.default-attestation-verify-cli" *command-line-args*)}
+
   test:portability:sew
   {:doc "Build (if needed) and smoke-test the unified Sew JAR from an external CWD."
    :task (shell "bash" "scripts/portability-smoke-test.sh")}

@@ -53,7 +53,8 @@
         (let [path-str (str/join " " (:command/path cmd))
               dups (filter #(= path-str (str/join " " (:command/path %)))
                            (:commands (load-registry)))]
-          (when (< 1 (count dups))
+          (when (and (< 1 (count dups))
+                     (= (:command/id cmd) (:command/id (first dups))))
             (vswap! errors conj (str "Duplicate path \"" path-str "\" for commands: "
                                      (pr-str (map :command/id dups))))))))
     (if (empty? @errors)
@@ -108,6 +109,44 @@
       {:ok? true}
       {:ok? false :errors @errors})))
 
+(defn valid-positional-contract?
+  "True when a command's positional-argument contract is well formed.
+
+   A bounded contract has non-negative integer :min and :max values, where
+   :max may be nil for a repeatable argument list. Commands that deliberately
+   forward unvalidated positional arguments must explicitly use
+   {:mode :arbitrary}."
+  [contract]
+  (or (= {:mode :arbitrary} contract)
+      (and (map? contract)
+           (integer? (:min contract))
+           (not (neg? (:min contract)))
+           (or (nil? (:max contract))
+               (and (integer? (:max contract))
+                    (not (neg? (:max contract)))))
+           (or (nil? (:max contract))
+               (<= (:min contract) (:max contract))))))
+
+(defn positional-args-error
+  "Return a diagnostic when args violate cmd's declared positional contract.
+   Returns nil when the command explicitly accepts arbitrary positional args
+   or when args satisfy its bounded contract."
+  [cmd args]
+  (let [contract (:command/positional-args cmd)
+        count-args (count args)]
+    (when-not (= :arbitrary (:mode contract))
+      (let [{:keys [min max]} contract
+            extra-arg (when (and (some? max) (> count-args max))
+                        (nth args max))]
+        (when (or (< count-args min)
+                  extra-arg)
+          (str "Unexpected positional argument"
+               (when extra-arg (str ": " (pr-str extra-arg)))
+               " for command " (str/join " " (:command/path cmd))
+               "; expected " min
+               (if (nil? max) "+" (str " to " max))
+               " positional argument(s)."))))))
+
 (defn validate-registry
   "Validate the registry structure.
    Returns {:ok? true} or {:ok? false :errors [...]}."
@@ -124,7 +163,12 @@
       (when-not (:command/category cmd)
         (vswap! errors conj (str "Command " (:command/id cmd) " missing :command/category")))
       (when-not (:command/description cmd)
-        (vswap! errors conj (str "Command " (:command/id cmd) " missing :command/description"))))
+        (vswap! errors conj (str "Command " (:command/id cmd) " missing :command/description")))
+      (when-not (contains? cmd :command/positional-args)
+        (vswap! errors conj (str "Command " (:command/id cmd) " missing :command/positional-args")))
+      (when (and (contains? cmd :command/positional-args)
+                 (not (valid-positional-contract? (:command/positional-args cmd))))
+        (vswap! errors conj (str "Command " (:command/id cmd) " has invalid :command/positional-args"))))
     (if (empty? @errors)
       {:ok? true}
       {:ok? false :errors @errors})))

@@ -322,6 +322,15 @@
           (:escrow-transfers world)))]
     {:holds? (empty? violations) :violations violations}))
 
+(defn custody-validation-pass?
+  "True only when a custody validation result is an evaluated successful check.
+   Consumers that make assurance claims must use this predicate rather than
+   interpreting :holds? independently of the result classification."
+  [result]
+  (and (= :evaluated-pass (:classification result))
+       (= :evaluated (:status result))
+       (true? (:holds? result))))
+
 (defn held-custody-closed-form?
   "A world declaring a complete held ledger must also pass the artifact's
    deterministic hash, local-delta, non-negative, and sequence-replay checks.
@@ -331,18 +340,23 @@
    reported as :not-evaluated rather than silently passing."
   [world]
   (if-not (get-in world [:params :held-adjustments/complete?])
-    {:holds? true
+    {:holds? false
      :status :not-evaluated
+     :classification :not-evaluated-incomplete-history
      :reason :held-history-not-declared-complete
      :violations []}
     (try
       ((requiring-resolve 'resolver-sim.assurance.custody/held-custody-closed-form-checks)
        (vals (:held-artifacts world {})))
-      {:holds? true :status :evaluated :violations []}
+      {:holds? true
+       :status :evaluated
+       :classification :evaluated-pass
+       :violations []}
       (catch clojure.lang.ExceptionInfo e
         (let [data (ex-data e)]
           {:holds? false
            :status :evaluated
+           :classification :evaluated-fail
            :violations (:failed-checks data)})))))
 
 (defn- stored-scope-hash-valid?
@@ -966,16 +980,18 @@
    passing."
   [world]
   (if-not (get-in world [:params :held-adjustments/complete?])
-    {:holds? true
+    {:holds? false
      :status :not-evaluated
+     :classification :not-evaluated-incomplete-history
      :reason :held-history-not-declared-complete
      :violations []}
     (let [adjustments (:held-adjustments world [])]
       (if-not ((requiring-resolve 'resolver-sim.assurance.custody/held-history-zero-origin?)
                adjustments)
-        {:holds? true
-         :status :not-evaluated
-         :reason :held-history-missing-opening-state
+        {:holds? false
+         :status :evaluated
+         :classification :evaluated-fail
+         :reason :held-history-invalid-opening-state
          :violations [{:type :held-history-not-zero-origin
                        :ledger-adjustment-count (count adjustments)}]}
         (try
@@ -997,9 +1013,13 @@
                      (= replayed-positions actual-positions)
                      (= (get actual-index :by-token {}) actual-total-held)
                      (= (get actual-index :by-position {}) actual-positions))
-              {:holds? true :status :evaluated :violations nil}
+              {:holds? true
+               :status :evaluated
+               :classification :evaluated-pass
+               :violations nil}
               {:holds? false
                :status :evaluated
+               :classification :evaluated-fail
                :violations [{:type :held-adjustments-replay-mismatch
                              :replayed {:held-ledger/index replayed-index
                                         :total-held replayed-total-held
@@ -1010,23 +1030,35 @@
           (catch Exception e
             {:holds? false
              :status :evaluated
+             :classification :evaluated-fail
              :violations [{:type :held-adjustments-invalid
                            :message (.getMessage e)
                            :data (ex-data e)}]}))))))
 
 (defn held-artifacts-derived-from-adjustments?
-  "The held-adjustment ledger is canonical. Any materialized held artifact map
-   must be exactly derivable from it and must not drift independently."
+  "Verify artifact derivation only for a declared-complete held history.
+   A prefix can be internally consistent without establishing complete custody."
   [world]
-  (let [adjustments (:held-adjustments world [])
-        actual-artifacts (:held-artifacts world {})
-        expected-artifacts ((requiring-resolve 'resolver-sim.assurance.custody/rebuild-held-custody-artifacts) adjustments)]
-    (if (= expected-artifacts actual-artifacts)
-      {:holds? true :violations nil}
-      {:holds? false
-       :violations [{:type :held-artifacts-derivation-mismatch
-                     :expected expected-artifacts
-                     :actual actual-artifacts}]})))
+  (if-not (get-in world [:params :held-adjustments/complete?])
+    {:holds? false
+     :status :not-evaluated
+     :classification :not-evaluated-incomplete-history
+     :reason :held-history-not-declared-complete
+     :violations []}
+    (let [adjustments (:held-adjustments world [])
+          actual-artifacts (:held-artifacts world {})
+          expected-artifacts ((requiring-resolve 'resolver-sim.assurance.custody/rebuild-held-custody-artifacts) adjustments)]
+      (if (= expected-artifacts actual-artifacts)
+        {:holds? true
+         :status :evaluated
+         :classification :evaluated-pass
+         :violations nil}
+        {:holds? false
+         :status :evaluated
+         :classification :evaluated-fail
+         :violations [{:type :held-artifacts-derivation-mismatch
+                       :expected expected-artifacts
+                       :actual actual-artifacts}]}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Invariant 16: Fraud slashes must not be auto-executed

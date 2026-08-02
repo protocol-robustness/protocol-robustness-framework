@@ -1,6 +1,7 @@
 (ns resolver-sim.benchmark.outcome-manifest-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.outcome-manifest :as om]
+            [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-theorem-outcome :as rto]
             [resolver-sim.benchmark.research-conclusion :as rc]))
 
@@ -14,6 +15,8 @@
   {:benchmark/content-root (h "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
    :benchmark/model-root (h "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
    :benchmark/evaluation-policy-root (h "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+   :execution/model-instance-root (h "1111111111111111111111111111111111111111111111111111111111111111")
+   :execution/plan-root (h "2222222222222222222222222222222222222222222222222222222222222222")
    :execution/status :completed
    :results/operational {:conservation :pass}})
 
@@ -38,6 +41,12 @@
                   :execution/generated-case-set-root (h "c")))]
     (is (om/exact-replication-scope? a b))))
 
+(deftest incomplete-manifests-are-never-exact-replication
+  (is (not (om/exact-replication-scope? {} {})))
+  (is (not (om/exact-replication-scope?
+           base-manifest
+           (dissoc base-manifest :execution/plan-root)))))
+
 (deftest not-exact-replication-different-domains
   (let [a (om/build-manifest
            (assoc base-manifest
@@ -48,6 +57,59 @@
                   :execution/parameter-domain-root (h "d2")
                   :execution/generated-case-set-root (h "c")))]
     (is (not (om/exact-replication-scope? a b)))))
+
+(defn- command-for
+  [includes]
+  (command/build-command
+   {:command/id :test/benchmark-evaluation
+    :command/type :benchmark-evaluation
+    :command/argv ["prf" "run-benchmark"]
+    :command/include includes}))
+
+(defn- command-bound-manifest
+  [research-command & {:keys [incentive-root operational-root semantic-commitments]
+                       :or {operational-root (h "0ead")}}]
+  (om/build-manifest
+   (cond-> (assoc base-manifest
+                  :execution/parameter-domain-root (h "d")
+                  :execution/sampling-policy-root (h "c0")
+                  :execution/realised-parameter-set-root (h "f")
+                  :execution/generated-case-set-root (h "c")
+                  :execution/command-root (:command/hash research-command)
+                  :outcomes/operational-root operational-root)
+     incentive-root (assoc :outcomes/incentive-root incentive-root)
+     semantic-commitments (assoc :evidence/semantic-commitments semantic-commitments))))
+
+(deftest command-output-completeness-is-conditional-on-includes
+  (let [operational-command (command-for [])
+        incentive-command (command-for [:incentive])
+        operational-manifest (command-bound-manifest operational-command)
+        incomplete-incentive-manifest (command-bound-manifest incentive-command)
+        complete-incentive-manifest (command-bound-manifest incentive-command
+                                                           :incentive-root (h "1c"))]
+    (is (:complete? (om/outcome-complete-for-command?
+                     operational-command operational-manifest)))
+    (is (not (:complete? (om/outcome-complete-for-command?
+                          incentive-command incomplete-incentive-manifest))))
+    (is (:complete? (om/outcome-complete-for-command?
+                     incentive-command complete-incentive-manifest)))))
+
+(deftest claim-scope-and-identical-outcome-are-distinct
+  (let [command-a (command-for [:incentive])
+        command-b (command-for [:incentive])
+        command-without-incentive (command-for [])
+        a (command-bound-manifest command-a
+                                  :incentive-root (h "1c01")
+                                  :semantic-commitments {:semantic/scope (h "aa")})
+        b (command-bound-manifest command-b
+                                  :incentive-root (h "1c02")
+                                  :semantic-commitments {:semantic/scope (h "aa")})
+        different-request (command-bound-manifest command-without-incentive
+                                                  :semantic-commitments {:semantic/scope (h "aa")})]
+    (is (om/exact-claim-scope? a command-a b command-b))
+    (is (not (om/identical-outcome? a command-a b command-b)))
+    (is (not (om/exact-claim-scope? a command-a
+                                    different-request command-without-incentive)))))
 
 (deftest sampling-comparison-scope
   (let [a (om/build-manifest

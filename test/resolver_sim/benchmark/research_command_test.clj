@@ -38,6 +38,14 @@
            (dissoc minimal-command :command/include))]
     (is (= [] (:command/include c)))))
 
+(deftest build-command-rejects-unsupported-or-malformed-includes
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Unsupported :command/include"
+                        (rcmd/build-command
+                         (assoc minimal-command :command/include [:yield-lineage]))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"entries must be keywords"
+                        (rcmd/build-command
+                         (assoc minimal-command :command/include ["incentive"])))))
+
 (deftest build-command-requires-id
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing :command/id"
                         (rcmd/build-command (dissoc minimal-command :command/id)))))
@@ -68,6 +76,13 @@
         bad (assoc c :command/hash "sha256:fake")
         result (rcmd/validate-command bad)]
     (is (not (:valid? result)))))
+
+(deftest validate-command-rejects-unrecognised-include
+  (let [c (rcmd/build-command minimal-command)
+        bad (assoc c :command/include [:unknown])
+        result (rcmd/validate-command bad)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #"unsupported :command/include" %) (:errors result)))))
 
 (deftest semantic-command-identity
   (let [c1 (rcmd/build-command

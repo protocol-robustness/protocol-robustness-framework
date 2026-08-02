@@ -24,16 +24,35 @@
   [t]
   (contains? valid-command-types t))
 
+(def ^:const valid-command-includes
+  "Evaluation domains that a research command may request."
+  #{:incentive :incentive-compatibility})
+
+(defn valid-command-include?
+  [include]
+  (contains? valid-command-includes include))
+
 (defn- normalise-includes
-  "Normalise :command/include to a sorted vector of keywords.
+  "Normalise :command/include to a sorted vector of supported keywords.
    Accepts a set, vector, or single keyword."
   [includes]
-  (cond
-    (nil? includes) []
-    (keyword? includes) [includes]
-    (set? includes) (vec (sort includes))
-    (sequential? includes) (vec (sort includes))
-    :else (vec (sort includes))))
+  (let [values (cond
+                 (nil? includes) []
+                 (keyword? includes) [includes]
+                 (set? includes) (vec includes)
+                 (sequential? includes) (vec includes)
+                 :else ::invalid)]
+    (when (= ::invalid values)
+      (throw (ex-info ":command/include must be a keyword or collection of keywords"
+                      {:command/include includes})))
+    (when-not (every? keyword? values)
+      (throw (ex-info ":command/include entries must be keywords"
+                      {:command/include includes})))
+    (let [unsupported (remove valid-command-include? values)]
+      (when (seq unsupported)
+        (throw (ex-info "Unsupported :command/include value"
+                        {:command/include includes :unsupported (vec unsupported)}))))
+    (vec (sort (distinct values)))))
 
 (defn build-command
   "Build a canonical research command artifact.
@@ -103,7 +122,9 @@
        (some? (:command/type command))
        (some? (:command/hash command))
        (sequential? (:command/argv command))
-       (seq (:command/argv command))))
+       (seq (:command/argv command))
+       (vector? (:command/include command))
+       (every? valid-command-include? (:command/include command))))
 
 (defn validate-command
   "Standalone validator for a loaded research command.
@@ -126,6 +147,13 @@
               (not (sequential? (:command/argv command)))
               (empty? (:command/argv command)))
       (swap! errors conj ":command/argv must be a non-empty vector"))
+    (when-not (vector? (:command/include command))
+      (swap! errors conj ":command/include must be a vector of supported keywords"))
+    (when (and (vector? (:command/include command))
+               (not (every? valid-command-include? (:command/include command))))
+      (swap! errors conj (str "unsupported :command/include value(s): "
+                             (pr-str (remove valid-command-include?
+                                             (:command/include command))))))
     (when (some? (:command/hash command))
       (let [without-hash (dissoc command :command/hash)
             computed (str "sha256:" (hc/domain-hash :research-command without-hash))]

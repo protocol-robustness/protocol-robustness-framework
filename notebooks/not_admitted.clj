@@ -33,6 +33,14 @@
 ;; ## Evidence Chain Ordering, Verification, and Invariant-Based Admission
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- short-hash
+  "Truncate a content hash for compact display, tolerating short demo hashes."
+  [h]
+  (let [s (if (string? h) h (str h))
+        n (count s)]
+    (if (<= n 19) s (str (subs s 0 19) "…"))))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- render-checks
   "Render a clerk/html checks table from an invariant result map."
   [result]
@@ -1436,7 +1444,7 @@
   [:div {:style {:color "#7ADDDC" :font-weight 700 :margin-bottom "8px"}}
    "Per-Theorem Consensus"]
   (into [:table {:style {:width "100%" :border-collapse "collapse" :font-size "12px"}}]
-        (map (fn [[th-id consensus]]
+        (map (fn [[[th-id th-hash] consensus]]
                (let [status (:status consensus)
                      color (case status
                              :unanimous "#22c55e"
@@ -1447,6 +1455,8 @@
                      absent (count (:absent-members consensus))]
                  [:tr {:key (name th-id)}
                   [:td {:style {:padding "6px 8px" :color "#c4b5fd" :border-bottom "1px solid #134e4a"}} (name th-id)]
+                  [:td {:style {:padding "6px 8px" :color "#64748b" :border-bottom "1px solid #134e4a" :font-size "11px"}}
+                   (short-hash th-hash)]
                   [:td {:style {:padding "6px 8px" :color color :border-bottom "1px solid #134e4a" :font-weight 700}}
                    (name status)]
                   [:td {:style {:padding "6px 8px" :color "#94a3b8" :border-bottom "1px solid #134e4a" :font-size "11px"}}
@@ -1791,67 +1801,53 @@
    :execution-log-root "sha256:demo-log"})
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def approval-manifest
+  (om/build-manifest approval-base-input))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def approval-reports
-  [(rrr/build-report {:outcome-manifest (om/build-manifest approval-base-input)
-                      :researcher-id "researcher-alpha"
-                      :runner-info approval-runner-info
-                      :evidence-refs approval-evidence-refs
-                      :run-id "not-admitted-alpha"})
-   (rrr/build-report {:outcome-manifest (om/build-manifest approval-base-input)
-                      :researcher-id "researcher-beta"
-                      :runner-info approval-runner-info
-                      :evidence-refs approval-evidence-refs
-                      :run-id "not-admitted-beta"})
-   (rrr/build-report {:outcome-manifest (om/build-manifest approval-base-input)
-                      :researcher-id "researcher-gamma"
-                      :runner-info approval-runner-info
-                      :evidence-refs approval-evidence-refs
-                      :run-id "not-admitted-gamma"})])
+  (mapv (fn [researcher-id run-id]
+          (let [report (rrr/build-report {:outcome-manifest approval-manifest
+                                          :researcher-id researcher-id
+                                          :runner-info approval-runner-info
+                                          :evidence-refs approval-evidence-refs
+                                          :run-id run-id})]
+            (assoc report :researcher-run-report/hash
+                   (str "sha256:" (hc/domain-hash :researcher-run-report report)))))
+        ["researcher-alpha" "researcher-beta" "researcher-gamma"]
+        ["not-admitted-alpha" "not-admitted-beta" "not-admitted-gamma"]))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def approval-positions
-  [(rp/build-position
-    {:benchmark/content-root "sha256:not-admitted"
-     :researcher/id "researcher-alpha"
-     :outcome-hash "sha256:outcome-A"
-     :dimensions {:reproduction {:status :reproduced}
-                  :model-authority {:status :adequate}
-                  :evidence {:status :sufficient}
-                  :publication {:status :publish}}
-     :position/targets [{:kind :theorem :id :theorem/settlement-consistency
-                         :hash "sha256:th-sc" :status :reproduced}
-                        {:kind :theorem :id :theorem/settlement-deadline
-                         :hash "sha256:th-sd" :status :reproduced}
-                        {:kind :theorem :id :theorem/settlement-deadline-enforcement
-                         :hash "sha256:th-sde" :status :reproduced}]})
-   (rp/build-position
-    {:benchmark/content-root "sha256:not-admitted"
-     :researcher/id "researcher-beta"
-     :outcome-hash "sha256:outcome-A"
-     :dimensions {:reproduction {:status :reproduced}
-                  :model-authority {:status :adequate}
-                  :evidence {:status :sufficient}
-                  :publication {:status :publish}}
-     :position/targets [{:kind :theorem :id :theorem/settlement-consistency
-                         :hash "sha256:th-sc" :status :reproduced}
-                        {:kind :theorem :id :theorem/settlement-deadline
-                         :hash "sha256:th-sd" :status :reproduced}
-                        {:kind :theorem :id :theorem/settlement-deadline-enforcement
-                         :hash "sha256:th-sde" :status :challenged}]})
-   (rp/build-position
-    {:benchmark/content-root "sha256:not-admitted"
-     :researcher/id "researcher-gamma"
-     :outcome-hash "sha256:outcome-B"
-     :dimensions {:reproduction {:status :reproduced}
-                  :model-authority {:status :adequate}
-                  :evidence {:status :sufficient}
-                  :publication {:status :publish}}
-     :position/targets [{:kind :theorem :id :theorem/settlement-consistency
-                         :hash "sha256:th-sc" :status :reproduced}
-                        {:kind :theorem :id :theorem/settlement-deadline
-                         :hash "sha256:th-sd" :status :reproduced}
-                        {:kind :theorem :id :theorem/settlement-deadline-enforcement
-                         :hash "sha256:th-sde" :status :reproduced}]})])
+  (mapv (fn [{:keys [researcher/id] :as report} targets]
+          (rp/build-position
+           {:benchmark/content-root "sha256:not-admitted"
+            :researcher/id id
+            :outcome-hash (:researcher-run-report/outcome-hash report)
+            :dimensions {:reproduction {:status :reproduced}
+                         :model-authority {:status :adequate}
+                         :evidence {:status :sufficient}
+                         :publication {:status :publish}}
+            :position/targets targets}))
+        approval-reports
+        [[{:kind :theorem :id :theorem/settlement-consistency
+           :hash "sha256:th-sc" :status :reproduced}
+          {:kind :theorem :id :theorem/settlement-deadline
+           :hash "sha256:th-sd" :status :reproduced}
+          {:kind :theorem :id :theorem/settlement-deadline-enforcement
+           :hash "sha256:th-sde" :status :reproduced}]
+         [{:kind :theorem :id :theorem/settlement-consistency
+           :hash "sha256:th-sc" :status :reproduced}
+          {:kind :theorem :id :theorem/settlement-deadline
+           :hash "sha256:th-sd" :status :reproduced}
+          {:kind :theorem :id :theorem/settlement-deadline-enforcement
+           :hash "sha256:th-sde" :status :challenged}]
+         [{:kind :theorem :id :theorem/settlement-consistency
+           :hash "sha256:th-sc" :status :reproduced}
+          {:kind :theorem :id :theorem/settlement-deadline
+           :hash "sha256:th-sd" :status :reproduced}
+          {:kind :theorem :id :theorem/settlement-deadline-enforcement
+           :hash "sha256:th-sde" :status :reproduced}]]))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def approval-cert
@@ -1875,7 +1871,7 @@
     [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
      "Per-Theorem Consensus"]
     (into [:table {:style {:width "100%" :borderCollapse "collapse" :fontSize "12px"}}]
-          (map (fn [[th-id consensus]]
+          (map (fn [[[th-id th-hash] consensus]]
                  (let [status (:status consensus)
                        color (case status
                                :unanimous "#22c55e"
@@ -1883,6 +1879,8 @@
                                "#ef4444")]
                    [:tr {:key (name th-id)}
                     [:td {:style {:padding "6px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a"}} (name th-id)]
+                    [:td {:style {:padding "6px 8px" :color "#64748b" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
+                     (short-hash th-hash)]
                     [:td {:style {:padding "6px 8px" :color color :borderBottom "1px solid #134e4a" :fontWeight 700}} (name status)]
                     [:td {:style {:padding "6px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
                      (str "IDs:  " (pr-str (:supporting-members consensus))
