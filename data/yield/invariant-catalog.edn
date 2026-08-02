@@ -39,6 +39,14 @@
   {:description "Partial-liquidity unwinding: no principal haircut on shortfall."
    :prf-tags [:partial-liquidity :shortfall-affected]}
 
+  :yield/aggregate-shortfall
+  {:description "Total recorded shortfall across all positions is within available value for each (module-id, token) pair."
+   :prf-tags [:liquidity-shortfall :conservation :aggregate]}
+
+  :yield/aggregate
+  {:description "Aggregate yield position values and shortfall balances are consistent across positions per (module-id, token) pair: shortfall splits reconcile to basis and shortfall does not exceed available value."
+   :prf-tags [:liquidity-shortfall :conservation :aggregate]}
+
   :yield/deferred-reclaim
   {:description "Withdrawn: no open shortfall; reclaimed ≥ 0."
    :prf-tags [:recovery :shortfall-affected]}

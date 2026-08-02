@@ -540,6 +540,66 @@
      :aggregate-drift (long aggregate-drift)
      :violations (vec violations)}))
 
+;; ── Verification report file-artifact ────────────────────────────────────
+;;
+;; The verifier result is promoted to a versioned, content-addressed
+;; file-artifact so a downstream consumer can store it and independently
+;; re-verify it without re-deriving the analysis.
+
+(def verification-report-schema-version
+  "Version of the partial-fill decisions verification report artifact."
+  "partial-fill-decisions-verification.v1")
+
+(def verification-report-verifier-id
+  "Producer identifier for the partial-fill decisions verification report."
+  "partial-fill-decisions-verifier.v1")
+
+(defn build-partial-fill-verification-report
+  "Build the versioned, content-addressed verification report file-artifact for
+   the partial-fill decisions in a world.
+
+   The report commits the verifier's classification, decision-integrity flag,
+   expected-fill mode, aggregate drift, and violations under a content hash and
+   an exact preimage, so an independent consumer can re-verify it without
+   re-running the analysis. Returns nil when there are no decisions to verify."
+  ([final-world] (build-partial-fill-verification-report final-world {}))
+  ([final-world {:keys [committed-root case-scope expected-claims expected-count
+                        unique-claims?]}]
+   (let [result (verify-partial-fill-decisions final-world
+                                               :committed-root committed-root
+                                               :case-scope case-scope
+                                               :expected-claims expected-claims
+                                               :expected-count expected-count
+                                               :unique-claims? unique-claims?)
+         body (assoc (select-keys result
+                                  [:classification :decision-count :claim-count
+                                   :decision-integrity? :root-committed :root-recomputed
+                                   :expected-fill-mode :aggregate-drift :violations])
+                     :schema-version verification-report-schema-version
+                     :artifact/kind :partial-fill-decisions-verification
+                     :artifact/verifier verification-report-verifier-id)
+         report-hash (str "sha256:"
+                          (hc/hash-with-intent {:hash/intent :evidence-record}
+                                               body))]
+     (assoc body
+            :report/hash report-hash
+            :report/preimage (pr-str body)))))
+
+(defn valid-partial-fill-verification-report?
+  "Re-verify a partial-fill verification report file-artifact: its schema
+   version, artifact kind, verifier id, and content hash must all agree."
+  [report]
+  (and (map? report)
+       (= verification-report-schema-version (:schema-version report))
+       (= :partial-fill-decisions-verification (:artifact/kind report))
+       (= verification-report-verifier-id (:artifact/verifier report))
+       (string? (:report/hash report))
+       (string? (:report/preimage report))
+       (let [body (dissoc report :report/hash :report/preimage)]
+         (= (:report/hash report)
+            (str "sha256:"
+                 (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
+
 ;; ── Continuity evidence ───────────────────────────────────────────────────
 
 (defn derive-continuity-evidence

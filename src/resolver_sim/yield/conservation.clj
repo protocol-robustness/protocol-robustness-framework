@@ -7,7 +7,8 @@
 
    Returns a structured result (not a bare boolean) so callers can attribute any
    imbalance to specific violations and so that an absent origin is classified
-   :not-evaluated rather than falsely passing.")
+   :not-evaluated rather than falsely passing."
+  (:require [resolver-sim.hash.canonical :as hc]))
 
 (def ^:private tolerance
   "Rounding tolerance in base units for exact-amount reconciliation."
@@ -102,9 +103,9 @@
                                          archived))
         reconstructed-total (+ fulfilled active-deferred reversed written-down)
         imbalance? (and original
-                         (not (<= (- original tolerance)
-                                  reconstructed-total
-                                  (+ original tolerance))))
+                        (not (<= (- original tolerance)
+                                 reconstructed-total
+                                 (+ original tolerance))))
         violations (cond-> []
                      (nil? original)
                      (conj {:code :missing-origin-amount
@@ -139,5 +140,54 @@
                         :reversed :written-down]
                 :relation :equal
                 :anti-double-counting
-                "closed-deferred (in-flight intermediate) is excluded from the reconstructed total"}
+                 "closed-deferred (in-flight intermediate) is excluded from the reconstructed total"}
      :violations (vec violations)}))
+
+;; ── Lineage conservation verification report file-artifact ──────────────
+
+(def conservation-report-schema-version
+  "Version of the lineage conservation verification report artifact."
+  "lineage-conservation-verification.v1")
+
+(def conservation-report-verifier-id
+  "Producer identifier for the lineage conservation verification report."
+  "lineage-conservation-verifier.v1")
+
+(defn build-conservation-report
+  "Build the versioned, content-addressed verification report file-artifact for
+   a deferred position's lineage conservation result.
+
+   The report commits the classification, disposition buckets, equation, and
+   violations under a content hash and an exact preimage so an independent
+   consumer can re-verify it without re-deriving the analysis."
+  [position]
+  (let [result (verify-lineage-conservation position)
+        body (assoc (select-keys result
+                                 [:classification :original-amount :fulfilled
+                                  :active-deferred :closed-deferred :reversed
+                                  :written-down :reconstructed-total :equation
+                                  :violations])
+                    :schema-version conservation-report-schema-version
+                    :artifact/kind :lineage-conservation-verification
+                    :artifact/verifier conservation-report-verifier-id)
+        report-hash (str "sha256:"
+                         (hc/hash-with-intent {:hash/intent :evidence-record}
+                                              body))]
+    (assoc body
+           :report/hash report-hash
+           :report/preimage (pr-str body))))
+
+(defn valid-conservation-report?
+  "Re-verify a lineage conservation report file-artifact: its schema version,
+   artifact kind, verifier id, and content hash must all agree."
+  [report]
+  (and (map? report)
+       (= conservation-report-schema-version (:schema-version report))
+       (= :lineage-conservation-verification (:artifact/kind report))
+       (= conservation-report-verifier-id (:artifact/verifier report))
+       (string? (:report/hash report))
+       (string? (:report/preimage report))
+       (let [body (dissoc report :report/hash :report/preimage)]
+         (= (:report/hash report)
+            (str "sha256:"
+                 (hc/hash-with-intent {:hash/intent :evidence-record} body))))))

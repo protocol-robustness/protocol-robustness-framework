@@ -145,3 +145,89 @@
                                          :shortfall {:basis-amount 500 :fulfilled-amount 400
                                                      :deferred-amount 100 :haircut-amount 0}}}}]
       (is (inv/holds? :yield/aggregate-shortfall-cap world)))))
+
+;; ── aggregate-shortfall ────────────────────────────────────────────────────
+
+(deftest aggregate-shortfall-passes-on-valid
+  (testing "aggregate shortfall passes when total basis <= total value"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal 1000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 600 :fulfilled-amount 400
+                                                     :deferred-amount 200 :haircut-amount 0}}
+                                   "u2" {:module/id :m :token :t :status :unwinding
+                                         :principal 2000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 800 :fulfilled-amount 600
+                                                     :deferred-amount 200 :haircut-amount 0}}}}]
+      (is (inv/holds? :yield/aggregate-shortfall world)))))
+
+(deftest aggregate-shortfall-fails-on-overage
+  (testing "aggregate shortfall fails when total basis exceeds total value"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal 100 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 600 :fulfilled-amount 400
+                                                     :deferred-amount 200 :haircut-amount 0}}
+                                   "u2" {:module/id :m :token :t :status :unwinding
+                                         :principal 200 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 800 :fulfilled-amount 600
+                                                     :deferred-amount 200 :haircut-amount 0}}}}]
+      (is (not (inv/holds? :yield/aggregate-shortfall world))))))
+
+(deftest aggregate-shortfall-passes-on-empty-positions
+  (testing "aggregate shortfall passes with no positions"
+    (let [world {:yield/positions {}}]
+      (is (inv/holds? :yield/aggregate-shortfall world)))))
+
+(deftest aggregate-shortfall-separates-modules
+  (testing "aggregate shortfall separates different module/token pairs"
+    (let [world {:yield/positions {"u1" {:module/id :m1 :token :t1 :status :unwinding
+                                         :principal 1000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 600 :fulfilled-amount 400
+                                                     :deferred-amount 200 :haircut-amount 0}}
+                                   "u2" {:module/id :m2 :token :t2 :status :unwinding
+                                         :principal 2000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 500 :fulfilled-amount 400
+                                                     :deferred-amount 100 :haircut-amount 0}}}}]
+      (is (inv/holds? :yield/aggregate-shortfall world)))))
+
+;; ── aggregate ──────────────────────────────────────────────────────────────
+
+(deftest aggregate-passes-on-valid
+  (testing "aggregate consistency passes when splits reconcile and basis <= value"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal 1000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 600 :fulfilled-amount 400
+                                                     :deferred-amount 200 :haircut-amount 0}}}}]
+      (is (inv/holds? :yield/aggregate world)))))
+
+(deftest aggregate-fails-on-unbalanced-splits
+  (testing "aggregate consistency fails when shortfall splits do not reconcile to basis"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal 1000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 600 :fulfilled-amount 400
+                                                     :deferred-amount 100 :haircut-amount 0}}}}]
+      (is (not (inv/holds? :yield/aggregate world))))))
+
+(deftest aggregate-fails-on-shortfall-over-value
+  (testing "aggregate consistency fails when shortfall exceeds available value"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal 100 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 600 :fulfilled-amount 400
+                                                     :deferred-amount 200 :haircut-amount 0}}}}]
+      (is (not (inv/holds? :yield/aggregate world))))))
+
+(deftest aggregate-passes-on-empty-positions
+  (testing "aggregate consistency passes with no positions"
+    (let [world {:yield/positions {}}]
+      (is (inv/holds? :yield/aggregate world)))))
+
+(deftest aggregate-separates-modules
+  (testing "aggregate consistency separates different module/token pairs"
+    (let [world {:yield/positions {"u1" {:module/id :m1 :token :t1 :status :unwinding
+                                         :principal 1000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 600 :fulfilled-amount 400
+                                                     :deferred-amount 200 :haircut-amount 0}}
+                                   "u2" {:module/id :m2 :token :t2 :status :unwinding
+                                         :principal 2000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 500 :fulfilled-amount 400
+                                                     :deferred-amount 100 :haircut-amount 0}}}}]
+      (is (inv/holds? :yield/aggregate world)))))

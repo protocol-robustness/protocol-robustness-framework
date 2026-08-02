@@ -62,7 +62,7 @@
      :signature-bytes (hex (.sign signer))}))
 
 (defn verify-signature
-  "Verify one release signature against an explicit trust-policy key." 
+  "Verify one release signature against an explicit trust-policy key."
   [payload signature policy]
   (let [key (some #(when (= (:key-id signature) (:key-id %)) %) (:trusted-keys policy))]
     (cond
@@ -85,7 +85,7 @@
 
 (defn verify-authorization
   "Evaluate a release signature set against the explicit threshold for a
-   distribution. Repeated signatures by one key count once." 
+   distribution. Repeated signatures by one key count once."
   [payload signatures distribution policy]
   (let [required (get-in policy [:requirements :distribution distribution :minimum-valid-signatures])
         results (mapv #(verify-signature payload % policy) signatures)

@@ -23,7 +23,7 @@
      :smoke/output-hash
      (hash-ref/sha256-ref
       (canonical/domain-hash "DEFAULT_BUILD_SMOKE_OUTPUT_V1"
-                             (str (:out result) (:err result))) )
+                             (str (:out result) (:err result))))
      :smoke/log-content (str (:out result) (:err result))}))
 
 (defn- emit! [variant jar-path bundle-path smoke]

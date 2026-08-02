@@ -684,8 +684,8 @@
                    :deferred-lineage-successor-mismatch
                    {:owner-id owner-id
                     :parent-id parent-id
-                     :expected-successor (:position/id deferred)
-                     :actual-successor (:position/successor-id parent)})))))))
+                    :expected-successor (:position/id deferred)
+                    :actual-successor (:position/successor-id parent)})))))))
 
 (defn- position-state-commitment [owner-id position]
   (validate-active-deferred-lineage! owner-id position)
@@ -1187,7 +1187,7 @@
                        (when (pos? deferred)
                          (propagation-policy/validate-deferred-position-schema m))
                        m)
-                      closed-prior
+                     closed-prior
                      (when current-deferred
                        (assoc current-deferred
                               :schema-version "deferred-position-closure.v1"

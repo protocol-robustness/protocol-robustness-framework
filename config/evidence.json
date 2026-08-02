@@ -35,7 +35,12 @@
     "evidence-registry": "evidence-registry.v1",
     "speds-findings": "speds.findings.v1",
     "speds-issues": "speds-issues-v1",
-    "speds-comparator-shadow": "speds-comparator-shadow-v1"
+    "speds-comparator-shadow": "speds-comparator-shadow-v1",
+    "partial-fill-decisions-verification": "partial-fill-decisions-verification.v1",
+    "lineage-conservation-verification": "lineage-conservation-verification.v1",
+    "force-auth-add-held": "force-auth-add-held.v1",
+    "force-auth-lifecycle": "force-auth-lifecycle.v1",
+    "force-auth-lifecycle-summary": "force-auth-lifecycle-summary.v1"
   },
   "producers": {
     "summary": "summary-emitter.v1",
@@ -52,7 +57,12 @@
     "scenario-result": "evidence-build-emitter.v1",
     "signature": "evidence-signer.v1",
     "simulation-engine": "simulation-engine.v1",
-    "claimable-classification-classifier": "claimable-classification-emitter.v2.1"
+    "claimable-classification-classifier": "claimable-classification-emitter.v2.1",
+    "partial-fill-decisions-verifier": "partial-fill-decisions-verifier.v1",
+    "lineage-conservation-verifier": "lineage-conservation-verifier.v1",
+    "force-auth-add-held-verifier": "force-auth-add-held-verifier.v1",
+    "force-auth-lifecycle-verifier": "force-auth-lifecycle-verifier.v1",
+    "force-auth-lifecycle-summary-verifier": "force-auth-lifecycle-summary-verifier.v1"
   },
   "importance": {
     "CORE": 0,
@@ -67,8 +77,13 @@
       "schema_key": "test-summary",
       "producer_key": "summary",
       "importance": "CORE",
-      "verifies_against": ["test-run.v1", "projection.v1"],
-      "input_dependencies": ["test-run"]
+      "verifies_against": [
+        "test-run.v1",
+        "projection.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
     },
     {
       "id": "validation-root",
@@ -77,8 +92,12 @@
       "schema_key": "validation-root",
       "producer_key": "validation-root",
       "importance": "CORE",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "test-run",
@@ -97,8 +116,82 @@
       "schema_key": "claimable-classification",
       "producer_key": "claimable-classification",
       "importance": "CORE",
-      "verifies_against": ["test-run.v1"],
-      "input_dependencies": ["test-run"]
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "force-auth-add-held",
+      "file": "force-auth-add-held.json",
+      "kind": "evidence",
+      "schema_key": "force-auth-add-held",
+      "producer_key": "force-auth-add-held-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "force-authorisation.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "force-auth-lifecycle",
+      "file": "force-auth-lifecycle.json",
+      "kind": "evidence",
+      "schema_key": "force-auth-lifecycle",
+      "producer_key": "force-auth-lifecycle-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "force-authorisation.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "force-auth-lifecycle-summary",
+      "file": "force-auth-lifecycle-summary.json",
+      "kind": "evidence",
+      "schema_key": "force-auth-lifecycle-summary",
+      "producer_key": "force-auth-lifecycle-summary-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "force-authorisation.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "partial-fill-decisions-verification",
+      "file": "partial-fill-decisions-verification.json",
+      "kind": "verification-report",
+      "schema_key": "partial-fill-decisions-verification",
+      "producer_key": "partial-fill-decisions-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "partial-fill-decision.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "lineage-conservation-verification",
+      "file": "lineage-conservation-verification.json",
+      "kind": "verification-report",
+      "schema_key": "lineage-conservation-verification",
+      "producer_key": "lineage-conservation-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "yield-lineage-origin.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
     },
     {
       "id": "scenario-result",
@@ -107,8 +200,12 @@
       "schema_key": "scenario-result",
       "producer_key": "scenario-result",
       "importance": "CORE",
-      "verifies_against": ["test-run.v1"],
-      "input_dependencies": ["test-run"]
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
     },
     {
       "id": "coverage",
@@ -117,8 +214,12 @@
       "schema_key": "coverage",
       "producer_key": "coverage",
       "importance": "DIAGNOSTIC",
-      "verifies_against": ["scenario.v1"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "scenario.v1"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "findings",
@@ -127,8 +228,12 @@
       "schema_key": "findings",
       "producer_key": "findings",
       "importance": "DIAGNOSTIC",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "issues",
@@ -137,8 +242,12 @@
       "schema_key": "issues",
       "producer_key": "issues",
       "importance": "DIAGNOSTIC",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "telemetry",
@@ -147,8 +256,12 @@
       "schema_key": "telemetry",
       "producer_key": "telemetry",
       "importance": "DIAGNOSTIC",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "mc-summary",
@@ -157,8 +270,12 @@
       "schema_key": "mc-summary",
       "producer_key": "mc-summary",
       "importance": "CORE",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "mc-failures",
@@ -167,8 +284,12 @@
       "schema_key": "mc-failures",
       "producer_key": "mc-failures",
       "importance": "DIAGNOSTIC",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "theory-eval",
@@ -177,8 +298,12 @@
       "schema_key": "theory-eval",
       "producer_key": "theory-eval",
       "importance": "CORE",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "signature",
@@ -187,7 +312,9 @@
       "schema_key": "signature",
       "producer_key": "signature",
       "importance": "CORE",
-      "verifies_against": ["test-run.v1"],
+      "verifies_against": [
+        "test-run.v1"
+      ],
       "input_dependencies": []
     },
     {
@@ -197,7 +324,9 @@
       "schema_key": "envelope",
       "producer_key": "signature",
       "importance": "CORE",
-      "verifies_against": ["test-run.v1"],
+      "verifies_against": [
+        "test-run.v1"
+      ],
       "input_dependencies": []
     },
     {
@@ -207,8 +336,12 @@
       "schema_key": "semantic-facts",
       "producer_key": "semantic-facts",
       "importance": "DIAGNOSTIC",
-      "verifies_against": ["test-summary.v2"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "equivalence-summary",
@@ -217,8 +350,12 @@
       "schema_key": "equivalence-summary",
       "producer_key": "equivalence-summary",
       "importance": "DIAGNOSTIC",
-      "verifies_against": ["test-assertion.v1"],
-      "input_dependencies": ["test-summary"]
+      "verifies_against": [
+        "test-assertion.v1"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
     },
     {
       "id": "evidence-registry",
@@ -227,8 +364,12 @@
       "schema_key": "evidence-registry",
       "producer_key": "simulation-engine",
       "importance": "CORE",
-      "verifies_against": ["test-run.v1"],
-      "input_dependencies": ["test-run"]
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
     }
   ],
   "event_evidence": {
@@ -237,7 +378,11 @@
     "schema_key": "event-evidence",
     "producer_key": "simulation-engine",
     "importance": "CORE",
-    "verifies_against": ["test-run.v1"],
-    "input_dependencies": ["test-run"]
+    "verifies_against": [
+      "test-run.v1"
+    ],
+    "input_dependencies": [
+      "test-run"
+    ]
   }
 }

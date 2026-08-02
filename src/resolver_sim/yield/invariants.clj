@@ -158,6 +158,87 @@
      :violations (vec violations)
      :checks {:aggregate-shortfall-within-value (if (seq violations) :fail :pass)}}))
 
+(defn- position-shortfall-value
+  "Total value backing a position: principal + realized-yield + max(0, unrealized-yield)."
+  [p]
+  (+ (long (:principal p 0))
+     (long (:realized-yield p 0))
+     (max 0 (long (:unrealized-yield p 0)))))
+
+(defn- position-shortfall-basis
+  "Shortfall basis-amount for a position (0 when no shortfall or nil basis)."
+  [p]
+  (long (or (get-in p [:shortfall :basis-amount]) 0)))
+
+(defn check-aggregate-shortfall
+  "Verify the total recorded shortfall across all positions is within available
+   value for each (module-id, token) pair.
+
+   Unlike check-aggregate-shortfall-cap (which caps each pair by the sum of
+   position values), this asserts that the summed shortfall basis does not
+   exceed the summed available value of the pair.
+
+   Returns {:holds? bool
+            :violations [{:module-id mid :token tok
+                          :total-basis n :total-value n
+                          :imbalance n} ...]}."
+  [world]
+  (let [by-key (group-by (fn [p] [(:module/id p) (:token p)])
+                         (vals (:yield/positions world {})))
+        violations (into []
+                         (keep (fn [[[mid tok] pos-group]]
+                                 (let [total-basis (reduce + 0 (map position-shortfall-basis pos-group))
+                                       total-value (reduce + 0 (map position-shortfall-value pos-group))]
+                                   (when (> total-basis total-value)
+                                     {:module-id mid :token tok
+                                      :total-basis total-basis
+                                      :total-value total-value
+                                      :imbalance (- total-basis total-value)})))
+                               by-key))]
+    {:holds? (empty? violations)
+     :violations (vec violations)
+     :checks {:aggregate-shortfall-within-value (if (seq violations) :fail :pass)}}))
+
+(defn check-aggregate
+  "Verify aggregate yield position values and shortfall balances are consistent
+   across positions for each (module-id, token) pair.
+
+   For each pair the sum of shortfall splits (fulfilled + deferred + haircut)
+   must equal the sum of shortfall basis-amounts, and shortfall balances must
+   not exceed the pair's total available value.
+
+   Returns {:holds? bool
+            :violations [{:module-id mid :token tok :issues [kw ...]} ...]}."
+  [world]
+  (let [by-key (group-by (fn [p] [(:module/id p) (:token p)])
+                         (vals (:yield/positions world {})))
+        violations (into []
+                         (keep (fn [[[mid tok] pos-group]]
+                                 (let [splits-ok? (every? (fn [p]
+                                                            (let [sf (:shortfall p)]
+                                                              (if sf
+                                                                (let [f (long (or (:fulfilled-amount sf) 0))
+                                                                      d (long (or (:deferred-amount sf) 0))
+                                                                      h (long (or (:haircut-amount sf) 0))
+                                                                      b (long (or (:basis-amount sf) 0))]
+                                                                  (= (+ f d h) b))
+                                                                true)))
+                                                          pos-group)
+                                       total-basis (reduce + 0 (map position-shortfall-basis pos-group))
+                                       total-value (reduce + 0 (map position-shortfall-value pos-group))
+                                       issues (cond-> []
+                                                (not splits-ok?) (conj :shortfall-splits-unbalanced)
+                                                (> total-basis total-value) (conj :aggregate-shortfall-over-value))]
+                                   (when (seq issues)
+                                     {:module-id mid :token tok
+                                      :total-basis total-basis
+                                      :total-value total-value
+                                      :issues issues})))
+                               by-key))]
+    {:holds? (empty? violations)
+     :violations (vec violations)
+     :checks {:aggregate-shortfall-consistent (if (seq violations) :fail :pass)}}))
+
 (defn check-deferred-reclaim
   "Withdrawn positions: no shortfall; reclaimed ≥ 0."
   [world]
@@ -1243,6 +1324,8 @@
    :yield/value-conservation   check-value-conservation
    :yield/deferred-reclaim     check-deferred-reclaim
    :yield/aggregate-shortfall-cap check-aggregate-shortfall-cap
+   :yield/aggregate-shortfall     check-aggregate-shortfall
+   :yield/aggregate               check-aggregate
    :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles check-pro-rata-accounting-reconciles})
 

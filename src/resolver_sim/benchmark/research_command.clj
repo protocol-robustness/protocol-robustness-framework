@@ -152,8 +152,8 @@
     (when (and (vector? (:command/include command))
                (not (every? valid-command-include? (:command/include command))))
       (swap! errors conj (str "unsupported :command/include value(s): "
-                             (pr-str (remove valid-command-include?
-                                             (:command/include command))))))
+                              (pr-str (remove valid-command-include?
+                                              (:command/include command))))))
     (when (some? (:command/hash command))
       (let [without-hash (dissoc command :command/hash)
             computed (str "sha256:" (hc/domain-hash :research-command without-hash))]

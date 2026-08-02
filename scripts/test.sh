@@ -232,6 +232,7 @@ run_unit() {
     resolver-sim.validation.scenario-registry-test \
     resolver-sim.run.overview-test \
     resolver-sim.benchmark.game-theory-validation-test \
+    resolver-sim.benchmark.packs.partial-fill.evidence-test \
     resolver-sim.evidence.node-test \
     resolver-sim.evidence.attestation-dag-test \
     resolver-sim.economics.payoffs-test \

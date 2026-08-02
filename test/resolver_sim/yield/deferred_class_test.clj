@@ -280,7 +280,7 @@
         settled (ll/claim-deferred deferred-world test-mod {:owner/id "alice"})
         position (get-in settled [:yield/positions "alice"])
         archived (get-in position [:deferred-position-history
-                                  (:position/id active)])]
+                                   (:position/id active)])]
     (is (= :withdrawn (:status position)))
     (is (= 70 (:reclaimed-amount position)))
     (is (nil? (:deferred-position position))

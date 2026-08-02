@@ -173,3 +173,37 @@
       (is (= :evaluated-fail (:classification result)))
       (is (some #(= :lineage-amount-imbalance (:code %))
                 (:violations result))))))
+
+;; ── Lineage conservation report file-artifact ────────────────────────────
+
+(deftest conservation-report-roundtrip
+  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
+        r (cons/build-conservation-report (position-of w))]
+    (is (= "lineage-conservation-verification.v1" (:schema-version r)))
+    (is (= :lineage-conservation-verification (:artifact/kind r)))
+    (is (string? (:report/hash r)))
+    (is (true? (cons/valid-conservation-report? r)))))
+
+(deftest conservation-report-tamper-classification
+  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
+        r (cons/build-conservation-report (position-of w))]
+    (is (false? (cons/valid-conservation-report?
+                 (assoc r :classification :evaluated-fail))))))
+
+(deftest conservation-report-tamper-hash
+  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
+        r (cons/build-conservation-report (position-of w))]
+    (is (false? (cons/valid-conservation-report?
+                 (assoc r :report/hash "sha256:forged"))))))
+
+(deftest conservation-report-wrong-schema
+  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
+        r (cons/build-conservation-report (position-of w))]
+    (is (false? (cons/valid-conservation-report?
+                 (assoc r :schema-version "wrong.v9"))))))
+
+(deftest conservation-report-not-evaluated-still-valid
+  (let [w (-> (deposit-one 100) (withdraw-shared-one 100))
+        r (cons/build-conservation-report (position-of w))]
+    (is (= :not-evaluated (:classification r)))
+    (is (true? (cons/valid-conservation-report? r)))))

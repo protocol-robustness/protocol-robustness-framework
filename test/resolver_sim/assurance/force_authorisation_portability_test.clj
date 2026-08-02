@@ -232,13 +232,125 @@
 (deftest normalize-force-authorisation-consumption-registry-from-json
   (testing "Normalize a consumption registry from JSON-style string keys"
     (let [input {"fa-0" {"consumed-at" "500"
-                         "consumed-by" "0xgov"
-                         "consumed-amount" "1000"
-                         "consumed-token" "USDC"
-                         "held-adjustment-id" "ha-1"}}
+                          "consumed-by" "0xgov"
+                          "consumed-amount" "1000"
+                          "consumed-token" "USDC"
+                          "held-adjustment-id" "ha-1"}}
           result (fa/normalize-force-authorisation-consumption-registry input)]
       (is (= 500 (get-in result ["fa-0" :consumed-at])))
       (is (= "0xgov" (get-in result ["fa-0" :consumed-by])))
       (is (= 1000 (get-in result ["fa-0" :consumed-amount])))
       (is (= :USDC (get-in result ["fa-0" :consumed-token])))
       (is (= "ha-1" (get-in result ["fa-0" :held-adjustment-id]))))))
+
+;; ── Versioned force-authorisation evidence file-artifacts ─────────────────
+
+(defn- hash-bound-auth
+  "An authorization record whose scope-hash authenticates valid-scope."
+  [id status]
+  {:authorization/id id
+   :authorization/status status
+   :authorization/type :force-authorisation
+   :authorization/scope-hash (fa/force-authorisation-scope-hash valid-scope)
+   :authorization/scope valid-scope
+   :starts-at 0
+   :expires-at 1000})
+
+(deftest force-auth-add-held-evidence-roundtrip
+  (testing "a force-authorised add-held with a matching scope-hash verifies"
+    (let [r (fa-ev/build-force-auth-add-held
+             {:authorization (hash-bound-auth "fa-0" :active)
+              :scope-map valid-scope
+              :adjustment {:held-adjustment/id "adj-1"}
+              :consumed-at 500
+              :consumed-by "0xgov"})]
+      (is (= "force-auth-add-held.v1" (:schema-version r)))
+      (is (= :force-auth-add-held (:artifact/kind r)))
+      (is (true? (:authorization/scope-verifies? r))
+          "scope-hash recomputes from the committed scope")
+      (is (= "adj-1" (:held/adjustment-id r)))
+      (is (= 500 (:held/consumed-at r)))
+      (is (true? (fa-ev/valid-force-auth-add-held? r))))))
+
+(deftest force-auth-add-held-evidence-tamper-detected
+  (let [r (fa-ev/build-force-auth-add-held
+           {:authorization (hash-bound-auth "fa-0" :active)
+            :scope-map valid-scope
+            :adjustment {:held-adjustment/id "adj-1"}})]
+    (is (false? (fa-ev/valid-force-auth-add-held?
+                 (assoc r :held/amount 9999))))
+    (is (false? (fa-ev/valid-force-auth-add-held?
+                 (assoc r :artifact/hash "sha256:forged"))))
+    (is (false? (fa-ev/valid-force-auth-add-held?
+                 (assoc r :schema-version "wrong.v9"))))
+    (is (false? (fa-ev/valid-force-auth-add-held?
+                 (dissoc r :artifact/preimage))))))
+
+(deftest force-auth-add-held-evidence-scope-mismatch-is-non-passing
+  (testing "a recorded scope-hash that does not recompute is flagged"
+    (let [wrong-auth (assoc (hash-bound-auth "fa-0" :active)
+                            :authorization/scope-hash "0xdifferent")
+          r (fa-ev/build-force-auth-add-held
+             {:authorization wrong-auth
+              :scope-map valid-scope
+              :adjustment {:held-adjustment/id "adj-1"}})]
+      (is (false? (:authorization/scope-verifies? r))))))
+
+(deftest force-auth-lifecycle-evidence-roundtrip
+  (testing "a consistent lifecycle (consumed grant + matching consumption)"
+    (let [r (fa-ev/build-force-auth-lifecycle
+             {:authorisations {"fa-0" (hash-bound-auth "fa-0" :consumed)}
+              :consumption-registry {"fa-0" {:consumed-at 500}}})]
+      (is (= :force-auth-lifecycle (:artifact/kind r)))
+      (is (true? (:lifecycle-consistent? r)))
+      (is (true? (get-in r [:authorisation-usable "fa-0"])))
+      (is (string? (:authorisations-root r)))
+      (is (true? (fa-ev/valid-force-auth-lifecycle? r))))))
+
+(deftest force-auth-lifecycle-evidence-orphan-consumption-detected
+  (let [r (fa-ev/build-force-auth-lifecycle
+           {:authorisations {}
+            :consumption-registry {"fa-0" {:consumed-at 500}}})]
+    (is (false? (:lifecycle-consistent? r)))
+    (is (some #(= :orphan-consumption (:error %))
+              (:lifecycle-violations r)))
+    (is (true? (fa-ev/valid-force-auth-lifecycle? r))
+        "an inconsistent lifecycle still produces a valid artifact")))
+
+(deftest force-auth-lifecycle-evidence-tamper-detected
+  (let [r (fa-ev/build-force-auth-lifecycle
+           {:authorisations {"fa-0" (hash-bound-auth "fa-0" :consumed)}
+            :consumption-registry {"fa-0" {:consumed-at 500}}})]
+    (is (false? (fa-ev/valid-force-auth-lifecycle?
+                 (assoc r :lifecycle-consistent? false))))
+    (is (false? (fa-ev/valid-force-auth-lifecycle?
+                 (assoc r :artifact/hash "sha256:forged"))))))
+
+(deftest force-auth-lifecycle-summary-evidence-roundtrip
+  (let [r (fa-ev/build-force-auth-lifecycle-summary
+           {:authorisations {"fa-0" (hash-bound-auth "fa-0" :consumed)
+                             "fa-1" (hash-bound-auth "fa-1" :active)}
+            :consumption-registry {"fa-0" {:consumed-at 500}}})]
+    (is (= :force-auth-lifecycle-summary (:artifact/kind r)))
+    (is (= 2 (:total r)))
+    (is (= 1 (:consumed r)))
+    (is (= 1 (:active r)))
+    (is (= 0 (:orphan-consumptions r)))
+    (is (true? (:lifecycle-consistent? r)))
+    (is (true? (fa-ev/valid-force-auth-lifecycle-summary? r)))))
+
+(deftest force-auth-lifecycle-summary-evidence-detects-orphans
+  (let [r (fa-ev/build-force-auth-lifecycle-summary
+           {:authorisations {}
+            :consumption-registry {"fa-9" {:consumed-at 500}}})]
+    (is (= 1 (:orphan-consumptions r)))
+    (is (false? (:lifecycle-consistent? r)))))
+
+(deftest force-auth-lifecycle-summary-evidence-tamper-detected
+  (let [r (fa-ev/build-force-auth-lifecycle-summary
+           {:authorisations {"fa-0" (hash-bound-auth "fa-0" :consumed)}
+            :consumption-registry {"fa-0" {:consumed-at 500}}})]
+    (is (false? (fa-ev/valid-force-auth-lifecycle-summary?
+                 (assoc r :total 99))))
+    (is (false? (fa-ev/valid-force-auth-lifecycle-summary?
+                 (assoc r :artifact/hash "sha256:forged"))))))

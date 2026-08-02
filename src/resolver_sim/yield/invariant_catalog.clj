@@ -42,6 +42,14 @@
    {:description "Aggregate shortfall per (module-id, token) pair does not exceed the sum of position values. Prevents systemic over-counting."
     :prf-tags [:liquidity-shortfall :conservation :aggregate]}
 
+   :yield/aggregate-shortfall
+   {:description "Total recorded shortfall across all positions is within available value for each (module-id, token) pair."
+    :prf-tags [:liquidity-shortfall :conservation :aggregate]}
+
+   :yield/aggregate
+   {:description "Aggregate yield position values and shortfall balances are consistent across positions per (module-id, token) pair: shortfall splits reconcile to basis and shortfall does not exceed available value."
+    :prf-tags [:liquidity-shortfall :conservation :aggregate]}
+
    :yield/pro-rata-propagation-complete
    {:description "The committed allocation decision was bound to the propagation; entitlement and capacity constraints held; each committed amount was applied exactly once to a policy-authorised account class; and the accounting entries and resulting state changes reconciled."
     :prf-tags [:pro-rata :propagation :accounting :conservation]}
@@ -63,6 +71,8 @@
    :yield/partial-liquidity-principal
    :yield/deferred-reclaim
    :yield/aggregate-shortfall-cap
+   :yield/aggregate-shortfall
+   :yield/aggregate
    :yield/pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles])
 

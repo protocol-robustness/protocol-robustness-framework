@@ -44,8 +44,8 @@
 (deftest incomplete-manifests-are-never-exact-replication
   (is (not (om/exact-replication-scope? {} {})))
   (is (not (om/exact-replication-scope?
-           base-manifest
-           (dissoc base-manifest :execution/plan-root)))))
+            base-manifest
+            (dissoc base-manifest :execution/plan-root)))))
 
 (deftest not-exact-replication-different-domains
   (let [a (om/build-manifest
@@ -86,7 +86,7 @@
         operational-manifest (command-bound-manifest operational-command)
         incomplete-incentive-manifest (command-bound-manifest incentive-command)
         complete-incentive-manifest (command-bound-manifest incentive-command
-                                                           :incentive-root (h "1c"))]
+                                                            :incentive-root (h "1c"))]
     (is (:complete? (om/outcome-complete-for-command?
                      operational-command operational-manifest)))
     (is (not (:complete? (om/outcome-complete-for-command?

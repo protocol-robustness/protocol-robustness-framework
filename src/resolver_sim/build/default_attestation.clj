@@ -160,57 +160,57 @@
    evidence of packaged-JAR availability."
   ([bundle artifact-root] (verify-bundle bundle artifact-root nil))
   ([bundle artifact-root {:keys [distribution trust-policy require-release-authorization?]}]
-  (let [definition (:bundle/definition bundle)
-        attestation (:bundle/attestation bundle)
-        artifact (:attestation/artifact attestation)
-        jar (io/file artifact-root (:path artifact))
-        checks [{:check/id :bundle-schema
-                 :check/status (if (= bundle-schema (:schema-version bundle)) :pass :fail)}
-                {:check/id :bundle-root
-                 :check/status (if (= (:bundle/root-hash bundle)
-                                      (sha256-ref (dissoc bundle :bundle/root-hash :bundle/release-authorization))) :pass :fail)}
-                {:check/id :definition
-                 :check/status (if (valid-definition? definition) :pass :fail)}
-                {:check/id :attestation-hash
-                 :check/status (if (attestation-hash-valid? attestation) :pass :fail)}
-                {:check/id :definition-binding
-                 :check/status (if (= (:default-build/hash definition)
-                                      (:attestation/build-definition-hash attestation)) :pass :fail)}
-                {:check/id :jar-bytes
-                 :check/status (if (= (:sha256 artifact)
-                                      (hash-ref/sha256-ref-file (.getPath jar))) :pass :fail)}
-                {:check/id :packaged-jar-smoke
-                 :check/status (if (and (= :passed (get-in attestation [:attestation/smoke :smoke/status]))
+   (let [definition (:bundle/definition bundle)
+         attestation (:bundle/attestation bundle)
+         artifact (:attestation/artifact attestation)
+         jar (io/file artifact-root (:path artifact))
+         checks [{:check/id :bundle-schema
+                  :check/status (if (= bundle-schema (:schema-version bundle)) :pass :fail)}
+                 {:check/id :bundle-root
+                  :check/status (if (= (:bundle/root-hash bundle)
+                                       (sha256-ref (dissoc bundle :bundle/root-hash :bundle/release-authorization))) :pass :fail)}
+                 {:check/id :definition
+                  :check/status (if (valid-definition? definition) :pass :fail)}
+                 {:check/id :attestation-hash
+                  :check/status (if (attestation-hash-valid? attestation) :pass :fail)}
+                 {:check/id :definition-binding
+                  :check/status (if (= (:default-build/hash definition)
+                                       (:attestation/build-definition-hash attestation)) :pass :fail)}
+                 {:check/id :jar-bytes
+                  :check/status (if (= (:sha256 artifact)
+                                       (hash-ref/sha256-ref-file (.getPath jar))) :pass :fail)}
+                 {:check/id :packaged-jar-smoke
+                  :check/status (if (and (= :passed (get-in attestation [:attestation/smoke :smoke/status]))
                                          (= :native-command-resolution
                                             (get-in attestation [:attestation/smoke :smoke/route])))
-                                 :pass
-                                 :fail)}
-                {:check/id :packaged-jar-smoke-log
-                 :check/status (let [log (get-in attestation [:attestation/smoke :smoke/log])
-                                     file (when (:path log) (io/file artifact-root (:path log)))]
-                                 (if (and (hash-ref/valid-sha256-ref? (:sha256 log))
-                                          (= (:sha256 log)
-                                             (when file (hash-ref/sha256-ref-file (.getPath file)))))
-                                   :pass
-                                   :fail))}]
-        authorization (:bundle/release-authorization bundle)
-        release-check (when (or require-release-authorization? trust-policy)
-                        (let [result (if (and authorization trust-policy distribution)
-                                       (release/verify-authorization
-                                        (:payload authorization) (:signatures authorization)
-                                        distribution trust-policy)
-                                       {:authorization {:status :missing-or-insufficient}})]
-                          {:check/id :release-authorization
-                           :check/status (if (= :authorized (get-in result [:authorization :status])) :pass :fail)
-                           :result result}))
-        checks (cond-> checks release-check (conj release-check))
-        verified? (every? #(= :pass (:check/status %)) checks)]
-    {:verified? verified?
-     :classification (cond
-                       (and verified? release-check) :release-authorized-build
-                       verified? :integrity-verified-build
-                       :else :invalid-build-evidence)
-     :checks checks})))
+                                  :pass
+                                  :fail)}
+                 {:check/id :packaged-jar-smoke-log
+                  :check/status (let [log (get-in attestation [:attestation/smoke :smoke/log])
+                                      file (when (:path log) (io/file artifact-root (:path log)))]
+                                  (if (and (hash-ref/valid-sha256-ref? (:sha256 log))
+                                           (= (:sha256 log)
+                                              (when file (hash-ref/sha256-ref-file (.getPath file)))))
+                                    :pass
+                                    :fail))}]
+         authorization (:bundle/release-authorization bundle)
+         release-check (when (or require-release-authorization? trust-policy)
+                         (let [result (if (and authorization trust-policy distribution)
+                                        (release/verify-authorization
+                                         (:payload authorization) (:signatures authorization)
+                                         distribution trust-policy)
+                                        {:authorization {:status :missing-or-insufficient}})]
+                           {:check/id :release-authorization
+                            :check/status (if (= :authorized (get-in result [:authorization :status])) :pass :fail)
+                            :result result}))
+         checks (cond-> checks release-check (conj release-check))
+         verified? (every? #(= :pass (:check/status %)) checks)]
+     {:verified? verified?
+      :classification (cond
+                        (and verified? release-check) :release-authorized-build
+                        verified? :integrity-verified-build
+                        :else :invalid-build-evidence)
+      :checks checks})))
 
 (defn write-bundle! [bundle destination]
   (spit (io/file destination) (pr-str bundle))

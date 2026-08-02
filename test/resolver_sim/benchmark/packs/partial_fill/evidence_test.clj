@@ -390,3 +390,33 @@
           result (pfev/verify-partial-fill-decisions tampered)]
       (is (= :evaluated-fail (:classification result)))
       (is (some #(= :classification-mismatch (:code %)) (:violations result))))))
+
+;; ── partial-fill verification report file-artifact ───────────────────────
+
+(deftest partial-fill-verification-report-roundtrip
+  (let [r (pfev/build-partial-fill-verification-report (real-world))]
+    (is (= "partial-fill-decisions-verification.v1" (:schema-version r)))
+    (is (= :partial-fill-decisions-verification (:artifact/kind r)))
+    (is (= :evaluated-pass (:classification r)))
+    (is (string? (:report/hash r)))
+    (is (true? (pfev/valid-partial-fill-verification-report? r)))))
+
+(deftest partial-fill-verification-report-tamper-classification
+  (let [r (pfev/build-partial-fill-verification-report (real-world))]
+    (is (false? (pfev/valid-partial-fill-verification-report?
+                 (assoc r :classification :evaluated-fail))))))
+
+(deftest partial-fill-verification-report-tamper-hash
+  (let [r (pfev/build-partial-fill-verification-report (real-world))]
+    (is (false? (pfev/valid-partial-fill-verification-report?
+                 (assoc r :report/hash "sha256:forged"))))))
+
+(deftest partial-fill-verification-report-wrong-schema
+  (let [r (pfev/build-partial-fill-verification-report (real-world))]
+    (is (false? (pfev/valid-partial-fill-verification-report?
+                 (assoc r :schema-version "wrong.v9"))))))
+
+(deftest partial-fill-verification-report-missing-preimage
+  (let [r (pfev/build-partial-fill-verification-report (real-world))]
+    (is (false? (pfev/valid-partial-fill-verification-report?
+                 (dissoc r :report/preimage))))))

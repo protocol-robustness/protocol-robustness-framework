@@ -56,7 +56,7 @@
                       :jar-file jar
                       :smoke nil})
         bundle (att/build-attestation-bundle {:definition definition
-                                               :attestation attestation})
+                                              :attestation attestation})
         result (att/verify-bundle bundle root)]
     (is (false? (:verified? result)))
     (is (some #(and (= :packaged-jar-smoke (:check/id %))
@@ -85,8 +85,8 @@
         signature (release/sign-payload payload (.getPrivate pair) "release-1")
         signed (att/attach-release-authorization bundle payload [signature])
         result (att/verify-bundle signed root {:distribution :prf
-                                                :trust-policy policy
-                                                :require-release-authorization? true})]
+                                               :trust-policy policy
+                                               :require-release-authorization? true})]
     (is (:verified? result))
     (is (= :release-authorized-build (:classification result)))))
 
@@ -107,8 +107,8 @@
         signature (release/sign-payload payload (.getPrivate pair) "release-1")
         signed (att/attach-release-authorization bundle payload [signature])
         result (att/verify-bundle signed root {:distribution :prf
-                                                :trust-policy policy
-                                                :require-release-authorization? true})]
+                                               :trust-policy policy
+                                               :require-release-authorization? true})]
     (is (false? (:verified? result)))
     (is (some #(and (= :release-authorization (:check/id %))
                     (= :fail (:check/status %)))
