@@ -5,7 +5,8 @@
    without modifying protocol transition code.
    
    Dependency direction: benchmark -> yield/domain artifacts (one-way)."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.yield.partial-fill :as partial-fill]))
 
 ;; ── State write-back evidence ─────────────────────────────────────────────
 
@@ -139,6 +140,405 @@
          (assoc :continuity-root
                 (hc/domain-hash :evidence-collection
                                 (vec (sort-by :participant/id continuity-evidence)))))})))
+
+;; ── Partial-fill decision verification ────────────────────────────────────
+;;
+;; The reconciliation below proves two distinct things and labels them
+;; separately:
+;;
+;;   :per-claim-reconciled   filled + deferred == owed (conservation), and
+;;   :expected-fill          the fill equals the feasible fill derived from the
+;;                           committed capacity and allocation policy.
+;;
+;; The former proves accounting conservation only; it does not prove the fill
+;; was the correct amount given capacity. The latter is asserted only where it
+;; is determinable at this projection-only layer (isolated claim, or sufficient
+;; unconstrained capacity). A shared pro-rata fill under shortage is reported as
+;; :shared-undeterminable rather than falsely claiming exactness.
+;;
+;; Missing, malformed, non-integral, negative, or contradictory evidence is
+;; non-passing.
+
+(def ^:private per-claim-tolerance
+  "Permitted per-claim rounding drift in base units (filled+deferred-owed)."
+  1)
+
+(def ^:private aggregate-tolerance
+  "Permitted aggregate drift across all claims of all decisions. Kept small so
+   that one-unit errors on many claims cannot accumulate undetected."
+  1)
+
+(defn- decision-claims
+  "Canonical claim keys referenced by a decision (from :requested)."
+  [d]
+  (vec (keys (:requested d))))
+
+(defn- claim-amount
+  "A claim amount for a decision by key, or nil when absent."
+  [d k]
+  (get-in d [:requested k]))
+
+(defn- claim-filled [d k]
+  (long (get (:filled d) k 0)))
+
+(defn- claim-deferred [d k]
+  (long (get (:deferred d) k 0)))
+
+(defn- decision-total [d field]
+  (long (reduce + 0 (vals (get d field {})))))
+
+(defn- amount-violations
+  "Non-integral, negative, or out-of-bounds claim amounts."
+  [d]
+  (into []
+        (mapcat
+         (fn [k]
+           (let [owed (claim-amount d k)
+                 filled (claim-filled d k)
+                 deferred (claim-deferred d k)
+                 bad #(and (some? %) (not (integer? %)))
+                 neg #(and (integer? %) (neg? %))]
+             (cond-> []
+               (bad owed) (conj {:code :non-integral-amount
+                                 :decision/id (:decision/id d) :key k :field :owed :value owed})
+               (bad filled) (conj {:code :non-integral-amount
+                                   :decision/id (:decision/id d) :key k :field :filled :value filled})
+               (bad deferred) (conj {:code :non-integral-amount
+                                     :decision/id (:decision/id d) :key k :field :deferred :value deferred})
+               (neg owed) (conj {:code :negative-amount
+                                 :decision/id (:decision/id d) :key k :field :owed :value owed})
+               (neg filled) (conj {:code :negative-amount
+                                   :decision/id (:decision/id d) :key k :field :filled :value filled})
+               (neg deferred) (conj {:code :negative-amount
+                                     :decision/id (:decision/id d) :key k :field :deferred :value deferred})
+               (and (integer? filled) (> filled owed))
+               (conj {:code :bounds-violation
+                      :decision/id (:decision/id d) :key k :field :filled :value filled :owed owed})
+               (and (integer? deferred) (> deferred owed))
+               (conj {:code :bounds-violation
+                      :decision/id (:decision/id d) :key k :field :deferred :value deferred :owed owed}))))
+         (decision-claims d))))
+
+(defn- per-claim-reconciliation-violations
+  "Conservation: filled + deferred == owed, per claim, within tolerance.
+
+   Reads the authoritative :allocation-rows breakdown when present and falls
+   back to the top-level requested/filled/deferred maps otherwise."
+  [d]
+  (let [rows (get-in d [:evidence :allocation-rows])]
+    (if (seq rows)
+      (into []
+            (mapcat
+             (fn [r]
+               (let [owed (long (:owed r 0))
+                     filled (long (:filled r 0))
+                     deferred (long (:deferred r 0))
+                     delta (- (+ filled deferred) owed)]
+                 (when (or (< delta (- per-claim-tolerance))
+                           (> delta per-claim-tolerance))
+                   [{:code :per-claim-inexact
+                     :decision/id (:decision/id d)
+                     :key (:key r)
+                     :owed owed
+                     :filled filled
+                     :deferred deferred
+                     :delta delta}])))
+             rows))
+      (into []
+            (mapcat
+             (fn [k]
+               (let [owed (long (or (claim-amount d k) 0))
+                     filled (claim-filled d k)
+                     deferred (claim-deferred d k)
+                     delta (- (+ filled deferred) owed)]
+                 (when (or (< delta (- per-claim-tolerance))
+                           (> delta per-claim-tolerance))
+                   [{:code :per-claim-inexact
+                     :decision/id (:decision/id d)
+                     :key k
+                     :owed owed
+                     :filled filled
+                     :deferred deferred
+                     :delta delta}])))
+             (decision-claims d))))))
+
+(defn- capacity-violations
+  "Under-capacity and available-liquidity sanity, derived rather than trusted."
+  [d]
+  (let [ev (:evidence d)
+        avail (get-in ev [:available-liquidity])
+        owed-total (decision-total d :requested)
+        filled-total (decision-total d :filled)
+        deferred-total (decision-total d :deferred)
+        derived-shortage (- owed-total filled-total)]
+    (cond-> []
+      (nil? ev)
+      (conj {:code :missing-decision-evidence :decision/id (:decision/id d)})
+
+      (and (some? avail) (neg? avail))
+      (conj {:code :negative-available-liquidity
+             :decision/id (:decision/id d) :available-liquidity avail})
+
+      (and (some? avail) (> filled-total avail))
+      (conj {:code :over-capacity-fill
+             :decision/id (:decision/id d)
+             :filled-total filled-total
+             :available-liquidity (long avail)})
+
+      ;; A supplied positive :shortage must equal the derived shortage.
+      (and (some? ev) (some? (:shortage ev))
+           (not= (long (:shortage ev)) derived-shortage))
+      (conj {:code :shortage-inconsistent
+             :decision/id (:decision/id d)
+             :supplied-shortage (long (:shortage ev))
+             :derived-shortage derived-shortage})
+
+      ;; shortage must equal total deferred in an exact fill.
+      (not= derived-shortage deferred-total)
+      (conj {:code :shortage-deferred-mismatch
+             :decision/id (:decision/id d)
+             :derived-shortage derived-shortage
+             :deferred-total deferred-total}))))
+
+(defn- derived-classification
+  "Classification derived from amounts. :full-fill iff deferred == 0;
+   :partial-fill iff some claim is partially filled (0 < filled < owed)."
+  [d]
+  (let [deferred-zero? (every? zero? (vals (:deferred d)))
+        any-partial? (some (fn [k]
+                             (let [owed (long (or (claim-amount d k) 0))
+                                   filled (claim-filled d k)]
+                               (and (pos? owed) (< 0 filled owed))))
+                           (decision-claims d))]
+    (cond deferred-zero? :full-fill
+          any-partial? :partial-fill
+          :else :indeterminate)))
+
+(defn- classification-violations
+  "Settlement-mode must agree with the derived classification."
+  [d]
+  (let [derived (derived-classification d)
+        mode (:settlement-mode d)]
+    (when (and (not= :indeterminate derived)
+               (not= derived mode))
+      [{:code :classification-mismatch
+        :decision/id (:decision/id d)
+        :derived derived
+        :settlement-mode mode}])))
+
+(defn- expected-fill-violations
+  "Derive the feasible fill where determinable and compare. Returns
+   {:mode ... :violations [...]}.
+     :isolated-exact            single unconstrained claim; expected = min(owed, available)
+     :full-capacity-exact       available >= owed and no cap below owed; expected = full fill
+     :shared-undeterminable     shared pro-rata under shortage; exactness not derivable here"
+  [d]
+  (let [ev (:evidence d)
+        avail (get-in ev [:available-liquidity])
+        claims (decision-claims d)
+        owed-total (decision-total d :requested)
+        rows (get ev [:allocation-rows] [])
+        cap-below-owed? (some (fn [k]
+                                ;; a per-row cap that constrains the fill below owed
+                                (some (fn [r]
+                                        (and (= (:key r) k)
+                                             (some? (:cap r))
+                                             (< (:cap r) (long (or (claim-amount d k) 0)))))
+                                      rows))
+                              claims)]
+    (cond
+      (nil? ev)
+      {:mode :none :violations []}
+
+      (and (= 1 (count claims))
+           (some? avail)
+           (not cap-below-owed?))
+      (let [k (first claims)
+            owed (long (or (claim-amount d k) 0))
+            expected (min owed (long avail))
+            filled (claim-filled d k)]
+        {:mode :isolated-exact
+         :violations (when (not= filled expected)
+                       [{:code :expected-fill-mismatch
+                         :decision/id (:decision/id d)
+                         :key k
+                         :expected-fill expected
+                         :actual-fill filled
+                         :reason :isolated-claim-exact}])})
+
+      (and (some? avail)
+           (>= (long avail) owed-total)
+           (not cap-below-owed?))
+      (let [violations (into []
+                             (mapcat
+                              (fn [k]
+                                (let [owed (long (or (claim-amount d k) 0))
+                                      filled (claim-filled d k)]
+                                  (when (not= filled owed)
+                                    [{:code :expected-fill-mismatch
+                                      :decision/id (:decision/id d)
+                                      :key k
+                                      :expected-fill owed
+                                      :actual-fill filled
+                                      :reason :sufficient-capacity-full-fill}])))
+                              claims))]
+        {:mode :full-capacity-exact
+         :violations violations})
+
+      :else
+      {:mode :shared-undeterminable :violations []})))
+
+(defn partial-fill-decisions-root
+  "Recompute the :partial-fill-decisions-root commitment over the sorted
+   decision hashes in a world state, or nil when no decisions are present.
+
+   When :scope is supplied the root is bound to that case/run/parameter scope,
+   so a decision set transplanted from another scope cannot reproduce the same
+   root. The unscoped form is preserved for compatibility."
+  ([final-world] (partial-fill-decisions-root final-world {}))
+  ([final-world {:keys [scope]}]
+   (let [hashes (mapv :decision/hash
+                      (vals (get-in final-world [:yield/partial-fill-decisions] {})))]
+     (when (seq hashes)
+       (hc/domain-hash :evidence-collection
+                       (if scope
+                         {:scope scope :decision-hashes (vec (sort hashes))}
+                         (vec (sort hashes))))))))
+
+(defn- membership-violations
+  "Bind membership, not only contents: the present claim set matches
+   :expected-claims (no missing or unexpected claims); the decision count
+   matches :expected-count when supplied; and when :unique-claims? is set, each
+   claim may appear in at most one decision.
+
+   Cross-decision repetition of a claim is permitted by default because a
+   deferred lineage legitimately settles the same position across multiple
+   rounds; :unique-claims? opts into a single-settlement membership contract."
+  [decisions & {:keys [expected-claims expected-count unique-claims?]}]
+  (let [all-claims (mapcat decision-claims decisions)
+        present (set all-claims)
+        expected-provided? (some? expected-claims)
+        duplicates (when unique-claims?
+                     (->> all-claims
+                          frequencies
+                          (keep (fn [[k c]] (when (> c 1) k)))
+                          vec))
+        expected (set (or expected-claims []))
+        missing (vec (sort (remove present expected)))
+        unexpected (vec (sort (remove expected present)))]
+    (cond-> []
+      (seq duplicates)
+      (conj {:code :duplicate-claim :claims duplicates})
+
+      (and expected-provided? (seq missing))
+      (conj {:code :missing-claim :claims missing})
+
+      (and expected-provided? (seq unexpected))
+      (conj {:code :unexpected-claim :claims unexpected})
+
+      (and (some? expected-count) (not= expected-count (count decisions)))
+      (conj {:code :decision-count-mismatch
+             :expected-count expected-count
+             :actual-count (count decisions)}))))
+
+(defn verify-partial-fill-decisions
+  "Projection-only verifier over the committed partial-fill decisions and their
+   :partial-fill-decisions-root.
+
+   This verifier establishes two distinct properties:
+
+     - :decision-integrity — every :decision/hash validates, the root recomputes
+       from the decision set, membership is bound (no duplicates, no missing or
+       unexpected claims), and when :case-scope is supplied the committed root
+       is bound to that case/run/parameter scope. This proves commitment and
+       integrity of the bundle; it is NOT decidability (a unique-allocation
+       ambiguity witness is out of scope for this projection layer).
+
+     - accounting exactness — per-claim reconciliation (filled + deferred ==
+       owed) and aggregate drift are bounded; where the feasible fill is
+       derivable (:isolated-exact, :full-capacity-exact) the fill must equal it,
+       otherwise :shared-undeterminable is reported honestly.
+
+   All redundant fields (:shortage, :settlement-mode) are derived and cross
+   checked rather than trusted. Missing or malformed evidence is non-passing.
+
+   Returns a structured result."
+  [final-world & {:keys [committed-root case-scope expected-claims expected-count unique-claims?]}]
+  (let [decisions (vals (get-in final-world [:yield/partial-fill-decisions] {}))
+        scoped? (some? case-scope)
+        recomputed (partial-fill-decisions-root final-world
+                                                (when case-scope {:scope case-scope}))
+        unscoped-root (partial-fill-decisions-root final-world)
+        content-root-ok? (or (nil? committed-root)
+                             (= committed-root unscoped-root))
+        scope-root-ok? (or (not scoped?)
+                           (and (some? recomputed) (= committed-root recomputed)))
+        root-ok? (or (nil? committed-root)
+                     (if scoped? scope-root-ok? content-root-ok?))
+        hash-ok? (every? (fn [d]
+                           (and (string? (:decision/hash d))
+                                (try (partial-fill/decision-hash-valid? d)
+                                     (catch Exception _ false))))
+                         decisions)
+        amount-violations (into [] (mapcat amount-violations decisions))
+        reconcile-violations (into [] (mapcat per-claim-reconciliation-violations decisions))
+        capacity-violations (into [] (mapcat capacity-violations decisions))
+        classification-violations (into [] (mapcat classification-violations decisions))
+        expected-fill-results (mapv expected-fill-violations decisions)
+        expected-fill-violations (into [] (mapcat :violations expected-fill-results))
+        expected-fill-modes (set (map :mode expected-fill-results))
+        membership-violations (membership-violations decisions
+                                                     :expected-claims expected-claims
+                                                     :expected-count expected-count
+                                                     :unique-claims? unique-claims?)
+        sum-filled (reduce + 0 (map #(decision-total % :filled) decisions))
+        sum-deferred (reduce + 0 (map #(decision-total % :deferred) decisions))
+        sum-owed (reduce + 0 (map #(decision-total % :requested) decisions))
+        aggregate-drift (- (+ sum-filled sum-deferred) sum-owed)
+        aggregate-ok? (<= (Math/abs (long aggregate-drift)) aggregate-tolerance)
+        violations (vec (concat
+                         (when-not root-ok?
+                           (if scoped?
+                             [{:code :scope-root-mismatch
+                               :committed-root committed-root
+                               :recomputed-root recomputed
+                               :case-scope case-scope}]
+                             [{:code :root-mismatch
+                               :committed-root committed-root
+                               :recomputed-root unscoped-root}]))
+                         (when-not hash-ok?
+                           [{:code :invalid-decision-hash}])
+                         membership-violations
+                         amount-violations
+                         reconcile-violations
+                         capacity-violations
+                         classification-violations
+                         expected-fill-violations
+                         (when-not aggregate-ok?
+                           [{:code :aggregate-drift
+                             :sum-filled sum-filled
+                             :sum-deferred sum-deferred
+                             :sum-owed sum-owed
+                             :delta aggregate-drift}])))]
+    {:classification (cond
+                       (empty? decisions) :not-evaluated
+                       (seq violations) :evaluated-fail
+                       :else :evaluated-pass)
+     :decision-count (count decisions)
+     :claim-count (count (distinct (mapcat decision-claims decisions)))
+     :decision-integrity? (boolean (and (seq decisions)
+                                        (some? recomputed)
+                                        root-ok?
+                                        hash-ok?
+                                        (empty? membership-violations)))
+     :root-committed committed-root
+     :root-recomputed recomputed
+     :expected-fill-mode (cond
+                           (empty? expected-fill-modes) :none
+                           (contains? expected-fill-modes :shared-undeterminable) :shared-undeterminable
+                           :else (first expected-fill-modes))
+     :aggregate-drift (long aggregate-drift)
+     :violations (vec violations)}))
 
 ;; ── Continuity evidence ───────────────────────────────────────────────────
 

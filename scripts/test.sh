@@ -428,7 +428,10 @@ run_yield() {
          'resolver-sim.yield.liquid-lending-v2-test
          'resolver-sim.yield.pro-rata-accounting-test
          'resolver-sim.yield.pro-rata-propagation-properties-test
-         'resolver-sim.yield.deferred-class-test)
+         'resolver-sim.yield.deferred-class-test
+         'resolver-sim.yield.lineage-conservation-test
+         'resolver-sim.yield.queue-policy-test
+         'resolver-sim.yield.merge-policy-test)
 (binding [resolver-sim.evidence.chain/*allow-dirty* true]
   (let [results (t/run-tests
                'resolver-sim.protocols.sew.yield-reorg-race-test
@@ -442,7 +445,10 @@ run_yield() {
                'resolver-sim.yield.liquid-lending-v2-test
                'resolver-sim.yield.pro-rata-accounting-test
                'resolver-sim.yield.pro-rata-propagation-properties-test
-               'resolver-sim.yield.deferred-class-test)]
+               'resolver-sim.yield.deferred-class-test
+               'resolver-sim.yield.lineage-conservation-test
+               'resolver-sim.yield.queue-policy-test
+               'resolver-sim.yield.merge-policy-test)]
               (when (pos? (+ (:error results) (:fail results)))
                 (System/exit 1))))"
   return $?

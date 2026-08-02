@@ -23,10 +23,16 @@
      :smoke/output-hash
      (hash-ref/sha256-ref
       (canonical/domain-hash "DEFAULT_BUILD_SMOKE_OUTPUT_V1"
-                             (str (:out result) (:err result))))}))
+                             (str (:out result) (:err result))) )
+     :smoke/log-content (str (:out result) (:err result))}))
 
 (defn- emit! [variant jar-path bundle-path smoke]
-  (let [definition (att/default-build-definition "." variant)
+  (let [log-file (str bundle-path ".smoke.log")
+        _ (spit log-file (:smoke/log-content smoke))
+        smoke (assoc (dissoc smoke :smoke/log-content)
+                     :smoke/log {:path (.getName (java.io.File. log-file))
+                                 :sha256 (hash-ref/sha256-ref-file log-file)})
+        definition (att/default-build-definition "." variant)
         attestation (att/build-attestation
                      {:definition definition
                       :jar-file jar-path

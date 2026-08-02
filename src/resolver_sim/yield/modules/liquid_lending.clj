@@ -540,12 +540,88 @@
    :root-obligation-id (base-position-id owner-id position)
    :original-priority (authoritative-original-priority owner-id position)})
 
+;; ---------------------------------------------------------------------------
+;; queue policy contract
+;; ---------------------------------------------------------------------------
+
+(defn- secondary-position-id
+  "Canonical immutable position identifier for queue ordering.
+   A deferred lineage shares one content-addressed root; a base position commits
+   the same origin reference hash. This is the declared :secondary-position-id
+   tie-break for equal original priorities and is stable across the whole
+   lineage including the genesis base position."
+  [position]
+  (or (get-in position [:deferred-position :deferred/lineage-root])
+      (let [owner-id (or (:owner/id position)
+                         (:position/participant-id position))]
+        (canonical-hash-safe (lineage-origin-reference owner-id position)))))
+
+(defn queue-domain
+  "Declared queue domain for a shared-liquidity withdrawal: scope by module,
+   token, and liquidity pool so that entries from different pools are not
+   compared against each other."
+  [module-id token]
+  {:module-id module-id
+   :token (normalize-token token)
+   :liquidity-pool :shared-liquidity-pool})
+
+(defn same-queue-domain?
+  "Are two queue domain declarations identical (same module, token, pool)?"
+  [a b]
+  (= (:queue/domain a) (:queue/domain b)))
+
+(defn compare-queue-entries
+  "Compare two declared queue entries by original-priority (ascending) then the
+   immutable secondary position id. Returns :incomparable when the entries live
+   in different queue domains — cross-pool entries are not globally ordered."
+  [a b]
+  (if-not (same-queue-domain? a b)
+    :incomparable
+    (let [ka (:queue/key a)
+          kb (:queue/key b)
+          by-priority (compare (long (:original-priority ka))
+                               (long (:original-priority kb)))]
+      (if (zero? by-priority)
+        (compare (str (:secondary-position-id ka))
+                 (str (:secondary-position-id kb)))
+        by-priority))))
+
+;; ---------------------------------------------------------------------------
+;; merge policy: single-origin lineage
+;; ---------------------------------------------------------------------------
+
+(defn lineage-origin-ids
+  "Distinct committed origin identifiers across a position's whole deferred
+   lineage (active + archived), keyed on the canonical :root-obligation-id.
+   More than one distinct identifier indicates a multi-origin merge. Origin
+   position-id continuity is validated separately by the origin-reference check,
+   so a mislabeled origin position id is not conflated with a true merge."
+  [position]
+  (->> (cons (:deferred-position position)
+             (vals (:deferred-position-history position {})))
+       (remove nil?)
+       (keep :position/root-obligation-id)
+       distinct
+       vec))
+
+(defn single-origin-lineage?
+  "A lineage is single-origin iff it commits at most one distinct root
+   obligation identifier across all of its records. Multi-origin merges are
+   forbidden."
+  [position]
+  (<= (count (lineage-origin-ids position)) 1))
+
 (defn- validate-active-deferred-lineage!
   "Require and authenticate canonical lineage anchors on an active deferred
    position. Missing fields are not treated as matching legacy absence."
   [owner-id position]
   (when-let [deferred (:deferred-position position)]
     (when (= :deferred-withdrawal (:position/type deferred))
+      (when-not (single-origin-lineage? position)
+        (fail! "Deferred lineage merges more than one origin"
+               :multi-origin-lineage-merge
+               {:owner-id owner-id
+                :origin-ids (lineage-origin-ids position)}))
       (doseq [key [:deferred/lineage-root
                    :deferred/predecessor-hash
                    :deferred/original-position
@@ -570,23 +646,46 @@
                  {:owner-id owner-id
                   :expected expected-root
                   :actual (:deferred/lineage-root deferred)})))
-      (when-let [parent (get (:deferred-position-history position)
-                             (:position/parent-id deferred))]
-        (when-not (= (:deferred/lineage-root parent)
-                     (:deferred/lineage-root deferred))
-          (fail! "Deferred lineage root differs from its archived predecessor"
-                 :deferred-lineage-root-continuity-mismatch
+      (let [parent-id (:position/parent-id deferred)
+            origin-position-id (get-in deferred
+                                       [:deferred/original-position :position-id])
+            requires-archive? (and parent-id
+                                   (not= parent-id origin-position-id))]
+        (when (and requires-archive?
+                   (nil? (get (:deferred-position-history position) parent-id)))
+          (fail! "Deferred predecessor archive is missing"
+                 :missing-deferred-predecessor-archive
                  {:owner-id owner-id
-                  :parent-id (:position/parent-id deferred)
-                  :expected (:deferred/lineage-root parent)
-                  :actual (:deferred/lineage-root deferred)}))
-        (when-not (= (:position/id deferred) (:position/successor-id parent))
-          (fail! "Archived deferred predecessor does not link to active successor"
-                 :deferred-lineage-successor-mismatch
-                 {:owner-id owner-id
-                  :parent-id (:position/parent-id deferred)
-                  :expected-successor (:position/id deferred)
-                  :actual-successor (:position/successor-id parent)}))))))
+                  :parent-id parent-id}))
+        (when-let [parent (get (:deferred-position-history position) parent-id)]
+          (when (nil? (:position/pre-closure-hash parent))
+            (fail! "Archived deferred predecessor is missing a pre-closure commitment"
+                   :missing-deferred-pre-closure-commitment
+                   {:owner-id owner-id
+                    :parent-id parent-id}))
+          (when-not (= (:deferred/lineage-root parent)
+                       (:deferred/lineage-root deferred))
+            (fail! "Deferred lineage root differs from its archived predecessor"
+                   :deferred-lineage-root-continuity-mismatch
+                   {:owner-id owner-id
+                    :parent-id parent-id
+                    :expected (:deferred/lineage-root parent)
+                    :actual (:deferred/lineage-root deferred)}))
+          (when-not (= (:position/pre-closure-hash parent)
+                       (:deferred/predecessor-hash deferred))
+            (fail! "Deferred predecessor hash does not match archived pre-closure commitment"
+                   :deferred-predecessor-hash-mismatch
+                   {:owner-id owner-id
+                    :parent-id parent-id
+                    :expected (:position/pre-closure-hash parent)
+                    :actual (:deferred/predecessor-hash deferred)}))
+          (when-not (= (:position/id deferred) (:position/successor-id parent))
+            (fail! "Archived deferred predecessor does not link to active successor"
+                   :deferred-lineage-successor-mismatch
+                   {:owner-id owner-id
+                    :parent-id parent-id
+                     :expected-successor (:position/id deferred)
+                     :actual-successor (:position/successor-id parent)})))))))
 
 (defn- position-state-commitment [owner-id position]
   (validate-active-deferred-lineage! owner-id position)
@@ -1088,9 +1187,10 @@
                        (when (pos? deferred)
                          (propagation-policy/validate-deferred-position-schema m))
                        m)
-                     closed-prior
+                      closed-prior
                      (when current-deferred
                        (assoc current-deferred
+                              :schema-version "deferred-position-closure.v1"
                               :position/status :closed
                               :position/closed-from-amount
                               (:position/current-amount current-deferred)
@@ -1100,7 +1200,14 @@
                               :position/closed-order application-order
                               :position/closed-event-time event-time
                               :position/successor-id
-                              (when (pos? deferred) successor-id)))
+                              (when (pos? deferred) successor-id)
+                              ;; Immutable, pre-closure predecessor commitment.
+                              ;; The child commits this same value as
+                              ;; :deferred/predecessor-hash, so archival cannot
+                              ;; silently mutate the ancestor out of agreement.
+                              :position/pre-closure-hash
+                              (canonical-hash-safe current-deferred)
+                              :position/pre-closure-snapshot current-deferred))
                      shortfall
                      (when (pos? deferred)
                        {:reason :liquidity-shortfall
@@ -1326,7 +1433,8 @@
               [(authoritative-original-priority
                 owner-id
                 (get-in world [:yield/positions owner-id]))
-               (str owner-id)])
+               (secondary-position-id
+                (get-in world [:yield/positions owner-id]))])
             owners-unsorted))
           positions (mapv #(get-in world [:yield/positions %]) owners)
           classifications
@@ -1515,12 +1623,19 @@
                  :original-priority-ascending
                  :allocation/priority-witness
                  (mapv (fn [row]
-                         (select-keys row
-                                      [:key
-                                       :obligation-id
-                                       :source-position-id
-                                       :original-priority
-                                       :priority-source]))
+                         (merge
+                          (select-keys row
+                                       [:key
+                                        :obligation-id
+                                        :source-position-id
+                                        :original-priority
+                                        :priority-source])
+                          {:queue/domain (queue-domain module-id token)
+                           :queue/key
+                           {:original-priority (:original-priority row)
+                            :secondary-position-id
+                            (secondary-position-id
+                             (get-in accrued-world [:yield/positions (:key row)]))}}))
                        rows)
                  :allocation/invocation-context invocation-context}})
               preconditions
@@ -1821,13 +1936,17 @@
               (if (and (pos? reclaimed) active-deferred)
                 (let [closed-deferred
                       (assoc active-deferred
+                             :schema-version "deferred-position-closure.v1"
                              :position/status :closed
                              :position/closed-from-amount
                              (:position/current-amount active-deferred)
                              :position/current-amount 0
                              :position/closed-by :claim-deferred
                              :position/closed-reclaimed-amount reclaimed
-                             :position/closed-event-time (resolve-now world))]
+                             :position/closed-event-time (resolve-now world)
+                             :position/pre-closure-hash
+                             (canonical-hash-safe active-deferred)
+                             :position/pre-closure-snapshot active-deferred)]
                   (-> recovered-position
                       (dissoc :deferred-position)
                       (update :deferred-position-history

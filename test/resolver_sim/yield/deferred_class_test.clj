@@ -414,6 +414,118 @@
 
 ;; ── Stability: existing behavior preserved ────────────────────────────────
 
+;; ── 2.1 Pre-closure predecessor commitment ────────────────────────────────
+
+(defn- two-round-deferred-world
+  "Drive a two-round deferred lineage for 'alice' so the first-round deferred is
+   archived as the predecessor of the active second-round deferred."
+  []
+  (let [world0 (deposit-owners base-world ["alice"] 100)
+        world1 (-> world0
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))
+        world2 (-> world1
+                   (assoc-in [:total-held :USDC] 30)
+                   (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))]
+    world2))
+
+(deftest archived-predecessor-commits-immutable-pre-closure-hash
+  (testing "archived parent carries pre-closure hash/snapshot equal to child predecessor-hash"
+    (let [world (two-round-deferred-world)
+          position (get-in world [:yield/positions "alice"])
+          child (:deferred-position position)
+          parent (get-in position [:deferred-position-history
+                                   (:position/parent-id child)])]
+      (is (some? parent) "archived predecessor exists")
+      (is (= "deferred-position-closure.v1" (:schema-version parent))
+          "archived parent carries a versioned closure schema")
+      (is (some? (:position/pre-closure-hash parent))
+          "archived parent commits a pre-closure hash")
+      (is (some? (:position/pre-closure-snapshot parent))
+          "archived parent commits a pre-closure snapshot")
+      (is (= (:position/pre-closure-hash parent)
+             (:deferred/predecessor-hash child))
+          "child predecessor-hash equals archived pre-closure commitment")
+      (is (= (:position/current-amount
+              (:position/pre-closure-snapshot parent))
+             (:position/closed-from-amount parent))
+          "snapshot preserves the pre-closure residual before archival"))))
+
+(deftest altered-child-predecessor-hash-is-rejected
+  (let [world (two-round-deferred-world)
+        tampered (assoc-in world
+                           [:yield/positions "alice" :deferred-position
+                            :deferred/predecessor-hash]
+                           "forged-hash")]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"predecessor hash does not match archived pre-closure"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest altered-archived-pre-closure-hash-is-rejected
+  (let [world (two-round-deferred-world)
+        child (get-in world [:yield/positions "alice" :deferred-position])
+        parent-id (:position/parent-id child)
+        tampered (assoc-in world
+                           [:yield/positions "alice"
+                            :deferred-position-history
+                            parent-id :position/pre-closure-hash]
+                           "forged-commitment")]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"predecessor hash does not match archived pre-closure"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest missing-deferred-predecessor-archive-is-rejected
+  (let [world (two-round-deferred-world)
+        tampered (assoc-in world
+                           [:yield/positions "alice" :deferred-position
+                            :position/parent-id]
+                           "nonexistent-parent")]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"predecessor archive is missing"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest child-lacking-predecessor-commitment-is-rejected
+  (let [world (two-round-deferred-world)
+        tampered (update-in world
+                            [:yield/positions "alice" :deferred-position]
+                            dissoc :deferred/predecessor-hash)]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"missing a lineage anchor"
+                          (ll/withdraw-shared tampered test-mod
+                                              {:owner-ids ["alice"]
+                                               :token "USDC"
+                                               :allocation-mode :pro-rata})))))
+
+(deftest archived-predecessor-links-to-active-successor
+  (testing "archived successor link remains consistent (2.1 negative: different successor)"
+    (let [world (two-round-deferred-world)
+          child (get-in world [:yield/positions "alice" :deferred-position])
+          parent-id (:position/parent-id child)
+          tampered (assoc-in world
+                             [:yield/positions "alice"
+                              :deferred-position-history
+                              parent-id :position/successor-id]
+                             "wrong-successor")]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"does not link to active successor"
+                            (ll/withdraw-shared tampered test-mod
+                                                {:owner-ids ["alice"]
+                                                 :token "USDC"
+                                                 :allocation-mode :pro-rata}))))))
+
 (deftest deferred-position-amounts-unchanged
   (testing "introducing deferred fields does not change amount accounting"
     (let [w (deposit-owners base-world ["alice"] 100)

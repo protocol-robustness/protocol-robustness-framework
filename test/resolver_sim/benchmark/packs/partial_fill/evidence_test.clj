@@ -1,7 +1,40 @@
 (ns resolver-sim.benchmark.packs.partial-fill.evidence-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pfev]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.yield.modules.liquid-lending :as ll]))
+
+(def test-mod
+  (ll/make-liquid-lending-module :test-mod))
+
+(def base-world
+  {:yield/indices {:test-mod {"USDC" 1.0}}
+   :yield/rates   {:test-mod {"USDC" 0.05}}
+   :yield/risk    {:test-mod {"USDC" {:liquidity-mode :available
+                                      :loss-mode :none}}}
+   :yield/held-balances {"USDC" 1000000}
+   :yield/module-status {:test-mod :active}
+   :block-time 1000
+   :run/id "test-run"
+   :execution/id "test-execution"
+   :params {:scenario-id "test-scenario"}})
+
+(defn- real-world []
+  (-> (ll/deposit base-world test-mod {:owner/id "alice" :amount 100 :token "USDC"})
+      (assoc-in [:total-held :USDC] 30)
+      (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                    :token "USDC"
+                                    :allocation-mode :pro-rata})))
+
+(defn- two-decision-world []
+  (-> (real-world)
+      (assoc-in [:total-held :USDC] 30)
+      (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                    :token "USDC"
+                                    :allocation-mode :pro-rata})))
+
+(defn- latest-decision [world]
+  (last (vals (:yield/partial-fill-decisions world))))
 
 (def sample-final-world
   {:yield/withdrawn {:USDC {"alice" 15}}
@@ -145,3 +178,215 @@
     (is (= "not-observed" (:status (nth levels 3))))
     (is (= "not-observed" (:status (nth levels 4))))
     (is (= "not-observed" (:status (nth levels 5))))))
+
+;; ── partial-fill-decisions-root verification ─────────────────────────────
+
+(defn- claim-key [d]
+  (first (keys (:requested d))))
+
+(defn- full-fill-world []
+  (-> (ll/deposit base-world test-mod {:owner/id "alice" :amount 100 :token "USDC"})
+      (assoc-in [:total-held :USDC] 100)
+      (ll/withdraw-shared test-mod {:owner-ids ["alice"]
+                                    :token "USDC"
+                                    :allocation-mode :pro-rata})))
+
+(defn- three-claim-world []
+  (-> (reduce (fn [w o]
+                (ll/deposit w test-mod {:owner/id o :amount 100 :token "USDC"}))
+              base-world
+              ["a1" "a2" "a3"])
+      (assoc-in [:total-held :USDC] 30)
+      (ll/withdraw-shared test-mod {:owner-ids ["a1" "a2" "a3"]
+                                    :token "USDC"
+                                    :allocation-mode :pro-rata})))
+
+(defn- tamper-decision
+  "Set a field (at path) inside a decision of a world."
+  [w d path value]
+  (assoc-in w (into [:yield/partial-fill-decisions (:decision/id d)] path) value))
+
+;; -- baseline / integrity ------------------------------------------------
+
+(deftest verify-partial-fill-decisions-passes-on-real-world
+  (let [result (pfev/verify-partial-fill-decisions (real-world))]
+    (is (= :evaluated-pass (:classification result)))
+    (is (= 1 (:decision-count result)))
+    (is (some? (:root-recomputed result)))
+    (is (true? (:decision-integrity? result)))
+    (is (= :isolated-exact (:expected-fill-mode result)))
+    (is (= 0 (:aggregate-drift result)))
+    (is (empty? (:violations result)))))
+
+(deftest verify-partial-fill-decisions-not-evaluated-when-none
+  (let [result (pfev/verify-partial-fill-decisions {})]
+    (is (= :not-evaluated (:classification result)))
+    (is (false? (:decision-integrity? result)))))
+
+(deftest verify-two-round-lineage-is-a-valid-bundle
+  (testing "multi-round repetition of a claim is legitimate by default"
+    (let [result (pfev/verify-partial-fill-decisions (two-decision-world))]
+      (is (= :evaluated-pass (:classification result)))
+      (is (= 0 (:aggregate-drift result))))))
+
+;; -- decision integrity (renamed from decidability) ----------------------
+
+(deftest verify-tampered-decision-hash-fails-integrity
+  (let [w (real-world)
+        d (latest-decision w)
+        tampered (tamper-decision w d [:decision/hash] "sha256:forged")
+        result (pfev/verify-partial-fill-decisions tampered)]
+    (is (= :evaluated-fail (:classification result)))
+    (is (false? (:decision-integrity? result)))
+    (is (some #(= :invalid-decision-hash (:code %)) (:violations result)))))
+
+(deftest verify-root-mismatch-fails
+  (let [w (real-world)
+        result (pfev/verify-partial-fill-decisions w
+                                                   :committed-root "sha256:wrong")]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :root-mismatch (:code %)) (:violations result)))))
+
+(deftest verify-scope-bound-root-passes
+  (let [w (real-world)
+        scope-root (pfev/partial-fill-decisions-root w {:scope {:case "C1" :run "r"}})
+        result (pfev/verify-partial-fill-decisions w
+                                                   :case-scope {:case "C1" :run "r"}
+                                                   :committed-root scope-root)]
+    (is (= :evaluated-pass (:classification result)))
+    (is (true? (:decision-integrity? result)))))
+
+(deftest verify-replayed-under-other-scope-fails
+  (testing "a decision bundle committed under one case/run scope cannot be
+            replayed under another"
+    (let [w (real-world)
+          scope-a (pfev/partial-fill-decisions-root w {:scope {:case "C1" :run "r"}})
+          result (pfev/verify-partial-fill-decisions w
+                                                     :case-scope {:case "C2" :run "r2"}
+                                                     :committed-root scope-a)]
+      (is (= :evaluated-fail (:classification result)))
+      (is (some #(= :scope-root-mismatch (:code %)) (:violations result))))))
+
+;; -- membership binding ---------------------------------------------------
+
+(deftest verify-missing-claim-fails
+  (let [result (pfev/verify-partial-fill-decisions (real-world)
+                                                   :expected-claims #{"alice" "bob"})]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(and (= :missing-claim (:code %))
+                    (= ["bob"] (:claims %)))
+              (:violations result)))))
+
+(deftest verify-unexpected-claim-fails
+  (let [result (pfev/verify-partial-fill-decisions (real-world)
+                                                   :expected-claims #{})]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :unexpected-claim (:code %)) (:violations result)))))
+
+(deftest verify-decision-count-mismatch-fails
+  (let [result (pfev/verify-partial-fill-decisions (real-world)
+                                                   :expected-count 2)]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :decision-count-mismatch (:code %)) (:violations result)))))
+
+(deftest verify-duplicate-claim-fails-under-unique-contract
+  (testing "a single-settlement membership contract rejects a repeated claim"
+    (let [result (pfev/verify-partial-fill-decisions (two-decision-world)
+                                                     :unique-claims? true)]
+      (is (= :evaluated-fail (:classification result)))
+      (is (some #(= :duplicate-claim (:code %)) (:violations result))))))
+
+;; -- derived amounts, not trusted redundant fields -----------------------
+
+(deftest verify-negative-amount-fails
+  (let [w (real-world)
+        d (latest-decision w)
+        tampered (tamper-decision w d [:filled (claim-key d)] -1)
+        result (pfev/verify-partial-fill-decisions tampered)]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :negative-amount (:code %)) (:violations result)))))
+
+(deftest verify-non-integral-amount-fails
+  (let [w (real-world)
+        d (latest-decision w)
+        tampered (tamper-decision w d [:requested (claim-key d)] 100.5)
+        result (pfev/verify-partial-fill-decisions tampered)]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :non-integral-amount (:code %)) (:violations result)))))
+
+(deftest verify-bounds-violation-fails
+  (let [w (real-world)
+        d (latest-decision w)
+        tampered (tamper-decision w d [:deferred (claim-key d)] 200)
+        result (pfev/verify-partial-fill-decisions tampered)]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :bounds-violation (:code %)) (:violations result)))))
+
+(deftest verify-inconsistent-shortage-fails
+  (testing "a supplied positive shortage is not authoritative"
+    (let [w (real-world)
+          d (latest-decision w)
+          tampered (tamper-decision w d [:evidence :shortage] 999)
+          result (pfev/verify-partial-fill-decisions tampered)]
+      (is (= :evaluated-fail (:classification result)))
+      (is (some #(= :shortage-inconsistent (:code %)) (:violations result))))))
+
+(deftest verify-over-capacity-fill-fails
+  (let [w (real-world)
+        d (latest-decision w)
+        tampered (tamper-decision w d [:evidence :available-liquidity] 10)
+        result (pfev/verify-partial-fill-decisions tampered)]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :over-capacity-fill (:code %)) (:violations result)))))
+
+;; -- reconciliation and expected-fill -------------------------------------
+
+(deftest verify-per-claim-inexact-fails
+  (let [w (real-world)
+        d (latest-decision w)
+        tampered (assoc-in w
+                           [:yield/partial-fill-decisions (:decision/id d)
+                            :evidence :allocation-rows 0 :filled] 28)
+        result (pfev/verify-partial-fill-decisions tampered)]
+    (is (= :evaluated-fail (:classification result)))
+    (is (some #(= :per-claim-inexact (:code %)) (:violations result)))))
+
+(deftest verify-aggregate-drift-fails
+  (testing "one-unit errors on many claims cannot accumulate undetected"
+    (let [w (three-claim-world)
+          d (latest-decision w)
+          tampered (reduce (fn [w k]
+                             (update-in w
+                                        [:yield/partial-fill-decisions
+                                         (:decision/id d) :filled k]
+                                        inc))
+                           w
+                           (keys (:filled d)))
+          result (pfev/verify-partial-fill-decisions tampered)]
+      (is (= :evaluated-fail (:classification result)))
+      (is (some #(= :aggregate-drift (:code %)) (:violations result))))))
+
+(deftest verify-underfill-despite-capacity-fails
+  (testing "a reconciled-but-deliberately-underfilled decision despite capacity"
+    (let [w (full-fill-world)
+          d (latest-decision w)
+          k (claim-key d)
+          tampered (-> w
+                       (assoc-in [:yield/partial-fill-decisions (:decision/id d)
+                                  :filled k] 30)
+                       (assoc-in [:yield/partial-fill-decisions (:decision/id d)
+                                  :deferred k] 70)
+                       (assoc-in [:yield/partial-fill-decisions (:decision/id d)
+                                  :evidence :shortage] 70))
+          result (pfev/verify-partial-fill-decisions tampered)]
+      (is (= :evaluated-fail (:classification result)))
+      (is (some #(= :expected-fill-mismatch (:code %)) (:violations result))))))
+
+(deftest verify-classification-mismatch-fails
+  (testing "derived classification must agree with settlement-mode"
+    (let [w (real-world)
+          d (latest-decision w)
+          tampered (tamper-decision w d [:settlement-mode] :full-fill)
+          result (pfev/verify-partial-fill-decisions tampered)]
+      (is (= :evaluated-fail (:classification result)))
+      (is (some #(= :classification-mismatch (:code %)) (:violations result))))))

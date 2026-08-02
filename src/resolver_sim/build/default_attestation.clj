@@ -184,7 +184,15 @@
                                          (= :native-command-resolution
                                             (get-in attestation [:attestation/smoke :smoke/route])))
                                  :pass
-                                 :fail)}]
+                                 :fail)}
+                {:check/id :packaged-jar-smoke-log
+                 :check/status (let [log (get-in attestation [:attestation/smoke :smoke/log])
+                                     file (when (:path log) (io/file artifact-root (:path log)))]
+                                 (if (and (hash-ref/valid-sha256-ref? (:sha256 log))
+                                          (= (:sha256 log)
+                                             (when file (hash-ref/sha256-ref-file (.getPath file)))))
+                                   :pass
+                                   :fail))}]
         authorization (:bundle/release-authorization bundle)
         release-check (when (or require-release-authorization? trust-policy)
                         (let [result (if (and authorization trust-policy distribution)
