@@ -113,22 +113,26 @@ def _is_forensic_run_dir(d: Path) -> bool:
     return bool(_RUN_DIR_PATTERN.match(d.name))
 
 
+def _vcs():
+    """Lazy import of the jj-then-git resolver (scripts/evidence/vcs_info)."""
+    import pathlib
+    import sys as _sys
+    here = pathlib.Path(__file__).resolve().parent  # scripts/forensic
+    evidence_dir = str(here.parent / "evidence")   # scripts/evidence
+    if evidence_dir not in _sys.path:
+        _sys.path.insert(0, evidence_dir)
+    import vcs_info  # type: ignore[import-not-found]
+    return vcs_info
+
+
 def snapshot_source(repo_root: Path, run_dir: Path) -> dict:
     info: dict[str, Any] = {}
     try:
-        r = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, cwd=str(repo_root), timeout=10)
-        if r.returncode == 0:
-            info["git_commit"] = r.stdout.strip()
+        info["git_commit"] = _vcs().commit_sha() or "unknown"
     except Exception:
         info["git_commit"] = "unknown"
-
     try:
-        r = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True, text=True, cwd=str(repo_root), timeout=10)
-        info["dirty"] = bool(r.stdout.strip())
+        info["dirty"] = bool(_vcs().repo_is_dirty())
     except Exception:
         info["dirty"] = True
 

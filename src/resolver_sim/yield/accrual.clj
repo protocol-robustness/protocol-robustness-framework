@@ -240,19 +240,24 @@
                 :now (or now 0)}}))
 
 (defn- apply-dust-threshold
-  "Short circuit 1: If absolute accrual delta is below configured min-accrual-delta,
+  "Short circuit 1: If positive accrual delta is below configured min-accrual-delta,
    do not create a balance update. Emits :dust-threshold.
 
    Sub-unit accrual is preserved as exact remainder and carried forward via
    the dust accumulator on the position.
 
+   Only positive deltas are subject to the threshold. Negative (loss) deltas pass
+   through so a real loss is never silently dropped by a configured dust threshold;
+   losses are handled by the negative-yield-floor short circuit instead.
+
    Does NOT override accrual-mode when already set to :module-frozen or :suspended
    by earlier short circuits (the freeze/unwinding checks take priority)."
   [decision]
   (let [min-delta (get-in decision [:config :min-accrual-delta] default-min-accrual-delta)
-        attempted (Math/abs (long (:attempted-accrual-delta decision)))
+        attempted (long (:attempted-accrual-delta decision))
+        positive-lossless? (not (neg? attempted))
         blocked? (#{:module-frozen :suspended} (:accrual-mode decision))]
-    (if (and (not blocked?) (pos? min-delta) (< attempted min-delta))
+    (if (and (not blocked?) positive-lossless? (pos? min-delta) (< attempted min-delta))
       (-> decision
           (assoc :final-accrual-delta 0
                  :realized-yield-delta 0
@@ -310,13 +315,19 @@
 (defn- apply-stale-oracle-degradation
   "Short circuit 4: If oracle is stale, apply APY degradation.
    Positive APY decays toward floor; negative APY remains unchanged.
-   Emits :stale-oracle-degraded-apy."
+   Emits :stale-oracle-degraded-apy.
+
+   Skips degradation when an earlier short circuit already blocked accrual
+   (module frozen / position unwinding): the effective APY must stay at zero and
+   the oracle-stale short-circuit must not be recorded, otherwise the decision
+   would claim both a freeze and active degradation."
   [decision world]
   (let [module-id (:module-id decision)
         token (:token decision)
         now (:now decision)
+        already-blocked? (#{:module-frozen :suspended} (:accrual-mode decision))
         {:keys [stale? stale-seconds]} (resolve-oracle-staleness world module-id token now)]
-    (if stale?
+    (if (and stale? (not already-blocked?))
       (let [base (:base-apy-bps decision)
             config (:config decision)
             max-stale (get config :stale-oracle-max-seconds default-stale-oracle-max-seconds)
@@ -555,11 +566,13 @@
             delta-exact (- final-value-exact prev-value-exact)
             prior-dust (m/ratio (or (:accrual-dust-remainder pos) 0))
             ;; Positive delta: quantize and carry forward sub-unit dust.
-            ;; Negative delta: pass through unquantized so losses are recognized.
+            ;; Negative delta: pass through unquantized so losses are recognized,
+            ;; but preserve any already-accumulated dust as carry — a loss must
+            ;; not destroy sub-unit yield the position already earned.
             {:keys [units carry]}
             (if (pos? delta-exact)
               (m/quantize-with-carry delta-exact prior-dust)
-              {:units (floor-ratio delta-exact) :carry 0})]
+              {:units (floor-ratio delta-exact) :carry prior-dust})]
         (-> decision
             (assoc :attempted-accrual-delta units
                    :final-accrual-delta units
@@ -575,7 +588,7 @@
             (assoc-in [:evidence :delta-exact] (m/ratio->json delta-exact))
             (assoc-in [:evidence :dust-carry-prior] (m/ratio->json prior-dust))
             (assoc-in [:evidence :final-units] units)
-            (assoc-in [:evidence :dust-carry-after] (m/ratio->json (if (pos? delta-exact) carry 0)))))
+            (assoc-in [:evidence :dust-carry-after] (m/ratio->json carry))))
       (-> decision
           (assoc :attempted-accrual-delta 0
                  :final-accrual-delta 0)))))
@@ -681,13 +694,15 @@
                             (assoc :accrual-dust-remainder dust-carry)
                             (assoc :last-accrual-time now)
                             (assoc :last-accrual-index final-index)
-                            (cond-> (contains? (set short-circuits) :oracle-stale-degraded-apy)
+                            (cond-> (contains? (set short-circuits) :stale-oracle-degraded-apy)
                               (assoc :oracle-stale-affected? true))
-                            (cond-> (contains? (set short-circuits) :capital-event)
+                            ;; :capital-event is set by apply-negative-yield-floor as
+                            ;; :accrual-mode; the short-circuit keyword there is
+                            ;; :negative-yield-floor-breached, so key off the mode.
+                            (cond-> (= :capital-event (:accrual-mode decision))
                               (assoc :capital-event-affected? true))
                             (cond-> (contains? (set short-circuits) :recoverable-liquidity-cap)
                               (assoc :shortfall-affected? true)))
-            pos-key (or (:position/id pos) owner-id)
             annotated-pos (loss/annotate-accrual-loss world' updated-pos final-index)]
         (-> world'
             (assoc-in [:yield/positions owner-id] annotated-pos)

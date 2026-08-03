@@ -276,6 +276,25 @@
       (is (> (:unrealized-yield p1 0) (:unrealized-yield p2 0))
           "Bigger deposit should earn more yield"))))
 
+(deftest batch-accrual-respects-module-wide-recoverable-cap
+  (testing "Module-wide recoverable-liquidity cap is shared across the batch, not per position"
+    ;; net-solvent = held (21000) - liabilities (2 x 10000) = 1000.  Both positions
+    ;; accrue ~10000 each; the combined realized yield must not exceed net-solvent.
+    (let [w (-> test-world
+                (assoc-in [:yield/held-balances "USDC"] 21000)
+                (assoc-in [:yield/accrual-config :test-mod :max-index-delta-ratio] 2)
+                (assoc :yield/rates {:test-mod {"USDC" 1.0}}))
+          w (ll/deposit w test-mod {:owner/id "user1" :amount 10000 :token "USDC"})
+          w (ll/deposit w test-mod {:owner/id "user2" :amount 10000 :token "USDC"})
+          w (ll/accrue w test-mod {:token "USDC" :dt 31536000})
+          p1 (get-in w [:yield/positions "user1"])
+          p2 (get-in w [:yield/positions "user2"])
+          total-unrealized (+ (:unrealized-yield p1 0) (:unrealized-yield p2 0))]
+      (is (pos? (:unrealized-yield p1 0)))
+      (is (pos? (:unrealized-yield p2 0)))
+      (is (<= total-unrealized 1000)
+          (str "combined realized " total-unrealized " must not exceed net-solvent 1000")))))
+
 (deftest withdraw-full-liquidity
   (testing "Full withdrawal with adequate liquidity"
     (let [w (ll/deposit test-world test-mod {:owner/id "user1" :amount 10000 :token "USDC"})

@@ -33,20 +33,33 @@ These numbers are computed by `stochastic/economics.clj:breakeven-detection` and
 by `test/resolver_sim/stochastic/calibration_test.clj` (156 assertions).
 
 ### Governance capacity finding (Phase AA)
-> **The 20% attacker win-rate hypothesis is falsified under capacity-constrained governance. A learning attacker with selective enforcement capability reaches 33.6% win rate. Reviewed-share ≥ 50% is required to restore the bound.**
 
-Phase AA results across 5 scenarios (`data/params/phase-aa-governance.edn`):
+> **At calibrated parameters the 20% attacker win-rate bound is not falsified — but the margin is thin.** A learning attacker with selective enforcement reaches a maximum operational win rate of 18.4% (threshold 20%); the below-minimum-viable case (cap=1) breaks it at 22.8%. Reviewed-share ≈ 10.5% (≈ 1 review / 5 disputes) is the derived minimum to hold the bound. An explicit review floor (Phase AD, ≥ 2/5) restores comfortable headroom.
 
-| Scenario | Attacker win rate | Status |
-|---|---|---|
-| High capacity, naive attacker | < 20% | ✅ SAFE |
-| Limited capacity (cap=3), learning attacker | 33.6% | ❌ VULNERABLE |
-| Biased governance (focus on high-value disputes) | > 20% | ❌ VULNERABLE |
-| Low-value flooding | > 20% | ❌ VULNERABLE |
-| Adversarial threshold search | > 20% | ❌ VULNERABLE |
+Phase AA results across 5 scenarios (`data/params/phase-aa-governance.edn`, `base-win-prob=0.22`,
+`reviewed-win-prob=0.03`):
 
-This extends the deterministic `governance-decay-exploit` finding from a single trace to
-a statistical result: the governance manipulation failure class holds at scale.
+| Scenario                                       | Attacker win rate | Result       |
+| ---------------------------------------------- | ----------------: | ------------ |
+| High capacity, naive attacker                  |             9.2% | ✅ SAFE       |
+| Limited capacity (cap=3), learning attacker    |            16.8% | ✅ SAFE       |
+| Biased governance (focus on high-value)        |            18.4% | ✅ SAFE       |
+| Low-value flooding (cap=2)                     |            17.2% | ✅ SAFE       |
+| Below-minimum capacity (cap=1, STRESS)         |            22.8% | ❌ VULNERABLE |
+
+> **Revision record (research-grade).** The previously reported "33.6% attacker win rate /
+> VULNERABLE" figure was retired: it was produced under `base-win-prob = 0.35`, before the
+> win-rate recalibration to `0.22` derived from the deterministic invariant suite (9 of 41
+> adversarial scenarios yield a successful attacker outcome). At the calibrated parameters the
+> operational scenarios hold the 20% bound. Harness fixes in this revision: (1) the Phase AD
+> review floor is **not** baked into Phase AA scenarios — review selection is parameter-driven
+> (`:base-win-prob`, `:reviewed-win-prob`, `:disputes-per-epoch`, `:floor-reviews`, `:bias`); (2)
+> the biased-governance scenario now actually exercises the `:bias` tier map.
+
+This extends the deterministic `governance-decay-exploit` finding (attacker holding the custom
+resolver role) but at the calibrated parameters the *selective non-enforcement* class does not
+cross the 20% bound on its own; the residual risk sits in the thin margin and the below-minimum
+capacity case, which is what Phase AD's review floor addresses.
 
 Run: `clojure -M:run -- -p data/params/phase-aa-governance.edn --phase-aa`
 

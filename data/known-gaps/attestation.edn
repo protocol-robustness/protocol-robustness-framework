@@ -12,6 +12,8 @@
 ;; They remain here until the :removal-or-conversion-condition is met.
 
 [{:issue/id :gap-attestor-id-nil
+  :resolved true
+  :resolution "Removal-or-conversion-condition met: the integrity verifier (used by the attestation bundle verifier's check-attestation-integrity) rejects a nil attestor-id as a hard error. The associated gap test is converted to assert that downstream rejection."
   :current-behaviour "build-attestation accepts {:type :ci-runner :id nil} and stores nil as :attestation/attestor-id"
   :intended-contract "build-attestation should reject nil attestor-id via precondition or default to a well-known sentinel"
   :reason-non-gating "No downstream consumer currently depends on non-nil attestor-id in the attestation map; shape validation and registry checks catch it at verification time"

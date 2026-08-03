@@ -446,14 +446,18 @@
 
    `net-payoff` — participant's net payoff (integer wei).
    `outside-option` — outside option utility (default 0).
+   `definition-root` — optional content root binding the exact
+   outside-option definition used, for re-verification.
 
-   Returns {:rational? bool :net N :outside-option N :deficit N}"
-  [net-payoff & {:keys [outside-option] :or {outside-option 0}}]
+   Returns {:rational? bool :net N :outside-option N :deficit N
+            :definition-root (when provided)}"
+  [net-payoff & {:keys [outside-option definition-root] :or {outside-option 0}}]
   (let [deficit (- outside-option net-payoff)]
-    {:rational? (>= net-payoff outside-option)
-     :net net-payoff
-     :outside-option outside-option
-     :deficit (max 0 deficit)}))
+    (cond-> {:rational? (>= net-payoff outside-option)
+             :net net-payoff
+             :outside-option outside-option
+             :deficit (max 0 deficit)}
+      definition-root (assoc :definition-root definition-root))))
 
 ;; ---------------------------------------------------------------------------
 ;; Verification

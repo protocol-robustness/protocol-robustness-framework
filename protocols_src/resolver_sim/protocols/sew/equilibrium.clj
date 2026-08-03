@@ -88,24 +88,26 @@
    funds-lost proxy when the ledger is absent.
 
    :pass when every participant's net payoff >= outside-option (default 0)."
-  [{:keys [metrics payoff-ledger-summary]}]
+  [{:keys [metrics payoff-ledger-summary outside-option-definition-root]}]
   (let [ledger (get payoff-ledger-summary :per-actor {})]
     (if (seq ledger)
       ;; Canonical IR check via terminal-payoff model
       (let [results (mapv (fn [[actor row]]
                             (let [net (long (:net-payoff row 0))
-                                  ir (tp/ir-check net)]
+                                  ir (tp/ir-check net :definition-root outside-option-definition-root)]
                               (assoc ir :actor actor)))
                           ledger)
             failures (filter #(not (:rational? %)) results)]
         (if (empty? failures)
           (pass :individual-rationality :single-trace-metric-proxy
                 {:actors-evaluated (count ledger)
-                 :ir-results results}
+                 :ir-results results
+                 :outside-option-definition-root outside-option-definition-root}
                 "all participants meet or exceed outside-option utility")
           (fail :individual-rationality :single-trace-metric-proxy
                 {:actors-evaluated (count ledger)
-                 :ir-results results}
+                 :ir-results results
+                 :outside-option-definition-root outside-option-definition-root}
                 {:ir-results (mapv #(select-keys % [:actor :net :outside-option :deficit]) failures)}
                 (mapv (fn [f] {:actor (:actor f) :deficit (:deficit f)}) failures))))
       ;; Fallback: negative-payoff-count metric (pre-coordinated metric)

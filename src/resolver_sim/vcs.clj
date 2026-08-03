@@ -69,6 +69,36 @@
          distinct
          vec)))
 
+(defn tag
+  "Exact tag at the current commit (git-only), or nil when not on a tag or git
+   is unavailable."
+  []
+  (run "git" "describe" "--tags" "--exact-match"))
+
+(def ^:private known-lockfiles
+  ["deps.edn" "package-lock.json" "Cargo.lock" "requirements.txt"])
+
+(defn git-tracked?
+  "True when a path is tracked in the git index (git-only)."
+  [path]
+  (some? (run "git" "ls-files" "--error-unmatch" path)))
+
+(defn git-object-hash
+  "Git blob hash of a tracked path (git-only), or nil."
+  [path]
+  (run "git" "hash-object" path))
+
+(defn lockfile-hashes
+  "Git blob hashes for known lockfile paths that are tracked, or {} when git is
+   unavailable. Lockfile content hashes are git-specific; a jj-only workspace
+   yields an empty map rather than a wrong value."
+  []
+  (into {}
+        (keep (fn [f]
+                (when (git-tracked? f)
+                  [f (git-object-hash f)])))
+        known-lockfiles))
+
 (defn metadata
   "Full repo metadata map compatible with benchmark/repo format."
   []

@@ -7,6 +7,7 @@
    packaged-JAR smoke result agree, not that a trusted release signer approved it."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.run.release-attestation :as release]))
@@ -16,6 +17,22 @@
 (def bundle-schema "default-build-attestation-bundle.v1")
 
 (def ^:private supported-variants #{:prf :sew})
+
+(def smoke-required-assertions
+  "The explicit PASS assertions the packaged-JAR smoke script must emit. These
+   are the expected smoke assertions (Phase 1.2): an exit code of 0 alone is not
+   sufficient — the assertions must appear in the captured output. Verification
+   requires them in the committed smoke log, not merely a matching log hash."
+  ["does not advertise Sew commands"
+   "without CWD scatter"
+   "final registry and validation report hashes"
+   "verifies completed scenario evidence-chain and benchmark assurance bundles"
+   "resolves every declared native command; external wrappers are checked by bb-task parity"])
+
+(defn smoke-output-assertions-hold?
+  "True when a packaged-JAR smoke output contains every required PASS assertion."
+  [output]
+  (every? #(str/includes? (str output) %) smoke-required-assertions))
 
 (defn- fail! [message reason data]
   (throw (ex-info message (assoc data :reason reason))))
@@ -89,11 +106,15 @@
 (defn- validate-smoke!
   "Fail-closed construction guard for packaged-JAR smoke evidence.
 
-   When a smoke result is supplied it must assert a passed native-command-
-   resolution run, and any referenced log file must already be captured with a
-   matching sha256. A nil smoke is allowed to be constructed (so a bundle can be
-   built without smoke), but verification then fails the required smoke check."
-  [jar smoke]
+   When the definition requires packaged-JAR smoke, a nil smoke is rejected at
+   construction. A supplied smoke must assert a passed native-command-resolution
+   run, and any referenced log file must already be captured with a matching
+   sha256."
+  [jar smoke required?]
+  (when required?
+    (when (nil? smoke)
+      (fail! "Required packaged-JAR smoke evidence is missing"
+             :required-default-build-smoke-missing {})))
   (when (some? smoke)
     (when-not (and (= :passed (:smoke/status smoke))
                    (= :native-command-resolution (:smoke/route smoke)))
@@ -129,7 +150,7 @@
     (when-not jar-sha
       (fail! "Cannot attest a missing JAR" :default-build-jar-missing
              {:jar-file (str jar-file)}))
-    (validate-smoke! jar smoke)
+    (validate-smoke! jar smoke (get-in definition [:build/packaged-jar-smoke :required?]))
     (let [attestation {:schema-version attestation-schema
                        :attestation/build-definition-hash (:default-build/hash definition)
                        :attestation/artifact {:path (.getName jar)
@@ -215,10 +236,13 @@
                                   :fail)}
                  {:check/id :packaged-jar-smoke-log
                   :check/status (let [log (get-in attestation [:attestation/smoke :smoke/log])
-                                      file (when (:path log) (io/file artifact-root (:path log)))]
+                                      file (when (:path log) (io/file artifact-root (:path log)))
+                                      file-exists? (and file (.isFile file))
+                                      content (when file-exists? (slurp file))]
                                   (if (and (hash-ref/valid-sha256-ref? (:sha256 log))
                                            (= (:sha256 log)
-                                              (when file (hash-ref/sha256-ref-file (.getPath file)))))
+                                              (when file (hash-ref/sha256-ref-file (.getPath file))))
+                                           (smoke-output-assertions-hold? content))
                                     :pass
                                     :fail))}]
          authorization (:bundle/release-authorization bundle)

@@ -90,7 +90,11 @@
   (let [required (get-in policy [:requirements :distribution distribution :minimum-valid-signatures])
         results (mapv #(verify-signature payload % policy) signatures)
         valid-keys (set (keep #(when (:valid? %) (:key-id %)) results))
-        authorized? (and (integer? required) (<= required (count valid-keys)))]
+        ;; A release authorization gate must require at least one valid
+        ;; signature; a 0 threshold would authorize without any signature.
+        authorized? (and (integer? required)
+                         (pos? required)
+                         (<= required (count valid-keys)))]
     {:schema-version verification-schema
      :distribution distribution
      :authorization {:status (if authorized? :authorized :missing-or-insufficient)

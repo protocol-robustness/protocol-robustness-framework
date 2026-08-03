@@ -41,6 +41,75 @@
   (hc/domain-hash :fixed-regression-case-v1
                   (fixed-regression-case-hash-projection case-map)))
 
+;; ── validation ─────────────────────────────────────────────────────────────
+
+(defn- case-validation-errors
+  "Structural validation shared by the builder and the validator, so the two
+   can never disagree about which cases are well-formed."
+  [case-map]
+  (let [id (:case/id case-map)
+        kind (:case/kind case-map)
+        description (:case/description case-map)
+        gross (:case/gross-slash-amount case-map)
+        policy-root (:case/policy-root case-map)
+        pc (:case/parameter-context case-map)
+        pc-values (when (map? pc) (:values pc))
+        refs (:case/evidence-references case-map)
+        invariant-ids (:case/expected-invariant-ids case-map)
+        dist-root (:case/expected-distribution-root case-map)
+        metadata (:case/metadata case-map)]
+    (cond-> []
+      (not (and (string? id) (seq id)))
+      (conj :missing-case-id)
+
+      (not (keyword? kind))
+      (conj :invalid-case-kind)
+
+      (not (and (string? description) (seq description)))
+      (conj :missing-case-description)
+
+      (not (and (integer? gross) (not (neg? gross))))
+      (conj :invalid-gross-slash-amount)
+
+      (not (and (string? policy-root) (seq policy-root)))
+      (conj :missing-policy-root)
+
+      (not (map? pc))
+      (conj :invalid-parameter-context)
+
+      (and (map? pc) (contains? pc :source-root) (not (string? (:source-root pc))))
+      (conj :invalid-parameter-context)
+
+      (and (map? pc) (not (map? pc-values)))
+      (conj :invalid-parameter-values)
+
+      (and (map? pc-values) (some (complement integer?) (vals pc-values)))
+      (conj :invalid-parameter-values)
+
+      (not (vector? refs))
+      (conj :invalid-evidence-references)
+
+      (some (complement string?) refs)
+      (conj :invalid-evidence-reference)
+
+      (and (contains? case-map :case/challenger) (not (string? (:case/challenger case-map))))
+      (conj :invalid-challenger)
+
+      (and (contains? case-map :case/beneficiary) (not (string? (:case/beneficiary case-map))))
+      (conj :invalid-beneficiary)
+
+      (and (some? invariant-ids) (not (vector? invariant-ids)))
+      (conj :invalid-expected-invariant-ids)
+
+      (and (vector? invariant-ids) (some (complement keyword?) invariant-ids))
+      (conj :invalid-expected-invariant-ids)
+
+      (and (some? dist-root) (not (string? dist-root)))
+      (conj :invalid-expected-distribution-root)
+
+      (and (some? metadata) (not (map? metadata)))
+      (conj :invalid-metadata))))
+
 ;; ── builder ─────────────────────────────────────────────────────────────────
 
 (defn build-fixed-regression-case
@@ -62,14 +131,9 @@
      :case/expected-distribution-root  — expected distribution root hash
      :case/metadata               — any additional metadata map
 
-   Returns the case map with :case/hash attached."
-  [{:keys [case/id case/gross-slash-amount] :as m}]
-  (when-not (and (string? id) (seq id))
-    (throw (ex-info "fixed-regression-case requires :case/id"
-                    {:provided id})))
-  (when-not (and (integer? gross-slash-amount) (not (neg? gross-slash-amount)))
-    (throw (ex-info "fixed-regression-case requires non-negative :case/gross-slash-amount"
-                    {:provided gross-slash-amount})))
+   Returns the case map with :case/hash attached. Construction is fail-closed:
+   a case missing a required field or carrying a malformed one is rejected."
+  [m]
   (let [base (merge {:schema-version schema-version
                      :case/kind :slash/standard
                      :case/evidence-references []
@@ -77,8 +141,13 @@
                                               :values {}}
                      :case/metadata {}}
                     m)
-        case-hash (fixed-regression-case-hash base)]
-    (assoc base :case/hash case-hash)))
+        errors (case-validation-errors base)]
+    (when (seq errors)
+      (throw (ex-info "Invalid fixed-regression-case"
+                      {:errors errors
+                       :provided (dissoc base :case/hash)})))
+    (let [case-hash (fixed-regression-case-hash base)]
+      (assoc base :case/hash case-hash))))
 
 ;; ── validator ───────────────────────────────────────────────────────────────
 
@@ -87,16 +156,9 @@
 
    Returns {:valid? true} or {:valid? false :errors [<error-kw> ...]}."
   [case-map]
-  (let [errors (cond-> []
+  (let [errors (cond-> (case-validation-errors case-map)
                  (not= schema-version (:schema-version case-map))
                  (conj :unsupported-schema-version)
-                 (not (string? (:case/id case-map)))
-                 (conj :missing-case-id)
-                 (not (and (integer? (:case/gross-slash-amount case-map))
-                           (not (neg? (:case/gross-slash-amount case-map)))))
-                 (conj :invalid-gross-slash-amount)
-                 (not (string? (:case/policy-root case-map)))
-                 (conj :missing-policy-root)
                  (not (string? (:case/hash case-map)))
                  (conj :missing-case-hash))]
     (if (seq errors)

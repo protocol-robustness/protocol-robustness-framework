@@ -1,6 +1,12 @@
   import csv, json, pathlib, datetime, subprocess, sys                        
   sys.path.insert(0, "scripts")                                               
+  sys.path.insert(0, "scripts/evidence")                                      
   from evidence_config import EvidenceConfig                                  
+  try:                                                                        
+      import vcs_info                                                         
+  except ImportError:                                                         
+      vcs_info = None                                                         
+
   _cfg = EvidenceConfig()                                                     
   csv_path = pathlib.Path("$ARTIFACT_DIR/.targets-${RUN_ID}.csv")             
   risk_path = pathlib.Path("$ARTIFACT_DIR/.risk-${RUN_ID}.lines")             
@@ -225,11 +231,11 @@
     }                                                                         
   }                                                                           
                                                                               
-  try:                                                                        
-      git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"],         
-  text=True).strip()                                                          
-      run_manifest["framework"]["git_commit"] = git_sha                       
-      run_manifest["model"]["git_commit"] = git_sha                           
+  try:                                                                      
+      git_sha = (vcs_info.commit_sha() if vcs_info else None)                  
+      if git_sha:                                                             
+          run_manifest["framework"]["git_commit"] = git_sha                   
+          run_manifest["model"]["git_commit"] = git_sha                       
   except Exception:                                                           
       pass                                                                    
                                                                               

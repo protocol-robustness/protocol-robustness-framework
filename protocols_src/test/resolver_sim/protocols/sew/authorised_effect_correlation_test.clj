@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.authorised-effect-correlation-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.authorised-effect-correlation :as adapter]
             [resolver-sim.protocols.sew.force-authorisation-test]
@@ -47,3 +47,38 @@
                    :reservation/hash "sha256:wrong"
                    :reservation-registry (:registry fixture)
                    :artifact-store backend})))))
+
+(deftest effect-correlation-rejects-missing-grant
+  (let [world0 ((test-helper 'disputed-world))
+        fixture ((test-helper 'consensus-grant-fixture) world0)
+        grant (with-redefs [researcher-fa/verify-decision-signatures
+                            (fn [_ _] {:valid? true :results []})]
+                (sew/apply-action (:context fixture) world0 (:event fixture)))
+        execution (sew/apply-action {:agent-index {"exec" {:address "0xResolver"}}}
+                                    (:world grant)
+                                    {:seq 1 :time 1000 :agent "exec"
+                                     :action "execute-force-authorised-action"
+                                     :params {:workflow-id 0 :authorization-id (get-in grant [:extra :authorization/id])
+                                              :is-release true}})
+        adjustment (last (get-in execution [:world :held-adjustments]))
+        backend (store/create-store
+                 (str (Files/createTempDirectory "resolver-sim-effect-correlation-"
+                                                 (make-array java.nio.file.attribute.FileAttribute 0))))
+        run (fn [opts]
+              (try
+                (adapter/persist-authorised-held-effect (:world execution) opts)
+                :no-throw
+                (catch clojure.lang.ExceptionInfo e
+                  (:reason (ex-data e)))))]
+    (testing "unknown public authorisation is rejected"
+      (is (= :public-authorisation-not-found
+             (run {:public-authorisation/id "no-such-grant"
+                   :held-adjustment/id (:held-adjustment/id adjustment)
+                   :reservation-registry (:registry fixture)
+                   :artifact-store backend}))))
+    (testing "an unknown held adjustment is rejected"
+      (is (= :held-adjustment-not-found
+             (run {:public-authorisation/id (get-in grant [:extra :authorization/id])
+                   :held-adjustment/id "no-such-adjustment"
+                   :reservation-registry (:registry fixture)
+                   :artifact-store backend}))))))

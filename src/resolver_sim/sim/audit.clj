@@ -243,7 +243,13 @@
    Stable across runs with the same params map, regardless of key insertion order.
    Uses hash-with-intent with :params-manifest intent to separate from evidence hashes."
   [params]
-  (hc/hash-with-intent {:hash/intent :params-manifest} (into (sorted-map) params)))
+  ;; Floating-point params (probabilities, multipliers) are not directly
+  ;; encodable by the canonical encoder, which rejects lossy numeric types to
+  ;; prevent aliasing. Project through the canonical structure view first so
+  ;; doubles/floats become tagged float64 leaves while integers, strings, and
+  ;; keywords pass through unchanged (preserving integer-only param hashes).
+  (hc/hash-with-intent {:hash/intent :params-manifest}
+                       (:structure (hc/project-world-to-structure-view params :params-manifest))))
 
 (defn make-manifest
   "Build a reproducibility manifest for a completed multi-epoch run.

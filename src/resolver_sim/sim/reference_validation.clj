@@ -158,6 +158,16 @@
         (throw (ex-info "reference-validation simulator scenario did not pass"
                         {:scenario-id id :path scenario-path
                          :outcome (:outcome result) :halt-reason (:halt-reason result)})))
+      ;; Guard against vacuous pass: a scenario whose every event is rejected under
+      ;; the active protocol is misclassified (wrong suite) or misconfigured, and
+      ;; would otherwise report :pass without exercising any protocol behaviour.
+      (let [trace-events (or (:trace result) [])
+            accepted (count (filter #(= :ok (:result %)) trace-events))]
+        (when (and (seq trace-events) (zero? accepted))
+          (throw (ex-info "reference-validation scenario is vacuously passing: no event was accepted"
+                          {:scenario-id id :path scenario-path
+                           :events (count trace-events)
+                           :results (mapv :result trace-events)}))))
       (when (pos? inv-violations)
         (throw (ex-info "reference-validation scenario has invariant violations"
                         {:scenario-id id :invariant-violations inv-violations})))

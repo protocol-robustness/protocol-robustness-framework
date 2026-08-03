@@ -14,6 +14,20 @@
 
  :concept/protocols #{:protocol/sew-v1 :protocol/prf}
 
+:concept/related
+ [:framework/held-custody
+  :framework/protocol-extension-boundary]
+
+ :concept/note
+ "Enforcement: in the Sew implementation the grant-verification step computes a
+  `scope-authorised?` predicate (sew.clj) binding the positioned scope and its
+  hash to the grant's committed :authorization/scope and :authorization/scope-hash
+  (and, for related-claims grants, to the :member-scope-hashes set). A scope that
+  does not authenticate to the grant is rejected (:force-authorisation-grant-scope-mismatch)
+  before any custody mutation. This is the concrete-accounting gate described by
+  :force-authorisation/scope-authorisation and referenced from held_custody and
+  core_protocol_boundary."
+
  :concept/vocabulary
  {:force-authorisation/request
   {:description "A request to authorise a forced settlement, specifying the workflow, action, and scope."
@@ -27,9 +41,12 @@
   :force-authorisation/threshold
   {:description "The minimum number of approvals or the minimum authority level required."
    :maps-to [:protocol.parameter/threshold]}
-  :force-authorisation/scope
-  {:description "The exact custody parameters (token, amount, direction, workflow) that the authorisation permits."
-   :maps-to [:protocol.entity/authorisation-scope]}
+:force-authorisation/scope
+   {:description "The exact custody parameters (token, amount, direction, workflow) that the authorisation permits."
+    :maps-to [:protocol.entity/authorisation-scope]}
+   :force-authorisation/scope-authorisation
+   {:description "The requirement that concrete-accounting ledger mutation run only after the applicable scope has been validated — including position/account partitioning, and the force-authorisation status and scope for exceptional (force-settled) reasons. Scope-authorisation gates every low-level ledger/index write; the write is an internal implementation detail, not an independent public mutation surface. It spans both routine partitioned writes and exceptional force-settlements."
+    :maps-to [:protocol.guard/scope-enforced :protocol.guard/position-isolation]}
   :force-authorisation/expiry
   {:description "The time window within which the authorisation may be exercised."
    :maps-to [:protocol.entity/expiry-deadline]}

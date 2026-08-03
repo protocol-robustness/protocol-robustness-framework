@@ -368,6 +368,8 @@
    `outside-option` — per-resolver outside-option utility (default 0)
    `coordination-cost-fn` — function of coalition-size returning total
                             coordination cost (default (constantly 0))
+   `definition-root` — optional content root binding the exact
+   outside-option definition used, for re-verification.
 
    Returns {:coalition-id kw
             :member-count n
@@ -379,7 +381,7 @@
             :side-payment-feasible? bool
             :feasible-side-payments {:min long :max long}}"
   [resolver-payoffs coalition-id
-   & {:keys [outside-option coordination-cost-fn]
+   & {:keys [outside-option coordination-cost-fn definition-root]
       :or {outside-option 0
            coordination-cost-fn (constantly 0)}}]
   (let [members     (filter #(= (:coalition-id %) coalition-id) resolver-payoffs)
@@ -427,7 +429,8 @@
                                (let [min-pay 0
                                      max-pay coalition-net]
                                  {:min min-pay :max max-pay})
-                               {:min 0 :max 0})}))
+                               {:min 0 :max 0})
+     :definition-root        definition-root}))
 
 ;; ---------------------------------------------------------------------------
 ;; Endogenous appeal participation

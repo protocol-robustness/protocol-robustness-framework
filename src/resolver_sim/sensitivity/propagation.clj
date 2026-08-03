@@ -141,14 +141,18 @@
    Returns nil or {:level <kw> :risk-meta <map>}"
   [artifact]
   (when artifact
-    (let [;; Direct keys
+    (let [;; Direct keys, plus the attestation provenance map written by
+          ;; attach-sensitivity ([:attestation/metadata :sensitivity]) which
+          ;; carries :sentinel/effective-level and :sentinel/risk-meta.
           direct-level (or (:sensitivity/level artifact)
                            (get-in artifact [:extensions :sensitivity/level])
                            (get-in artifact [:attestation/metadata :sensitivity/level])
+                           (get-in artifact [:attestation/metadata :sensitivity :sentinel/effective-level])
                            (get-in artifact [:policy-output :sensitivity :level]))
           direct-risk (or (:sensitivity/risk-meta artifact)
                           (get-in artifact [:extensions :sensitivity/risk-meta])
                           (get-in artifact [:attestation/metadata :sensitivity/risk-meta])
+                          (get-in artifact [:attestation/metadata :sensitivity :sentinel/risk-meta])
                           (get-in artifact [:policy-output :sensitivity :risk-meta]))]
       (when direct-level
         (cond-> {:level direct-level}

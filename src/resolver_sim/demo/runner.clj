@@ -8,7 +8,6 @@
    runs the scenario, captures terminal output, collects artifacts, and writes
    demos/<id>/generated/demo-run.json."
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
             [clojure.data.json :as json]
             [clojure.java.shell :as shell]
             [resolver-sim.demo.spec :as demo-spec]
@@ -116,11 +115,14 @@
                     :command scenario-cmd})]
       (println (str "  Wrote screenshot: " (:svg-path sc-shot))))
 
-    ;; 2. Run section commands (exploratory commands over results)
-    (doseq [section (demo-spec/sections spec)]
-      (doseq [[cmd-idx cmd] (map-indexed vector (:commands section))]
+    ;; 2. Run section commands (exploratory commands over results). Each section
+    ;;    carries a single :command (see demo-spec/section-keys).
+    (doseq [section (demo-spec/sections spec)
+            :let [cmd (:command section)]]
+      (when cmd
         (println (str "  Running [" (:id section) "] " cmd))
-        (let [result (run-command cmd)
+        (let [cmd-idx 0
+              result (run-command cmd)
               stdout-file (str out-dir "/outputs/" (:id section) "-stdout.txt")
               stderr-file (str out-dir "/outputs/" (:id section) "-stderr.txt")
               ;; Render terminal screenshot
@@ -156,33 +158,33 @@
           run-json (json/write-str run-data {:key-fn json-key :indent true})]
       (write-string! (str out-dir "/demo-run.json") run-json)
       (println (str "Wrote " out-dir "/demo-run.json"))
-      run-data)
+      run-data)))
 
-    (defn -main
-      "CLI entry point: bb demo:run <id> | bb demo:validate <id>
+(defn -main
+  "CLI entry point: bb demo:run <id> | bb demo:validate <id>
    Loads demos/<id>/demo.edn, validates, runs, and writes generated outputs.
    Pass --validate as first arg to only validate without running."
-      [& args]
-      (let [validate-only? (= (first args) "--validate")
-            id (if validate-only? (second args) (first args))]
-        (when-not id
-          (println "Usage: bb demo:run <id> | bb demo:validate <id>")
-          (System/exit 1))
-        (let [spec (demo-spec/find-spec id)]
-          (if-not spec
-            (do (println (str "Demo spec not found: " id))
+  [& args]
+  (let [validate-only? (= (first args) "--validate")
+        id (if validate-only? (second args) (first args))]
+    (when-not id
+      (println "Usage: bb demo:run <id> | bb demo:validate <id>")
+      (System/exit 1))
+    (let [spec (demo-spec/find-spec id)]
+      (if-not spec
+        (do (println (str "Demo spec not found: " id))
+            (System/exit 1))
+        (let [validation (demo-spec/validate spec)]
+          (if-not (:valid validation)
+            (do (println "Demo spec validation failed:")
+                (doseq [e (:errors validation)]
+                  (println (str "  - " e)))
                 (System/exit 1))
-            (let [validation (demo-spec/validate spec)]
-              (if-not (:valid validation)
-                (do (println "Demo spec validation failed:")
-                    (doseq [e (:errors validation)]
-                      (println (str "  - " e)))
-                    (System/exit 1))
-                (if validate-only?
-                  (println "Demo spec is valid.")
-                  (let [result (run-demo spec)
-                        scenario-outcome (get-in result [:scenario :outcome] "unknown")
-                        scenario-ok? (= scenario-outcome "pass")]
-                    (println "Demo run complete."
-                             (if scenario-ok? " (passed)" " (failed)"))
-                    (System/exit (if scenario-ok? 0 1))))))))))))
+            (if validate-only?
+              (println "Demo spec is valid.")
+              (let [result (run-demo spec)
+                    scenario-outcome (get-in result [:scenario :outcome] "unknown")
+                    scenario-ok? (= scenario-outcome "pass")]
+                (println "Demo run complete."
+                         (if scenario-ok? " (passed)" " (failed)"))
+                (System/exit (if scenario-ok? 0 1))))))))))

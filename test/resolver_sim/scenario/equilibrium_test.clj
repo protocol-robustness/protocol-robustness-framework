@@ -230,6 +230,21 @@
                      :individual-rationality)]
       (is (= :fail (:status result))))))
 
+(deftest test-individual-rationality-threads-definition-root
+  (testing "per-actor IR results carry the outside-option definition root"
+    (let [proj (assoc (projection {:negative-payoff-count 0 :funds-lost 0})
+                      :payoff-ledger-summary
+                      {:per-actor {"0xA" {:net-payoff 100}
+                                   "0xB" {:net-payoff 50}}}
+                      :outside-option-definition-root "oo-root-0")
+          result (-> (eq/evaluate-mechanism-properties [:individual-rationality] proj sew-eq/mechanism-property-validators)
+                     :individual-rationality)
+          ir-results (get-in result [:observed :ir-results])]
+      (is (= :pass (:status result)))
+      (is (= "oo-root-0" (get-in result [:observed :outside-option-definition-root])))
+      (is (= 2 (count ir-results)))
+      (is (every? #(= "oo-root-0" (:definition-root %)) ir-results)))))
+
 ;; ---------------------------------------------------------------------------
 ;; collusion-resistance
 ;; ---------------------------------------------------------------------------

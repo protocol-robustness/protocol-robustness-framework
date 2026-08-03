@@ -68,6 +68,38 @@
     (is (not= (:case/hash c) (:case/hash c2))
         "different inputs produce different roots")))
 
+(deftest build-fixed-regression-case-rejects-missing-required-fields
+  (testing "the builder is fail-closed on missing required fields"
+    (is (thrown? Exception (frc/build-fixed-regression-case
+                            (dissoc valid-case-input :case/policy-root))))
+    (is (thrown? Exception (frc/build-fixed-regression-case
+                            (dissoc valid-case-input :case/description))))))
+
+(deftest build-fixed-regression-case-rejects-malformed-fields
+  (testing "the builder is fail-closed on malformed field shapes"
+    (is (thrown? Exception (frc/build-fixed-regression-case
+                            (assoc valid-case-input :case/kind "slash/standard")))
+        "kind must be a keyword")
+    (is (thrown? Exception (frc/build-fixed-regression-case
+                            (assoc valid-case-input :case/policy-root 42)))
+        "policy-root must be a string")
+    (is (thrown? Exception (frc/build-fixed-regression-case
+                            (assoc valid-case-input :case/parameter-context {:values "oops"})))
+        "parameter-context :values must be a map")
+    (is (thrown? Exception (frc/build-fixed-regression-case
+                            (assoc valid-case-input :case/evidence-references "sew:slash:0")))
+        "evidence-references must be a vector")
+    (is (thrown? Exception (frc/build-fixed-regression-case
+                            (assoc valid-case-input :case/expected-invariant-ids [:ok 42])))
+        "expected-invariant-ids must be keyword ids")))
+
+(deftest validate-fixed-regression-case-reports-shape-errors
+  (let [c (frc/build-fixed-regression-case valid-case-input)
+        v (frc/validate-fixed-regression-case (assoc c :case/parameter-context
+                                                     {:source-root "sew" :values {:k 1.5}}))]
+    (is (not (:valid? v)))
+    (is (some #(= :invalid-parameter-values %) (:errors v)))))
+
 (deftest fixed-regression-case-reusable-across-bounty-configs
   (testing "same operational case with different bounty configs has same operational root"
     (let [case-no-bounty (frc/build-fixed-regression-case

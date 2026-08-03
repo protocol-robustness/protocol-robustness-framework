@@ -195,10 +195,14 @@
                                                     :token "USDC"
                                                     :position-id "user1"
                                                     :now 1000
-                                                    :dt 31536000})]
+                                                    :dt 31536000})
+          world' (accrual/apply-accrual-decision world decision)
+          pos' (get-in world' [:yield/positions "user1"])]
       (is (= :capital-event (:accrual-mode decision))
           (str "Accrual mode: " (:accrual-mode decision)
-               " short-circuits: " (:short-circuits decision))))))
+               " short-circuits: " (:short-circuits decision)))
+      (is (true? (:capital-event-affected? pos'))
+          "capital-event-affected? must be set when the negative-yield-floor short circuit fires"))))
 
 (deftest test-recoverable-liquidity-cap
   (testing "Recoverable liquidity cap creates unrealized excess"
@@ -345,6 +349,40 @@
       (is (>= (:effective-apy-bps-after-degradation evidence) 0)
           "Floor APY should be non-negative (custom floor-bps = 250 = 2.5%)"))))
 
+(deftest test-oracle-stale-affected-flag-set-on-application
+  (testing "oracle-stale-affected? is set when the stale-oracle short circuit fires"
+    (let [world (-> (world-with-position)
+                    (assoc-in [:yield/risk :test-mod "USDC" :failure-modes] #{:oracle-stale})
+                    (assoc-in [:yield/risk :test-mod "USDC" :oracle-stale-seconds] 43200))
+          decision (accrual/accrual-decision world {:module-id :test-mod
+                                                    :token "USDC"
+                                                    :position-id "user1"
+                                                    :now 1000
+                                                    :dt 31536000})
+          world' (accrual/apply-accrual-decision world decision)
+          pos' (get-in world' [:yield/positions "user1"])]
+      (is (some #(= :stale-oracle-degraded-apy %) (:short-circuits decision)))
+      (is (true? (:oracle-stale-affected? pos'))
+          "oracle-stale-affected? must be set on the position"))))
+
+(deftest test-frozen-module-suppresses-stale-oracle-degradation
+  (testing "A frozen module does not record stale-oracle degradation or override zero APY"
+    (let [world (-> (world-with-position)
+                    (assoc-in [:yield/module-status :test-mod] :frozen)
+                    (assoc-in [:yield/risk :test-mod "USDC" :failure-modes] #{:oracle-stale})
+                    (assoc-in [:yield/risk :test-mod "USDC" :oracle-stale-seconds] 43200))
+          decision (accrual/accrual-decision world {:module-id :test-mod
+                                                    :token "USDC"
+                                                    :position-id "user1"
+                                                    :now 1000
+                                                    :dt 31536000})]
+      (is (= :module-frozen (:accrual-mode decision)))
+      (is (not-any? #(= :stale-oracle-degraded-apy %) (:short-circuits decision))
+          "stale-oracle degradation must not be recorded alongside a freeze")
+      (is (zero? (:effective-apy-bps decision))
+          "effective APY stays zero under a frozen module")
+      (is (zero? (:final-accrual-delta decision))))))
+
 (deftest test-custom-freeze-on
   (testing "Custom freeze-on set only freezes accrual for listed statuses"
     (let [;; High enough APY to avoid dust-threshold short circuiting the freeze check
@@ -423,4 +461,91 @@
       (let [s (risk/summary)]
         (is (contains? s :module-frozen-zero-accrual))
         (is (= 1 (:count (get s :module-frozen-zero-accrual))))))))
+
+(deftest test-dust-carry-prior-reflects-position-remainder
+  (testing "Evidence :dust-carry-prior records the position's prior dust, not the new carry"
+    (let [pos-with-dust (assoc base-position
+                               :principal 50 :shares (m/ratio 50)
+                               :accrual-dust-remainder (m/ratio 0.2))
+          world (world-with-position base-world pos-with-dust)
+          decision (accrual/accrual-decision world {:module-id :test-mod
+                                                    :token "USDC"
+                                                    :position-id "user1"
+                                                    :now 1000
+                                                    :dt 31536000})
+          ev (:evidence decision)]
+      (is (= "1" (get-in ev [:dust-carry-prior :num]))
+          "prior carry should be the position's prior 0.2 remainder (num 1/5)")
+      (is (= "5" (get-in ev [:dust-carry-prior :den])))
+      (is (not= (:dust-carry-prior ev) (:dust-carry-after ev))
+          "prior and after carry should differ when dust was consumed"))))
+
+(deftest test-negative-fractional-loss-is-not-dropped
+  (testing "Fractional negative losses floor instead of truncating toward zero"
+    (let [world (-> (world-with-position)
+                    (assoc-in [:yield/risk :test-mod "USDC" :loss-mode] :mark-to-market)
+                    (assoc-in [:yield/rates :test-mod "USDC"] -0.0003))
+          pos-shrunk (-> base-position
+                         (assoc :principal 10 :shares (m/ratio 10))
+                         (assoc-in [:accrual-dust-remainder] 0))
+          world (assoc-in world [:yield/positions "user1"] pos-shrunk)
+          decision (accrual/accrual-decision world {:module-id :test-mod
+                                                    :token "USDC"
+                                                    :position-id "user1"
+                                                    :now 1000
+                                                    :dt 31536000})]
+      (is (neg? (:unrealized-yield-delta decision))
+          "a fractional loss must be recognized, not truncated to zero")
+      (let [ev (:evidence decision)
+            exact-num (BigInteger. (:num (:delta-exact ev)))
+            exact-den (BigInteger. (:den (:delta-exact ev)))
+            exact-ratio (/ exact-num exact-den)]
+        (is (<= (bigint (:unrealized-yield-delta decision)) exact-ratio)
+            "recognized loss must be at least as negative as the exact fractional loss (never dropped)")))))
+
+(deftest test-negative-loss-not-swallowed-by-dust-threshold
+  (testing "A negative accrual is never dropped by a configured dust threshold"
+    (let [world (-> (world-with-position)
+                    (assoc-in [:yield/risk :test-mod "USDC" :loss-mode] :mark-to-market)
+                    (assoc-in [:yield/rates :test-mod "USDC"] -0.0001)
+                    (assoc-in [:yield/accrual-config :test-mod :min-accrual-delta] 5))
+          pos-shrunk (-> base-position
+                         (assoc :principal 10 :shares (m/ratio 10))
+                         (assoc-in [:accrual-dust-remainder] 0))
+          world (assoc-in world [:yield/positions "user1"] pos-shrunk)
+          decision (accrual/accrual-decision world {:module-id :test-mod
+                                                    :token "USDC"
+                                                    :position-id "user1"
+                                                    :now 1000
+                                                    :dt 31536000})]
+      (is (not= :dust-threshold (:accrual-mode decision))
+          "dust threshold must not suppress a negative loss")
+      (is (neg? (:final-accrual-delta decision))
+          "the negative loss must be recognized"))))
+
+(deftest test-negative-loss-preserves-prior-dust
+  (testing "A negative (loss) accrual preserves already-accumulated dust instead of dropping it"
+    (let [world (-> (world-with-position)
+                    (assoc-in [:yield/risk :test-mod "USDC" :loss-mode] :mark-to-market)
+                    (assoc-in [:yield/rates :test-mod "USDC"] -0.0001))
+          pos-with-dust (-> base-position
+                            (assoc :principal 10 :shares (m/ratio 10))
+                            (assoc :accrual-dust-remainder (m/ratio 0.7)))
+          world (assoc-in world [:yield/positions "user1"] pos-with-dust)
+          decision (accrual/accrual-decision world {:module-id :test-mod
+                                                    :token "USDC"
+                                                    :position-id "user1"
+                                                    :now 1000
+                                                    :dt 31536000})
+          world' (accrual/apply-accrual-decision world decision)
+          pos' (get-in world' [:yield/positions "user1"])]
+      (is (neg? (:unrealized-yield-delta decision))
+          "a loss is recognized")
+      (is (= "7" (get-in decision [:evidence :dust-carry-prior :num]))
+          "prior dust is 0.7")
+      (is (= "7" (get-in decision [:evidence :dust-carry-after :num]))
+          "dust-carry-after preserves the prior dust through a loss")
+      (is (= 7/10 (get-in pos' [:accrual-dust-remainder]))
+          "position dust survives the loss instead of being reset to zero"))))
+
 

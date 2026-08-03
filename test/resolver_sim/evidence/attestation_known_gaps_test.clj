@@ -14,7 +14,8 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.evidence.attestation :as att]))
+            [resolver-sim.evidence.attestation :as att]
+            [resolver-sim.evidence.attestation-integrity :as integ]))
 
 (defn- valid-attestor [] {:type :ci-runner :id :ci-validation})
 (defn- valid-subject [] {:type :evidence-node :hash "sha256:abcdef1234567890"})
@@ -30,12 +31,21 @@
 ;; Gap: builder accepts nil attestor-id — create-attestation does not
 ;; require one. The validation layer is responsible for rejecting it,
 ;; but the builder provides no structural guarantee.
-(deftest build-nil-attestor-id-accepted
-  (testing "GAP: builder does not reject nil attestor-id"
+;;
+;; REMOVAL-OR-CONVERSION CONDITION MET: the integrity verifier (used by the
+;; attestation bundle verifier) rejects a nil attestor-id as a hard error, so
+;; this test is now converted to assert that downstream rejection.
+(deftest build-nil-attestor-id-rejected-by-verifier
+  (testing "RESOLVED: builder still accepts nil attestor-id, but the integrity verifier rejects it"
     (is (= :gap-attestor-id-nil (:issue/id (issue :gap-attestor-id-nil))))
-    (let [result (att/build-attestation {:type :ci-runner :id nil} (valid-subject) :verified)]
-      (is (nil? (:attestation/attestor-id result))
-          "attestor-id is nil — should be rejected or defaulted"))))
+    (is (true? (:resolved (issue :gap-attestor-id-nil)))
+        "gap is marked resolved in the known-gaps registry")
+    (let [built (att/build-attestation {:type :ci-runner :id nil} (valid-subject) :verified)
+          result (integ/verify-attestation-integrity built)]
+      (is (nil? (:attestation/attestor-id built)))
+      (is (false? (:valid? result))
+          "integrity verifier rejects a nil attestor-id as a hard error")
+      (is (some #(re-find #"attestor-id" %) (:errors result))))))
 
 ;; Gap: builder accepts any subject type without validation.
 ;; The subject :type is passed through to :attestation/subject-kind

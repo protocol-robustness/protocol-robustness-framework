@@ -91,3 +91,15 @@
       (is (true? (:side-payment-feasible? result)))
       (is (= 0 (:min (:feasible-side-payments result))))
       (is (pos? (:max (:feasible-side-payments result)))))))
+
+(deftest coalition-aggregate-binds-definition-root
+  (testing "coalition-aggregate-payoff carries the outside-option definition root"
+    (let [resolvers [{:resolver-id :r1 :strategy :honest :net-payoff 20 :coalition-id :coll}
+                     {:resolver-id :r2 :strategy :malicious :net-payoff 10 :coalition-id :coll}]
+          result (e/coalition-aggregate-payoff resolvers :coll :outside-option 20
+                                               :definition-root "oo-root-0")]
+      (is (= "oo-root-0" (:definition-root result)))))
+  (testing "definition root is nil when not provided"
+    (let [resolvers [{:resolver-id :r1 :strategy :honest :net-payoff 20 :coalition-id :coll}]
+          result (e/coalition-aggregate-payoff resolvers :coll)]
+      (is (nil? (:definition-root result))))))

@@ -11,10 +11,11 @@
  :concept/protocols #{:protocol/sew-v1 :protocol/prf}
 
  :concept/related
- [:framework/held-custody
-  :framework/research-command
-  :framework/review-certificate
-  :concept/conservation]
+[:framework/held-custody
+   :framework/research-command
+   :framework/review-certificate
+   :concept/conservation
+   :security/force-authorisation]
 
  :concept/note
   "Ownership boundaries:
@@ -22,7 +23,6 @@
    - Protocol-specific extensions (adapters) own translation between protocol state and generic inputs/effects.
    - Concrete accounting owns protocol-ledger mutation.
    - Receipts bind abstract effects to concrete state changes.
-   Concrete-accounting ledger mutation is scope-authorised: the low-level ledger/index write runs only after the applicable scope (position/account partitioning, and force-authorisation status/scope for exceptional reasons) has been validated. The low-level write is an internal implementation detail, not an independent public mutation surface.
    A source-code import prohibition (e.g. the generic framework must not import a specific protocol extension) is an architectural direction; it does not by itself prove the framework is protocol-independent."
 
  :concept/roles
@@ -79,7 +79,8 @@
   "Absence of semantic coupling through shared data structures."
   "Dependency integrity or package pinning."
   "Protocol-specific behaviour implemented in adapters."
-  "External services called dynamically or through configuration."]
+  "External services called dynamically or through configuration."
+  "Scope-authorised concrete-accounting ledger mutation — covered by the :force-authorisation/scope-authorisation mandate (see security/force_authorisation.edn): the low-level ledger/index write runs only after the applicable scope (position/account partitioning, and force-authorisation status/scope for exceptional reasons) has been validated. The low-level write is an internal implementation detail, not an independent public mutation surface."]
 
  :concept/metrics
  {:adapter-count {:description "Number of protocol extensions (adapters) bound to the generic framework."

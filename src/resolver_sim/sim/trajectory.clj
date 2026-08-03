@@ -165,7 +165,7 @@
     :escalated-count [escalations@e1 ...]
     :loss-events     [{:epoch :profit :slashed true} ...]}"
   [epoch-snapshots resolver-id resolver-history]
-  {:equity          (equity-trajectory epoch-snapshots resolver-id)
+  {:equity          (extract-field epoch-snapshots resolver-id :profit)
    :reputation      (extract-field epoch-snapshots resolver-id :reputation)
    :trial-count     (extract-field epoch-snapshots resolver-id :trials)
    :verdict-count   (extract-field epoch-snapshots resolver-id :verdicts)

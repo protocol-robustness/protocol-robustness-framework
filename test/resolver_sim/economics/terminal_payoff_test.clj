@@ -68,6 +68,15 @@
       (is (false? (:rational? result)))
       (is (= 5 (:deficit result))))))
 
+(deftest ir-check-binds-definition-root
+  (testing "ir-check carries the outside-option definition root when provided"
+    (let [result (tp/ir-check 100 :outside-option 5 :definition-root "oo-root-0")]
+      (is (true? (:rational? result)))
+      (is (= "oo-root-0" (:definition-root result)))))
+  (testing "ir-check omits definition root when not provided"
+    (let [result (tp/ir-check 100)]
+      (is (not (contains? result :definition-root))))))
+
 (deftest budget-balance-check-passes
   (testing "budget-balance-check returns balanced? true when sum = 0"
     (let [result (tp/budget-balance-check [{:role :resolver :net 100}

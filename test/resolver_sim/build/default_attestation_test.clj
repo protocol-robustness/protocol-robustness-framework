@@ -12,9 +12,18 @@
             "default-build-attestation-test"
             (make-array java.nio.file.attribute.FileAttribute 0))))
 
+(def smoke-log-content
+  (str (clojure.string/join "\n"
+                            ["PASS: framework-only JAR has the unified CLI and does not advertise Sew commands"
+                             "PASS: full Sew JAR runs bundled scenario and benchmark without CWD scatter"
+                             "PASS: completion records commit to final registry and validation report hashes"
+                             "PASS: built Sew JAR verifies completed scenario evidence-chain and benchmark assurance bundles"
+                             "PASS: each JAR resolves every declared native command; external wrappers are checked by bb-task parity"])
+       "\n"))
+
 (defn- verified-bundle [jar]
   (let [log (io/file (.getParentFile jar) "portability-smoke.log")
-        _ (spit log "packaged JAR smoke passed")
+        _ (spit log smoke-log-content)
         definition (att/default-build-definition "." :prf)
         attestation (att/build-attestation
                      {:definition definition
@@ -48,21 +57,26 @@
     (is (every? #(= :pass (:check/status %)) (:checks result)))))
 
 (deftest build-attestation-fails-closed-for-missing-or-invalid-smoke
-  (let [root (temp-dir)
-        jar (io/file root "prf.jar")
-        _ (spit jar "test JAR payload")
-        definition (att/default-build-definition "." :prf)
-        attestation (att/build-attestation
-                     {:definition definition
-                      :jar-file jar
-                      :smoke nil})
-        bundle (att/build-attestation-bundle {:definition definition
-                                              :attestation attestation})
-        result (att/verify-bundle bundle root)]
-    (is (false? (:verified? result)))
-    (is (some #(and (= :packaged-jar-smoke (:check/id %))
-                    (= :fail (:check/status %)))
-              (:checks result)))))
+  (testing "a required smoke cannot be omitted at construction"
+    (let [root (temp-dir)
+          jar (io/file root "prf.jar")
+          _ (spit jar "test JAR payload")
+          definition (att/default-build-definition "." :prf)]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"Required packaged-JAR smoke evidence is missing"
+                            (att/build-attestation
+                             {:definition definition :jar-file jar :smoke nil})))))
+  (testing "a smoke that does not assert a passed native-command-resolution run is rejected at construction"
+    (let [root (temp-dir)
+          jar (io/file root "prf.jar")
+          _ (spit jar "test JAR payload")
+          definition (att/default-build-definition "." :prf)]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"does not assert a passed native-command-resolution"
+                            (att/build-attestation
+                             {:definition definition :jar-file jar
+                              :smoke {:smoke/status :failed
+                                      :smoke/route :native-command-resolution}}))))))
 
 (defn- raw-public-hex [public-key]
   (let [encoded (.getEncoded public-key)
@@ -153,6 +167,42 @@
                                       :smoke/route :native-command-resolution
                                       :smoke/log {:path (.getName log)
                                                   :sha256 "sha256:forged"}}}))))))
+
+(deftest verify-rejects-smoke-log-lacking-required-assertions
+  (testing "a matching log hash alone is not enough; the log must assert the required PASS markers"
+    (let [root (temp-dir)
+          jar (io/file root "prf.jar")
+          _ (spit jar "test JAR payload")
+          log (io/file root "portability-smoke.log")
+          ;; log hashes correctly but contains no required assertions
+          _ (spit log "some build output without the required PASS assertion lines")
+          definition (att/default-build-definition "." :prf)
+          attestation (att/build-attestation
+                       {:definition definition :jar-file jar
+                        :builder-identity {:builder/id "test-builder"}
+                        :smoke {:smoke/status :passed
+                                :smoke/route :native-command-resolution
+                                :smoke/log {:path (.getName log)
+                                            :sha256 (hash-ref/sha256-ref-file (.getPath log))}}})
+          bundle (att/build-attestation-bundle {:definition definition :attestation attestation})
+          result (att/verify-bundle bundle root)]
+      (is (false? (:verified? result)))
+      (is (some #(and (= :packaged-jar-smoke-log (:check/id %))
+                      (= :fail (:check/status %)))
+                (:checks result))))))
+
+(deftest release-authorization-rejects-zero-signature-threshold
+  (let [pair (.generateKeyPair (java.security.KeyPairGenerator/getInstance "Ed25519"))
+        policy {:schema-version "prf-release-trust-policy.v1"
+                :policy-id :release/test-zero
+                :policy-version 1
+                :trusted-keys [{:key-id "release-1" :status :active
+                                :public-key (raw-public-hex (.getPublic pair))}]
+                :requirements {:distribution {:prf {:minimum-valid-signatures 0}}}
+                :canonicalization {:payload-profile "prf-release-attestation-payload.v1"}}
+        result (release/verify-authorization {:payload/hash "sha256:x"} [] :prf policy)]
+    (is (= :missing-or-insufficient (get-in result [:authorization :status]))
+        "a 0 threshold must not authorize a release with no valid signatures")))
 
 (deftest build-attestation-detects-jar-byte-tampering
   (let [root (temp-dir)

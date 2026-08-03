@@ -140,7 +140,7 @@
                         :reversed :written-down]
                 :relation :equal
                 :anti-double-counting
-                 "closed-deferred (in-flight intermediate) is excluded from the reconstructed total"}
+                "closed-deferred (in-flight intermediate) is excluded from the reconstructed total"}
      :violations (vec violations)}))
 
 ;; ── Lineage conservation verification report file-artifact ──────────────

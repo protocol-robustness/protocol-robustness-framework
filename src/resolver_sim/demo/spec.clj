@@ -71,6 +71,14 @@
 (defn demo-title [spec] (:demo/title spec))
 (defn sections [spec] (:sections spec))
 
+(defn scenario-command
+  "The command that executes the demo's underlying scenario, used to detect the
+   scenario outcome. Prefers the section with :id :run, else the first section
+   that carries a command."
+  [spec]
+  (or (some (fn [s] (when (= :run (:id s)) (:command s))) (sections spec))
+      (some :command (sections spec))))
+
 (defn playback-config
   "Get playback config merged with defaults."
   [spec]

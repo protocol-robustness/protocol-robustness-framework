@@ -469,6 +469,8 @@
            :negative-payoff-count negative-payoff-count
            :coalition-net-profit coalition-net-profit}
 
+          :outside-option-definition-root (get result :outside-option-definition-root)
+
           :stake-flow-summary stake-flow
 
           :protocol protocol

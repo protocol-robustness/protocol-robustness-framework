@@ -334,6 +334,17 @@
         result (prop/attach-sensitivity artifact sens)]
     (is (= sens (get-in result [:attestation/metadata :sensitivity])))))
 
+(deftest attach-sensitivity-attestation-roundtrip-is-readable
+  (testing "a sensitivity attached to an attestation is extractable by artifact-sensitivity"
+    (let [artifact {:attestation/id "sha256:a"}
+          sens {:sentinel/effective-level :sensitivity/private
+                :sentinel/risk-meta {:value-at-risk "1M"}}
+          attached (prop/attach-sensitivity artifact sens)
+          extracted (prop/artifact-sensitivity attached)]
+      (is (= :sensitivity/private (:level extracted))
+          "nested :attestation/metadata :sensitivity provenance is readable")
+      (is (= {:value-at-risk "1M"} (:risk-meta extracted))))))
+
 (deftest merge-sensitivity-picks-highest
   (let [sensitivities [{:level :sensitivity/internal}
                        {:level :sensitivity/private}

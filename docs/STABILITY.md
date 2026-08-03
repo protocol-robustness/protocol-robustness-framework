@@ -40,6 +40,7 @@ The following are stability-controlled:
 - artifact registry format
 - emitted evidence artifacts
 - invariant identifiers and meanings
+- **outside-option semantics** — the individual-rationality and coalition outside-option baseline and definition-root binding (`src/resolver_sim/economics/terminal_payoff.clj`, `src/resolver_sim/stochastic/economics.clj`).
 - **pro-rata slash evidence claims** — evaluator registry (`prorata-evaluator-resolver`), evidence node shape (`:claims/input-context`, `:claims/direct-result`, `:claims/projection-artifact`), `build-claim-evaluation-node` public API.
 - **attestor registry validation** — `validate-attestor-registry-entries` runs at startup and hard-fails on §9 violations (duplicate ids, invalid verification method, duplicate active key ids, malformed public keys). The registry data (`attestors`, `attestor-registry`) is a startup-controlled artifact.
 

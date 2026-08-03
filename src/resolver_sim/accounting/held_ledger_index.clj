@@ -36,15 +36,17 @@
 (def Amount
   "A single custody-flow amount.
    Non-negative in :by-token, :by-position, :by-account, :by-workflow.
-   :by-owner entries may be negative."
-  :int)
+   :by-owner entries may be negative.
+   Accepts any integer type (Long or BigInt): exact arithmetic in the protocol
+   legitimately produces BigInt amounts, which :int / int? would reject."
+  [:fn integer?])
 
 (def DimensionMap
   "A map from a dimension key to an integer amount.
    Key types vary per dimension: :by-token and :by-account use keywords,
    :by-position uses vectors, :by-owner uses address strings,
    :by-workflow uses numeric or keyword workflow IDs."
-  [:map-of any? int?])
+  [:map-of any? integer?])
 
 (def held-ledger-index-schema
   "Malli schema for a complete five-dimensional held-ledger index.
@@ -58,7 +60,7 @@
    [:by-token    [:map-of :keyword  Amount]]
    [:by-position [:map-of any?     Amount]]
    [:by-account  [:map-of :keyword Amount]]
-   [:by-owner    [:map-of :string  int?]]
+   [:by-owner    [:map-of :string  integer?]]
    [:by-workflow [:map-of any?     Amount]]])
 
 (def held-custody-state-schema

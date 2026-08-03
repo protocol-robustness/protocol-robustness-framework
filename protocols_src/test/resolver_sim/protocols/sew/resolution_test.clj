@@ -680,13 +680,17 @@
                                                 :escalation-resolvers {:1 senior-resolver}})
         ;; Build a disputed world manually with a prior resolution record so
         ;; the appeal-requires-prior-resolution? post-escalation invariant passes.
+        ;; The escrow's held-adjustment history is complete and zero-origin, so
+        ;; declare it: otherwise the custody reconstruction invariants report
+        ;; :not-evaluated-incomplete-history and reject the step.
         world   (-> (base-world 0)
                     (with-pending 0 true 5000)
                     (assoc-in [:dispute-timestamps 0] 1000)
                     (assoc-in [:escrow-transfers 0 :resolution]
                               {:resolved-by resolver
                                :is-release true
-                               :resolution-hash "0xhash"}))
+                               :resolution-hash "0xhash"})
+                    (assoc-in [:params :held-adjustments/complete?] true))
         event   {:seq 0 :time 1000 :agent "alice" :action "escalate_dispute"
                  :params {:workflow-id 0}}
         step    (replay/process-step sew/protocol context world event)]

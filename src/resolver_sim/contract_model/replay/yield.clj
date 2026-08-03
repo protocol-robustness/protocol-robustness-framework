@@ -80,10 +80,10 @@
        :scenario-id scenario-id
        :events-processed (count trace)
        :trace trace
-        :metrics metrics
-        :execution {:mode :yield-sequential}
-        :protocol protocol
-        :world world}
+       :metrics metrics
+       :execution {:mode :yield-sequential}
+       :protocol protocol
+       :world world}
       (let [event (first events)
             step   (execution/process-step protocol context world event)
             {:keys [ok? world trace-entry halted?]} step
@@ -96,11 +96,11 @@
            :events-processed (count trace')
            :halted-at-seq (:seq event)
            :halt-reason :invariant-violation
-            :trace trace'
-            :metrics metrics'
-            :execution {:mode :yield-sequential}
-            :protocol protocol
-            :world world}
+           :trace trace'
+           :metrics metrics'
+           :execution {:mode :yield-sequential}
+           :protocol protocol
+           :world world}
           (recur world (rest events) trace' metrics'))))))
 
 (defn replay-yield-scenario
@@ -127,9 +127,9 @@
                      :events-processed 0
                      :trace []
                      :metrics (metrics/zero-metrics protocol)
-                      :halt-reason (:error validation)
-                      :detail (:detail validation)
-                      :protocol protocol}]
+                     :halt-reason (:error validation)
+                     :detail (:detail validation)
+                     :protocol protocol}]
          (log/info! "yield-replay/end" {:id (:scenario-id scenario) :outcome :invalid})
          (assoc result :risk-events (risk/events)))
        (let [agents      (:agents scenario)

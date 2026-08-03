@@ -202,21 +202,21 @@
                          (vals (:yield/positions world {})))
         violations (into []
                          (keep (fn [[[mid tok] pos-group]]
-                         (let [splits-ok? (every? (fn [p]
-                                                    (let [sf (:shortfall p)]
-                                                      (if sf
-                                                        (let [f (long (or (:fulfilled-amount sf) 0))
-                                                              d (long (or (:deferred-amount sf) 0))
-                                                              h (long (or (:haircut-amount sf) 0))
-                                                              b (long (or (:basis-amount sf) 0))
+                                 (let [splits-ok? (every? (fn [p]
+                                                            (let [sf (:shortfall p)]
+                                                              (if sf
+                                                                (let [f (long (or (:fulfilled-amount sf) 0))
+                                                                      d (long (or (:deferred-amount sf) 0))
+                                                                      h (long (or (:haircut-amount sf) 0))
+                                                                      b (long (or (:basis-amount sf) 0))
                                                               ;; The single-position withdraw path folds a negative
                                                               ;; unrealized-yield into basis-amount without adjusting
                                                               ;; the splits, so the splits reconcile to basis once that
                                                               ;; term is restored: f + d + h + min(0, unrealized) == b.
-                                                              neg (min 0 (long (:unrealized-yield p 0)))]
-                                                          (= (+ f d h neg) b))
-                                                        true)))
-                                                  pos-group)
+                                                                      neg (min 0 (long (:unrealized-yield p 0)))]
+                                                                  (= (+ f d h neg) b))
+                                                                true)))
+                                                          pos-group)
                                        total-basis (reduce + 0 (map position-shortfall-basis pos-group))
                                        total-value (reduce + 0 (map position-shortfall-value pos-group))
                                        issues (cond-> []

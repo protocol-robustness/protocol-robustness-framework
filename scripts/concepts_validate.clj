@@ -30,6 +30,51 @@
 (def known-gap-patterns
   #"(?i)(currently unsupported|not yet checked|temporarily excluded|not yet implemented|not yet supported|future work|to be done)")
 
+;; Explicit allowlist of top-level :concept/* keys. Any other :concept/*
+;; key (e.g. a misspelling like :concept/out-of-scoped) is rejected so
+;; unrecognised fields cannot silently pass validation. Captures the full
+;; vocabulary currently in use across concept files.
+(def allowed-concept-keys
+  #{:actions :aggregation :assumptions :benchmark-concepts :benchmark-domains
+    :compatibility :description :display-name :entities :evidence :examples
+    :failure-modes :frameworks :guarantees :id :include-values :known-gaps
+    :layer :maturity :metrics :name :note :notes :out-of-scope :outcomes
+    :primitives :properties :protocols :related :relations :roles
+    :security-significance :stakeholder-question :subconcepts :summary
+    :support-status :type :variants :version :vocabulary})
+
+(def known-id-namespaces
+  "Allowlist of :concept/id namespace segments currently in use across the
+   catalog, as strings (a keyword's namespace is read back as a string).
+   Concept ids use semantic domain namespaces (independent of the type
+   directory), so a previously unseen namespace indicates a typo or a stray id
+   rather than a normal catalog addition. Add to this set when a new concept
+   namespace is genuinely introduced."
+  #{"allocation" "assurance" "attestation" "concept" "consensus"
+    "decision-quality" "dispute" "ecommerce" "event" "forensic" "framework"
+    "funding" "governance" "mechanism" "resolver" "security"
+    "spending-account" "verifiable-assurance" "yield"})
+
+(defn check-id-namespace-known
+  "Hygiene check: the :concept/id namespace must be a recognised semantic
+   domain (see known-id-namespaces), not merely a typo or novel phrase. This
+   complements the type->directory and registry-file bindings, which already
+   pin ids to their storage location and registry entry."
+  [path data errors]
+  (let [cid (:concept/id data)
+        id-ns (namespace cid)]
+    (when (and cid (not (contains? known-id-namespaces id-ns)))
+      (swap! errors conj (str path ": :concept/id " cid " has unrecognised namespace "
+                              (pr-str id-ns) " (expected one of " known-id-namespaces ")")))))
+
+(defn check-unknown-concept-keys [path concept errors]
+  (let [unknown (->> (keys concept)
+                     (filter #(= "concept" (namespace %)))
+                     (filter #(not (contains? allowed-concept-keys (keyword (name %)))))
+                     (sort-by name))]
+    (doseq [k unknown]
+      (swap! errors conj (str path " has unrecognised :concept/* key " k)))))
+
 (defn edn-files [dir]
   (filter #(and (.endsWith (.getName %) ".edn") (not (.isDirectory %)))
           (file-seq (io/file dir))))
@@ -291,7 +336,9 @@
                         (when-not (known-protocols p)
                           (swap! errors conj (str rel ": unknown protocol " p))
                           (println "    FAIL" rel "unknown protocol" p))))
-                    (check-value-maps-to rel data errors)
+(check-value-maps-to rel data errors)
+                      (check-unknown-concept-keys rel data errors)
+                      (check-id-namespace-known rel data errors)
                      (check-use-case-contract rel data errors)
                      (check-evidence rel data errors)
                      (check-mapping-statuses rel data errors)

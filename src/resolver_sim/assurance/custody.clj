@@ -478,11 +478,15 @@
       {:USDC {:opening 0, :in 1000, :out 1000, :final 0}}
       :by-workflow
       {42 {:token :USDC
+           :tokens [:USDC :ETH]
            :principal-final 0
            :yield-custody-final 0
            :final-held 0}}
       :ledger-adjustment-count 2
       :reconstruction-valid? true}
+
+   Each :by-workflow row reports the lexically-first token as :token and
+   the full set of distinct tokens for the workflow as :tokens.
 
    Reconstruction assumes the zero-origin contract (see
    held-history-zero-origin?). A non-zero-origin ledger cannot be replayed from
@@ -509,12 +513,14 @@
                                  (sort-by key total-held)))
         wf-adjs (group-by :held/workflow-id adjustments)
         wf-rows (into {} (map (fn [[wf-id adjs]]
-                                (let [token (some :token adjs)
-                                      principal-pos [:held/position token :escrow-principal wf-id]
-                                      yield-pos    [:held/position token :yield-custody wf-id]
+                                (let [tokens (vec (sort (distinct (map :token adjs))))
+                                      primary (first tokens)
+                                      principal-pos [:held/position primary :escrow-principal wf-id]
+                                      yield-pos    [:held/position primary :yield-custody wf-id]
                                       principal-final (get position-index principal-pos 0)
                                       yield-final    (get position-index yield-pos 0)]
-                                  [wf-id {:token token
+                                  [wf-id {:token primary
+                                          :tokens tokens
                                           :principal-final principal-final
                                           :yield-custody-final yield-final
                                           :final-held (get workflow-index wf-id 0)}]))

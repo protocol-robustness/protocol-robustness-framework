@@ -595,10 +595,10 @@
        (= verification-report-verifier-id (:artifact/verifier report))
        (string? (:report/hash report))
        (string? (:report/preimage report))
-        (let [body (dissoc report :report/hash :report/preimage)]
-          (= (:report/hash report)
-             (str "sha256:"
-                  (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
+       (let [body (dissoc report :report/hash :report/preimage)]
+         (= (:report/hash report)
+            (str "sha256:"
+                 (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
 
 ;; ── Partial-fill decisions summary file-artifact ─────────────────────────
 ;;

@@ -931,12 +931,25 @@
                         #"non-negative amount"
                         (ac/add-held (t/empty-world) usdc -1 {:action "test"})))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                        #"integer amount"
+                        (ac/add-held (t/empty-world) usdc 1.5 {:action "test"}))
+      "a fractional amount is rejected upfront rather than failing in canonical hashing")
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo
                         #"requires authorization provenance"
                         (ac/add-held (t/empty-world)
                                      usdc
                                      10
                                      {:action "governance-correction"
                                       :reason :governance-authorised-correction}))))
+
+(deftest update-ledger-index-rejects-unknown-direction
+  (testing "the canonical ledger mutator fails closed on an unknown direction,
+            matching the pure replay path rather than silently subtracting"
+    (let [world (t/empty-world)
+          bad-adj {:held/direction :diagonal :token usdc :amount 10}]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"invalid held direction"
+                            (@#'ac/update-ledger-index world bad-adj))))))
 
 (deftest sub-held-rejects-underflow-and-invalid-inputs
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
@@ -1829,6 +1842,28 @@
         r (ac/withdraw-escrow w 0 alice)]
     (is (false? (:ok r)))
     (is (= :no-claimable-balance (:error r)))))
+
+(deftest withdraw-claimable-includes-settlement-yield
+  (testing "withdraw-escrow pays settlement/yield claimables and clears them"
+    (let [w (-> (base-world)
+                (ac/record-claimable-v2 0 :settlement/yield bob 40))
+          r (ac/withdraw-escrow w 0 bob)]
+      (is (true? (:ok r)))
+      (is (= 40 (:amount r)))
+      (is (= 0 (get-in (:world r) [:claimable-v2 0 :settlement/yield bob] 0))
+          "yield claimable cleared after withdrawal"))))
+
+(deftest withdraw-claimable-combines-principal-and-yield
+  (testing "withdraw-escrow pays principal + yield together without destroying yield"
+    (let [w (-> (base-world)
+                (ac/record-claimable-v2 0 :settlement/principal bob 995)
+                (ac/record-claimable-v2 0 :settlement/yield bob 40))
+          r (ac/withdraw-escrow w 0 bob)]
+      (is (true? (:ok r)))
+      (is (= 1035 (:amount r)))
+      (is (= 0 (get-in (:world r) [:claimable-v2 0 :settlement/principal bob] 0)))
+      (is (= 0 (get-in (:world r) [:claimable-v2 0 :settlement/yield bob] 0))
+          "both principal and yield claimables are paid and cleared"))))
 
 ;; ---------------------------------------------------------------------------
 ;; BondCollector

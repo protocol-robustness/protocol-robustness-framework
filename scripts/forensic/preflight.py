@@ -143,26 +143,28 @@ def write_sealed_json(path: Path, data: Any) -> tuple[str, str]:
     return content_hash, str(path)
 
 
+def _vcs():
+    """Lazy import of the jj-then-git resolver (scripts/evidence/vcs_info)."""
+    import pathlib
+    import sys as _sys
+    here = pathlib.Path(__file__).resolve().parent  # scripts/forensic
+    evidence_dir = str(here.parent / "evidence")   # scripts/evidence
+    if evidence_dir not in _sys.path:
+        _sys.path.insert(0, evidence_dir)
+    import vcs_info  # type: ignore[import-not-found]
+    return vcs_info
+
+
 def get_git_commit(repo_root: str | Path) -> str | None:
     try:
-        r = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, cwd=str(repo_root),
-            timeout=10)
-        if r.returncode == 0:
-            return r.stdout.strip()
+        return _vcs().commit_sha()
     except Exception:
-        pass
-    return None
+        return None
 
 
 def get_git_dirty(repo_root: str | Path) -> bool:
     try:
-        r = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True, text=True, cwd=str(repo_root),
-            timeout=10)
-        return bool(r.stdout.strip())
+        return bool(_vcs().repo_is_dirty())
     except Exception:
         return True  # assume dirty if we can't check
 

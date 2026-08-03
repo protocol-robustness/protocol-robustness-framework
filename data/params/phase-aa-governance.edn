@@ -32,8 +32,15 @@
   :max-op-win-rate-threshold 0.20
   :appeal-window-days 7
  
- :n-epochs 50
+:n-epochs 50
  :n-trials-per-epoch 200
  :n-resolvers 30
  :detection-decay-rate 0.0
- :governance-capacity 3}
+ :governance-capacity 3
+
+ ;; Win-rate calibration from the deterministic invariant suite (9/41 adversarial scenarios).
+ ;; base-win-prob = win rate when a dispute is not reviewed; reviewed-win-prob when reviewed.
+ :base-win-prob 0.22
+ :reviewed-win-prob 0.03
+ :disputes-per-epoch 5
+ :floor-reviews 0}

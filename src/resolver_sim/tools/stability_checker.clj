@@ -16,7 +16,7 @@
 
 ;; ── Manifest loading ─────────────────────────────────────────────────────────
 
-(def manifest-path "STABILITY_MANIFEST.edn")
+(def manifest-path "docs/STABILITY_MANIFEST.edn")
 
 (defn- load-manifest
   ([] (load-manifest manifest-path))
@@ -50,7 +50,7 @@
     (let [manifest (normalize-manifest-for-self-hash (load-manifest))
           file-contents (into (sorted-map)
                               (concat
-                               [["STABILITY_MANIFEST.edn" (pr-str manifest)]]
+                               [["docs/STABILITY_MANIFEST.edn" (pr-str manifest)]]
                                (keep (fn [path]
                                        (when (not= path manifest-path)
                                          (let [f (io/file path)]

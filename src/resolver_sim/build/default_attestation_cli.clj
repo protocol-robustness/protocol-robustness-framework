@@ -2,21 +2,9 @@
   "Operational entrypoint for fail-closed default-build attestations."
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as shell]
-            [clojure.string :as str]
             [resolver-sim.build.default-attestation :as att]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]))
-
-(def ^:private smoke-required-assertions
-  "The explicit PASS assertions the packaged-JAR smoke script must emit. These
-   are the expected smoke assertions referenced by Phase 1.2: an exit code of 0
-   alone is not sufficient evidence — the assertions must appear in the captured
-   output, otherwise the run is treated as non-passing."
-  ["does not advertise Sew commands"
-   "without CWD scatter"
-   "final registry and validation report hashes"
-   "verifies completed scenario evidence-chain and benchmark assurance bundles"
-   "resolves every declared native command; external wrappers are checked by bb-task parity"])
 
 (defn- usage []
   "Usage: clojure -M -m resolver-sim.build.default-attestation-cli <prf|sew> <jar-path> <bundle-path>")
@@ -27,7 +15,7 @@
    subprocess exits 0 (Phase 1.2): log collection must not turn an exit code
    of zero into a pass."
   [output]
-  (every? #(str/includes? (str output) %) smoke-required-assertions))
+  (att/smoke-output-assertions-hold? output))
 
 (defn- smoke! []
   (let [result (shell/sh "bash" "scripts/portability-smoke-test.sh")

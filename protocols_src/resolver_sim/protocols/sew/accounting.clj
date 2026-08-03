@@ -102,7 +102,13 @@
     (throw (ex-info "held adjustment requires non-negative amount"
                     {:type :invalid-held-adjustment
                      :reason :invalid-amount
-                     :amount amount}))))
+                     :amount amount})))
+  (when (and (some? amount) (not (integer? amount)))
+    (throw (ex-info "held adjustment requires an integer amount"
+                    {:type :invalid-held-adjustment
+                     :reason :invalid-amount
+                     :amount amount
+                     :hint "fractional amounts would fail canonical hashing with an opaque error"}))))
 
 (def ^:const force-authorisation-scope-domain
   "force-authorisation-scope")
@@ -449,7 +455,13 @@
         workflow-id (:held/workflow-id adjustment)
         step-fn (case direction
                   :in +
-                  :out -)
+                  :out -
+                  ;; Fail-closed on an unknown direction, matching the pure
+                  ;; replay path (replay-held-adjustment-state) which rejects
+                  ;; an invalid direction rather than silently subtracting.
+                  (throw (ex-info "invalid held direction in update-ledger-index"
+                                  {:type :invalid-held-adjustment
+                                   :direction direction})))
         world* (-> world
                    (update :held-ledger/index
                            (fn [idx]
@@ -835,9 +847,10 @@
 
          :else
           (let [settlement-amt (get-in world [:claimable-v2 wf-id :settlement/principal addr] 0)
+                yield-amt      (get-in world [:claimable-v2 wf-id :settlement/yield addr] 0)
                 bond-refund    (get-in world [:claimable-v2 wf-id :bond/refund addr] 0)
                 bounty         (get-in world [:claimable-v2 wf-id :liability/challenge-bounty addr] 0)
-                amount         (+ settlement-amt bond-refund bounty)
+                amount         (+ settlement-amt yield-amt bond-refund bounty)
                et      (t/get-transfer world wf-id)
                token   (:token et)]
            (cond

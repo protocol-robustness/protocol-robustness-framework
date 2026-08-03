@@ -88,29 +88,56 @@
         sorted (sort-by :value > candidates)]
     (take capacity sorted)))
 
+(defn- reviewed-id-set
+  "Normalise any review-selection result to a set of dispute ids.
+   The floor selector and the value/biased selectors return different shapes
+   (set of ids vs seq of dispute maps); this makes them uniform for
+   `contains?` checks in dispute-outcome simulation."
+  [selection]
+  (if (set? selection)
+    selection
+    (set (map :id selection))))
+
+(defn select-reviewed-disputes-for-epoch
+  "Choose which disputes governance reviews for an epoch.
+
+   Selection is driven entirely by params — nothing is hardcoded:
+   - `:bias` map present -> biased value-tier attendance (e.g. TEST 3)
+   - `:floor-reviews` > 0 -> mandatory low-value floor + value-tier review (Phase AD-style)
+   - otherwise -> plain value-prioritised probabilistic review (unmitigated baseline)
+
+   Returns a set of reviewed dispute ids."
+  [disputes capacity {:keys [bias floor-reviews floor-threshold]} d-rng]
+  (let [floor-reviews   (or floor-reviews 0)
+        floor-threshold (or floor-threshold 10000)]
+    (reviewed-id-set
+     (cond
+       (seq bias) (select-reviewed-disputes-biased disputes capacity bias d-rng)
+       (pos? floor-reviews) (floor/select-reviewed-with-floor
+                              disputes capacity floor-reviews floor-threshold d-rng)
+       :else (select-reviewed-disputes disputes capacity d-rng)))))
+
 (defn simulate-epoch-aa
   [epoch state params d-rng]
-  (let [{:keys [capacity learning? bias base-win-prob reviewed-win-prob]} params
-        bwp      (or base-win-prob 0.22)
-        rwp      (or reviewed-win-prob 0.03)
-        history  (:history state [])
+  (let [{:keys [capacity learning?]
+         :or   {capacity 5 learning? false}} params
+        bwp           (double (get params :base-win-prob 0.22))
+        rwp           (double (get params :reviewed-win-prob 0.03))
+        disputes-per-epoch (int (get params :disputes-per-epoch 5))
+        history       (:history state [])
         attacker-strategy (if (and learning? (> epoch 20))
                             (infer-grey-zone history)
                             :random)
 
-        ;; Generate disputes for this epoch
-        epoch-disputes (for [i (range 5)]
+        epoch-disputes (for [i (range disputes-per-epoch)]
                          (let [val (case attacker-strategy
-                                     :low  (rng/next-int d-rng 9999)
-                                     :med  (+ 10000 (rng/next-int d-rng 89999))
-                                     :high (+ 100000 (rng/next-int d-rng 100000))
-                                     :random (+ 1000 (rng/next-int d-rng 150000)))]
+                                :low    (rng/next-int d-rng 9999)
+                                :med    (+ 10000 (rng/next-int d-rng 89999))
+                                :high   (+ 100000 (rng/next-int d-rng 100000))
+                                :random (+ 1000 (rng/next-int d-rng 150000)))]
                            {:id (str epoch "-" i) :value val}))
 
-        ;; Governance bandwidth floor: mandate 2 low-value reviews (threshold=10000)
-        ;; Enforce floor + probabilistic review of others
-        reviewed-ids (floor/select-reviewed-with-floor
-                      epoch-disputes capacity 2 10000 d-rng)
+        reviewed-ids (select-reviewed-disputes-for-epoch epoch-disputes capacity params d-rng)
 
         outcomes (for [d epoch-disputes]
                    (let [won? (simulate-dispute-outcome d reviewed-ids d-rng bwp rwp)]
@@ -126,14 +153,18 @@
 (defn summarize-aa-history
   [history params]
   (let [final (last history)
+        threshold (double (get params :max-op-win-rate-threshold 0.20))
         total-wins (:total-wins final)
         total-attempts (:total-attempts final)
-        win-rate (/ (double total-wins) total-attempts)
-        passed? (< win-rate 0.20)]
+        win-rate (if (pos? total-attempts)
+                   (/ (double total-wins) total-attempts)
+                   0.0)
+        passed? (< win-rate threshold)]
     {:status (if passed? "✅ SAFE" "❌ VULNERABLE")
      :win-rate win-rate
      :class (if passed? "A" "C")
-     :passed? passed?}))
+     :passed? passed?
+     :threshold threshold}))
 
 (defn- derive-prescriptive-thresholds
   "Compute actionable thresholds from observed AA outcomes.
@@ -141,12 +172,13 @@
    Model approximation:
      win-rate ≈ base-win - review-rate × (base-win - reviewed-win)
 
-   base-win and reviewed-win default to the calibrated values (0.22/0.03).
+   base-win, reviewed-win, target-win-rate and disputes-per-epoch are read from
+   params (defaults match the calibrated values: 0.22/0.03, 0.20, 5).
    Returns guidance for minimum review effectiveness and rough capacity floor."
-  ([results] (derive-prescriptive-thresholds results 0.22 0.03))
   ([results base-win reviewed-win]
-   (let [target-win-rate 0.20
-         review-delta (- base-win reviewed-win)
+   (derive-prescriptive-thresholds results base-win reviewed-win 0.20 5.0))
+  ([results base-win reviewed-win target-win-rate disputes-per-epoch]
+   (let [review-delta (- base-win reviewed-win)
          required-review-rate (-> (/ (- base-win target-win-rate) review-delta)
                                   (max 0.0)
                                   (min 1.0))
@@ -154,12 +186,11 @@
          observed-review-gain (-> (/ (- worst-win-rate reviewed-win) review-delta)
                                   (max 0.0)
                                   (min 1.0))
-         ;; Each epoch creates 5 disputes in this phase model.
-         required-capacity-floor (Math/ceil (* 5.0 required-review-rate))
+         required-capacity-floor (Math/ceil (* disputes-per-epoch required-review-rate))
          envelope
          (cond
-           (< worst-win-rate 0.20) :green
-           (< worst-win-rate 0.25) :yellow
+           (< worst-win-rate target-win-rate) :green
+           (< worst-win-rate (+ target-win-rate 0.05)) :yellow
            :else :red)]
      {:target-win-rate target-win-rate
       :required-review-rate required-review-rate
@@ -224,8 +255,9 @@
   "Run all Phase AA governance gaming tests."
   [params]
   (let [seed          (:rng-seed params 42)
-        base-win-prob (get params :base-win-prob 0.22)
-        rev-win-prob  (get params :reviewed-win-prob 0.03)
+        base-win-prob (double (get params :base-win-prob 0.22))
+        rev-win-prob  (double (get params :reviewed-win-prob 0.03))
+        disputes-per-epoch (double (get params :disputes-per-epoch 5))
         max-win-rate-threshold (double (get params :max-op-win-rate-threshold 0.20))
         _  (proto/print-phase-header
             {:benchmark-id "AA"
@@ -233,10 +265,7 @@
              :hypothesis   (format "Attackers cannot exceed %.0f%% win rate via governance gaming"
                                    (* 100 max-win-rate-threshold))})
 
-        scenarios (map (fn [s]
-                         (update s :params merge {:base-win-prob    base-win-prob
-                                                  :reviewed-win-prob rev-win-prob}))
-                       (make-scenarios seed))
+        scenarios (make-scenarios seed)
         results (proto/run-sweep "PHASE AA SWEEP" scenarios params)
 
         ;; Separate operational scenarios from stress tests
@@ -250,7 +279,8 @@
         max-op-win-rate (apply max (map :win-rate op-results))
         ;; Hypothesis applies only to operational scenarios (cap ≥ 2, above minimum viable)
         hypothesis-holds? (< max-op-win-rate max-win-rate-threshold)
-        guidance (derive-prescriptive-thresholds results)
+        guidance (derive-prescriptive-thresholds results base-win-prob rev-win-prob
+                                                 max-win-rate-threshold disputes-per-epoch)
         envelope-msg (case (:envelope guidance)
                        :green "SAFE ENVELOPE: current governance profile meets target"
                        :yellow "WARNING ENVELOPE: near threshold; harden governance capacity"
