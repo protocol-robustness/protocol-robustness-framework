@@ -1330,7 +1330,7 @@
                                                            :policy-output :visible :outputs :bundle/root-hash)
                                   dag-path (if structured?
                                              (str (io/file execution-dir "execution-dag.json"))
-                                              (str (paths/runs-root) "/" run-id "/execution-dag.json"))
+                                             (str (paths/runs-root) "/" run-id "/execution-dag.json"))
                                   dag-root-hash (try
                                                   (-> (json/read-str (slurp dag-path) :key-fn keyword)
                                                       :dag/root-hash)
@@ -1341,7 +1341,7 @@
                                                     nil))
                                   pre-commit-path (if structured?
                                                     (str (io/file execution-dir "pre-run-commitment.json"))
-                                                     (str (paths/runs-root) "/" run-id "/pre-run-commitment.json"))
+                                                    (str (paths/runs-root) "/" run-id "/pre-run-commitment.json"))
                                   pre-commit (try
                                                (json/read-str (slurp pre-commit-path) :key-fn keyword)
                                                (catch Exception e
@@ -1360,10 +1360,10 @@
                                     "dag-root-ref" (when dag-root-hash
                                                      (str "dag:sha256:" dag-root-hash))
                                     "dag-path" (when structured?
-                                                 (str "scenarios/" (:scenario-slug dispatch)
+                                                 (str (paths/scenarios-root) "/" (:scenario-slug dispatch)
                                                       "/execution/execution-dag.json"))
                                     "pre-run-commitment-path" (when structured?
-                                                                (str "scenarios/" (:scenario-slug dispatch)
+                                                                (str (paths/scenarios-root) "/" (:scenario-slug dispatch)
                                                                      "/execution/pre-run-commitment.json"))}
                                    "implementation"
                                    {"source-ref" (:hash source-data)

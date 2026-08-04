@@ -33,8 +33,15 @@
      and values) is committed at distribution level via
      :distribution/parameter-context.
    - `calculate-scaled-share` uses unbounded integer arithmetic; it does not
-     itself assert Solidity-equivalent checked-width semantics. A checked-
-     width or mulDiv-equivalent profile is a separate follow-up.
+      itself assert Solidity-equivalent checked-width semantics. A checked-
+      width or mulDiv-equivalent profile is a separate follow-up.
+   - A second amount method `:resolved-amount` is supported: the amount is
+      supplied externally on the resolved award (:award/amount) and is not
+      derived from a parameter. Such awards are validated per-method (no
+      scale/rounding/parameter-key), produce no record in
+      :distribution/calculations, and contribute nothing to
+      :distribution/summary (the rate-derived trace/summary contract covers
+      :rate-of-gross only).
 
    Boundaries:
    - This namespace proves arithmetic and structural validity.
@@ -42,10 +49,75 @@
      is legitimate, parameter matches governance snapshot).
    - An accounting adapter maps abstract allocations to concrete state effects."
 
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.economics.schemas :as schemas]
+            [resolver-sim.extensions.core :as ext-core]
+            [resolver-sim.extensions.execution :as ext-exec]
+            [resolver-sim.extensions.registry :as ext-reg]
+            [resolver-sim.extensions.resolution :as ext-res]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def ^:private policy-schema-version "slash-distribution-policy.v1")
 (def ^:private distribution-schema-version "slash-distribution.v1")
+
+;; ── capability dispatch ───────────────────────────────────────────────────
+
+(defn core-extension-map
+  "Default extension-map containing the built-in economics capabilities.
+   Used whenever a caller does not supply an explicit frozen registry
+   snapshot, so existing behaviour is unchanged."
+  []
+  (ext-reg/register-package (ext-reg/empty-extension-map)
+                            ext-core/core-economics-package))
+
+(defn method->capability-key
+  "Map a policy :method keyword to a capability registry key for a capability
+   kind. Unqualified legacy methods (:rate-of-gross, :weighted, ...) resolve
+   to the core package (:prf/<name>); namespaced methods are capability ids
+   directly."
+  [kind method]
+  (when method
+    (let [id (if (namespace method)
+               method
+               (keyword "prf" (name method)))]
+      [kind id])))
+
+(defn resolve-method-capability
+  "Look up the resolved capability entry for a policy method in an
+   extension-map, or nil when the method is not provided."
+  [extension-map kind method]
+  (when-let [key (method->capability-key kind method)]
+    (get extension-map key)))
+
+(defn policy-capability-keys
+  "Capability registry keys required by a policy: the allocation method, each
+   award amount method, and each award funding method."
+  [policy]
+  (into []
+        (concat
+         (when-let [k (method->capability-key :economics/allocation
+                                              (:method (:allocation policy)))]
+           [k])
+         (keep (fn [a]
+                 (method->capability-key :economics/award-amount
+                                         (get-in a [:amount :method])))
+               (:awards policy []))
+         (keep (fn [a]
+                 (method->capability-key :economics/funding
+                                         (get-in a [:funding :method])))
+               (:awards policy [])))))
+
+(defn resolve-policy-extensions
+  "Resolve the capabilities required by a policy against an extension-map,
+   returning the frozen resolution snapshot (or nil on failure, with the
+   resolution violations)."
+  ([extension-map policy] (resolve-policy-extensions extension-map policy nil))
+  ([extension-map policy {:keys [schema-registry runtime-profile]
+                          :or {schema-registry schemas/core-schemas}}]
+   (ext-res/resolve-requested
+    extension-map
+    (policy-capability-keys policy)
+    {:schemas schema-registry
+     :runtime-profile runtime-profile})))
 
 ;; ── hash projections ─────────────────────────────────────────────────────
 
@@ -69,6 +141,8 @@
                 :distribution/context
                 :distribution/policy-root
                 :distribution/parameter-context
+                :distribution/extension-resolution-root
+                :distribution/extension-packages
                 :distribution/base-allocations
                 :distribution/awards
                 :distribution/calculations
@@ -85,17 +159,16 @@
 ;; ── policy validation ────────────────────────────────────────────────────
 
 (defn- supported-award-amount-method?
-  [method]
-  (or (= :rate-of-gross method)
-      (= :resolved-amount method)))
+  [extension-map method]
+  (some? (resolve-method-capability extension-map :economics/award-amount method)))
 
 (defn- supported-allocation-method?
-  [method]
-  (= :weighted method))
+  [extension-map method]
+  (some? (resolve-method-capability extension-map :economics/allocation method)))
 
 (defn- supported-funding-method?
-  [method]
-  (= :weighted-deduction method))
+  [extension-map method]
+  (some? (resolve-method-capability extension-map :economics/funding method)))
 
 (defn- supported-rounding?
   [rounding]
@@ -106,7 +179,7 @@
   (= scale (reduce + 0 (vals weights))))
 
 (defn- validate-policy-award
-  [{:keys [allocation]} award]
+  [extension-map {:keys [allocation]} award]
   (let [v []
         v (if (:award/id award) v
               (conj v {:violation/id :violation/missing-award-id
@@ -118,27 +191,29 @@
                        :details {:award/id (:award/id award)}}))
         v (if amount-spec
             (let [method (:method amount-spec)]
-              (if (supported-award-amount-method? method)
-                (let [scale (:scale amount-spec)]
+              (if (supported-award-amount-method? extension-map method)
+                (let [scale (:scale amount-spec)
+                      rate-of-gross? (= :rate-of-gross method)]
                   (cond-> v
-                    (or (nil? scale) (not (integer? scale)) (not (pos? scale)))
+                    (and rate-of-gross?
+                         (or (nil? scale) (not (integer? scale)) (not (pos? scale))))
                     (conj {:violation/id :violation/invalid-award-scale
                            :details {:award/id (:award/id award)
                                      :scale scale}})
-                    (and (= :rate-of-gross method)
+                    (and rate-of-gross?
                          (not= :floor (:rounding amount-spec)))
                     (conj {:violation/id :violation/unsupported-rounding
                            :details {:award/id (:award/id award)
                                      :rounding (:rounding amount-spec)
                                      :supported [:floor]}})
-                    (and (= :rate-of-gross method)
+                    (and rate-of-gross?
                          (nil? (:parameter-key amount-spec)))
                     (conj {:violation/id :violation/missing-parameter-key
                            :details {:award/id (:award/id award)}})))
                 (conj v {:violation/id :violation/unsupported-amount-method
                          :details {:award/id (:award/id award)
                                    :method method
-                                   :supported [:rate-of-gross]}})))
+                                   :supported [:rate-of-gross :resolved-amount]}})))
             v)
 
         elig (:eligibility award)
@@ -165,33 +240,37 @@
                        :details {:award/id (:award/id award)}}))
         v (if funding-spec
             (let [method (:method funding-spec)]
-              (if (supported-funding-method? method)
+              (if (supported-funding-method? extension-map method)
                 (let [f-scale (:scale funding-spec)
                       f-weights (:weights funding-spec)
                       f-remainder (:remainder-to funding-spec)
                       base-keys (set (keys (:weights allocation)))
                       funding-keys (set (keys f-weights))
-                      unknown (seq (remove base-keys funding-keys))]
+                      unknown (seq (remove base-keys funding-keys))
+                      weighted? (= :weighted-deduction method)]
                   (cond-> v
-                    (or (nil? f-scale) (not (integer? f-scale)) (not (pos? f-scale)))
+                    (and weighted?
+                         (or (nil? f-scale) (not (integer? f-scale)) (not (pos? f-scale))))
                     (conj {:violation/id :violation/invalid-funding-scale
                            :details {:award/id (:award/id award)
                                      :scale f-scale}})
-                    (not (bips-sum-to-scale? f-weights f-scale))
+                    (and weighted?
+                         (not (bips-sum-to-scale? f-weights f-scale)))
                     (conj {:violation/id :violation/funding-weights-do-not-sum-to-scale
                            :details {:award/id (:award/id award)
                                      :weights f-weights
                                      :scale f-scale
                                      :sum (reduce + 0 (vals f-weights))}})
-                    (nil? f-remainder)
+                    (and weighted? (nil? f-remainder))
                     (conj {:violation/id :violation/missing-funding-remainder
                            :details {:award/id (:award/id award)}})
-                    (and (some? f-remainder) (not (contains? f-weights f-remainder)))
+                    (and weighted?
+                         (some? f-remainder) (not (contains? f-weights f-remainder)))
                     (conj {:violation/id :violation/invalid-funding-remainder
                            :details {:award/id (:award/id award)
                                      :remainder-to f-remainder
                                      :available-keys (vec (keys f-weights))}})
-                    (boolean unknown)
+                    (and weighted? (boolean unknown))
                     (conj {:violation/id :violation/unknown-funding-source
                            :details {:award/id (:award/id award)
                                      :unknown-sources (vec unknown)
@@ -223,56 +302,64 @@
 
    Checks cover schema shape, identifier uniqueness, weight sums,
    and structural consistency. No defaults are filled in — every
-   economically meaningful value must be supplied by the policy."
-  [policy]
-  (let [v []
-        v (if (= policy-schema-version (:schema-version policy)) v
-              (conj v {:violation/id :violation/invalid-policy-schema-version
-                       :details {:expected policy-schema-version
-                                 :received (:schema-version policy)}}))
-        allocation (:allocation policy)
-        v (if allocation v
-              (conj v {:violation/id :violation/missing-allocation}))
-        v (if allocation
-            (let [method (:method allocation)]
-              (if (supported-allocation-method? method)
-                (let [scale (:scale allocation)
-                      weights (:weights allocation)
-                      remainder-to (:remainder-to allocation)]
-                  (cond-> v
-                    (or (nil? scale) (not (integer? scale)) (not (pos? scale)))
-                    (conj {:violation/id :violation/invalid-allocation-scale
-                           :details {:scale scale}})
-                    (nil? weights)
-                    (conj {:violation/id :violation/missing-allocation-weights})
-                    (and weights (not (bips-sum-to-scale? weights scale)))
-                    (conj {:violation/id :violation/allocation-weights-sum-mismatch
-                           :details {:weights weights
-                                     :scale scale
-                                     :sum (reduce + 0 (vals weights))}})
-                    (nil? remainder-to)
-                    (conj {:violation/id :violation/missing-allocation-remainder})
-                    (and remainder-to
-                         (not (contains? (set (keys weights)) remainder-to)))
-                    (conj {:violation/id :violation/invalid-allocation-remainder
-                           :details {:remainder-to remainder-to
-                                     :available-keys (vec (keys weights))}})))
-                (conj v {:violation/id :violation/unsupported-allocation-method
-                         :details {:method method
-                                   :supported [:weighted]}})))
-            v)
-        award-ids (mapv :award/id (:awards policy))
-        v (let [dups (->> award-ids frequencies (keep (fn [[id n]] (when (> n 1) id))) vec)]
-            (if (seq dups)
-              (conj v {:violation/id :violation/duplicate-award-id
-                       :details {:duplicate-ids dups}})
-              v))
-        v (reduce (fn [vs award]
-                    (into vs (validate-policy-award policy award)))
-                  v
-                  (:awards policy))]
-    {:valid? (empty? v)
-     :violations (vec v)}))
+   economically meaningful value must be supplied by the policy.
+
+   Two-arity form accepts an extension-map so extension-backed methods are
+   validated against the registered capabilities; the one-arity form uses the
+   built-in core package."
+  ([policy]
+   (validate-policy policy (core-extension-map)))
+  ([policy extension-map]
+   (let [v []
+         v (if (= policy-schema-version (:schema-version policy)) v
+               (conj v {:violation/id :violation/invalid-policy-schema-version
+                        :details {:expected policy-schema-version
+                                  :received (:schema-version policy)}}))
+         allocation (:allocation policy)
+         v (if allocation v
+               (conj v {:violation/id :violation/missing-allocation}))
+         v (if allocation
+             (let [method (:method allocation)]
+               (if (supported-allocation-method? extension-map method)
+                 (let [scale (:scale allocation)
+                       weights (:weights allocation)
+                       remainder-to (:remainder-to allocation)
+                       weighted? (= :weighted method)]
+                   (cond-> v
+                     (and weighted?
+                          (or (nil? scale) (not (integer? scale)) (not (pos? scale))))
+                     (conj {:violation/id :violation/invalid-allocation-scale
+                            :details {:scale scale}})
+                     (and weighted? (nil? weights))
+                     (conj {:violation/id :violation/missing-allocation-weights})
+                     (and weighted? weights (not (bips-sum-to-scale? weights scale)))
+                     (conj {:violation/id :violation/allocation-weights-sum-mismatch
+                            :details {:weights weights
+                                      :scale scale
+                                      :sum (reduce + 0 (vals weights))}})
+                     (and weighted? (nil? remainder-to))
+                     (conj {:violation/id :violation/missing-allocation-remainder})
+                     (and weighted? remainder-to
+                          (not (contains? (set (keys weights)) remainder-to)))
+                     (conj {:violation/id :violation/invalid-allocation-remainder
+                            :details {:remainder-to remainder-to
+                                      :available-keys (vec (keys weights))}})))
+                 (conj v {:violation/id :violation/unsupported-allocation-method
+                          :details {:method method
+                                    :supported [:weighted]}})))
+             v)
+         award-ids (mapv :award/id (:awards policy))
+         v (let [dups (->> award-ids frequencies (keep (fn [[id n]] (when (> n 1) id))) vec)]
+             (if (seq dups)
+               (conj v {:violation/id :violation/duplicate-award-id
+                        :details {:duplicate-ids dups}})
+               v))
+         v (reduce (fn [vs award]
+                     (into vs (validate-policy-award extension-map policy award)))
+                   v
+                   (:awards policy))]
+     {:valid? (empty? v)
+      :violations (vec v)})))
 
 ;; ── scaled-share primitive ───────────────────────────────────────────────
 
@@ -381,10 +468,13 @@
                                       {} calculations)}))
 
 ;; ── award calculation ────────────────────────────────────────────────────
+;; Raw built-in arithmetic. The dispatched computation below resolves the
+;; policy method to a registered capability and invokes its entrypoint, so
+;; built-ins and extensions go through the same path.
 
-(defn- compute-allocation
-  "Compute weighted base allocation with floor rounding and a single
-   remainder lump assigned to remainder-to."
+(defn- weighted-allocation
+  "Weighted base allocation with floor rounding and a single remainder lump
+   assigned to remainder-to."
   [gross-amount {:keys [scale weights remainder-to]}]
   (let [quotients (into {}
                         (map (fn [[id weight]]
@@ -392,28 +482,19 @@
                         weights)
         allocated (reduce + 0 (vals quotients))
         remainder (- gross-amount allocated)
-        base (if (and (pos? remainder) remainder-to)
+        ;; Mirror compute-award-funding: only assign the remainder when the
+        ;; remainder-to key is a valid weight.  Policy validation guarantees
+        ;; this for valid policies; the guard makes unvalidated callers fail
+        ;; closed (base would then under-sum and conservation would reject)
+        ;; instead of silently inventing a new allocation category.
+        base (if (and (pos? remainder) remainder-to
+                      (contains? weights remainder-to))
                (update quotients remainder-to (fnil + 0) remainder)
                quotients)]
     base))
 
-(defn- compute-award-amount
-  "Compute a single award amount from gross amount and amount spec.
-   Supports :rate-of-gross (computed from the resolved parameter via
-   `calculate-scaled-share`) and :resolved-amount (pre-computed, supplied
-   in resolved-awards). Returns nil when the value is unavailable."
-  [gross-amount amount-spec param-values resolved-award]
-  (case (:method amount-spec)
-    :rate-of-gross
-    (:amount (rate-of-gross-calculation gross-amount amount-spec param-values))
-    :resolved-amount
-    (let [resolved (:award/amount resolved-award)]
-      (when (and (integer? resolved) (not (neg? resolved)))
-        resolved))
-    nil))
-
-(defn- compute-award-funding
-  "Compute per-source funding deductions for a single award."
+(defn- weighted-funding
+  "Weighted per-source funding deductions for a single award."
   [award-amount {:keys [scale weights remainder-to]}]
   (let [quotients (into {}
                         (map (fn [[id weight]]
@@ -427,6 +508,79 @@
                   quotients)]
     funding))
 
+;; ── public capability adapters (core-package entrypoints) ────────────────
+;; Each conforms to the uniform invocation contract for its capability kind:
+;; a function of a kind-specific input map returning a structured result map.
+
+(defn rate-of-gross-award-amount
+  "Capability implementation for [:economics/award-amount :prf/rate-of-gross].
+   Context: {:gross-amount N :amount-spec m :param-values {...}}
+   Result:  {:amount N|nil :calculation <calc-or-nil>}"
+  [{:keys [gross-amount amount-spec param-values]}]
+  (let [calculation (rate-of-gross-calculation gross-amount amount-spec param-values)]
+    {:amount (:amount calculation)
+     :calculation calculation}))
+
+(defn resolved-award-amount
+  "Capability implementation for [:economics/award-amount :prf/resolved-amount].
+   Context: {:resolved-award m}
+   Result:  {:amount N|nil :calculation nil}"
+  [{:keys [resolved-award]}]
+  (let [resolved (:award/amount resolved-award)]
+    {:amount (when (and (integer? resolved) (not (neg? resolved))) resolved)
+     :calculation nil}))
+
+(defn weighted-base-allocation
+  "Capability implementation for [:economics/allocation :prf/weighted].
+   Context: {:gross-amount N :allocation-spec m}
+   Result:  {:base-allocations {id amount}}"
+  [{:keys [gross-amount allocation-spec]}]
+  {:base-allocations (weighted-allocation gross-amount allocation-spec)})
+
+(defn weighted-funding-deduction
+  "Capability implementation for [:economics/funding :prf/weighted-deduction].
+   Context: {:award-amount N :funding-spec m}
+   Result:  {:funding {id amount}}"
+  [{:keys [award-amount funding-spec]}]
+  {:funding (weighted-funding award-amount funding-spec)})
+
+;; ── dispatched computation (registry-backed) ─────────────────────────────
+
+(defn- compute-allocation
+  "Compute base allocations by dispatching the allocation method through the
+   extension-map. Returns the base-allocations map."
+  [extension-map gross-amount allocation-spec]
+  (let [entry (resolve-method-capability extension-map :economics/allocation
+                                         (:method allocation-spec))
+        result (ext-exec/invoke-capability entry
+                                           {:gross-amount gross-amount
+                                            :allocation-spec allocation-spec})]
+    (:base-allocations result)))
+
+(defn- compute-award-amount
+  "Compute a single award amount by dispatching the award-amount method
+   through the extension-map. Returns the amount or nil."
+  [extension-map gross-amount amount-spec param-values resolved-award]
+  (let [entry (resolve-method-capability extension-map :economics/award-amount
+                                         (:method amount-spec))
+        result (ext-exec/invoke-capability entry
+                                           {:gross-amount gross-amount
+                                            :amount-spec amount-spec
+                                            :param-values param-values
+                                            :resolved-award resolved-award})]
+    (:amount result)))
+
+(defn- compute-award-funding
+  "Compute per-source funding deductions by dispatching the funding method
+   through the extension-map. Returns the funding map."
+  [extension-map award-amount funding-spec]
+  (let [entry (resolve-method-capability extension-map :economics/funding
+                                         (:method funding-spec))
+        result (ext-exec/invoke-capability entry
+                                           {:award-amount award-amount
+                                            :funding-spec funding-spec})]
+    (:funding result)))
+
 ;; ── distribution builder ─────────────────────────────────────────────────
 
 (defn- resolve-award
@@ -438,14 +592,29 @@
    or {:award nil :calculation <calc-or-nil> :violations [...]} on
    validation failure or zero amount. The :calculation record is preserved
    for zero outcomes so they remain auditable without producing transfers."
-  [gross-amount policy-award resolved-award param-values]
+  [extension-map gross-amount policy-award resolved-award param-values]
   (let [award-id (:award/id resolved-award)
         v []
         amount-spec (:amount policy-award)
-        award-amount (compute-award-amount gross-amount amount-spec param-values resolved-award)
+        award-amount (compute-award-amount extension-map gross-amount
+                                           amount-spec param-values resolved-award)
         calculation (award-calculation award-id gross-amount amount-spec param-values)]
-    (if (zero? award-amount)
+    (cond
+      ;; Nil amount: the resolved amount was unavailable (e.g. a
+      ;; :resolved-amount award without :award/amount, or a rate-of-gross
+      ;; award whose parameter could not be resolved).  This is a violation,
+      ;; not a crash — never feed nil into (zero? ...).
+      (nil? award-amount)
+      {:award nil :calculation calculation
+       :violations (conj v
+                         {:violation/id :violation/invalid-parameter-value
+                          :details {:award/id award-id
+                                    :reason "award amount unavailable (missing or invalid resolved amount)"}})}
+
+      (zero? award-amount)
       {:award nil :calculation calculation :violations v}
+
+      :else
       (let [elig (:eligibility resolved-award)
             policy-elig (:eligibility policy-award)
             v (if (= (:trigger policy-elig) (:trigger elig)) v
@@ -471,7 +640,7 @@
           {:award nil :calculation calculation :violations v}
           (let [funding-spec (:funding policy-award)
                 settlement-spec (:settlement policy-award)
-                funding (compute-award-funding award-amount funding-spec)]
+                funding (compute-award-funding extension-map award-amount funding-spec)]
             {:award (cond-> {:award/id award-id
                              :award/amount award-amount
                              :eligibility {:trigger (:trigger elig)
@@ -495,7 +664,13 @@
         {:source-root <optional-string>
          :values      {<param-key> <int>}}
       :resolved-awards [<resolved-award> ...]
+      :extension-map  <optional frozen extension-map>
       :context        <any-map>}
+
+   The optional :extension-map supplies the capability registry used for
+   method dispatch and validation; it defaults to the built-in core package.
+   Pass a frozen snapshot (e.g. from resolver-sim.extensions.registry/freeze!)
+   so the resolution set is committed and reproducible.
 
    Returns:
      {:status :valid
@@ -504,14 +679,17 @@
         :violations [<violation-maps>]}
 
    Where <artifact-map> conforms to slash-distribution.v1."
-  [{:keys [gross-amount policy policy-root parameter-context resolved-awards context]}]
-  (let [v []
+  [{:keys [gross-amount policy policy-root parameter-context resolved-awards
+           extension-map schema-registry runtime-profile context]}]
+  (let [extension-map (or extension-map (core-extension-map))
+        schema-registry (or schema-registry schemas/core-schemas)
+        v []
         v (if (and (integer? gross-amount) (not (neg? gross-amount))) v
               (conj v {:violation/id :violation/invalid-gross-amount
                        :details {:gross-amount gross-amount}}))
         ;; validate policy
         {:keys [valid? violations] :as policy-result}
-        (when policy (validate-policy policy))
+        (when policy (validate-policy policy extension-map))
         v (if policy
             (if valid?
               v
@@ -575,16 +753,27 @@
                                              :minimum 0
                                              :maximum scale}})))
                         vs)))
-                  v resolved-awards)]
+                  v resolved-awards)
+        ;; extension resolution for the capabilities the policy requires
+        extension-resolution (when policy
+                               (resolve-policy-extensions
+                                extension-map policy
+                                {:schema-registry schema-registry
+                                 :runtime-profile runtime-profile}))
+        v (if (and policy extension-resolution
+                   (not (:valid? extension-resolution)))
+            (conj v {:violation/id :violation/extension-resolution-failed
+                     :details {:violations (:violations extension-resolution)}})
+            v)]
     (if (seq v)
       {:status :invalid :violations v}
       (let [allocation-spec (:allocation policy)
-            base (compute-allocation gross-amount allocation-spec)
+            base (compute-allocation extension-map gross-amount allocation-spec)
                 ;; resolve each award
             resolved (mapv (fn [ra]
                              (let [pa (some #(when (= (:award/id ra) (:award/id %)) %)
                                             (:awards policy))]
-                               (resolve-award gross-amount pa ra param-values)))
+                               (resolve-award extension-map gross-amount pa ra param-values)))
                            resolved-awards)
             award-violations (mapcat :violations resolved)]
         (if (seq award-violations)
@@ -657,6 +846,12 @@
                              :distribution/context context
                              :distribution/policy-root effective-policy-root
                              :distribution/parameter-context parameter-context
+                             :distribution/extension-resolution-root
+                             (get-in extension-resolution
+                                     [:resolution :extensions/resolution-root])
+                             :distribution/extension-packages
+                             (get-in extension-resolution
+                                     [:resolution :extensions/packages])
                              :distribution/base-allocations base
                              :distribution/awards sorted-awards
                              :distribution/calculations calculations
@@ -687,14 +882,6 @@
       (conj v {:violation/id :violation/recomputation-mismatch
                :details details}))))
 
-(defn- independent-base
-  "Recompute base allocations from a policy allocation spec.
-   Returns {:base-allocations <map> :violations [...]}."
-  [gross-amount allocation-spec]
-  (let [base (compute-allocation gross-amount allocation-spec)]
-    {:base-allocations base
-     :violations []}))
-
 (defn- independent-award
   "Recompute award amount and funding from policy award spec and parameters.
    For :rate-of-gross, the amount is recomputed from the parameter.
@@ -705,7 +892,7 @@
             :funding <map>
             :violations [...]}
    or {:award-amount nil :violations [...]} on error."
-  [gross-amount policy-award param-values stored-award]
+  [extension-map gross-amount policy-award param-values stored-award]
   (let [amount-spec (:amount policy-award)]
     (case (:method amount-spec)
       :rate-of-gross
@@ -716,8 +903,10 @@
            :violations [{:violation/id :violation/missing-parameter
                          :details {:award/id (:award/id policy-award)
                                    :parameter-key param-key}}]}
-          (let [award-amount (compute-award-amount gross-amount amount-spec param-values nil)
-                calculation (award-calculation (:award/id policy-award) gross-amount amount-spec param-values)]
+          (let [award-amount (compute-award-amount extension-map gross-amount
+                                                   amount-spec param-values nil)
+                calculation (award-calculation (:award/id policy-award)
+                                               gross-amount amount-spec param-values)]
             (if (nil? award-amount)
               {:award-amount nil
                :violations [{:violation/id :violation/invalid-parameter-value
@@ -728,23 +917,33 @@
               ;; funding is recomputed from the award amount
               {:award-amount award-amount
                :calculation calculation
-               :funding (compute-award-funding award-amount (:funding policy-award))
+               :funding (compute-award-funding extension-map award-amount
+                                               (:funding policy-award))
                :violations []}))))
       :resolved-amount
       (let [award-amount (:award/amount stored-award)]
         (if (and (integer? award-amount) (not (neg? award-amount)))
           {:award-amount award-amount
-           :funding (compute-award-funding award-amount (:funding policy-award))
+           :funding (compute-award-funding extension-map award-amount
+                                           (:funding policy-award))
            :violations []}
           {:award-amount nil
            :violations [{:violation/id :violation/invalid-parameter-value
                          :details {:award/id (:award/id policy-award)
                                    :reason "stored award-amount is not a non-negative integer"
                                    :value award-amount}}]}))
-      {:award-amount nil
-       :violations [{:violation/id :violation/unsupported-amount-method
-                     :details {:award/id (:award/id policy-award)
-                               :method (:method amount-spec)}}]})))
+      ;; extension-backed or unsupported methods dispatch through the registry
+      (let [award-amount (compute-award-amount extension-map gross-amount
+                                               amount-spec param-values stored-award)]
+        (if (nil? award-amount)
+          {:award-amount nil
+           :violations [{:violation/id :violation/unsupported-amount-method
+                         :details {:award/id (:award/id policy-award)
+                                   :method (:method amount-spec)}}]}
+          {:award-amount award-amount
+           :funding (compute-award-funding extension-map award-amount
+                                           (:funding policy-award))
+           :violations []})))))
 
 (defn- independent-distribution
   "Independently compute a full distribution from policy and parameters.
@@ -758,16 +957,17 @@
 
    Returns {:awards [<award-map> ...] :base <map> :deductions <map>
             :settlements <map> :final <map> :violations [...]}."
-  [gross-amount policy param-values & [stored-awards]]
+  [extension-map gross-amount policy param-values & [stored-awards]]
   (let [allocation-spec (:allocation policy)
-        base (compute-allocation gross-amount allocation-spec)
+        base (compute-allocation extension-map gross-amount allocation-spec)
         stored-by-id (when stored-awards
                        (into {} (map (fn [a] [(:award/id a) a]) stored-awards)))
         processed (mapv (fn [policy-award]
                           (let [award-id (:award/id policy-award)
                                 stored (get stored-by-id award-id)
                                 {:keys [award-amount calculation funding violations]}
-                                (independent-award gross-amount policy-award param-values stored)]
+                                (independent-award extension-map gross-amount
+                                                   policy-award param-values stored)]
                             (when (and (some? award-amount) (pos? award-amount))
                               (cond-> {:award/id award-id
                                        :award/amount award-amount
@@ -780,7 +980,8 @@
                                         (let [award-id (:award/id policy-award)
                                               stored (get stored-by-id award-id)
                                               {:keys [violations]}
-                                              (independent-award gross-amount policy-award param-values stored)]
+                                              (independent-award extension-map gross-amount
+                                                                 policy-award param-values stored)]
                                           violations))
                                       (:awards policy)))
         active-awards (remove nil? processed)
@@ -839,6 +1040,25 @@
                                     :recomputed recomputed}}))))
           v stored-calculations))
 
+(defn- verify-extension-resolution-root
+  "Recompute the extension resolution root for a policy against the
+   verification extension-map and compare it with the root committed in the
+   distribution artifact. When the artifact predates resolution commitment
+   (no stored root), the check is skipped."
+  [v stored-root policy extension-map schema-registry]
+  (if (nil? stored-root)
+    v
+    (let [resolution (resolve-policy-extensions extension-map policy
+                                                {:schema-registry schema-registry})]
+      (if (and (:valid? resolution)
+               (= stored-root (get-in resolution [:resolution :extensions/resolution-root])))
+        v
+        (conj v {:violation/id :violation/extension-resolution-mismatch
+                 :details {:stored stored-root
+                           :recomputed (get-in resolution
+                                               [:resolution :extensions/resolution-root])
+                           :resolution-valid? (:valid? resolution)}})))))
+
 (defn verify-distribution
   "Independently verify a slash-distribution.v1 artifact.
 
@@ -853,7 +1073,13 @@
    - all consistency checks follow
 
    Second arg: optional {:policy <policy-map>
-                         :parameter-context {:values {<kw> <int>}}}
+                         :parameter-context {:values {<kw> <int>}}
+                         :extension-map <optional frozen extension-map>
+                         :schema-registry <optional schema-id -> root map>}
+
+   The optional :extension-map supplies the capability registry used for
+   recomputation; it defaults to the built-in core package. When the artifact
+   commits an extension resolution root, it is recomputed and compared.
 
    Returns {:valid? true} or {:valid? false :violations [...]}."
   ([distribution]
@@ -863,7 +1089,9 @@
          v (if verification-ctx
              (let [policy (:policy verification-ctx)
                    param-ctx (:parameter-context verification-ctx)
-                   param-values (get-in param-ctx [:values] {})]
+                   param-values (get-in param-ctx [:values] {})
+                   extension-map (or (:extension-map verification-ctx)
+                                     (core-extension-map))]
                (if (nil? policy)
                  (conj v {:violation/id :violation/missing-policy
                           :details {:reason "verification context has no :policy"}})
@@ -875,7 +1103,8 @@
                                                 :stored stored-root}}))
                        gross-amount (:distribution/gross-amount distribution)
                        stored-awards (:distribution/awards distribution)
-                       independent (independent-distribution gross-amount policy param-values stored-awards)]
+                       independent (independent-distribution extension-map gross-amount
+                                                             policy param-values stored-awards)]
                    (into v (:violations independent)))))
              v)
          ;; hash check
@@ -899,6 +1128,20 @@
          ;; summary is derived from the committed calculation trace
          stored-calcs (:distribution/calculations distribution)
          stored-summary (:distribution/summary distribution)
+         ;; Committed fields: a distribution with awards MUST commit the
+         ;; calculation trace and aggregate summary.  Absence is a structural
+         ;; violation (hardening; previously the summary-vs-trace check was
+         ;; silently skipped when either was nil).
+         v (if (and (seq (:distribution/awards distribution))
+                    (or (nil? stored-calcs) (nil? stored-summary)))
+             (cond-> v
+               (nil? stored-calcs)
+               (conj {:violation/id :violation/missing-calculation-trace
+                      :details {:reason "distribution with awards must commit :distribution/calculations"}})
+               (nil? stored-summary)
+               (conj {:violation/id :violation/missing-summary
+                      :details {:reason "distribution with awards must commit :distribution/summary"}}))
+             v)
          v (if (and (some? stored-calcs) (some? stored-summary))
              (let [recomputed-summary (build-rate-derived-summary stored-calcs)]
                (if (= recomputed-summary stored-summary)
@@ -913,11 +1156,16 @@
              (let [policy (:policy verification-ctx)
                    param-ctx (:parameter-context verification-ctx)
                    param-values (get-in param-ctx [:values] {})
+                   extension-map (or (:extension-map verification-ctx)
+                                     (core-extension-map))
+                   schema-registry (or (:schema-registry verification-ctx)
+                                       schemas/core-schemas)
                    gross-amount (:distribution/gross-amount distribution)]
                (if (nil? policy)
                  v
                  (let [stored-awards (:distribution/awards distribution)
-                       independent (independent-distribution gross-amount policy param-values stored-awards)]
+                       independent (independent-distribution extension-map gross-amount
+                                                             policy param-values stored-awards)]
                    (if (seq (:violations independent))
                      v
                      (let [v (verify-recomputed-against-stored
@@ -942,7 +1190,10 @@
                             v :final-allocations stored-final indep-final)
                            (verify-recomputed-calculations
                             policy gross-amount param-values
-                            (:distribution/calculations distribution))))))))
+                            (:distribution/calculations distribution))
+                           (verify-extension-resolution-root
+                            (:distribution/extension-resolution-root distribution)
+                            policy extension-map schema-registry)))))))
              v)
 
          ;; consistency checks (run regardless)

@@ -29,6 +29,8 @@
   {:data-dir           {:default hash-ref/data-dir}
    :scenarios-dir      {:default hash-ref/scenarios-edn-dir
                         :env     "PRF_SCENARIOS_DIR"}
+   :scenarios-root     {:default "scenarios"
+                        :env     "PRF_SCENARIOS_ROOT"}
    :scenarios-catalog  {:default "scenarios/catalog.edn"
                         :env     "PRF_SCENARIOS_CATALOG"}
    :benchmarks-dir     {:default "benchmarks"
@@ -39,7 +41,17 @@
                          :env     "PRF_BENCHMARKS_CONCEPTS_DIR"}
    :benchmarks-claim-registry {:default hash-ref/claim-registry-path
                                :env     "PRF_BENCHMARKS_CLAIM_REGISTRY"}
-   :benchmarks-legacy    {:default "benchmarks/BENCHMARKS.edn"}
+    :benchmarks-legacy    {:default "benchmarks/BENCHMARKS.edn"}
+    :benchmarks-scoring-dir {:default "benchmarks/scoring"
+                             :env     "PRF_BENCHMARKS_SCORING_DIR"}
+    :benchmarks-runners-dir {:default "benchmarks/runners"
+                             :env     "PRF_BENCHMARKS_RUNNERS_DIR"}
+    :prf-core-shortfall-manifest {:default "benchmarks/packs/prf-core/shortfall-allocation-v0.edn"}
+    :prf-core-yield-manifest     {:default "benchmarks/packs/prf-core/yield-partial-fill-v0.edn"}
+    :prf-core-deterministic-replay-manifest {:default "benchmarks/packs/prf-core/deterministic-replay-v1.edn"}
+    :results-root         {:default "results"
+                           :env     "PRF_RESULTS_ROOT"}
+    :reference-validation-suite-dir {:default "suites/reference-validation-v1"}
    :docs-dir             {:default "docs"}
    :stability-manifest   {:default "docs/STABILITY_MANIFEST.edn"
                           :env     "PRF_STABILITY_MANIFEST"}
@@ -47,12 +59,16 @@
                           :env     "PRF_NOTEBOOKS_DIR"}
    :notebooks-registry   {:default "data/notebooks.edn"
                           :env     "PRF_NOTEBOOKS_REGISTRY"}
-   :fixtures-dir         {:default hash-ref/fixtures-dir}
+    :fixtures-dir         {:default hash-ref/fixtures-dir}
+    :fixtures-protocol-dir {:default "data/fixtures/protocol"
+                            :env     "PRF_FIXTURES_PROTOCOL_DIR"}
    :traces-dir           {:default hash-ref/traces-dir
                           :env     "PRF_TRACES_DIR"}
    :traces-regression-dir {:default "data/fixtures/traces/regression"}
-   :traces-store-dir      {:default "results/traces"
-                           :env     "PRF_TRACES_STORE_DIR"}
+    :traces-store-dir      {:default "results/traces"
+                            :env     "PRF_TRACES_STORE_DIR"}
+    :test-vectors-dir      {:default "results/test-vectors"
+                            :env     "PRF_TEST_VECTORS_DIR"}
    :golden-dir           {:default hash-ref/golden-dir
                           :env     "PRF_GOLDEN_DIR"}
    :fixture-manifest     {:default hash-ref/fixture-suite-manifest-path}
@@ -92,20 +108,30 @@
 
 (defn data-dir [] (path :data-dir))
 (defn scenarios-dir [] (path :scenarios-dir))
+(defn scenarios-root [] (path :scenarios-root))
 (defn scenarios-catalog [] (path :scenarios-catalog))
 (defn benchmarks-dir [] (path :benchmarks-dir))
 (defn benchmarks-registry [] (path :benchmarks-registry))
 (defn benchmarks-concepts [] (path :benchmarks-concepts))
 (defn benchmarks-claim-registry [] (path :benchmarks-claim-registry))
 (defn benchmarks-legacy [] (path :benchmarks-legacy))
+(defn benchmarks-scoring-dir [] (path :benchmarks-scoring-dir))
+(defn benchmarks-runners-dir [] (path :benchmarks-runners-dir))
+(defn prf-core-shortfall-manifest [] (path :prf-core-shortfall-manifest))
+(defn prf-core-yield-manifest [] (path :prf-core-yield-manifest))
+(defn prf-core-deterministic-replay-manifest [] (path :prf-core-deterministic-replay-manifest))
+(defn results-root [] (path :results-root))
+(defn reference-validation-suite-dir [] (path :reference-validation-suite-dir))
 (defn docs-dir [] (path :docs-dir))
 (defn stability-manifest [] (path :stability-manifest))
 (defn notebooks-dir [] (path :notebooks-dir))
 (defn notebooks-registry [] (path :notebooks-registry))
 (defn fixtures-dir [] (path :fixtures-dir))
+(defn fixtures-protocol-dir [] (path :fixtures-protocol-dir))
 (defn traces-dir [] (path :traces-dir))
 (defn traces-regression-dir [] (path :traces-regression-dir))
 (defn traces-store-dir [] (path :traces-store-dir))
+(defn test-vectors-dir [] (path :test-vectors-dir))
 (defn golden-dir [] (path :golden-dir))
 (defn fixture-manifest [] (path :fixture-manifest))
 (defn concepts-registry [] (path :concepts-registry))

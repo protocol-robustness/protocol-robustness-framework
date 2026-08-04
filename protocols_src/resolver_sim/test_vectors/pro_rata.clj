@@ -7,7 +7,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [resolver-sim.protocols.sew.test-vectors.slash-allocation :as sew-slash]
-            [resolver-sim.yield.partial-fill :as partial-fill]))
+            [resolver-sim.yield.partial-fill :as partial-fill]
+            [resolver-sim.config.paths :as paths]))
 
 (def liquidity-schema-version "liquidity-fulfillment-vector.v1")
 
@@ -254,7 +255,7 @@
     (.getPath file)))
 
 (defn write-liquidity-fulfillment-vectors!
-  ([] (write-liquidity-fulfillment-vectors! "results/test-vectors/pro-rata"))
+  ([] (write-liquidity-fulfillment-vectors! (str (paths/test-vectors-dir) "/pro-rata")))
   ([dir]
    (mapv #(write-vector! dir (emit-liquidity-fulfillment-vector %)) liquidity-golden-specs)))
 

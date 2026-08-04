@@ -17,11 +17,12 @@
             [resolver-sim.yield.invariant-catalog :as yield-invariant-catalog]
             [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.sim.reference-validation-evidence :as evidence]
-            [resolver-sim.evidence.confidence :as confidence])
+            [resolver-sim.evidence.confidence :as confidence]
+            [resolver-sim.config.paths :as paths])
   (:gen-class))
 
 (def ^{:doc "Default suite root (relative to project root)."}
-  default-suite-root "suites/reference-validation-v1")
+  default-suite-root (paths/reference-validation-suite-dir))
 
 (defn- yield-replay-wrapper
   "Wraps replay-yield-scenario to accept (scenario opts) signature.

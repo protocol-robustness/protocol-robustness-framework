@@ -3,7 +3,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [resolver-sim.io.paths :as paths])
+            [resolver-sim.io.paths :as paths]
+            [resolver-sim.config.paths :as cfg-paths])
   (:import [java.security MessageDigest]
            [java.math BigInteger]
            [java.nio.file Files StandardCopyOption Path Paths]))
@@ -110,7 +111,7 @@
   (let [root (io/file (str (:run/root context)))
         root-path (.toAbsolutePath (.normalize (.toPath root)))
         scenario-root (io/file (str (:scenario/root context)))
-        scenario-prefix (str "scenarios/" (:scenario/slug context) "/")
+        scenario-prefix (str (cfg-paths/scenarios-root) "/" (:scenario/slug context) "/")
         standard-paths (map #(str scenario-prefix %) (remove #(str/starts-with? % "manifest/") (keys known)))
         manifest-paths (filter #(str/starts-with? % "manifest/") (keys known))
         forensic-paths (for [file (file-seq (io/file scenario-root "forensic"))

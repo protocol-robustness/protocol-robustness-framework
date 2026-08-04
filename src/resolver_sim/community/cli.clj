@@ -171,7 +171,7 @@
         (when (.exists reg-file)
           (let [registry (edn/read-string (slurp reg-file))]
             (some (fn [pack]
-                    (let [pack-reg-path (str "benchmarks/" (:pack/registry pack))
+                    (let [pack-reg-path (str (paths/benchmarks-dir) "/" (:pack/registry pack))
                           pack-reg (when (.exists (io/file pack-reg-path))
                                      (edn/read-string (slurp pack-reg-path)))
                           pack-dir (.getParent (io/file pack-reg-path))]
@@ -259,7 +259,7 @@
                                     (mailbox/messages-for-task task-ref))
               benchmark-id (get-in (first announce-msgs) [:body :benchmark/id])
               manifest-path (or (resolve-benchmark-manifest benchmark-id)
-                                "benchmarks/packs/prf-core/deterministic-replay-v1.edn")
+                                (paths/prf-core-deterministic-replay-manifest))
               _ (log/info! :task-manifest {:path manifest-path})
               _ (log/info! :task-executing {:task-ref task-ref})
               evidence (try
@@ -356,7 +356,7 @@
                                     (mailbox/messages-for-task task-ref))
               benchmark-id (get-in (first announce-msgs) [:body :benchmark/id])
               manifest-path (or (resolve-benchmark-manifest benchmark-id)
-                                "benchmarks/packs/prf-core/deterministic-replay-v1.edn")
+                                (paths/prf-core-deterministic-replay-manifest))
               evidence (try
                          (runner/run-benchmark manifest-path)
                          (catch Exception e

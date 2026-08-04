@@ -19,11 +19,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+# Phase 1 supported-combination registry (mirrors TraceEquivalence.t.sol and
+# scripts/reconcile.py).  A fixture's declared (cdrs_version, schema_version)
+# must be in this set, otherwise it fails closed.
+SUPPORTED_FIXTURE_SPECS = {("0.1", "1"), ("0.2", "2")}
 
 
 def parse_edn_entries(path: Path) -> list[dict[str, Any]]:
@@ -176,6 +182,11 @@ def main() -> None:
     # Collect declared destinations
     declared_dests: set[str] = set()
 
+    # Manifest-classified fixtures (pre-existing / harness self-tests) are
+    # tracked and therefore not "undeclared".
+    m = re.search(r":pre-existing-fixtures\s*\[(.*?)\]", raw_manifest, re.S)
+    classified = set(re.findall(r':path\s+"((?:[^"\\]|\\.)*)"', m.group(1))) if m else set()
+
     for entry in entries:
         total += 1
         entry_id = entry.get("id", f"entry-{total}")
@@ -248,7 +259,27 @@ def main() -> None:
                     )
                     entry_ok = False
 
-        # 6. Non-scenario entries must have source-sha256
+        # 6. Fixture declares a supported (cdrs_version, schema_version) combo
+        if dest:
+            dest_path = (sew_repo / dest).resolve()
+            if dest_path.exists():
+                try:
+                    fx = json.loads(dest_path.read_text("utf-8"))
+                    combo = (str(fx.get("cdrs_version", "")), str(fx.get("schema_version", "")))
+                    if combo not in SUPPORTED_FIXTURE_SPECS:
+                        issues.append(
+                            f"unsupported fixture-spec on disk: {combo} "
+                            f"(supported: {sorted(SUPPORTED_FIXTURE_SPECS)})"
+                        )
+                        entry_ok = False
+                    elif cdrs_ver == "0.2" and combo != ("0.2", "2"):
+                        issues.append(f"manifest declares cdrs-version 0.2 but fixture declares {combo}")
+                        entry_ok = False
+                except Exception as e:  # pragma: no cover
+                    issues.append(f"could not parse destination fixture: {e}")
+                    entry_ok = False
+
+        # 7. Non-scenario entries must have source-sha256
         if not scenario and source_sha_manifest is None and source:
             issues.append("non-scenario entry without :source-sha256 — run sync to populate")
             entry_ok = False
@@ -268,7 +299,8 @@ def main() -> None:
 
     existing = collect_trace_fixtures(sew_repo)
     declared = {Path(d) for d in declared_dests}
-    undeclared = existing - declared
+    classified = {Path(c) for c in classified}
+    undeclared = existing - declared - classified
 
     if undeclared:
         for f in sorted(str(p) for p in undeclared):

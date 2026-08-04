@@ -266,7 +266,7 @@
    Exits with 0 on success, 1 on operational error."
   [& args]
   (let [registry-path (or (first args)
-                          "results/test-artifacts/test-artifacts.json")
+                          (evcfg/artifact-path :artifacts/registry))
         f (java.io.File. registry-path)]
     (if (.exists f)
       (try

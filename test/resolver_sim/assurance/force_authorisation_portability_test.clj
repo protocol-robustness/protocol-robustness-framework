@@ -470,7 +470,57 @@
     (is (= 1 (:invalid-count r)))
     (is (= [1] (mapv :index (:invalid-artifacts r))))
     (is (= ["adj-2"] (mapv :adjustment-id (:invalid-artifacts r))))
+    (is (= [:content-hash-mismatch] (mapv :reason (:invalid-artifacts r))))
     (is (true? (fa-ev/valid-force-auth-add-held-summary? r)))))
+
+(deftest force-auth-add-held-summary-invalid-reason-taxonomy
+  (testing "invalid artifacts are triaged with a concrete reason"
+    (let [good (sample-add-held :USDC 100 :in)
+          wrong-version (assoc (sample-add-held :USDC 100 :in "adj-1")
+                               :schema-version "force-auth-add-held.v9")
+          wrong-kind (assoc (sample-add-held :USDC 100 :in "adj-2")
+                            :artifact/kind :not-add-held)
+          wrong-verifier (assoc (sample-add-held :USDC 100 :in "adj-3")
+                                :artifact/verifier "wrong-verifier.v1")
+          r (fa-ev/build-force-auth-add-held-summary
+             {:artifacts [good wrong-version wrong-kind wrong-verifier]})]
+      (is (= 1 (:valid-count r)))
+      (is (= [:schema-version-mismatch :artifact-kind-mismatch :verifier-mismatch]
+             (mapv :reason (:invalid-artifacts r)))))))
+
+(deftest force-auth-add-held-summary-amount-integrity-triage
+  (testing "missing / non-numeric / negative amounts are flagged; only numeric amounts are summed"
+    (let [good (sample-add-held :USDC 100 :in "adj-good")
+          negative (sample-add-held :USDC -50 :in "adj-neg")
+          ;; Missing/non-numeric amounts cannot come from the builder (scope
+          ;; always supplies an amount) — they surface on hand-crafted artifacts.
+          missing (dissoc (sample-add-held :USDC 100 :in "adj-missing") :held/amount)
+          non-numeric (assoc (sample-add-held :USDC 100 :in "adj-char")
+                             :held/amount "100")
+          r (fa-ev/build-force-auth-add-held-summary
+             {:artifacts [good missing non-numeric negative]})]
+      (is (= 50 (:total-amount r)))
+      (is (= 1 (:missing-amount-count r)))
+      (is (= 1 (:non-numeric-amount-count r)))
+      (is (= 1 (:negative-amount-count r)))
+      (is (= [[:missing-amount] [:non-numeric-amount] [:negative-amount]]
+             (mapv (juxt :amount-issue) (:amount-issues r))))
+      (is (= ["adj-missing" "adj-char" "adj-neg"]
+             (mapv :adjustment-id (:amount-issues r))))
+      (is (= {:USDC 50} (:amount-by-token r)))
+      (is (= -50 (:min-amount r)))
+      (is (= 100 (:max-amount r))))))
+
+(deftest force-auth-add-held-summary-amount-integrity-roundtrip
+  (testing "amount-integrity triage survives the v2 content-addressed roundtrip"
+    (let [r (fa-ev/build-force-auth-add-held-summary
+             {:artifacts [(dissoc (sample-add-held :USDC 100 :in "adj-1")
+                                  :held/amount)]})]
+      (is (= 1 (:missing-amount-count r)))
+      (is (true? (fa-ev/valid-force-auth-add-held-summary? r)))
+      (let [v1 (fa-ev/downgrade-add-held-summary-v2->v1 r)]
+        (is (nil? (:amount-issues v1)))
+        (is (nil? (:missing-amount-count v1)))))))
 
 (deftest force-auth-add-held-summary-amount-sums-and-range
   (testing "amount sums by token/direction/account/owner and min/max range"

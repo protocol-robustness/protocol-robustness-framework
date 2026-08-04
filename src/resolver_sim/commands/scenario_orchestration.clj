@@ -5,6 +5,7 @@
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.paths :as paths]
+            [resolver-sim.config.paths :as cfg-paths]
             [resolver-sim.io.scenarios :as io-scenarios]
             [resolver-sim.commands.scenario-manifest :as manifest]
             [resolver-sim.commands.scenario-safety :as safety]
@@ -421,7 +422,7 @@
                                       :sha256 (str "sha256:" (lifecycle/sha256-file finalization-file))}
                    :evidence_content_registry {:ref "evidence/content-registry.json"
                                                :sha256 (str "sha256:" (lifecycle/sha256-file content-registry-file))}
-                   :runner_finalization {:ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json")
+                   :runner_finalization {:ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/runner-finalization.json")
                                          :sha256 (when (.isFile runner-finalization-file)
                                                    (str "sha256:" (lifecycle/sha256-file runner-finalization-file)))}
                    :outer_registry {:ref paths/artifacts-registry
@@ -480,7 +481,7 @@
                 {:ref relative
                  :sha256 (when (.isFile file) (str "sha256:" (lifecycle/sha256-file file)))
                  :bytes (when (.isFile file) (.length file))}))]
-    (let [dag-relative (str "scenarios/" (:scenario/slug c) "/execution/execution-dag.json")
+    (let [dag-relative (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/execution-dag.json")
           dag-file (io/file root dag-relative)]
       (when-not (.isFile dag-file)
         (throw (ex-info "Canonical package requires a persisted execution DAG"
@@ -495,14 +496,14 @@
         :run-type :single-scenario
         :bundle-root-hash (get-in execution [:bundle-root :bundle/hash])
         :input-snapshot (ref (get-in execution [:input/provenance :input/snapshot-relative]))
-        :scenario-finalization (ref (str "scenarios/" (:scenario/slug c) "/forensic/finalizations/scenarios/" (:scenario/slug c) "/evidence-finalization.json"))
-        :runner-finalization (ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json"))
+        :scenario-finalization (ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/forensic/finalizations/scenarios/" (:scenario/slug c) "/evidence-finalization.json"))
+        :runner-finalization (ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/runner-finalization.json"))
         :run-finalization (ref "evidence/finalizations/run/evidence-finalization.json")
         :canonical-assurance (ref "manifest/canonical-integrity.json")
         :verdict-policy (ref "manifest/verdict-policy.json")
         :artifact-registry (ref paths/artifacts-registry)
         :registry-validation (ref "manifest/artifact-registry-validation.json")
-        :execution-dag (ref (str "scenarios/" (:scenario/slug c) "/execution/execution-dag.json"))
+        :execution-dag (ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/execution-dag.json"))
         :pro-rata-mechanism-nodes (when (.isFile (io/file root "manifest/pro-rata-mechanism-nodes.json"))
                                     (ref "manifest/pro-rata-mechanism-nodes.json"))}))))
 (defn default-write-diagnostic! [c execution] (diagnostics/write! c execution))
@@ -558,7 +559,7 @@
       :outcome outcome
       :exit_code (:exit-code e)
       :manifest_ref "manifest/run.json"
-      :runner_finalization_ref (str "scenarios/" (:scenario/slug c) "/execution/runner-finalization.json")
+      :runner_finalization_ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/runner-finalization.json")
       :runner_finalization_sha256 (when (.isFile runner-finalization)
                                     (str "sha256:" (lifecycle/sha256-file runner-finalization)))
       :run_package_index_ref paths/run-package-index

@@ -17,7 +17,7 @@
  :concept/related
    [:allocation/partial-fill
     :allocation/shortfall
-    :allocation/deferred-class
+    :allocation/deferred-claim
     :allocation/pro-rata-fairness
     :allocation/redistribution-fairness
     :consensus/finality

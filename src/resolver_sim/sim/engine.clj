@@ -12,7 +12,8 @@
 
      run-epoch-simulation — drive an epoch-state simulation to completion
      run-sweep            — run multiple epoch simulations under a common label"
-  (:require [resolver-sim.stochastic.rng :as rng]))
+  (:require [resolver-sim.stochastic.rng :as rng]
+            [resolver-sim.config.paths :as paths]))
 
 ;; ---------------------------------------------------------------------------
 ;; Standard result schema
@@ -126,7 +127,7 @@
   [{:keys [label initial-state update-fn epochs seed params summary-fn persist-trace-fn]}]
   (println (format "📋 %s" label))
   (let [d-rng   (rng/make-rng seed)
-        res-dir (format "results/%s" (java.time.LocalDateTime/now))]
+        res-dir (format "%s/%s" (paths/results-root) (java.time.LocalDateTime/now))]
     (loop [epoch   1
            state   initial-state
            history []]

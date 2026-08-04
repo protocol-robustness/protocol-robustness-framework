@@ -1,25 +1,26 @@
 # PRF / Sew Protocol — Trace Equivalence Attestation
 
-**Generated:** 2026-08-04T10:46:03Z
-**Manifest:** `etc/trace-solidity-manifest.edn` (SHA-256: `5864708529e65edc499a7b98d1e4c1794d6dce5c690abebb6be074a2040fe66e`)
+**Generated:** 2026-08-04T14:07:34Z
+**Manifest:** `etc/trace-solidity-manifest.edn` (SHA-256: `408b9a2b35fb570bacc00bcefa248d78e2ee7bfca43484a014f8570baab5b863`)
 **Clojure repo:** `/home/user/Code/.workspaces/agent-c`
 **Solidity repo:** `/home/user/Code/sew-protocol`
+**Solidity commit:** `f248eceb9d80d9228367cd8a39f618c99e09b9a9`
 
 ---
 
 ## Summary
 
-The Clojure reference implementation and the sew-protocol Solidity implementation are bound by a SHA-256 trace manifest. Within that manifest, each trace is classified by how far its equivalence is demonstrated:
+The Clojure reference implementation and the sew-protocol Solidity implementation are bound by a SHA-256 trace manifest. Within that manifest, each trace is classified by how far its equivalence is demonstrated. The vocabulary is load-bearing: **fixture sync integrity** (byte identity) is NOT contract equivalence.
 
-- **Contract-replayed** — the fixture is replayed against live contracts by a Forge test in `TraceEquivalenceTest.sol`, asserting the EVM projection against the simulation at every step, plus the invariant profile and terminal projection hash.
-- **Byte-synchronised only** — the fixture is byte-identical (SHA-256) to the Clojure source and the projection is validated structurally, but no Forge test replays it yet because it uses actions the basic vault harness cannot reproduce.
+- **Contract-replayed** — the fixture was replayed against live contracts by a Forge test in `TraceEquivalenceTest.sol`, with a per-trace replay receipt emitted under `out/receipts/` as execution evidence. Each receipt records the fixture content hash, the negotiated replay-spec, and observable invariant-profile application. Only these traces are `equivalence verified`.
+- **Byte-synchronised only** — the fixture is byte-identical (SHA-256) to the Clojure source, but no replay receipt exists yet because the trace uses actions the basic vault harness cannot reproduce.
 
 | Metric | Value |
 |--------|-------|
 | Manifest traces | 18 |
-| Manifest SHA-256 | `5864708529e65edc499a7b98d1e4c1794d6dce5c690abebb6be074a2040fe66e` |
+| Manifest SHA-256 | `408b9a2b35fb570bacc00bcefa248d78e2ee7bfca43484a014f8570baab5b863` |
 | Fixture schema | CDRS v0.2 (schema_version 2) |
-| Forge tests passed | 34/34 |
+| Forge tests passed | 38/38 |
 | Contract-replayed | 10 |
 | Byte-synchronised only | 8 |
 
@@ -27,7 +28,7 @@ The Clojure reference implementation and the sew-protocol Solidity implementatio
 
 ## Contract-Replayed Traces (10)
 
-These fixtures are wired into `TraceEquivalenceTest.sol` and the execution-level assertions (per-step projection, invariant profile, terminal projection hash) actually run against the EVM.
+These fixtures were replayed against the EVM and have a replay receipt under `out/receipts/` as execution evidence. The receipts, not the test-function inventory, define this set. Execution-level assertions (per-step projection, invariant profile with observable application, terminal projection hash) run for each.
 
 | ID | Source path | Source SHA-256 | Forge fixture |
 |---|---|---|---|
@@ -101,7 +102,7 @@ cd ../sew-protocol
 forge test --match-contract TraceEquivalenceTest -vvv
 ```
 
-Result at generation time: 34/34 passed (of which 10 are contract-replayed manifest traces).
+Result at generation time: 38/38 passed (of which 10 are contract-replayed manifest traces).
 
 ### Step 3 — Regenerate this attestation
 

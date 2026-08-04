@@ -1,7 +1,8 @@
 (ns resolver-sim.notebook-support.ui
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
-            [resolver-sim.notebook-support.theme :refer [notebook-theme]]))
+            [resolver-sim.notebook-support.theme :refer [notebook-theme]]
+            [resolver-sim.config.paths :as paths]))
 
 (def default-ui-state
   {:selected-trial-id nil
@@ -174,11 +175,12 @@
          [:span {:style {:color "#94a3b8"}} (str "• current: " current-label)])]])))
 
 (defn reference-validation-status []
-  (let [required ["suites/reference-validation-v1/expected/summary.json"
-                  "suites/reference-validation-v1/actual/summary.json"
-                  "suites/reference-validation-v1/expected/summary.sha256"
-                  "suites/reference-validation-v1/actual/summary.sha256"
-                  "suites/reference-validation-v1/reports/reference-validation-v1.md"]
+  (let [suite (paths/reference-validation-suite-dir)
+        required [(str suite "/expected/summary.json")
+                  (str suite "/actual/summary.json")
+                  (str suite "/expected/summary.sha256")
+                  (str suite "/actual/summary.sha256")
+                  (str suite "/reports/reference-validation-v1.md")]
         present? (fn [p] (.exists (io/file p)))
         present (filter present? required)
         missing (remove present? required)
@@ -199,7 +201,7 @@
               [:div {:style {:marginTop "8px" :fontSize "0.86em"}}
                [:a {:href "/notebooks/report" :style {:color "#60a5fa" :fontWeight "600"}} "Open Report notebook"]
                " · "
-               [:a {:href "suites/reference-validation-v1/reports/reference-validation-v1.md" :style {:color "#60a5fa" :fontWeight "600"}}
+               [:a {:href (str (paths/reference-validation-suite-dir) "/reports/reference-validation-v1.md") :style {:color "#60a5fa" :fontWeight "600"}}
                 "Open reference validation report"]]])))
 
 (defn provenance-footer [run]

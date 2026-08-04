@@ -51,11 +51,32 @@
    :version 1
    :content-root "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"}
   :trace-set-root (sha256 of 18 trace entries — computed at generation time)
-  :projection-schema :evm-projection-v1}
+  :projection-schema :evm-projection-v1
+  ;; Phase 1: capability-aware frozen extension-resolution snapshot for the
+  ;; built-in executable set.  Each entry declares the fixture-specs it
+  ;; supports; the root is the SHA-256 of the canonical serialisation
+  ;; (id|version|kind|sorted fixture-specs, sorted by id) and is recomputed by
+  ;; TraceEquivalenceTest (fail-closed root-drift check), reconcile.py, and
+  ;; this manifest.  Phase 3 binds the full implementation provenance
+  ;; (simulator/contract/harness/generator commits + source roots).
+  :extension-resolution
+  {:root "sha256:091280b11d9fb3ae220517a7e8e3e4f23a985d650f89ea168a07b71863779e3d"
+   :entries
+   [{:extension/id :trace/action.resolve :extension/version "1" :extension/kind :trace/action
+     :fixture-specs [{:cdrs-version "0.1" :schema-version "1"}
+                     {:cdrs-version "0.2" :schema-version "2"}]}
+    {:extension/id :trace/profile.equivalence-v1 :extension/version "1" :extension/kind :trace/invariant-profile
+     :fixture-specs [{:cdrs-version "0.2" :schema-version "2"}]}
+    {:extension/id :trace/projection.sew-v2 :extension/version "2" :extension/kind :trace/state-projection
+     :fixture-specs [{:cdrs-version "0.2" :schema-version "2"}]}]
+   ;; Supported negotiated replay-spec ids (fixture-spec + profile + harness).
+   :supported-replay-specs
+   ["cdrs-0.1.schema-1.profile-none.harness-1"
+    "cdrs-0.2.schema-2.profile-1.harness-1"]}}
 
  :solidity-coverage
- {:test-count 34
-  :pass-count 34
+ {:test-count 38
+  :pass-count 38
   :manifest-total 18
   ;; Contract-replayed = manifest traces with a Forge test method in
   ;; TraceEquivalenceTest.sol (enumerated by scanning the test contract).
@@ -89,7 +110,13 @@
    {:path "test/foundry/traces/v2/negative/n04.json" :class :negative-adversarial}
    {:path "test/foundry/traces/v2/negative/n05.json" :class :negative-adversarial}
    {:path "test/foundry/traces/v2/negative/n06.json" :class :negative-adversarial}
-   {:path "test/foundry/traces/v2/negative/n07.json" :class :negative-adversarial}]}
+   {:path "test/foundry/traces/v2/negative/n07.json" :class :negative-adversarial}
+   {:path "test/foundry/traces/v2/negative/version/nv01-unknown-cdrs.json" :class :version-rejection}
+   {:path "test/foundry/traces/v2/negative/version/nv02-missing-cdrs.json" :class :version-rejection}
+   {:path "test/foundry/traces/v2/negative/version/nv03-invalid-combo.json" :class :version-rejection}
+   {:path "test/foundry/traces/v2/negative/version/nv04-unsupported-profile.json" :class :version-rejection}
+   {:path "test/foundry/traces/v2/regression/inv-wf0-conservation.json" :class :harness-self-test}
+   {:path "test/foundry/traces/v2/regression/inv-wf0-two-escrows.json" :class :harness-self-test}]}
 
  :traces
  [

@@ -12,7 +12,8 @@
      • directory location strings for fixtures, scenarios, results"
   (:require [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.io.artifacts :as arts]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.config.paths :as cfg-paths]))
 
 ;; ── Registry-backed filename aliases for canonical artifacts ──────────
 ;; Resolved from config/evidence.json at runtime with code-level fallback.
@@ -37,9 +38,9 @@
 (def json-ext  ".json")
 (def clj-ext   ".clj")
 
-(def fixtures-dir   hash-ref/fixtures-dir)
-(def traces-dir     hash-ref/traces-dir)
-(def golden-dir     hash-ref/golden-dir)
-(def scenarios-edn-dir hash-ref/scenarios-edn-dir)
-(def artf-dir       hash-ref/test-artifacts-dir)
-(def runs-root      hash-ref/results-runs-dir)
+(def fixtures-dir   (cfg-paths/fixtures-dir))
+(def traces-dir     (cfg-paths/traces-dir))
+(def golden-dir     (cfg-paths/golden-dir))
+(def scenarios-edn-dir (cfg-paths/scenarios-dir))
+(def artf-dir       (cfg-paths/test-artifacts-dir))
+(def runs-root      (cfg-paths/runs-root))

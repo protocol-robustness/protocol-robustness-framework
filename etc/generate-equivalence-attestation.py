@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -92,10 +93,38 @@ def parse_edn_entries(raw: str) -> list[dict[str, str]]:
 
 
 def wired_fixture_paths(test_contract_path: Path) -> set[str]:
-    """Fixtures actually replayed by TraceEquivalenceTest, derived from the
-    test contract source rather than hand-maintained lists."""
+    """Fixtures wired into TraceEquivalenceTest (for cross-checking only; the
+    contract-replayed set is derived from replay receipts, not this scan)."""
     text = test_contract_path.read_text("utf-8")
     return set(re.findall(r'_replayTrace\("([^"]+)"\)', text))
+
+
+def read_receipts(sew_repo: Path) -> dict[str, dict[str, Any]]:
+    """Replay receipts emitted by the harness under out/receipts/, keyed by
+    fixture_path.  These are the execution evidence for what was replayed."""
+    receipts_dir = sew_repo / "out" / "receipts"
+    out: dict[str, dict[str, Any]] = {}
+    if not receipts_dir.is_dir():
+        return out
+    for p in receipts_dir.glob("*.json"):
+        try:
+            r = json.loads(p.read_text("utf-8"))
+        except Exception:
+            continue
+        fp = r.get("fixture_path", "")
+        if fp:
+            out[fp] = r
+    return out
+
+
+def git_commit(repo: Path) -> str:
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo,
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+    except Exception:
+        return "(not a git repo)"
 
 
 def run_forge_test(sew_repo: Path) -> tuple[int, int]:
@@ -149,21 +178,40 @@ def main() -> None:
     test_contract = sew_repo / "test/foundry/TraceEquivalence.t.sol"
     wired = wired_fixture_paths(test_contract)
 
-    # Split manifest traces.  A trace is contract-replayed iff its destination
-    # fixture is wired into the test contract.  The two sets are disjoint.
+    # Run Forge first: this is what emits the per-trace replay receipts.
+    forge_passed, forge_failed = run_forge_test(sew_repo)
+
+    # Contract-replayed is DERIVED from replay receipts (execution evidence),
+    # not from the test-contract scan or the manifest :forge-wired inventory.
+    receipts = read_receipts(sew_repo)
+    if not receipts:
+        print(
+            "ERROR: no replay receipts found under "
+            f"{sew_repo / 'out' / 'receipts'}. Run the harness first "
+            "(`cd <sew-repo> && mkdir -p out/receipts && "
+            "forge test --match-contract TraceEquivalenceTest`), then retry.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     contract_replayed: list[dict[str, str]] = []
     byte_synced: list[dict[str, str]] = []
     for e in entries:
         dest = e.get("destination", "")
-        if dest in wired:
+        if dest in receipts:
             contract_replayed.append(e)
         else:
             byte_synced.append(e)
 
     assert len(contract_replayed) + len(byte_synced) == len(entries), "manifest split mismatch"
     assert not (set(id(e) for e in contract_replayed) & set(id(e) for e in byte_synced)), "overlap"
+    # The scan and receipts must agree on the contract-replayed set.
+    wired_manifest = {e["destination"] for e in contract_replayed}
+    assert wired_manifest == (wired & {e.get("destination", "") for e in entries}), (
+        "test-contract scan and replay receipts disagree on the contract-replayed set"
+    )
 
-    forge_passed, forge_failed = run_forge_test(sew_repo)
+    contract_commit = git_commit(sew_repo)
 
     def countline() -> str:
         if forge_passed < 0:
@@ -177,6 +225,7 @@ def main() -> None:
         f"**Manifest:** `{args.manifest}` (SHA-256: `{manifest_sha}`)",
         f"**Clojure repo:** `{repo_root}`",
         f"**Solidity repo:** `{sew_repo}`",
+        f"**Solidity commit:** `{contract_commit}`",
         "",
         "---",
         "",
@@ -185,16 +234,18 @@ def main() -> None:
         "The Clojure reference implementation and the sew-protocol Solidity "
         "implementation are bound by a SHA-256 trace manifest. Within that "
         "manifest, each trace is classified by how far its equivalence is "
-        "demonstrated:",
+        "demonstrated. The vocabulary is load-bearing: **fixture sync integrity** "
+        "(byte identity) is NOT contract equivalence.",
         "",
-        "- **Contract-replayed** — the fixture is replayed against live contracts "
-        "by a Forge test in `TraceEquivalenceTest.sol`, asserting the EVM projection "
-        "against the simulation at every step, plus the invariant profile and "
-        "terminal projection hash.",
+        "- **Contract-replayed** — the fixture was replayed against live contracts "
+        "by a Forge test in `TraceEquivalenceTest.sol`, with a per-trace replay "
+        "receipt emitted under `out/receipts/` as execution evidence. Each receipt "
+        "records the fixture content hash, the negotiated replay-spec, and "
+        "observable invariant-profile application. Only these traces are "
+        "`equivalence verified`.",
         "- **Byte-synchronised only** — the fixture is byte-identical (SHA-256) "
-        "to the Clojure source and the projection is validated structurally, but "
-        "no Forge test replays it yet because it uses actions the basic vault "
-        "harness cannot reproduce.",
+        "to the Clojure source, but no replay receipt exists yet because the "
+        "trace uses actions the basic vault harness cannot reproduce.",
         "",
         f"| Metric | Value |",
         "|--------|-------|",
@@ -209,9 +260,11 @@ def main() -> None:
         "",
         f"## Contract-Replayed Traces ({len(contract_replayed)})",
         "",
-        "These fixtures are wired into `TraceEquivalenceTest.sol` and the "
-        "execution-level assertions (per-step projection, invariant profile, "
-        "terminal projection hash) actually run against the EVM.",
+        "These fixtures were replayed against the EVM and have a replay receipt "
+        "under `out/receipts/` as execution evidence. The receipts, not the "
+        "test-function inventory, define this set. Execution-level assertions "
+        "(per-step projection, invariant profile with observable application, "
+        "terminal projection hash) run for each.",
         "",
         "| ID | Source path | Source SHA-256 | Forge fixture |",
         "|---|---|---|---|",

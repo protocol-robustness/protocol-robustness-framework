@@ -104,6 +104,24 @@ is a separate, named follow-up: a checked-width profile or a
 `mulDiv`-equivalent primitive with boundary vectors near the target integer
 maximum. This spec does not silently impose a width.
 
+### `:resolved-amount` awards (outside the scaled-share evidence contract)
+
+The engine also supports an amount method `:resolved-amount`, whose amount is
+supplied externally on the resolved award (`:award/amount`) rather than derived
+from a parameter. Such awards:
+
+- are validated per-method (no `:scale`/`:rounding`/`:parameter-key` required);
+- produce **no** record in `:distribution/calculations` and contribute
+  **nothing** to `:distribution/summary` — the rate-derived trace/summary
+  contract above covers only `:rate-of-gross` calculations by design;
+- are fully recomputable in verification mode from the stored award amount and
+  funding spec (they are not rate-derived, so no `mulDiv`-style primitive
+  applies).
+
+A distribution with awards must always commit `:distribution/calculations` and
+`:distribution/summary`; `verify-distribution` fails closed if either is absent,
+even when every award is `:resolved-amount` (in which case the trace is empty).
+
 ## Evidence contract
 
 The distribution artifact commits the following:

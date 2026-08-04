@@ -42,7 +42,8 @@
      :yield-provider-scenarios — standalone `yield-v1` provider scenarios (scenarios/Y01..Y05)
      :sew-yield-scenarios       — Sew escrow + yield integration (scenarios/S*)
      :yield-scenarios           — removed June 2026; use :sew-yield-scenarios"
-  (:require [resolver-sim.io.scenarios :as sc]))
+  (:require [resolver-sim.io.scenarios :as sc]
+            [resolver-sim.config.paths :as paths]))
 
 ;; ── Suite path resolution ─────────────────────────────────────────────────────
 ;; Scenario IDs are resolved to file paths via sc/scenario-path.
@@ -126,13 +127,13 @@
    All scenarios are cancellation/terminal-state traces that exercise
    the core griefing-protection, same-timestamp, and auto-cancel paths.
    Each file is a standalone .trace.json — not an executable scenario."
-  ["data/fixtures/traces/s-auto-cancel-time-via-keeper.trace.json"
-   "data/fixtures/traces/s-auto-cancel-time-boundary.trace.json"
-   "data/fixtures/traces/s-auto-cancel-time-orphaned-by-dispute.trace.json"
-   "data/fixtures/traces/s-same-timestamp-auto-cancel-vs-dispute.trace.json"
-   "data/fixtures/traces/s-same-timestamp-dispute-vs-auto-cancel.trace.json"
-   "data/fixtures/traces/s-extortion-unilateral-cancel.trace.json"
-   "data/fixtures/traces/s-extortion-unilateral-cancel-dual.trace.json"])
+  [(str (paths/traces-dir) "/s-auto-cancel-time-via-keeper.trace.json")
+   (str (paths/traces-dir) "/s-auto-cancel-time-boundary.trace.json")
+   (str (paths/traces-dir) "/s-auto-cancel-time-orphaned-by-dispute.trace.json")
+   (str (paths/traces-dir) "/s-same-timestamp-auto-cancel-vs-dispute.trace.json")
+   (str (paths/traces-dir) "/s-same-timestamp-dispute-vs-auto-cancel.trace.json")
+   (str (paths/traces-dir) "/s-extortion-unilateral-cancel.trace.json")
+   (str (paths/traces-dir) "/s-extortion-unilateral-cancel-dual.trace.json")])
 
 (def ^:private reference-validation-scenario-ids
   ["S25_profit-maximizer-slash-lifecycle"

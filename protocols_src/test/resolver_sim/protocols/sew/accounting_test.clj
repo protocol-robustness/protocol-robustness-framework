@@ -341,6 +341,27 @@
     (is (= :missing-opening-state (:reconstruction-issue summary)))
     (is (= 1 (:ledger-adjustment-count summary)))))
 
+(deftest final-held-summary-live-matches-replay
+  (testing "live add-held/sub-held world derives a summary that matches replay"
+    (let [w0 (t/empty-world)
+          w1 (ac/add-held w0 usdc 100
+                          {:action "create-escrow"
+                           :reason :escrow-principal-deposited
+                           :extra {:held/workflow-id 7 :owner/address alice}})
+          w2 (ac/sub-held w1 usdc 40
+                          {:action "release"
+                           :reason :escrow-settlement-released
+                           :extra {:held/workflow-id 7 :owner/address alice}})
+          summary (custody/final-held-summary (:held-adjustments w2)
+                                              (:held-ledger/index w2)
+                                              (:total-held w2))]
+      (is (true? (:reconstruction-valid? summary)))
+      (is (= 60 (get-in w2 [:total-held usdc])))
+      (is (= 60 (get-in summary [:by-token usdc :final])))
+      (is (= 100 (get-in summary [:by-token usdc :in])))
+      (is (= 40 (get-in summary [:by-token usdc :out])))
+      (is (= 2 (count (:held-adjustments w2)))))))
+
 (deftest ordinary-sew-run-reaches-evaluated-strong-replay
   (testing "An ordinary non-test-style Sew run (init-world + create + release) declares
             held-adjustment completeness, so strong replay is evaluated/pass, reconstructs

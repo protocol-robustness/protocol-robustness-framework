@@ -21,7 +21,7 @@
     (when registry
       (mapcat
        (fn [pack]
-         (let [pack-path (str "benchmarks/" (:pack/registry pack))
+          (let [pack-path (str (paths/benchmarks-dir) "/" (:pack/registry pack))
                pack-data (read-edn pack-path)]
            (when pack-data
              (let [pack-dir (.getParent (io/file pack-path))]

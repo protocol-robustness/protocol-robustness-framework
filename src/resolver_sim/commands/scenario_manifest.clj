@@ -2,7 +2,8 @@
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [resolver-sim.commands.scenario-value-at-risk :as value-at-risk])
+            [resolver-sim.commands.scenario-value-at-risk :as value-at-risk]
+            [resolver-sim.config.paths :as paths])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (defn- atomic-json! [file value]
@@ -91,13 +92,13 @@
         replay (get-in execution [:run-result :results 0] {})
         value-at-risk (value-at-risk/build-observation
                        snapshot replay (:input/provenance execution)
-                       (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
+                       (str (paths/scenarios-root) "/" (:scenario/slug context) "/execution/replay-output.json"))
         value-at-risk-timeline (value-at-risk/value-at-risk-timeline
                                 snapshot replay
-                                (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
+                                (str (paths/scenarios-root) "/" (:scenario/slug context) "/execution/replay-output.json"))
         value-at-risk-validation (value-at-risk/validate-persisted
                                   value-at-risk snapshot replay (:input/provenance execution)
-                                  (str "scenarios/" (:scenario/slug context) "/execution/replay-output.json"))
+                                  (str (paths/scenarios-root) "/" (:scenario/slug context) "/execution/replay-output.json"))
         _ (when (and (not= "not-declared" (get value-at-risk "status"))
                      (not= "pass" (get value-at-risk-validation "status")))
             (throw (ex-info "Declared value-at-risk observation failed validation"
