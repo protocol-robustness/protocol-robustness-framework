@@ -21,7 +21,8 @@
      (an/emit-attestation-node! attestation)"
   (:require [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.io.edn :as ppedn]))
 
 ;; ── Constants ────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@
         f (java.io.File. out-dir (attestation-node-filename node))
         path (.getPath f)]
     (.mkdirs (.getParentFile f))
-    (spit path (pr-str node))
+    (spit path (ppedn/ppr-str node))
     (let [entry (attestation-node-artifact-entry node path)]
       (chain/register-additional-artifact! entry)
       {:node node

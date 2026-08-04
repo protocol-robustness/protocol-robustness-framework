@@ -12,7 +12,8 @@
   (:require [clojure.java.io :as io]
             [clojure.data.json :as json]
             [resolver-sim.io.fixtures :as fixtures]
-            [resolver-sim.benchmark.strategic-claim-validation :as strategic]))
+            [resolver-sim.benchmark.strategic-claim-validation :as strategic]
+            [resolver-sim.io.edn :as ppedn]))
 
 ;; ── Available suite definitions ─────────────────────────────────────────────
 
@@ -315,7 +316,7 @@
         edn-path (str base-path "/game-theoretic-validation-artifact.edn")
         json-path (str base-path "/game-theoretic-validation-artifact.json")]
     (io/make-parents edn-path)
-    (spit edn-path (pr-str artifact))
+    (spit edn-path (ppedn/ppr-str artifact))
     (spit json-path (json/write-str artifact {:key-fn name}))
     {:exit-code (if (get-in artifact [:summary :valid?]) 0 1)
      :artifact artifact
@@ -409,9 +410,9 @@
                                                        (name (:suite-key s)) ".edn")
                                    :scenario-count (count (:results s))})
                                 results)}]
-    (spit edn-path (pr-str summary))
+    (spit edn-path (ppedn/ppr-str summary))
     (spit json-path (json/write-str summary {:key-fn name}))
-    (spit manifest-path (pr-str manifest))
+    (spit manifest-path (ppedn/ppr-str manifest))
     {:exit-code exit-code
      :summary summary
      :results results

@@ -10,8 +10,10 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
+            [clojure.walk :as walk]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.commands.scenario-value-at-risk :as value-at-risk]
+            [resolver-sim.commands.scenario-manifest :as scenario-manifest]
             [resolver-sim.evidence.finalization :as finalization]
             [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.forensic.execution-dag :as execution-dag]
@@ -557,7 +559,14 @@
 (defn- validate-value-at-risk
   "Recompute the standalone value-at-risk observation from registry-bound
    source artifacts. The registry path, rather than observation metadata,
-   authoritatively identifies the replay source."
+   authoritatively identifies the replay source.
+
+   Two observation shapes are supported:
+     • strict declaration-driven observation (workflow-scoped, validated by
+       resolver-sim.commands.scenario-value-at-risk);
+     • conservative reviewer projection (carries :declared_protected_amount),
+       recomputed from the input snapshot and replay world via
+       resolver-sim.commands.scenario-manifest/value-at-risk-projection."
   [run-root artifacts]
   (let [registry (artifact-json run-root artifacts :artifact-registry)
         value-entry (when (map? registry)
@@ -566,8 +575,6 @@
                         (registry-artifact-entry registry #(= "manifest/summary.json" (:path %))))
         replay-entry (when (map? registry)
                        (registry-artifact-entry registry #(str/ends-with? (or (:path %) "") "execution/replay-output.json")))
-        ;; Declaration-free scenarios retain a stable not-declared artifact and
-        ;; need no historical replay source to validate that opt-out.
         missing (vec (keep (fn [[artifact entry]] (when-not entry artifact))
                            [[:value-at-risk value-entry] [:summary summary-entry]
                             [:replay-output replay-entry]]))
@@ -585,34 +592,47 @@
                  replay-root)
         snapshot (indexed-edn-artifact run-root artifacts :input-snapshot)
         source-ref (:path replay-entry)
+        not-declared? (= "not-declared" (:status observation))
+        projection? (and (map? observation) (contains? observation :declared_protected_amount))
         observed-source-ref (get-in observation [:calculation :source_ref])
-        ;; The input snapshot and replay path are package-bound. The original
-        ;; input-source provenance contains non-reconstructable origin metadata,
-        ;; so retain the persisted observation provenance only for that field.
         provenance (:derived_from observation)
-        validator (when (and observation snapshot replay source-ref)
+        world (or (:world replay) {})
+        expected-projection (when (and projection? snapshot replay source-ref)
+                              (scenario-manifest/value-at-risk-projection snapshot world source-ref))
+        projection-validator (when expected-projection
+                               (if (= (dissoc (walk/keywordize-keys expected-projection) :source_artifacts)
+                                      (dissoc observation :source_artifacts))
+                                 {:status "pass"}
+                                 {:status "fail" :reason_codes ["projection-mismatch"]}))
+        validator (when (and (not projection?) (not not-declared?) observation snapshot replay source-ref)
                     (try (value-at-risk/validate-persisted observation snapshot replay provenance source-ref)
                          (catch Exception error
                            {:exception (.getMessage error)})))
-        not-declared? (= "not-declared" (:status observation))
         missing (if not-declared? (vec (remove #{:replay-output} missing)) missing)
-        reasons (vec (concat
-                      (when (seq missing)
-                        [(reason :value-at-risk/source-not-registered :artifacts missing)])
-                      (when (and (not not-declared?) source-ref (not= source-ref observed-source-ref))
-                        [(reason :value-at-risk/source-ref-mismatch
-                                 :expected source-ref :actual observed-source-ref)])
-                      (when (and observation summary
-                                 (not= observation (:value_at_risk summary)))
-                        [(reason :value-at-risk/summary-mismatch)])
-                      (when (and (not not-declared?) (empty? missing)
-                                 (or (nil? observation) (nil? summary) (nil? replay) (nil? snapshot)))
-                        [(reason :value-at-risk/validator-failed
-                                 :causes ["required-artifact-unreadable"])])
-                      (when (and (not not-declared?) validator (not= "pass" (:status validator)))
-                        [(reason :value-at-risk/validator-failed
-                                 :causes (or (:reason_codes validator)
-                                             [(:exception validator) "validator-failed"]))])))]
+        reasons (cond-> []
+                  (seq missing)
+                  (conj (reason :value-at-risk/source-not-registered :artifacts missing))
+                  (and (not projection?) (not not-declared?) source-ref
+                       (not= source-ref observed-source-ref))
+                  (conj (reason :value-at-risk/source-ref-mismatch
+                                :expected source-ref :actual observed-source-ref))
+                  (and observation summary
+                       (not= observation (:value_at_risk summary)))
+                  (conj (reason :value-at-risk/summary-mismatch))
+                  (and (not not-declared?) (empty? missing)
+                       (or (nil? observation) (nil? summary) (nil? replay) (nil? snapshot)))
+                  (conj (reason :value-at-risk/validator-failed
+                                :causes ["required-artifact-unreadable"]))
+                  (and (not not-declared?) projection? projection-validator
+                       (not= "pass" (:status projection-validator)))
+                  (conj (reason :value-at-risk/validator-failed
+                                :causes (or (:reason_codes projection-validator)
+                                            ["projection-mismatch"])))
+                  (and (not projection?) (not not-declared?) validator
+                       (not= "pass" (:status validator)))
+                  (conj (reason :value-at-risk/validator-failed
+                                :causes (or (:reason_codes validator)
+                                            [(:exception validator) "validator-failed"]))))]
     {:valid? (empty? reasons)
      :value-at-risk-path (:path value-entry)
      :summary-path (:path summary-entry)

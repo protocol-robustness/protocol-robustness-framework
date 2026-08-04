@@ -7,7 +7,8 @@
             [clojure.data.json :as json]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.vcs :as vcs]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.io.edn :as ppedn]))
 
 ;; ── Check helpers ───────────────────────────────────────────────────────────
 
@@ -133,7 +134,7 @@
                 :checks results}
         edn-path (str effective-out-dir "/doctor-report.edn")
         json-path (str effective-out-dir "/doctor-report.json")]
-    (spit edn-path (pr-str report))
+    (spit edn-path (ppedn/ppr-str report))
     (spit json-path (json/write-str report {:key-fn name}))
     (assoc report
            :exit-code (if healthy? 0 1)
@@ -215,7 +216,7 @@
                 :results results}
         edn-path (str effective-out-dir "/portability-report.edn")
         json-path (str effective-out-dir "/portability-report.json")]
-    (spit edn-path (pr-str report))
+    (spit edn-path (ppedn/ppr-str report))
     (spit json-path (json/write-str report {:key-fn name}))
     (assoc report
            :exit-code (if portable? 0 1)

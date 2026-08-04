@@ -19,6 +19,7 @@
             [resolver-sim.io.fixtures :as io-fix]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
+            [resolver-sim.io.edn :as ppedn]
             [resolver-sim.logging :as log]
             [resolver-sim.protocols.registry :as preg]
             [resolver-sim.run.bundle-root :as br]
@@ -1080,7 +1081,7 @@
                  :generated-at (str (java.time.Instant/now))}
           f (io/file dir "_run-links.edn")]
       (.mkdirs (io/file dir))
-      (spit f (pr-str links))
+      (spit f (ppedn/ppr-str links))
       (log-event :info :run-links-written
                  :path (.getPath f)
                  :scenario scenario-path))

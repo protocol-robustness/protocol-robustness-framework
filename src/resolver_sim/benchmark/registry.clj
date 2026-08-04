@@ -1,6 +1,7 @@
 (ns resolver-sim.benchmark.registry
   (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [resolver-sim.io.edn :as ppedn]))
 
 (def registry-root (str (System/getProperty "user.home") "/.protocol-robustness/evidence"))
 
@@ -17,7 +18,7 @@
       [])))
 
 (defn- save-history [history]
-  (spit (get-history-file) (pr-str history)))
+  (spit (get-history-file) (ppedn/ppr-str history)))
 
 (defn record-entry [entry]
   (ensure-registry)

@@ -23,7 +23,8 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [resolver-sim.config.paths :as paths])
+            [resolver-sim.config.paths :as paths]
+            [resolver-sim.io.edn :as ppedn])
   (:import [java.math BigInteger]
            [java.security MessageDigest]))
 
@@ -130,7 +131,7 @@
   (when path
     (let [file (io/file path)]
       (.mkdirs (.getParentFile file))
-      (spit file (pr-str (cond-> {:schema_version "benchmark-execution-plan.v1"
+      (spit file (ppedn/ppr-str (cond-> {:schema_version "benchmark-execution-plan.v1"
                                   :benchmark/id (:benchmark/id benchmark)
                                   :executions plan}
                            (:benchmark/trust-sequence-definition-root benchmark)
@@ -168,8 +169,8 @@
       (.mkdirs (.getParentFile replay-file))
       (with-open [in (input-source/open-stream scenario-source)]
         (io/copy in input-file))
-      (spit replay-file (pr-str result))
-      (spit summary-file (pr-str {:scenario/source-path (:input/ref scenario-source)
+      (spit replay-file (ppedn/ppr-str result))
+      (spit summary-file (ppedn/ppr-str {:scenario/source-path (:input/ref scenario-source)
                                   :scenario/protocol (:protocol scenario)
                                   :outcome (:outcome result)
                                   :halt-reason (:halt-reason result)
@@ -254,7 +255,7 @@
                                        :else :pass)})
                           all-inv-ids)
         _ (when-let [summary-path (get-in execution-package [:scenario/summary])]
-            (spit summary-path (pr-str {:scenario/source-path (:input/ref scenario-source)
+            (spit summary-path (ppedn/ppr-str {:scenario/source-path (:input/ref scenario-source)
                                         :scenario/protocol protocol
                                         :outcome (:outcome replay-result)
                                         :halt-reason (:halt-reason replay-result)
@@ -361,7 +362,7 @@
                  :execution-count (count executions)
                  :executions executions}]
       (.mkdirs (.getParentFile (io/file index-path)))
-      (spit index-path (pr-str index))
+      (spit index-path (ppedn/ppr-str index))
       {:path index-path
        :sha256 (sha256-file index-path)})))
 
@@ -561,7 +562,7 @@
                     (cond-> run-manifest (assoc :run/manifest run-manifest))
                     normalize-runtime-values
                     sort-maps)]
-     (spit output-path (pr-str stable))
+     (spit output-path (ppedn/ppr-str stable))
      (log/info! "benchmark/evidence-written" {:output-path output-path
                                               :sorted-keys? true
                                               :runtime-values-normalized? true})

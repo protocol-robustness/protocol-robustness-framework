@@ -33,7 +33,8 @@
             [resolver-sim.evidence.attestation-integrity :as integrity]
             [resolver-sim.evidence.attestation-signature :as signature]
             [resolver-sim.definitions.passive-registries :as registries]
-            [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.io.edn :as ppedn])
   (:import [java.security MessageDigest]))
 
 ;; ── Constants ────────────────────────────────────────────────────────────────
@@ -710,27 +711,27 @@
         ;; Write attestations
          _ (doseq [a (:attestations objects-map [])]
              (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
-               (spit path (pr-str a))))
+               (spit path (ppedn/ppr-str a))))
         ;; Write claim results
          _ (doseq [c (:claim-results objects-map [])]
              (let [h (or (:claim-result-hash c) (compute-object-hash c))
                    path (object-path bundle-dir "claims" h)]
-               (spit path (pr-str c))))
+               (spit path (ppedn/ppr-str c))))
         ;; Write evidence nodes
          _ (doseq [n (:evidence-nodes objects-map [])]
              (let [path (object-path bundle-dir "evidence-nodes" (:node-hash n))]
-               (spit path (pr-str n))))
+               (spit path (ppedn/ppr-str n))))
         ;; Write registries
          _ (doseq [[reg-kind reg-map] (:bundle/registries bundle)]
              (spit (require-contained-path bundle (:registry/path reg-map))
-                   (pr-str (get objects-map reg-kind))))
+                   (ppedn/ppr-str (get objects-map reg-kind))))
         ;; Write sensitivity report
          _ (when-let [report-path (get-in bundle [:bundle/sensitivity :sentinel/path])]
              (spit (require-contained-path bundle report-path)
                    (pr-str (:sensitivity-report objects-map))))
         ;; Write manifest without runtime-only trust context.
          manifest-path (io/file bundle-dir "manifest.edn")]
-     (spit manifest-path (pr-str (dissoc bundle runtime-root-key)))
+     (spit manifest-path (ppedn/ppr-str (dissoc bundle runtime-root-key)))
      (str (io/file bundle-dir ".written")))))
 
 (defn read-attestation-bundle

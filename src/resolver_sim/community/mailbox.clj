@@ -3,7 +3,8 @@
             [clojure.edn :as edn]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.signing :as signing]
-            [resolver-sim.community.task :as task]))
+            [resolver-sim.community.task :as task]
+            [resolver-sim.io.edn :as ppedn]))
 
 (def ^:const schema-version "community-mailbox.v0")
 (def ^:const domain-tag "COMMUNITY_MAILBOX_V0")
@@ -89,7 +90,7 @@
   (let [path (message-path (:message/hash msg))]
     (if (.exists (io/file path))
       :duplicate
-      (do (spit path (pr-str msg))
+      (do (spit path (ppedn/ppr-str msg))
           :published))))
 
 (defn list-messages

@@ -80,17 +80,15 @@
     (try (edn/read-string (slurp path))
          (catch Exception _ nil))))
 
-(defn value-at-risk-summary
-  "Conservative reviewer projection. Declared protected amounts come from
+(defn value-at-risk-projection
+  "Conservative reviewer projection (pure). Declared protected amounts come from
    persisted create_escrow and yield_deposit input events; terminal custody comes
    from the replay world's :total-held map. When a scenario declares a liquidity
    shortfall (set-yield-risk :shortfall :available-ratio), the projection derives
    the available custody and the shortfall as the value-at-risk. It does not
    otherwise infer a monetary loss where no expected-loss model is declared."
-  [execution]
-  (let [snapshot (read-snapshot execution)
-        world (get-in execution [:run-result :results 0 :world] {})
-        declared (if snapshot (declared-protected-amounts snapshot) [])
+  [snapshot world snapshot-ref]
+  (let [declared (if snapshot (declared-protected-amounts snapshot) [])
         terminal-held (terminal-held-amounts world)
         ratio (declared-available-ratio snapshot)
         projection (shortfall-projection declared ratio)
@@ -104,8 +102,7 @@
                          "basis" "protected amount minus projected available custody"
                          "by_unit" (:shortfall projection)}
                         {"status" "not-derived"
-                         "note" "Terminal held custody is not, by itself, a loss measure."})
-        snapshot-ref (get-in execution [:input/provenance :input/snapshot-relative])]
+                         "note" "Terminal held custody is not, by itself, a loss measure."})]
     {"schema_version" "scenario-value-at-risk.v1"
      "status" (if snapshot "available" "input-snapshot-unavailable")
      "declared_protected_amount" {"basis" "sum of persisted create_escrow / yield_deposit event amounts"
@@ -123,6 +120,12 @@
                                      [{"ref" snapshot-ref "role" "declared protected amount"}
                                       {"ref" "state/world-final.json" "role" "terminal custody"}
                                       {"ref" "summaries/metrics.json" "role" "execution metrics"}]))}))
+
+(defn value-at-risk-summary [execution]
+  (value-at-risk-projection
+   (read-snapshot execution)
+   (get-in execution [:run-result :results 0 :world] {})
+   (get-in execution [:input/provenance :input/snapshot-relative])))
 
 (defn write! [context execution]
   (let [dir (io/file (str (:manifest/dir context)))
@@ -159,7 +162,7 @@
         summary {"manifest" {"schema_version" "summary.v1"}
                  "run" {"id" (:run/id context) "overall_status" status
                         "outcome" {"status" status "exit_code" (:exit-code execution) "duration_ms" (:duration-ms execution 0)}}
-                 "value_at_risk" value-at-risk
+                 "value_at_risk" value-at-risk-persisted
                  "value_at_risk_timeline_ref" "manifest/value-at-risk-timeline.json"
                  "value_at_risk_overview" overview}
         claimable {"schema_version" "claimable-classification.v2" "run_id" (:run/id context)}]

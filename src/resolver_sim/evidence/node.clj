@@ -72,7 +72,8 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.logging :as log]))
+            [resolver-sim.logging :as log]
+            [resolver-sim.io.edn :as ppedn]))
 
 (def ^:const schema-version 1)
 (def ^:const default-policy-id :evidence-policy/computed)
@@ -213,7 +214,7 @@
                  ".tmp"
                  (make-array java.nio.file.attribute.FileAttribute 0))]
         (try
-          (spit (.toFile tmp) (pr-str (canonical-disk-value node)))
+          (spit (.toFile tmp) (ppedn/ppr-str (canonical-disk-value node)))
           (try
             (try
               (java.nio.file.Files/move
