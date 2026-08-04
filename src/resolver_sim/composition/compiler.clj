@@ -47,6 +47,53 @@
   (let [has-in (into #{} (map :to) edges)]
     (seq (remove #(contains? has-in %) (rest node-ids)))))
 
+(defn- custody-conflict-violations
+  "Reject custody-affecting effect conflicts between any two nodes:
+
+   - :exclusive-custody-account — a node claims exclusive custody of an
+     account (:exclusive-accounts) that another node also touches (its
+     :exclusive-accounts or :accounts);
+   - :custody-direction — two nodes touch the same :accounts account with
+     opposite concrete directions (:add vs :sub), which is order-sensitive."
+  [plan-nodes]
+  (let [default {:direction :either :accounts #{} :exclusive-accounts #{}}
+        pairs (for [i (range (count plan-nodes))
+                    j (range (inc i) (count plan-nodes))]
+                [(nth plan-nodes i) (nth plan-nodes j)])]
+    (into []
+          (mapcat (fn [[a b]]
+                    (let [ca (or (:custody a) default)
+                          cb (or (:custody b) default)
+                          a-id (:node/id a) b-id (:node/id b)
+                          a-excl (:exclusive-accounts ca)
+                          b-excl (:exclusive-accounts cb)
+                          a-acc (:accounts ca) b-acc (:accounts cb)
+                          exclusive-a (set/intersection a-excl (set/union b-excl b-acc))
+                          exclusive-b (set/intersection b-excl (set/union a-excl a-acc))
+                          shared-accounts (set/intersection a-acc b-acc)
+                          direction-conflict? (and (seq shared-accounts)
+                                                   (not= :either (:direction ca))
+                                                   (not= :either (:direction cb))
+                                                   (not= (:direction ca) (:direction cb)))]
+                      (cond-> []
+                        (seq exclusive-a)
+                        (conj {:violation/id :violation/custody-effect-conflict
+                               :details {:conflict-kind :exclusive-custody-account
+                                         :nodes [a-id b-id]
+                                         :accounts (vec exclusive-a)}})
+                        (seq exclusive-b)
+                        (conj {:violation/id :violation/custody-effect-conflict
+                               :details {:conflict-kind :exclusive-custody-account
+                                         :nodes [b-id a-id]
+                                         :accounts (vec exclusive-b)}})
+                        direction-conflict?
+                        (conj {:violation/id :violation/custody-effect-conflict
+                               :details {:conflict-kind :custody-direction
+                                         :nodes [a-id b-id]
+                                         :accounts (vec shared-accounts)
+                                         :directions [(:direction ca) (:direction cb)]}})))))
+          pairs)))
+
 ;; ── per-node compilation ──────────────────────────────────────────────────
 
 (defn- compile-node
@@ -111,12 +158,15 @@
                           :output-semantic out-semantic
                           :terminal? (:terminal? control)
                           :may-short-circuit? (:may-short-circuit? control)
+                          :failure-mode (:failure-mode control)
                           :merge-strategy (:merge-strategy effects)
                           :emits (:emits effects)
                           :exclusive-effects (:exclusive-effects effects)
                           :intermediate-output-committed? (:intermediate-output-committed? verification)
                           :spec (:spec node)
-                          :basis (:basis node)}
+                          :basis (:basis node)
+                          :addresses (:node/addresses node)
+                          :custody (:composition/custody c)}
                    :violations []})))))))))
 
 ;; ── compiler ──────────────────────────────────────────────────────────────
@@ -141,7 +191,12 @@
             node-violations (into [] (mapcat :violations) compiled)]
         (if (seq node-violations)
           {:status :invalid :violations node-violations}
-          (let [plan-nodes (mapv :node compiled)
+          (let [;; per-node addresses: a node's own override, else the
+                ;; combination-level default
+                plan-nodes (mapv (fn [n]
+                                   (update n :addresses
+                                           #(or % (:combination/addresses combination))))
+                                 (mapv :node compiled))
                 by-id (into {} (map (fn [n] [(:node/id n) n])) plan-nodes)
                 ;; semantic edge checks over the consecutive chain
                 edge-violations (into []
@@ -197,6 +252,20 @@
                                    [{:violation/id :violation/effect-conflict
                                      :details {:exclusive (vec exclusive)
                                                :emitted (vec (set/intersection exclusive emitted-set))}}])
+                ;; failure-mode consensus: consecutive nodes must agree on how
+                ;; the pipeline fails; otherwise one node's :abort stops a
+                ;; :continue node before it runs, contradicting its contract
+                failure-mode-conflicts (into []
+                                             (mapcat (fn [[a b]]
+                                                       (when (not= (:failure-mode a) (:failure-mode b))
+                                                         [{:violation/id :violation/failure-mode-conflict
+                                                           :details {:nodes [(:node/id a) (:node/id b)]
+                                                                     :failure-modes
+                                                                     [(:failure-mode a) (:failure-mode b)]}}]))
+                                                     (partition 2 1 plan-nodes)))
+                ;; custody-affecting effect conflicts (exclusive accounts and
+                ;; opposite directions on shared custody accounts)
+                custody-conflicts (custody-conflict-violations plan-nodes)
                 ;; merge strategy: combination-level must agree with every node
                 ;; contract; otherwise the plan could bind a strategy a node's
                 ;; contract contradicts
@@ -244,6 +313,8 @@
                                              terminal-violations
                                              basis-violations
                                              effect-conflicts
+                                             custody-conflicts
+                                             failure-mode-conflicts
                                              merge-conflicts
                                              adapter-violations
                                              verification-conflicts
@@ -264,6 +335,7 @@
                                     :nodes plan-nodes
                                     :edges edges
                                     :adapters []
+                                    :addresses (:combination/addresses combination)
                                     :input-contract (:combination/input combination)
                                     :output-contract (:combination/expected-output combination)
                                     :effect-merge-strategy effect-merge-strategy

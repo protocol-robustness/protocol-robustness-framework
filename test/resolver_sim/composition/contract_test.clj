@@ -45,6 +45,22 @@
   (is (some #(= :violation/non-map-composition-contract (:violation/id %))
             (:violations (c/validate-composition-contract 42)))))
 
+(deftest custody-declaration-validated
+  (is (:valid? (c/validate-composition-contract
+                (cc :mutate #(assoc % :composition/custody
+                                    {:direction :add :accounts #{:escrow}})))))
+  (is (some #(= :violation/unsupported-custody-direction (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc % :composition/custody
+                                              {:direction :weird}))))))
+  (is (some #(= :violation/invalid-composition-custody (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc % :composition/custody 42))))))
+  (is (some #(= :violation/invalid-custody-accounts (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc % :composition/custody
+                                              {:accounts [1 2]})))))))
+
 (deftest contract-root-mutation
   (testing "every committed contract field changes the contract root"
     (doseq [[label mutate] [["version" #(assoc % :composition-contract/version 2)]
@@ -57,7 +73,8 @@
                             ["terminal" #(assoc-in % [:composition/control :terminal?] true)]
                             ["failure-mode" #(assoc-in % [:composition/control :failure-mode] :continue)]
                             ["determinism" #(assoc-in % [:composition/determinism :required?] false)]
-                            ["implicit-adapter" #(assoc-in % [:composition/adapters :implicit?] true)]]]
+                            ["implicit-adapter" #(assoc-in % [:composition/adapters :implicit?] true)]
+                            ["custody" #(assoc % :composition/custody {:direction :add :accounts #{:escrow}})]]]
       (is (not= (c/composition-contract-root (cc))
                 (c/composition-contract-root (cc :mutate mutate)))
           (str label " must change the contract root")))))

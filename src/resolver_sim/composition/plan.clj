@@ -27,6 +27,7 @@
                 :plan/nodes
                 :plan/edges
                 :plan/adapters
+                :plan/addresses
                 :plan/input-contract
                 :plan/output-contract
                 :plan/effect-merge-strategy
@@ -40,7 +41,7 @@
 (defn build-plan
   "Assemble a compiled plan from its committed fields and attach :plan/root."
   [{:keys [combination-root compiler-id compiler-version
-           nodes edges adapters input-contract output-contract
+           nodes edges adapters addresses input-contract output-contract
            effect-merge-strategy verification]}]
   (let [base {:plan/schema-version plan-schema-version
               :plan/combination-root combination-root
@@ -49,6 +50,7 @@
               :plan/nodes (vec nodes)
               :plan/edges (vec edges)
               :plan/adapters (vec adapters)
+              :plan/addresses (or addresses {})
               :plan/input-contract input-contract
               :plan/output-contract output-contract
               :plan/effect-merge-strategy effect-merge-strategy

@@ -15,7 +15,8 @@
      → plan verification
      → protocol mutation
      → transition evidence"
-  (:require [resolver-sim.economics.schemas :as schemas]
+  (:require [resolver-sim.accounting.held-adjustment :as ha]
+            [resolver-sim.economics.schemas :as schemas]
             [resolver-sim.hash.canonical :as hc]))
 
 (def effect-schema-domain-tag
@@ -37,11 +38,16 @@
    :obligation/owner :keyword})
 
 (def custody-held-adjustment-schema
+  "A custody-held-adjustment effect models an add-held / sub-held custody
+   mutation: the :held/kind is the economic custody reason (mapped to the
+   add-held :reason), :effect/account the custody account, and the effect may
+   carry :owner/address and :parameter/address attribution."
   {:effect/type :keyword
    :effect/contract :keyword
    :effect/direction :keyword
    :effect/account :keyword
-   :effect/amount :integer})
+   :effect/amount :integer
+   :held/kind :keyword})
 
 (def effect-schema-maps
   "Effect contract id -> schema map."
@@ -167,8 +173,137 @@
 
     :custody/held-adjustment
     {:transition/type :custody-credit
-     :custody/account (:effect/account effect)
-     :custody/direction (:effect/direction effect)
-     :custody/amount (:effect/amount effect)}
+     :held/direction (:effect/direction effect)
+     :held/account (:effect/account effect)
+     :held/kind (:held/kind effect)
+     :held/amount (:effect/amount effect)}
 
     nil))
+
+(defn custody-effect->add-held-opts
+  "Pure projection of a custody-held-adjustment effect into the opts consumed
+   by the Sew add-held primitive:
+     {:action add-held
+      :reason <:held/kind>
+      :parameter/context ... :parameter/address ...}
+
+   This is a projection only; it never mutates custody. A protocol adapter
+   applies it via add-held. Returns nil for non-custody effects."
+  [effect]
+  (when (= :custody/held-adjustment (:effect/type effect))
+    (merge {:action "add-held"
+            :reason (:held/kind effect)}
+           (when (contains? effect :parameter/context)
+             {:parameter/context (:parameter/context effect)})
+           (when (contains? effect :parameter/address)
+             {:parameter/address (:parameter/address effect)})
+           (when (contains? effect :effect/account)
+             {:extra {:held/account (:effect/account effect)}}))))
+
+;; ── canonical held-adjustment records ─────────────────────────────────────
+
+(def held-adjustment-domain-tag
+  "HELD_ADJUSTMENT_V1")
+
+(defn- held-direction
+  "Map an effect direction to the ledger's held direction (:in/:out)."
+  [effect]
+  (case (:effect/direction effect)
+    :add :in
+    :sub :out
+    :in :in
+    :out :out
+    nil))
+
+(defn held-adjustment
+  "Build a canonical held-adjustment record from a validated
+   custody-held-adjustment effect (resolver-sim.accounting.held-adjustment/
+   build-held-adjustment).
+
+   The effect's :held/kind maps to :held/reason, :effect/account to
+   :held/account, and owner/parameter attribution flows through. token and the
+   ledger fields (:held-adjustment/id, :held/before, :held/after,
+   :held/workflow-id, :authorization/provenance) are supplied in opts; before
+   and after remain ledger responsibilities.
+
+   Throws on invalid parameter attribution (context and address must be
+   supplied together). This is a value projection; it never mutates custody."
+  [effect token {:keys [held-adjustment/id held/before held/after
+                        held/workflow-id authorization/provenance]
+                 :as opts}]
+  (let [has-context (contains? effect :parameter/context)
+        has-address (contains? effect :parameter/address)]
+    (when-not (or (and has-context has-address)
+                  (and (not has-context) (not has-address)))
+      (throw (ex-info "custody effect has partial parameter attribution"
+                      {:type :invalid-held-adjustment
+                       :reason :partial-parameter-attribution
+                       :effect effect})))
+    (ha/build-held-adjustment
+     (merge {:held-adjustment/id id
+             :held/direction (or (held-direction effect) :in)
+             :token token
+             :amount (:effect/amount effect)
+             :held/account (:effect/account effect)
+             :held/reason (or (:held/kind effect) :held/unspecified)
+             :held/action (:held/action opts "held-adjustment")
+             :held/before before
+             :held/after after}
+            (when (contains? effect :owner/address)
+              {:owner/address (:owner/address effect)})
+            (when (and has-context has-address)
+              {:parameter/context (:parameter/context effect)
+               :parameter/address (:parameter/address effect)})
+            (when workflow-id {:held/workflow-id workflow-id})
+            (when provenance
+              {:authorization/provenance provenance})))))
+
+(defn add-held-adjustment
+  "Build the canonical add-held held-adjustment record from a validated
+   custody-held-adjustment effect: direction :add (ledger :in), action
+   add-held, token, amount, account, reason from :held/kind, and
+   owner/parameter attribution."
+  [effect token opts]
+  (held-adjustment (assoc effect :effect/direction :add)
+                   token
+                   (assoc opts :held/action "add-held")))
+
+(defn held-adjustment-valid?
+  "True when a custody effect can be projected to a canonical held-adjustment
+   (schema-valid and no parameter-attribution error). Never throws."
+  [effect]
+  (let [fields {:held/direction :in
+                :token :token
+                :amount 0
+                :held/account (:effect/account effect)
+                :held/reason (or (:held/kind effect) :held/unspecified)
+                :parameter/context (:parameter/context effect)
+                :parameter/address (:parameter/address effect)}]
+    (and (:valid? (validate-effect effect))
+         (nil? (ha/held-adjustment-error fields)))))
+
+(defn held-adjustment-root
+  "Content-addressed root of a canonical held-adjustment record, for
+   committing the projected adjustment into execution evidence."
+  [adjustment]
+  (hc/domain-hash held-adjustment-domain-tag adjustment))
+
+(defn custody-effect-conflicts
+  "Detect custody-affecting conflicts among a seq of emitted effects: two
+   custody-held-adjustment effects targeting the same :effect/account with
+   different directions are order-sensitive (non-commutative). Returns a
+   vector of conflict descriptions (empty when none).
+
+   This complements the compiler's compile-time :composition/custody conflict
+   rejection; a protocol adapter may surface these at the evidence layer."
+  [effects]
+  (let [custody (vec (filter #(= :custody/held-adjustment (:effect/type %)) effects))]
+    (into []
+          (for [i (range (count custody))
+                j (range (inc i) (count custody))
+                :let [a (nth custody i) b (nth custody j)]
+                :when (and (= (:effect/account a) (:effect/account b))
+                           (not= (:effect/direction a) (:effect/direction b)))]
+            {:conflict-kind :custody-direction
+             :effect/account (:effect/account a)
+             :directions [(:effect/direction a) (:effect/direction b)]}))))

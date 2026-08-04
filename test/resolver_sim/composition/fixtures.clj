@@ -24,13 +24,45 @@
   {:amount (:amount spec)
    :short-circuit? true})
 
+(defn address-award
+  "Models an add-held custody adjustment: emits a custody-held-adjustment
+   effect carrying the add-held kind (:add-held-kind in :spec), the custody
+   account, the amount, and the owner/parameter addresses from the invocation
+   context — proving addresses and kind flow through plan to invocation."
+  [{:keys [addresses spec]}]
+  {:amount (:amount spec)
+   :effects [{:effect/type :custody/held-adjustment
+              :effect/contract :prf.effect/custody-held-adjustment.v1
+              :effect/direction :add
+              :effect/account (or (:account spec) :escrow)
+              :effect/amount (:amount spec)
+              :held/kind (:add-held-kind spec)
+              :owner/address (:owner/address addresses)
+              :parameter/address (:parameter/address addresses)}]})
+
+(defn held-adjustment-award
+  "Emits a custody-held-adjustment effect with valid parameter attribution
+   (context/address pair from :spec) and an add-held kind, so the emitted
+   effect can be projected to a canonical held-adjustment record."
+  [{:keys [addresses spec]}]
+  {:amount (:amount spec)
+   :effects [{:effect/type :custody/held-adjustment
+              :effect/contract :prf.effect/custody-held-adjustment.v1
+              :effect/direction :add
+              :effect/account (or (:account spec) :escrow)
+              :effect/amount (:amount spec)
+              :held/kind (:add-held-kind spec)
+              :owner/address (:owner/address addresses)
+              :parameter/context (:parameter/context spec)
+              :parameter/address (:parameter/address spec)}]})
+
 ;; ── capability builder ────────────────────────────────────────────────────
 
 (defn cap
   "Build a composition-capable award-amount capability with the given
    composition contract parameters."
   [id & {:keys [input-semantic output-semantic modes terminal? determinism
-                effects exclusive merge entrypoint]
+                effects exclusive merge custody failure-mode entrypoint]
          :or {input-semantic :amount output-semantic :amount
               modes #{:sequential} entrypoint 'resolver-sim.composition.fixtures/identity-award}}]
   {:capability/kind :economics/award-amount
@@ -52,9 +84,13 @@
                           :composition/effects {:emits (or effects #{})
                                                 :merge-strategy (or merge :accumulate)
                                                 :exclusive-effects (or exclusive #{})}
+                          :composition/custody (or custody
+                                                   {:direction :either
+                                                    :accounts #{}
+                                                    :exclusive-accounts #{}})
                           :composition/control {:terminal? (boolean terminal?)
                                                 :may-short-circuit? false
-                                                :failure-mode :abort}
+                                                :failure-mode (or failure-mode :abort)}
                           :composition/determinism {:required? (if (nil? determinism)
                                                                  true determinism)
                                                     :context-reads #{}
@@ -89,10 +125,11 @@
    :combination/expected-output {:schema-ref :prf/calculation-result.v1 :semantic-type output}})
 
 (defn node
-  [id capability-ref & {:keys [version spec basis]
+  [id capability-ref & {:keys [version spec basis addresses]
                         :or {version :any}}]
-  {:node/id id
-   :capability/ref capability-ref
-   :capability/version version
-   :spec spec
-   :basis basis})
+  (cond-> {:node/id id
+           :capability/ref capability-ref
+           :capability/version version
+           :spec spec
+           :basis basis}
+    addresses (assoc :node/addresses addresses)))

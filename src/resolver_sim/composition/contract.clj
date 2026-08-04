@@ -45,6 +45,7 @@
    :composition/roles
    :composition/modes
    :composition/effects
+   :composition/custody
    :composition/control
    :composition/determinism
    :composition/adapters
@@ -61,6 +62,17 @@
   (hc/domain-hash contract-domain-tag (contract-projection contract)))
 
 ;; ── defaults ──────────────────────────────────────────────────────────────
+
+(defn default-custody
+  "Default custody declaration: no fixed direction, no accounts asserted.
+   Custody-affecting capabilities declare the custody accounts they may touch
+   (:accounts), any exclusive accounts they require (:exclusive-accounts), and
+   their direction (:add / :sub / :either) so the compiler can reject custody
+   conflicts before execution."
+  []
+  {:direction :either
+   :accounts #{}
+   :exclusive-accounts #{}})
 
 (defn default-effects
   []
@@ -101,6 +113,7 @@
       (assoc :composition/roles (set (or roles #{})))
       (assoc :composition/modes (set (or modes #{:sequential})))
       (update :composition/effects (fn [v] (merge (default-effects) v)))
+      (update :composition/custody (fn [v] (merge (default-custody) v)))
       (update :composition/control (fn [v] (merge (default-control) v)))
       (update :composition/determinism (fn [v] (merge (default-determinism) v)))
       (update :composition/adapters (fn [v] (merge (default-adapters) v)))
@@ -192,6 +205,27 @@
                      (not (boolean? (:implicit? adapters false))))
               (conj v {:violation/id :violation/invalid-implicit-adapter-flag
                        :details {:implicit? (:implicit? adapters)}})
+              v)
+          custody (:composition/custody contract)
+          v (if (and (some? custody) (not (map? custody)))
+              (conj v {:violation/id :violation/invalid-composition-custody
+                       :details {:custody custody}})
+              (if (and (map? custody)
+                       (not (contains? #{:add :sub :either}
+                                       (:direction custody :either))))
+                (conj v {:violation/id :violation/unsupported-custody-direction
+                         :details {:direction (:direction custody)
+                                   :supported [:add :sub :either]}})
+                v))
+          v (if (and (map? custody)
+                     (not (set? (:accounts custody #{}))))
+              (conj v {:violation/id :violation/invalid-custody-accounts
+                       :details {:accounts (:accounts custody)}})
+              v)
+          v (if (and (map? custody)
+                     (not (set? (:exclusive-accounts custody #{}))))
+              (conj v {:violation/id :violation/invalid-custody-exclusive-accounts
+                       :details {:exclusive-accounts (:exclusive-accounts custody)}})
               v)]
       {:valid? (empty? v)
        :violations (vec v)})))

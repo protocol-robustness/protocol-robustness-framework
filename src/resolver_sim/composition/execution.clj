@@ -64,6 +64,7 @@
                                         {:value (:value acc)
                                          :spec (:spec node)
                                          :params params
+                                         :addresses (:addresses node)
                                          :node/id (:node/id node)})
                                 amount (:amount result)
                                 node-effects (or (:effects result) [])

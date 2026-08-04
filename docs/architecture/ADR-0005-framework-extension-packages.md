@@ -1021,7 +1021,11 @@ A **concrete requested set of capability instances and edges**, declarative
 input to compilation. v1 supports a strict sequential pipeline:
 `:combination/nodes` is the declared order and `:combination/edges` (when
 present) must equal exactly the consecutive chain. Fan-in, fan-out, and all
-other shapes are rejected explicitly.
+other shapes are rejected explicitly. A combination may carry held-custody
+address bindings (`:combination/addresses` — owner and parameter addresses),
+which are committed into the combination root, bound into the compiled plan as
+`:plan/addresses`, and threaded into every node invocation so custody-affecting
+effects carry them.
 
 ### Compiler
 

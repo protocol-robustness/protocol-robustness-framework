@@ -59,6 +59,67 @@
               (:violations (combo/validate-combination
                             (dissoc base :combination/expected-output)))))))
 
+;; ── held-custody addresses ────────────────────────────────────────────────
+
+(def addresses
+  {:owner/address "0xowner"
+   :parameter/address "0xparameter"
+   :parameter/context "sew:governance-snapshot"})
+
+(deftest combination-addresses-validation
+  (let [base (two-stage (fx/ext-map-with))]
+    (is (:valid? (combo/validate-combination (assoc base :combination/addresses addresses))))
+    (is (some #(= :violation/missing-or-invalid-combination-address (:violation/id %))
+              (:violations (combo/validate-combination
+                            (assoc base :combination/addresses {:owner/address "0xowner"})))))
+    (is (some #(= :violation/unknown-combination-address-key (:violation/id %))
+              (:violations (combo/validate-combination
+                            (assoc base :combination/addresses
+                                   (assoc addresses :bogus/address "0x"))))))
+    (is (some #(= :violation/invalid-combination-addresses (:violation/id %))
+              (:violations (combo/validate-combination
+                            (assoc base :combination/addresses [1 2])))))))
+
+(deftest combination-addresses-bound-in-plan
+  (let [emap (fx/ext-map-with)
+        base (two-stage emap)
+        {:keys [status plan]} (compile-it emap (assoc base :combination/addresses addresses))]
+    (is (= :valid status))
+    (is (= addresses (:plan/addresses plan)))
+    (is (not= (:plan/root (:plan (compile-it emap base)))
+              (:plan/root plan))
+        "addresses are a semantic plan input")
+    (is (not= (combo/combination-root base)
+              (combo/combination-root (assoc base :combination/addresses addresses)))
+        "addresses change the combination root")))
+
+(deftest per-node-addresses-override-combination-level
+  (let [emap (fx/ext-map-with)
+        node-addresses {:owner/address "0xnode1" :parameter/address "0xnode1-param"}
+        base (assoc (two-stage emap
+                               (fx/node :n1 [:economics/award-amount :prf/rate-of-gross]
+                                        :addresses node-addresses)
+                               (fx/node :n2 [:economics/award-amount :prf/rate-of-gross]))
+                    :combination/addresses addresses)
+        {:keys [status plan]} (compile-it emap base)]
+    (is (= :valid status))
+    (is (= node-addresses (-> plan :plan/nodes first :addresses))
+        "a node's own addresses win")
+    (is (= addresses (-> plan :plan/nodes second :addresses))
+        "a node without addresses falls back to the combination-level default")
+    (is (not= (-> plan :plan/nodes first :addresses)
+              (-> plan :plan/nodes second :addresses)))))
+
+(deftest invalid-node-addresses-rejected
+  (let [base (assoc (two-stage (fx/ext-map-with)
+                               (fx/node :n1 [:economics/award-amount :prf/rate-of-gross]
+                                        :addresses {:owner/address "0x"}))
+                    :combination/addresses addresses)
+        {:keys [valid? violations]} (combo/validate-combination base)]
+    (is (not valid?))
+    (is (some #(= :violation/missing-or-invalid-combination-address (:violation/id %))
+              violations))))
+
 (deftest explicit-edges-equal-derived-combination-root
   (let [base (two-stage (fx/ext-map-with))
         with-edges (assoc base :combination/edges (combo/effective-edges base))]
@@ -74,7 +135,7 @@
                                                       {:intermediate-output-committed? false})]
                               ["adapters" #(assoc % :combination/adapters [:fixture/adapter])]
                               ["node-capability" #(assoc-in % [:combination/nodes 1 :capability/ref 1]
-                                                          :prf/resolved-amount)]]]
+                                                            :prf/resolved-amount)]]]
         (is (not= (combo/combination-root base)
                   (combo/combination-root (mutate base)))
             (str label " must change the combination root")))))
@@ -213,6 +274,58 @@
                                   (fx/node :n2 [:economics/award-amount :prf/rate-of-gross]))
                        :combination/effect-merge-strategy :accumulate)]
       (is (rejects emap combo :violation/effect-conflict)))))
+
+;; ── custody-affecting effect conflicts ─────────────────────────────────────
+
+(deftest exclusive-custody-account-conflict
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/c1 :custody {:direction :add :accounts #{:escrow}
+                                            :exclusive-accounts #{:escrow}})
+              (fx/cap :fixture/c2 :custody {:direction :add :accounts #{:escrow}}))]
+    (is (rejects emap
+                 (two-stage emap
+                            (fx/node :n1 [:economics/award-amount :fixture/c1])
+                            (fx/node :n2 [:economics/award-amount :fixture/c2]))
+                 :violation/custody-effect-conflict))))
+
+(deftest custody-direction-conflict
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/c1 :custody {:direction :add :accounts #{:escrow}})
+              (fx/cap :fixture/c2 :custody {:direction :sub :accounts #{:escrow}}))]
+    (is (rejects emap
+                 (two-stage emap
+                            (fx/node :n1 [:economics/award-amount :fixture/c1])
+                            (fx/node :n2 [:economics/award-amount :fixture/c2]))
+                 :violation/custody-effect-conflict))))
+
+(deftest same-account-same-direction-compiles
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/c1 :custody {:direction :add :accounts #{:escrow}})
+              (fx/cap :fixture/c2 :custody {:direction :add :accounts #{:escrow}}))
+        {:keys [status]} (compile-it emap
+                                     (two-stage emap
+                                                (fx/node :n1 [:economics/award-amount :fixture/c1])
+                                                (fx/node :n2 [:economics/award-amount :fixture/c2])))]
+    (is (= :valid status))))
+
+(deftest failure-mode-conflict-rejected
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/f1 :failure-mode :abort)
+              (fx/cap :fixture/f2 :failure-mode :continue))]
+    (is (rejects emap
+                 (two-stage emap
+                            (fx/node :n1 [:economics/award-amount :fixture/f1])
+                            (fx/node :n2 [:economics/award-amount :fixture/f2]))
+                 :violation/failure-mode-conflict))))
+
+(deftest same-failure-mode-compiles
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/f1 :failure-mode :abort)
+              (fx/cap :fixture/f2 :failure-mode :abort))]
+    (is (= :valid (:status (compile-it emap
+                                       (two-stage emap
+                                                  (fx/node :n1 [:economics/award-amount :fixture/f1])
+                                                  (fx/node :n2 [:economics/award-amount :fixture/f2]))))))))
 
 (deftest unsupported-adapters-rejected
   (let [emap (fx/ext-map-with)

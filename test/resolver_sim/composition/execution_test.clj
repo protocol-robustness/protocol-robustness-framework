@@ -4,7 +4,8 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.composition.compiler :as comp]
             [resolver-sim.composition.execution :as exec]
-            [resolver-sim.composition.fixtures :as fx]))
+            [resolver-sim.composition.fixtures :as fx]
+            [resolver-sim.economics.effects :as effects]))
 
 (deftest executes-valid-plan-with-value-flow
   (let [emap (fx/ext-map-with (fx/cap :fixture/a) (fx/cap :fixture/b))
@@ -47,6 +48,88 @@
     (is (= :short-circuited (:execution/status result)))
     (is (= 1 (count (:execution/nodes result)))
         "later nodes do not execute after short-circuit")))
+
+(deftest addresses-threaded-to-invocation
+  (let [addresses {:owner/address "0xowner" :parameter/address "0xparameter"}
+        emap (fx/ext-map-with
+              (fx/cap :fixture/a :entrypoint 'resolver-sim.composition.fixtures/address-award))
+        combo (assoc (fx/seq-combination
+                      (fx/node :n1 [:economics/award-amount :fixture/a]
+                               :spec {:amount 10 :add-held-kind :reward})
+                      (fx/node :n2 [:economics/award-amount :fixture/a]
+                               :spec {:amount 5 :add-held-kind :reward}))
+                     :combination/addresses addresses)
+        {:keys [plan]} (comp/compile-combination emap combo)
+        result (exec/execute-compiled-plan plan emap {} 1000)
+        effects (:execution/effects result)]
+    (is (= addresses (:plan/addresses plan)))
+    (is (= 2 (count effects)))
+    (is (every? #(= "0xowner" (:owner/address %)) effects))
+    (is (every? #(= "0xparameter" (:parameter/address %)) effects))
+    (is (every? #(= :prf.effect/custody-held-adjustment.v1 (:effect/contract %)) effects))
+    (is (every? #(= :reward (:held/kind %)) effects))
+    (is (every? #(= {:action "add-held" :reason :reward}
+                    (select-keys (effects/custody-effect->add-held-opts %)
+                                 [:action :reason]))
+                effects))))
+
+(deftest per-node-addresses-threaded-to-invocation
+  (let [combination-addresses {:owner/address "0xdefault" :parameter/address "0xdefault-param"}
+        node-addresses {:owner/address "0xnode1" :parameter/address "0xnode1-param"}
+        emap (fx/ext-map-with
+              (fx/cap :fixture/a :entrypoint 'resolver-sim.composition.fixtures/address-award))
+        combo (assoc (fx/seq-combination
+                      (fx/node :n1 [:economics/award-amount :fixture/a]
+                               :spec {:amount 10} :addresses node-addresses)
+                      (fx/node :n2 [:economics/award-amount :fixture/a]
+                               :spec {:amount 5}))
+                     :combination/addresses combination-addresses)
+        {:keys [plan]} (comp/compile-combination emap combo)
+        result (exec/execute-compiled-plan plan emap {} 1000)]
+    (is (= "0xnode1" (get-in result [:execution/effects 0 :owner/address]))
+        "node 1 uses its own addresses")
+    (is (= "0xdefault" (get-in result [:execution/effects 1 :owner/address]))
+        "node 2 falls back to the combination-level addresses")))
+
+(deftest custody-effect-produces-canonical-held-adjustment
+  (let [addresses {:owner/address "0xowner" :parameter/address "0xunused"}
+        context {:parameter-context/type :protocol-parameters
+                 :parameter-context/root
+                 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                 :parameter-context/version 1
+                 :parameter-context/scope-id :sew.default}
+        emap (fx/ext-map-with
+              (fx/cap :fixture/a
+                      :entrypoint 'resolver-sim.composition.fixtures/held-adjustment-award))
+        combo (assoc (fx/seq-combination
+                      (fx/node :n1 [:economics/award-amount :fixture/a]
+                               :spec {:amount 10
+                                      :add-held-kind :reward
+                                      :account :escrow
+                                      :parameter/context context
+                                      :parameter/address {:parameter/id :sew.params/reward-rate}})
+                      (fx/node :n2 [:economics/award-amount :fixture/a]
+                               :spec {:amount 5
+                                      :add-held-kind :reward
+                                      :account :escrow
+                                      :parameter/context context
+                                      :parameter/address {:parameter/id :sew.params/reward-rate}}))
+                     :combination/addresses addresses)
+        {:keys [plan]} (comp/compile-combination emap combo)
+        result (exec/execute-compiled-plan plan emap {} 1000)
+        effect (first (:execution/effects result))
+        record (effects/add-held-adjustment effect :usdc
+                                            {:held-adjustment/id "held-adjustment-1"
+                                             :held/before 0
+                                             :held/after 10})]
+    (is (= :reward (:held/reason record)))
+    (is (= :escrow (:held/account record)))
+    (is (= :usdc (:token record)))
+    (is (= 10 (:amount record)))
+    (is (= "0xowner" (:owner/address record)))
+    (is (= context (:parameter/context record)))
+    (is (= "held-adjustment-1" (:held-adjustment/id record)))
+    (is (= "add-held" (:held/action record)))))
 
 (deftest raw-combination-rejected
   (let [result (exec/execute-compiled-plan {:combination/nodes []} {} {} 0)]

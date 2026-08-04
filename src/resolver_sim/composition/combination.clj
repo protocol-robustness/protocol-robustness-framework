@@ -14,6 +14,38 @@
 (def combination-domain-tag
   "COMPOSITION_COMBINATION_V1")
 
+(def combination-address-fields
+  "Held-custody address bindings a combination may carry. :owner/address and
+   :parameter/address are required together; :parameter/context is optional.
+   These bind the addresses that custody-affecting effects produced by the
+   composition must carry (mirroring the held-adjustment attribution model)."
+  [:owner/address :parameter/address :parameter/context])
+
+(defn- valid-addresses?
+  [addresses]
+  (and (map? addresses)
+       (every? (fn [k] (contains? addresses k))
+               [:owner/address :parameter/address])
+       (every? #(or (string? %) (keyword? %)) (vals addresses))))
+
+(defn- address-violations
+  "Structural violations for an address map (combination-level or per-node)."
+  [addresses]
+  (let [unknown (if (map? addresses)
+                  (vec (remove (set combination-address-fields) (keys addresses)))
+                  [])]
+    (cond-> []
+      (not (valid-addresses? addresses))
+      (conj {:violation/id (if (map? addresses)
+                             :violation/missing-or-invalid-combination-address
+                             :violation/invalid-combination-addresses)
+             :details {:addresses addresses
+                       :required [:owner/address :parameter/address]}})
+      (seq unknown)
+      (conj {:violation/id :violation/unknown-combination-address-key
+             :details {:unknown unknown
+                       :supported combination-address-fields}}))))
+
 (defn consecutive-edges
   "The canonical consecutive edge chain for an ordered node list."
   [node-ids]
@@ -36,8 +68,9 @@
 (def node-projection-fields
   "Semantic node fields committed to the combination root. Irrelevant source
    metadata (e.g. :source-metadata) is intentionally excluded so semantic
-   roots do not change when it does."
-  [:node/id :capability/ref :capability/version :spec :basis])
+   roots do not change when it does. :node/addresses is an optional per-node
+   held-custody address override."
+  [:node/id :capability/ref :capability/version :spec :basis :node/addresses])
 
 (defn- project-node
   [node]
@@ -58,7 +91,8 @@
                     :combination/expected-output
                     :combination/effect-merge-strategy
                     :combination/adapters
-                    :combination/verification])
+                    :combination/verification
+                    :combination/addresses])
       (assoc :combination/edges (effective-edges combination))
       (update :combination/nodes (fn [ns] (mapv project-node ns)))))
 
@@ -84,6 +118,7 @@
         edges (:combination/edges combination)
         input (:combination/input combination)
         expected-output (:combination/expected-output combination)
+        addresses (:combination/addresses combination)
         chain (consecutive-edges node-ids)
         v (cond-> []
             (not (map? combination))
@@ -138,6 +173,14 @@
                        (mapv (juxt :from :to) edges)))
             (conj {:violation/id :violation/invalid-combination-edges
                    :details {:edges edges
-                             :expected-chain (mapv (juxt :from :to) chain)}}))]
+                             :expected-chain (mapv (juxt :from :to) chain)}}))
+        v (if (some? addresses)
+            (into v (address-violations addresses))
+            v)
+        v (into v (mapcat (fn [n]
+                            (if-let [na (:node/addresses n)]
+                              (address-violations na)
+                              []))
+                          nodes))]
     {:valid? (empty? v)
      :violations (vec v)}))

@@ -54,7 +54,120 @@
                  :effect/contract :prf.effect/obligation-create.v1
                  :obligation/type :test.obligation/reward
                  :obligation/amount 50
-                 :obligation/owner :test.participant/alice}))))
+                 :obligation/owner :test.participant/alice})))
+  (is (:valid? (fx/validate-effect
+                {:effect/type :custody/held-adjustment
+                 :effect/contract :prf.effect/custody-held-adjustment.v1
+                 :effect/direction :add
+                 :effect/account :escrow
+                 :effect/amount 100
+                 :held/kind :escrow
+                 :owner/address "0xowner"
+                 :parameter/address "0xparameter"}))))
+
+(deftest validate-custody-effect-requires-kind
+  (let [{:keys [valid? violations]}
+        (fx/validate-effect
+         {:effect/type :custody/held-adjustment
+          :effect/contract :prf.effect/custody-held-adjustment.v1
+          :effect/direction :add
+          :effect/account :escrow
+          :effect/amount 100})]
+    (is (not valid?))
+    (is (some #(= :violation/missing-schema-key (:violation/id %)) violations))))
+
+(deftest custody-effect-projects-to-add-held-opts
+  (let [effect {:effect/type :custody/held-adjustment
+                :effect/contract :prf.effect/custody-held-adjustment.v1
+                :effect/direction :add
+                :effect/account :escrow
+                :effect/amount 100
+                :held/kind :reward
+                :parameter/context "sew:governance-snapshot"
+                :parameter/address "sew:params/reward-rate"}]
+    (is (= {:action "add-held"
+            :reason :reward
+            :parameter/context "sew:governance-snapshot"
+            :parameter/address "sew:params/reward-rate"
+            :extra {:held/account :escrow}}
+           (fx/custody-effect->add-held-opts effect))))
+  (is (nil? (fx/custody-effect->add-held-opts
+             {:effect/type :balance/credit
+              :effect/contract :prf.effect/balance-credit.v1
+              :effect/account :x :effect/amount 1}))))
+
+;; ── canonical held-adjustment records ─────────────────────────────────────
+
+(def custody-effect
+  {:effect/type :custody/held-adjustment
+   :effect/contract :prf.effect/custody-held-adjustment.v1
+   :effect/direction :add
+   :effect/account :escrow
+   :effect/amount 100
+   :held/kind :reward
+   :owner/address "0xowner"
+   :parameter/context {:parameter-context/type :protocol-parameters
+                       :parameter-context/root
+                       "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                       :parameter-context/version 1
+                       :parameter-context/scope-id :sew.default}
+   :parameter/address {:parameter/id :sew.params/reward-rate}})
+
+(deftest add-held-adjustment-builds-canonical-record
+  (let [record (fx/add-held-adjustment custody-effect :usdc
+                                       {:held-adjustment/id "held-adjustment-1"
+                                        :held/before 500
+                                        :held/after 600})]
+    (is (= :in (:held/direction record)))
+    (is (= "add-held" (:held/action record)))
+    (is (= :usdc (:token record)))
+    (is (= 100 (:amount record)))
+    (is (= :escrow (:held/account record)))
+    (is (= :reward (:held/reason record)))
+    (is (= "0xowner" (:owner/address record)))
+    (is (= (:parameter/context custody-effect) (:parameter/context record)))
+    (is (= (:parameter/address custody-effect) (:parameter/address record)))
+    (is (= "held-adjustment-1" (:held-adjustment/id record)))))
+
+(deftest held-adjustment-uses-effect-direction
+  (is (= :out (:held/direction
+               (fx/held-adjustment (assoc custody-effect :effect/direction :sub)
+                                   :usdc {:held/before 600 :held/after 500})))))
+
+(deftest held-adjustment-validity
+  (is (fx/held-adjustment-valid? custody-effect))
+  (is (not (fx/held-adjustment-valid? (dissoc custody-effect :held/kind))))
+  (is (not (fx/held-adjustment-valid?
+            (dissoc custody-effect :parameter/context)))))
+
+(deftest held-adjustment-invalid-attribution-throws-on-build
+  (is (thrown? clojure.lang.ExceptionInfo
+               (fx/add-held-adjustment (dissoc custody-effect :parameter/context)
+                                       :usdc {}))))
+
+(deftest held-adjustment-root-deterministic-and-sensitive
+  (let [r (fx/held-adjustment
+           custody-effect :usdc {:held-adjustment/id "held-adjustment-1"
+                                 :held/before 500 :held/after 600})]
+    (is (= (fx/held-adjustment-root r) (fx/held-adjustment-root r)))
+    (is (= 64 (count (fx/held-adjustment-root r))))
+    (is (not= (fx/held-adjustment-root r)
+              (fx/held-adjustment-root (assoc r :held/after 700))))))
+
+(deftest custody-effect-conflicts-detected
+  (let [base {:effect/type :custody/held-adjustment
+              :effect/contract :prf.effect/custody-held-adjustment.v1
+              :effect/account :escrow
+              :effect/amount 10
+              :held/kind :reward}
+        add (assoc base :effect/direction :add)
+        sub (assoc base :effect/direction :sub)
+        other-account (assoc sub :effect/account :appeal-bond)]
+    (is (empty? (fx/custody-effect-conflicts [])))
+    (is (= 1 (count (fx/custody-effect-conflicts [add sub]))))
+    (is (= :escrow (:effect/account (first (fx/custody-effect-conflicts [add sub])))))
+    (is (empty? (fx/custody-effect-conflicts [add add])))
+    (is (empty? (fx/custody-effect-conflicts [add other-account])))))
 
 (deftest validate-effect-rejects-missing-and-unknown-contracts
   (is (some #(= :violation/effect-missing-contract (:violation/id %))
@@ -137,14 +250,17 @@
            :effect/contract :prf.effect/balance-credit.v1
            :effect/account :test.allocation/reward-pool
            :effect/amount 50})))
-  (is (= :custody-credit
-         (:transition/type
-          (fx/effect->transition
-           {:effect/type :custody/held-adjustment
-            :effect/contract :prf.effect/custody-held-adjustment.v1
-            :effect/direction :add
-            :effect/account :appeal-bond
-            :effect/amount 100})))))
+  (let [custody-transition
+        (fx/effect->transition
+         {:effect/type :custody/held-adjustment
+          :effect/contract :prf.effect/custody-held-adjustment.v1
+          :effect/direction :add
+          :effect/account :appeal-bond
+          :effect/amount 100
+          :held/kind :appeal-bond})]
+    (is (= :custody-credit (:transition/type custody-transition)))
+    (is (= :appeal-bond (:held/kind custody-transition)))
+    (is (= :add (:held/direction custody-transition)))))
 
 ;; ── application plan v2 ───────────────────────────────────────────────────
 
