@@ -7,15 +7,16 @@
    Also produces asciicast v2 format for use with asciinema players."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.data.json :as json]))
+            [clojure.data.json :as json]
+            [resolver-sim.config.defaults :as defaults]))
 
 ;; ── Constants ───────────────────────────────────────────────────────────────
 
 (def term-font-family "Menlo, Monaco, 'Courier New', monospace")
-(def term-font-size 13)
-(def term-line-height 20)
-(def term-pad-x 16)
-(def term-pad-y 12)
+(def term-font-size (defaults/default [:demo :term-font-size] 13))
+(def term-line-height (defaults/default [:demo :term-line-height] 20))
+(def term-pad-x (defaults/default [:demo :term-pad-x] 16))
+(def term-pad-y (defaults/default [:demo :term-pad-y] 12))
 (def term-bg "#1e1e2e")
 (def term-fg "#cdd6f4")
 (def term-title-bg "#181825")

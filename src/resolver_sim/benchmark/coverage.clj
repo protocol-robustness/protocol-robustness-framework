@@ -6,7 +6,8 @@
    active benchmark manifests."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [resolver-sim.benchmark.claims :as claims]))
+            [resolver-sim.benchmark.claims :as claims]
+            [resolver-sim.config.paths :as paths]))
 
 (def maturity-order
   [:defined :mapped :claimed :evaluated :benchmarked])
@@ -134,7 +135,7 @@
 
 (defn catalogue-manifests
   "Load all benchmark manifests with their pack-registry lifecycle status."
-  ([] (catalogue-manifests "benchmarks/registry.edn"))
+  ([] (catalogue-manifests (paths/benchmarks-registry)))
   ([registry-path]
    (let [registry (edn/read-string (slurp registry-path))]
      (vec

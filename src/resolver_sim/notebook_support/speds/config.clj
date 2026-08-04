@@ -1,9 +1,11 @@
 (ns resolver-sim.notebook-support.speds.config
   "SPEDS Configuration: Centralized paths and protocol identifiers."
   (:require [clojure.string :as str]
-            [resolver-sim.evidence.config :as evcfg]))
+            [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.config.paths :as paths]
+            [resolver-sim.config.defaults :as defaults]))
 
-(def threat-tag-bar-scale 10)
+(def threat-tag-bar-scale (defaults/default [:speds :threat-tag-bar-scale] 10))
 
 (def success-patterns
   [#"100\.0%"
@@ -18,8 +20,8 @@
    :findings     (evcfg/artifact-path :findings)
    :issues       (evcfg/artifact-path :issues)
    :manifest     (str (evcfg/artifact-dir) "/evidence-manifest.json")
-   :traces-dir   (or (System/getenv "PRF_TRACES_DIR") "data/fixtures/traces")
-   :golden-dir   (or (System/getenv "PRF_GOLDEN_DIR") "data/fixtures/golden")})
+   :traces-dir   (paths/traces-dir)
+   :golden-dir   (paths/golden-dir)})
 
 (def protocol-defaults
   {:id          "dispute-resolution-validation-v1"
@@ -33,7 +35,7 @@
    :suite-id "dispute-resolution-validation-v1"
    :finding-category "dispute_resolution"
    :bundle-cert-label "BUNDLE_v1.1"
-   :default-theory-falsification-scenario-id "scenarios/S26_forking-strategist-l1-reversal"
+   :default-theory-falsification-scenario-id (defaults/default [:scenarios :sew-default-theory-falsification] "scenarios/S26_forking-strategist-l1-reversal")
    :severity-rules
    {:invariant-severity-order [:high :medium]
     :tag-severity-map {"reentrancy" :high
@@ -66,7 +68,7 @@
    :suite-id "protocol-x-validation-v1"
    :finding-category "protocol_risk"
    :bundle-cert-label "BUNDLE_v1"
-   :default-theory-falsification-scenario-id "scenarios/X01_hypothesis-boundary-check"
+   :default-theory-falsification-scenario-id (defaults/default [:scenarios :generic-default-theory-falsification] "scenarios/X01_hypothesis-boundary-check")
    :severity-rules
    {:invariant-severity-order [:high :medium]
     :tag-severity-map {"reentrancy" :high

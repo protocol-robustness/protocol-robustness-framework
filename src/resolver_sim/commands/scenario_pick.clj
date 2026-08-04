@@ -3,11 +3,12 @@
             [clojure.string :as str]
             [resolver-sim.commands.scenario-run :as scenario-run]
             [resolver-sim.commands.scenario-orchestration :as orchestration]
-            [resolver-sim.io.resource-path :as rp]))
+            [resolver-sim.io.resource-path :as rp]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- read-catalog
   []
-  (let [catalog-file "scenarios/catalog.edn"]
+  (let [catalog-file (paths/scenarios-catalog)]
     (when-let [path (rp/resolve-path catalog-file)]
       (try (edn/read-string (slurp path))
            (catch Exception _ nil)))))
@@ -64,7 +65,7 @@
                           id (:scenario/id entry)]
                       (println (str "▶ " id " (" path ")"))
                       (let [parsed (scenario-run/parse-request [path "--run-root"
-                                                                (str "results/runs/pick-" id)])]
+                                                                (str (paths/runs-pick-dir) id)])]
                         (if-not (:ok? parsed)
                           (println "  ✗ Parse error:" (:errors parsed))
                           (let [context (scenario-run/build-run-context (:request parsed) {:project-root "."})

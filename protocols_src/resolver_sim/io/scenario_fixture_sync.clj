@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [resolver-sim.io.scenario-export :as export]
             [resolver-sim.io.scenarios :as sc]
+            [resolver-sim.config.paths :as paths]
             [resolver-sim.protocols.sew.invariant-scenarios :as scenarios]))
 
 (defn- flatten-scenarios
@@ -47,7 +48,7 @@
        :actual   actual})))
 
 (defn trace-path [scenario-id]
-  (str "data/fixtures/traces/" scenario-id ".trace.json"))
+  (str (paths/traces-dir) "/" scenario-id ".trace.json"))
 
 (defn public-scenario-path [scenario-id]
   (some-> scenario-id export/scenario-id->public-json-filename

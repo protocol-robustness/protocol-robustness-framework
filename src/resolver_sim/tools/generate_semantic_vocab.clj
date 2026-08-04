@@ -1,12 +1,13 @@
 (ns resolver-sim.tools.generate-semantic-vocab
   (:require [clojure.string :as str]
-            [resolver-sim.definitions.registry :as defs]))
+            [resolver-sim.definitions.registry :as defs]
+            [resolver-sim.config.paths :as paths]))
 
-(def vocab-path "docs/overview/SEMANTIC_VOCAB.md")
-(def registry-edn-path "docs/overview/SEMANTIC_REGISTRY.edn")
+(def vocab-path (str (paths/docs-dir) "/overview/SEMANTIC_VOCAB.md"))
+(def registry-edn-path (str (paths/docs-dir) "/overview/SEMANTIC_REGISTRY.edn"))
 
 (defn- ensure-out-dir! []
-  (.mkdirs (java.io.File. "docs/overview")))
+  (.mkdirs (java.io.File. (str (paths/docs-dir) "/overview"))))
 
 (defn- generate! []
   (ensure-out-dir!)

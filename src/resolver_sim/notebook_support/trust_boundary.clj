@@ -6,7 +6,7 @@
             [resolver-sim.assurance.witness-verifier :as wv]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.run.package-index :as pkg]
-            [resolver-sim.io.paths :as paths]))
+            [resolver-sim.config.paths :as paths]))
 
 (defn- sha256-hex [f]
   (let [d (java.security.MessageDigest/getInstance "SHA-256")]
@@ -213,7 +213,7 @@
      :benchmark-definition (load-benchmark-definition (str r "/benchmark/definition.edn"))
      :execution-plan (load-execution-plan (str r "/benchmark/execution-plan.edn"))
      :trust-sequence-definition (load-trust-sequence-definition
-                                 "data/sequences/force-authorised-custody-adjustment.edn")
+                                 (paths/force-authorised-sequence))
      :execution-witness (load-execution-witness (str r "/manifest/execution-witness.json"))
      :canonical-assurance (load-canonical-assurance
                            (str r "/benchmark/assertions/canonical-integrity.json"))

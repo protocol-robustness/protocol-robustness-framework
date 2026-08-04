@@ -10,13 +10,14 @@
   (:require [clojure.java.io :as io]
             [clojure.edn :as edn]
             [clojure.walk :as walk]
-            [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.config.paths :as paths])
   (:import [java.time ZoneId]
            [java.time.format DateTimeFormatter]))
 
 ;; ── Manifest loading ─────────────────────────────────────────────────────────
 
-(def manifest-path "docs/STABILITY_MANIFEST.edn")
+(def manifest-path (paths/stability-manifest))
 
 (defn- load-manifest
   ([] (load-manifest manifest-path))
@@ -50,7 +51,7 @@
     (let [manifest (normalize-manifest-for-self-hash (load-manifest))
           file-contents (into (sorted-map)
                               (concat
-                               [["docs/STABILITY_MANIFEST.edn" (pr-str manifest)]]
+                               [[manifest-path (pr-str manifest)]]
                                (keep (fn [path]
                                        (when (not= path manifest-path)
                                          (let [f (io/file path)]

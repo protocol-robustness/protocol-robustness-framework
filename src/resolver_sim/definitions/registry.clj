@@ -2,7 +2,8 @@
   "Canonical semantic definitions registry used by replay/report/evidence/Clerk."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [resolver-sim.evidence.confidence :as confidence]))
+            [resolver-sim.evidence.confidence :as confidence]
+            [resolver-sim.config.paths :as paths]))
 
 (def purposes
   {:regression {:label "Regression" :default-story-family :scenario-deep-dive}
@@ -60,10 +61,10 @@
   (or (try (some-> (System/getenv "PRF_DEFINITIONS_PATH")
                    io/file slurp edn/read-string)
            (catch Exception _ nil))
-      (try (some-> (io/resource "data/speds/definitions.edn")
+      (try (some-> (io/resource (paths/speds-definitions))
                    slurp edn/read-string)
            (catch Exception _ nil))
-      (try (some-> "data/speds/definitions.edn"
+      (try (some-> (paths/speds-definitions)
                    io/file slurp edn/read-string)
            (catch Exception _ nil))))
 

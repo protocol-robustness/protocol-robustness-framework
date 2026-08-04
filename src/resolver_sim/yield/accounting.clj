@@ -6,9 +6,12 @@
 
    This substrate is designed to be portable across different protocol simulations."
   (:require [resolver-sim.yield.risk :as risk]
-            [resolver-sim.yield.exact-math :as math]))
+            [resolver-sim.yield.exact-math :as math]
+            [resolver-sim.config.defaults :as defaults]))
 
-(def ^:private default-asset-decimals 18)
+(def default-asset-decimals
+  "Default token decimals when not present in world/risk config (config-driven)."
+  (defaults/default [:yield :default-asset-decimals] 18))
 
 (def liquidity-modes
   "Liquidity-mode keywords that block new deposits."

@@ -3,7 +3,8 @@
    Port of scripts/concepts_validate.clj."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [resolver-sim.concepts.registry :as concepts-registry]))
+            [resolver-sim.concepts.registry :as concepts-registry]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- validate-concepts
   "Core validation logic. Returns {:exit-code N :message str :errors [] :warnings []}."
@@ -63,4 +64,4 @@
 (defn validate
   "Validate concept data files and the concept registry."
   [opts]
-  (validate-concepts "data/concepts"))
+  (validate-concepts (paths/concepts-dir)))

@@ -33,6 +33,7 @@
             [clojure.java.io                   :as io]
             [clojure.string                    :as str]
             [resolver-sim.io.trace-score       :as ts]
+            [resolver-sim.config.paths         :as paths]
             [resolver-sim.protocols.sew.io.trace-export :as te])
   (:gen-class))
 
@@ -40,7 +41,7 @@
 ;; Defaults
 ;; ---------------------------------------------------------------------------
 
-(def default-store-dir  "results/traces")
+(def default-store-dir  (paths/traces-store-dir))
 (def default-corpus-max 100)
 
 ;; ---------------------------------------------------------------------------

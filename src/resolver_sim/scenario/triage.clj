@@ -5,7 +5,8 @@
      clojure -M -m resolver-sim.scenario.triage
      clojure -M -m resolver-sim.scenario.triage data/fixtures/traces"
   (:require [clojure.string :as str]
-            [resolver-sim.scenario.coverage :as cov]))
+            [resolver-sim.scenario.coverage :as cov]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- id->str [x]
   (if (keyword? x) (name x) (str x)))
@@ -59,7 +60,7 @@
     (println "  (none)")))
 
 (defn -main [& [dir]]
-  (let [d (or dir "data/fixtures/traces")
+  (let [d (or dir (paths/traces-dir))
         r (triage-report d)]
     (println "\nFailure triage report")
     (println "====================")

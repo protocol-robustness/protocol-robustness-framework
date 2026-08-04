@@ -15,7 +15,8 @@
             [resolver-sim.graph.export :as gex]
             [resolver-sim.logging :as log]
             [resolver-sim.vcs :as vcs]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.config.paths :as paths]))
 
 (declare compute-code-hash compute-env-hash compute-registry-hash)
 
@@ -166,7 +167,7 @@
   [benchmark-id]
   (when benchmark-id
     (try
-      (let [reg-file (io/file "benchmarks/registry.edn")]
+      (let [reg-file (io/file (paths/benchmarks-registry))]
         (when (.exists reg-file)
           (let [registry (edn/read-string (slurp reg-file))]
             (some (fn [pack]

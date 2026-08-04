@@ -124,6 +124,10 @@
   "Default directory for evidence bundles."
   "results/evidence-bundle")
 
+(def ^:const data-dir
+  "Root directory for data assets."
+  "data")
+
 (def ^:const fixtures-dir
   "Root directory for fixture data."
   "data/fixtures")

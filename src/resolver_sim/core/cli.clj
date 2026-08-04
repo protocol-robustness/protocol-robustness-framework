@@ -3,11 +3,12 @@
    Knows nothing about phases or simulation logic."
   (:require [clojure.string :as str]
             [clojure.tools.cli :refer [parse-opts]]
-            [resolver-sim.protocols.registry :as preg]))
+            [resolver-sim.protocols.registry :as preg]
+            [resolver-sim.config.paths :as paths]))
 
 (def cli-options
   [["-p" "--params PATH" "Path to params.edn file"
-    :default "data/params/baseline.edn"]
+    :default (paths/params-baseline)]
    ["-o" "--output DIR" "Output directory for results"
     :default "results"]
    ["-s" "--sweep" "Run strategy sweep (honest, lazy, malicious, collusive)"]

@@ -7,7 +7,8 @@
             [resolver-sim.commands.scenario-run :as scenario-run]
             [resolver-sim.commands.scenario-orchestration :as orchestration]
             [resolver-sim.io.scenarios :as io-sc]
-            [resolver-sim.scenario.suites :as suites]))
+            [resolver-sim.scenario.suites :as suites]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- read-edn [path]
   (try (edn/read-string (slurp path)) (catch Exception _ nil)))
@@ -16,7 +17,7 @@
 
 (defn- enumerate-plans
   []
-  (let [registry (read-edn "benchmarks/registry.edn")]
+  (let [registry (read-edn (paths/benchmarks-registry))]
     (when registry
       (mapcat
        (fn [pack]
@@ -43,7 +44,7 @@
                 (:benchmarks pack-data)))))
          (:packs registry))))))
 
-(def ^:private smoke-output-root "results/benchmark-smoke")
+(def ^:private smoke-output-root (paths/benchmark-smoke-dir))
 
 (defn- run-single-scenario
   [scenario-ref run-root]

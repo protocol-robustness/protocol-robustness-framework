@@ -4,9 +4,10 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [resolver-sim.notebook-support.manifest.schema :as schema]))
+            [resolver-sim.notebook-support.manifest.schema :as schema]
+            [resolver-sim.config.paths :as paths]))
 
-(def ^:private default-path "data/claims/sew-claims.edn")
+(def ^:private default-path (paths/claims-file))
 
 ;; ── loading ───────────────────────────────────────────────────────────────────
 

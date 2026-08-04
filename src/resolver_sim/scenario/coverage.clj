@@ -18,7 +18,8 @@
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.io.scenarios :as sc]
             [resolver-sim.scenario.schema-profile :as schema-profile]
-            [resolver-sim.logging :as log]))
+            [resolver-sim.logging :as log]
+            [resolver-sim.config.paths :as paths]))
 
 (declare coverage-report)
 
@@ -31,7 +32,7 @@
       clojure -M:coverage-report -- data/fixtures/traces results/test-artifacts/coverage.json"
   [& args]
   (let [[dir out] (->> args (remove #(= % "--")) vec)
-        dir       (or dir "data/fixtures/traces")
+        dir       (or dir (paths/traces-dir))
         report    (coverage-report dir)
         payload   (json/write-str report {:indent true})
         out       (or out (evcfg/artifact-path :coverage))]
@@ -315,6 +316,6 @@
   "Scan dir for .trace.json files and return an aggregated coverage map.
    Uses the default traces directory when called with no arguments."
   ([]
-   (coverage-report "data/fixtures/traces"))
+   (coverage-report (paths/traces-dir)))
   ([dir]
    (-> dir scan-traces aggregate (assoc :scanned-dir dir))))

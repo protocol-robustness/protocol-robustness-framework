@@ -3,7 +3,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [resolver-sim.generators.equilibrium :as geq]
-            [resolver-sim.generators.scenario :as gsc]))
+            [resolver-sim.generators.scenario :as gsc]
+            [resolver-sim.config.paths :as paths]))
 
 (defn interesting-run?
   [{:keys [outcome convergence]}]
@@ -15,7 +16,7 @@
    Returns {:written n :files [...]}"
   [{:keys [start-seed n max-steps profile out-dir dry-run?]
     :or {start-seed 1 n 20 max-steps 8 profile :timeout-boundary
-         out-dir "data/fixtures/traces/regression"
+         out-dir (paths/traces-regression-dir)
          dry-run? false}}]
   (let [batch (geq/evaluate-generated-batch {:start-seed start-seed :n n :max-steps max-steps :profile profile})
         runs  (filter interesting-run? (:runs batch))

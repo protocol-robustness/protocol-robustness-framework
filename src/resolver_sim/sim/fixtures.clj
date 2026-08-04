@@ -25,6 +25,7 @@
             [resolver-sim.protocols.sew.invariant-scenarios :as sew-scenarios]
             [resolver-sim.governance.rules :as gov-rules]
             [resolver-sim.io.fixtures :as io-fix]
+            [resolver-sim.config.paths :as paths]
             [clojure.pprint :as pp]))
 
 (defn- result->checks
@@ -163,7 +164,7 @@
 
 (defn- save-golden-report
   [suite-key result]
-  (let [path (str "data/fixtures/golden/" (name (:trace-id result)) ".report.edn")]
+  (let [path (str (paths/golden-dir) "/" (name (:trace-id result)) ".report.edn")]
     (with-open [w (io/writer path)]
       (pp/pprint (:golden-report result) w))))
 
@@ -185,7 +186,7 @@
 (defn- compare-golden-report
   [suite-key result opts]
   (let [trace-id (:trace-id result)
-        path     (str "data/fixtures/golden/" (name trace-id) ".report.edn")
+        path     (str (paths/golden-dir) "/" (name trace-id) ".report.edn")
         report   (:golden-report result)
         mode     (or (:golden-verify-mode opts) :replay-and-theory)]
     (if (.exists (java.io.File. path))

@@ -10,12 +10,13 @@
     status-badge    — live status derived from findings/issues artifacts"
   (:require [clojure.string :as str]
             [resolver-sim.evidence.config :as evcfg]
-            [resolver-sim.notebook-support.common :as common]))
+            [resolver-sim.notebook-support.common :as common]
+            [resolver-sim.config.paths :as paths]))
 
 ;; ── registry loading ──────────────────────────────────────────────────────────
 
 (defn- load-registry []
-  (common/read-edn "data/notebooks.edn"))
+  (common/read-edn (paths/notebooks-registry)))
 
 (defn- notebook-url [path]
   (str "/" (str/replace path #"\.clj$" "")))

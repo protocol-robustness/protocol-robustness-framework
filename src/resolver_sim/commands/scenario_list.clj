@@ -2,11 +2,12 @@
   (:require [clojure.edn :as edn]
             [clojure.pprint :as pp]
             [clojure.string :as str]
-            [resolver-sim.io.resource-path :as rp]))
+            [resolver-sim.io.resource-path :as rp]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- read-catalog
   []
-  (let [catalog-file "scenarios/catalog.edn"]
+  (let [catalog-file (paths/scenarios-catalog)]
     (when-let [path (rp/resolve-path catalog-file)]
       (try (edn/read-string (slurp path))
            (catch Exception _ nil)))))

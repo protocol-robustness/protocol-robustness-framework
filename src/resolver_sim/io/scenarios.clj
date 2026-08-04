@@ -10,13 +10,14 @@
             [clojure.java.io  :as io]
             [clojure.string   :as str]
             [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.logging :as log]))
+            [resolver-sim.logging :as log]
+            [resolver-sim.config.paths :as paths]))
 
 (def ^:dynamic *scenario-dir*
   "Directory for executable scenario files.
    Bare filesystem path — resource-path/slurp-path handles classpath
    fallback for JAR portability."
-  "scenarios/edn")
+  (paths/scenarios-dir))
 
 (def ^:dynamic *scenario-ext*
   "File extension for executable scenario files, including leading dot."

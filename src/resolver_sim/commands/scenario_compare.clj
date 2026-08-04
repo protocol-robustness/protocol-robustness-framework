@@ -4,7 +4,8 @@
             [resolver-sim.commands.scenario-run :as scenario-run]
             [resolver-sim.commands.scenario-orchestration :as orchestration]
             [resolver-sim.io.diff :as diff]
-            [resolver-sim.io.diff-runner :as diff-runner]))
+            [resolver-sim.io.diff-runner :as diff-runner]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- run-and-capture
   "Run a single scenario and return {:replay-path str :run/root str :exit-code int}."
@@ -37,7 +38,7 @@
           {:exit-code 2 :message "Identical scenarios"})
 
       :else
-      (let [base-dir (or out "results/trace-compare")
+      (let [base-dir (or out (paths/trace-compare-dir))
             run-a-dir (str base-dir "/scenario-a")
             run-b-dir (str base-dir "/scenario-b")]
         (println (str "Comparing:\n  A: " scenario-a "\n  B: " scenario-b "\n"))

@@ -12,6 +12,8 @@
             [resolver-sim.evidence.timestamping :as ts]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.logging :as log]
+            [resolver-sim.config.defaults :as defaults]
+            [resolver-sim.config.paths :as paths]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.cli :refer [parse-opts]]
@@ -73,13 +75,13 @@
                                      (rp/pack-registry-path (:pack/registry pack))))
              (:packs registry))}
     (do (log/warn! :registry-edn-not-found {:message "Falling back to BENCHMARKS.edn"})
-        (when-let [legacy (try (rp/edn-read "benchmarks/BENCHMARKS.edn")
+        (when-let [legacy (try (rp/edn-read (paths/benchmarks-legacy))
                                (catch Exception _ nil))]
           {:benchmarks legacy}))))
 
 (def cli-options
   [["-o" "--output PATH" "Output path for evidence bundle"
-    :default "results/evidence/latest.edn"]
+    :default (paths/evidence-latest)]
    [nil "--scenario-output-dir DIR" "Write isolated evidence packages for each benchmark scenario execution"]
    ["-k" "--key PATH" "Path to private key for signing/attesting"]
    ["-p" "--password PASS" "Password for private key"]
@@ -173,13 +175,13 @@
 
 ;; ── Exit codes ──────────────────────────────────────────────────────────────────
 
-(def exit-success 0)
-(def exit-error 1)
-(def exit-unknown-benchmark 2)
-(def exit-missing-concept 3)
-(def exit-missing-scenario 4)
-(def exit-invalid-params 5)
-(def exit-duplicate-registries 6)
+(def exit-success (defaults/default [:commands :exit-success] 0))
+(def exit-error (defaults/default [:commands :exit-error] 1))
+(def exit-unknown-benchmark (defaults/default [:commands :exit-unknown-benchmark] 2))
+(def exit-missing-concept (defaults/default [:commands :exit-missing-concept] 3))
+(def exit-missing-scenario (defaults/default [:commands :exit-missing-scenario] 4))
+(def exit-invalid-params (defaults/default [:commands :exit-invalid-params] 5))
+(def exit-duplicate-registries (defaults/default [:commands :exit-duplicate-registries] 6))
 
 ;; ── Shared orchestration ───────────────────────────────────────────────────────
 

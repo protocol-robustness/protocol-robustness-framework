@@ -28,7 +28,8 @@
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.sensitivity.propagation :as prop]
             [resolver-sim.validation.scenario-id :as sid]
-            [resolver-sim.yield.invariant-catalog :as yield-inv-cat]))
+            [resolver-sim.yield.invariant-catalog :as yield-inv-cat]
+            [resolver-sim.config.paths :as paths]))
 
 ;; ---------------------------------------------------------------------------
 ;; Structured logging
@@ -1148,7 +1149,7 @@
                 finalize-evidence? (boolean (or structured? forensic-artifact-dir))
                 artifact-dir (or (:artifact-dir dispatch) (:output-dir dispatch)
                                  forensic-artifact-dir
-                                 (str "results/runs/" run-id))
+                                 (str (paths/runs-root) "/" run-id))
                 execution-dir (:execution-dir dispatch)
                 _ (when (and structured? (nil? execution-dir))
                     (throw (ex-info "Structured runs require :execution-dir"
@@ -1329,7 +1330,7 @@
                                                            :policy-output :visible :outputs :bundle/root-hash)
                                   dag-path (if structured?
                                              (str (io/file execution-dir "execution-dag.json"))
-                                             (str "results/runs/" run-id "/execution-dag.json"))
+                                              (str (paths/runs-root) "/" run-id "/execution-dag.json"))
                                   dag-root-hash (try
                                                   (-> (json/read-str (slurp dag-path) :key-fn keyword)
                                                       :dag/root-hash)
@@ -1340,7 +1341,7 @@
                                                     nil))
                                   pre-commit-path (if structured?
                                                     (str (io/file execution-dir "pre-run-commitment.json"))
-                                                    (str "results/runs/" run-id "/pre-run-commitment.json"))
+                                                     (str (paths/runs-root) "/" run-id "/pre-run-commitment.json"))
                                   pre-commit (try
                                                (json/read-str (slurp pre-commit-path) :key-fn keyword)
                                                (catch Exception e

@@ -18,7 +18,7 @@
             [resolver-sim.notebook-support.speds.config :as config]))
 
 (def findings-path
-  (or (:findings config/artifact-paths) "results/test-artifacts/findings.json"))
+  (or (:findings config/artifact-paths) (evcfg/artifact-path :findings)))
 
 (def required-finding-keys
   #{:finding_id :scenario_id :kind :severity :status_kind :title

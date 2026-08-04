@@ -1,0 +1,16 @@
+{:yield {:default-asset-decimals 18}
+ :cartesi {:max-history 10}
+ :speds {:threat-tag-bar-scale 10}
+ :demo {:term-font-size 13
+        :term-line-height 20
+        :term-pad-x 16
+        :term-pad-y 12}
+ :commands {:exit-success 0
+            :exit-error 1
+            :exit-unknown-benchmark 2
+            :exit-missing-concept 3
+            :exit-missing-scenario 4
+            :exit-invalid-params 5
+            :exit-duplicate-registries 6}
+ :scenarios {:sew-default-theory-falsification "scenarios/S26_forking-strategist-l1-reversal"
+             :generic-default-theory-falsification "scenarios/X01_hypothesis-boundary-check"}}

@@ -3,7 +3,8 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.walk :as walk]
-            [resolver-sim.io.scenarios :as sc]))
+            [resolver-sim.io.scenarios :as sc]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- agent->trace-agent
   [{:keys [id address strategy role]}]
@@ -230,7 +231,7 @@
                            (scenario-inline-metadata scenario)
                            metadata)
         trace-doc   (scenario->trace-document scenario meta)
-        trace-p     (str "data/fixtures/traces/" sid ".trace.json")
+        trace-p     (str (paths/traces-dir) "/" sid ".trace.json")
         public-name (scenario-id->public-json-filename sid)
         scen-p      (when (and write-public-json? public-name)
                       (str sc/*scenario-dir* "/" public-name))]

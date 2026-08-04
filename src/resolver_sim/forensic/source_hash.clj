@@ -4,14 +4,15 @@
    Used by bb hash:source and by pre-run commitment generation."
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as sh]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [resolver-sim.config.paths :as paths])
   (:import [java.security MessageDigest]))
 
 (def default-source-roots
   ["src"
    "protocols_src"
    "benchmarks"
-   "data/concepts"
+   (paths/concepts-dir)
    "scenarios"
    "suites"
    "resources"])
