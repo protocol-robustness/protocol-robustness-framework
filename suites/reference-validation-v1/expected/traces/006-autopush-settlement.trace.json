@@ -1,169 +1,206 @@
-{"description":"Generated trace: s05-pending-settlement-execute",
- "fee_bps":150,
- "invariant_profile":
- {"id":"solidity-equivalence-core-v1",
-  "version":1,
-  "root":
-  "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"},
- "max_dispute_duration":600,
- "schema_version":"2",
- "resolutions":
- {"wf0":
-  {"outcome":"RELEASE",
-   "finality":"FINAL",
-   "integrity":"FULLY_RECONCILED"}},
- "cdrs_version":"0.2",
- "steps":
- [{"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":1,
-    "escrow_amount_after_fee":5910,
-    "global_total_held":5910,
-    "global_total_fees":90,
-    "pending_settlement_exists":false,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"ACTIVE",
-   "seq":0,
-   "event_type":"CREATE ESCROW",
-   "timestamp":1000,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"create_escrow",
-    "seq":0,
-    "wf_alias":"wf0",
-    "to_role":"seller",
-    "amount":6000,
-    "type":"creation",
-    "path":"none"},
-   "actor":"buyer"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":4,
-    "escrow_amount_after_fee":5910,
-    "global_total_held":5910,
-    "global_total_fees":90,
-    "pending_settlement_exists":false,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"CHALLENGED",
-   "seq":1,
-   "event_type":"RAISE DISPUTE",
-   "timestamp":1060,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"raise_dispute",
-    "seq":1,
-    "wf_alias":"wf0",
-    "type":"state-change",
-    "path":"none"},
-   "actor":"buyer"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":4,
-    "escrow_amount_after_fee":5910,
-    "global_total_held":5910,
-    "global_total_fees":90,
-    "pending_settlement_exists":true,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"RECONCILING",
-   "seq":2,
-   "event_type":"RELEASE AS DISPUTE RESOLVER",
-   "timestamp":1120,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"execute_resolution",
-    "seq":2,
-    "wf_alias":"wf0",
-    "type":"resolution",
-    "path":"standard"},
-   "actor":"resolver"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"reverted":true,
-    "error":"appeal-window-not-expired",
-    "escrow_state":4,
-    "pending_settlement_exists":true,
-    "accepted":false,
-    "state_changed":false,
-    "rejection_reason":"appeal-window-not-expired"},
-   "state_bucket":"RECONCILING",
-   "seq":3,
-   "event_type":"EXECUTE PENDING SETTLEMENT",
-   "timestamp":1180,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"execute_pending_settlement",
-    "seq":3,
-    "wf_alias":"wf0",
-    "type":"resolution",
-    "path":"delayed"},
-   "actor":"executor"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":2,
-    "escrow_amount_after_fee":5910,
-    "global_total_held":0,
-    "global_total_fees":90,
-    "pending_settlement_exists":false,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"SETTLED",
-   "seq":4,
-   "event_type":"EXECUTE PENDING SETTLEMENT",
-   "timestamp":1240,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"execute_pending_settlement",
-    "seq":4,
-    "wf_alias":"wf0",
-    "type":"resolution",
-    "path":"delayed"},
-   "actor":"executor"}],
- "expected_semantics":
- {"resolution":
-  {"settlement_executed":true,
-   "beneficiary":"seller",
-   "authorized_resolver":true,
-   "pending_settlement_created":true,
-   "outcome":"release",
-   "finality":"final",
-   "resolver":"resolver",
-   "trace_decision":
-   {"decision-id":"resolve-0-0",
-    "step":1120,
-    "alternatives":["release", "refund"],
-    "selected":"release",
-    "reasoning":"Resolver 0xresolver releases escrow 0",
-    "caller":"0xresolver",
-    "decision-evidence-hash":
-    "797fe58eb0895c500c1e7277906c434f3820458f656baa52d0f131184b56825c"},
-   "integrity":"fully-reconciled"},
-  "participation":
-  {"dispute_initiator":"buyer",
-   "resolution_actor":"resolver",
-   "authorized_participant":true,
-   "settlement_actor":"executor"},
-  "timing":
-  {"auto_cancel_triggered":false,
-   "within_resolution_window":true,
-   "within_settlement_window":true,
-   "pending_delay_seconds":120}},
- "trace_kind":["dispute-resolution", "pending-settlement"],
- "terminal_projection_hash":
- "d2969cfd821f995f2a2534f38bb36698bb4c50df6ef0603e70f7f8a0cc7fcb93",
- "appeal_window_duration":120,
- "step_count":5,
- "metadata":
- {"scenario_class":"baseline", "outcome_type":"normal-completion"},
- "scenario_id":"s05-pending-settlement-execute"}
+{
+  "description": "Generated trace: s05-pending-settlement-execute",
+  "fee_bps": 150,
+  "invariant_profile": {
+    "id": "solidity-equivalence-core-v1",
+    "version": 1,
+    "root": "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"
+  },
+  "max_dispute_duration": 600,
+  "schema_version": "2",
+  "resolutions": {
+    "wf0": {
+      "outcome": "RELEASE",
+      "finality": "FINAL",
+      "integrity": "FULLY_RECONCILED"
+    }
+  },
+  "cdrs_version": "0.2",
+  "steps": [
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 1,
+        "escrow_amount_after_fee": 5910,
+        "global_total_held": 5910,
+        "global_total_fees": 90,
+        "pending_settlement_exists": false,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "ACTIVE",
+      "seq": 0,
+      "event_type": "CREATE ESCROW",
+      "timestamp": 1000,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "create_escrow",
+        "seq": 0,
+        "wf_alias": "wf0",
+        "to_role": "seller",
+        "amount": 6000,
+        "type": "creation",
+        "path": "none"
+      },
+      "actor": "buyer"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 4,
+        "escrow_amount_after_fee": 5910,
+        "global_total_held": 5910,
+        "global_total_fees": 90,
+        "pending_settlement_exists": false,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "CHALLENGED",
+      "seq": 1,
+      "event_type": "RAISE DISPUTE",
+      "timestamp": 1060,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "raise_dispute",
+        "seq": 1,
+        "wf_alias": "wf0",
+        "type": "state-change",
+        "path": "none"
+      },
+      "actor": "buyer"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 4,
+        "escrow_amount_after_fee": 5910,
+        "global_total_held": 5910,
+        "global_total_fees": 90,
+        "pending_settlement_exists": true,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "RECONCILING",
+      "seq": 2,
+      "event_type": "RELEASE AS DISPUTE RESOLVER",
+      "timestamp": 1120,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "release_as_dispute_resolver",
+        "seq": 2,
+        "wf_alias": "wf0",
+        "type": "resolution",
+        "path": "standard",
+        "raw_action": "execute_resolution"
+      },
+      "actor": "resolver"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "reverted": true,
+        "error": "appeal-window-not-expired",
+        "escrow_state": 4,
+        "pending_settlement_exists": true,
+        "accepted": false,
+        "state_changed": false,
+        "rejection_reason": "appeal-window-not-expired"
+      },
+      "state_bucket": "RECONCILING",
+      "seq": 3,
+      "event_type": "EXECUTE PENDING SETTLEMENT",
+      "timestamp": 1180,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "execute_pending_settlement",
+        "seq": 3,
+        "wf_alias": "wf0",
+        "type": "resolution",
+        "path": "delayed"
+      },
+      "actor": "executor"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 2,
+        "escrow_amount_after_fee": 5910,
+        "global_total_held": 0,
+        "global_total_fees": 90,
+        "pending_settlement_exists": false,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "SETTLED",
+      "seq": 4,
+      "event_type": "EXECUTE PENDING SETTLEMENT",
+      "timestamp": 1240,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "execute_pending_settlement",
+        "seq": 4,
+        "wf_alias": "wf0",
+        "type": "resolution",
+        "path": "delayed"
+      },
+      "actor": "executor"
+    }
+  ],
+  "expected_semantics": {
+    "resolution": {
+      "settlement_executed": true,
+      "beneficiary": "seller",
+      "authorized_resolver": true,
+      "pending_settlement_created": true,
+      "outcome": "release",
+      "finality": "final",
+      "resolver": "resolver",
+      "trace_decision": {
+        "decision-id": "resolve-0-0",
+        "step": 1120,
+        "alternatives": [
+          "release",
+          "refund"
+        ],
+        "selected": "release",
+        "reasoning": "Resolver 0xresolver releases escrow 0",
+        "caller": "0xresolver",
+        "decision-evidence-hash": "797fe58eb0895c500c1e7277906c434f3820458f656baa52d0f131184b56825c"
+      },
+      "integrity": "fully-reconciled"
+    },
+    "participation": {
+      "dispute_initiator": "buyer",
+      "resolution_actor": "resolver",
+      "authorized_participant": true,
+      "settlement_actor": "executor"
+    },
+    "timing": {
+      "auto_cancel_triggered": false,
+      "within_resolution_window": true,
+      "within_settlement_window": true,
+      "pending_delay_seconds": 120
+    }
+  },
+  "trace_kind": [
+    "dispute-resolution",
+    "pending-settlement"
+  ],
+  "terminal_projection_hash": "d2969cfd821f995f2a2534f38bb36698bb4c50df6ef0603e70f7f8a0cc7fcb93",
+  "appeal_window_duration": 120,
+  "step_count": 5,
+  "metadata": {
+    "scenario_class": "baseline",
+    "outcome_type": "normal-completion"
+  },
+  "scenario_id": "s05-pending-settlement-execute"
+}

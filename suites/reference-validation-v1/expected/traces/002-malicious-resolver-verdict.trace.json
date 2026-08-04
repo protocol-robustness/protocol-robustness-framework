@@ -1,238 +1,286 @@
-{"description":
- "Generated trace: s25-profit-maximizer-slash-lifecycle",
- "fee_bps":150,
- "invariant_profile":
- {"id":"solidity-equivalence-core-v1",
-  "version":1,
-  "root":
-  "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"},
- "max_dispute_duration":600,
- "schema_version":"2",
- "resolutions":
- {"wf0":
-  {"outcome":"RELEASE",
-   "finality":"FINAL",
-   "integrity":"FULLY_RECONCILED"}},
- "cdrs_version":"0.2",
- "steps":
- [{"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":1,
-    "escrow_amount_after_fee":7880,
-    "global_total_held":7880,
-    "global_total_fees":120,
-    "pending_settlement_exists":false,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"ACTIVE",
-   "seq":0,
-   "event_type":"CREATE ESCROW",
-   "timestamp":1000,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"create_escrow",
-    "seq":0,
-    "wf_alias":"wf0",
-    "to_role":"seller",
-    "amount":8000,
-    "type":"creation",
-    "path":"none"},
-   "actor":"buyer"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":4,
-    "escrow_amount_after_fee":7880,
-    "global_total_held":7880,
-    "global_total_fees":120,
-    "pending_settlement_exists":false,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"CHALLENGED",
-   "seq":1,
-   "event_type":"RAISE DISPUTE",
-   "timestamp":1060,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"raise_dispute",
-    "seq":1,
-    "wf_alias":"wf0",
-    "type":"state-change",
-    "path":"none"},
-   "actor":"buyer"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":4,
-    "escrow_amount_after_fee":7880,
-    "global_total_held":7880,
-    "global_total_fees":120,
-    "pending_settlement_exists":true,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"RECONCILING",
-   "seq":2,
-   "event_type":"RELEASE AS DISPUTE RESOLVER",
-   "timestamp":1120,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"execute_resolution",
-    "seq":2,
-    "wf_alias":"wf0",
-    "type":"resolution",
-    "path":"standard"},
-   "actor":"resolver"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"reverted":true,
-    "error":"insufficient-resolver-stake",
-    "escrow_state":4,
-    "pending_settlement_exists":true,
-    "accepted":false,
-    "state_changed":false,
-    "rejection_reason":"insufficient-resolver-stake"},
-   "state_bucket":"RECONCILING",
-   "seq":3,
-   "event_type":"PROPOSE FRAUD SLASH",
-   "timestamp":1130,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"propose_fraud_slash",
-    "seq":3,
-    "wf_alias":"wf0",
-    "type":"governance",
-    "path":"none"},
-   "actor":"governance"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"reverted":true,
-    "error":"not-governance",
-    "escrow_state":4,
-    "pending_settlement_exists":true,
-    "accepted":false,
-    "state_changed":false,
-    "rejection_reason":"not-governance"},
-   "state_bucket":"RECONCILING",
-   "seq":4,
-   "event_type":"APPEAL SLASH",
-   "timestamp":1140,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"appeal_slash",
-    "seq":4,
-    "wf_alias":"wf0",
-    "type":"governance",
-    "path":"none"},
-   "actor":"resolver"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"reverted":true,
-    "error":"slash-not-found",
-    "escrow_state":4,
-    "pending_settlement_exists":true,
-    "accepted":false,
-    "state_changed":false,
-    "rejection_reason":"slash-not-found"},
-   "state_bucket":"RECONCILING",
-   "seq":5,
-   "event_type":"RESOLVE APPEAL",
-   "timestamp":1160,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"resolve_appeal",
-    "seq":5,
-    "wf_alias":"wf0",
-    "type":"governance",
-    "path":"none"},
-   "actor":"governance"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"reverted":true,
-    "error":"slash-not-found",
-    "escrow_state":4,
-    "pending_settlement_exists":true,
-    "accepted":false,
-    "state_changed":false,
-    "rejection_reason":"slash-not-found"},
-   "state_bucket":"RECONCILING",
-   "seq":6,
-   "event_type":"EXECUTE FRAUD SLASH",
-   "timestamp":1200,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"execute_fraud_slash",
-    "seq":6,
-    "wf_alias":"wf0",
-    "type":"economic",
-    "path":"none"},
-   "actor":"governance"},
-  {"step_type":"protocol-transition",
-   "cdrs_version":"0.2",
-   "expected":
-   {"escrow_state":2,
-    "escrow_amount_after_fee":7880,
-    "global_total_held":0,
-    "global_total_fees":120,
-    "pending_settlement_exists":false,
-    "dispute_level":0,
-    "accepted":true,
-    "state_changed":true},
-   "state_bucket":"SETTLED",
-   "seq":7,
-   "event_type":"EXECUTE PENDING SETTLEMENT",
-   "timestamp":1250,
-   "context_id":"wf0",
-   "attributes":
-   {"action":"execute_pending_settlement",
-    "seq":7,
-    "wf_alias":"wf0",
-    "type":"resolution",
-    "path":"delayed"},
-   "actor":"keeper"}],
- "expected_semantics":
- {"resolution":
-  {"settlement_executed":true,
-   "beneficiary":"seller",
-   "authorized_resolver":true,
-   "pending_settlement_created":true,
-   "outcome":"release",
-   "finality":"final",
-   "resolver":"resolver",
-   "trace_decision":
-   {"decision-id":"resolve-0-0",
-    "step":1120,
-    "alternatives":["release", "refund"],
-    "selected":"release",
-    "reasoning":"Resolver 0xresolver releases escrow 0",
-    "caller":"0xresolver",
-    "decision-evidence-hash":
-    "797fe58eb0895c500c1e7277906c434f3820458f656baa52d0f131184b56825c"},
-   "integrity":"fully-reconciled"},
-  "participation":
-  {"dispute_initiator":"buyer",
-   "resolution_actor":"resolver",
-   "authorized_participant":true,
-   "settlement_actor":"keeper"},
-  "timing":
-  {"auto_cancel_triggered":false,
-   "within_resolution_window":true,
-   "within_settlement_window":false,
-   "pending_delay_seconds":130}},
- "trace_kind":
- ["dispute-resolution", "pending-settlement", "authorization",
-  "adversarial"],
- "terminal_projection_hash":
- "7fb349256cd199ec422a2d50c5f6729a3baa7dbbfbfd0decee6b3f1a2c08ab9c",
- "appeal_window_duration":120,
- "step_count":8,
- "metadata":
- {"scenario_class":"adversarial", "outcome_type":"normal-completion"},
- "scenario_id":"s25-profit-maximizer-slash-lifecycle"}
+{
+  "description": "Generated trace: s25-profit-maximizer-slash-lifecycle",
+  "fee_bps": 150,
+  "invariant_profile": {
+    "id": "solidity-equivalence-core-v1",
+    "version": 1,
+    "root": "31d07038dcde86ac6f34b229fded0fce98b679c2bd83130b607f0b9a2a27e19f"
+  },
+  "max_dispute_duration": 600,
+  "schema_version": "2",
+  "resolutions": {
+    "wf0": {
+      "outcome": "RELEASE",
+      "finality": "FINAL",
+      "integrity": "FULLY_RECONCILED"
+    }
+  },
+  "cdrs_version": "0.2",
+  "steps": [
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 1,
+        "escrow_amount_after_fee": 7880,
+        "global_total_held": 7880,
+        "global_total_fees": 120,
+        "pending_settlement_exists": false,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "ACTIVE",
+      "seq": 0,
+      "event_type": "CREATE ESCROW",
+      "timestamp": 1000,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "create_escrow",
+        "seq": 0,
+        "wf_alias": "wf0",
+        "to_role": "seller",
+        "amount": 8000,
+        "type": "creation",
+        "path": "none"
+      },
+      "actor": "buyer"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 4,
+        "escrow_amount_after_fee": 7880,
+        "global_total_held": 7880,
+        "global_total_fees": 120,
+        "pending_settlement_exists": false,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "CHALLENGED",
+      "seq": 1,
+      "event_type": "RAISE DISPUTE",
+      "timestamp": 1060,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "raise_dispute",
+        "seq": 1,
+        "wf_alias": "wf0",
+        "type": "state-change",
+        "path": "none"
+      },
+      "actor": "buyer"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 4,
+        "escrow_amount_after_fee": 7880,
+        "global_total_held": 7880,
+        "global_total_fees": 120,
+        "pending_settlement_exists": true,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "RECONCILING",
+      "seq": 2,
+      "event_type": "RELEASE AS DISPUTE RESOLVER",
+      "timestamp": 1120,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "release_as_dispute_resolver",
+        "seq": 2,
+        "wf_alias": "wf0",
+        "type": "resolution",
+        "path": "standard",
+        "raw_action": "execute_resolution"
+      },
+      "actor": "resolver"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "reverted": true,
+        "error": "insufficient-resolver-stake",
+        "escrow_state": 4,
+        "pending_settlement_exists": true,
+        "accepted": false,
+        "state_changed": false,
+        "rejection_reason": "insufficient-resolver-stake"
+      },
+      "state_bucket": "RECONCILING",
+      "seq": 3,
+      "event_type": "PROPOSE FRAUD SLASH",
+      "timestamp": 1130,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "propose_fraud_slash",
+        "seq": 3,
+        "wf_alias": "wf0",
+        "type": "governance",
+        "path": "none"
+      },
+      "actor": "governance"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "reverted": true,
+        "error": "not-governance",
+        "escrow_state": 4,
+        "pending_settlement_exists": true,
+        "accepted": false,
+        "state_changed": false,
+        "rejection_reason": "not-governance"
+      },
+      "state_bucket": "RECONCILING",
+      "seq": 4,
+      "event_type": "APPEAL SLASH",
+      "timestamp": 1140,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "appeal_slash",
+        "seq": 4,
+        "wf_alias": "wf0",
+        "type": "governance",
+        "path": "none"
+      },
+      "actor": "resolver"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "reverted": true,
+        "error": "slash-not-found",
+        "escrow_state": 4,
+        "pending_settlement_exists": true,
+        "accepted": false,
+        "state_changed": false,
+        "rejection_reason": "slash-not-found"
+      },
+      "state_bucket": "RECONCILING",
+      "seq": 5,
+      "event_type": "RESOLVE APPEAL",
+      "timestamp": 1160,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "resolve_appeal",
+        "seq": 5,
+        "wf_alias": "wf0",
+        "type": "governance",
+        "path": "none"
+      },
+      "actor": "governance"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "reverted": true,
+        "error": "slash-not-found",
+        "escrow_state": 4,
+        "pending_settlement_exists": true,
+        "accepted": false,
+        "state_changed": false,
+        "rejection_reason": "slash-not-found"
+      },
+      "state_bucket": "RECONCILING",
+      "seq": 6,
+      "event_type": "EXECUTE FRAUD SLASH",
+      "timestamp": 1200,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "execute_fraud_slash",
+        "seq": 6,
+        "wf_alias": "wf0",
+        "type": "economic",
+        "path": "none"
+      },
+      "actor": "governance"
+    },
+    {
+      "step_type": "protocol-transition",
+      "cdrs_version": "0.2",
+      "expected": {
+        "escrow_state": 2,
+        "escrow_amount_after_fee": 7880,
+        "global_total_held": 0,
+        "global_total_fees": 120,
+        "pending_settlement_exists": false,
+        "dispute_level": 0,
+        "accepted": true,
+        "state_changed": true
+      },
+      "state_bucket": "SETTLED",
+      "seq": 7,
+      "event_type": "EXECUTE PENDING SETTLEMENT",
+      "timestamp": 1250,
+      "context_id": "wf0",
+      "attributes": {
+        "action": "execute_pending_settlement",
+        "seq": 7,
+        "wf_alias": "wf0",
+        "type": "resolution",
+        "path": "delayed"
+      },
+      "actor": "keeper"
+    }
+  ],
+  "expected_semantics": {
+    "resolution": {
+      "settlement_executed": true,
+      "beneficiary": "seller",
+      "authorized_resolver": true,
+      "pending_settlement_created": true,
+      "outcome": "release",
+      "finality": "final",
+      "resolver": "resolver",
+      "trace_decision": {
+        "decision-id": "resolve-0-0",
+        "step": 1120,
+        "alternatives": [
+          "release",
+          "refund"
+        ],
+        "selected": "release",
+        "reasoning": "Resolver 0xresolver releases escrow 0",
+        "caller": "0xresolver",
+        "decision-evidence-hash": "797fe58eb0895c500c1e7277906c434f3820458f656baa52d0f131184b56825c"
+      },
+      "integrity": "fully-reconciled"
+    },
+    "participation": {
+      "dispute_initiator": "buyer",
+      "resolution_actor": "resolver",
+      "authorized_participant": true,
+      "settlement_actor": "keeper"
+    },
+    "timing": {
+      "auto_cancel_triggered": false,
+      "within_resolution_window": true,
+      "within_settlement_window": false,
+      "pending_delay_seconds": 130
+    }
+  },
+  "trace_kind": [
+    "dispute-resolution",
+    "pending-settlement",
+    "authorization",
+    "adversarial"
+  ],
+  "terminal_projection_hash": "7fb349256cd199ec422a2d50c5f6729a3baa7dbbfbfd0decee6b3f1a2c08ab9c",
+  "appeal_window_duration": 120,
+  "step_count": 8,
+  "metadata": {
+    "scenario_class": "adversarial",
+    "outcome_type": "normal-completion"
+  },
+  "scenario_id": "s25-profit-maximizer-slash-lifecycle"
+}

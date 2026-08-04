@@ -342,18 +342,23 @@
       (is (zero? (get-in artifact [:summary :strategic-property-violations]))))))
 
 (deftest folk-theorem-catalogue-accurately-reports-multi-epoch-only-coverage
-  (let [concept (some #(when (= :folk-theorem-cooperation-region (:id %)) %)
-                      (:equilibrium-concepts (sut/list-game-theory-checks)))]
-    (is (some? concept))
-    (is (true? (:catalogued? concept)))
-    (is (true? (:implemented? concept)))
-    (is (false? (:wired? concept))
+  (let [concepts (:equilibrium-concepts (sut/list-game-theory-checks))
+        canonical (some #(when (= :repeated-game/grim-trigger-deterrence (:id %)) %) concepts)
+        legacy (some #(when (= :folk-theorem-cooperation-region (:id %)) %) concepts)]
+    (is (some? canonical))
+    (is (true? (:catalogued? canonical)))
+    (is (true? (:implemented? canonical)))
+    (is (false? (:wired? canonical))
         "the terminal-trace dispatcher has no multi-epoch evidence input")
-    (is (re-find #"U_honest > 0" (:summary concept)))
-    (is (re-find #"not wired" (:summary concept)))
+    (is (re-find #"U_honest" (:summary canonical)))
+    (is (re-find #"not wired" (:summary canonical)))
+    (is (some? legacy)
+        "the legacy folk-theorem id is retained as a deprecated alias")
+    (is (true? (:deprecated legacy)))
+    (is (= :repeated-game/grim-trigger-deterrence (:alias-of legacy)))
     (let [trace-result (get (equilibrium/evaluate-equilibrium-concepts
-                             [:folk-theorem-cooperation-region] {})
-                            :folk-theorem-cooperation-region)]
+                             [:repeated-game/grim-trigger-deterrence] {})
+                            :repeated-game/grim-trigger-deterrence)]
       (is (= :inconclusive (:status trace-result)))
       (is (= :unsupported-concept (:reason trace-result)))
       (is (= :absent-evidence (:basis trace-result))))))

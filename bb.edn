@@ -75,8 +75,8 @@ Example: bb cli scenario list --search yield"
             "PRF_ARTIFACT_DIR=results/test-artifacts-$(date -u +%Y%m%dT%H%M%SZ) ./scripts/test.sh all")}
 
     test:framework:parallel
-    {:doc "Run framework unit tests in parallel with noop evidence capture"
-     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
+     {:doc "Run framework unit tests in parallel with noop evidence capture"
+     :task (shell "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
                   "resolver-sim.core-tests"
                   "resolver-sim.protocol-alignment-test"
                   "resolver-sim.time.context-test"
@@ -98,7 +98,7 @@ Example: bb cli scenario list --search yield"
 
    test:evidence
    {:doc "Run evidence-chain unit tests (node, chain, registry, attestation, integrity, qol) with noop capture"
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
+    :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
                  "resolver-sim.evidence.node-test"
                  "resolver-sim.evidence.chain-test"
                  "resolver-sim.evidence.registry-test"
@@ -118,16 +118,16 @@ Example: bb cli scenario list --search yield"
    {:doc "Run attestation known-gap characterisation tests (non-gating). These tests document
           places where the current implementation accepts inputs a hardened system should reject.
           They assert the current insecure behaviour and are not part of any CI gate."
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
+    :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
                  "resolver-sim.evidence.attestation-known-gaps-test")}
     
    test:unit
    {:doc "Run all unit tests (framework + Sew) with noop capture (single JVM)"
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.run-sew-tests" "unit")}
+    :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.run-sew-tests" "unit")}
 
     test:framework
-    {:doc "Run framework unit tests with noop capture (single JVM)"
-     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
+     {:doc "Run framework unit tests with noop capture (single JVM)"
+      :task (shell "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
                   "resolver-sim.core-tests"
                   "resolver-sim.protocol-alignment-test"
                   "resolver-sim.time.context-test"
@@ -265,8 +265,8 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
    test:quick-sew
    {:doc "Fast Sew confidence check in a single JVM with noop capture.
           Consolidates framework + dispute-resolution + evidence into one
-          parallel-runner call.  Replaces 3 separate JVMs (~42s saved)."
-    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m"
+           parallel-runner call.  Replaces 3 separate JVMs (~42s saved)."
+    :task (shell "clojure" "-M:test:with-sew" "-m"
                  "scripts.parallel-test-runner" "--noop-capture"
                  "resolver-sim.core-tests"
                  "resolver-sim.protocol-alignment-test"
@@ -579,8 +579,8 @@ test:quick
    community:mailbox:clear {:doc "Clear all mailbox messages. Usage: bb community:mailbox:clear"
                              :task (apply clojure "-M:with-sew" "-m" "resolver-sim.community.cli" "mailbox:clear" *command-line-args*)}
 
-   test:community {:doc "Run community participation tests"
-                   :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner"
+test:community {:doc "Run community participation tests"
+                   :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner"
                                 "resolver-sim.community.core-test"
                                 "resolver-sim.community.result-test"
                                 "resolver-sim.community.design-scrutiny-test"

@@ -297,8 +297,8 @@
     "Per-user settlement decisions (from partial-fill engine)"]
    [:div {:style {:marginTop "12px"}}
     (clerk/code
-      (into (sorted-map)
-            (map (fn [[user dec]]
+       (common/safe-sorted-map
+             (map (fn [[user dec]]
                    [user {:settlement-mode (:mode dec)
                           :requested (:requested dec)
                           :filled (:filled dec)
