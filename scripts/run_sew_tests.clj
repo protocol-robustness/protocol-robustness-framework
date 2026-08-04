@@ -17,9 +17,10 @@
 
    Per-namespace results are printed, followed by a summary line:
      RESULT: PASS|FAIL  <tests> tests, <assertions> assertions, <failures> failures, <errors> errors  <elapsed>s"
-  (:require [clojure.string :as str]
-            [clojure.test :as t]
-            [resolver-sim.test-util :as tu]))
+  (:require [clojure.test :as t]
+            [resolver-sim.test-util :as tu]
+            [scripts.test-state :as ts]
+            [scripts.test-summary :as summary]))
 
 ;; ── Fast unit test namespaces (pure domain logic, no evidence assertions) ───
 
@@ -112,32 +113,79 @@
 ;; ── Runner ──────────────────────────────────────────────────────────────────
 
 (defn- run-group
+  "Run each namespace in a group under the same evidence-isolation binding,
+   capturing per-namespace output for failure attribution.
+
+   Returns {:summary {... :label :elapsed-ms}
+            :failed-nses [...]
+            :per-ns [{:sym :result :output}]}."
   [label namespaces runner-fn]
   (println)
   (println "───" label (count namespaces) "namespaces ───")
   (let [start (System/currentTimeMillis)
-        summary (runner-fn (fn [] (apply t/run-tests namespaces)))
-        elapsed (/ (- (System/currentTimeMillis) start) 1000.0)]
-    (assoc summary :elapsed elapsed :label label)))
+        per-ns (runner-fn
+                 (fn []
+                   (mapv (fn [sym]
+                           (let [out (java.io.StringWriter.)
+                                 pw (java.io.PrintWriter. out)]
+                             (binding [*out* pw
+                                       *err* pw
+                                       t/*test-out* pw]
+                               (let [result (t/run-tests sym)]
+                                 {:sym sym :result result :output (str out)}))))
+                         namespaces)))
+        elapsed (- (System/currentTimeMillis) start)
+        summary (assoc (reduce (fn [acc {:keys [result]}]
+                                 (merge-with + acc (select-keys result [:test :pass :fail :error])))
+                               {}
+                               per-ns)
+                       :elapsed elapsed
+                       :label label)]
+    {:summary summary
+     :failed-nses (into []
+                        (keep (fn [{:keys [sym result]}]
+                                (when (pos? (+ (:fail result) (:error result)))
+                                  sym)))
+                        per-ns)
+     :per-ns per-ns}))
 
 (defn- print-summary
-  [results]
-  (let [total-tests  (apply + (map :test results))
-        total-pass   (apply + (map :pass results))
-        total-fail   (apply + (map :fail results))
-        total-error  (apply + (map :error results))
-        total-elapsed (apply + (map :elapsed results))
-        outcome (if (pos? (+ total-fail total-error)) "FAIL" "PASS")]
+  "Print per-namespace results plus a shared summary/failures footer, and persist
+   test state for bb test:rerun."
+  [group-results]
+  (let [summaries (map :summary group-results)
+        per-ns (mapcat :per-ns group-results)
+        totals {:test  (apply + (map :test summaries))
+                :pass  (apply + (map :pass summaries))
+                :fail  (apply + (map :fail summaries))
+                :error (apply + (map :error summaries))}
+        total-elapsed (apply + (map :elapsed summaries))
+        failed-nses (vec (distinct (mapcat :failed-nses group-results)))
+        items (mapv (fn [{:keys [sym output]}]
+                      {:label (str sym)
+                       :failures (summary/first-failing-tests output)})
+                    per-ns)]
+    (doseq [{:keys [sym result output]} per-ns]
+      (let [label (str sym)]
+        (println)
+        (println "─────" label "─────")
+        (print output)
+        (flush)
+        (if (and (zero? (:fail result)) (zero? (:error result)))
+          (println (str "  PASS  " label "  (" (:test result) " tests)"))
+          (println (str "  FAIL  " label "  " (:fail result) " fail, " (:error result) " errors, "
+                        (:test result) " tests")))))
     (println)
-    (println "┌─ Sew test batch summary ───────────────────────────────────────┐")
-    (println (format "│  %4d tests, %4d assertions, %d failures, %d errors  │"
-                     total-tests total-pass total-fail total-error))
-    (println (format "│  elapsed: %.2fs                                      │" total-elapsed))
-    (println "└─────────────────────────────────────────────────────────────────┘")
-    (println (format "RESULT: %s  %d tests, %d assertions, %d failures, %d errors  %.2fs"
-                     outcome total-tests total-pass total-fail total-error total-elapsed))
+    (summary/render-box "Sew test batch summary"
+                        [(format "%d tests, %d assertions, %d failures, %d errors"
+                                 (:test totals) (:pass totals) (:fail totals) (:error totals))
+                         (format "elapsed: %.2fs" (/ total-elapsed 1000.0))])
+    (summary/result-line totals total-elapsed)
+    (summary/print-failures items)
+    (ts/write-state! {:command *command-line-args*
+                      :failed-nses failed-nses})
     (flush)
-    (when (pos? (+ total-fail total-error))
+    (when (pos? (+ (:fail totals) (:error totals)))
       (System/exit 1))))
 
 ;; ── Main ────────────────────────────────────────────────────────────────────

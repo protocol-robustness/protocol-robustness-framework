@@ -81,14 +81,14 @@
       (when (seq bonds)
         [:div {:style {:marginBottom "6px"}}
          [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "2px"}} "bond-balances"]
-         (for [[addr amt] (sort bonds)]
+         (for [[addr amt] (common/safe-sort bonds)]
            [:div {:style {:display "flex" :gap "6px"}}
             [:span {:style {:color "#64748b" :minWidth "60px"}} (pr-str addr)]
             [:span amt]])])
       (when (seq claim)
         [:div {:style {:marginBottom "6px"}}
          [:div {:style {:color "#03DAC6" :fontWeight 700 :marginBottom "2px"}} "claimable"]
-         (for [[addr amt] (sort claim)]
+          (for [[addr amt] (common/safe-sort claim)]
            [:div {:style {:display "flex" :gap "6px"}}
             [:span {:style {:color "#64748b" :minWidth "60px"}} (pr-str addr)]
             [:span amt]])])
@@ -99,7 +99,7 @@
       (when prev-dec
         [:div
          [:div {:style {:color "#cbd5e1" :fontWeight 700 :marginBottom "2px"}} "previous-decisions"]
-         (for [[level decision] (sort prev-dec)]
+         (for [[level decision] (common/safe-sort prev-dec)]
            [:div {:style {:display "flex" :gap "6px"}}
             [:span {:style {:color "#64748b" :minWidth "30px"}} (str "L" level)]
             [:span (pr-str decision)]])])]]))
@@ -316,7 +316,7 @@
                [:summary.scenario-summary
                 [:span {:style {:color "#FF9800" :fontWeight 700}} (str wf-id)]
                 "  "
-                (str/join ", " (sort scenarios))
+                (str/join ", " (common/safe-sort scenarios))
                 "  "
                 [:span {:style {:fontSize "10px" :color "#64748b"}} action-summary]
                 "  "
@@ -517,7 +517,7 @@
                     [:th {:style {:textAlign "right" :padding "4px" :borderBottom "1px solid #134e4a"}} "Bond Slashed"]
                     [:th {:style {:textAlign "center" :padding "4px" :borderBottom "1px solid #134e4a"}} "Status"]]]
                   [:tbody
-                   (for [[token buckets] (sort by-token)
+                   (for [[token buckets] (common/safe-sort by-token)
                          :let [all-zero? (every? #(zero? (long (get buckets % 0)))
                                                   [:held :released :refunded :withdrawn :bond-posted :bond-slashed])]]
                      [:tr {:style {:opacity (if all-zero? "0.5" "1.0")}}

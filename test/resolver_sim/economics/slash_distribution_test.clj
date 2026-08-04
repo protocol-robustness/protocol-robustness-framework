@@ -1158,3 +1158,314 @@
           r1 (sd/build-application-receipt inputs)
           r2 (sd/build-application-receipt inputs)]
       (is (= (:receipt/hash r1) (:receipt/hash r2))))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; 20. calculate-scaled-share primitive
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest scaled-share-zero-rate
+  (let [calc (sd/calculate-scaled-share {:gross-amount 1000 :rate 0 :scale 10000 :rounding :floor})]
+    (is (= 0 (:amount calc)))
+    (is (= 0 (:numerator calc)))
+    (is (= 0 (:rounding-remainder calc)))
+    (is (= :zero-rate (:classification calc)))))
+
+(deftest scaled-share-rounded-to-zero
+  (testing "positive rate below one unit of gross rounds to zero"
+    (let [calc (sd/calculate-scaled-share {:gross-amount 1000 :rate 7 :scale 10000 :rounding :floor})]
+      (is (= 0 (:amount calc)))
+      (is (= 7000 (:numerator calc)))
+      (is (= 7000 (:rounding-remainder calc)))
+      (is (= :rounded-to-zero (:classification calc))))))
+
+(deftest scaled-share-positive-award
+  (let [calc (sd/calculate-scaled-share {:gross-amount 1000 :rate 500 :scale 10000 :rounding :floor})]
+    (is (= 50 (:amount calc)))
+    (is (= 500000 (:numerator calc)))
+    (is (= 0 (:rounding-remainder calc)))
+    (is (= :positive-award (:classification calc)))))
+
+(deftest scaled-share-with-rounding-remainder
+  (testing "non-divisible numerator leaves a visible remainder"
+    (let [calc (sd/calculate-scaled-share {:gross-amount 100 :rate 333 :scale 1000 :rounding :floor})]
+      (is (= 33 (:amount calc)))
+      (is (= 33300 (:numerator calc)))
+      (is (= 300 (:rounding-remainder calc)))
+      (is (= :positive-award (:classification calc)))
+      (is (= (:numerator calc)
+             (+ (* (:amount calc) (:scale calc)) (:rounding-remainder calc)))))))
+
+(deftest scaled-share-full-gross
+  (testing "rate = scale allocates the entire gross amount"
+    (doseq [[gross rate scale] [[1000 10000 10000] [1000 100 100] [1 1 1]]]
+      (let [calc (sd/calculate-scaled-share {:gross-amount gross :rate rate :scale scale :rounding :floor})]
+        (is (= gross (:amount calc)))
+        (is (= :full-gross-award (:classification calc)))))))
+
+(deftest scaled-share-zero-gross
+  (testing "zero gross with zero rate is :zero-rate; zero gross with positive rate rounds to zero"
+    (is (= :zero-rate
+           (:classification
+            (sd/calculate-scaled-share {:gross-amount 0 :rate 0 :scale 10000 :rounding :floor}))))
+    (is (= :rounded-to-zero
+           (:classification
+            (sd/calculate-scaled-share {:gross-amount 0 :rate 500 :scale 10000 :rounding :floor}))))))
+
+(deftest scaled-share-rejects-invalid-domain
+  (testing "outside the admitted domain the primitive returns nil"
+    (doseq [input [{:gross-amount 1000 :rate -1 :scale 10000 :rounding :floor}
+                   {:gross-amount 1000 :rate 15000 :scale 10000 :rounding :floor}
+                   {:gross-amount 1000 :rate 500 :scale 0 :rounding :floor}
+                   {:gross-amount 1000 :rate 500 :scale -100 :rounding :floor}
+                   {:gross-amount 1000 :rate 500 :scale 10000 :rounding :nearest}
+                   {:gross-amount -1 :rate 500 :scale 10000 :rounding :floor}
+                   {:gross-amount 1000 :rate 1.5 :scale 10000 :rounding :floor}
+                   {:gross-amount 1000 :rate "500" :scale 10000 :rounding :floor}]]
+      (is (nil? (sd/calculate-scaled-share input))))))
+
+(deftest scaled-share-equivalent-ratios
+  (testing "same ratio under different explicit scales yields the same amount"
+    (let [a (sd/calculate-scaled-share {:gross-amount 10000 :rate 500 :scale 10000 :rounding :floor})
+          b (sd/calculate-scaled-share {:gross-amount 10000 :rate 5 :scale 100 :rounding :floor})]
+      (is (= 500 (:amount a)))
+      (is (= (:amount a) (:amount b)))
+      (is (= (:classification a) (:classification b))))))
+
+(deftest scaled-share-large-integers
+  (testing "unbounded Clojure integer arithmetic handles values beyond Long/MAX_VALUE"
+    (let [big (inc (bigint Long/MAX_VALUE))
+          full (sd/calculate-scaled-share {:gross-amount big :rate big :scale big :rounding :floor})
+          partial (sd/calculate-scaled-share {:gross-amount big :rate (inc big) :scale (* 2 big) :rounding :floor})
+          dust (sd/calculate-scaled-share {:gross-amount 1 :rate 1 :scale big :rounding :floor})]
+      (is (= big (:amount full)))
+      (is (= :full-gross-award (:classification full)))
+      (is (pos? (:amount partial)))
+      (is (= :positive-award (:classification partial)))
+      (is (= (:numerator partial)
+             (+ (* (:amount partial) (:scale partial)) (:rounding-remainder partial))))
+      (is (= :rounded-to-zero (:classification dust))))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; 21. Per-award calculation binding, zero-outcome evidence, summary
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest rate-derived-award-carries-calculation
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            all-scales-10000-policy
+                 :parameter-context reward-param-500
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        award (-> result :distribution :distribution/awards first)]
+    (is (= :valid (:status result)))
+    (let [calc (:calculation award)]
+      (is (= :test.parameter/reward-rate (:parameter-key calc)))
+      (is (= 500 (:parameter-value calc)))
+      (is (= 10000 (:scale calc)))
+      (is (= :floor (:rounding calc)))
+      (is (= 1000 (:gross-amount calc)))
+      (is (= 500000 (:numerator calc)))
+      (is (= 50 (:amount calc)))
+      (is (= 0 (:rounding-remainder calc)))
+      (is (= :positive-award (:calculation-classification calc)))
+      (is (= (:numerator calc)
+             (+ (* (:amount calc) (:scale calc)) (:rounding-remainder calc)))))))
+
+(deftest calculation-trace-includes-positive-and-zero-outcomes
+  (let [params {:source-root "sha256:test"
+                :values {:test.parameter/reward-rate 500
+                         :test.parameter/bonus-rate  7}}
+        bonus-award {:award/id :test.award/bonus
+                     :eligibility {:trigger :test.trigger/secondary-event
+                                   :evidence-reference "sha256:test-bonus-001"}
+                     :beneficiary {:participant/id :test.participant/bob
+                                   :participant/role :test.role/validator}}
+        result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            two-award-policy
+                 :parameter-context params
+                 :resolved-awards   [resolved-reward bonus-award]
+                 :context           {}})]
+    (is (= :valid (:status result)))
+    (let [dist (:distribution result)
+          calcs (:distribution/calculations dist)
+          awards (:distribution/awards dist)]
+      ;; bonus (rate 7) rounds to zero and produces no transfer
+      (is (= [:test.award/reward] (mapv :award/id awards)))
+      ;; both rate-derived calculations are preserved, sorted canonically
+      (is (= [:test.award/bonus :test.award/reward] (mapv :award/id calcs)))
+      (is (= :rounded-to-zero (-> (first calcs) :calculation-classification)))
+      (is (= :positive-award (-> (second calcs) :calculation-classification)))
+      ;; the embedded binding matches the trace record
+      (is (= (:calculation (first awards)) (second calcs))))))
+
+(deftest zero-outcome-records-preserve-cause
+  (testing "explicit zero rate is distinguished from positive entitlement rounded away"
+    (let [zero-result (sd/build-slash-distribution
+                       {:gross-amount      1000
+                        :policy            all-scales-10000-policy
+                        :parameter-context {:source-root "sha256:test" :values {:test.parameter/reward-rate 0}}
+                        :resolved-awards   [resolved-reward]
+                        :context           {}})
+          dust-result (sd/build-slash-distribution
+                       {:gross-amount      1000
+                        :policy            all-scales-10000-policy
+                        :parameter-context {:source-root "sha256:test" :values {:test.parameter/reward-rate 7}}
+                        :resolved-awards   [resolved-reward]
+                        :context           {}})]
+      (is (= :valid (:status zero-result)))
+      (is (= :valid (:status dust-result)))
+      (is (= [] (:distribution/awards (:distribution zero-result))))
+      (is (= [] (:distribution/awards (:distribution dust-result))))
+      (is (= :zero-rate (-> zero-result :distribution :distribution/calculations first :calculation-classification)))
+      (is (= :rounded-to-zero (-> dust-result :distribution :distribution/calculations first :calculation-classification))))))
+
+(deftest distribution-summary-aggregates-rate-derived-awards
+  (let [params {:source-root "sha256:test"
+                :values {:test.parameter/reward-rate 500
+                         :test.parameter/bonus-rate  300}}
+        bonus-award {:award/id :test.award/bonus
+                     :eligibility {:trigger :test.trigger/secondary-event
+                                   :evidence-reference "sha256:test-bonus-001"}
+                     :beneficiary {:participant/id :test.participant/bob
+                                   :participant/role :test.role/validator}}
+        result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            two-award-policy
+                 :parameter-context params
+                 :resolved-awards   [resolved-reward bonus-award]
+                 :context           {}})
+        summary (:distribution/summary (:distribution result))]
+    (is (= :valid (:status result)))
+    (is (= 2 (:rate-derived-award-count summary)))
+    (is (= 2 (:positive-rate-derived-award-count summary)))
+    (is (= 0 (:zero-rate-count summary)))
+    (is (= 0 (:rounded-to-zero-count summary)))
+    (is (= 0 (:full-gross-award-count summary)))
+    (is (= 80 (:total-rate-derived-award-amount summary)))
+    (is (= 0 (:total-rounding-remainder summary)))
+    (is (= {:test.parameter/reward-rate 50 :test.parameter/bonus-rate 30}
+           (:amount-by-parameter-key summary)))))
+
+(deftest distribution-summary-counts-zero-outcomes
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            two-award-policy
+                 :parameter-context {:source-root "sha256:test"
+                                     :values {:test.parameter/reward-rate 0
+                                              :test.parameter/bonus-rate  7}}
+                 :resolved-awards   [resolved-reward
+                                     {:award/id :test.award/bonus
+                                      :eligibility {:trigger :test.trigger/secondary-event
+                                                    :evidence-reference "sha256:test-bonus-001"}
+                                      :beneficiary {:participant/id :test.participant/bob
+                                                    :participant/role :test.role/validator}}]
+                 :context           {}})
+        summary (:distribution/summary (:distribution result))]
+    (is (= :valid (:status result)))
+    (is (= 2 (:rate-derived-award-count summary)))
+    (is (= 0 (:positive-rate-derived-award-count summary)))
+    (is (= 1 (:zero-rate-count summary)))
+    (is (= 1 (:rounded-to-zero-count summary)))
+    (is (= 0 (:total-rate-derived-award-amount summary)))
+    ;; dust from the rounded-to-zero award is fully visible as rounding loss
+    (is (= 7000 (:total-rounding-remainder summary)))
+    (is (= {:test.parameter/reward-rate 0 :test.parameter/bonus-rate 0}
+           (:amount-by-parameter-key summary)))))
+
+(deftest full-gross-award-completes-distribution
+  (let [policy (-> all-scales-10000-policy
+                   (assoc-in [:allocation :weights] {:test.allocation/a 10000})
+                   (assoc-in [:allocation :remainder-to] :test.allocation/a)
+                   (assoc-in [:awards 0 :funding :weights] {:test.allocation/a 10000})
+                   (assoc-in [:awards 0 :funding :remainder-to] :test.allocation/a))
+        params {:source-root "sha256:test" :values {:test.parameter/reward-rate 10000}}
+        result (sd/build-slash-distribution
+                {:gross-amount      100
+                 :policy            policy
+                 :parameter-context params
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        dist (:distribution result)
+        award (first (:distribution/awards dist))]
+    (is (= :valid (:status result)))
+    (is (= 100 (:award/amount award)))
+    (is (= :full-gross-award (get-in award [:calculation :calculation-classification])))
+    (is (= 1 (:full-gross-award-count (:distribution/summary dist))))
+    (is (= 100 (reduce + 0 (vals (:distribution/final-allocations dist)))))))
+
+(deftest verify-catches-tampered-summary
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            all-scales-10000-policy
+                 :parameter-context reward-param-500
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        dist (-> (:distribution result)
+                 (update :distribution/summary assoc :total-rate-derived-award-amount 9999)
+                 (update :distribution/hash (fn [_] "ignored")))
+        {:keys [valid? violations]} (sd/verify-distribution dist)]
+    (is (not valid?))
+    (is (some #(= :violation/summary-mismatch (:violation/id %)) violations))))
+
+(deftest verify-catches-tampered-calculation-binding
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            all-scales-10000-policy
+                 :parameter-context reward-param-500
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        dist (-> (:distribution result)
+                 (assoc-in [:distribution/awards 0 :calculation :amount] 9999)
+                 (update :distribution/hash (fn [_] "ignored")))
+        {:keys [valid? violations]} (sd/verify-distribution dist)]
+    (is (not valid?))
+    (is (some #(and (= :violation/recomputation-mismatch (:violation/id %))
+                    (= "award :test.award/reward calculation binding"
+                       (get-in % [:details :field])))
+              violations))))
+
+(deftest verify-recomputation-catches-tampered-zero-outcome
+  (let [params {:source-root "sha256:test" :values {:test.parameter/reward-rate 7}}
+        result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            all-scales-10000-policy
+                 :parameter-context params
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        dist (-> (:distribution result)
+                 (assoc-in [:distribution/calculations 0 :calculation-classification] :positive-award)
+                 (update :distribution/hash (fn [_] "ignored")))
+        {:keys [valid? violations]}
+        (sd/verify-distribution dist
+                                {:policy            all-scales-10000-policy
+                                 :parameter-context params})]
+    (is (not valid?))
+    (is (some #(and (= :violation/recomputation-mismatch (:violation/id %))
+                    (= "calculation :test.award/reward" (get-in % [:details :field])))
+              violations))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; 22. Conservation categories at the engine boundary
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest conservation-violation-exposes-categories
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      1000
+                 :policy            all-scales-10000-policy
+                 :parameter-context reward-param-500
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        dist (-> (:distribution result)
+                 (update :distribution/final-allocations (fn [m] (update m :test.allocation/a inc)))
+                 (update :distribution/hash (fn [_] "ignored")))
+        {:keys [valid? violations]} (sd/verify-distribution dist)
+        conservation (first (filter #(= :violation/conservation-violation (:violation/id %)) violations))]
+    (is (not valid?))
+    (is (some? conservation))
+    (let [cats (get-in conservation [:details :categories])]
+      (is (= 1000 (:base-total cats)))
+      (is (= 50 (:award-total cats)))
+      (is (= 50 (:deduction-total cats)))
+      (is (= 50 (:settlement-total cats)))
+      (is (= 0 (:retained cats))))))

@@ -26,7 +26,8 @@
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.hash.canonical :as hc]
-            [scripts.test-state :as ts]))
+            [scripts.test-state :as ts]
+            [scripts.test-summary :as summary]))
 
 (defn- default-jobs
   []
@@ -54,7 +55,6 @@
                                      [false args])
         syms (map symbol namespaces)
         _ (doseq [s syms] (require s))
-        n (count syms)
         start (System/currentTimeMillis)
         tmp-root (str (System/getProperty "java.io.tmpdir")
                       "/parallel-test-artifacts-" (java.util.UUID/randomUUID))
@@ -69,7 +69,8 @@
                             (.acquire sem)
                             (try
                               (binding [*out* (java.io.PrintWriter. out-writer)
-                                        *err* (java.io.PrintWriter. err-writer)]
+                                        *err* (java.io.PrintWriter. err-writer)
+                                        t/*test-out* (java.io.PrintWriter. out-writer)]
                                 (chain/with-fresh-evidence-context*
                                  (fn []
                                    (node/with-fresh-registry
@@ -103,29 +104,34 @@
         keep? (or failed? (some? (System/getenv "KEEP_PARALLEL_TEST_ARTIFACTS")))]
     ;; Serialize per-namespace output (prevent interleaving from concurrent namespaces)
     (println)
-    (doseq [{:keys [sym result output err-output]} results]
-      (let [label (str sym)]
-        (println)
-        (println "─────" label "─────")
-        (print output)
-        (when (not= "" err-output)
-          (print err-output))
-        (flush)
-        (if (and (zero? (:fail result)) (zero? (:error result)))
-          (println (str "  PASS  " label "  (" (:test result) " tests)"))
-          (println (str "  FAIL  " label "  " (:fail result) " fail, " (:error result) " errors, "
-                        (:test result) " tests")))))
-    ;; Summary box
-    (println "\n┌─ Parallel test summary ─────────────────────────────────────┐")
-    (println (format "│  %4d tests, %4d assertions, %d failures, %d errors  │"
-                     (:test total) (:pass total) (:fail total) (:error total)))
-    (println (format "│  elapsed: %.2fs  jobs: %d                              │"
-                     (/ elapsed 1000.0) jobs))
-    (println "├─────────────────────────────────────────────────────────────┤")
-    (if keep?
-      (println (format "│  artifacts: %s                                    " tmp-root))
-      (println "│  artifacts: cleaned (all passed)                          │"))
-    (println "└─────────────────────────────────────────────────────────────┘")
+    (let [items (mapv (fn [{:keys [sym output err-output]}]
+                        {:label (str sym)
+                         :failures (summary/first-failing-tests
+                                    (str output err-output))})
+                      results)]
+      (doseq [{:keys [sym result output err-output]} results]
+        (let [label (str sym)]
+          (println)
+          (println "─────" label "─────")
+          (print output)
+          (when (not= "" err-output)
+            (print err-output))
+          (flush)
+          (if (and (zero? (:fail result)) (zero? (:error result)))
+            (println (str "  PASS  " label "  (" (:test result) " tests)"))
+            (println (str "  FAIL  " label "  " (:fail result) " fail, " (:error result) " errors, "
+                          (:test result) " tests")))))
+      ;; Summary box
+      (println)
+      (summary/render-box "Parallel test summary"
+                          [(format "%d tests, %d assertions, %d failures, %d errors"
+                                   (:test total) (:pass total) (:fail total) (:error total))
+                           (format "elapsed: %.2fs  jobs: %d" (/ elapsed 1000.0) jobs)
+                           (if keep?
+                             (format "artifacts: %s" tmp-root)
+                             "artifacts: cleaned (all passed)")])
+      (summary/result-line total elapsed)
+      (summary/print-failures items))
     ;; Cleanup — keep on failure, delete on success
     (if keep?
       (println "Keeping artifact dirs:" tmp-root)

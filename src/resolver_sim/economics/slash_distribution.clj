@@ -13,6 +13,29 @@
    - Policy, allocation, award-amount, and funding each carry independent
      :scale values — none are inferred from each other.
 
+   Scaled-share awards (:rate-of-gross):
+   - An award amount is a scaled, non-negative proportion of the gross
+     amount computed by the public primitive `calculate-scaled-share`:
+         amount = floor(gross-amount * rate / scale)
+     where rate is the resolved value of the award's :parameter-key.
+   - The scale is an explicit, policy-level constant; it is not assumed to
+     be 10,000. Valid rates satisfy 0 <= rate <= scale. Rounding is integer
+     floor (:floor). At this layer the calculation base is exactly
+     gross-amount — no refund, custody, or net-distributable ordering is
+     introduced here.
+   - Per-award calculation evidence is committed: each rate-derived award
+     carries the parameter key, resolved value, scale, rounding, gross
+     amount, numerator, rounding remainder, and a classification
+     (:zero-rate, :rounded-to-zero, :positive-award, :full-gross-award).
+     All rate-derived calculations — including zero-outcome records that
+     produce no transfer — are collected in :distribution/calculations and
+     summarized in :distribution/summary. Parameter provenance (source root
+     and values) is committed at distribution level via
+     :distribution/parameter-context.
+   - `calculate-scaled-share` uses unbounded integer arithmetic; it does not
+     itself assert Solidity-equivalent checked-width semantics. A checked-
+     width or mulDiv-equivalent profile is a separate follow-up.
+
    Boundaries:
    - This namespace proves arithmetic and structural validity.
    - A protocol adapter proves eligibility (challenge succeeded, beneficiary
@@ -48,6 +71,8 @@
                 :distribution/parameter-context
                 :distribution/base-allocations
                 :distribution/awards
+                :distribution/calculations
+                :distribution/summary
                 :distribution/final-allocations]))
 
 (defn distribution-hash
@@ -249,6 +274,112 @@
     {:valid? (empty? v)
      :violations (vec v)}))
 
+;; ── scaled-share primitive ───────────────────────────────────────────────
+
+(defn calculate-scaled-share
+  "Compute a scaled, non-negative proportion of a gross amount.
+
+   Given an explicit scale and :floor rounding, computes
+
+     amount   = floor(gross-amount * rate / scale)
+     numerator = gross-amount * rate
+     rounding-remainder = numerator - amount * scale
+
+   and classifies the outcome:
+
+     :zero-rate        — rate is 0
+     :rounded-to-zero  — rate > 0 but the amount rounds down to 0
+     :positive-award   — 0 < amount < gross-amount
+     :full-gross-award — amount = gross-amount (rate = scale)
+
+   Valid domain: gross-amount is a non-negative integer, rate is a
+   non-negative integer with rate <= scale, scale is a positive integer,
+   and rounding is :floor. Returns nil outside the valid domain; the
+   distribution engine reports specific violations instead of classifying.
+
+   The primitive uses unbounded integer arithmetic and does not itself
+   assert Solidity-equivalent checked-width semantics. A checked-width or
+   mulDiv-equivalent profile is a separate follow-up."
+  [{:keys [gross-amount rate scale rounding]}]
+  (when (and (integer? gross-amount)
+             (not (neg? gross-amount))
+             (integer? rate)
+             (not (neg? rate))
+             (integer? scale)
+             (pos? scale)
+             (<= rate scale)
+             (= :floor rounding))
+    (let [numerator (* gross-amount rate)
+          amount (quot numerator scale)
+          rounding-remainder (- numerator (* amount scale))
+          classification (cond
+                           (zero? rate) :zero-rate
+                           (zero? amount) :rounded-to-zero
+                           (= amount gross-amount) :full-gross-award
+                           :else :positive-award)]
+      {:gross-amount gross-amount
+       :rate rate
+       :scale scale
+       :rounding rounding
+       :numerator numerator
+       :amount amount
+       :rounding-remainder rounding-remainder
+       :classification classification})))
+
+(defn- rate-of-gross-calculation
+  "Return the `calculate-scaled-share` record for a :rate-of-gross amount
+   spec resolved against the parameter values, or nil when the parameter
+   is missing or the resolved value is outside the valid domain."
+  [gross-amount amount-spec param-values]
+  (let [resolved (get param-values (:parameter-key amount-spec))]
+    (when (some? resolved)
+      (calculate-scaled-share {:gross-amount gross-amount
+                               :rate resolved
+                               :scale (:scale amount-spec)
+                               :rounding (:rounding amount-spec)}))))
+
+(defn- award-calculation
+  "Full calculation record bound to a rate-derived award, or nil when the
+   award does not use :rate-of-gross.
+
+   Binds the resolved parameter and the exact arithmetic inputs so an
+   auditor can recompute the award locally without re-reading the policy."
+  [award-id gross-amount amount-spec param-values]
+  (when (= :rate-of-gross (:method amount-spec))
+    (when-let [calc (rate-of-gross-calculation gross-amount amount-spec param-values)]
+      {:award/id award-id
+       :parameter-key (:parameter-key amount-spec)
+       :parameter-value (:rate calc)
+       :scale (:scale calc)
+       :rounding (:rounding calc)
+       :gross-amount (:gross-amount calc)
+       :numerator (:numerator calc)
+       :amount (:amount calc)
+       :rounding-remainder (:rounding-remainder calc)
+       :calculation-classification (:classification calc)})))
+
+(defn- build-rate-derived-summary
+  "Aggregate summary derived exclusively from the rate-derived calculation
+   records in :distribution/calculations.
+
+   Effective aggregate rate is a derived ratio
+     total-rate-derived-award-amount / total eligible base
+   and is intentionally not stored as a rounded value; it is recomputable
+   from the recorded totals."
+  [calculations]
+  (let [classifications (frequencies (map :calculation-classification calculations))
+        positive (filter #(pos? (:amount %)) calculations)]
+    {:rate-derived-award-count (count calculations)
+     :positive-rate-derived-award-count (count positive)
+     :zero-rate-count (get classifications :zero-rate 0)
+     :rounded-to-zero-count (get classifications :rounded-to-zero 0)
+     :full-gross-award-count (get classifications :full-gross-award 0)
+     :total-rate-derived-award-amount (reduce + 0 (map :amount calculations))
+     :total-rounding-remainder (reduce + 0 (map :rounding-remainder calculations))
+     :amount-by-parameter-key (reduce (fn [acc c]
+                                        (update acc (:parameter-key c) (fnil + 0) (:amount c)))
+                                      {} calculations)}))
+
 ;; ── award calculation ────────────────────────────────────────────────────
 
 (defn- compute-allocation
@@ -268,21 +399,18 @@
 
 (defn- compute-award-amount
   "Compute a single award amount from gross amount and amount spec.
-   Supports :rate-of-gross (computed from parameter) and
-   :resolved-amount (pre-computed, supplied in resolved-awards)."
+   Supports :rate-of-gross (computed from the resolved parameter via
+   `calculate-scaled-share`) and :resolved-amount (pre-computed, supplied
+   in resolved-awards). Returns nil when the value is unavailable."
   [gross-amount amount-spec param-values resolved-award]
-  (let [method (:method amount-spec)]
-    (case method
-      :rate-of-gross
-      (let [{:keys [parameter-key scale]} amount-spec
-            resolved (get param-values parameter-key)]
-        (when (and resolved (pos? scale))
-          (quot (* gross-amount resolved) scale)))
-      :resolved-amount
-      (let [resolved (:award/amount resolved-award)]
-        (when (and (integer? resolved) (not (neg? resolved)))
-          resolved))
-      nil)))
+  (case (:method amount-spec)
+    :rate-of-gross
+    (:amount (rate-of-gross-calculation gross-amount amount-spec param-values))
+    :resolved-amount
+    (let [resolved (:award/amount resolved-award)]
+      (when (and (integer? resolved) (not (neg? resolved)))
+        resolved))
+    nil))
 
 (defn- compute-award-funding
   "Compute per-source funding deductions for a single award."
@@ -305,16 +433,19 @@
   "Process a single resolved award against the matching policy award spec
    and gross amount.
 
-   Returns {:award <award-entry> :violations [...]}
-   or {:award nil :violations [...]} on validation failure or zero amount."
+   Returns {:award <award-entry> :calculation <calc-or-nil>
+            :violations [...]}
+   or {:award nil :calculation <calc-or-nil> :violations [...]} on
+   validation failure or zero amount. The :calculation record is preserved
+   for zero outcomes so they remain auditable without producing transfers."
   [gross-amount policy-award resolved-award param-values]
   (let [award-id (:award/id resolved-award)
         v []
         amount-spec (:amount policy-award)
-        award-amount (compute-award-amount gross-amount amount-spec param-values resolved-award)]
+        award-amount (compute-award-amount gross-amount amount-spec param-values resolved-award)
+        calculation (award-calculation award-id gross-amount amount-spec param-values)]
     (if (zero? award-amount)
-      {:award nil
-       :violations v}
+      {:award nil :calculation calculation :violations v}
       (let [elig (:eligibility resolved-award)
             policy-elig (:eligibility policy-award)
             v (if (= (:trigger policy-elig) (:trigger elig)) v
@@ -337,17 +468,19 @@
                   (conj v {:violation/id :violation/missing-beneficiary
                            :details {:award/id award-id}}))]
         (if (seq v)
-          {:award nil :violations v}
+          {:award nil :calculation calculation :violations v}
           (let [funding-spec (:funding policy-award)
                 settlement-spec (:settlement policy-award)
                 funding (compute-award-funding award-amount funding-spec)]
-            {:award {:award/id award-id
-                     :award/amount award-amount
-                     :eligibility {:trigger (:trigger elig)
-                                   :evidence-reference (:evidence-reference elig)}
-                     :beneficiary (:beneficiary resolved-award)
-                     :funding funding
-                     :settlement {:allocation-id (:allocation-id settlement-spec)}}
+            {:award (cond-> {:award/id award-id
+                             :award/amount award-amount
+                             :eligibility {:trigger (:trigger elig)
+                                           :evidence-reference (:evidence-reference elig)}
+                             :beneficiary (:beneficiary resolved-award)
+                             :funding funding
+                             :settlement {:allocation-id (:allocation-id settlement-spec)}}
+                      calculation (assoc :calculation calculation))
+             :calculation calculation
              :violations []}))))))
 
 (defn build-slash-distribution
@@ -447,7 +580,7 @@
       {:status :invalid :violations v}
       (let [allocation-spec (:allocation policy)
             base (compute-allocation gross-amount allocation-spec)
-            ;; resolve each award
+                ;; resolve each award
             resolved (mapv (fn [ra]
                              (let [pa (some #(when (= (:award/id ra) (:award/id %)) %)
                                             (:awards policy))]
@@ -458,7 +591,10 @@
           {:status :invalid :violations award-violations}
           (let [active-awards (keep :award resolved)
                 sorted-awards (vec (sort-by :award/id active-awards))
-                ;; aggregate deductions by source
+                    ;; every rate-derived calculation, including zero outcomes
+                calculations (vec (sort-by :award/id (keep :calculation resolved)))
+                summary (build-rate-derived-summary calculations)
+                    ;; aggregate deductions by source
                 aggregate-deductions (reduce (fn [acc award]
                                                (let [funding (:funding award)]
                                                  (merge-with + acc funding)))
@@ -509,7 +645,12 @@
                       {:status :invalid
                        :violations [{:violation/id :violation/conservation-violation
                                      :details {:gross-amount gross-amount
-                                               :final-total final-total}}]}
+                                               :final-total final-total
+                                               :categories {:base-total (reduce + 0 (vals base))
+                                                            :deduction-total (reduce + 0 (vals aggregate-deductions))
+                                                            :settlement-total (reduce + 0 (vals settlement-inflows))
+                                                            :award-total (reduce + 0 (map :award/amount sorted-awards))
+                                                            :retained 0}}}]}
                       (let [distribution
                             {:schema-version distribution-schema-version
                              :distribution/gross-amount gross-amount
@@ -518,6 +659,8 @@
                              :distribution/parameter-context parameter-context
                              :distribution/base-allocations base
                              :distribution/awards sorted-awards
+                             :distribution/calculations calculations
+                             :distribution/summary summary
                              :distribution/final-allocations final-alloc}
                             distribution (assoc distribution
                                                 :distribution/hash
@@ -558,6 +701,7 @@
    For :resolved-amount, the stored award amount is accepted as given.
 
    Returns {:award-amount <int>
+            :calculation <calc-or-nil>
             :funding <map>
             :violations [...]}
    or {:award-amount nil :violations [...]} on error."
@@ -572,14 +716,20 @@
            :violations [{:violation/id :violation/missing-parameter
                          :details {:award/id (:award/id policy-award)
                                    :parameter-key param-key}}]}
-          (let [award-amount (compute-award-amount gross-amount amount-spec param-values nil)]
-            (when (nil? award-amount)
-              (throw (ex-info "unexpected nil award-amount from rate-of-gross"
-                              {:policy-award (:award/id policy-award)})))
-            ;; funding is recomputed from the award amount
-            {:award-amount award-amount
-             :funding (compute-award-funding award-amount (:funding policy-award))
-             :violations []})))
+          (let [award-amount (compute-award-amount gross-amount amount-spec param-values nil)
+                calculation (award-calculation (:award/id policy-award) gross-amount amount-spec param-values)]
+            (if (nil? award-amount)
+              {:award-amount nil
+               :violations [{:violation/id :violation/invalid-parameter-value
+                             :details {:award/id (:award/id policy-award)
+                                       :parameter-key param-key
+                                       :value resolved
+                                       :reason "outside valid scaled-share domain"}}]}
+              ;; funding is recomputed from the award amount
+              {:award-amount award-amount
+               :calculation calculation
+               :funding (compute-award-funding award-amount (:funding policy-award))
+               :violations []}))))
       :resolved-amount
       (let [award-amount (:award/amount stored-award)]
         (if (and (integer? award-amount) (not (neg? award-amount)))
@@ -616,13 +766,14 @@
         processed (mapv (fn [policy-award]
                           (let [award-id (:award/id policy-award)
                                 stored (get stored-by-id award-id)
-                                {:keys [award-amount funding violations]}
+                                {:keys [award-amount calculation funding violations]}
                                 (independent-award gross-amount policy-award param-values stored)]
                             (when (and (some? award-amount) (pos? award-amount))
-                              {:award/id award-id
-                               :award/amount award-amount
-                               :funding funding
-                               :settlement (:settlement policy-award)})))
+                              (cond-> {:award/id award-id
+                                       :award/amount award-amount
+                                       :funding funding
+                                       :settlement (:settlement policy-award)}
+                                calculation (assoc :calculation calculation)))))
                         (:awards policy))
         award-violations (mapcat identity
                                  (map (fn [policy-award]
@@ -664,6 +815,29 @@
          :settlements settlements
          :final final
          :violations []}))))
+
+(defn- verify-recomputed-calculations
+  "Recompute every stored rate-derived calculation record against the policy
+   and parameter values, accumulating a recomputation-mismatch violation for
+   any record that cannot be reproduced exactly. This covers both positive
+   awards and zero-outcome records that produced no transfer."
+  [v policy gross-amount param-values stored-calculations]
+  (reduce (fn [vs calc]
+            (let [policy-award (some #(when (= (:award/id calc) (:award/id %)) %)
+                                     (:awards policy))
+                  recomputed (when (and policy-award
+                                        (= :rate-of-gross (get-in policy-award [:amount :method])))
+                               (award-calculation (:award/id calc)
+                                                  gross-amount
+                                                  (:amount policy-award)
+                                                  param-values))]
+              (if (= calc recomputed)
+                vs
+                (conj vs {:violation/id :violation/recomputation-mismatch
+                          :details {:field (str "calculation " (:award/id calc))
+                                    :stored calc
+                                    :recomputed recomputed}}))))
+          v stored-calculations))
 
 (defn verify-distribution
   "Independently verify a slash-distribution.v1 artifact.
@@ -722,6 +896,18 @@
                         :details {:gross-amount gross-amount
                                   :base-sum (reduce + 0 (vals stored-base))}}))
 
+         ;; summary is derived from the committed calculation trace
+         stored-calcs (:distribution/calculations distribution)
+         stored-summary (:distribution/summary distribution)
+         v (if (and (some? stored-calcs) (some? stored-summary))
+             (let [recomputed-summary (build-rate-derived-summary stored-calcs)]
+               (if (= recomputed-summary stored-summary)
+                 v
+                 (conj v {:violation/id :violation/summary-mismatch
+                          :details {:stored stored-summary
+                                    :recomputed recomputed-summary}})))
+             v)
+
          ;; recomputation comparison when policy was supplied and valid
          v (if verification-ctx
              (let [policy (:policy verification-ctx)
@@ -752,8 +938,11 @@
                               v (map vector stored-awards indep-awards))
                            stored-final (:distribution/final-allocations distribution)
                            indep-final (:final independent)]
-                       (verify-recomputed-against-stored
-                        v :final-allocations stored-final indep-final))))))
+                       (-> (verify-recomputed-against-stored
+                            v :final-allocations stored-final indep-final)
+                           (verify-recomputed-calculations
+                            policy gross-amount param-values
+                            (:distribution/calculations distribution))))))))
              v)
 
          ;; consistency checks (run regardless)
@@ -765,6 +954,21 @@
                (conj v {:violation/id :violation/award-order-invalid
                         :details {:received award-ids
                                   :expected (vec (sort award-ids))}}))
+
+         ;; each award's embedded calculation must equal its record in the
+         ;; committed calculation trace
+         v (reduce (fn [vs award]
+                     (let [calc (:calculation award)
+                           trace (some #(when (= (:award/id %) (:award/id award)) %)
+                                       stored-calcs)]
+                       (if (= calc trace)
+                         vs
+                         (conj vs {:violation/id :violation/recomputation-mismatch
+                                   :details {:field (str "award " (:award/id award)
+                                                         " calculation binding")
+                                             :stored calc
+                                             :recomputed trace}}))))
+                   v awards)
 
          ;; per-award funding conservation
          v (reduce (fn [vs award]
@@ -837,7 +1041,12 @@
          v (if (= gross-amount (reduce + 0 (vals stored-final))) v
                (conj v {:violation/id :violation/conservation-violation
                         :details {:gross-amount gross-amount
-                                  :final-total (reduce + 0 (vals stored-final))}}))
+                                  :final-total (reduce + 0 (vals stored-final))
+                                  :categories {:base-total (reduce + 0 (vals stored-base))
+                                               :deduction-total (reduce + 0 (vals aggregate-deductions))
+                                               :settlement-total (reduce + 0 (vals settlement-inflows))
+                                               :award-total (reduce + 0 (map :award/amount awards))
+                                               :retained 0}}}))
 
          ;; nonzero award requirements
          v (reduce (fn [vs award]

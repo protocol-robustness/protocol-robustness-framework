@@ -555,160 +555,335 @@
 ;; Repeated-game deterrence threshold
 ;; ---------------------------------------------------------------------------
 
-(defn evaluate-repeated-game-deterrence-threshold
-  "Evaluate this model's repeated-game deterrence threshold.
+;; The model-specific grim-trigger deterrence claim. This is deliberately NOT a
+;; general Folk-theorem result: it verifies one-shot-deviation deterrence for a
+;; single repeated-game strategy profile under an explicit assumption set, not
+;; the enforceability of an arbitrary payoff vector.
+;;
+;;   Cooperation forever:   R + δR + δ²R + ...  = R / (1 - δ)
+;;   One-shot deviation:    T + δP + δ²P + ...  = T + δP / (1 - δ)
+;;   Deterrence condition:  R / (1 - δ)  >=  T + δP / (1 - δ)
+;;   Normalized form:       δ (T - P)  >=  T - R
+;;   Threshold:             δ* = (T - R) / (T - P)
+;;
+;; where R is the cooperative per-period payoff, T is the one-shot deviation
+;; payoff, and P is the per-period punishment continuation payoff.
 
-   This is not a general Folk-theorem result. It is the model-specific
-   grim-trigger deterrence condition derived from
+(def ^:private repeated-game-assumptions
+  "Assumptions required for the model-specific grim-trigger deterrence claim.
+   A result is only meaningful under these; they are reported verbatim so
+   reviewers can confirm the algebra does not carry more semantics than the
+   evidence supports."
+  [{:assumption :infinite-horizon
+    :statement "Players interact over an infinite horizon with per-period discount factor δ."}
+   {:assumption :common-discount
+    :statement "A common per-period discount factor δ applies to all players."}
+   {:assumption :stationary-payoffs
+    :statement "Per-period payoffs R, T, P are stationary across periods."}
+   {:assumption :perfect-monitoring
+    :statement "Deviations are detected under perfect or sufficiently informative monitoring."}
+   {:assumption :punishment-transition
+    :statement "A deviation triggers a credible transition to the punishment path."}
+   {:assumption :punishment-continuation
+    :statement "P is the per-period punishment-phase continuation payoff."}
+   {:assumption :one-shot-deviation
+    :statement "The one-shot deviation principle applies to the repeated game."}
+   {:assumption :punishment-phase-stability
+    :statement "No player has a profitable deviation during the punishment phase (assumed, not proven)."}])
 
-     R / (1 - δ) >= T + δ P / (1 - δ)
-     δ >= (T - R) / (T - P)
+(defn- finite-number?
+  [x]
+  (and (number? x) (Double/isFinite (double x))))
 
-   where `R` is `U_honest` (the cooperative per-period payoff), `T` is
-   `U_malicious` (the one-shot deviation payoff), and `P` is the per-period
-   punishment payoff. `punishment-payoff` defaults to zero, preserving the
-   model's zero-punishment normalization, for which the denominator is
-   `U_malicious`.
+(defn- base-theorem-certificate
+  "Common scaffolding carried on every outcome of the deterrence evaluator."
+  [t r p delta]
+  {:theorem/type :repeated-game/grim-trigger-deterrence
+   :theorem/claim "One-shot deviation from cooperation is not profitable: R/(1-δ) >= T + δP/(1-δ), equivalently δ(T-P) >= T-R."
+   :theorem/assumptions repeated-game-assumptions
+   :payoffs {:R r :T t :P p}
+   :discount-factor (double delta)})
 
-   All payoffs must be finite and `U_honest` strictly positive. The discount
-   factor is per-period and must be in [0, 1]. Equality satisfies the threshold.
-   A threshold above 1 is explicitly infeasible because no valid discount can
-   meet it.
+(defn- scalar-grim-trigger-deterrence
+  "Evaluate the grim-trigger deterrence certificate for scalar payoffs T, R, P
+   and discount factor `delta`. Returns a result map whose :status is
+   :pass | :fail | :not-applicable | :invalid-input | :inconclusive.
 
-   `multi-epoch-result` — result from run-multi-epoch
-   `discount-factor` — per-period discount factor (default 0.95)
-   `punishment-payoff` — per-period payoff after deviation (default 0.0)
-
-   Returns {:status :pass | :fail | :inconclusive
-            :basis :single-simulation-evidence
-            :deterrence? bool
-            :distance-to-boundary double
-            :binding-constraint kw | nil
-            :detail string}"
-  [multi-epoch-result & {:keys [discount-factor punishment-payoff]
-                         :or {discount-factor 0.95
-                              punishment-payoff 0.0}}]
-  (let [stats (:aggregated-stats multi-epoch-result {})
-        honest-profit (:honest-mean-profit stats)
-        malice-profit (:malice-mean-profit stats)
-        finite-number? #(and (number? %) (Double/isFinite (double %)))]
+   Applicability contract (fail-closed):
+   - T > R  else :not-applicable  (deviation is not genuinely tempting)
+   - R > P  else :inconclusive    (punishment is not worse than cooperation)
+   - T > P  else :invalid-input   (non-positive threshold denominator)
+   - 0 <= δ < 1 else :inconclusive/:invalid-input (δ=1 diverges)"
+  [t r p delta assume-punishment-credible?]
+  (let [base (base-theorem-certificate t r p delta)]
     (cond
-      (not (finite-number? discount-factor))
-      {:status :inconclusive
-       :basis :single-simulation-evidence
-       :deterrence? false
-       :cooperation-region? false
-       :binding-constraint :discount-factor
-       :reason :invalid-discount-factor
-       :detail "discount-factor must be a finite number in [0, 1]"}
+      (not (finite-number? delta))
+      (assoc base
+             :status :inconclusive
+             :basis :single-simulation-evidence
+             :reason :missing-or-invalid-discount
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :discount-factor
+             :detail "discount-factor must be a finite number in [0, 1)")
 
-      (not (<= 0.0 (double discount-factor) 1.0))
-      {:status :inconclusive
-       :basis :single-simulation-evidence
-       :discount-factor (double discount-factor)
-       :deterrence? false
-       :cooperation-region? false
-       :binding-constraint :discount-factor
-       :reason :discount-factor-out-of-range
-       :detail "discount-factor must be in [0, 1]"}
+      (not (<= 0.0 (double delta) 1.0))
+      (assoc base
+             :status :inconclusive
+             :basis :single-simulation-evidence
+             :reason :discount-factor-out-of-range
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :discount-factor
+             :detail "discount-factor must be in [0, 1)")
 
-      (not (finite-number? punishment-payoff))
-      {:status :inconclusive
-       :basis :single-simulation-evidence
-       :deterrence? false
-       :cooperation-region? false
-       :binding-constraint :punishment-payoff
-       :reason :missing-or-invalid-punishment-payoff
-       :detail "punishment-payoff must be a finite utility"}
+      (= 1.0 (double delta))
+      (assoc base
+             :status :invalid-input
+             :basis :single-simulation-evidence
+             :reason :discount-at-horizon-boundary
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :discount-factor
+             :detail "discount-factor=1 makes the geometric payoff sum diverge; require δ < 1")
 
-      (not (finite-number? honest-profit))
-      {:status :inconclusive
-       :basis :single-simulation-evidence
-       :deterrence? false
-       :cooperation-region? false
-       :binding-constraint :honest-mean-profit
-       :reason :missing-or-invalid-honest-utility
-       :detail "honest-mean-profit must be a finite positive utility"}
+      (not (finite-number? t))
+      (assoc base
+             :status :inconclusive
+             :basis :single-simulation-evidence
+             :reason :missing-or-invalid-malice-utility
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :malice-mean-profit
+             :detail "T (malice-mean-profit) must be a finite utility")
 
-      (not (finite-number? malice-profit))
-      {:status :inconclusive
-       :basis :single-simulation-evidence
-       :deterrence? false
-       :cooperation-region? false
-       :binding-constraint :malice-mean-profit
-       :reason :missing-or-invalid-malice-utility
-       :detail "malice-mean-profit must be a finite utility"}
+      (not (finite-number? r))
+      (assoc base
+             :status :inconclusive
+             :basis :single-simulation-evidence
+             :reason :missing-or-invalid-honest-utility
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :honest-mean-profit
+             :detail "R (honest-mean-profit) must be a finite utility")
 
-      (not (pos? (double honest-profit)))
-      {:status :inconclusive
-       :basis :single-simulation-evidence
-       :deterrence? false
-       :cooperation-region? false
-       :binding-constraint :honest-mean-profit
-       :reason :non-positive-honest-utility
-       :detail "honest-mean-profit must be positive for the normalized cooperative baseline"}
+      (not (pos? (double r)))
+      (assoc base
+             :status :inconclusive
+             :basis :single-simulation-evidence
+             :reason :non-positive-honest-utility
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :honest-mean-profit
+             :detail "R (honest-mean-profit) must be strictly positive for the cooperative baseline")
+
+      (not (finite-number? p))
+      (assoc base
+             :status :inconclusive
+             :basis :single-simulation-evidence
+             :reason :missing-or-invalid-punishment-payoff
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :punishment-payoff
+             :detail "P (punishment-payoff) must be a finite utility")
+
+      (<= (double t) (double r))
+      (assoc base
+             :status :not-applicable
+             :basis :single-simulation-evidence
+             :reason :deviation-not-profitable
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :detail "unilateral deviation is not profitable (T <= R); the deterrence condition is vacuous")
+
+      (>= (double p) (double r))
+      (assoc base
+             :status :inconclusive
+             :basis :single-simulation-evidence
+             :reason :punishment-not-deterrent
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :punishment-payoff
+             :detail "punishment is not worse than cooperation (P >= R); it cannot be a deterrent")
+
+      (<= (double t) (double p))
+      (assoc base
+             :status :invalid-input
+             :basis :single-simulation-evidence
+             :reason :non-positive-threshold-denominator
+             :cooperation-incentive-compatible? false
+             :punishment-credible? false
+             :strategy-profile-equilibrium? false
+             :binding-constraint :punishment-payoff
+             :detail "threshold denominator T - P must be positive")
 
       :else
-      (let [df (double discount-factor)
-            reward (double honest-profit)
-            temptation (double malice-profit)
-            punishment (double punishment-payoff)
-            denominator (- temptation punishment)]
-        (if (zero? denominator)
-          {:status :inconclusive
-           :basis :single-simulation-evidence
-           :discount-factor df
-           :honest-mean-profit reward
-           :malice-mean-profit temptation
-           :punishment-payoff punishment
-           :deterrence? false
-           :cooperation-region? false
-           :binding-constraint :punishment-payoff
-           :reason :undefined-deterrence-threshold
-           :detail "U_malicious must differ from punishment-payoff"}
-          (let [threshold (/ (- temptation reward) denominator)
-                distance (- df threshold)
-                deterrence? (>= distance 0.0)]
-            (if (> threshold 1.0)
-              {:status :fail
-               :basis :single-simulation-evidence
-               :discount-factor df
-               :honest-mean-profit reward
-               :malice-mean-profit temptation
-               :punishment-payoff punishment
-               :threshold threshold
-               :deterrence? false
-               :cooperation-region? false
-               :distance-to-boundary distance
-               :binding-constraint :threshold
-               :reason :infeasible-threshold
-               :detail (format (str "repeated-game deterrence threshold is infeasible "
-                                    "(discount=%.3f, threshold=%.3f > 1)")
-                               df threshold)}
-              {:status (if deterrence? :pass :fail)
-               :basis :single-simulation-evidence
-               :discount-factor df
-               :honest-mean-profit reward
-               :malice-mean-profit temptation
-               :punishment-payoff punishment
-               :threshold threshold
-               :deterrence? deterrence?
-               ;; Retained while callers migrate from the former folk-theorem name.
-               :cooperation-region? deterrence?
-               :distance-to-boundary distance
-               :binding-constraint (when (not deterrence?) :discount-factor)
-               :detail (format (str "repeated-game deterrence threshold: %s "
-                                    "(discount=%.3f, threshold=%.3f, distance=%.4f)")
-                               (if deterrence? "met" "not met")
-                               df threshold distance)})))))))
+      (let [df (double delta)
+            reward (double r)
+            temptation (double t)
+            punishment (double p)
+            threshold (/ (- temptation reward) (- temptation punishment))
+            coop-value (/ reward (- 1.0 df))
+            dev-value (+ temptation (* df punishment (/ 1.0 (- 1.0 df))))
+            margin (- coop-value dev-value)
+            holds? (>= margin 0.0)
+            credible? (boolean assume-punishment-credible?)
+            status (cond (not holds?) :fail
+                         credible? :pass
+                         :else :inconclusive)
+            boundary (cond (> (- df threshold) 0.0) :strict-pass
+                           (zero? (- df threshold)) :boundary-pass
+                           :else :fail)
+            base-map {:status status
+                      :basis :single-simulation-evidence
+                      :discount-factor df
+                      :honest-mean-profit reward
+                      :malice-mean-profit temptation
+                      :punishment-payoff punishment
+                      :threshold threshold
+                      :distance-to-boundary (- df threshold)
+                      :discount-margin (- df threshold)
+                      :normalized-deterrence-margin (- (* df (- temptation punishment))
+                                                       (- temptation reward))
+                      :nearest-failing-discount threshold
+                      :boundary-classification boundary
+                      :cooperation-incentive-compatible? holds?
+                      :punishment-credible? credible?
+                      :strategy-profile-equilibrium? (and holds? credible?)
+                      :deterrence? holds?
+                      :cooperation-region? holds?
+                      :binding-constraint (when (not holds?) :discount-factor)
+                      :theorem/inequality-left coop-value
+                      :theorem/inequality-right dev-value
+                      :theorem/threshold threshold
+                      :theorem/margin margin
+                      :theorem/holds? holds?}]
+        (cond
+          (not holds?)
+          (assoc base-map
+                 :reason :deterrence-not-established
+                 :deviation/payoff dev-value
+                 :cooperation/value coop-value
+                 :deviation/value dev-value
+                 :deviation/gain (- dev-value coop-value)
+                 :minimum-discount-required threshold
+                 :detail (format (str "one-shot deviation is profitable: "
+                                      "cooperation=%.4f < deviation=%.4f (gain=%.4f); need δ >= %.4f")
+                                 coop-value dev-value (- dev-value coop-value) threshold))
+          (not credible?)
+          (assoc base-map
+                 :reason :punishment-credibility-not-established
+                 :detail "cooperation is incentive-compatible but punishment credibility is not established; overall claim not proven")
+          :else
+          (assoc base-map
+                 :detail (format (str "grim-trigger deterrence holds: δ=%.4f >= δ*=%.4f "
+                                      "(discount-margin=%.4f, boundary=%s)")
+                                 df threshold (- df threshold) (name boundary))))))))
 
-(defn evaluate-folk-theorem-region
-  "Deprecated compatibility alias for `evaluate-repeated-game-deterrence-threshold`.
-   The calculation is a model-specific repeated-game deterrence threshold, not a
-   general Folk-theorem condition."
-  [multi-epoch-result & {:as options}]
-  (apply evaluate-repeated-game-deterrence-threshold multi-epoch-result
-         (mapcat identity options)))
+(defn- cartesian
+  [seqs]
+  (reduce (fn [acc xs]
+            (for [a acc x xs]
+              (conj a x)))
+          [[]]
+          seqs))
+
+(defn- evaluate-interval-deterrence
+  "Uncertainty-aware evaluation: each of T, R, P may be a scalar or an
+   interval {:min ... :max ...}. Classifies deterrence over all admissible
+   payoff corners."
+  [T R P delta assume-punishment-credible?]
+  (let [corners (cartesian
+                 (map (fn [v] (if (map? v) [(:min v) (:max v)] [v v]))
+                      [T R P]))
+        evals (map (fn [[t r p]]
+                     (scalar-grim-trigger-deterrence t r p delta assume-punishment-credible?))
+                   corners)
+        statuses (map :status evals)
+        thresholds (keep :theorem/threshold evals)
+        best (when (seq thresholds) (reduce min thresholds))
+        worst (when (seq thresholds) (reduce max thresholds))
+        classification (cond
+                         (every? #(= :pass %) statuses) :robustly-deterrent
+                         (every? #(= :fail %) statuses) :robustly-not-deterrent
+                         :else :possibly-deterrent)
+        status (case classification
+                 :robustly-deterrent :pass
+                 :robustly-not-deterrent :fail
+                 :possibly-deterrent :inconclusive)]
+    {:status status
+     :classification classification
+     :basis :interval-evidence
+     :theorem/type :repeated-game/grim-trigger-deterrence
+     :theorem/assumptions repeated-game-assumptions
+     :payoffs {:T T :R R :P P}
+     :discount-factor (double delta)
+     :best-case-threshold best
+     :worst-case-threshold worst
+     :corner-count (count corners)
+     :corner-statuses statuses
+     :cooperation-incentive-compatible? (= :robustly-deterrent classification)
+     :punishment-credible? (boolean assume-punishment-credible?)
+     :strategy-profile-equilibrium? (= :robustly-deterrent classification)
+     :detail (format "deterrence over admissible payoff intervals: %s (best δ*=%.4f, worst δ*=%.4f)"
+                     (name classification) best worst)}))
+
+(defn evaluate-grim-trigger-deterrence
+  "Evaluate the model-specific grim-trigger deterrence claim and emit a
+   recomputable theorem certificate.
+
+   Inputs (from `multi-epoch-result` or explicit overrides):
+   - `R` (:honest-mean-profit) cooperative per-period payoff
+   - `T` (:malice-mean-profit) one-shot deviation payoff
+   - `P` (`punishment-payoff`, default 0) per-period punishment payoff
+   - `delta` (`discount-factor`, default 0.95) per-period discount factor
+
+   Options:
+   - `:payoffs`        optional map {:R v :T v :P v} overriding the derived
+                       payoffs; any value may be an interval {:min .. :max ..}
+                       to enable uncertainty-aware evaluation.
+   - `:assume-punishment-credible?` (default true) whether to treat punishment
+                       credibility as a trusted assumption rather than requiring
+                       punishment-state deviation evidence.
+
+   This is NOT a general Folk-theorem claim. The result carries a full theorem
+   certificate (:theorem/type, :theorem/claim, :theorem/assumptions,
+   :theorem/inequality-left, :theorem/inequality-right, :theorem/threshold,
+   :theorem/margin, :theorem/holds?) plus robustness margins and, on failure, a
+   concrete profitable-deviation witness."
+  [multi-epoch-result & {:keys [discount-factor punishment-payoff payoffs
+                                assume-punishment-credible?]
+                         :or {discount-factor 0.95
+                              punishment-payoff 0.0
+                              assume-punishment-credible? true}}]
+  (let [stats (:aggregated-stats multi-epoch-result {})
+        default-R (:honest-mean-profit stats)
+        default-T (:malice-mean-profit stats)
+        R (or (:R payoffs) default-R)
+        T (or (:T payoffs) default-T)
+        P (or (:P payoffs) punishment-payoff)]
+    (if (some #(map? %) [R T P])
+      (evaluate-interval-deterrence T R P discount-factor assume-punishment-credible?)
+      (scalar-grim-trigger-deterrence T R P discount-factor assume-punishment-credible?))))
+
+(defn evaluate-repeated-game-deterrence-threshold
+  "Backward-compatible alias for `evaluate-grim-trigger-deterrence`.
+
+   Note: unlike the legacy implementation, this now applies the full
+   applicability contract — a deviation that is not profitable (T <= R) is
+   reported :not-applicable rather than :pass, and δ = 1 is :invalid-input."
+  [multi-epoch-result & {:as opts}]
+  (apply evaluate-grim-trigger-deterrence multi-epoch-result
+         (mapcat identity opts)))
 
 (def ^:private mechanism-proxy-evaluators
   [evaluate-mech-budget-balance
@@ -772,18 +947,29 @@
       :mechanism-proxy-status  :pass | :fail | :inconclusive
       :grim-trigger                  result-map
       :repeated-game-deterrence       result-map
-      :folk-theorem                   result-map (deprecated compatibility alias)
+      :grim-trigger-deterrence        result-map (canonical alias of :repeated-game-deterrence)
       :overall-status          :pass | :fail | :inconclusive
       :pass-count              int
       :fail-count              int
       :inconclusive-count      int
       :coverage                double-or-nil
-      :summary                 string}"
+      :coverage-basis          :claim-evaluators
+      :summary                 string}
+
+   :coverage is computed over the six claim evaluators only. The :grim-trigger
+   and :repeated-game-deterrence results are model-specific and reported
+   separately; they are not part of claim coverage. :repeated-game-deterrence
+   (aliased as :grim-trigger-deterrence) carries a full theorem certificate and
+   a :scope of :repeated-game/grim-trigger-deterrence to make explicit that it
+   is a model-specific grim-trigger deterrence claim, not a general Folk-theorem
+   result."
   [multi-epoch-result]
   (let [claim-results    (mapv #(% multi-epoch-result) evaluators)
         mech-proxies     (evaluate-mechanism-proxies multi-epoch-result)
         grim-trigger     (evaluate-grim-trigger-stability multi-epoch-result)
-        repeated-game-deterrence (evaluate-repeated-game-deterrence-threshold multi-epoch-result)
+        repeated-game-deterrence (assoc
+                                  (evaluate-grim-trigger-deterrence multi-epoch-result)
+                                  :scope :repeated-game/grim-trigger-deterrence)
         pass-count       (count (filter #(= :pass (:status %)) claim-results))
         fail-count       (count (filter #(= :fail (:status %)) claim-results))
         inc-count        (count (filter #(= :inconclusive (:status %)) claim-results))
@@ -797,13 +983,13 @@
      {:claim-results       claim-results
       :grim-trigger               grim-trigger
       :repeated-game-deterrence    repeated-game-deterrence
-      ;; Retained while callers migrate from the former folk-theorem key.
-      :folk-theorem                repeated-game-deterrence
+      :grim-trigger-deterrence     repeated-game-deterrence
       :overall-status      overall
       :pass-count          pass-count
       :fail-count          fail-count
       :inconclusive-count  inc-count
       :summary             summary
+      :coverage-basis      :claim-evaluators
       :coverage            (/ (+ pass-count fail-count) (double (count claim-results)))}
      mech-proxies)))
 

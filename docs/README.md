@@ -66,6 +66,12 @@ Primary project framing and status live in the root `../README.md`.
 | `specs/PRO_RATA_PROPORTIONAL_MATH_SPEC.md` | Proportional math specification |
 | `specs/PRO_RATA_TEST_VECTORS.md` | Pro-rata test vector documentation |
 
+### Slash distribution
+
+| Document | Description |
+|---|---|
+| `specs/SLASH_DISTRIBUTION_SCALED_SHARE_SPEC_V1.md` | `:rate-of-gross` scaled-share semantics, evidence contract, conservation boundary |
+
 ### CLI & tooling
 
 | Document | Description |
@@ -114,6 +120,7 @@ Primary project framing and status live in the root `../README.md`.
 | `architecture/interface-contract.md` | Python/Clojure gRPC bridge interface contract |
 | `architecture/ADR-0003-canonical-scenario-generation-boundary.md` | ADR |
 | `architecture/ADR-0004-cross-protocol-funds-ledger-extraction.md` | ADR |
+| `architecture/ADR-0005-custom-calculation-extensions.md` | ADR: custom calculation extensions via extra-paths |
 | `architecture/EVIDENCE_CHAIN_ARCHITECTURE.md` | Evidence chain architecture |
 | `architecture/EVIDENCE_DAG_ARCHITECTURE.md` | Evidence DAG architecture (lifecycle, topology, validation, persistence) |
 | `architecture/REPLAY_ENGINE_ARCHITECTURE.md` | Replay engine and dual-engine architecture (deterministic replay + Monte Carlo) |

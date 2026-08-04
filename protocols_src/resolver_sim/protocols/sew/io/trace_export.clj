@@ -309,7 +309,13 @@
                                                (name (or (:error entry) :unknown))))
         replay-event  (or raw-evt {:params {}})
         idem-kw       (get-in entry [:extra :idempotency])
-        attributes    (cond-> {:action action :seq seq-n}
+        ;; The dispatch action carries the resolved direction.  The raw sim
+        ;; action (e.g. "execute_resolution") is ambiguous about release vs
+        ;; cancel and is rejected by the Forge harness; it is preserved for
+        ;; provenance as :raw_action only when it differs (so unchanged traces
+        ;; stay byte-identical across this export version).
+        attributes    (cond-> {:action forge-action :seq seq-n}
+                        (not= action forge-action) (assoc :raw_action action)
                         wf-alias (assoc :wf_alias wf-alias)
                         params   (merge params)
                         (:temporal-rule-id entry)
@@ -341,9 +347,9 @@
       expected-v2 (assoc :expected expected-v2))))
 
 ;; ---------------------------------------------------------------------------
-;; Terminal projection hash — SHA-256 of 6-field projection for Solidity
+;; Terminal projection hash — SHA-256 of the 4-field projection for Solidity
 ;; cross-verification.  Format matches the Solidity side:
-;;   sha256(state|afa|held|fees|psExists|dispLevel)
+;;   sha256(state|afa|psExists|dispLevel)
 ;; ---------------------------------------------------------------------------
 
 (defn terminal-projection-hash
@@ -392,7 +398,22 @@
                   acc
                   (let [entry (first entries)
                         step  (step->forge-step entry prev-proj events id-alias-map token-sym addr->agent-id)]
-                    (recur (rest entries) (:projection entry) (conj acc step)))))]
+                    (recur (rest entries) (:projection entry) (conj acc step)))))
+        ;; The Forge harness compares global_total_held / global_total_fees
+        ;; against a single ERC20 token (TUSDC).  A multi-token trace would be
+        ;; silently mis-verified (export sums across tokens, Solidity reads one),
+        ;; so reject it at export time instead of emitting a misleading fixture.
+        _multi-token-check
+        (let [tokens (into #{} (mapcat (fn [entry]
+                                         (concat (keys (:total-held (:projection entry) {}))
+                                                 (keys (:total-fees (:projection entry) {}))))
+                                       trace))]
+          (when (> (count tokens) 1)
+            (throw (ex-info (str "Trace uses multiple tokens; the Forge equivalence harness "
+                                 "only verifies single-token traces: " (vec (sort tokens)))
+                            {:type :multi-token-trace-unsupported
+                             :scenario-id (:scenario-id scenario)
+                             :tokens (vec (sort tokens))}))))]
     (let [trace-kind         (compute-trace-kind scenario trace)
           expected-semantics (compute-expected-semantics trace scenario last-world id-alias-map)
           idem-summary       (idempotency-summary trace)

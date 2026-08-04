@@ -21,7 +21,8 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.config :as evcfg]
-            [resolver-sim.protocols.registry :as preg])
+            [resolver-sim.protocols.registry :as preg]
+            [scripts.test-summary :as summary])
   (:gen-class))
 
 (defn- parse-suite-key
@@ -118,9 +119,22 @@
         (doseq [r (:results result)]
           (when (not= :pass (:outcome r))
             (println (str "  FAIL: " (:trace-id r) " [" (:outcome r) "]"))))))
-    (println (str "\n=== Suite Run Complete ==="))
-    (println (str "  suites: " n "  failed: " (count failed) "  elapsed: " (format "%.2fs" (/ elapsed 1000.0))
-                  "  jobs: " jobs))
+    (let [items (mapv (fn [{:keys [suite-key result]}]
+                        {:label (str suite-key)
+                         :failures (into []
+                                         (keep (fn [r]
+                                                 (when (not= :pass (:outcome r))
+                                                   (str (:trace-id r) " [" (:outcome r) "]")))
+                                               (:results result)))})
+                      results)
+          totals {:test n :pass (- n (count failed)) :fail (count failed) :error 0}]
+      (println)
+      (summary/render-box "Suite run summary"
+                          [(format "%d suites, %d passed, %d failed"
+                                   n (- n (count failed)) (count failed))
+                           (format "elapsed: %.2fs  jobs: %d" (/ elapsed 1000.0) jobs)])
+      (summary/result-line totals elapsed)
+      (summary/print-failures items))
     ;; Cleanup — keep on failure, delete on success
     (if keep?
       (println "Keeping artifact dirs:" tmp-root)

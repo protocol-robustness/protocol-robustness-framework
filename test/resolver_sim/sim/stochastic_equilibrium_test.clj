@@ -455,20 +455,32 @@
 (deftest test-repeated-game-deterrence-threshold-is-met
   (testing "the normalized-baseline threshold passes when deterrence holds"
     (let [result {:aggregated-stats {:honest-mean-profit 100.0
-                                     :malice-mean-profit 80.0}}
+                                     :malice-mean-profit 150.0}}
           report (sut/evaluate-repeated-game-deterrence-threshold result)]
       (is (= :pass (:status report)))
-      (is (true? (:deterrence? report))))))
+      (is (true? (:deterrence? report)))
+      (is (= :repeated-game/grim-trigger-deterrence (:theorem/type report)))
+      (is (true? (:theorem/holds? report)))
+      (is (= (/ 1.0 3.0) (:theorem/threshold report)))
+      (is (pos? (:theorem/margin report))))))
 
-(deftest test-repeated-game-deterrence-threshold-infeasible
-  (testing "a threshold above one explicitly fails because no valid discount can meet it"
+(deftest test-repeated-game-deterrence-threshold-not-applicable-on-non-tempting-deviation
+  (testing "a deviation that is not profitable (T <= R) is not a pass"
+    (let [result {:aggregated-stats {:honest-mean-profit 100.0
+                                     :malice-mean-profit 80.0}}
+          report (sut/evaluate-repeated-game-deterrence-threshold result)]
+      (is (= :not-applicable (:status report)))
+      (is (= :deviation-not-profitable (:reason report)))
+      (is (false? (:deterrence? report))))))
+
+(deftest test-repeated-game-deterrence-threshold-punishment-not-deterrent
+  (testing "a punishment no better than cooperation (P >= R) is inconclusive"
     (let [result {:aggregated-stats {:honest-mean-profit 10.0
                                      :malice-mean-profit 300.0}}
           report (sut/evaluate-repeated-game-deterrence-threshold result :punishment-payoff 20.0)]
-      (is (= :fail (:status report)))
-      (is (= :infeasible-threshold (:reason report)))
-      (is (= :threshold (:binding-constraint report)))
-      (is (> (:threshold report) 1.0))
+      (is (= :inconclusive (:status report)))
+      (is (= :punishment-not-deterrent (:reason report)))
+      (is (= :punishment-payoff (:binding-constraint report)))
       (is (false? (:deterrence? report))))))
 
 (deftest test-repeated-game-deterrence-threshold-boundaries
@@ -478,16 +490,23 @@
       (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.6)]
         (is (= :pass (:status report)))
         (is (= (/ 1.0 3.0) (:threshold report)))
+        (is (= :strict-pass (:boundary-classification report)))
+        (is (pos? (:discount-margin report)))
         (is (pos? (:distance-to-boundary report)))))
-    (testing "equality passes"
+    (testing "equality passes and is reported as boundary-pass"
       (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor (/ 1.0 3.0))]
         (is (= :pass (:status report)))
         (is (true? (:deterrence? report)))
-        (is (zero? (:distance-to-boundary report)))))
-    (testing "a discount below the threshold fails"
+        (is (= :boundary-pass (:boundary-classification report)))
+        (is (zero? (:discount-margin report)))))
+    (testing "a discount below the threshold fails with a deviation witness"
       (let [report (sut/evaluate-repeated-game-deterrence-threshold result :discount-factor 0.32)]
         (is (= :fail (:status report)))
-        (is (neg? (:distance-to-boundary report)))))))
+        (is (= :deterrence-not-established (:reason report)))
+        (is (= :fail (:boundary-classification report)))
+        (is (neg? (:distance-to-boundary report)))
+        (is (pos? (:deviation/gain report)))
+        (is (= (/ 1.0 3.0) (:minimum-discount-required report)))))))
 
 (deftest test-repeated-game-deterrence-uses-punishment-payoff
   (let [result {:aggregated-stats {:honest-mean-profit 100.0
@@ -498,7 +517,8 @@
     ;; instead yield 1/3, so this distinguishes the general derivation.
     (is (= 0.5 (:threshold report)))
     (is (= :fail (:status report)))
-    (is (= 50.0 (:punishment-payoff report)))))
+    (is (= 50.0 (:punishment-payoff report)))
+    (is (= 0.5 (:nearest-failing-discount report)))))
 
 (deftest test-repeated-game-deterrence-validates-discount-domain
   (let [result {:aggregated-stats {:honest-mean-profit 100.0
@@ -508,11 +528,16 @@
                     result :discount-factor discount-factor)]
         (is (= :inconclusive (:status report)))
         (is (= :discount-factor-out-of-range (:reason report)))))
-    (doseq [discount-factor [0.0 1.0]]
+    (doseq [discount-factor [0.0 0.99]]
       (let [report (sut/evaluate-repeated-game-deterrence-threshold
                     result :discount-factor discount-factor)]
         (is (not= :inconclusive (:status report)))
-        (is (= discount-factor (:discount-factor report)))))))
+        (is (= discount-factor (:discount-factor report)))))
+    (testing "discount factor at the horizon boundary (δ=1) is invalid"
+      (let [report (sut/evaluate-repeated-game-deterrence-threshold
+                    result :discount-factor 1.0)]
+        (is (= :invalid-input (:status report)))
+        (is (= :discount-at-horizon-boundary (:reason report)))))))
 
 (deftest test-repeated-game-deterrence-requires-finite-utilities
   (doseq [[honest-profit malice-profit expected-reason]
@@ -528,6 +553,41 @@
       (is (= :inconclusive (:status report)))
       (is (= expected-reason (:reason report)))
       (is (false? (:deterrence? report))))))
+
+(deftest test-grim-trigger-deterrence-punishment-credibility
+  (testing "cooperation incentive-compatible but punishment credibility not assumed is inconclusive"
+    (let [result {:aggregated-stats {:honest-mean-profit 100.0
+                                     :malice-mean-profit 150.0}}
+          report (sut/evaluate-grim-trigger-deterrence
+                  result :assume-punishment-credible? false)]
+      (is (= :inconclusive (:status report)))
+      (is (= :punishment-credibility-not-established (:reason report)))
+      (is (true? (:cooperation-incentive-compatible? report)))
+      (is (false? (:punishment-credible? report)))
+      (is (false? (:strategy-profile-equilibrium? report))))))
+
+(deftest test-grim-trigger-deterrence-uncertainty-aware
+  (testing "interval payoffs classify deterrence robustly"
+    (let [result {:aggregated-stats {:honest-mean-profit 100.0
+                                     :malice-mean-profit 150.0}}
+          report (sut/evaluate-grim-trigger-deterrence
+                  result :discount-factor 0.9
+                  :payoffs {:R {:min 100.0 :max 120.0}
+                            :T {:min 150.0 :max 160.0}
+                            :P 0.0})]
+      (is (= :pass (:status report)))
+      (is (= :robustly-deterrent (:classification report)))
+      (is (= :interval-evidence (:basis report)))))
+  (testing "interval payoffs that admit a failure are possibly-deterrent"
+    (let [result {:aggregated-stats {:honest-mean-profit 100.0
+                                     :malice-mean-profit 150.0}}
+          report (sut/evaluate-grim-trigger-deterrence
+                  result :discount-factor 0.3
+                  :payoffs {:R {:min 100.0 :max 200.0}
+                            :T {:min 150.0 :max 160.0}
+                            :P 0.0})]
+      (is (= :possibly-deterrent (:classification report)))
+      (is (= :inconclusive (:status report))))))
 
 ;; ───────────────────────────────────────────────────────────────────────────
 ;; Grim-trigger and repeated-game deterrence in combined evaluation
@@ -552,5 +612,13 @@
           report (sut/evaluate-stochastic-equilibrium result)]
       (is (contains? report :grim-trigger))
       (is (contains? report :repeated-game-deterrence))
-      (is (contains? report :folk-theorem)
-          "deprecated compatibility key remains available"))))
+      (is (contains? report :grim-trigger-deterrence)
+          "canonical :grim-trigger-deterrence key is exposed")
+      (is (= :repeated-game/grim-trigger-deterrence
+             (:scope (:repeated-game-deterrence report)))
+          "repeated-game deterrence is explicitly scoped as a grim-trigger claim, not a general Folk-theorem result")
+      (is (= :repeated-game/grim-trigger-deterrence
+             (:theorem/type (:repeated-game-deterrence report)))
+          "the repeated-game deterrence result is a typed theorem certificate")
+      (is (= :claim-evaluators (:coverage-basis report))
+          "coverage is reported over the claim evaluators only"))))

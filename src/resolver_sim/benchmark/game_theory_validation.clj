@@ -221,13 +221,22 @@
     :implemented? true
     :title "Cancellation dominance"
     :summary "Mutual cancel strictly dominates unilateral default for honest participants."}
-   {:id :folk-theorem-cooperation-region
-    :source :framework
-    :catalogued? true
-    :wired? false
-    :implemented? true
-    :title "Repeated-game deterrence threshold (model-specific)"
-    :summary "Model-specific grim-trigger deterrence threshold: discount >= (T - R) / (T - P), where R=U_honest, T=U_malicious, and P is the punishment payoff (default 0). Utilities must be finite with U_honest > 0, discount must be in [0, 1], equality passes, and threshold > 1 explicitly fails as infeasible. This is not a general Folk-theorem claim and is not wired into the single-trace dispatcher."}])
+{:id :repeated-game/grim-trigger-deterrence
+     :source :framework
+     :catalogued? true
+     :wired? false
+     :implemented? true
+     :title "Grim-trigger deterrence threshold (model-specific)"
+     :summary "Model-specific grim-trigger one-shot-deviation deterrence: cooperat forever iff R/(1-δ) >= T + δP/(1-δ), i.e. δ >= (T-R)/(T-P), where R=U_honest, T=U_malicious, P is the per-period punishment payoff (default 0). Applies a fail-closed applicability contract: T>R (deviation profitable), R>P (punishment worse than cooperation), T>P (positive denominator), finite payoffs, U_honest > 0, and δ in [0,1) (δ=1 diverges). Emits a full theorem certificate with assumptions, inequality, margin, robustness distance, and a counterexample witness on failure. This is NOT a general Folk-theorem claim; it is multi-epoch only and is not wired into the single-trace dispatcher."}
+    {:id :folk-theorem-cooperation-region
+     :source :framework
+     :catalogued? true
+     :wired? false
+     :implemented? true
+     :alias-of :repeated-game/grim-trigger-deterrence
+     :deprecated true
+     :title "Repeated-game deterrence threshold (deprecated alias)"
+     :summary "Deprecated alias for :repeated-game/grim-trigger-deterrence. Declaring this legacy id resolves via the canonical multi-epoch evaluator only; the single-trace dispatcher returns :inconclusive :unsupported-concept (no multi-epoch evidence input). Emits a migration classification rather than theorem support."}])
 
 (def run-strategic-claim-validation strategic/run-strategic-claim-validation)
 

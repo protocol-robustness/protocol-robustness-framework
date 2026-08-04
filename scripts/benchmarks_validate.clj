@@ -204,7 +204,7 @@
       (when (seq claim-refs)
         (doseq [ref claim-refs]
           (try
-            (let [normalized (normalize-claim-ref ref)
+            (let [_ (normalize-claim-ref ref)
                   id (claim-ref-id ref)]
               ;; Check claim exists in registry
               (when (and claim-registry (not (get claim-registry id)))
@@ -559,7 +559,7 @@
                                 :runner (:benchmark/runner-policy benchmark)
                                 :pack-domain (:pack/domain data)})))))))
             (let [groups (group-by (juxt :suite :claims :scoring :runner) @active-manifests)]
-              (doseq [[key entries] (sort-by (comp count second) groups)
+              (doseq [[_ entries] (sort-by (comp count second) groups)
                       :when (> (count entries) 1)]
                 (let [ids (map :benchmark/id entries)]
                   (println "    WARN active benchmarks" (str/join ", " ids)

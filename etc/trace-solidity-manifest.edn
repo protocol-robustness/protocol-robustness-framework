@@ -14,9 +14,12 @@
   - :review-scenario — identifier from EF_REVIEW_GUIDE.md if applicable
   - :purpose        — human-readable note
   - :solidity-test? — true if a Forge test method exists in
-    TraceEquivalenceTest.sol (false means the trace uses actions beyond
-    the basic vault harness: yield-ops, evidence-module, slashing-module,
-    register-stake, or has appeal-window-duration=0 divergence)
+    TraceEquivalenceTest.sol replaying this trace.  A trace is NOT wired when
+    it uses actions the basic vault harness cannot reproduce (yield-ops,
+    evidence-module, slashing-module, register-stake/withdraw-stake side
+    effects, successful escalation, or amounts below the contract's
+    MIN_ESCROW_AMOUNT).  The actual wired set is derived from
+    TraceEquivalenceTest.sol, not maintained here.
 
  :notes
  {:invariant-profile
@@ -51,10 +54,27 @@
   :projection-schema :evm-projection-v1}
 
  :solidity-coverage
- {:test-count 21
-  :pass-count 21
+ {:test-count 34
+  :pass-count 34
   :manifest-total 18
-  :solidity-tested 10
+  ;; Contract-replayed = manifest traces with a Forge test method in
+  ;; TraceEquivalenceTest.sol (enumerated by scanning the test contract).
+  ;; Byte-synced-only = manifest traces whose fixture is SHA-256 synchronised
+  ;; and byte-verified, but not yet wired into Forge because they use actions
+  ;; the basic vault harness cannot reproduce.
+  :contract-replayed 10
+  :byte-synced-only 8
+  :forge-wired
+  ["test/foundry/traces/v2/sew-001.json"
+   "test/foundry/traces/v2/sew-002.json"
+   "test/foundry/traces/v2/sew-003.json"
+   "test/foundry/traces/v2/sew-004.json"
+   "test/foundry/traces/v2/ref-001.json"
+   "test/foundry/traces/v2/ref-004.json"
+   "test/foundry/traces/v2/ref-005.json"
+   "test/foundry/traces/v2/ref-006.json"
+   "test/foundry/traces/v2/ref-007.json"
+   "test/foundry/traces/v2/review-s-dr-001.json"]
   :pre-existing-fixtures
   [{:path "test/foundry/traces/trace_create_release.json" :class :legacy-golden-v0.1}
    {:path "test/foundry/traces/trace_create_dispute_release.json" :class :legacy-golden-v0.1}
@@ -69,21 +89,7 @@
    {:path "test/foundry/traces/v2/negative/n04.json" :class :negative-adversarial}
    {:path "test/foundry/traces/v2/negative/n05.json" :class :negative-adversarial}
    {:path "test/foundry/traces/v2/negative/n06.json" :class :negative-adversarial}
-   {:path "test/foundry/traces/v2/negative/n07.json" :class :negative-adversarial}]
-  :excluded
-  [{:id "review-s-dr-084" :reason "requires submit_evidence on EvidenceModuleV1"}
-   {:id "review-nc-001" :reason "requires register_stake / slashing module"}
-   {:id "review-dr-n-002" :reason "requires register_stake / slashing module"}
-   {:id "review-y06" :reason "yield-only actions (YieldOps)"}
-   {:id "sew-001" :reason "appeal-window-duration=0 divergence (sim finalizes, Solidity creates pending)"}
-   {:id "sew-002" :reason "keeper-driven expiry flow incompatible with vault harness"}
-   {:id "sew-004" :reason "appeal-window-duration=0 divergence"}
-   {:id "sew-005" :reason "escalation requires DecentralizedResolutionModule"}
-   {:id "ref-001" :reason "governance-sandwich pattern incomplete in test harness"}
-   {:id "ref-002" :reason "requires propose_fraud_slash on slashing module"}
-   {:id "ref-003" :reason "multi-address role dispatch incomplete"}
-   {:id "ref-004" :reason "requires register_stake"}
-   {:id "ref-005" :reason "appeal-window-duration=0 divergence"}]}
+   {:path "test/foundry/traces/v2/negative/n07.json" :class :negative-adversarial}]}
 
  :traces
  [
@@ -92,14 +98,14 @@
   ;; ═══════════════════════════════════════════════════════════════════
   {:id "sew-001-same-block-dual-resolution"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-001-same-block-dual-resolution.trace.json"
-   :source-sha256 "32692d88e5f3d3e30285b620ecb56bff5ee945b68fd5c8785b6a32ab2a7a144b"
+   :source-sha256 "8960f2f20240c2c75648a7d18d9d688e24d7d9ce324a2f7b1e2c11d62114da66"
    :scenario "scenarios/edn/S56_same-block-dual-resolution-order-invariant.edn"
    :destination "test/foundry/traces/v2/sew-001.json"
    :cdrs-version "0.2"
    :purpose "Same-block dual resolution order invariant"}
   {:id "sew-002-pending-settlement-expiry"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-002-pending-settlement-expiry.trace.json"
-   :source-sha256 "b9c039bf087308b0f928cb64f4d706e3d422bbcb99524a285a89fe5711157282"
+   :source-sha256 "f16795d789afbe8499a5f6f9e1e56f70f43cfffdf8bfb8717c71fddf31ab24ec"
    :scenario "scenarios/edn/S57_pending-settlement-expiry-boundary-1s.edn"
    :destination "test/foundry/traces/v2/sew-002.json"
    :cdrs-version "0.2"
@@ -113,14 +119,14 @@
    :purpose "Escalation after terminal state rejected"}
   {:id "sew-004-force-refund-illegal-release"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-004-force-refund-illegal-release.trace.json"
-   :source-sha256 "66ab8e1b3daed75cf98cd6d3f96011649d04c897dbfd07fa722886a882bac0f2"
+   :source-sha256 "19f252ea31560b1b3a763e270f8fc07a82447363b170d85daacb581ea0be71a1"
    :scenario "scenarios/edn/S64_force-refund-then-illegal-release-attempt.edn"
    :destination "test/foundry/traces/v2/sew-004.json"
    :cdrs-version "0.2"
    :purpose "Force refund prevents illegal release"}
   {:id "sew-005-escalation-supersedes-pending"
    :source "suites/sew-domain-reference-v1/expected/traces/sew-005-escalation-supersedes-pending.trace.json"
-   :source-sha256 "2830ba51c4a158487caad00318bc25fc4ac903a03453590593ca534b52a3f2a1"
+   :source-sha256 "8e049967000ea9ffbaedf0ae2ca98dba9160518087d7069fbb0104da47c1931c"
     :scenario "scenarios/edn/S65_escalation-supersedes-old-pending-then-old-path-attempt.edn"
     :destination "test/foundry/traces/v2/sew-005.json"
     :cdrs-version "0.2"
@@ -130,21 +136,21 @@
   ;; ═══════════════════════════════════════════════════════════════════
   {:id "ref-001-governance-sandwich"
    :source "suites/reference-validation-v1/expected/traces/001-governance-sandwich.trace.json"
-   :source-sha256 "ce55bf8e7a1f4b9815d11adb7f63843700a872005da6f7b5e0b1bd5f71f77e02"
+   :source-sha256 "632a3122bf4edb2ad75f72320617061a0fd32679d9a02b4559438ab5a2a74cb1"
    :scenario "scenarios/edn/S61_governance-snapshot-mid-dispute-immutability.edn"
    :destination "test/foundry/traces/v2/ref-001.json"
    :cdrs-version "0.2"
    :purpose "Governance sandwich attack — escrow settings immutable after creation"}
   {:id "ref-002-malicious-resolver-verdict"
    :source "suites/reference-validation-v1/expected/traces/002-malicious-resolver-verdict.trace.json"
-   :source-sha256 "ed10410de2235f3541f8791721a674fe47bee92e5a8ac20fe3185e7a4b2f36ad"
+   :source-sha256 "a02b665fad371359c6cac2d7c9c1c1c592686fc81927e246acf3ca4c16e67975"
    :scenario "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
    :destination "test/foundry/traces/v2/ref-002.json"
    :cdrs-version "0.2"
    :purpose "Malicious resolver verdict bounded by economics"}
   {:id "ref-003-dispute-flooding"
    :source "suites/reference-validation-v1/expected/traces/003-dispute-flooding.trace.json"
-   :source-sha256 "72a444bb114e1098217adaf291879698b89157d9ba7c1b3a754e7b8ad9db7094"
+   :source-sha256 "c4ab14c31ee4a6ae8109e16a2ee725f77ecd0d31a288897194946ac1b154ebc7"
    :scenario "scenarios/edn/S62_resolver-throughput-exhaustion.edn"
    :destination "test/foundry/traces/v2/ref-003.json"
    :cdrs-version "0.2"
@@ -158,21 +164,21 @@
    :purpose "Bond withdrawal race condition"}
   {:id "ref-005-same-block-ordering"
    :source "suites/reference-validation-v1/expected/traces/005-same-block-ordering.trace.json"
-   :source-sha256 "32692d88e5f3d3e30285b620ecb56bff5ee945b68fd5c8785b6a32ab2a7a144b"
+   :source-sha256 "8960f2f20240c2c75648a7d18d9d688e24d7d9ce324a2f7b1e2c11d62114da66"
    :scenario "scenarios/edn/S56_same-block-dual-resolution-order-invariant.edn"
    :destination "test/foundry/traces/v2/ref-005.json"
    :cdrs-version "0.2"
    :purpose "Same-block ordering between create and dispute"}
   {:id "ref-006-autopush-settlement"
    :source "suites/reference-validation-v1/expected/traces/006-autopush-settlement.trace.json"
-   :source-sha256 "14ac048fd6379386a37d1a3282d2dbcdfb71f74419acba204a23b310d60c769b"
+   :source-sha256 "e526f98849e90565e6a0147d845edd1ca4182ae076367c68e9e6d42c347b4e88"
    :scenario "scenarios/edn/S05_pending-settlement-execute.edn"
    :destination "test/foundry/traces/v2/ref-006.json"
    :cdrs-version "0.2"
    :purpose "Autopush settlement after keeper"}
   {:id "ref-007-appeal-failure-cascade"
    :source "suites/reference-validation-v1/expected/traces/007-appeal-failure-cascade.trace.json"
-   :source-sha256 "1f3df1cb7ba38fbb116e9c0c427d1ca5e02610e6bd801ccf54a6914ebdfa101f"
+   :source-sha256 "11a3cecca00a92066cc3ec2d60aa0bcb41bebc89664cd6e08cd50b8c5fd01687"
    :scenario "scenarios/edn/S20_dr3-kleros-max-escalation-guard.edn"
    :destination "test/foundry/traces/v2/ref-007.json"
    :cdrs-version "0.2"
@@ -192,7 +198,7 @@
   ;; ═══════════════════════════════════════════════════════════════════
   {:id "review-s-dr-001-basic-release-ruling"
    :source "suites/ef-review-v1/expected/traces/review-s-dr-001.trace.json"
-   :source-sha256 "67ef9e74717c74af00546e8de2fc8d427fd6fdd483b036e64851a8c45e1fe8dd"
+   :source-sha256 "b2a619cbb7310c80ad136ed071492734167b7098e1a7b5965a927fbfdfdef307"
    :scenario "scenarios/edn/S-DR-001-basic-release-ruling.edn"
    :destination "test/foundry/traces/v2/review-s-dr-001.json"
    :cdrs-version "0.2"
@@ -200,7 +206,7 @@
    :purpose "EF review: straightforward successful lifecycle"}
   {:id "review-s-dr-084-evidence-after-settlement-rejected"
    :source "suites/ef-review-v1/expected/traces/review-s-dr-084.trace.json"
-   :source-sha256 "c5f280cd7ca5df445c147f70ef5df8242a6a783be5ebcbfecb759a3ce6ab6364"
+   :source-sha256 "aec7bd34f4877a9f9f43663981b47d7dfdcc5d7d581c82d9cf81abe303e134c1"
    :scenario "scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn"
    :destination "test/foundry/traces/v2/review-s-dr-084.json"
    :cdrs-version "0.2"
@@ -208,7 +214,7 @@
    :purpose "EF review: safe rejected-interaction control"}
   {:id "review-nc-001-freeze-active-dispute"
    :source "suites/ef-review-v1/expected/traces/review-nc-001.trace.json"
-   :source-sha256 "3ebcbb277587ea5f5bcb43e0546c575989a5af3051500e6b340a654f577f425a"
+   :source-sha256 "5343c589f830462004bc847f2cf42bfb3f75c37eb1a9ea66c8090975b6fb8197"
    :scenario "scenarios/edn/S-NC-001-freeze-active-dispute-negative-control.edn"
    :destination "test/foundry/traces/v2/review-nc-001.json"
    :cdrs-version "0.2"
@@ -216,7 +222,7 @@
    :purpose "EF review: intentional semantic-failure negative control"}
   {:id "review-y06-pro-rata-shortfall"
    :source "suites/ef-review-v1/expected/traces/review-y06.trace.json"
-   :source-sha256 "95c00f776573643b94326b3839c798bf2295e4562a87a117235e05984f386b79"
+   :source-sha256 "b0066145f7f3203e4f5df3823b2459581f8bb77de9b7e55e597064939e47587b"
    :scenario "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn"
    :destination "test/foundry/traces/v2/review-y06.json"
    :cdrs-version "0.2"
@@ -224,7 +230,7 @@
    :purpose "EF review: multi-party pro-rata shortfall allocation"}
   {:id "review-dr-n-002-appeal-rejected"
    :source "suites/ef-review-v1/expected/traces/review-dr-n-002.trace.json"
-   :source-sha256 "efcfdfc89c0817d6255fbca69c64d89804eee1e64f9fba496f7a9e507afb0527"
+   :source-sha256 "352327a5e8deb902eda04146173262d2a8623521efab9fc77041ff2b9263da6b"
    :scenario "scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn"
    :destination "test/foundry/traces/v2/review-dr-n-002.json"
    :cdrs-version "0.2"

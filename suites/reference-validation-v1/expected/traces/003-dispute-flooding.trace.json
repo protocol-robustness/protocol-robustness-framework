@@ -183,8 +183,9 @@
    "timestamp":1200,
    "context_id":"wf0",
    "attributes":
-   {"action":"execute_resolution",
+   {"action":"release_as_dispute_resolver",
     "seq":6,
+    "raw_action":"execute_resolution",
     "wf_alias":"wf0",
     "type":"resolution",
     "path":"standard"},
@@ -206,8 +207,9 @@
    "timestamp":1205,
    "context_id":"wf1",
    "attributes":
-   {"action":"execute_resolution",
+   {"action":"release_as_dispute_resolver",
     "seq":7,
+    "raw_action":"execute_resolution",
     "wf_alias":"wf1",
     "type":"resolution",
     "path":"standard"},
@@ -229,8 +231,9 @@
    "timestamp":1210,
    "context_id":"wf2",
    "attributes":
-   {"action":"execute_resolution",
+   {"action":"release_as_dispute_resolver",
     "seq":8,
+    "raw_action":"execute_resolution",
     "wf_alias":"wf2",
     "type":"resolution",
     "path":"standard"},
