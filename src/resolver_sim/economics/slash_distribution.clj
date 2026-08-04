@@ -49,7 +49,8 @@
      is legitimate, parameter matches governance snapshot).
    - An accounting adapter maps abstract allocations to concrete state effects."
 
-  (:require [resolver-sim.economics.schemas :as schemas]
+  (:require [resolver-sim.economics.effects :as effects]
+            [resolver-sim.economics.schemas :as schemas]
             [resolver-sim.extensions.core :as ext-core]
             [resolver-sim.extensions.execution :as ext-exec]
             [resolver-sim.extensions.registry :as ext-reg]
@@ -90,26 +91,38 @@
 
 (defn policy-capability-keys
   "Capability registry keys required by a policy: the allocation method, each
-   award amount method, and each award funding method."
+   award amount method, and each award funding method (from :awards or an
+   ordered :steps vector)."
   [policy]
   (into []
         (concat
          (when-let [k (method->capability-key :economics/allocation
                                               (:method (:allocation policy)))]
            [k])
-         (keep (fn [a]
-                 (method->capability-key :economics/award-amount
-                                         (get-in a [:amount :method])))
-               (:awards policy []))
-         (keep (fn [a]
-                 (method->capability-key :economics/funding
-                                         (get-in a [:funding :method])))
-               (:awards policy [])))))
+         (if (:steps policy)
+           (keep (fn [s]
+                   (method->capability-key :economics/award-amount
+                                           (get-in s [:amount :method])))
+                 (:steps policy))
+           (keep (fn [a]
+                   (method->capability-key :economics/award-amount
+                                           (get-in a [:amount :method])))
+                 (:awards policy [])))
+         (if (:steps policy)
+           (keep (fn [s]
+                   (method->capability-key :economics/funding
+                                           (get-in s [:funding :method])))
+                 (:steps policy))
+           (keep (fn [a]
+                   (method->capability-key :economics/funding
+                                           (get-in a [:funding :method])))
+                 (:awards policy []))))))
 
 (defn resolve-policy-extensions
   "Resolve the capabilities required by a policy against an extension-map,
    returning the frozen resolution snapshot (or nil on failure, with the
-   resolution violations)."
+   resolution violations). Commits the core effect vocabulary roots so the
+   resolution root reflects the effect contracts in force."
   ([extension-map policy] (resolve-policy-extensions extension-map policy nil))
   ([extension-map policy {:keys [schema-registry runtime-profile]
                           :or {schema-registry schemas/core-schemas}}]
@@ -117,6 +130,7 @@
     extension-map
     (policy-capability-keys policy)
     {:schemas schema-registry
+     :effect-schemas effects/effect-schema-roots
      :runtime-profile runtime-profile})))
 
 ;; ── hash projections ─────────────────────────────────────────────────────
@@ -145,6 +159,7 @@
                 :distribution/extension-packages
                 :distribution/base-allocations
                 :distribution/awards
+                :distribution/steps
                 :distribution/calculations
                 :distribution/summary
                 :distribution/final-allocations]))
@@ -296,6 +311,79 @@
             v)]
     v))
 
+(defn- validate-step-composition
+  "A step's amount capability must declare a versioned composition contract
+   that admits the :sequential mode for typed sequential composition."
+  [extension-map step]
+  (let [entry (resolve-method-capability extension-map :economics/award-amount
+                                         (get-in step [:amount :method]))
+        contract (:composition-contract (:capability entry))]
+    (if (and entry contract
+             (= 1 (:composition-contract/version contract))
+             (contains? (:composition/modes contract) :sequential))
+      []
+      [{:violation/id :violation/step-not-sequential-composable
+        :details {:step/id (:step/id step)
+                  :method (get-in step [:amount :method])
+                  :contract contract}}])))
+
+(defn- validate-steps
+  "Validate an ordered :steps vector: step identity, award-like structure,
+   basis references, failure semantics, and sequential composability."
+  [extension-map allocation steps]
+  (let [ids (mapv :step/id steps)
+        id-violations (let [dups (->> ids frequencies
+                                      (keep (fn [[id n]] (when (> n 1) id)))
+                                      vec)]
+                        (when (seq dups)
+                          [{:violation/id :violation/duplicate-step-id
+                            :details {:duplicate-ids dups}}]))
+        per-step (into []
+                       (mapcat (fn [i step]
+                                 (let [step-id (:step/id step)
+                                       award-view (assoc step :award/id step-id)
+                                       base-violations (:violations
+                                                        (validate-policy-award
+                                                         extension-map
+                                                         {:allocation allocation}
+                                                         award-view))
+                                       basis (:basis step)
+                                       prior-ids (set (take i ids))
+                                       v (into base-violations
+                                               (concat
+                                                (when (and (map? basis)
+                                                           (not (contains? #{:distribution/gross
+                                                                             :remaining
+                                                                             :step/output}
+                                                                           (:source basis))))
+                                                  [{:violation/id :violation/invalid-step-basis
+                                                    :details {:step/id step-id :basis basis}}])
+                                                (when (and (map? basis)
+                                                           (= :step/output (:source basis))
+                                                           (:step-id basis)
+                                                           (not (contains? prior-ids (:step-id basis))))
+                                                  [{:violation/id :violation/forward-step-reference
+                                                    :details {:step/id step-id
+                                                              :references (:step-id basis)}}])
+                                                (when-not (contains? #{nil :omit} (:on-ineligible step))
+                                                  [{:violation/id :violation/invalid-step-on-ineligible
+                                                    :details {:step/id step-id
+                                                              :on-ineligible (:on-ineligible step)
+                                                              :supported [:omit]}}])
+                                                (when-not (contains? #{nil :abort} (:on-failure step))
+                                                  [{:violation/id :violation/invalid-step-on-failure
+                                                    :details {:step/id step-id
+                                                              :on-failure (:on-failure step)
+                                                              :supported [:abort]}}])
+                                                (when (= :resolved-amount (get-in step [:amount :method]))
+                                                  [{:violation/id :violation/step-resolved-amount-unsupported
+                                                    :details {:step/id step-id}}])
+                                                (validate-step-composition extension-map step)))]
+                                   v))
+                               (range (count steps))
+                               steps))]
+    (into [] (concat id-violations per-step))))
+
 (defn validate-policy
   "Validate a slash-distribution-policy.v1 map structurally.
    Returns {:valid? bool, :violations [violation-maps]}.
@@ -348,6 +436,13 @@
                           :details {:method method
                                     :supported [:weighted]}})))
              v)
+         v (let [awards (:awards policy)
+                 steps (:steps policy)]
+             (if (and awards steps)
+               (conj v {:violation/id :violation/mixed-awards-and-steps
+                        :details {:awards-count (count awards)
+                                  :steps-count (count steps)}})
+               v))
          award-ids (mapv :award/id (:awards policy))
          v (let [dups (->> award-ids frequencies (keep (fn [[id n]] (when (> n 1) id))) vec)]
              (if (seq dups)
@@ -357,7 +452,11 @@
          v (reduce (fn [vs award]
                      (into vs (validate-policy-award extension-map policy award)))
                    v
-                   (:awards policy))]
+                   (:awards policy))
+         v (if (:steps policy)
+             (into v (validate-steps extension-map (:allocation policy)
+                                     (:steps policy)))
+             v)]
      {:valid? (empty? v)
       :violations (vec v)})))
 
@@ -647,10 +746,155 @@
                                            :evidence-reference (:evidence-reference elig)}
                              :beneficiary (:beneficiary resolved-award)
                              :funding funding
-                             :settlement {:allocation-id (:allocation-id settlement-spec)}}
+                             :settlement {:allocation-id (:allocation-id settlement-spec)
+                                          :obligation-kind (:obligation-kind settlement-spec)}}
                       calculation (assoc :calculation calculation))
              :calculation calculation
              :violations []}))))))
+
+;; ── typed sequential composition (:steps) ─────────────────────────────────
+
+(defn- step-eligible?
+  "A step is eligible when its declared :eligibility matches its :resolved
+   context (trigger, beneficiary role, evidence reference, beneficiary)."
+  [step]
+  (let [decl (:eligibility step)
+        resolved (:resolved step)]
+    (and (= (:trigger decl) (:trigger resolved))
+         (= (:beneficiary-role decl)
+            (get-in resolved [:beneficiary :participant/role]))
+         (if (:requires-evidence-reference? decl)
+           (some? (:evidence-reference resolved))
+           true)
+         (some? (get-in resolved [:beneficiary :participant/id])))))
+
+(defn- resolve-step-basis
+  "Resolve a declarative basis reference to a numeric base.
+
+   {:source :distribution/gross}                    → gross
+   {:source :remaining}                             → running pool before the step
+   {:source :step/output :step-id X :field :remaining} → the pool remaining
+                                                      after step X
+   Returns nil for unknown or malformed references."
+  [basis-ref gross pool step-results]
+  (case (:source basis-ref)
+    :distribution/gross gross
+    :remaining pool
+    :step/output (when (= :remaining (:field basis-ref))
+                   (:step/remaining (get step-results (:step-id basis-ref))))
+    nil))
+
+(defn- step-record
+  "Committed step evidence entry."
+  [step idx basis-ref basis-value amount remaining status]
+  {:step/id (:step/id step)
+   :step/index idx
+   :step/status status
+   :step/basis basis-ref
+   :step/basis-value basis-value
+   :step/amount (or amount 0)
+   :step/remaining remaining
+   :step/on-ineligible (or (:on-ineligible step) :omit)
+   :step/on-failure (or (:on-failure step) :abort)})
+
+(defn- process-steps
+  "Process a policy's ordered :steps vector sequentially.
+
+   Each step resolves a declarative basis, computes an award amount by
+   dispatching through the extension-map, and deducts funding from source
+   allocations. A running pool (initially gross) decreases by each applied
+   step's amount; :basis :remaining and :step/output references read it.
+   Step order is preserved and is semantically significant.
+
+   Failure semantics:
+   - ineligible step with :on-ineligible :omit → recorded :skipped-ineligible,
+     no award, pool unchanged;
+   - unresolvable basis / nil amount / nil funding → the whole calculation
+     aborts (:on-failure :abort) with a loud violation;
+   - a non-gross step exceeding its available base → :step-overdraws-pool.
+
+   Returns {:awards [<award-entry> ...]  ; in declared order
+            :steps [<step-record> ...]   ; committed ordered evidence
+            :calculations [<calc-or-nil> ...]
+            :violations [...]}."
+  [extension-map gross-amount policy param-values]
+  (reduce
+   (fn [acc step]
+     (if (seq (:violations acc))
+       acc
+       (let [idx (:index acc)
+             pool (:pool acc)
+             step-results (:step-results acc)
+             basis-ref (or (:basis step) {:source :distribution/gross})
+             basis (resolve-step-basis basis-ref gross-amount pool step-results)]
+         (if (nil? basis)
+           (assoc acc :violations
+                  [{:violation/id :violation/unresolved-step-basis
+                    :details {:step/id (:step/id step) :basis basis-ref}}])
+           (if-not (step-eligible? step)
+             (-> acc
+                 (update :steps conj
+                         (step-record step idx basis-ref basis pool pool :skipped-ineligible))
+                 (update :index inc))
+             (let [amount (compute-award-amount extension-map basis
+                                                (:amount step) param-values nil)]
+               (cond
+                 (nil? amount)
+                 (assoc acc :violations
+                        [{:violation/id :violation/step-failed
+                          :details {:step/id (:step/id step) :basis-value basis}}])
+
+                 (and (not= :distribution/gross (:source basis-ref))
+                      (> amount basis))
+                 (assoc acc :violations
+                        [{:violation/id :violation/step-overdraws-pool
+                          :details {:step/id (:step/id step)
+                                    :amount amount
+                                    :available basis}}])
+
+                 (zero? amount)
+                 (-> acc
+                     (update :steps conj
+                             (step-record step idx basis-ref basis 0 pool :zero))
+                     (update :index inc))
+
+                 :else
+                 (let [funding (compute-award-funding extension-map amount
+                                                      (:funding step))]
+                   (if (nil? funding)
+                     (assoc acc :violations
+                            [{:violation/id :violation/step-failed
+                              :details {:step/id (:step/id step)
+                                        :reason "funding unavailable"}}])
+                     (let [calculation (award-calculation (:step/id step) basis
+                                                          (:amount step) param-values)
+                           new-pool (- pool amount)
+                           award (cond-> {:award/id (:step/id step)
+                                          :award/amount amount
+                                          :step/id (:step/id step)
+                                          :eligibility {:trigger (get-in step [:eligibility :trigger])
+                                                        :evidence-reference
+                                                        (get-in step [:resolved :evidence-reference])}
+                                          :beneficiary (get-in step [:resolved :beneficiary])
+                                          :funding funding
+                                          :settlement {:allocation-id
+                                                       (get-in step [:settlement :allocation-id])
+                                                       :obligation-kind
+                                                       (get-in step [:settlement :obligation-kind])}}
+                                   calculation (assoc :calculation calculation))]
+                       (-> acc
+                           (update :awards conj award)
+                           (update :steps conj
+                                   (step-record step idx basis-ref basis
+                                                amount new-pool :applied))
+                           (update :calculations conj calculation)
+                           (assoc :pool new-pool)
+                           (update :step-results assoc (:step/id step)
+                                   {:step/remaining new-pool})
+                           (update :index inc))))))))))))
+   {:awards [] :steps [] :calculations [] :violations []
+    :pool gross-amount :index 0 :step-results {}}
+   (:steps policy [])))
 
 (defn build-slash-distribution
   "Build a slash-distribution.v1 artifact from gross amount, policy,
@@ -754,6 +998,40 @@
                                              :maximum scale}})))
                         vs)))
                   v resolved-awards)
+        ;; parameter validation for rate-of-gross steps
+        v (if (:steps policy)
+            (reduce (fn [vs step]
+                      (let [amount-spec (:amount step)
+                            step-id (:step/id step)]
+                        (if (and amount-spec (= :rate-of-gross (:method amount-spec)))
+                          (let [param-key (:parameter-key amount-spec)
+                                scale (:scale amount-spec)
+                                resolved (get param-values param-key)]
+                            (cond-> vs
+                              (nil? resolved)
+                              (conj {:violation/id :violation/missing-parameter
+                                     :details {:step/id step-id
+                                               :parameter-key param-key}})
+                              (and resolved
+                                   (or (not (integer? resolved))
+                                       (neg? resolved)))
+                              (conj {:violation/id :violation/invalid-parameter-value
+                                     :details {:step/id step-id
+                                               :parameter-key param-key
+                                               :value resolved}})
+                              (and resolved
+                                   (integer? resolved)
+                                   (pos? scale)
+                                   (> resolved scale))
+                              (conj {:violation/id :violation/rate-out-of-range
+                                     :details {:step/id step-id
+                                               :parameter-key param-key
+                                               :value resolved
+                                               :minimum 0
+                                               :maximum scale}})))
+                          vs)))
+                    v (:steps policy))
+            v)
         ;; extension resolution for the capabilities the policy requires
         extension-resolution (when policy
                                (resolve-policy-extensions
@@ -769,26 +1047,35 @@
       {:status :invalid :violations v}
       (let [allocation-spec (:allocation policy)
             base (compute-allocation extension-map gross-amount allocation-spec)
-                ;; resolve each award
-            resolved (mapv (fn [ra]
-                             (let [pa (some #(when (= (:award/id ra) (:award/id %)) %)
-                                            (:awards policy))]
-                               (resolve-award extension-map gross-amount pa ra param-values)))
-                           resolved-awards)
-            award-violations (mapcat :violations resolved)]
+            step-based? (boolean (:steps policy))
+            ;; resolve awards: legacy (resolved-awards, sorted) or steps
+            ;; (sequential, order-significant)
+            resolved (if step-based?
+                       (process-steps extension-map gross-amount policy param-values)
+                       (let [resolved (mapv (fn [ra]
+                                              (let [pa (some #(when (= (:award/id ra) (:award/id %)) %)
+                                                             (:awards policy))]
+                                                (resolve-award extension-map gross-amount
+                                                               pa ra param-values)))
+                                            resolved-awards)]
+                         {:awards (vec (sort-by :award/id (keep :award resolved)))
+                          :calculations (vec (sort-by :award/id (keep :calculation resolved)))
+                          :steps []
+                          :violations (vec (mapcat :violations resolved))}))
+            award-violations (:violations resolved)]
         (if (seq award-violations)
           {:status :invalid :violations award-violations}
-          (let [active-awards (keep :award resolved)
-                sorted-awards (vec (sort-by :award/id active-awards))
-                    ;; every rate-derived calculation, including zero outcomes
-                calculations (vec (sort-by :award/id (keep :calculation resolved)))
-                summary (build-rate-derived-summary calculations)
+          (let [awards (:awards resolved)
+                calculations (:calculations resolved)
+                steps-evidence (:steps resolved)
+                committed-calculations (vec (remove nil? calculations))
+                summary (build-rate-derived-summary committed-calculations)
                     ;; aggregate deductions by source
                 aggregate-deductions (reduce (fn [acc award]
                                                (let [funding (:funding award)]
                                                  (merge-with + acc funding)))
                                              {}
-                                             sorted-awards)
+                                             awards)
                 ;; validate no source overdrawn
                 overdraws (keep (fn [[source deduction]]
                                   (let [base-val (get base source 0)]
@@ -808,7 +1095,7 @@
                                                      (update acc dest (fnil + 0) amt)
                                                      acc)))
                                                {}
-                                               sorted-awards)
+                                               awards)
                     ;; compute final allocations
                     all-ids (into (keys base)
                                   (into (keys aggregate-deductions)
@@ -838,7 +1125,7 @@
                                                :categories {:base-total (reduce + 0 (vals base))
                                                             :deduction-total (reduce + 0 (vals aggregate-deductions))
                                                             :settlement-total (reduce + 0 (vals settlement-inflows))
-                                                            :award-total (reduce + 0 (map :award/amount sorted-awards))
+                                                            :award-total (reduce + 0 (map :award/amount awards))
                                                             :retained 0}}}]}
                       (let [distribution
                             {:schema-version distribution-schema-version
@@ -853,10 +1140,13 @@
                              (get-in extension-resolution
                                      [:resolution :extensions/packages])
                              :distribution/base-allocations base
-                             :distribution/awards sorted-awards
-                             :distribution/calculations calculations
+                             :distribution/awards awards
+                             :distribution/calculations committed-calculations
                              :distribution/summary summary
                              :distribution/final-allocations final-alloc}
+                            distribution (cond-> distribution
+                                           step-based?
+                                           (assoc :distribution/steps steps-evidence))
                             distribution (assoc distribution
                                                 :distribution/hash
                                                 (distribution-hash distribution))]
@@ -945,12 +1235,41 @@
                                            (:funding policy-award))
            :violations []})))))
 
+(defn- independent-aggregates
+  "Compute deductions, settlement inflows, and final allocations from a base
+   map and an award sequence (order-insensitive for aggregation)."
+  [base awards]
+  (let [deductions (reduce (fn [acc award]
+                             (merge-with + acc (:funding award)))
+                           {} awards)
+        settlements (reduce (fn [acc award]
+                              (let [dest (get-in award [:settlement :allocation-id])
+                                    amt (:award/amount award)]
+                                (if dest
+                                  (update acc dest (fnil + 0) amt)
+                                  acc)))
+                            {} awards)
+        all-ids (into (keys base)
+                      (into (keys deductions)
+                            (keys settlements)))
+        final (into {}
+                    (map (fn [id]
+                           (let [b (get base id 0)
+                                 d (get deductions id 0)
+                                 s (get settlements id 0)]
+                             [id (+ b (- d) s)]))
+                         all-ids))]
+    {:deductions deductions
+     :settlements settlements
+     :final final}))
+
 (defn- independent-distribution
   "Independently compute a full distribution from policy and parameters.
 
-   For :rate-of-gross awards, the amount is recomputed from the parameter.
-   For :resolved-amount awards, the stored award amount from the distribution
-   artifact is accepted as given (it was resolved externally).
+   For :awards policies, :rate-of-gross amounts are recomputed from the
+   parameter and :resolved-amount awards accept the stored amount as given.
+   For :steps policies, the ordered step sequence is recomputed sequentially
+   (bases, amounts, funding) — step order is preserved.
 
    stored-awards — the :distribution/awards vector from the artifact (optional,
    required only when any policy award uses :resolved-amount).
@@ -959,63 +1278,44 @@
             :settlements <map> :final <map> :violations [...]}."
   [extension-map gross-amount policy param-values & [stored-awards]]
   (let [allocation-spec (:allocation policy)
-        base (compute-allocation extension-map gross-amount allocation-spec)
-        stored-by-id (when stored-awards
-                       (into {} (map (fn [a] [(:award/id a) a]) stored-awards)))
-        processed (mapv (fn [policy-award]
-                          (let [award-id (:award/id policy-award)
-                                stored (get stored-by-id award-id)
-                                {:keys [award-amount calculation funding violations]}
-                                (independent-award extension-map gross-amount
-                                                   policy-award param-values stored)]
-                            (when (and (some? award-amount) (pos? award-amount))
-                              (cond-> {:award/id award-id
-                                       :award/amount award-amount
-                                       :funding funding
-                                       :settlement (:settlement policy-award)}
-                                calculation (assoc :calculation calculation)))))
-                        (:awards policy))
-        award-violations (mapcat identity
-                                 (map (fn [policy-award]
-                                        (let [award-id (:award/id policy-award)
-                                              stored (get stored-by-id award-id)
-                                              {:keys [violations]}
-                                              (independent-award extension-map gross-amount
-                                                                 policy-award param-values stored)]
-                                          violations))
-                                      (:awards policy)))
-        active-awards (remove nil? processed)
-        sorted-awards (vec (sort-by :award/id active-awards))]
-    (if (seq award-violations)
-      {:violations (vec award-violations)}
-      (let [deductions (reduce (fn [acc award]
-                                 (merge-with + acc (:funding award)))
-                               {} sorted-awards)
-            ;; settlement inflows
-            settlements (reduce (fn [acc award]
-                                  (let [dest (get-in award [:settlement :allocation-id])
-                                        amt (:award/amount award)]
-                                    (if dest
-                                      (update acc dest (fnil + 0) amt)
-                                      acc)))
-                                {} sorted-awards)
-            ;; final allocations
-            all-ids (into (keys base)
-                          (into (keys deductions)
-                                (keys settlements)))
-            final (into {}
-                        (map (fn [id]
-                               (let [b (get base id 0)
-                                     d (get deductions id 0)
-                                     s (get settlements id 0)]
-                                 [id (+ b (- d) s)]))
-                             all-ids))]
-        {:awards sorted-awards
-         :base base
-         :deductions deductions
-         :settlements settlements
-         :final final
-         :violations []}))))
+        base (compute-allocation extension-map gross-amount allocation-spec)]
+    (if (:steps policy)
+      (let [step-result (process-steps extension-map gross-amount policy param-values)
+            {:keys [awards violations steps]} step-result]
+        (if (seq violations)
+          {:violations (vec violations)}
+          (merge {:awards awards :base base :steps steps :violations []}
+                 (independent-aggregates base awards))))
+      (let [stored-by-id (when stored-awards
+                           (into {} (map (fn [a] [(:award/id a) a]) stored-awards)))
+            processed (mapv (fn [policy-award]
+                              (let [award-id (:award/id policy-award)
+                                    stored (get stored-by-id award-id)
+                                    {:keys [award-amount calculation funding violations]}
+                                    (independent-award extension-map gross-amount
+                                                       policy-award param-values stored)]
+                                (when (and (some? award-amount) (pos? award-amount))
+                                  (cond-> {:award/id award-id
+                                           :award/amount award-amount
+                                           :funding funding
+                                           :settlement (:settlement policy-award)}
+                                    calculation (assoc :calculation calculation)))))
+                            (:awards policy))
+            award-violations (mapcat identity
+                                     (map (fn [policy-award]
+                                            (let [award-id (:award/id policy-award)
+                                                  stored (get stored-by-id award-id)
+                                                  {:keys [violations]}
+                                                  (independent-award extension-map gross-amount
+                                                                     policy-award param-values stored)]
+                                              violations))
+                                          (:awards policy)))
+            active-awards (remove nil? processed)
+            sorted-awards (vec (sort-by :award/id active-awards))]
+        (if (seq award-violations)
+          {:violations (vec award-violations)}
+          (merge {:awards sorted-awards :base base :violations []}
+                 (independent-aggregates base sorted-awards)))))))
 
 (defn- verify-recomputed-calculations
   "Recompute every stored rate-derived calculation record against the policy
@@ -1190,21 +1490,34 @@
                             v :final-allocations stored-final indep-final)
                            (verify-recomputed-calculations
                             policy gross-amount param-values
-                            (:distribution/calculations distribution))
+                            ;; for :steps policies the full sequence recompute
+                            ;; already validates calculation records; the
+                            ;; standalone per-record check is awards-only
+                            (if (:steps policy) [] (:distribution/calculations distribution)))
                            (verify-extension-resolution-root
                             (:distribution/extension-resolution-root distribution)
-                            policy extension-map schema-registry)))))))
+                            policy extension-map schema-registry)
+                           (verify-recomputed-against-stored
+                            :steps-evidence
+                            (:distribution/steps distribution)
+                            (:steps independent))))))))
              v)
 
          ;; consistency checks (run regardless)
          awards (:distribution/awards distribution)
 
-         ;; award ordering
+         ;; award ordering: sorted for :awards policies; declared step order
+         ;; for :steps policies (order is semantically significant)
          award-ids (mapv :award/id awards)
-         v (if (= award-ids (vec (sort award-ids))) v
+         expected-order (if (seq (:distribution/steps distribution))
+                          (vec (map :step/id
+                                    (filter #(= :applied (:step/status %))
+                                            (:distribution/steps distribution))))
+                          (vec (sort award-ids)))
+         v (if (= award-ids expected-order) v
                (conj v {:violation/id :violation/award-order-invalid
                         :details {:received award-ids
-                                  :expected (vec (sort award-ids))}}))
+                                  :expected expected-order}}))
 
          ;; each award's embedded calculation must equal its record in the
          ;; committed calculation trace

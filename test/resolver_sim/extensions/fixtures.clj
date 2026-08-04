@@ -66,10 +66,15 @@
    :input-schema :prf/award-amount-context.v1
    :output-schema :prf/calculation-result.v1
    :verification/contract :prf/award-amount-verification.v1
-   :composition-contract {:composition/input-type :amount
-                          :composition/output-type :amount-with-effects
-                          :composition/mode :sequential
-                          :composition/terminal? false}
+   :composition-contract {:composition-contract/version 1
+                          :composition/input {:schema-ref :prf/award-amount-context.v1
+                                              :semantic-type :amount
+                                              :cardinality :one}
+                          :composition/output {:schema-ref :prf/calculation-result.v1
+                                               :semantic-type :amount
+                                               :cardinality :one}
+                          :composition/roles #{:step}
+                          :composition/modes #{:sequential}}
    :declared-dependencies
    [{:capability/kind :arithmetic/profile
      :capability/id :prf/scaled-share-v1

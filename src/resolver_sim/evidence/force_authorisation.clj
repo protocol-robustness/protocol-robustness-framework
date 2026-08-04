@@ -397,7 +397,7 @@
                                                    :reason (cond
                                                              (not= add-held-schema-version (:schema-version a))
                                                              :schema-version-mismatch
-                                                              (not= add-held-kind (:artifact/kind a))
+                                                             (not= add-held-kind (:artifact/kind a))
                                                              :artifact-kind-mismatch
                                                              (not= add-held-verifier-id (:artifact/verifier a))
                                                              :verifier-mismatch

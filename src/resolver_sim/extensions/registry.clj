@@ -49,14 +49,16 @@
   "Pure: register a capability (from a package manifest) into an
    extension-map. Throws on collision or built-in replacement; idempotent when
    the descriptor root is identical (adding a provider if the package differs).
-   Validates the descriptor first."
+   Validates the descriptor first and stores the canonical (normalised) form,
+   so the content-addressed root commits only the canonical vocabulary."
   [extension-map package capability]
   (let [validation (em/validate-capability capability)]
     (when-not (:valid? validation)
       (throw (ex-info "extension: invalid capability descriptor"
                       {:error :extensions/error-invalid-capability
                        :violations (:violations validation)})))
-    (let [key (em/capability-key capability)
+    (let [capability (:normalized (em/normalize-capability-descriptor capability))
+          key (em/capability-key capability)
           descriptor-root (em/capability-descriptor-root capability)]
       (if-let [existing (get extension-map key)]
         (if (= descriptor-root (:descriptor-root existing))

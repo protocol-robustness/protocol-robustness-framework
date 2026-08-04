@@ -1022,7 +1022,7 @@
                              :theorem/margin margin
                              :theorem/holds? holds?
                              :inequality/evaluated {:present-value {:cooperation coop-value
-                                                                     :deviation dev-value}
+                                                                    :deviation dev-value}
                                                     :normalized {:left (* df (- temptation punishment))
                                                                  :right (- temptation reward)}}
                              :inequality/holds? holds?

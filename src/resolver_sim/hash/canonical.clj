@@ -130,6 +130,8 @@
    :slash-distribution-application-receipt-v1 "SLASH_DISTRIBUTION_APPLICATION_RECEIPT_V1"
    :fixed-regression-case-v1      "FIXED_REGRESSION_CASE_V1"
    :slash-distribution-application-plan-v1 "SLASH_DISTRIBUTION_APPLICATION_PLAN_V1"
+   :slash-distribution-application-plan-v2 "SLASH_DISTRIBUTION_APPLICATION_PLAN_V2"
+   :prf-effect-contract-v1 "PRF_EFFECT_CONTRACT_V1"
    :bounty-payable-v1              "BOUNTY_PAYABLE_V1"
    :bounty-payable-backing-v1      "BOUNTY_PAYABLE_BACKING_V1"
    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"

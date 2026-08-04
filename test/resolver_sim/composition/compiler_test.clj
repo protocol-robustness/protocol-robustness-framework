@@ -1,0 +1,265 @@
+(ns resolver-sim.composition.compiler-test
+  "Combination representation and the sequential composition compiler:
+   valid pipelines, structured rejections, determinism, and root mutation."
+  (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.composition.combination :as combo]
+            [resolver-sim.composition.compiler :as comp]
+            [resolver-sim.composition.fixtures :as fx]))
+
+(defn- compile-it
+  [emap combination]
+  (comp/compile-combination emap combination))
+
+(defn- rejects
+  [emap combination violation-id]
+  (let [{:keys [status violations]} (compile-it emap combination)]
+    (and (= :invalid status)
+         (some #(= violation-id (:violation/id %)) violations))))
+
+(defn- two-stage
+  ([_emap]
+   (fx/seq-combination
+    (fx/node :n1 [:economics/award-amount :prf/rate-of-gross] :spec {:parameter-key :p})
+    (fx/node :n2 [:economics/award-amount :prf/rate-of-gross] :spec {:parameter-key :q})))
+  ([_emap n1]
+   (two-stage nil n1 (fx/node :n2 [:economics/award-amount :prf/rate-of-gross])))
+  ([_emap n1 n2]
+   (fx/seq-combination n1 n2)))
+
+;; ── combination validation ────────────────────────────────────────────────
+
+(deftest combination-validation
+  (is (:valid? (combo/validate-combination (two-stage (fx/ext-map-with)))))
+  (is (some #(= :violation/empty-combination (:violation/id %))
+            (:violations (combo/validate-combination {:combination/id :x :combination/version 1
+                                                      :combination/nodes []}))))
+  (is (some #(= :violation/duplicate-node-id (:violation/id %))
+            (:violations (combo/validate-combination
+                          {:combination/id :x :combination/version 1
+                           :combination/nodes [(fx/node :n1 [:a :b])
+                                               (fx/node :n1 [:a :c])]}))))
+  (is (some #(= :violation/invalid-combination-edges (:violation/id %))
+            (:violations (combo/validate-combination
+                          (assoc (two-stage (fx/ext-map-with))
+                                 :combination/edges [{:edge/id :x :from :n2 :to :n1}]))))))
+
+(deftest caller-edge-ids-accepted
+  (testing "edges with caller-supplied ids are accepted when the structure is
+            the canonical consecutive chain"
+    (is (:valid? (combo/validate-combination
+                  (assoc (two-stage (fx/ext-map-with))
+                         :combination/edges
+                         [{:edge/id :e1 :from :n1 :to :n2}]))))))
+
+(deftest missing-input-output-rejected
+  (let [base (two-stage (fx/ext-map-with))]
+    (is (some #(= :violation/missing-combination-input (:violation/id %))
+              (:violations (combo/validate-combination (dissoc base :combination/input)))))
+    (is (some #(= :violation/missing-combination-expected-output (:violation/id %))
+              (:violations (combo/validate-combination
+                            (dissoc base :combination/expected-output)))))))
+
+(deftest explicit-edges-equal-derived-combination-root
+  (let [base (two-stage (fx/ext-map-with))
+        with-edges (assoc base :combination/edges (combo/effective-edges base))]
+    (is (= (combo/combination-root base)
+           (combo/combination-root with-edges)))))
+
+(deftest combination-root-mutation
+  (testing "every semantic compiler input changes the combination root"
+    (let [base (two-stage (fx/ext-map-with))]
+      (doseq [[label mutate] [["input-semantic" #(assoc-in % [:combination/input :semantic-type] :gross)]
+                              ["expected-output" #(assoc-in % [:combination/expected-output :semantic-type] :gross)]
+                              ["verification" #(assoc % :combination/verification
+                                                      {:intermediate-output-committed? false})]
+                              ["adapters" #(assoc % :combination/adapters [:fixture/adapter])]
+                              ["node-capability" #(assoc-in % [:combination/nodes 1 :capability/ref 1]
+                                                          :prf/resolved-amount)]]]
+        (is (not= (combo/combination-root base)
+                  (combo/combination-root (mutate base)))
+            (str label " must change the combination root")))))
+  (testing "irrelevant node metadata does not change the combination root"
+    (let [base (two-stage (fx/ext-map-with))
+          noisy (update base :combination/nodes
+                        (fn [ns] (mapv #(assoc % :source-metadata {:x 1}) ns)))]
+      (is (= (combo/combination-root base)
+             (combo/combination-root noisy))))))
+
+;; ── valid pipelines ───────────────────────────────────────────────────────
+
+(deftest valid-two-stage
+  (let [emap (fx/ext-map-with)
+        {:keys [status plan]} (compile-it emap (two-stage emap))]
+    (is (= :valid status))
+    (is (= 2 (count (:plan/nodes plan))))
+    (is (every? #(= 64 (count %)) (map :capability-root (:plan/nodes plan))))
+    (is (every? #(= 64 (count %)) (map :contract-root (:plan/nodes plan))))
+    (is (= 1 (count (:plan/edges plan))))
+    (is (= comp/compiler-id (:plan/compiler-id plan)))
+    (is (= comp/compiler-version (:plan/compiler-version plan)))
+    (is (= 64 (count (:plan/root plan))))
+    (is (string? (:plan/combination-root plan)))))
+
+(deftest valid-three-stage
+  (let [emap (fx/ext-map-with)
+        combo {:combination/id :test.combination/three
+               :combination/version 1
+               :combination/nodes [(fx/node :n1 [:economics/award-amount :prf/rate-of-gross])
+                                   (fx/node :n2 [:economics/award-amount :prf/rate-of-gross])
+                                   (fx/node :n3 [:economics/award-amount :prf/rate-of-gross])]
+               :combination/input {:schema-ref :prf/award-amount-context.v1 :semantic-type :amount}
+               :combination/expected-output {:schema-ref :prf/calculation-result.v1 :semantic-type :amount}}
+        {:keys [status plan]} (compile-it emap combo)]
+    (is (= :valid status))
+    (is (= 3 (count (:plan/nodes plan))))
+    (is (= 2 (count (:plan/edges plan))))))
+
+;; ── structured rejections ─────────────────────────────────────────────────
+
+(deftest unresolved-capability-rejected
+  (let [emap (fx/ext-map-with)]
+    (is (rejects emap
+                 (two-stage emap (fx/node :n1 [:economics/award-amount :fixture/nope]))
+                 :violation/unresolved-capability))))
+
+(deftest version-mismatch-rejected
+  (let [emap (fx/ext-map-with)]
+    (is (rejects emap
+                 (two-stage emap (fx/node :n1 [:economics/award-amount :prf/rate-of-gross]
+                                          :version 99))
+                 :violation/capability-version-mismatch))))
+
+(deftest missing-contract-rejected
+  (let [emap (fx/ext-map-with (dissoc (fx/cap :fixture/nocontract) :composition-contract))]
+    (is (rejects emap
+                 (two-stage emap (fx/node :n1 [:economics/award-amount :fixture/nocontract]))
+                 :violation/missing-composition-contract))))
+
+(deftest invalid-contract-rejected
+  (let [bad {:capability (assoc (fx/cap :fixture/bad)
+                                :composition-contract {:no/version true})
+             :descriptor-root "x" :builtin? false :providers []}
+        emap (assoc (fx/ext-map-with) [:economics/award-amount :fixture/bad] bad)]
+    (is (rejects emap
+                 (two-stage emap (fx/node :n1 [:economics/award-amount :fixture/bad]))
+                 :violation/invalid-composition-contract))))
+
+(deftest unsupported-mode-rejected
+  (let [emap (fx/ext-map-with (fx/cap :fixture/parallel :modes #{:parallel}))]
+    (is (rejects emap
+                 (two-stage emap (fx/node :n1 [:economics/award-amount :fixture/parallel]))
+                 :violation/unsupported-composition-mode))))
+
+(deftest nondeterministic-rejected
+  (let [emap (fx/ext-map-with (fx/cap :fixture/nd :determinism false))]
+    (is (rejects emap
+                 (two-stage emap (fx/node :n1 [:economics/award-amount :fixture/nd]))
+                 :violation/nondeterministic-capability-forbidden))))
+
+(deftest input-output-semantic-mismatch
+  (let [emap (fx/ext-map-with (fx/cap :fixture/in2 :input-semantic :amount-with-effects))]
+    (is (rejects emap
+                 (two-stage emap
+                            (fx/node :n1 [:economics/award-amount :prf/rate-of-gross])
+                            (fx/node :n2 [:economics/award-amount :fixture/in2]))
+                 :violation/input-output-semantic-mismatch))))
+
+(deftest graph-input-not-satisfied
+  (let [emap (fx/ext-map-with)
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :prf/rate-of-gross])
+               (fx/node :n2 [:economics/award-amount :prf/rate-of-gross])
+               :input :gross)]
+    (is (rejects emap combo :violation/graph-input-not-satisfied))))
+
+(deftest graph-output-not-satisfied
+  (let [emap (fx/ext-map-with)
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :prf/rate-of-gross])
+               (fx/node :n2 [:economics/award-amount :prf/rate-of-gross])
+               :output :gross)]
+    (is (rejects emap combo :violation/graph-output-not-satisfied))))
+
+(deftest illegal-terminal-placement
+  (let [emap (fx/ext-map-with (fx/cap :fixture/term :terminal? true))]
+    (is (rejects emap
+                 (two-stage emap (fx/node :n1 [:economics/award-amount :fixture/term]))
+                 :violation/illegal-terminal-placement))))
+
+(deftest undeclared-dependency-rejected
+  (let [emap (fx/ext-map-with)]
+    (is (rejects emap
+                 (two-stage emap
+                            (fx/node :n1 [:economics/award-amount :prf/rate-of-gross]
+                                     :basis {:source :step/output :step-id :n99 :field :remaining}))
+                 :violation/undeclared-dependency))))
+
+(deftest effect-conflict-rejected
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/e1 :effects #{:prf.effect/x.v1} :exclusive #{:prf.effect/x.v1})
+              (fx/cap :fixture/e2 :effects #{:prf.effect/x.v1} :exclusive #{:prf.effect/x.v1}))]
+    (is (rejects emap
+                 (two-stage emap
+                            (fx/node :n1 [:economics/award-amount :fixture/e1])
+                            (fx/node :n2 [:economics/award-amount :fixture/e2]))
+                 :violation/effect-conflict))))
+
+(deftest merge-strategy-conflict-rejected
+  (testing "a combination-level merge strategy conflicting with a node contract
+            is rejected (the plan must not bind a strategy a node contradicts)"
+    (let [emap (fx/ext-map-with (fx/cap :fixture/ms :merge :replace))
+          combo (assoc (two-stage emap
+                                  (fx/node :n1 [:economics/award-amount :fixture/ms])
+                                  (fx/node :n2 [:economics/award-amount :prf/rate-of-gross]))
+                       :combination/effect-merge-strategy :accumulate)]
+      (is (rejects emap combo :violation/effect-conflict)))))
+
+(deftest unsupported-adapters-rejected
+  (let [emap (fx/ext-map-with)
+        combo (assoc (two-stage emap) :combination/adapters [:fixture/adapter])]
+    (is (rejects emap combo :violation/unsupported-adapters))))
+
+(deftest verification-contract-not-preserved
+  (let [emap (fx/ext-map-with)
+        combo (assoc (two-stage emap)
+                     :combination/verification {:intermediate-output-committed? false})]
+    (is (rejects emap combo :violation/verification-contract-not-preserved))))
+
+;; ── graph helpers ─────────────────────────────────────────────────────────
+
+(deftest graph-cycle-and-unreachable-helpers
+  (is (comp/graph-has-cycle? [:a :b] [{:from :a :to :b} {:from :b :to :a}]))
+  (is (not (comp/graph-has-cycle? [:a :b :c] [{:from :a :to :b} {:from :b :to :c}])))
+  (is (= [:b] (vec (comp/unreachable-node-ids [:a :b :c] [{:from :a :to :c}]))))
+  (is (nil? (comp/unreachable-node-ids [:a :b :c] [{:from :a :to :b} {:from :b :to :c}]))))
+
+;; ── determinism, idempotence, root mutation ───────────────────────────────
+
+(deftest deterministic-and-idempotent
+  (let [emap (fx/ext-map-with)
+        combo (two-stage emap)]
+    (is (= (:plan/root (:plan (compile-it emap combo)))
+           (:plan/root (:plan (compile-it emap combo))))
+        "compilation is deterministic")
+    (is (= (compile-it emap combo) (compile-it emap combo))
+        "compilation is idempotent")))
+
+(deftest plan-root-mutation
+  (testing "the plan root changes when any semantically relevant input changes"
+    (let [emap (fx/ext-map-with)
+          base (two-stage emap)]
+      (doseq [[label mutate] [["node-spec" #(assoc-in % [:combination/nodes 0 :spec :parameter-key] :z)]
+                              ["capability-ref" #(assoc-in % [:combination/nodes 1 :capability/ref]
+                                                           [:economics/award-amount :prf/resolved-amount])]
+                              ["input-semantic" #(assoc-in % [:combination/input :semantic-type] :gross)]
+                              ["expected-output" #(assoc-in % [:combination/expected-output :semantic-type] :gross)]]]
+        (is (not= (:plan/root (:plan (compile-it emap base)))
+                  (:plan/root (:plan (compile-it emap (mutate base)))))
+            (str label " must change the plan root")))))
+  (testing "irrelevant source metadata does not change the plan root"
+    (let [emap (fx/ext-map-with)
+          base (two-stage emap)
+          noisy (update base :combination/nodes
+                        (fn [ns] (mapv #(assoc % :source-metadata {:foo 1}) ns)))]
+      (is (= (:plan/root (:plan (compile-it emap base)))
+             (:plan/root (:plan (compile-it emap noisy))))))))
