@@ -90,6 +90,22 @@
 (def ^:private lifecycle-summary-v1-schema-version "force-auth-lifecycle-summary.v1")
 (def ^:private lifecycle-summary-verifier-id "force-auth-lifecycle-summary-verifier.v1")
 
+(def add-held-kind
+  "Canonical :artifact/kind for a force-authorised add-held custody mutation."
+  :force-auth-add-held)
+
+(def lifecycle-kind
+  "Canonical :artifact/kind for the force-authorisation lifecycle verification."
+  :force-auth-lifecycle)
+
+(def lifecycle-summary-kind
+  "Canonical :artifact/kind for the force-authorisation lifecycle summary."
+  :force-auth-lifecycle-summary)
+
+(def add-held-summary-kind
+  "Canonical :artifact/kind for the force-auth add-held summary."
+  :force-auth-add-held-summary)
+
 (def ^:private lifecycle-summary-v2-only-keys
   "Top-level keys introduced in v2 (absent from v1)."
   [:counts-by-status :counts-by-authorization-type :created :revoked
@@ -106,7 +122,8 @@
   [:invalid-artifacts :unverified-authorization-ids :min-amount :max-amount
    :consumed-at-earliest :consumed-at-latest :distinct-tokens :distinct-accounts
    :distinct-owners :amount-by-token :amount-by-direction :amount-by-account
-   :amount-by-owner])
+   :amount-by-owner :missing-amount-count :non-numeric-amount-count
+   :negative-amount-count :amount-issues])
 
 (def ^:private add-held-summary-v1-category-keys
   "The sub-categories catalogued in v1 (v2 added :by-owner, :by-position-id,
@@ -159,7 +176,7 @@
         recomputed-scope-hash (fa/force-authorisation-scope-hash scope-map)
         recorded-scope-hash (:authorization/scope-hash authorization)
         body {:schema-version add-held-schema-version
-              :artifact/kind :force-auth-add-held
+              :artifact/kind add-held-kind
               :artifact/verifier add-held-verifier-id
               :authorization/id (:authorization/id authorization)
               :authorization/type (or (:authorization/type authorization)
@@ -185,7 +202,7 @@
 (defn valid-force-auth-add-held?
   "Re-verify a force-auth-add-held evidence artifact."
   [report]
-  (valid-artifact? report add-held-schema-version :force-auth-add-held
+  (valid-artifact? report add-held-schema-version add-held-kind
                    add-held-verifier-id))
 
 ;; ── force-auth-lifecycle ───────────────────────────────────────────────────
@@ -213,7 +230,7 @@
                                  record registry (:authorization/scope record) now)]))
                      auths)
         body {:schema-version lifecycle-schema-version
-              :artifact/kind :force-auth-lifecycle
+              :artifact/kind lifecycle-kind
               :artifact/verifier lifecycle-verifier-id
               :lifecycle-consistent? (:holds? consistency)
               :lifecycle-violations (vec (:violations consistency))
@@ -232,7 +249,7 @@
 (defn valid-force-auth-lifecycle?
   "Re-verify a force-auth-lifecycle evidence artifact."
   [report]
-  (valid-artifact? report lifecycle-schema-version :force-auth-lifecycle
+  (valid-artifact? report lifecycle-schema-version lifecycle-kind
                    lifecycle-verifier-id))
 
 ;; ── force-auth-lifecycle-summary ───────────────────────────────────────────
@@ -288,7 +305,7 @@
                                     (fa/scope-hash-mismatch? r (:authorization/scope r)))))
                            ids)))
         body {:schema-version lifecycle-summary-schema-version
-              :artifact/kind :force-auth-lifecycle-summary
+              :artifact/kind lifecycle-summary-kind
               :artifact/verifier lifecycle-summary-verifier-id
               :total (count auths)
               :counts-by-status (into (sorted-map) (frequencies statuses))
@@ -318,7 +335,7 @@
   "Re-verify a force-auth-lifecycle-summary evidence artifact (v2)."
   [report]
   (valid-artifact? report lifecycle-summary-schema-version
-                   :force-auth-lifecycle-summary lifecycle-summary-verifier-id))
+                   lifecycle-summary-kind lifecycle-summary-verifier-id))
 
 (defn downgrade-force-auth-lifecycle-summary-v2->v1
   "Project a v2 lifecycle summary body back to the v1 shape (for migration
@@ -327,7 +344,7 @@
   (-> (reduce dissoc report lifecycle-summary-v2-only-keys)
       (dissoc :artifact/hash :artifact/preimage)
       (assoc :schema-version lifecycle-summary-v1-schema-version)
-      (assoc :artifact/kind :force-auth-lifecycle-summary)
+      (assoc :artifact/kind lifecycle-summary-kind)
       (assoc :artifact/verifier lifecycle-summary-verifier-id)))
 
 (defn build-force-auth-lifecycle-summary-v1
@@ -344,7 +361,7 @@
   [report]
   (and (map? report)
        (= lifecycle-summary-v1-schema-version (:schema-version report))
-       (= :force-auth-lifecycle-summary (:artifact/kind report))
+       (= lifecycle-summary-kind (:artifact/kind report))
        (= lifecycle-summary-verifier-id (:artifact/verifier report))
        (string? (:artifact/hash report))
        (string? (:artifact/preimage report))
@@ -363,9 +380,11 @@
                  build-force-auth-add-held). Each is re-verified before counting.
 
    Commits aggregate counts, amount sums and ranges, cardinality, a triage view
-   of non-passing artifacts, and a catalogue of sub-category summaries (account,
-   reason, authorization, consumer, owner, position, authorization type, and the
-   token × direction breakdown)."
+   of non-passing artifacts (with a per-item invalidity reason), an amount
+   integrity triage (missing / non-numeric / negative amounts are never counted
+   into the sums), a view of unverified authorizations, and a catalogue of
+   sub-category summaries (account, reason, authorization, consumer, owner,
+   position, authorization type, and the token × direction breakdown)."
   [{:keys [artifacts]}]
   (let [artifacts (vec (or artifacts []))
         valid? valid-force-auth-add-held?
@@ -374,7 +393,15 @@
                                 (keep-indexed (fn [i a]
                                                 (when-not (valid? a)
                                                   {:index i
-                                                   :adjustment-id (:held/adjustment-id a)})))
+                                                   :adjustment-id (:held/adjustment-id a)
+                                                   :reason (cond
+                                                             (not= add-held-schema-version (:schema-version a))
+                                                             :schema-version-mismatch
+                                                              (not= add-held-kind (:artifact/kind a))
+                                                             :artifact-kind-mismatch
+                                                             (not= add-held-verifier-id (:artifact/verifier a))
+                                                             :verifier-mismatch
+                                                             :else :content-hash-mismatch)})))
                                 artifacts)
         scope-verified (count (filter :authorization/scope-verifies? artifacts))
         unverified-auth-ids (vec (sort
@@ -385,7 +412,27 @@
                                          artifacts))))
         by-token (frequencies (keep :held/token artifacts))
         by-direction (frequencies (keep :held/direction artifacts))
-        amounts (mapv #(long (or (:held/amount %) 0)) artifacts)
+        indexed (map-indexed vector artifacts)
+        amount-issues (into []
+                            (keep (fn [[i a]]
+                                    (let [amt (:held/amount a)
+                                          issue (cond
+                                                  (nil? amt) :missing-amount
+                                                  (not (number? amt)) :non-numeric-amount
+                                                  (neg? (double amt)) :negative-amount
+                                                  :else nil)]
+                                      (when issue
+                                        {:index i
+                                         :adjustment-id (:held/adjustment-id a)
+                                         :amount-issue issue}))))
+                            indexed)
+        issue-count (fn [issue-kind]
+                      (count (filter #(= issue-kind (:amount-issue %)) amount-issues)))
+        amounts (vec (keep (fn [[_ a]]
+                             (let [amt (:held/amount a)]
+                               (when (and (some? amt) (number? amt))
+                                 (long amt))))
+                           indexed))
         total-amount (reduce + 0 amounts)
         min-amount (when (seq amounts) (apply min amounts))
         max-amount (when (seq amounts) (apply max amounts))
@@ -398,7 +445,10 @@
                        (reduce (fn [m a]
                                  (let [v (get a k)]
                                    (if (some? v)
-                                     (update m v (fnil + 0) (long (or (:held/amount a) 0)))
+                                     (let [amt (:held/amount a)]
+                                       (if (and (some? amt) (number? amt))
+                                         (update m v (fnil + 0) (long amt))
+                                         m))
                                      m)))
                                {}
                                artifacts)))
@@ -417,7 +467,7 @@
                     :by-authorization-type (sorted-freq :authorization/type)
                     :by-token-direction (into (sorted-map) by-token-direction)}
         body {:schema-version add-held-summary-schema-version
-              :artifact/kind :force-auth-add-held-summary
+              :artifact/kind add-held-summary-kind
               :artifact/verifier add-held-summary-verifier-id
               :total (count artifacts)
               :valid-count valid-count
@@ -429,6 +479,10 @@
               :total-amount total-amount
               :min-amount min-amount
               :max-amount max-amount
+              :missing-amount-count (issue-count :missing-amount)
+              :non-numeric-amount-count (issue-count :non-numeric-amount)
+              :negative-amount-count (issue-count :negative-amount)
+              :amount-issues (vec amount-issues)
               :consumed-at-earliest consumed-at-earliest
               :consumed-at-latest consumed-at-latest
               :distinct-adjustment-ids (count (distinct (keep :held/adjustment-id artifacts)))
@@ -448,7 +502,7 @@
   "Re-verify a force-auth-add-held-summary evidence artifact (v2)."
   [report]
   (valid-artifact? report add-held-summary-schema-version
-                   :force-auth-add-held-summary add-held-summary-verifier-id))
+                   add-held-summary-kind add-held-summary-verifier-id))
 
 (defn downgrade-add-held-summary-v2->v1
   "Project a v2 summary artifact body back to the v1 shape (for migration
@@ -460,7 +514,7 @@
     (-> without-v2
         (dissoc :artifact/hash :artifact/preimage)
         (assoc :schema-version add-held-summary-v1-schema-version)
-        (assoc :artifact/kind :force-auth-add-held-summary)
+        (assoc :artifact/kind add-held-summary-kind)
         (assoc :artifact/verifier add-held-summary-verifier-id)
         (assoc :categories v1-categories))))
 
@@ -480,7 +534,7 @@
   [report]
   (and (map? report)
        (= add-held-summary-v1-schema-version (:schema-version report))
-       (= :force-auth-add-held-summary (:artifact/kind report))
+       (= add-held-summary-kind (:artifact/kind report))
        (= add-held-summary-verifier-id (:artifact/verifier report))
        (string? (:artifact/hash report))
        (string? (:artifact/preimage report))

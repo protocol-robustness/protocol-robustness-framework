@@ -7,7 +7,8 @@
 
    No SEW identifiers appear anywhere."
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.economics.slash-distribution :as sd]))
+            [resolver-sim.economics.slash-distribution :as sd]
+            [resolver-sim.economics.slash-distribution-application-plan :as plan]))
 
 ;; ── test policy fixture ──────────────────────────────────────────────────
 
@@ -55,6 +56,46 @@
 (def ^:private reward-param-500
   {:source-root "sha256:test-params-001"
    :values {:test.parameter/reward-rate 500}})
+
+(def ^:private resolved-amount-policy
+  "Policy whose award amount is externally resolved (:resolved-amount), so the
+   amount spec carries no rate/scale/parameter fields."
+  {:schema-version "slash-distribution-policy.v1"
+   :policy/id      :test.policy/resolved
+   :policy/version 1
+   :allocation
+   {:method       :weighted
+    :scale        10000
+    :weights      {:test.allocation/a 5000
+                   :test.allocation/b 3000
+                   :test.allocation/c 2000}
+    :remainder-to :test.allocation/c}
+   :awards
+   [{:award/id :test.award/reward
+     :amount
+     {:method :resolved-amount}
+     :eligibility
+     {:trigger                    :test.trigger/qualified-event
+      :beneficiary-role           :test.role/reporter
+      :requires-evidence-reference? true}
+     :funding
+     {:method       :weighted-deduction
+      :scale        10000
+      :weights      {:test.allocation/a 5000
+                     :test.allocation/b 5000}
+      :remainder-to :test.allocation/b}
+     :settlement
+     {:allocation-id   :test.allocation/reward-pool
+      :obligation-kind :test.obligation/reward}}]})
+
+(def ^:private resolved-reward-amount
+  "Resolved award for resolved-amount-policy with a pre-computed amount."
+  {:award/id :test.award/reward
+   :award/amount 5
+   :eligibility {:trigger :test.trigger/qualified-event
+                 :evidence-reference "sha256:test-eligibility-001"}
+   :beneficiary {:participant/id :test.participant/alice
+                 :participant/role :test.role/reporter}})
 
 ;; ═════════════════════════════════════════════════════════════════════════
 ;; 1. Policy validation
@@ -1469,3 +1510,140 @@
       (is (= 50 (:deduction-total cats)))
       (is (= 50 (:settlement-total cats)))
       (is (= 0 (:retained cats))))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; 23. :resolved-amount awards (regression: previously rejected by the
+;;     validator, which unconditionally required :scale on every amount spec)
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest resolved-amount-policy-accepted-and-builds
+  (testing "a :resolved-amount amount spec validates without rate fields"
+    (is (:valid? (sd/validate-policy resolved-amount-policy)))
+    (let [result (sd/build-slash-distribution
+                  {:gross-amount      100
+                   :policy            resolved-amount-policy
+                   :policy-root       (sd/policy-hash resolved-amount-policy)
+                   :parameter-context {:source-root "sha256:x" :values {}}
+                   :resolved-awards   [resolved-reward-amount]
+                   :context           {}})
+          dist (:distribution result)]
+      (is (= :valid (:status result)))
+      (is (= 100 (reduce + 0 (vals (:distribution/final-allocations dist)))))
+      (is (= 5 (get-in dist [:distribution/final-allocations :test.allocation/reward-pool])))
+      ;; resolved-amount awards are not rate-derived: no calculation trace entry
+      (is (empty? (:distribution/calculations dist)))
+      (is (some? (:distribution/summary dist)))
+      (is (= 0 (:rate-derived-award-count (:distribution/summary dist)))))))
+
+(deftest resolved-amount-verifies-in-both-modes
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      100
+                 :policy            resolved-amount-policy
+                 :policy-root       (sd/policy-hash resolved-amount-policy)
+                 :parameter-context {:source-root "sha256:x" :values {}}
+                 :resolved-awards   [resolved-reward-amount]
+                 :context           {}})
+        dist (:distribution result)]
+    (is (:valid? (sd/verify-distribution dist)))
+    (is (:valid? (sd/verify-distribution
+                  dist
+                  {:policy            resolved-amount-policy
+                   :parameter-context {:source-root "sha256:x" :values {}}})))))
+
+(deftest resolved-amount-missing-amount-invalid-no-crash
+  (testing "a :resolved-amount award without :award/amount fails with a violation, not a crash"
+    (let [result (sd/build-slash-distribution
+                  {:gross-amount      100
+                   :policy            resolved-amount-policy
+                   :policy-root       (sd/policy-hash resolved-amount-policy)
+                   :parameter-context {:source-root "sha256:x" :values {}}
+                   :resolved-awards   [(dissoc resolved-reward-amount :award/amount)]
+                   :context           {}})]
+      (is (= :invalid (:status result)))
+      (is (some #(= :violation/invalid-parameter-value (:violation/id %))
+                (:violations result))))))
+
+(deftest mixed-rate-and-resolved-awards
+  (testing "rate-of-gross and :resolved-amount awards coexist; trace covers rate-derived only"
+    (let [policy (assoc resolved-amount-policy :awards
+                        (conj (vec (:awards resolved-amount-policy))
+                              (-> (first (:awards all-scales-10000-policy))
+                                  (assoc :award/id :test.award/bonus))))
+          params {:source-root "sha256:x" :values {:test.parameter/reward-rate 500}}
+          result (sd/build-slash-distribution
+                  {:gross-amount      100
+                   :policy            policy
+                   :policy-root       (sd/policy-hash policy)
+                   :parameter-context params
+                   :resolved-awards   [resolved-reward-amount
+                                       (assoc resolved-reward :award/id :test.award/bonus)]
+                   :context           {}})
+          dist (:distribution result)]
+      (is (= :valid (:status result)))
+      (is (= 2 (count (:distribution/awards dist))))
+      ;; only the rate-of-gross award contributes a calculation record
+      (is (= 1 (count (:distribution/calculations dist))))
+      (is (= 1 (:rate-derived-award-count (:distribution/summary dist))))
+      (is (= 100 (reduce + 0 (vals (:distribution/final-allocations dist)))))
+      (is (:valid? (sd/verify-distribution dist)))
+      (is (:valid? (sd/verify-distribution dist {:policy policy :parameter-context params}))))))
+
+;; ═════════════════════════════════════════════════════════════════════════
+;; 24. Committed-field hardening: a distribution with awards must commit its
+;;     calculation trace and aggregate summary (previously the summary-vs-trace
+;;     check silently skipped when either was nil).
+;; ═════════════════════════════════════════════════════════════════════════
+
+(deftest verify-rejects-missing-committed-calculation-trace
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      100
+                 :policy            all-scales-10000-policy
+                 :policy-root       (sd/policy-hash all-scales-10000-policy)
+                 :parameter-context reward-param-500
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        dist (:distribution result)
+        stripped (-> dist
+                     (dissoc :distribution/calculations :distribution/hash)
+                     (assoc :distribution/hash
+                            (sd/distribution-hash
+                             (dissoc dist :distribution/calculations :distribution/hash))))
+        {:keys [valid? violations]} (sd/verify-distribution stripped)]
+    (is (not valid?))
+    (is (some #(= :violation/missing-calculation-trace (:violation/id %)) violations))))
+
+(deftest verify-rejects-missing-committed-summary
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      100
+                 :policy            all-scales-10000-policy
+                 :policy-root       (sd/policy-hash all-scales-10000-policy)
+                 :parameter-context reward-param-500
+                 :resolved-awards   [resolved-reward]
+                 :context           {}})
+        dist (:distribution result)
+        stripped (-> dist
+                     (dissoc :distribution/summary :distribution/hash)
+                     (assoc :distribution/hash
+                            (sd/distribution-hash
+                             (dissoc dist :distribution/summary :distribution/hash))))
+        {:keys [valid? violations]} (sd/verify-distribution stripped)]
+    (is (not valid?))
+    (is (some #(= :violation/missing-summary (:violation/id %)) violations))))
+
+(deftest application-plan-valid-for-resolved-amount-with-preconditions
+  (let [result (sd/build-slash-distribution
+                {:gross-amount      100
+                 :policy            resolved-amount-policy
+                 :policy-root       (sd/policy-hash resolved-amount-policy)
+                 :parameter-context {:source-root "sha256:x" :values {}}
+                 :resolved-awards   [resolved-reward-amount]
+                 :context           {}})
+        plan (plan/build-application-plan
+              {:distribution (:distribution result)
+               :policy       resolved-amount-policy
+               :idempotency-key [:test/idem 1]
+               :context      {}})]
+    (is (= :valid (:status plan)))
+    (is (true? (get-in plan [:plan :plan/preconditions :final-conservation])))
+    (is (true? (get-in plan [:plan :plan/preconditions :funding-conservation])))
+    (is (true? (get-in plan [:plan :plan/preconditions :non-negative-finals])))))

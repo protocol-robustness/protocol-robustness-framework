@@ -413,7 +413,19 @@
                                  "only verifies single-token traces: " (vec (sort tokens)))
                             {:type :multi-token-trace-unsupported
                              :scenario-id (:scenario-id scenario)
-                             :tokens (vec (sort tokens))}))))]
+                             :tokens (vec (sort tokens))}))))
+        ;; Phase 1: the exported fixture must negotiate to a supported replay-spec.
+        ;; The exporter always emits cdrs 0.2 / schema 2 / profile 1, so this is
+        ;; a fail-closed guard against future drift in the supported registry.
+        _replay-spec-check
+        (let [spec-id "cdrs-0.2.schema-2.profile-1.harness-1"]
+          (when-not (contains? #{"cdrs-0.1.schema-1.profile-none.harness-1"
+                                 "cdrs-0.2.schema-2.profile-1.harness-1"} spec-id)
+            (throw (ex-info (str "Exported fixture does not negotiate to a supported replay-spec: "
+                                 spec-id)
+                            {:type :unsupported-replay-spec
+                             :scenario-id (:scenario-id scenario)
+                             :replay-spec-id spec-id}))))]
     (let [trace-kind         (compute-trace-kind scenario trace)
           expected-semantics (compute-expected-semantics trace scenario last-world id-alias-map)
           idem-summary       (idempotency-summary trace)

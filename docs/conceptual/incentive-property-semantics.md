@@ -146,28 +146,74 @@ properties owned by that concept.
   per-period payoff, `T=U_malicious` is the one-shot deviation payoff, and `P`
   is the per-period punishment payoff (default 0). It applies a **fail-closed
   applicability contract**:
-  - `T > R` else `:not-applicable :deviation-not-profitable` (deviation is not
-    genuinely tempting, so the result is never presented as theorem support);
-  - `R > P` else `:inconclusive :punishment-not-deterrent` (punishment is not
-    worse than cooperation);
-  - `T > P` else `:invalid-input :non-positive-threshold-denominator`;
-  - finite payoffs, `U_honest > 0` (else `:inconclusive`); and `δ in [0,1)`
-    (`δ = 1` diverges and is `:invalid-input :discount-at-horizon-boundary`).
+  - `T > R` else `:not-applicable :threshold-inapplicable`
+    (`:deviation-not-profitable`; deviation is not genuinely tempting, so the
+    result is never presented as theorem support);
+  - `R > P` else `:inconclusive :assumptions-unsatisfied`
+    (`:punishment-not-deterrent`; punishment is not worse than cooperation);
+  - `T > P` else `:invalid-input :assumptions-unsatisfied`
+    (`:non-positive-threshold-denominator`);
+  - finite payoffs, `U_honest > 0` (else `:inconclusive`/`:assumptions-unsatisfied`);
+    and `δ in [0,1)` (`δ = 1` diverges and is `:invalid-input
+    :discount-at-horizon-boundary`).
 
-  Equality satisfies the threshold and is reported as `:boundary-pass`. On
-  success it emits a recomputable **theorem certificate**
-  (`:theorem/type`, `:theorem/claim`, `:theorem/assumptions`,
-  `:theorem/inequality-left`, `:theorem/inequality-right`, `:theorem/threshold`,
-  `:theorem/margin`, `:theorem/holds?`) plus robustness fields
-  (`:discount-margin`, `:normalized-deterrence-margin`,
-  `:nearest-failing-discount`, `:boundary-classification`) and separate
-  `:cooperation-incentive-compatible?` / `:punishment-credible?` /
-  `:strategy-profile-equilibrium?` obligations. On failure it returns a concrete
-  profitable-deviation witness (`:deviation/payoff`, `:cooperation/value`,
-  `:deviation/gain`, `:minimum-discount-required`). Payoffs may be supplied as
-  intervals `{:min .. :max ..}` via `:payoffs` to enable uncertainty-aware
-  classification (`:robustly-deterrent` / `:possibly-deterrent` /
-  `:robustly-not-deterrent`).
+  Equality satisfies the threshold and is reported as `:boundary-pass`. The
+  result taxonomy is **deviation-deterrence oriented**: every outcome carries a
+  `:claim/conclusion` from
+  `:deviation-deterred | :deviation-profitable | :threshold-inapplicable |
+  :assumptions-unsatisfied | :inconclusive`, and the result never asserts a
+  generic `:cooperation-supported` claim.
+
+  **Hardened theorem certificate.** Every outcome (including failures and
+  context rejections) carries:
+  - `:theorem/type`, `:theorem/claim`, `:theorem/assumptions`;
+  - `:theorem/inputs` — the committed stage-game payoffs (`:cooperate R`,
+    `:unilateral-deviation T`, `:punishment P`), `:repeated-game/discount-factor`,
+    `:repeated-game/horizon`, `:strategy/profile`, `:deviation/model`,
+    `:monitoring/model`, `:payoff/model`;
+  - `:theorem/root-hash` — a SHA-256 domain-separated hash commitment over the
+    committed inputs and the deviation domain, so the exact claim is
+    recomputable and mutation-detectable;
+  - `:threshold/value`, `:threshold/formula-id`, `:discount-factor/value`,
+    `:inequality/evaluated` (present-value and normalized forms),
+    `:inequality/holds?`, `:assumptions/evaluated`;
+  - `:theorem/inequality-left`, `:theorem/inequality-right`,
+    `:theorem/threshold`, `:theorem/margin`, `:theorem/holds?`;
+  - robustness fields `:deterrence/margin`, `:deterrence/slack-classification`,
+    `:discount-margin`, `:normalized-deterrence-margin`,
+    `:nearest-failing-discount`, `:boundary-classification`;
+  - sensitivity outputs `:sensitivity/required-minimum-discount`,
+    `:sensitivity/maximum-deviation-payoff`,
+    `:sensitivity/minimum-punishment-severity`,
+    `:sensitivity/payoff-uncertainty`;
+  - scope obligations `:punishment/credibility` (`:assumed` | `:unverified`),
+    `:coalition-resistance? false`, `:evidence-tier`, and the
+    `:deviation-domain` (`:actors :single :duration-epochs 1
+    :timing :cooperative-path :actions #{:specified-deviation}
+    :coalitions? false`).
+
+  **Fail-closed model enforcement.** The evaluation rejects unsupported models
+  before any payoff algebra:
+  - `:horizon` must be `:infinite` (default) — finite horizons
+    `{:type :finite ...}` are `:invalid-input :finite-horizon-unsupported`
+    (the infinite-horizon geometric-series threshold does not apply) and unknown
+    horizons are `:unsupported-horizon-model`;
+  - `:monitoring-model` must be `{:type :perfect-public :deviation-detected?
+    true :detection-delay 0}` — imperfect or delayed monitoring is
+    `:invalid-input :unsupported-monitoring-model`;
+  - `:evidence-tier` (`:parameter-level-theorem` default) distinguishes
+    parameter-level, scenario-backed, and trace-observed attestation; the
+    scenario-backed tiers require a `:scenario-evidence` map with the multi-epoch
+    keys (`:epoch-sequence :cooperative-history :deviation-event
+    :punishment-activation :punishment-persistence :branch-payoff-projection`),
+    otherwise `:inconclusive :evidence-tier-unmet |
+    :scenario-evidence-incomplete`.
+
+  On failure it returns a concrete profitable-deviation witness
+  (`:deviation/payoff`, `:cooperation/value`, `:deviation/gain`,
+  `:minimum-discount-required`). Payoffs may be supplied as intervals
+  `{:min .. :max ..}` via `:payoffs` to enable uncertainty-aware classification
+  (`:robustly-deterrent` / `:possibly-deterrent` / `:robustly-not-deterrent`).
 
   The claim is multi-epoch only. Both the canonical id and the deprecated alias
   are **not wired** to the single-trace dispatcher (which lacks multi-epoch

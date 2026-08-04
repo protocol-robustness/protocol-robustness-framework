@@ -622,3 +622,236 @@
           "the repeated-game deterrence result is a typed theorem certificate")
       (is (= :claim-evaluators (:coverage-basis report))
           "coverage is reported over the claim evaluators only"))))
+
+;; ───────────────────────────────────────────────────────────────────────────
+;; Adversarial / metamorphic hardening tests
+;; ───────────────────────────────────────────────────────────────────────────
+
+(defn- base-result
+  []
+  {:aggregated-stats {:honest-mean-profit 100.0
+                      :malice-mean-profit 150.0}})
+
+(deftest test-deterrence-conclusion-taxonomy
+  (testing "the strongest claim is :deviation-deterred, never :cooperation-supported"
+    (let [report (sut/evaluate-grim-trigger-deterrence (base-result))]
+      (is (= :deviation-deterred (:claim/conclusion report)))
+      (is (= :pass (:status report)))
+      (is (nil? (get report :cooperation-supported))
+          "the result never asserts a generic cooperation-supported claim"))
+    (testing "a profitable deviation is classified :deviation-profitable"
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    (base-result) :discount-factor 0.2)]
+        (is (= :deviation-profitable (:claim/conclusion report)))
+        (is (= :fail (:status report)))))
+    (testing "a non-tempting deviation is :threshold-inapplicable"
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    {:aggregated-stats {:honest-mean-profit 100.0
+                                        :malice-mean-profit 80.0}})]
+        (is (= :threshold-inapplicable (:claim/conclusion report)))
+        (is (= :not-applicable (:status report)))))
+    (testing "precondition violations are :assumptions-unsatisfied"
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    (base-result) :discount-factor 1.0)]
+        (is (= :assumptions-unsatisfied (:claim/conclusion report)))
+        (is (= :invalid-input (:status report))))
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    {:aggregated-stats {:honest-mean-profit 100.0
+                                        :malice-mean-profit 150.0}}
+                    :punishment-payoff 120.0)]
+        (is (= :assumptions-unsatisfied (:claim/conclusion report)))
+        (is (= :inconclusive (:status report)))))))
+
+(deftest test-deterrence-commits-theorem-inputs
+  (testing "the certificate commits the full theorem inputs and a recomputable root hash"
+    (let [report (sut/evaluate-grim-trigger-deterrence (base-result))
+          inputs (:theorem/inputs report)]
+      (is (map? inputs))
+      (is (= 100.0 (get-in inputs [:stage-game/payoffs :cooperate])))
+      (is (= 150.0 (get-in inputs [:stage-game/payoffs :unilateral-deviation])))
+      (is (= 0.0 (get-in inputs [:stage-game/payoffs :punishment])))
+      (is (= :infinite (:repeated-game/horizon inputs)))
+      (is (= :grim-trigger (:strategy/profile inputs)))
+      (is (= :single-period-unilateral (:deviation/model inputs)))
+      (is (= {:type :perfect-public :deviation-detected? true :detection-delay 0}
+             (:monitoring/model inputs)))
+      (is (= :stationary (:payoff/model inputs)))
+      (is (re-find #"^[0-9a-f]{64}$" (:theorem/root-hash report)))
+      (is (= :repeated-game/grim-trigger-deterrence.threshold.v1
+             (:threshold/formula-id report)))
+      (is (= :assumed (:punishment/credibility report)))
+      (is (= {:actors :single :duration-epochs 1 :timing :cooperative-path
+              :actions #{:specified-deviation} :coalitions? false}
+             (:deviation-domain report)))
+      (is (false? (:coalition-resistance? report)))
+      (is (true? (:theorem/holds? report)))
+      (is (true? (:inequality/holds? report))))))
+
+(deftest test-deterrence-root-hash-mutation-sensitive
+  (testing "any committed theorem-input mutation changes the root hash"
+    (let [r1 (sut/evaluate-grim-trigger-deterrence (base-result))
+          variants [(sut/evaluate-grim-trigger-deterrence
+                     (base-result) :discount-factor 0.96)
+                    (sut/evaluate-grim-trigger-deterrence
+                     (base-result) :payoffs {:R 100.0 :T 151.0 :P 0.0})
+                    (sut/evaluate-grim-trigger-deterrence
+                     (base-result) :punishment-payoff 1.0)
+                    (sut/evaluate-grim-trigger-deterrence
+                     (base-result) :strategy-profile :tit-for-tat)
+                    (sut/evaluate-grim-trigger-deterrence
+                     (base-result) :deviation-domain
+                     {:actors :single :duration-epochs 2
+                      :timing :cooperative-path
+                      :actions #{:specified-deviation}
+                      :coalitions? false})
+                    (sut/evaluate-grim-trigger-deterrence
+                     (base-result) :horizon {:type :finite :epochs 10})]]
+      (is (apply distinct?
+                 (into [(:theorem/root-hash r1)]
+                       (map :theorem/root-hash variants))))
+      (is (every? #(re-find #"^[0-9a-f]{64}$" %)
+                  (map :theorem/root-hash variants))))
+    (testing "identical inputs produce an identical commitment"
+      (let [a (sut/evaluate-grim-trigger-deterrence (base-result))
+            b (sut/evaluate-grim-trigger-deterrence (base-result))]
+        (is (= (:theorem/root-hash a) (:theorem/root-hash b)))))))
+
+(deftest test-deterrence-fails-closed-on-horizon-and-monitoring
+  (testing "a finite horizon never reuses the infinite-horizon formula"
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :horizon {:type :finite :epochs 10})]
+      (is (= :invalid-input (:status report)))
+      (is (= :assumptions-unsatisfied (:claim/conclusion report)))
+      (is (= :finite-horizon-unsupported (:reason report)))
+      (is (false? (:deterrence? report)))
+      (is (nil? (:theorem/holds? report)))))
+  (testing "an unknown horizon model is rejected"
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :horizon :finite)]
+      (is (= :invalid-input (:status report)))
+      (is (= :unsupported-horizon-model (:reason report)))))
+  (testing "imperfect or delayed monitoring fails closed"
+    (doseq [m [{:type :imperfect-public :detection-probability 0.9}
+               {:type :perfect-public :deviation-detected? true :detection-delay 1}
+               {:type :perfect-public :deviation-detected? false :detection-delay 0}
+               :imperfect-public]]
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    (base-result) :monitoring-model m)]
+        (is (= :invalid-input (:status report)) (pr-str m))
+        (is (= :assumptions-unsatisfied (:claim/conclusion report)) (pr-str m))
+        (is (= :unsupported-monitoring-model (:reason report)) (pr-str m))))
+    (testing "the supported perfect-public model passes"
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    (base-result) :monitoring-model
+                    {:type :perfect-public :deviation-detected? true :detection-delay 0})]
+        (is (= :pass (:status report)))))))
+
+(deftest test-deterrence-evidence-tier-scoping
+  (testing "scenario-backed tier requires the multi-epoch evidence keys"
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :evidence-tier :scenario-backed)]
+      (is (= :inconclusive (:status report)))
+      (is (= :evidence-tier-unmet (:reason report))))
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :evidence-tier :scenario-backed
+                  :scenario-evidence {:epoch-sequence [1 2 3]
+                                      :cooperative-history [1 2]
+                                      :deviation-event {:epoch 3}
+                                      :punishment-activation {:epoch 4}
+                                      :punishment-persistence 5})]
+      (is (= :scenario-evidence-incomplete (:reason report))))
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :evidence-tier :scenario-backed
+                  :scenario-evidence {:epoch-sequence [1 2 3]
+                                      :cooperative-history [1 2]
+                                      :deviation-event {:epoch 3}
+                                      :punishment-activation {:epoch 4}
+                                      :punishment-persistence 5
+                                      :branch-payoff-projection {:coop 100 :dev 150}})]
+      (is (= :pass (:status report)))
+      (is (= :scenario-backed (:evidence-tier report))))
+    (testing "an unknown evidence tier is inconclusive"
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    (base-result) :evidence-tier :unverified-model)]
+        (is (= :inconclusive (:status report)))
+        (is (= :unsupported-evidence-tier (:reason report)))))))
+
+(deftest test-deterrence-sensitivity-and-margins
+  (testing "sensitivity outputs are derived from the committed inputs"
+    (let [report (sut/evaluate-grim-trigger-deterrence (base-result))
+          df (:discount-factor report)]
+      (is (= (/ 1.0 3.0) (:sensitivity/required-minimum-discount report)))
+      (is (pos? (:deterrence/margin report)))
+      (is (= :strict-pass (:deterrence/slack-classification report)))
+      (is (= (:threshold report) (:sensitivity/required-minimum-discount report)))
+      (is (false? (:sensitivity/payoff-uncertainty report)))
+      (is (= (/ 1.0 3.0) (:threshold/value report)))
+      (is (>= (:sensitivity/maximum-deviation-payoff report) 150.0)
+          "the committed T is supportable at a passing discount, so max supportable deviation payoff must be >= T")
+      (is (pos? (:sensitivity/minimum-punishment-severity report)))))
+  (testing "interval evaluation marks payoff uncertainty and tightest required δ"
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :discount-factor 0.9
+                  :payoffs {:R {:min 100.0 :max 120.0}
+                            :T {:min 150.0 :max 160.0}
+                            :P 0.0})]
+      (is (true? (:sensitivity/payoff-uncertainty report)))
+      (is (= :robustly-deterrent (:classification report)))
+      (is (some? (:sensitivity/required-minimum-discount report))))))
+
+(deftest test-deterrence-monotonicity
+  (testing "raising T or lowering R/P or δ toward the threshold cannot pass below it"
+    (let [df 0.35
+          r 100.0
+          t 150.0
+          p 0.0
+          report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :discount-factor df :payoffs {:R r :T t :P p})]
+      ;; δ=0.35 >= 1/3 → passes
+      (is (= :pass (:status report)))
+      (testing "a higher T raises the threshold above δ → fails"
+        (let [r2 (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :discount-factor df :payoffs {:R r :T 160.0 :P p})]
+          (is (> (:threshold r2) df))
+          (is (= :fail (:status r2)))))
+      (testing "a higher P raises the threshold → fails"
+        (let [r2 (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :discount-factor df :payoffs {:R r :T t :P 20.0})]
+          (is (= :fail (:status r2)))))
+      (testing "a lower R raises the threshold → fails"
+        (let [r3 (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :discount-factor df :payoffs {:R 90.0 :T t :P p})]
+          (is (= :fail (:status r3)))))))
+  (testing "discount below the threshold never passes"
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  (base-result) :discount-factor 0.32)]
+      (is (= :fail (:status report)))
+      (is (= :deviation-profitable (:claim/conclusion report))))))
+
+(deftest test-deterrence-no-relabelling-passes
+  (testing "swapping R and T (a relabelling that is not the PD ordering) cannot pass"
+    (let [report (sut/evaluate-grim-trigger-deterrence
+                  {:aggregated-stats {:honest-mean-profit 150.0
+                                      :malice-mean-profit 100.0}})]
+      ;; T=100 <= R=150 → the deviation is not tempting → not-applicable
+      (is (= :not-applicable (:status report)))
+      (is (= :threshold-inapplicable (:claim/conclusion report))))))
+
+(deftest test-deterrence-preconditions-fail-closed
+  (testing "degenerate payoff inputs never produce a misleading pass"
+    (doseq [[label payoffs]
+            [["equal T and R" {:R 100.0 :T 100.0 :P 0.0}]
+             ["equal T and P" {:R 100.0 :T 10.0 :P 10.0}]
+             ["punishment above R" {:R 100.0 :T 150.0 :P 120.0}]
+             ["negative R" {:R -5.0 :T 150.0 :P 0.0}]
+             ["zero R" {:R 0.0 :T 150.0 :P 0.0}]]]
+      (let [report (sut/evaluate-grim-trigger-deterrence
+                    (base-result) :payoffs payoffs)]
+        (is (not= :pass (:status report)) label)
+        (is (not= :deviation-deterred (:claim/conclusion report)) label)))))
+
+(deftest test-deterrence-infinite-horizon-required-by-default
+  (testing "the default evaluation commits an infinite horizon"
+    (let [report (sut/evaluate-grim-trigger-deterrence (base-result))]
+      (is (= :infinite (:repeated-game/horizon report)))
+      (is (= :infinite (get-in report [:theorem/inputs :repeated-game/horizon]))))))

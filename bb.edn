@@ -361,6 +361,12 @@ test:quick
   trace:solidity:verify {:doc "Read-only verification of cross-repo trace integrity. Fails on missing source, missing dest, hash mismatch, undeclared fixtures, or unsupported CDRS version. Usage: bb trace:solidity:verify [--sew-repo <path>]"
                           :task (apply shell "./scripts/trace-solidity-verify" *command-line-args*)}
 
+  trace:reconcile {:doc "Phase 0 claim-correctness gate: reconcile manifest included/byte-synced sets against Forge replay receipts. Requires out/receipts/ (run the Forge harness first). Usage: bb trace:reconcile [--sew-repo <path>]"
+                    :task (apply shell "python3" "./scripts/reconcile.py" *command-line-args*)}
+
+  trace:attest {:doc "Regenerate the equivalence attestation from replay receipts. Usage: bb trace:attest [--sew-repo <path>]"
+                 :task (apply shell "python3" "./etc/generate-equivalence-attestation.py" *command-line-args*)}
+
   lint {:doc "Lint source and test code with clj-kondo (excludes notebooks/archive/)"
         :task (shell "clj -M:lint/core")}
 

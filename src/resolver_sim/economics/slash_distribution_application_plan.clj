@@ -119,13 +119,25 @@
                                                               (get-in a [:eligibility :evidence-reference]))
                                                             awards))
                        :plan/preconditions {:final-conservation (= gross final-sum)
-                                            :funding-conservation (= (reduce + 0 (vals funding-deductions))
-                                                                     awards-sum)
-                                            :award-count (count awards)
-                                            :non-negative-finals (every? #(not (neg? %)) (vals final))}
+                                             :funding-conservation (= (reduce + 0 (vals funding-deductions))
+                                                                      awards-sum)
+                                             :award-count (count awards)
+                                             :non-negative-finals (every? #(not (neg? %)) (vals final))}
                        :plan/context (or context {})}
-            plan (assoc base-plan :plan/hash (plan-hash base-plan))]
-        {:status :valid :plan plan}))))
+            plan (assoc base-plan :plan/hash (plan-hash base-plan))
+            ;; Hardening: preconditions are RECORDED for consumers, but a false
+            ;; boolean precondition fails the plan closed instead of producing a
+            ;; plan whose preconditions already contradict its effects.
+            precondition-failures
+            (into []
+                  (keep (fn [[k ok]]
+                          (when (and (boolean? ok) (not ok))
+                            {:violation/id :violation/precondition-failed
+                             :details {:precondition k}})))
+                  (:plan/preconditions base-plan))]
+        (if (seq precondition-failures)
+          {:status :invalid :violations precondition-failures}
+          {:status :valid :plan plan})))))
 
 ;; ── plan validator ──────────────────────────────────────────────────────────
 

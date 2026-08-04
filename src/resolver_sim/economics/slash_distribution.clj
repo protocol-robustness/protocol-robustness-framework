@@ -33,8 +33,15 @@
      and values) is committed at distribution level via
      :distribution/parameter-context.
    - `calculate-scaled-share` uses unbounded integer arithmetic; it does not
-     itself assert Solidity-equivalent checked-width semantics. A checked-
-     width or mulDiv-equivalent profile is a separate follow-up.
+      itself assert Solidity-equivalent checked-width semantics. A checked-
+      width or mulDiv-equivalent profile is a separate follow-up.
+   - A second amount method `:resolved-amount` is supported: the amount is
+      supplied externally on the resolved award (:award/amount) and is not
+      derived from a parameter. Such awards are validated per-method (no
+      scale/rounding/parameter-key), produce no record in
+      :distribution/calculations, and contribute nothing to
+      :distribution/summary (the rate-derived trace/summary contract covers
+      :rate-of-gross only).
 
    Boundaries:
    - This namespace proves arithmetic and structural validity.
@@ -119,26 +126,31 @@
         v (if amount-spec
             (let [method (:method amount-spec)]
               (if (supported-award-amount-method? method)
-                (let [scale (:scale amount-spec)]
-                  (cond-> v
-                    (or (nil? scale) (not (integer? scale)) (not (pos? scale)))
-                    (conj {:violation/id :violation/invalid-award-scale
-                           :details {:award/id (:award/id award)
-                                     :scale scale}})
-                    (and (= :rate-of-gross method)
-                         (not= :floor (:rounding amount-spec)))
-                    (conj {:violation/id :violation/unsupported-rounding
-                           :details {:award/id (:award/id award)
-                                     :rounding (:rounding amount-spec)
-                                     :supported [:floor]}})
-                    (and (= :rate-of-gross method)
-                         (nil? (:parameter-key amount-spec)))
-                    (conj {:violation/id :violation/missing-parameter-key
-                           :details {:award/id (:award/id award)}})))
+                (case method
+                  :rate-of-gross
+                  (let [scale (:scale amount-spec)]
+                    (cond-> v
+                      (or (nil? scale) (not (integer? scale)) (not (pos? scale)))
+                      (conj {:violation/id :violation/invalid-award-scale
+                             :details {:award/id (:award/id award)
+                                       :scale scale}})
+                      (not= :floor (:rounding amount-spec))
+                      (conj {:violation/id :violation/unsupported-rounding
+                             :details {:award/id (:award/id award)
+                                       :rounding (:rounding amount-spec)
+                                       :supported [:floor]}})
+                      (nil? (:parameter-key amount-spec))
+                      (conj {:violation/id :violation/missing-parameter-key
+                             :details {:award/id (:award/id award)}})))
+                  :resolved-amount
+                  ;; The amount is supplied externally on the resolved award
+                  ;; (:award/amount); the amount-spec carries no fields that are
+                  ;; interpreted or required here.
+                  v)
                 (conj v {:violation/id :violation/unsupported-amount-method
                          :details {:award/id (:award/id award)
                                    :method method
-                                   :supported [:rate-of-gross]}})))
+                                   :supported [:rate-of-gross :resolved-amount]}})))
             v)
 
         elig (:eligibility award)
@@ -392,7 +404,13 @@
                         weights)
         allocated (reduce + 0 (vals quotients))
         remainder (- gross-amount allocated)
-        base (if (and (pos? remainder) remainder-to)
+        ;; Mirror compute-award-funding: only assign the remainder when the
+        ;; remainder-to key is a valid weight.  Policy validation guarantees
+        ;; this for valid policies; the guard makes unvalidated callers fail
+        ;; closed (base would then under-sum and conservation would reject)
+        ;; instead of silently inventing a new allocation category.
+        base (if (and (pos? remainder) remainder-to
+                      (contains? weights remainder-to))
                (update quotients remainder-to (fnil + 0) remainder)
                quotients)]
     base))
@@ -444,8 +462,22 @@
         amount-spec (:amount policy-award)
         award-amount (compute-award-amount gross-amount amount-spec param-values resolved-award)
         calculation (award-calculation award-id gross-amount amount-spec param-values)]
-    (if (zero? award-amount)
+    (cond
+      ;; Nil amount: the resolved amount was unavailable (e.g. a
+      ;; :resolved-amount award without :award/amount, or a rate-of-gross
+      ;; award whose parameter could not be resolved).  This is a violation,
+      ;; not a crash — never feed nil into (zero? ...).
+      (nil? award-amount)
+      {:award nil :calculation calculation
+       :violations (conj v
+                         {:violation/id :violation/invalid-parameter-value
+                          :details {:award/id award-id
+                                    :reason "award amount unavailable (missing or invalid resolved amount)"}})}
+
+      (zero? award-amount)
       {:award nil :calculation calculation :violations v}
+
+      :else
       (let [elig (:eligibility resolved-award)
             policy-elig (:eligibility policy-award)
             v (if (= (:trigger policy-elig) (:trigger elig)) v
@@ -899,6 +931,20 @@
          ;; summary is derived from the committed calculation trace
          stored-calcs (:distribution/calculations distribution)
          stored-summary (:distribution/summary distribution)
+         ;; Committed fields: a distribution with awards MUST commit the
+         ;; calculation trace and aggregate summary.  Absence is a structural
+         ;; violation (hardening; previously the summary-vs-trace check was
+         ;; silently skipped when either was nil).
+         v (if (and (seq (:distribution/awards distribution))
+                    (or (nil? stored-calcs) (nil? stored-summary)))
+             (cond-> v
+               (nil? stored-calcs)
+               (conj {:violation/id :violation/missing-calculation-trace
+                      :details {:reason "distribution with awards must commit :distribution/calculations"}})
+               (nil? stored-summary)
+               (conj {:violation/id :violation/missing-summary
+                      :details {:reason "distribution with awards must commit :distribution/summary"}}))
+             v)
          v (if (and (some? stored-calcs) (some? stored-summary))
              (let [recomputed-summary (build-rate-derived-summary stored-calcs)]
                (if (= recomputed-summary stored-summary)

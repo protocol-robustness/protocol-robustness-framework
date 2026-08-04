@@ -38,7 +38,7 @@
         unmapped (remove #(seq (get property-claims %))
                          (:benchmark/property-types manifest))]
     (cond-> []
-      (seq deferred) (conj :active/deferred-claims)
+      (seq (filter deferred required)) (conj :active/deferred-claims)
       (seq unknown) (conj :active/unknown-required-claims)
       (seq unrunnable) (conj :active/unrunnable-required-claims)
       (empty? substantive) (conj :active/mechanical-only)

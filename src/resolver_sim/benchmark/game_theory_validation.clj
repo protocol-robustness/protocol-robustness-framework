@@ -135,6 +135,15 @@
     :title "Incentive margin"
     :summary "U_honest - max(U_deviation). Positive margin means honest strategy is strictly preferred. Implemented as a terminal-payoff helper but not wired into the trace-end dispatcher."}])
 
+(def grim-trigger-deterrence-id
+  "Canonical concept id for the model-specific grim-trigger deterrence claim."
+  :repeated-game/grim-trigger-deterrence)
+
+(def folk-theorem-cooperation-region-id
+  "Legacy concept id for the repeated-game deterrence threshold (deprecated alias
+   of `grim-trigger-deterrence-id`)."
+  :folk-theorem-cooperation-region)
+
 (def equilibrium-concepts
   "Available equilibrium-concept validators across generic and Sew-specific.
    Metadata fields match mechanism-properties (:catalogued?/:wired?/:implemented?)
@@ -221,19 +230,19 @@
     :implemented? true
     :title "Cancellation dominance"
     :summary "Mutual cancel strictly dominates unilateral default for honest participants."}
-{:id :repeated-game/grim-trigger-deterrence
+{:id grim-trigger-deterrence-id
      :source :framework
      :catalogued? true
      :wired? false
      :implemented? true
      :title "Grim-trigger deterrence threshold (model-specific)"
      :summary "Model-specific grim-trigger one-shot-deviation deterrence: cooperat forever iff R/(1-δ) >= T + δP/(1-δ), i.e. δ >= (T-R)/(T-P), where R=U_honest, T=U_malicious, P is the per-period punishment payoff (default 0). Applies a fail-closed applicability contract: T>R (deviation profitable), R>P (punishment worse than cooperation), T>P (positive denominator), finite payoffs, U_honest > 0, and δ in [0,1) (δ=1 diverges). Emits a full theorem certificate with assumptions, inequality, margin, robustness distance, and a counterexample witness on failure. This is NOT a general Folk-theorem claim; it is multi-epoch only and is not wired into the single-trace dispatcher."}
-    {:id :folk-theorem-cooperation-region
+    {:id folk-theorem-cooperation-region-id
      :source :framework
      :catalogued? true
      :wired? false
      :implemented? true
-     :alias-of :repeated-game/grim-trigger-deterrence
+     :alias-of grim-trigger-deterrence-id
      :deprecated true
      :title "Repeated-game deterrence threshold (deprecated alias)"
      :summary "Deprecated alias for :repeated-game/grim-trigger-deterrence. Declaring this legacy id resolves via the canonical multi-epoch evaluator only; the single-trace dispatcher returns :inconclusive :unsupported-concept (no multi-epoch evidence input). Emits a migration classification rather than theorem support."}])
