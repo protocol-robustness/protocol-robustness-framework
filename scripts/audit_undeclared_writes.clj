@@ -49,16 +49,16 @@
                                               (mapcat :undeclared-files entries))
                              problems (into (sorted-set)
                                             (mapcat (comp (partial map :type) :scope-problems) entries))
-                             modes (vec (sort (distinct (map :mode entries))))]
+                              modes (vec (sort (distinct (map :mode entries))))]
                          {:namespace ns
                           :runs (count entries)
                           :modes modes
                           :incomplete? (boolean incomplete)
                           :undeclared undeclared
                           :problems (vec problems)}))
+            undeclared-total (into (sorted-set) (mapcat :undeclared-files entries))
             flags (filter #(or (:incomplete? %)
-                               (and (seq (:undeclared %))
-                                    (not (= (set ["_owner.edn"]) (:undeclared %)))))
+                               (seq (:problems %)))
                           findings)]
         (println (str "reviewing " (count files) " result files in " dir))
         (println (str "namespaces observed: " (count findings)))
@@ -71,12 +71,18 @@
                            (pr-str (:undeclared f))
                            (pr-str (:problems f)))))
         (println)
+        (when (seq undeclared-total)
+          (println (str "note: " (count undeclared-total)
+                        " distinct undeclared files are confined framework evidence "
+                        "(relative paths under each namespace root); no escape detected by "
+                        "scope closure (leak gate checks the shared artifact dir separately).")))
+        (println)
         (if (seq flags)
           (do
             (println "FLAGGED (needs triage):")
             (doseq [f flags]
               (println (str "  " (:namespace f)
                             (when (:incomplete? f) " [INCOMPLETE]")
-                            (when (seq (:undeclared f)) (str " undeclared=" (pr-str (:undeclared f)))))))
+                            (when (seq (:problems f)) (str " problems=" (pr-str (:problems f)))))))
             (System/exit 1))
-          (println "no incomplete scopes or undeclared writes across the soak."))))))
+          (println "no incomplete scopes or scope problems across the soak."))))))

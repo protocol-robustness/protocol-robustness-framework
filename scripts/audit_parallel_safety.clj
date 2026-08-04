@@ -119,17 +119,23 @@
       (doseq [{:keys [namespace soft]} (take 25 soft-hits)]
         (println (str "    " namespace " -> " (str/join ", " (map name (keys soft)))))))
     (println)
+    ;; Hard hazards must be in the exclusion set.  This is enforced empirically:
+    ;; a full 8-run isolated-parallel soak with exclusions disabled failed
+    ;; (accounting-test flaked non-deterministically), confirming the exclusions
+    ;; are necessary for a stable fingerprint.  See
+    ;; scripts.run-sew-tests/parallel-exclusion-reasons for per-namespace
+    ;; evidence and remediation.
     (if (seq unexcluded)
       (do
         (println "  GATE FAILED — HARD-hazard namespaces missing from"
                  "scripts.run-sew-tests/parallel-excluded-namespaces:")
         (doseq [s unexcluded] (println (str "    " s)))
-        (println "  Add them to the exclusion set before enabling isolated-parallel.")
-        1)
+        (println "  Add them to the exclusion set (removal broke the 8-run soak).")
+        {:hard-count (count hard-hits) :unexcluded (vec unexcluded)})
       (do
         (println "  GATE OK — all HARD-hazard namespaces are in the parallel"
-                 "exclusion set.")
-        0))))
+                 "exclusion set (required for fingerprint stability).")
+        {:hard-count (count hard-hits) :unexcluded []}))))
 
 (defn -main
   [& args]
@@ -140,10 +146,10 @@
                (do (println "Usage: -m scripts.audit-parallel-safety [unit|scenario]")
                    (System/exit 1)))
         audits (mapv audit-one syms)
-        hard-count (print-report (symbol which) audits)]
+        {:keys [hard-count unexcluded]} (print-report (symbol which) audits)]
     (println)
     (println (str "Audit complete: " (count audits) " namespaces, "
                   hard-count " hard hazards, "
                   (count (filter (comp seq :soft) audits)) " soft."))
-    (when (pos? hard-count)
+    (when (seq unexcluded)
       (System/exit 1))))

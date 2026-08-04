@@ -122,7 +122,13 @@ Example: bb cli scenario list --search yield"
                  "resolver-sim.evidence.attestation-known-gaps-test")}
     
    test:unit
-   {:doc "Run all unit tests (framework + Sew) with noop capture (single JVM)"
+   {:doc "Run all unit tests (framework + Sew) with noop capture (single JVM,
+          namespaces parallel by default: isolated-parallel mode — each
+          namespace has a fresh evidence/artifact scope and runs on a bounded
+          pool.  Set SEW_TEST_MODE=shared-sequential or SEW_TEST_SEQUENTIAL=1
+          for legacy sequential behaviour; PARALLEL_TEST_JOBS caps workers.
+          Known pre-existing failures: idempotence-checklist-test,
+          properties-test."
     :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.run-sew-tests" "unit")}
 
     test:framework

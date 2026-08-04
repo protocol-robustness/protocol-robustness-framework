@@ -30,12 +30,13 @@ SOAK_S="${SOAK_S:-2}"
 SOAK_F="${SOAK_F:-3}"
 SOAK_P="${SOAK_P:-8}"
 SOAK_JOBS="${SOAK_JOBS:-4}"
+SOAK_GROUP="${SOAK_GROUP:-unit}"   # unit | scenario | all
 SEEDS="${SOAK_SEEDS:-7 11 13 17 23 31 41 43}"
 
 RUN_ROOT="results/soak/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$RUN_ROOT"
 echo "soak run dir: $RUN_ROOT"
-echo "  S=$SOAK_S F=$SOAK_F P=$SOAK_P jobs=$SOAK_JOBS seeds=$SEEDS"
+echo "  S=$SOAK_S F=$SOAK_F P=$SOAK_P jobs=$SOAK_JOBS group=$SOAK_GROUP seeds=$SEEDS"
 if [ -n "${SOAK_NS:-}" ]; then
   echo "  namespace subset: $SOAK_NS"
 fi
@@ -60,7 +61,7 @@ run_one() {
     envs+=(SEW_TEST_NS_LIST="$SOAK_NS")
   fi
 
-  env "${envs[@]}" clojure -M:test:with-sew -m scripts.run-sew-tests unit \
+  env "${envs[@]}" clojure -M:test:with-sew -m scripts.run-sew-tests "$SOAK_GROUP" \
     > "$RUN_ROOT/console-$mode-$idx.log" 2>&1
   local rc=$?
   echo "$rc" > "$RUN_ROOT/exit-$mode-$idx.txt"
