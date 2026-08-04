@@ -120,7 +120,7 @@ Primary project framing and status live in the root `../README.md`.
 | `architecture/interface-contract.md` | Python/Clojure gRPC bridge interface contract |
 | `architecture/ADR-0003-canonical-scenario-generation-boundary.md` | ADR |
 | `architecture/ADR-0004-cross-protocol-funds-ledger-extraction.md` | ADR |
-| `architecture/ADR-0005-custom-calculation-extensions.md` | ADR: custom calculation extensions via extra-paths |
+| `architecture/ADR-0005-framework-extension-packages.md` | ADR: framework extension packages and economics capabilities (Proposed) |
 | `architecture/EVIDENCE_CHAIN_ARCHITECTURE.md` | Evidence chain architecture |
 | `architecture/EVIDENCE_DAG_ARCHITECTURE.md` | Evidence DAG architecture (lifecycle, topology, validation, persistence) |
 | `architecture/REPLAY_ENGINE_ARCHITECTURE.md` | Replay engine and dual-engine architecture (deterministic replay + Monte Carlo) |

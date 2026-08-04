@@ -1,0 +1,310 @@
+(ns resolver-sim.extensions.manifest
+  "Extension package and capability manifest validation, identity projections,
+   and sealed classification.
+
+   Terminology (per ADR-0005 'Framework Extension Packages and Economics
+   Capabilities'):
+
+   - extension-map   — the explicit, data-driven configuration that identifies
+                       extension points and maps extension identifiers to their
+                       implementations; the inspectable and validateable source
+                       of truth for discovering, selecting, and composing
+                       extensions.
+   - extension-backed — behaviour/capabilities/artifacts whose implementation
+                       is supplied through the extension system rather than the
+                       framework core; applied only when extension identity and
+                       provenance remain observable.
+
+   Phase 1 scope (generic package + resolution substrate): manifest schemas,
+   identity roots, and sealed classification. No dispatch wiring, no
+   entrypoint loading — entrypoints are recorded as symbols and are resolved
+   to Vars in a later phase."
+  (:require [resolver-sim.hash.canonical :as hc]))
+
+;; ── domain tags (string form, per canonical-hash string convention) ─────
+
+(def capability-descriptor-domain-tag
+  "EXTENSION_CAPABILITY_DESCRIPTOR_V1")
+
+(def package-manifest-domain-tag
+  "EXTENSION_PACKAGE_MANIFEST_V1")
+
+;; ── capability identity ───────────────────────────────────────────────────
+
+(def capability-projection-fields
+  "Fields committed to a capability descriptor root. Runtime-resolved objects
+   (resolved Vars, live functions) are intentionally excluded.
+
+   Schema references (:input-schema/:output-schema/:verification/contract)
+   are symbolic schema ids here; resolution resolves them to exact schema
+   roots in the resolution snapshot."
+  [:capability/kind
+   :capability/id
+   :capability/version
+   :capability/contract-version
+   :entrypoint
+   :input-schema
+   :output-schema
+   :composition-contract
+   :declared-dependencies
+   :verification/contract])
+
+(defn capability-key
+  "Registry key for a capability: [capability-kind capability-id].
+   A method keyword alone is ambiguous across allocation, award amount, and
+   funding; the kind is part of registry identity."
+  [cap]
+  [(get cap :capability/kind) (get cap :capability/id)])
+
+(defn capability-projection
+  "Project a capability descriptor to its committed identity fields.
+   Entrypoints are symbols in the manifest but are normalised to strings here
+   because the canonical encoder does not support symbol values."
+  [cap]
+  (cond-> (select-keys cap capability-projection-fields)
+    (:entrypoint cap) (update :entrypoint str)))
+
+(defn capability-descriptor-root
+  "Content-addressed root of a capability descriptor: the exact implementation
+   identity referenced by method identity and registration idempotency."
+  [cap]
+  (hc/domain-hash capability-descriptor-domain-tag (capability-projection cap)))
+
+;; ── dependency validation ─────────────────────────────────────────────────
+
+(defn- validate-dependency
+  [dep idx]
+  (let [kind (:capability/kind dep)
+        id (:capability/id dep)
+        req (:requirement dep)]
+    (cond-> []
+      (not (map? dep))
+      (conj {:violation/id :violation/non-map-dependency
+             :details {:index idx :dependency dep}})
+
+      (not (keyword? kind))
+      (conj {:violation/id :violation/invalid-dependency-kind
+             :details {:index idx :dependency dep}})
+
+      (not (keyword? id))
+      (conj {:violation/id :violation/invalid-dependency-id
+             :details {:index idx :dependency dep}})
+
+      (and (some? req) (not (map? req)))
+      (conj {:violation/id :violation/invalid-dependency-requirement
+             :details {:index idx :dependency dep}}))))
+
+;; ── capability validation ─────────────────────────────────────────────────
+
+(defn validate-capability
+  "Validate a capability descriptor structurally.
+   Returns {:valid? bool, :violations [violation-maps]}."
+  [cap]
+  (let [kind (:capability/kind cap)
+        id (:capability/id cap)
+        deps (:declared-dependencies cap [])
+        v (cond-> []
+            (not (map? cap))
+            (conj {:violation/id :violation/non-map-capability
+                   :details {:capability cap}})
+
+            (nil? kind)
+            (conj {:violation/id :violation/missing-capability-kind
+                   :details {:capability cap}})
+
+            (and kind (not (keyword? kind)))
+            (conj {:violation/id :violation/invalid-capability-kind
+                   :details {:kind kind}})
+
+            (and kind (keyword? kind) (nil? (namespace kind)))
+            (conj {:violation/id :violation/unqualified-capability-kind
+                   :details {:kind kind}})
+
+            (nil? id)
+            (conj {:violation/id :violation/missing-capability-id
+                   :details {:capability cap}})
+
+            (and id (not (keyword? id)))
+            (conj {:violation/id :violation/invalid-capability-id
+                   :details {:id id}})
+
+            (and id (keyword? id) (nil? (namespace id)))
+            (conj {:violation/id :violation/unqualified-capability-id
+                   :details {:id id}})
+
+            (nil? (:entrypoint cap))
+            (conj {:violation/id :violation/missing-entrypoint
+                   :details {:capability/id id}})
+
+            (and (:entrypoint cap)
+                 (not (or (symbol? (:entrypoint cap))
+                          (string? (:entrypoint cap)))))
+            (conj {:violation/id :violation/invalid-entrypoint
+                   :details {:entrypoint (:entrypoint cap)}})
+
+            (not (pos? (or (:capability/version cap) 0)))
+            (conj {:violation/id :violation/invalid-capability-version
+                   :details {:capability/id id
+                             :version (:capability/version cap)}})
+
+            (not (pos? (or (:capability/contract-version cap) 0)))
+            (conj {:violation/id :violation/invalid-contract-version
+                   :details {:capability/id id
+                             :contract-version (:capability/contract-version cap)}})
+
+            (not (vector? deps))
+            (conj {:violation/id :violation/invalid-declared-dependencies
+                   :details {:capability/id id
+                             :declared-dependencies deps}}))
+        v (if (and (vector? deps) (some (complement map?) deps))
+            (conj v {:violation/id :violation/invalid-declared-dependency
+                     :details {:capability/id id
+                               :non-map-dependency (first (remove map? deps))}})
+            v)
+        v (reduce (fn [vs dep]
+                    (into vs (validate-dependency dep (count vs))))
+                  v deps)]
+    {:valid? (empty? v)
+     :violations (vec v)}))
+
+;; ── package identity ──────────────────────────────────────────────────────
+
+(def package-identity-fields
+  "Package fields committed to the package root. Hash fields
+   (:extension/manifest-root, :extension/package-root) are excluded."
+  [:extension/id
+   :extension/version
+   :extension/api-version
+   :extension/manifest-version
+   :extension/license
+   :extension/maintainers
+   :extension/support-policy
+   :extension/funding-status
+   :extension/supersedes
+   :extension/fork-of
+   :extension/status
+   :extension/source
+   :extension/artifact
+   :extension/dependencies
+   :extension/runtime])
+
+(defn package-projection
+  "Project a package manifest to its committed identity fields, including
+   capability projections."
+  [pkg]
+  (-> (select-keys pkg package-identity-fields)
+      (assoc :extension/capabilities
+             (mapv capability-projection (:extension/capabilities pkg [])))))
+
+(defn package-root
+  "Content-addressed root of a package manifest. Identifies the declared
+   package identity and sealing roots, not the executable artifact itself."
+  [pkg]
+  (hc/domain-hash package-manifest-domain-tag (package-projection pkg)))
+
+;; ── package validation ────────────────────────────────────────────────────
+
+(def supported-manifest-version 1)
+
+(defn- validate-package-capabilities
+  [pkg]
+  (let [caps (:extension/capabilities pkg [])
+        cap-validations (mapv (fn [cap] (validate-capability cap)) caps)
+        cap-violations (into [] (mapcat :violations cap-validations))
+        keys (map capability-key caps)
+        dups (->> keys frequencies
+                  (keep (fn [[k n]] (when (> n 1) k)))
+                  vec)]
+    (into cap-violations
+          (when (seq dups)
+            [{:violation/id :violation/duplicate-capability-key
+              :details {:duplicate-keys dups}}]))))
+
+(defn validate-package
+  "Validate a package manifest structurally.
+   Returns {:valid? bool, :violations [violation-maps]}."
+  [pkg]
+  (let [id (:extension/id pkg)
+        v (cond-> []
+            (not (map? pkg))
+            (conj {:violation/id :violation/non-map-package
+                   :details {:package pkg}})
+
+            (nil? id)
+            (conj {:violation/id :violation/missing-package-id
+                   :details {:package pkg}})
+
+            (and id (not (keyword? id)))
+            (conj {:violation/id :violation/invalid-package-id
+                   :details {:extension/id id}})
+
+            (and id (keyword? id) (nil? (namespace id)))
+            (conj {:violation/id :violation/unqualified-package-id
+                   :details {:extension/id id}})
+
+            (not (string? (:extension/version pkg)))
+            (conj {:violation/id :violation/invalid-package-version
+                   :details {:extension/id id
+                             :version (:extension/version pkg)}})
+
+            (not (pos? (or (:extension/api-version pkg) 0)))
+            (conj {:violation/id :violation/invalid-api-version
+                   :details {:extension/id id
+                             :api-version (:extension/api-version pkg)}})
+
+            (not= supported-manifest-version (:extension/manifest-version pkg))
+            (conj {:violation/id :violation/invalid-manifest-version
+                   :details {:extension/id id
+                             :manifest-version (:extension/manifest-version pkg)
+                             :supported supported-manifest-version}})
+
+            (not (vector? (:extension/capabilities pkg [])))
+            (conj {:violation/id :violation/invalid-capabilities-field
+                   :details {:extension/id id
+                             :capabilities (:extension/capabilities pkg)}}))
+        v (if (vector? (:extension/capabilities pkg []))
+            (into v (validate-package-capabilities pkg))
+            v)]
+    {:valid? (empty? v)
+     :violations (vec v)}))
+
+;; ── sealed classification ─────────────────────────────────────────────────
+
+(defn sealing
+  "Return the sealing map of a package: the four sealing roots
+   (:extension/source, :extension/artifact, :extension/dependencies,
+   :extension/runtime) and the committed :extension/package-root."
+  [pkg]
+  (select-keys pkg [:extension/source :extension/artifact
+                    :extension/dependencies :extension/runtime
+                    :extension/package-root]))
+
+(defn sealed-classification
+  "Classify reproduction assurance for a package:
+
+   :unsealed            — no sealing roots (development mode)
+   :source-pinned       — source identity committed, but no executable
+                          artifact / dependency closure / runtime profile
+   :artifact-replayable — executable artifact, dependency-resolution root,
+                          and runtime profile all committed
+
+   A source commit alone establishes source identity, not executable
+   reproducibility."
+  [pkg]
+  (let [artifact (:extension/artifact pkg)
+        runtime (:extension/runtime pkg)
+        dep-resolution-root (get-in pkg [:extension/dependencies :dependency-resolution-root])]
+    (cond
+      (and artifact runtime dep-resolution-root)
+      :artifact-replayable
+
+      (:extension/source pkg)
+      :source-pinned
+
+      :else
+      :unsealed)))
+
+(defn sealed?
+  "True when a package commits at least a source or artifact sealing root."
+  [pkg]
+  (boolean (or (:extension/source pkg) (:extension/artifact pkg))))
