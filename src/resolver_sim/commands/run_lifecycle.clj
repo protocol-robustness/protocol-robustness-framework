@@ -42,7 +42,7 @@
   (let [target (io/file (str file))
         temp (io/file (str (.getPath target) ".tmp"))]
     (.mkdirs (.getParentFile target))
-    (spit temp (json/write-str value))
+    (spit temp (json/write-str value :indent true))
     (Files/move (.toPath temp) (.toPath target)
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
     value))

@@ -318,9 +318,9 @@
   ([scenario-root replay provenance profile run-id raw-world]
    (let [root (io/file (str scenario-root))
          classification (claimable-classification replay run-id)
-         write-json (fn [relative value]
-                      (atomic-write! (io/file root relative)
-                                     (json/write-str (json-safe-value value))))]
+          write-json (fn [relative value]
+                       (atomic-write! (io/file root relative)
+                                      (json/write-str (json-safe-value value) :indent true)))]
      (write-json "summaries/trace-summary.json" (trace-summary replay provenance))
      (write-json "summaries/metrics.json" (metrics-summary replay provenance))
      (write-json "summaries/claimable-classification.json" classification)

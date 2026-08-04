@@ -9,7 +9,7 @@
 (defn- atomic-json! [file value]
   (let [target (io/file file) temp (io/file (str (.getPath target) ".tmp"))]
     (.mkdirs (.getParentFile target))
-    (spit temp (json/write-str value))
+    (spit temp (json/write-str value :indent true))
     (Files/move (.toPath temp) (.toPath target)
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))))
 
@@ -23,7 +23,7 @@
 
 (defn- declared-protected-amounts [snapshot]
   (->> (:events snapshot)
-       (filter #(= "create_escrow" (event-action %)))
+       (filter #(#{ "create_escrow" "yield_deposit"} (event-action %)))
        (keep (fn [event]
                (let [{:keys [token amount]} (:params event)]
                  (when (and (string? token) (number? amount) (not (neg? amount)))
@@ -31,6 +31,37 @@
        (reduce (fn [amounts [unit amount]] (update amounts unit (fnil + 0) amount)) {})
        (sort-by key)
        (mapv (fn [[unit amount]] {"unit" unit "amount" amount}))))
+
+(defn- declared-available-ratio
+  "Return the available-ratio declared by a set-yield-risk shortfall event, or nil."
+  [snapshot]
+  (some (fn [event]
+          (when (= "set-yield-risk" (event-action event))
+            (get-in event [:params :shortfall :available-ratio])))
+        (:events snapshot)))
+
+(defn- unit-total [declared]
+  (reduce + (map #(get % "amount") declared)))
+
+(defn- shortfall-projection
+  "Given declared protected amounts and an optional available-ratio, return the
+   available custody and shortfall (value-at-risk) for each affected unit.
+   Returns {:available [...] :shortfall [...] :basis str}."
+  [declared ratio]
+  (if (and ratio (seq declared))
+    (let [shortfall? (< ratio 1.0)
+          projected (mapv (fn [entry]
+                            (let [amount (get entry "amount")
+                                  avail (long (Math/floor (* amount ratio)))
+                                  short (- amount avail)]
+                              {"unit" (get entry "unit") "amount" amount
+                               "available" avail "shortfall" short}))
+                          declared)]
+      {:available (mapv #(select-keys % ["unit" "available"]) projected)
+       :shortfall (mapv (fn [p] {"unit" (get p "unit") "amount" (get p "shortfall")})
+                        projected)
+       :basis (str "declared available-ratio " ratio " applied to protected amount")})
+    {:available [] :shortfall [] :basis "no shortfall ratio declared; no loss projected"}))
 
 (defn- terminal-held-amounts [world]
   (let [held (:total-held world)]
@@ -50,27 +81,44 @@
          (catch Exception _ nil))))
 
 (defn value-at-risk-summary
-  "Conservative reviewer projection. Declared protected amounts come only from
-   persisted create_escrow input events; terminal custody comes only from the
-   replay world's :total-held map. It deliberately does not infer a monetary
-   loss where a scenario has not declared an expected-loss model."
+  "Conservative reviewer projection. Declared protected amounts come from
+   persisted create_escrow and yield_deposit input events; terminal custody comes
+   from the replay world's :total-held map. When a scenario declares a liquidity
+   shortfall (set-yield-risk :shortfall :available-ratio), the projection derives
+   the available custody and the shortfall as the value-at-risk. It does not
+   otherwise infer a monetary loss where no expected-loss model is declared."
   [execution]
   (let [snapshot (read-snapshot execution)
         world (get-in execution [:run-result :results 0 :world] {})
         declared (if snapshot (declared-protected-amounts snapshot) [])
         terminal-held (terminal-held-amounts world)
+        ratio (declared-available-ratio snapshot)
+        projection (shortfall-projection declared ratio)
+        expected-loss (if (seq (:shortfall projection))
+                        {"status" "declared-by-scenario"
+                         "basis" (:basis projection)
+                         "by_unit" (:shortfall projection)}
+                        {"status" "not-declared-by-scenario"})
+        observed-loss (if (seq (:shortfall projection))
+                        {"status" "derived"
+                         "basis" "protected amount minus projected available custody"
+                         "by_unit" (:shortfall projection)}
+                        {"status" "not-derived"
+                         "note" "Terminal held custody is not, by itself, a loss measure."})
         snapshot-ref (get-in execution [:input/provenance :input/snapshot-relative])]
     {"schema_version" "scenario-value-at-risk.v1"
      "status" (if snapshot "available" "input-snapshot-unavailable")
-     "declared_protected_amount" {"basis" "sum of persisted create_escrow event amounts"
+     "declared_protected_amount" {"basis" "sum of persisted create_escrow / yield_deposit event amounts"
                                   "by_unit" declared}
      "custody" {"before" {"basis" "declared protected amount; not an initial world-balance snapshot"
                           "by_unit" declared}
-                "after" {"basis" "terminal replay world total-held"
-                         "by_unit" terminal-held}}
-     "exposure" {"expected_loss" {"status" "not-declared-by-scenario"}
-                 "observed_loss" {"status" "not-derived"
-                                  "note" "Terminal held custody is not, by itself, a loss measure."}}
+                "after" (if (seq (:available projection))
+                          {"basis" (:basis projection)
+                           "by_unit" (:available projection)}
+                          {"basis" "terminal replay world total-held"
+                           "by_unit" terminal-held})}
+     "exposure" {"expected_loss" expected-loss
+                 "observed_loss" observed-loss}
      "source_artifacts" (vec (remove nil?
                                      [{"ref" snapshot-ref "role" "declared protected amount"}
                                       {"ref" "state/world-final.json" "role" "terminal custody"}
@@ -104,16 +152,20 @@
             (throw (ex-info "Declared value-at-risk observation failed validation"
                             {:code :value-at-risk/invalid-observation
                              :reasons (get value-at-risk-validation "reason_codes")})))
+        overview (value-at-risk-summary execution)
+        value-at-risk-persisted (if (= "not-declared" (get value-at-risk "status"))
+                                  overview
+                                  value-at-risk)
         summary {"manifest" {"schema_version" "summary.v1"}
                  "run" {"id" (:run/id context) "overall_status" status
                         "outcome" {"status" status "exit_code" (:exit-code execution) "duration_ms" (:duration-ms execution 0)}}
                  "value_at_risk" value-at-risk
                  "value_at_risk_timeline_ref" "manifest/value-at-risk-timeline.json"
-                 "value_at_risk_overview" (value-at-risk-summary execution)}
+                 "value_at_risk_overview" overview}
         claimable {"schema_version" "claimable-classification.v2" "run_id" (:run/id context)}]
     (atomic-json! (io/file dir "run.json") run)
     (atomic-json! (io/file dir "summary.json") summary)
-    (atomic-json! (io/file dir "value-at-risk.json") value-at-risk)
+    (atomic-json! (io/file dir "value-at-risk.json") value-at-risk-persisted)
     (atomic-json! (io/file dir "value-at-risk-timeline.json") value-at-risk-timeline)
     (atomic-json! (io/file dir "claimable-classification.json") claimable)
     {:run run :summary summary :claimable claimable}))
