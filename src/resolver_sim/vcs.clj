@@ -3,7 +3,8 @@
    Tries jj first, falls back to git, returns nil when neither is available."
   (:require [clojure.java.shell :refer [sh]]
             [clojure.string :as str]
-            [resolver-sim.forensic.source-hash :as source-hash]))
+            [resolver-sim.forensic.source-hash :as source-hash]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- run
   "Run a command, return trimmed stdout on success, nil otherwise."
@@ -178,7 +179,7 @@
 (defn input-hash
   "Hash of scenario inputs: scenarios/ and data/fixtures/."
   []
-  (dirs-hash "scenarios/" "data/fixtures/"))
+  (dirs-hash (str (paths/scenarios-root) "/") (str (paths/fixtures-dir) "/")))
 
 (defn dirty-diff-hash
   "SHA-256 hash of the git diff against HEAD for execution-relevant paths.

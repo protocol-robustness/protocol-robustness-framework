@@ -1360,10 +1360,10 @@
                                     "dag-root-ref" (when dag-root-hash
                                                      (str "dag:sha256:" dag-root-hash))
                                     "dag-path" (when structured?
-                                                 (str "scenarios/" (:scenario-slug dispatch)
+                                                 (str (paths/scenarios-root) "/" (:scenario-slug dispatch)
                                                       "/execution/execution-dag.json"))
                                     "pre-run-commitment-path" (when structured?
-                                                                (str "scenarios/" (:scenario-slug dispatch)
+                                                                (str (paths/scenarios-root) "/" (:scenario-slug dispatch)
                                                                      "/execution/pre-run-commitment.json"))}
                                    "implementation"
                                    {"source-ref" (:hash source-data)

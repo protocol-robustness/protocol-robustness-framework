@@ -65,7 +65,7 @@
         sc-purpose (or (:purpose scenario) purpose "regression")
         sc-tags (vec (or (:threat-tags scenario) threat-tags []))]
     (-> (cond-> {:schema-version     "1.1"
-                 :id                 (str "scenarios/" sid)
+                 :id                 (str (paths/scenarios-root) "/" sid)
                  :title              sc-title
                  :purpose            sc-purpose
                  :threat-tags        sc-tags

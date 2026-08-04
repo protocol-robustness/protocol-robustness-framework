@@ -11,6 +11,7 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
+            [resolver-sim.config.paths :as paths]
             [resolver-sim.scenario.suites :as suites]))
 
 ;; ───────────────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@
                    :scoring/severity-weighted-v1 "severity-weighted-robustness-v1.edn"
                    :scoring/shortfall-allocation-v0 "shortfall-allocation-v0.edn"
                    nil)]
-    (when filename (str "benchmarks/scoring/" filename))))
+    (when filename (str (paths/benchmarks-scoring-dir) "/" filename))))
 
 (defn- validate-pack-registry
   [errors pack-file domain-ids pack-id]
@@ -120,7 +121,7 @@
   (sort (keep (fn [f]
                 (when (and (.isFile f) (str/ends-with? (.getName f) ".edn"))
                   (.getPath f)))
-              (file-seq (io/file "benchmarks/concepts")))))
+              (file-seq (io/file (paths/benchmarks-concepts))))))
 
 (defn- validate-concepts
   [errors]
@@ -174,10 +175,10 @@
 
 (defn- validate-scoring
   [errors]
-  (doseq [path ["benchmarks/scoring/robustness-dimensions-v0.edn"
-                "benchmarks/scoring/binary-claims-v1.edn"
-                "benchmarks/scoring/severity-weighted-robustness-v1.edn"
-                "benchmarks/scoring/shortfall-allocation-v0.edn"]]
+  (doseq [path [(str (paths/benchmarks-scoring-dir) "/robustness-dimensions-v0.edn")
+                 (str (paths/benchmarks-scoring-dir) "/binary-claims-v1.edn")
+                 (str (paths/benchmarks-scoring-dir) "/severity-weighted-robustness-v1.edn")
+                 (str (paths/benchmarks-scoring-dir) "/shortfall-allocation-v0.edn")]]
     (when-not (file-exists? path)
       (swap! errors conj (str "Scoring file not found: " path)))))
 
@@ -266,7 +267,7 @@
     ;; Runner policy existence
     (let [runner (:benchmark/runner-policy manifest)]
       (when runner
-        (let [runner-path (str "benchmarks/runners/" (name runner) ".edn")]
+        (let [runner-path (str (paths/benchmarks-runners-dir) "/" (name runner) ".edn")]
           (when-not (file-exists? runner-path)
             (swap! errors conj (str "Runner policy file not found: " runner-path " for " bid))))))
     ;; Concepts referenced in manifest — check both benchmark-local and framework registries

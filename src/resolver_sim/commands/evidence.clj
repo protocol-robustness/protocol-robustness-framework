@@ -9,6 +9,7 @@
             [resolver-sim.evidence.registry :as reg]
             [resolver-sim.evidence.registry-validation :as rv]
             [resolver-sim.io.paths :as paths]
+            [resolver-sim.config.paths :as cfg-paths]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.io.event-evidence :as io-evidence]
             [resolver-sim.sim.reference-validation :as rv-suite]))
@@ -47,7 +48,7 @@
     (let [result (rv-suite/generate!)]
       (println (str "  Suite complete: " (:scenario-count result) " scenarios"))
       (flush)
-      "suites/reference-validation-v1/actual")
+      (str (cfg-paths/reference-validation-suite-dir) "/actual"))
     (catch Exception e
       (println (str "  Suite run skipped (no evidence generated): " (.getMessage e)))
       nil)))

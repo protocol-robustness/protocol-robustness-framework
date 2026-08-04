@@ -1,7 +1,8 @@
 (ns resolver-sim.commands.benchmark-list
   (:require [clojure.pprint :as pp]
             [clojure.string :as str]
-            [resolver-sim.io.resource-path :as rp]))
+            [resolver-sim.io.resource-path :as rp]
+            [resolver-sim.config.paths :as paths]))
 
 (defn- load-index
   "Read benchmarks/registry.edn, walk the pack hierarchy, return flat benchmark list."
@@ -29,7 +30,7 @@
                            (:benchmarks pack-reg))
                      [])))
                packs)})
-    (do (println "benchmarks/registry.edn not found")
+    (do (println (str (paths/benchmarks-registry) " not found"))
         {:benchmarks []})))
 
 (defn list-benchmarks

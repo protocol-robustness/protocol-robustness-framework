@@ -17,6 +17,7 @@
             [resolver-sim.validation.deviation-contract :as dc]
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.strategic-partial-fill :as strategic-partial-fill]
+            [resolver-sim.config.paths :as paths]
             [resolver-sim.validation.gate :as gate]))
 
 (def strategic-claim-catalog
@@ -26,7 +27,7 @@
     :claim/description
     "Shortfall scenarios should expose a replay-verifiable evidence root and
      preserve shortfall allocation correctness at the matched mechanism level."
-    :benchmark/manifest-path "benchmarks/packs/prf-core/shortfall-allocation-v0.edn"
+    :benchmark/manifest-path (paths/prf-core-shortfall-manifest)
     :mechanism-levels [:allocation/partial-fill
                        :allocation/shortfall]
     :closed-form-check-ids #{:partial-fill/conservation
@@ -44,7 +45,7 @@
     "Partial-fill scenarios using waterfall mode should respect fill-order priority:
      higher-priority buckets are filled to exhaustion before lower-priority buckets
      receive any allocation."
-    :benchmark/manifest-path "benchmarks/packs/prf-core/yield-partial-fill-v0.edn"
+    :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
     :closed-form-check-ids #{:partial-fill/waterfall-priority}
     :required-threat-tags #{"shortfall"}
@@ -57,7 +58,7 @@
     "Partial-fill decisions should respect rounding policy bounds under all modes:
      residual amounts must fall within the defined acceptable range for the active
      rounding policy."
-    :benchmark/manifest-path "benchmarks/packs/prf-core/yield-partial-fill-v0.edn"
+    :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
     :closed-form-check-ids #{:partial-fill/rounding-residual-bounded}
     :deviation-set-ids #{:partial-fill/claimant-split-merge-sybil}
@@ -70,7 +71,7 @@
     :claim/description
     "Partial-fill decisions must declare a recognized fill mode: pro-rata,
      principal-first, or waterfall. Unrecognized modes are rejected."
-    :benchmark/manifest-path "benchmarks/packs/prf-core/yield-partial-fill-v0.edn"
+    :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
     :closed-form-check-ids #{:partial-fill/mode-valid
                              :partial-fill/settlement-mode-valid}
@@ -85,7 +86,7 @@
      the shortfall evidence root must be verifiable, conservation invariants
      must hold, and deferred/haircut splits must be consistent with the
      declared basis amount."
-    :benchmark/manifest-path "benchmarks/packs/prf-core/shortfall-allocation-v0.edn"
+    :benchmark/manifest-path (paths/prf-core-shortfall-manifest)
     :mechanism-levels [:allocation/shortfall]
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/shortfall}}
@@ -98,7 +99,7 @@
      every claimant must receive the same fill ratio within rounding
      tolerance. Validated via evidence-root verifiability, invariant
      compliance, and complete allocation reporting."
-    :benchmark/manifest-path "benchmarks/packs/prf-core/yield-partial-fill-v0.edn"
+    :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
     :closed-form-check-ids #{:partial-fill/pro-rata-cross-product}
     :deviation-set-ids #{:partial-fill/claimant-split-merge-sybil}

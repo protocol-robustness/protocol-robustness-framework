@@ -10,7 +10,8 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.assurance.trust-sequence-definition :as tsd]
             [resolver-sim.assurance.procedure-execution-witness :as pew]
-            [resolver-sim.assurance.witness-verifier :as wv]))
+            [resolver-sim.assurance.witness-verifier :as wv]
+            [resolver-sim.config.paths :as paths]))
 
 (def witness-filename "manifest/execution-witness.json")
 
@@ -156,7 +157,7 @@
   (try
     (let [ts-root (configured-root run-root)]
       (when ts-root
-        (let [src (some-> (io/resource "data/sequences/force-authorised-custody-adjustment.edn")
+        (let [src (some-> (io/resource (paths/force-authorised-sequence))
                           slurp
                           edn/read-string)
               defn (when src

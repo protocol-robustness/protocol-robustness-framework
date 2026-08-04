@@ -1,7 +1,8 @@
 (ns resolver-sim.protocols.sew.invariant-scenarios.common
   "Shared protocol-param sets for invariant scenario definitions."
   (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [resolver-sim.config.paths :as paths]))
 
 ;; ---------------------------------------------------------------------------
 ;; Shared protocol-param sets
@@ -39,7 +40,7 @@
    :resolver-bond-bps 0})
 
 (def kleros-resolver-fixture
-  (let [fixture-path "data/fixtures/protocol/kleros.edn"
+  (let [fixture-path (str (paths/fixtures-protocol-dir) "/kleros.edn")
         fixture (edn/read-string (slurp (or (io/resource fixture-path) fixture-path)))]
     (select-keys fixture [:resolution-module :escalation-resolvers])))
 

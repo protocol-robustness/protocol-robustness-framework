@@ -22,7 +22,8 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [resolver-sim.config.paths :as paths])
   (:import [java.math BigInteger]
            [java.security MessageDigest]))
 
@@ -54,7 +55,7 @@
 (defn- reference-validation-id-by-path
   [scenario-path]
   (try
-    (let [manifest (edn/read-string (slurp (io/resource "suites/reference-validation-v1/manifest.edn")))
+    (let [manifest (edn/read-string (slurp (io/resource (str (paths/reference-validation-suite-dir) "/manifest.edn"))))
           scenarios (:scenarios manifest)]
       (some (fn [scenario]
               (when (= scenario-path (:simulator/scenario-path scenario))

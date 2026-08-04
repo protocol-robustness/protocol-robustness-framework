@@ -5,7 +5,8 @@
             [resolver-sim.concepts.registry :as concepts-registry]
             [resolver-sim.concepts.reporting :as concepts-reporting]
             [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.logging :as log]))
+            [resolver-sim.logging :as log]
+            [resolver-sim.config.paths :as paths]))
 
 (def ^:private embedded-benchmark-concept-paths
   "Reference benchmark concept files embedded in the JAR.
@@ -17,7 +18,7 @@
 
 (defn benchmark-concept-files
   []
-  (let [root (io/file "benchmarks/concepts")]
+  (let [root (io/file (paths/benchmarks-concepts))]
     (if (.exists root)
       (->> (file-seq root)
            (filter #(.isFile %))

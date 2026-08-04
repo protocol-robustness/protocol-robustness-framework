@@ -243,7 +243,7 @@
      [:div {:style {:flex "2" :padding "12px 16px" :fontSize "0.72em" :color "#64748b"}}
       [:div [:strong "Run ID: "] (or run-id "—")]
       [:div {:style {:marginTop "3px"}} [:strong "Commit: "] (or (some-> commit (subs 0 8)) "—")]
-      [:div {:style {:marginTop "3px"}} [:strong "Loaded: "] "results/test-artifacts/"]]]))
+      [:div {:style {:marginTop "3px"}} [:strong "Loaded: "] (str (paths/test-artifacts-dir) "/")]]]))
 
 ;; ── full hub ──────────────────────────────────────────────────────────────────
 
