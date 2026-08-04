@@ -501,9 +501,13 @@
                               (let [t (:token adj)
                                     amt (:amount adj 0)
                                     dir (:held/direction adj)]
-                                (if (= :in dir)
-                                  (update-in acc [t :in] (fnil + 0) amt)
-                                  (update-in acc [t :out] (fnil + 0) amt))))
+                                (case dir
+                                  :in  (update-in acc [t :in] (fnil + 0) amt)
+                                  :out (update-in acc [t :out] (fnil + 0) amt)
+                                  (throw (ex-info "held adjustment has invalid direction in summary"
+                                                  {:type :invalid-held-direction
+                                                   :held/direction dir
+                                                   :adjustment adj})))))
                             {} adjustments)
         token-rows (into {} (map (fn [[t current]]
                                    [t {:opening 0
@@ -511,6 +515,10 @@
                                        :out (get-in token-flows [t :out] 0)
                                        :final current}])
                                  (sort-by key total-held)))
+        recon-token-issues (into []
+                                 (keep (fn [[t {:keys [opening in out final]}]]
+                                         (when-not (= (+ opening in) (+ final out)) t)))
+                                 (sort-by key token-rows))
         wf-adjs (group-by :held/workflow-id adjustments)
         wf-rows (into {} (map (fn [[wf-id adjs]]
                                 (let [tokens (vec (sort (distinct (map :token adjs))))
@@ -529,12 +537,17 @@
         reconstructed (when zero-origin?
                         (replay-held-adjustments adjustments))
         reconstruction-valid? (and zero-origin?
-                                   (= reconstructed total-held))]
+                                   (empty? recon-token-issues)
+                                   (= reconstructed total-held))
+        reconstruction-issue (cond
+                               (not zero-origin?) :missing-opening-state
+                               (seq recon-token-issues) {:token-reconciliation-failed recon-token-issues}
+                               :else nil)]
     {:by-token token-rows
      :by-workflow wf-rows
      :ledger-adjustment-count (count adjustments)
      :reconstruction-valid? reconstruction-valid?
-     :reconstruction-issue (when-not zero-origin? :missing-opening-state)}))
+     :reconstruction-issue reconstruction-issue}))
 
 (defn ledger-workflow-write-down
   "Canonical negative-yield principal write-down for a workflow, derived from the

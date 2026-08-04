@@ -84,13 +84,13 @@
            (rpt/scenario->outcome "malicious-resolver-verdict-v1" results)))))
 
 (deftest scenario-outcome-resolves-reference-validation-file-alias
-  (let [results [{:file "scenarios/S25_profit-maximizer-slash-lifecycle.json"
+  (let [results [{:file "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
                   :outcome :pass
                   :halt-reason nil
                   :scenario/evidence-root "root"}]]
     (is (= {:outcome :pass
             :halt-reason nil
-            :file "scenarios/S25_profit-maximizer-slash-lifecycle.json"
+            :file "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
             :scenario/evidence-root "root"}
            (rpt/scenario->outcome "malicious-resolver-verdict-v1" results)))))
 
@@ -99,18 +99,18 @@
                         .deleteOnExit)
         evidence {:benchmark (edn/read-string (slurp "benchmarks/packs/prf-core/protocol-robustness-v0.edn"))
                   :environment {:os-name "Linux" :os-version "test" :java-version "test"}
-                  :results [{:scenario/id "malicious-resolver-verdict-v1"
-                             :file "scenarios/S25_profit-maximizer-slash-lifecycle.json"
+                  :results [{:scenario/id "S25_profit-maximizer-slash-lifecycle"
+                             :file "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
                              :outcome :pass
                              :halt-reason nil
                              :scenario/evidence-root "root-1"}
-                            {:scenario/id "dispute-flooding-v1"
-                             :file "scenarios/S62_resolver-throughput-exhaustion.json"
+                            {:scenario/id "S62_resolver-throughput-exhaustion"
+                             :file "scenarios/edn/S62_resolver-throughput-exhaustion.edn"
                              :outcome :pass
                              :halt-reason nil
                              :scenario/evidence-root "root-2"}
-                            {:scenario/id "autopush-settlement-v1"
-                             :file "scenarios/S05_pending-settlement-execute.json"
+                            {:scenario/id "S05_pending-settlement-execute"
+                             :file "scenarios/edn/S05_pending-settlement-execute.edn"
                              :outcome :pass
                              :halt-reason nil
                              :scenario/evidence-root "root-3"}]
@@ -124,9 +124,9 @@
     (testing "dimensions resolve against public IDs"
       (is (= 3 (count (:dimensions report))))
       (is (every? :pass-condition-met? (:dimensions report)))
-      (is (= ["malicious-resolver-verdict-v1"
-              "dispute-flooding-v1"
-              "autopush-settlement-v1"]
+      (is (= ["S25_profit-maximizer-slash-lifecycle"
+              "S62_resolver-throughput-exhaustion"
+              "S05_pending-settlement-execute"]
              (mapv :scenario/id (:dimensions report)))))))
 
 (deftest severity-weighted-classification-uses-scoring-severity
@@ -134,12 +134,14 @@
         scoring (edn/read-string (slurp "benchmarks/scoring/severity-weighted-robustness-v1.edn"))
         claim-results (benchmark-claims/evaluate-manifest-claims
                        manifest
-                       [{:scenario/id "scenario-1"
-                         :file "scenario-1.edn"
-                         :outcome :pass
-                         :scenario/evidence-root (apply str (repeat 64 "a"))
-                         :invariant-results [{:id :conservation-of-funds
-                                              :result :fail}]}])
+                         [{:scenario/id "scenario-1"
+                          :file "scenario-1.edn"
+                          :outcome :pass
+                          :scenario/evidence-root (apply str (repeat 64 "a"))
+                          :invariant-results [{:id :conservation-of-funds
+                                               :result :fail}
+                                              {:id :released-monotonic
+                                               :result :pass}]}])
         failed-critical (first (filter #(= :claim/no-unauthorized-release (:claim/id %))
                                        claim-results))
         classification (rpt/classify-result 1 1 (:scoring/rules scoring) claim-results manifest)]
@@ -153,19 +155,19 @@
                         .deleteOnExit)
         evidence {:benchmark (edn/read-string (slurp "benchmarks/packs/prf-core/protocol-robustness-v0.edn"))
                   :environment {:os-name "Linux" :os-version "test" :java-version "test"}
-                  :results [{:scenario/id "malicious-resolver-verdict-v1"
+                  :results [{:scenario/id "S25_profit-maximizer-slash-lifecycle"
                              :file "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
                              :outcome :pass
                              :halt-reason nil
                              :invariant-results [{:id :conservation-of-funds :result :pass}]
                              :scenario/evidence-root "root-1"}
-                            {:scenario/id "dispute-flooding-v1"
+                            {:scenario/id "S62_resolver-throughput-exhaustion"
                              :file "scenarios/edn/S62_resolver-throughput-exhaustion.edn"
                              :outcome :pass
                              :halt-reason nil
                              :invariant-results [{:id :conservation-of-funds :result :pass}]
                              :scenario/evidence-root "root-2"}
-                            {:scenario/id "autopush-settlement-v1"
+                            {:scenario/id "S05_pending-settlement-execute"
                              :file "scenarios/edn/S05_pending-settlement-execute.edn"
                              :outcome :pass
                              :halt-reason nil
@@ -173,7 +175,7 @@
                              :scenario/evidence-root "root-3"}]
                   :claim-results [{:claim/id :evidence-root-present
                                    :claim/scope :scenario
-                                   :scenario/id "malicious-resolver-verdict-v1"
+                                   :scenario/id "S25_profit-maximizer-slash-lifecycle"
                                    :claim/outcome :fail
                                    :claim/severity :low}]
                   :metrics {:total 3 :passed 3}
@@ -262,6 +264,8 @@
                :concept/source :benchmark-local}
               {:concept/id :allocation/stake-liquidity-blocking
                :concept/source :benchmark-local}
+              {:concept/id :allocation/redistribution-fairness
+               :concept/source :global}
               {:concept/id :consensus/evidence
                :concept/source :global}
               {:concept/id :consensus/finality
@@ -279,12 +283,12 @@
       (is (= 2 (:passed-scenarios report)))
       (is (= false (:all-pass? report))))
     (testing "dimension structure"
-      (is (= 3 (count (:dimensions report))))
+      (is (= 4 (count (:dimensions report))))
       (is (= "S-DR-043-payout-shortfall-deferred"
              (get-in report [:dimensions 0 :scenario/id])))
       (is (= :allocation/partial-fill
              (get-in report [:dimensions 0 :dimension])))
-      (is (= false (get-in report [:dimensions 2 :scenario/pass?]))))
+      (is (= false (get-in report [:dimensions 3 :scenario/pass?]))))
     (testing "scoring classification"
       (let [cls (:scoring/classification report)]
         (is (string? (:classification-label cls)))
@@ -296,6 +300,10 @@
                             :file "scenarios/S-DR-043-payout-shortfall-deferred.json"
                             :outcome :pass
                             :scenario/evidence-root "aabbcc"}
+                           {:scenario/id "S82_shortfall-recovery-cycle"
+                            :file "scenarios/S82_shortfall-recovery-cycle.json"
+                            :outcome :pass
+                            :scenario/evidence-root "bbccdd"}
                            {:scenario/id "S103_negative-yield-shortfall-cascade"
                             :file "scenarios/S103_negative-yield-shortfall-cascade.json"
                             :outcome :pass
@@ -304,7 +312,7 @@
                             :file "scenarios/S104_resolver-stake-shortfall.json"
                             :outcome :pass
                             :scenario/evidence-root "gghhii"}]
-                          :metrics {:total 3 :passed 3})
+                          :metrics {:total 4 :passed 4})
         evidence-path (temp-evidence-file ev)
         report (rpt/build-report evidence-path
                                  "benchmarks/concepts/shortfall-allocation-v0.edn"

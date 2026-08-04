@@ -11,7 +11,8 @@
    how a yield module can recover partial liquidity and settle
    previously deferred withdrawal claims."
   (:require [nextjournal.clerk :as clerk]
-            [notebooks.util.yield-demo :as demo]))
+             [notebooks.util.yield-demo :as demo]
+             [resolver-sim.notebook-support.common :as common]))
 
 (defn- kv-table
   [m]

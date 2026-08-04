@@ -123,7 +123,8 @@ properties owned by that concept.
 | `resolver-reputation-spe` | equilibrium-concept | `framework/incentive` (semantic home) | yes | yes | `check-resolver-reputation-spe` | — |
 | `resolver-reputation-profile-matrix` | equilibrium-concept | `framework/incentive` (semantic home) | yes | yes | `check-resolver-reputation-profile-matrix` | — |
 | `cancellation-dominance` | equilibrium-concept | `framework/incentive` (semantic home) | yes | yes | `check-cancellation-dominance` | — |
-| `folk-theorem-cooperation-region` | equilibrium-concept | `framework/incentive` (semantic home) | **no** | yes | `evaluate-repeated-game-deterrence-threshold` (multi-epoch; legacy catalog id) | — |
+| `folk-theorem-cooperation-region` | equilibrium-concept | `framework/incentive` (semantic home) | **no** | yes | `evaluate-grim-trigger-deterrence` (multi-epoch; **deprecated** alias of `repeated-game/grim-trigger-deterrence`) | — |
+| `repeated-game/grim-trigger-deterrence` | equilibrium-concept | `framework/incentive` (semantic home) | **no** | yes | `evaluate-grim-trigger-deterrence` (multi-epoch) | — |
 
 ### Semantics (pass / inconclusive / fail)
 
@@ -136,19 +137,42 @@ properties owned by that concept.
 - **SPE family / `cancellation-dominance`** — delegate to
   `subgame-counterfactual`; `:inconclusive` when no proper subgames / no cancel
   decision nodes are found; `:pass`/`:fail` from bounded regret vs threshold.
-- **`folk-theorem-cooperation-region`** (legacy catalog id) — evaluates a
-  **model-specific grim-trigger deterrence threshold**, not a general
-  Folk-theorem claim. It derives from `R / (1 - δ) >= T + δP / (1 - δ)`, so
+- **`repeated-game/grim-trigger-deterrence`** (canonical; legacy id
+  `folk-theorem-cooperation-region` is a **deprecated alias**) — evaluates a
+  **model-specific grim-trigger one-shot-deviation deterrence claim**, not a
+  general Folk-theorem result. It derives from
+  `R / (1 - δ) >= T + δP / (1 - δ)`, equivalently `δ(T-P) >= T-R`, so
   `discount-factor >= (T - R) / (T - P)`, where `R=U_honest` is the cooperative
   per-period payoff, `T=U_malicious` is the one-shot deviation payoff, and `P`
-  is the per-period punishment payoff. `P` defaults to zero for the current
-  model. All payoffs must be finite and `U_honest` strictly positive; missing or
-  invalid utility is `:inconclusive`. Discount must be finite and in `[0, 1]`.
-  Equality passes. A computed threshold `> 1` is an explicit `:fail`
-  (`:infeasible-threshold`), because no valid discount can meet it. It remains
-  **not wired** to the single-trace dispatcher because that dispatcher does not
-  supply multi-epoch evidence; declaring it in a single-trace theory block
-  resolves to `:inconclusive :unsupported-concept`.
+  is the per-period punishment payoff (default 0). It applies a **fail-closed
+  applicability contract**:
+  - `T > R` else `:not-applicable :deviation-not-profitable` (deviation is not
+    genuinely tempting, so the result is never presented as theorem support);
+  - `R > P` else `:inconclusive :punishment-not-deterrent` (punishment is not
+    worse than cooperation);
+  - `T > P` else `:invalid-input :non-positive-threshold-denominator`;
+  - finite payoffs, `U_honest > 0` (else `:inconclusive`); and `δ in [0,1)`
+    (`δ = 1` diverges and is `:invalid-input :discount-at-horizon-boundary`).
+
+  Equality satisfies the threshold and is reported as `:boundary-pass`. On
+  success it emits a recomputable **theorem certificate**
+  (`:theorem/type`, `:theorem/claim`, `:theorem/assumptions`,
+  `:theorem/inequality-left`, `:theorem/inequality-right`, `:theorem/threshold`,
+  `:theorem/margin`, `:theorem/holds?`) plus robustness fields
+  (`:discount-margin`, `:normalized-deterrence-margin`,
+  `:nearest-failing-discount`, `:boundary-classification`) and separate
+  `:cooperation-incentive-compatible?` / `:punishment-credible?` /
+  `:strategy-profile-equilibrium?` obligations. On failure it returns a concrete
+  profitable-deviation witness (`:deviation/payoff`, `:cooperation/value`,
+  `:deviation/gain`, `:minimum-discount-required`). Payoffs may be supplied as
+  intervals `{:min .. :max ..}` via `:payoffs` to enable uncertainty-aware
+  classification (`:robustly-deterrent` / `:possibly-deterrent` /
+  `:robustly-not-deterrent`).
+
+  The claim is multi-epoch only. Both the canonical id and the deprecated alias
+  are **not wired** to the single-trace dispatcher (which lacks multi-epoch
+  evidence), so declaring either in a single-trace theory block resolves to
+  `:inconclusive :unsupported-concept`.
 
 ## Alias Result Labelling
 

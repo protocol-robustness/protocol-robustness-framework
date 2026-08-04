@@ -602,6 +602,8 @@
    :theorem/claim "One-shot deviation from cooperation is not profitable: R/(1-δ) >= T + δP/(1-δ), equivalently δ(T-P) >= T-R."
    :theorem/assumptions repeated-game-assumptions
    :payoffs {:R r :T t :P p}
+   :deterrence? false
+   :cooperation-region? false
    :discount-factor (double delta)})
 
 (defn- scalar-grim-trigger-deterrence
@@ -735,38 +737,43 @@
             coop-value (/ reward (- 1.0 df))
             dev-value (+ temptation (* df punishment (/ 1.0 (- 1.0 df))))
             margin (- coop-value dev-value)
-            holds? (>= margin 0.0)
+            discount-margin (- df threshold)
+            ;; holds? is based on the discount margin (δ - δ*), which avoids the
+            ;; 1/(1-δ) amplification of the present-value difference and so is
+            ;; numerically stable at the equality boundary.
+            holds? (>= discount-margin 0.0)
             credible? (boolean assume-punishment-credible?)
             status (cond (not holds?) :fail
                          credible? :pass
                          :else :inconclusive)
-            boundary (cond (> (- df threshold) 0.0) :strict-pass
-                           (zero? (- df threshold)) :boundary-pass
+            boundary (cond (> discount-margin 0.0) :strict-pass
+                           (zero? discount-margin) :boundary-pass
                            :else :fail)
-            base-map {:status status
-                      :basis :single-simulation-evidence
-                      :discount-factor df
-                      :honest-mean-profit reward
-                      :malice-mean-profit temptation
-                      :punishment-payoff punishment
-                      :threshold threshold
-                      :distance-to-boundary (- df threshold)
-                      :discount-margin (- df threshold)
-                      :normalized-deterrence-margin (- (* df (- temptation punishment))
-                                                       (- temptation reward))
-                      :nearest-failing-discount threshold
-                      :boundary-classification boundary
-                      :cooperation-incentive-compatible? holds?
-                      :punishment-credible? credible?
-                      :strategy-profile-equilibrium? (and holds? credible?)
-                      :deterrence? holds?
-                      :cooperation-region? holds?
-                      :binding-constraint (when (not holds?) :discount-factor)
-                      :theorem/inequality-left coop-value
-                      :theorem/inequality-right dev-value
-                      :theorem/threshold threshold
-                      :theorem/margin margin
-                      :theorem/holds? holds?}]
+            base-map (merge base
+                            {:status status
+                             :basis :single-simulation-evidence
+                             :discount-factor df
+                             :honest-mean-profit reward
+                             :malice-mean-profit temptation
+                             :punishment-payoff punishment
+                             :threshold threshold
+                             :distance-to-boundary discount-margin
+                             :discount-margin discount-margin
+                             :normalized-deterrence-margin (- (* df (- temptation punishment))
+                                                              (- temptation reward))
+                             :nearest-failing-discount threshold
+                             :boundary-classification boundary
+                             :cooperation-incentive-compatible? holds?
+                             :punishment-credible? credible?
+                             :strategy-profile-equilibrium? (and holds? credible?)
+                             :deterrence? holds?
+                             :cooperation-region? holds?
+                             :binding-constraint (when (not holds?) :discount-factor)
+                             :theorem/inequality-left coop-value
+                             :theorem/inequality-right dev-value
+                             :theorem/threshold threshold
+                             :theorem/margin margin
+                             :theorem/holds? holds?})]
         (cond
           (not holds?)
           (assoc base-map

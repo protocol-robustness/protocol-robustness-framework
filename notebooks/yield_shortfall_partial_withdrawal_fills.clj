@@ -10,7 +10,8 @@
    Targeted at technically curious readers who want to understand
    how a yield module behaves when liquidity drops."
   (:require [nextjournal.clerk :as clerk]
-            [notebooks.util.yield-demo :as demo]))
+             [notebooks.util.yield-demo :as demo]
+             [resolver-sim.notebook-support.common :as common]))
 
 (defn- kv-table
   "Convert a flat map (string keys) into a Clerk-compatible key-value table."
