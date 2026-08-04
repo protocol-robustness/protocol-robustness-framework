@@ -1,4 +1,6 @@
 {:profile/schema-version "conformance-profile.v1"
+ :profile/kind :trace-equivalence
+ :profile/domain-contract :trace-equivalence-profile.v1
  :profile/id :sew-trace-equivalence.v1
  :profile/version 1
  :profile/fixture-contract :trace-fixture.v2

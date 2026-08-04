@@ -1,0 +1,47 @@
+{:registry/id :production-conformance-registry.v1
+ :registry/schema-version "conformance.implementation-registry/v1"
+ :registry/declared-root "569918738a7a48439d17c73ffdb505d437ea8e4769438c560d7408694f2d09ac"
+
+ :registry/declared-entries
+ [{:implementation/id :trace-fixture-v2-schema
+   :implementation/kind :validator
+   :implementation/domain :generic
+   :implementation/version 1
+   :implementation/source-root "70448bcdf7decfbddba50f234aedc7756155bb8c2230953360d0651c45773c9a"
+   :implementation/status :active}
+  {:implementation/id :trace-fixture-v2-semantics
+   :implementation/kind :validator
+   :implementation/domain :generic
+   :implementation/version 1
+   :implementation/source-root "5bff25b936c681f55591484618ae4fb4f40ea564a22957b208741a2ead0c1572"
+   :implementation/status :active}
+  {:implementation/id :research-scenario-schema
+   :implementation/kind :validator
+   :implementation/domain :generic
+   :implementation/version 1
+   :implementation/source-root "aaec5071c86ddca26003928292e5a1dc3eb73cfef7319d7124cc0e2d3590faad"
+   :implementation/status :active}
+  {:implementation/id :research-scenario-semantics
+   :implementation/kind :validator
+   :implementation/domain :generic
+   :implementation/version 1
+   :implementation/source-root "aaec5071c86ddca26003928292e5a1dc3eb73cfef7319d7124cc0e2d3590faad"
+   :implementation/status :active}
+  {:implementation/id :artifact-envelope-schema
+   :implementation/kind :validator
+   :implementation/domain :generic
+   :implementation/version 1
+   :implementation/source-root "f084ebf427d246cedeca9c4a5bb5e36dfa7195dcb0ff643eb711948d45e0656b"
+   :implementation/status :active}
+  {:implementation/id :artifact-reference-semantics
+   :implementation/kind :validator
+   :implementation/domain :generic
+   :implementation/version 1
+   :implementation/source-root "f084ebf427d246cedeca9c4a5bb5e36dfa7195dcb0ff643eb711948d45e0656b"
+   :implementation/status :active}
+  {:implementation/id :artifact-signature-semantics
+   :implementation/kind :validator
+   :implementation/domain :generic
+   :implementation/version 1
+   :implementation/source-root "f084ebf427d246cedeca9c4a5bb5e36dfa7195dcb0ff643eb711948d45e0656b"
+   :implementation/status :active}]}

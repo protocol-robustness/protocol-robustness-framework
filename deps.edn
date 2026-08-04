@@ -185,6 +185,15 @@
    :ci
    {:extra-paths [:paths/test]
     :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}}
+   ;; NOTE — kaocha's native `--parallel` (process-per-worker) is deliberately
+   ;; NOT used for the framework/unit gates. The project uses a custom parallel
+   ;; runner (scripts/parallel-test-runner.clj) that runs namespaces in-process
+   ;; and isolates per-namespace evidence/attestation registries and artifact
+   ;; dirs (see scripts/parallel-test-runner.clj and parallel-suite-runner.clj).
+   ;; Tradeoff: kaocha gives true subprocess isolation, retry, sharding and
+   ;; richer failure reports, but would lose the in-JVM evidence isolation and
+   ;; shared-classpath speed the custom runner relies on. Revisit only if
+   ;; subprocess-level fault isolation becomes a hard requirement.
 
    :fmt
    {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
@@ -218,6 +227,9 @@
 
    :conformance-reconcile
    {:main-opts ["-m" "resolver-sim.trace.conformance.reconcile-runner"]}
+
+   :conformance-cli
+   {:main-opts ["-m" "resolver-sim.conformance.cli"]}
 
    :reference-validation
    {:extra-paths [:paths/protocols]

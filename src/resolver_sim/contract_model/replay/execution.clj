@@ -291,6 +291,49 @@
 ;; Step Processing (Kernel)
 ;; ---------------------------------------------------------------------------
 
+;; ---------------------------------------------------------------------------
+;; Temporal rejection step (shared by rule rejection and clock-guard rejection)
+;; ---------------------------------------------------------------------------
+
+(defn- temporal-rejection-step
+  "Build a :rejected trace step for a temporal failure.
+
+   Used by both the temporal-rule path and the advance-world-time clock guard so
+   that a regressive or malformed event time produces the same trace shape whether
+   temporal enforcement is enabled or disabled — a clean :rejected entry, never an
+   uncaught exception that crashes the whole replay."
+  [protocol world event event-time now time-before error rule-id guard-context]
+  (let [[proj ph] (if (satisfies? proto/AnalysisModule protocol)
+                    (proto/compute-projection protocol world)
+                    [nil nil])
+        tags      (if (satisfies? proto/EconomicModel protocol)
+                    (proto/classify-event protocol event :rejected error)
+                    #{})]
+    {:ok?    true
+     :world  world
+     :trace-entry {:seq             (:seq event)
+                   :time            event-time
+                   :time-before     time-before
+                   :time-after      {:block-ts now}
+                   :agent           (:agent event)
+                   :action          (:action event)
+                   :params          (:params event)
+                   :save-id-as      (:save-id-as event)
+                   :transition/id   (analysis/action->transition-id (:action event))
+                   :result          :rejected
+                   :error           error
+                   :temporal-rule-id rule-id
+                   :extra           nil
+                   :guard-context   guard-context
+                   :event-tags      tags
+                   :invariant-phase :temporal-rule
+                   :invariants-ok?  true
+                   :violations      nil
+                   :world           (proto/world-snapshot protocol world)
+                   :projection      proj
+                   :projection-hash ph}
+     :halted? false}))
+
 (defn process-step
   "Apply one scenario event using tiered Protocol implementations.
    Wraps dispatch in with-attribution so downstream yield accrual, invariant
@@ -311,40 +354,34 @@
                                                               :world world
                                                               :event event
                                                               :context context
-                                                              :protocol protocol}))]
-    (if temporal-failure
-      (let [[proj ph] (if (satisfies? proto/AnalysisModule protocol)
-                        (proto/compute-projection protocol world)
-                        [nil nil])
-            tags      (if (satisfies? proto/EconomicModel protocol)
-                        (proto/classify-event protocol event :rejected (:error temporal-failure))
-                        #{})]
-        {:ok?    true
-         :world  world
-         :trace-entry {:seq             (:seq event)
-                       :time            event-time
-                       :time-before     time-before
-                       :time-after      {:block-ts now}
-                       :agent           (:agent event)
-                       :action          (:action event)
-                       :params          (:params event)
-                       :save-id-as      (:save-id-as event)
-                       :transition/id   (analysis/action->transition-id (:action event))
-                       :result          :rejected
-                       :error           (:error temporal-failure)
-                       :temporal-rule-id (:rule-id temporal-failure)
-                       :extra           nil
-                       :guard-context   (:guard-context temporal-failure)
-                       :event-tags      tags
-                       :invariant-phase :temporal-rule
-                       :invariants-ok?  true
-                       :violations      nil
-                       :world           (proto/world-snapshot protocol world)
-                       :projection      proj
-                       :projection-hash ph}
-         :halted? false})
+                                                              :protocol protocol}))
+        advance (if temporal-failure
+                  ;; Temporal rules already rejected (missing/invalid time, regression,
+                  ;; deadline). Skip the clock entirely.
+                  {:rejected? true
+                   :error (:error temporal-failure)
+                   :rule-id (:rule-id temporal-failure)
+                   :guard-context (:guard-context temporal-failure)}
+                  ;; Clock-guard rejection: advance-world-time rejects regressive or
+                  ;; malformed event times with structured ex-info. Convert those into
+                  ;; the same trace-level rejection as the rules above so behaviour is
+                  ;; uniform when temporal enforcement is disabled (e.g. simple-replay)
+                  ;; or an internal kernel skips validation. Other exceptions propagate.
+                  (try (temporal/advance-world-time world event-time)
+                       (catch clojure.lang.ExceptionInfo e
+                         (case (:type (ex-data e))
+                           :time-regression
+                           {:rejected? true :error :time-regression
+                            :rule-id :non-regressive-time}
+                           :invalid-event-time
+                           {:rejected? true :error :invalid-event-time
+                            :rule-id :missing-event-time}
+                           (throw e)))))]
+    (if (:rejected? advance)
+      (temporal-rejection-step protocol world event event-time now time-before
+                               (:error advance) (:rule-id advance) (:guard-context advance))
 
-      (let [{world-t :world} (temporal/advance-world-time world event-time)
+      (let [{world-t :world} advance
             time-after       {:block-ts (time-ctx/block-ts world-t)}
             result     (attr/with-attribution
                          {:ctx/scenario-id (get-in world [:params :scenario-id])

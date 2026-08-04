@@ -139,7 +139,11 @@
    :award-calculation-v2   "AWARD_CALCULATION_V2"
    :claim-set              "CLAIM_SET_V1"
    :check-set              "CHECK_SET_V1"
-   :award-policy           "AWARD_POLICY_V1"})
+   :award-policy           "AWARD_POLICY_V1"
+    :priority-order-v1      "PRIORITY_ORDER_V1"
+    :overflow-capability    "OVERFLOW_CAPABILITY_V1"
+    :overflow-authorisation-scope "OVERFLOW_AUTHORISATION_SCOPE_V1"
+    :overflow-capacity-context "OVERFLOW_CAPACITY_CONTEXT_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -869,6 +873,15 @@
   [value intent]
   (project-canonical-artifact value intent))
 
+(defn project-priority-order
+  "Canonical projection for PRIORITY_ORDER_V1 artifacts.
+
+   The priority-order body is already canonical-safe; this projection strips
+   the self envelope (:artifact/preimage / :artifact/content-hash) and wraps
+   the body with the intent so the content hash is domain-separated."
+  [value intent]
+  (project-canonical-artifact value intent))
+
 (defn- normalize-depends-on
   "Normalize :depends-on to canonical-safe format.
    - Enriched format (maps with :claim-id): extract sorted keyword IDs.
@@ -1395,6 +1408,20 @@
                           :invariant-links}
     :intent/excludes    #{:allocation-result-hash :metadata :external-refs :runtime-values}
     :intent/projection-fn project-pro-rata-allocation-result
+    :intent/version     1}
+
+   :priority-order-v1
+   {:intent/name        :priority-order-v1
+    :intent/domain-tag  "PRIORITY_ORDER_V1"
+    :intent/description "Canonical identity of a priority-order.v1 artifact body excluding its self content-addressing envelope"
+    :intent/includes    #{:artifact/kind :artifact/version :subjects
+                          :subject-priority-keys :priority-classes :comparison-basis
+                          :comparison-contract :tie-policy :unclassified-policy
+                          :derivation :subject-set-root :comparison-basis-root
+                          :priority-classes-root}
+    :intent/excludes    #{:artifact/content-hash :artifact/preimage :artifact/metadata
+                          :metadata :runtime-values :functions}
+    :intent/projection-fn project-priority-order
     :intent/version     1}
 
    :claim-definition

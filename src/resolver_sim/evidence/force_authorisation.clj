@@ -14,6 +14,11 @@
             [resolver-sim.assurance.force-authorisation :as fa]))
 
 (declare valid-force-auth-add-held?
+         valid-force-auth-add-held-v2?
+         v1-summary-shape-valid?
+         summary-body-v2
+         summary-body-v1
+         admit-members!
          check-aggregate)
 
 (def scope-schema
@@ -91,6 +96,20 @@
 (def add-held-verifier-id
   "Canonical verifier identifier for a force-auth-add-held evidence artifact."
   "force-auth-add-held-verifier.v1")
+
+(def add-held-v2-schema-version
+  "Canonical schema version for a force-auth-add-held.v2 member that commits its
+   canonical scope projection so the scope binding is independently re-derivable."
+  "force-auth-add-held.v2")
+
+(def add-held-v2-verifier-id
+  "Canonical verifier identifier for a force-auth-add-held.v2 member."
+  "force-auth-add-held-verifier.v2")
+
+(def add-held-scope-derivation-id
+  "Algorithm/version identifier for the :authorization/scope-hash commitment
+   (:authorization/scope-derivation on v2 members)."
+  "force-authorisation-scope-hash.v1")
 
 (def ^:private lifecycle-schema-version "force-auth-lifecycle.v1")
 (def ^:private lifecycle-verifier-id "force-auth-lifecycle-verifier.v1")
@@ -277,14 +296,19 @@
        (= force-auth-add-verifier-id (:artifact/verifier report))))
 
 (defn exact-force-auth-add-held?
-  "EXACT-kind predicate for the :force-auth-add-held member artifact: schema
-   version, artifact kind, verifier id, and content hash must all agree.
+  "EXACT-kind predicate for the :force-auth-add-held member artifact: the
+   exact supported schema version, artifact kind, verifier id, and full content
+   round trip (canonical preimage + content hash) must all agree.
 
-   Delegates to valid-force-auth-add-held?, which is already an exact-kind,
-   content-addressed verifier. This alias exists so boundary-sensitive code
-   (check-aggregate) can name the exact predicate explicitly."
+   Dispatches on the member schema version — v1 via valid-force-auth-add-held?,
+   v2 via valid-force-auth-add-held-v2? (which also verifies the derived scope
+   commitment). This is the predicate boundary-sensitive code (check-aggregate)
+   uses so a lower layer can never masquerade as a member."
   [report]
-  (valid-force-auth-add-held? report))
+  (cond
+    (= add-held-schema-version (:schema-version report)) (valid-force-auth-add-held? report)
+    (= add-held-v2-schema-version (:schema-version report)) (valid-force-auth-add-held-v2? report)
+    :else false))
 
 (defn- finalize-artifact
   "Attach the content hash and exact preimage to an artifact body."
@@ -295,19 +319,105 @@
            :artifact/hash hash
            :artifact/preimage (pr-str body))))
 
-(defn- valid-artifact?
+(def artifact-envelope-keys
+  "Envelope keys that are stripped from the artifact body before hashing or
+   canonical preimage computation. Includes the legacy :artifact/hash and
+   :artifact/preimage plus the OPTIONAL parallel canonical commitment
+   (:artifact/canonical-bytes-v2 / :artifact/canonical-hash-v2). The canonical
+   commitment is representation-independent proof of the committed hash; it is
+   envelope metadata so attaching it never changes :artifact/hash."
+  #{:artifact/hash
+    :artifact/preimage
+    :artifact/canonical-bytes-v2
+    :artifact/canonical-hash-v2})
+
+(defn- artifact-body
+  "The artifact body with every envelope key removed (what the content hash and
+   canonical preimage commit to)."
+  [report]
+  (apply dissoc report artifact-envelope-keys))
+
+(defn- bytes->hex-str
+  "Lowercase hex encoding of a byte array."
+  [^bytes ba]
+  (apply str (map #(format "%02x" (bit-and (int %) 0xFF)) ba)))
+
+(defn- canonical-commitment-valid?
+  "Verify the optional parallel canonical commitment when present. When the
+   commitment keys exist, :artifact/canonical-hash-v2 must equal the committed
+   :artifact/hash AND :artifact/canonical-bytes-v2 must be the hex of
+   canonical-bytes(artifact body) — the standard typed encoding per
+   CANONICAL_HASH_SPEC_V1. A cross-language consumer proves portable hashing via
+   sha256(domain-tag || hex-decode(canonical-bytes-v2)) == :artifact/hash.
+
+   Artifacts without the commitment (the default) validate exactly as before."
+  [report body]
+  (if (or (contains? report :artifact/canonical-bytes-v2)
+          (contains? report :artifact/canonical-hash-v2))
+    (and (string? (:artifact/hash report))
+         (string? (:artifact/canonical-hash-v2 report))
+         (= (:artifact/hash report) (:artifact/canonical-hash-v2 report))
+         (string? (:artifact/canonical-bytes-v2 report))
+         (= (:artifact/canonical-bytes-v2 report)
+            (bytes->hex-str (hash/canonical-bytes body))))
+    true))
+
+(defn- preimage-and-hash-valid?
+  "Enforce the full content round trip for a content-addressed artifact:
+
+     body → canonical preimage (pr-str of the exact body) → content hash
+
+   Both must hold, so the :artifact/preimage and the decoded body can never
+   disagree: the stored preimage must be the exact string serialization of the
+   artifact body (with the envelope removed), and the stored hash must re-derive
+   from that same body. When the optional parallel canonical commitment is
+   present it is verified too. Independent of schema/kind/verifier identity
+   checks."
+  [report]
+  (and (string? (:artifact/hash report))
+       (string? (:artifact/preimage report))
+       (let [body (artifact-body report)]
+         (and (= (:artifact/preimage report) (pr-str body))
+              (= (:artifact/hash report)
+                 (str "sha256:" (hash/domain-hash :evidence-record body)))
+              (canonical-commitment-valid? report body)))))
+
+(defn attach-canonical-commitment
+  "Attach an OPTIONAL, non-breaking parallel commitment proving
+   representation-independent hashing alongside the legacy pr-str preimage:
+
+     :artifact/canonical-bytes-v2  lowercase hex of the canonical typed bytes
+                                   (canonical-bytes, per CANONICAL_HASH_SPEC_V1)
+                                   of the artifact body
+     :artifact/canonical-hash-v2   the domain-separated hash of the body, which
+                                   equals :artifact/hash
+
+   The commitment keys are envelope metadata: they are stripped before hashing,
+   so attaching them never changes :artifact/hash or :artifact/preimage.
+   valid-artifact? (and therefore every reader) verifies the commitment when
+   present, and it cannot be forged (canonical-hash-v2 must equal the committed
+   hash and the bytes must match canonical-bytes of the body). This is the
+   non-breaking migration path toward portable, cross-language verification:
+   adopt it behind your own version/feature flag and migrate gradually.
+
+   Throws ex-info if the body contains a type canonical-bytes cannot encode."
+  [artifact]
+  (let [body (artifact-body artifact)
+        hex (bytes->hex-str (hash/canonical-bytes body))]
+    (assoc artifact
+           :artifact/canonical-bytes-v2 hex
+           :artifact/canonical-hash-v2 (:artifact/hash artifact))))
+
+(defn valid-artifact?
   "Re-verify a content-addressed artifact: schema version, kind, verifier id,
-   and content hash must all agree."
+   and the full content round trip (exact canonical preimage + content hash,
+   plus the optional parallel canonical commitment) must all agree."
   [report schema-version kind verifier]
   (and (map? report)
        (= schema-version (:schema-version report))
        (= kind (:artifact/kind report))
        (= verifier (:artifact/verifier report))
-       (string? (:artifact/hash report))
-       (string? (:artifact/preimage report))
-       (let [body (dissoc report :artifact/hash :artifact/preimage)]
-         (= (:artifact/hash report)
-            (str "sha256:" (hash/domain-hash :evidence-record body))))))
+       (preimage-and-hash-valid? report)))
 
 ;; ── force-auth-add-held ────────────────────────────────────────────────────
 
@@ -356,10 +466,92 @@
     (finalize-artifact body)))
 
 (defn valid-force-auth-add-held?
-  "Re-verify a force-auth-add-held evidence artifact."
+  "Re-verify a force-auth-add-held evidence artifact (v1)."
   [report]
   (valid-artifact? report add-held-schema-version add-held-kind
                    add-held-verifier-id))
+
+(defn force-auth-add-held-scope-verifies?
+  "Derive whether a member's authorization-scope binding verifies. The result is
+   NEVER read from a stored boolean that cannot be checked.
+
+   - v2 members (:force-auth-add-held.v2): derived from the committed
+     three-part scope commitment — the :authorization/scope-hash must equal
+     hash(canonical :authorization/scope-projection) under the declared
+     :authorization/scope-derivation algorithm. A v2 member cannot assert a
+     verified binding that its committed projection does not authenticate.
+   - v1 members (:force-auth-add-held.v1): the scope map is not committed in v1,
+     so the flag cannot be re-derived from the member alone; the hash-committed
+     :authorization/scope-verifies? boolean is used. This is a documented v1
+     limitation; only v2 members give full independent re-derivability."
+  [m]
+  (if (= add-held-v2-schema-version (:schema-version m))
+    (and (= add-held-scope-derivation-id (:authorization/scope-derivation m))
+         (map? (:authorization/scope-projection m))
+         (string? (:authorization/scope-hash m))
+         (= (:authorization/scope-hash m)
+            (fa/force-authorisation-scope-hash (:authorization/scope-projection m))))
+    (true? (:authorization/scope-verifies? m))))
+
+(defn build-force-auth-add-held-v2
+  "Build a force-auth-add-held.v2 member that commits the canonical normalized
+   scope so the authorization-scope binding is independently re-derivable:
+
+     :authorization/scope-projection  canonical normalized scope map
+     :authorization/scope-hash        hash(scope-projection) under the declared
+                                      :authorization/scope-derivation algorithm
+     :authorization/scope-derivation  algorithm/version identifier
+
+   scope-verifies? is NEVER stored on a v2 member — it is derived by
+   force-auth-add-held-scope-verifies?. The recorded scope-hash on the
+   authorization record is not needed to verify the member's own scope
+   commitment, which makes the aggregate's scope counts independently checkable.
+
+   opts: same as build-force-auth-add-held (:authorization, :scope-map,
+     :adjustment, :consumed-at, :consumed-by)."
+  [opts]
+  (let [authorization (:authorization opts)
+        projection (fa/normalize-force-authorisation-scope (:scope-map opts))
+        adjustment (:adjustment opts)
+        recomputed-scope-hash (fa/force-authorisation-scope-hash projection)
+        body {:schema-version add-held-v2-schema-version
+              :artifact/kind add-held-kind
+              :artifact/verifier add-held-v2-verifier-id
+              :authorization/id (:authorization/id authorization)
+              :authorization/type (or (:authorization/type authorization)
+                                      :force-authorisation)
+              :authorization/scope-projection projection
+              :authorization/scope-hash recomputed-scope-hash
+              :authorization/scope-derivation add-held-scope-derivation-id
+              :held/adjustment-id (:held-adjustment/id adjustment)
+              :held/token (or (:token adjustment) (:token projection))
+              :held/direction (or (:held/direction adjustment)
+                                  (:held/direction projection))
+              :held/amount (or (:amount adjustment) (:amount projection))
+              :held/account (or (:held/account adjustment) (:held/account projection))
+              :held/position-id (or (:held/position-id adjustment)
+                                    (:held/position-id projection))
+              :owner/address (:owner/address projection)
+              :held/reason (:held/reason projection)
+              :held/consumed-at (:consumed-at opts)
+              :held/consumed-by (:consumed-by opts)}]
+    (finalize-artifact body)))
+
+(defn valid-force-auth-add-held-v2?
+  "Re-verify a force-auth-add-held.v2 member: full content round trip (exact
+   canonical preimage + content hash), the supported scope-derivation id, and
+   the three-part scope commitment — :authorization/scope-hash must equal
+   hash(canonical :authorization/scope-projection). Also rejects any member that
+   stores an :authorization/scope-verifies? boolean, which must be derived."
+  [report]
+  (and (valid-artifact? report add-held-v2-schema-version add-held-kind
+                        add-held-v2-verifier-id)
+       (= add-held-scope-derivation-id (:authorization/scope-derivation report))
+       (map? (:authorization/scope-projection report))
+       (string? (:authorization/scope-hash report))
+       (not (contains? report :authorization/scope-verifies?))
+       (= (:authorization/scope-hash report)
+          (fa/force-authorisation-scope-hash (:authorization/scope-projection report)))))
 
 ;; ── force-auth-lifecycle ───────────────────────────────────────────────────
 
@@ -495,13 +687,15 @@
 
 (defn downgrade-force-auth-lifecycle-summary-v2->v1
   "Project a v2 lifecycle summary body back to the v1 shape (for migration
-   verification). Discards the v2-only keys."
+   verification). Discards the v2-only keys and the artifact envelope."
   [report]
-  (-> (reduce dissoc report lifecycle-summary-v2-only-keys)
-      (dissoc :artifact/hash :artifact/preimage)
-      (assoc :schema-version lifecycle-summary-v1-schema-version)
-      (assoc :artifact/kind lifecycle-summary-kind)
-      (assoc :artifact/verifier lifecycle-summary-verifier-id)))
+  (let [stripped (reduce dissoc
+                         (reduce dissoc report lifecycle-summary-v2-only-keys)
+                         artifact-envelope-keys)]
+    (assoc (assoc (assoc stripped
+                         :schema-version lifecycle-summary-v1-schema-version)
+                  :artifact/kind lifecycle-summary-kind)
+           :artifact/verifier lifecycle-summary-verifier-id)))
 
 (defn build-force-auth-lifecycle-summary-v1
   "Build a v1-shaped lifecycle summary artifact. Provided for migration and
@@ -531,145 +725,64 @@
   "Build the versioned, content-addressed summary evidence artifact over a
    collection of force-auth-add-held evidence artifacts.
 
-   opts:
-     :artifacts  a seq of force-auth-add-held evidence artifacts (as produced by
-                 build-force-auth-add-held). Each is re-verified before counting.
+   FAIL-FAST (production builder): the member set is admitted before
+   construction. If any member does not pass the full aggregate membership
+   classification (canonical force-auth-add-held verification, identity fields,
+   verified authorization binding, and the set-level integrity rules), this
+   throws ex-info with structured :invalid-members diagnostics. The resulting
+   artifact is therefore always passing under check-aggregate for the same
+   member set and options.
 
-   Commits aggregate counts, amount sums and ranges, cardinality, a triage view
-   of non-passing artifacts (with a per-item invalidity reason), an amount
-   integrity triage (missing / non-numeric / negative amounts are never counted
-   into the sums), a view of unverified authorizations, and a catalogue of
-   sub-category summaries (account, reason, authorization, consumer, owner,
-   position, authorization type, and the token × direction breakdown).
+   For mixed-validity / triage construction (the legacy behavior), use
+   `build-force-auth-add-held-summary-permissive`; for the v1 migration shape,
+   use `build-force-auth-add-held-summary-v1`.
+
+   opts / options:
+     :artifacts  (1-arity opts form) a seq of force-auth-add-held artifacts.
+     :unique-adjustment-ids?     reject duplicate held adjustment ids (default false)
+     :unique-authorization-ids?  reject duplicate authorization ids (default false)
 
    Two arities:
      (build-force-auth-add-held-summary {:artifacts [...]})   legacy opts form
      (build-force-auth-add-held-summary members options)      members + options form
-   Both produce the same artifact. Construction and validation are separate:
-   the builder performs content-addressing; check-aggregate performs the
-   aggregate membership and reconciliation check."
+   Both produce the same artifact. Construction (content addressing) and
+   validation (check-aggregate) are separate, but aligned: the builder shares
+   the canonical summary-body derivation with recompute-force-auth-add-held-summary
+   and check-aggregate, so builder output and canonical recomputation are
+   byte-identical for an admitted member set."
   ([opts]
    (build-force-auth-add-held-summary (or (:artifacts opts) []) opts))
   ([members options]
-   (let [artifacts (vec (or members []))
-         valid? valid-force-auth-add-held?
-         valid-count (count (filter valid? artifacts))
-         invalid-artifacts (into []
-                                 (keep-indexed (fn [i a]
-                                                 (when-not (valid? a)
-                                                   {:index i
-                                                    :adjustment-id (:held/adjustment-id a)
-                                                    :reason (cond
-                                                              (not= add-held-schema-version (:schema-version a))
-                                                              :schema-version-mismatch
-                                                              (not= add-held-kind (:artifact/kind a))
-                                                              :artifact-kind-mismatch
-                                                              (not= add-held-verifier-id (:artifact/verifier a))
-                                                              :verifier-mismatch
-                                                              :else :content-hash-mismatch)})))
-                                 artifacts)
-         scope-verified (count (filter :authorization/scope-verifies? artifacts))
-         unverified-auth-ids (vec (sort
-                                   (distinct
-                                    (keep (fn [a]
-                                            (when-not (:authorization/scope-verifies? a)
-                                              (:authorization/id a)))
-                                          artifacts))))
-         by-token (frequencies (keep :held/token artifacts))
-         by-direction (frequencies (keep :held/direction artifacts))
-         indexed (map-indexed vector artifacts)
-         amount-issues (into []
-                             (keep (fn [[i a]]
-                                     (let [amt (:held/amount a)
-                                           issue (cond
-                                                   (nil? amt) :missing-amount
-                                                   (not (number? amt)) :non-numeric-amount
-                                                   (neg? (double amt)) :negative-amount
-                                                   :else nil)]
-                                       (when issue
-                                         {:index i
-                                          :adjustment-id (:held/adjustment-id a)
-                                          :amount-issue issue}))))
-                             indexed)
-         issue-count (fn [issue-kind]
-                       (count (filter #(= issue-kind (:amount-issue %)) amount-issues)))
-         amounts (vec (keep (fn [[_ a]]
-                              (let [amt (:held/amount a)]
-                                (when (and (some? amt) (number? amt))
-                                  (long amt))))
-                            indexed))
-         total-amount (reduce + 0 amounts)
-         min-amount (when (seq amounts) (apply min amounts))
-         max-amount (when (seq amounts) (apply max amounts))
-         consumed-ats (->> artifacts (keep :held/consumed-at) (map long) vec)
-         consumed-at-earliest (when (seq consumed-ats) (apply min consumed-ats))
-         consumed-at-latest (when (seq consumed-ats) (apply max consumed-ats))
-         sorted-freq (fn [k] (into (sorted-map) (frequencies (keep k artifacts))))
-         sum-by (fn [k]
-                  (into (sorted-map)
-                        (reduce (fn [m a]
-                                  (let [v (get a k)]
-                                    (if (some? v)
-                                      (let [amt (:held/amount a)]
-                                        (if (and (some? amt) (number? amt))
-                                          (update m v (fnil + 0) (long amt))
-                                          m))
-                                      m)))
-                                {}
-                                artifacts)))
-         by-token-direction (frequencies
-                             (keep (fn [a]
-                                     (when-let [t (:held/token a)]
-                                       (when-let [d (:held/direction a)]
-                                         [(keyword t) (keyword d)])))
-                                   artifacts))
-         categories {:by-account (sorted-freq :held/account)
-                     :by-reason (sorted-freq :held/reason)
-                     :by-authorization (sorted-freq :authorization/id)
-                     :by-consumed-by (sorted-freq :held/consumed-by)
-                     :by-owner (sorted-freq :owner/address)
-                     :by-position-id (sorted-freq :held/position-id)
-                     :by-authorization-type (sorted-freq :authorization/type)
-                     :by-token-direction (into (sorted-map) by-token-direction)}
-         body {:schema-version add-held-summary-schema-version
-               :artifact/kind add-held-summary-kind
-               :artifact/verifier add-held-summary-verifier-id
-               :total (count artifacts)
-               :valid-count valid-count
-               :invalid-count (- (count artifacts) valid-count)
-               :invalid-artifacts (vec invalid-artifacts)
-               :scope-verified-count scope-verified
-               :scope-unverified-count (- (count artifacts) scope-verified)
-               :unverified-authorization-ids unverified-auth-ids
-               :total-amount total-amount
-               :min-amount min-amount
-               :max-amount max-amount
-               :missing-amount-count (issue-count :missing-amount)
-               :non-numeric-amount-count (issue-count :non-numeric-amount)
-               :negative-amount-count (issue-count :negative-amount)
-               :amount-issues (vec amount-issues)
-               :consumed-at-earliest consumed-at-earliest
-               :consumed-at-latest consumed-at-latest
-               :distinct-adjustment-ids (count (distinct (keep :held/adjustment-id artifacts)))
-               :distinct-tokens (count (distinct (keep :held/token artifacts)))
-               :distinct-accounts (count (distinct (keep :held/account artifacts)))
-               :distinct-owners (count (distinct (keep :owner/address artifacts)))
-               :by-token (into (sorted-map) by-token)
-               :by-direction (into (sorted-map) by-direction)
-               :amount-by-token (sum-by :held/token)
-               :amount-by-direction (sum-by :held/direction)
-               :amount-by-account (sum-by :held/account)
-               :amount-by-owner (sum-by :owner/address)
-               :categories categories}]
-     (finalize-artifact body))))
+   (admit-members! members options "build-force-auth-add-held-summary")
+   (finalize-artifact (summary-body-v2 members))))
+
+(defn build-force-auth-add-held-summary-permissive
+  "LEGACY permissive builder for mixed-validity / triage construction. Accepts
+   any member set (including members that fail canonical verification, lack
+   identity fields, or carry unverified authorization bindings) and commits the
+   triage views (:invalid-artifacts, :scope-unverified-count,
+   :unverified-authorization-ids, :amount-issues) over the complete set.
+
+   Output from this builder is NOT guaranteed to pass check-aggregate — invalid
+   or unverified members make the aggregate non-passing. Use this only where
+   legacy permissive behavior is required; production construction should use
+   the fail-fast `build-force-auth-add-held-summary`.
+
+   Two arities:
+     (build-force-auth-add-held-summary-permissive {:artifacts [...]})
+     (build-force-auth-add-held-summary-permissive members options)"
+  ([opts]
+   (build-force-auth-add-held-summary-permissive (or (:artifacts opts) []) opts))
+  ([members _options]
+   (finalize-artifact (summary-body-v2 members))))
 
 (defn valid-force-auth-add-held-summary?
   "Two arities.
 
    (valid-force-auth-add-held-summary? report) — content-addressed reader:
    re-verifies a force-auth-add-held-summary artifact (v2) by checking schema
-   version, kind, verifier, and content hash. This does NOT check aggregate
-   membership or reconciliation.
+   version, kind, verifier, exact canonical preimage, and content hash. This
+   does NOT check aggregate membership or reconciliation.
 
    (valid-force-auth-add-held-summary? summary members options) — aggregate
    predicate: delegates to check-aggregate for the v2 target. True only when
@@ -684,21 +797,27 @@
 (defn downgrade-add-held-summary-v2->v1
   "Project a v2 summary artifact body back to the v1 shape (for migration
    verification). Discards the v2-only keys and v2-only category dimensions."
-  [report]
-  (let [v1-categories (select-keys (:categories report)
-                                   add-held-summary-v1-category-keys)
-        without-v2 (reduce dissoc report add-held-summary-v2-only-keys)]
-    (-> without-v2
-        (dissoc :artifact/hash :artifact/preimage)
-        (assoc :schema-version add-held-summary-v1-schema-version)
-        (assoc :artifact/kind add-held-summary-kind)
-        (assoc :artifact/verifier add-held-summary-verifier-id)
-        (assoc :categories v1-categories))))
+   [report]
+   (let [v1-categories (select-keys (:categories report)
+                                    add-held-summary-v1-category-keys)
+         stripped (reduce dissoc
+                          (reduce dissoc report add-held-summary-v2-only-keys)
+                          artifact-envelope-keys)]
+     (assoc stripped
+            :schema-version add-held-summary-v1-schema-version
+            :artifact/kind add-held-summary-kind
+            :artifact/verifier add-held-summary-verifier-id
+            :categories v1-categories)))
 
 (defn build-force-auth-add-held-summary-v1
   "Build a v1-shaped summary artifact from a collection of force-auth-add-held
-   artifacts. Provided for migration/backward-compatibility testing; production
-   callers should use the v2 builder.
+   artifacts. MIGRATION / backward-compatibility builder; production callers
+   should use the v2 `build-force-auth-add-held-summary`.
+
+   Like the v2 production builder this is FAIL-FAST: non-passing members throw
+   ex-info with structured diagnostics. The permissive path for building v1
+   triage artifacts is `build-force-auth-add-held-summary-permissive` followed
+   by `downgrade-add-held-summary-v2->v1`.
 
    Two arities:
      (build-force-auth-add-held-summary-v1 {:artifacts [...]})   legacy opts form
@@ -706,71 +825,98 @@
   ([opts]
    (build-force-auth-add-held-summary-v1 (or (:artifacts opts) []) opts))
   ([members options]
-   (let [v2 (build-force-auth-add-held-summary members options)
-         v1-body (downgrade-add-held-summary-v2->v1 v2)]
-     (finalize-artifact v1-body))))
+   (admit-members! members options "build-force-auth-add-held-summary-v1")
+   (finalize-artifact (summary-body-v1 members))))
 
 (defn valid-force-auth-add-held-summary-v1?
   "Two arities.
 
-   (valid-force-auth-add-held-summary-v1? report) — migration reader for
-   persisted v1 artifacts: verifies schema-version, kind, and verifier, then
-   recomputes the v1 content hash by projecting away the v2-only fields.
+   (valid-force-auth-add-held-summary-v1? report) — EXACT v1 reader and the
+   boundary gate for persisted v1 artifacts. Verifies schema version, kind,
+   verifier, exact canonical preimage, content hash, AND the exact v1 shape
+   (no v2-only key, no unknown key, v1 category keys only). A .v2 artifact — or
+   a v1-labeled artifact carrying v2-only fields — can therefore never validate
+   as v1. The projection-based migration reader is
+   `valid-force-auth-add-held-summary-v1-migration?` and must be invoked
+   explicitly for legacy migration.
 
    (valid-force-auth-add-held-summary-v1? summary members options) — aggregate
-   predicate: delegates to check-aggregate for the v1 target. True only when
-   the summary is a well-formed v1 aggregate consistent with the member set.
-   Unlike the 1-arity migration reader, the aggregate check rejects v2-only and
-   unknown keys and reconciles every derivable field against the members."
+   predicate: delegates to check-aggregate for the v1 target."
   ([report]
    (and (map? report)
-        (= add-held-summary-v1-schema-version (:schema-version report))
-        (= add-held-summary-kind (:artifact/kind report))
-        (= add-held-summary-verifier-id (:artifact/verifier report))
-        (string? (:artifact/hash report))
-        (string? (:artifact/preimage report))
-        (let [v1-body (downgrade-add-held-summary-v2->v1 report)]
-          (= (:artifact/hash report)
-             (str "sha256:" (hash/domain-hash :evidence-record v1-body))))))
+        (v1-summary-shape-valid? report)
+        (valid-artifact? report add-held-summary-v1-schema-version
+                         add-held-summary-kind add-held-summary-verifier-id)))
   ([summary members options]
    (:valid? (check-aggregate summary members options))))
+
+(defn valid-force-auth-add-held-summary-v1-migration?
+  "MIGRATION reader for persisted v1 artifacts created through the projection
+   path. Verifies schema version, kind, and verifier, then recomputes the v1
+   content hash by projecting away the v2-only fields.
+
+   This is intentionally PERMISSIVE: it accepts v2-only keys by projecting them
+   away before hashing, so it is NOT an exact boundary gate. Boundary-sensitive
+   code must use `valid-force-auth-add-held-summary-v1?` (exact) or
+   `check-aggregate`. Invoke this function only when explicitly migrating
+   legacy content that was stored with v2-only keys under a v1 label."
+  [report]
+  (and (map? report)
+       (= add-held-summary-v1-schema-version (:schema-version report))
+       (= add-held-summary-kind (:artifact/kind report))
+       (= add-held-summary-verifier-id (:artifact/verifier report))
+       (string? (:artifact/hash report))
+       (string? (:artifact/preimage report))
+       (let [v1-body (downgrade-add-held-summary-v2->v1 report)]
+         (= (:artifact/hash report)
+            (str "sha256:" (hash/domain-hash :evidence-record v1-body))))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; force-auth-add-held-summary — aggregate boundary, membership, reconciliation
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;;
+;; One canonical summary-body derivation (force-auth-add-held-summary-fields)
+;; is shared by the production builder, the permissive builder,
+;; recompute-force-auth-add-held-summary, and check-aggregate reconciliation.
+;; Given the same member set they always produce the same semantic body, so
+;; builder output and recomputation are byte-identical and reconciliation never
+;; silently drops a committed field.
+;;
 ;; check-aggregate is a pure, deterministic, data-only checker. It takes a
 ;; summary artifact AND the member set it is claimed to aggregate over, then:
 ;;
-;;   1. verifies the aggregate identity (kind, schema version, verifier, content
-;;      hash, exact shape — rejecting v2-only and unknown keys on a v1 target);
+;;   1. verifies the aggregate identity (kind, schema version, verifier, full
+;;      content round trip — exact canonical preimage + content hash — and exact
+;;      shape, rejecting v2-only and unknown keys on a v1 target);
 ;;   2. validates every member through the canonical exact-kind
-;;      valid-force-auth-add-held? verifier (never a weaker base/add predicate);
-;;   3. reconciles every derivable summary field against a canonical
-;;      recomputation from the validated member set (never trusts stored values).
+;;      valid-force-auth-add-held? verifier (never a weaker base/add predicate),
+;;      plus identity fields, verified authorization binding, and the set-level
+;;      integrity rules;
+;;   3. reconciles every derivable summary field (including the v2 triage views)
+;;      against the shared canonical recomputation (never trusts stored values).
 ;;
-;; Construction (build-force-auth-add-held-summary) and validation
-;; (check-aggregate) are separate: a builder output is not automatically a
-;; passing aggregate, and check-aggregate performs no coercion of malformed
-;; input. Invalid members always make the aggregate non-passing, are surfaced
-;; in :invalid-members / :mismatches, and their amounts never influence the
-;; financial totals of the canonical recomputation.
+;; Construction and validation are separated but ALIGNED:
+;;   - build-force-auth-add-held-summary / -v1 are FAIL-FAST: non-passing
+;;     members throw ex-info with structured :invalid-members diagnostics, so
+;;     their output is always passing under check-aggregate;
+;;   - build-force-auth-add-held-summary-permissive is the LEGACY path for
+;;     mixed-validity / triage construction; its output can be non-passing.
+;; Invalid members always make the aggregate non-passing, are surfaced in
+;; :invalid-members / :mismatches, and their amounts never enter the financial
+;; totals of the shared derivation.
 ;;
 ;; Boundary direction: this section depends only on the public validation and
 ;; projection operations of the lower layers in this namespace. The lower-layer
 ;; artifacts (:force-auth-add-held) do not depend on the summary implementation.
 
 (defn- content-hash-valid?
-  "True when the artifact's :artifact/hash re-derives from its exact body
-   (the artifact with the :artifact/hash and :artifact/preimage envelope
-   removed). Independent of schema/kind/verifier identity checks."
+  "True when the artifact's full content round trip holds: the exact canonical
+   preimage (pr-str of the body with the envelope removed) and a content hash
+   re-derived from that same body. Independent of schema/kind/verifier identity
+   checks."
   [report]
   (and (map? report)
-       (string? (:artifact/hash report))
-       (string? (:artifact/preimage report))
-       (let [body (dissoc report :artifact/hash :artifact/preimage)]
-         (= (:artifact/hash report)
-            (str "sha256:" (hash/domain-hash :evidence-record body))))))
+       (preimage-and-hash-valid? report)))
 
 (defn- member-family-version?
   "True when a schema-version string belongs to the force-auth-add-held member
@@ -781,10 +927,32 @@
        (str/starts-with? v "force-auth-add-held.")
        (not (str/starts-with? v "force-auth-add-held-summary"))))
 
+(defn- member-schema-supported?
+  "True when a member schema version is a supported force-auth-add-held version."
+  [v]
+  (or (= add-held-schema-version v)
+      (= add-held-v2-schema-version v)))
+
+(defn- member-verifier-supported?
+  "True when a member verifier id matches the schema version's verifier."
+  [v]
+  (or (= add-held-verifier-id v)
+      (= add-held-v2-verifier-id v)))
+
+(defn- canonical-member-valid?
+  "Canonical exact-kind content verification for a member, dispatching on the
+   member's schema version."
+  [m]
+  (cond
+    (= add-held-schema-version (:schema-version m)) (valid-force-auth-add-held? m)
+    (= add-held-v2-schema-version (:schema-version m)) (valid-force-auth-add-held-v2? m)
+    :else false))
+
 (defn- classify-member
   "Primary per-member classification. Returns nil when the member is a fully
    valid force-auth-add-held artifact (canonical content-addressed verification
-   plus required identity fields and a verified authorization binding), else a
+   for its schema version, plus required identity fields and a verified
+   authorization binding — derived for v2 members, committed for v1), else a
    stable reason keyword.
 
    Priority: not-a-map → kind → version → verifier → content hash → missing
@@ -797,19 +965,19 @@
     (if (some? (:artifact/kind m))
       :artifact-kind-mismatch
       :not-force-auth-add-held)
-    (not= add-held-schema-version (:schema-version m))
+    (not (member-schema-supported? (:schema-version m)))
     (if (member-family-version? (:schema-version m))
       :unsupported-member-version
       :schema-version-mismatch)
-    (not= add-held-verifier-id (:artifact/verifier m))
+    (not (member-verifier-supported? (:artifact/verifier m)))
     :verifier-mismatch
-    (not (valid-force-auth-add-held? m))
+    (not (canonical-member-valid? m))
     :content-hash-mismatch
     (nil? (:authorization/id m))
     :missing-authorization-id
     (nil? (:held/adjustment-id m))
     :missing-adjustment-id
-    (not (true? (:authorization/scope-verifies? m)))
+    (not (force-auth-add-held-scope-verifies? m))
     :authorization-binding-mismatch
     :else nil))
 
@@ -914,32 +1082,59 @@
      :duplicate-authorization-indexes dup-auth-idxs
      :warnings (vec (sort-by pr-str (concat dup-adj-warn dup-auth-warn)))}))
 
-(defn- canonical-summary-fields
-  "Canonical projection of the aggregate field set over the validated member
-   subset. Financial totals, category counts, scope counts, and cardinality
-   projections are computed ONLY from valid members, and only numeric amounts
-   contribute to monetary totals. A missing or non-numeric amount is never
-   coerced to zero.
+(defn- force-auth-add-held-summary-fields
+  "SINGLE canonical summary-body derivation shared by the production builder,
+   the permissive builder, recompute-force-auth-add-held-summary, and
+   check-aggregate reconciliation. Given the same member set it always produces
+   the same semantic field set, so builder and recomputation cannot diverge.
 
-   valid-indexed entries carry the ORIGINAL member index so triage views can be
-   traced back to the supplied member list."
-  [valid-indexed member-count valid-count]
-  (let [valid-members (mapv :member valid-indexed)
-        invalid-count (- member-count valid-count)
-        scope-verified (count (filter :authorization/scope-verifies? valid-members))
+   Per-member classification (classify-member) drives :valid-count,
+   :invalid-artifacts, and the financial/category projections: members that do
+   not verify as force-auth-add-held artifacts (or that lack identity fields or
+   a verified authorization binding) are never counted as valid, and their
+   amounts never enter monetary totals. Triage views (:invalid-artifacts, scope
+   counts, unverified authorization ids, amount issues) are computed over the
+   COMPLETE supplied member set. Only numeric amounts contribute to monetary
+   totals; a missing or non-numeric amount is never coerced to zero."
+  [members]
+  (let [artifacts (vec (or members []))
+        total (count artifacts)
+        reasons (mapv classify-member artifacts)
+        per-valid? (fn [r] (nil? r))
+        valid-count (count (filter per-valid? reasons))
+        invalid-count (- total valid-count)
+        invalid-artifacts (into []
+                                (keep-indexed (fn [i a]
+                                                (when-let [r (nth reasons i)]
+                                                  {:index i
+                                                   :adjustment-id (:held/adjustment-id a)
+                                                   :authorization-id (:authorization/id a)
+                                                   :reason r})))
+                                artifacts)
+        valid-members (into []
+                            (keep-indexed (fn [i a]
+                                            (when (per-valid? (nth reasons i)) a)))
+                            artifacts)
+        scope-verified (count (filter force-auth-add-held-scope-verifies? artifacts))
+        unverified-auth-ids (vec (sort
+                                  (distinct
+                                   (keep (fn [a]
+                                           (when-not (force-auth-add-held-scope-verifies? a)
+                                             (:authorization/id a)))
+                                         artifacts))))
         amount-issues (into []
-                            (keep (fn [{:keys [index member]}]
-                                    (let [amt (:held/amount member)
-                                          issue (cond
-                                                  (nil? amt) :missing-amount
-                                                  (not (number? amt)) :non-numeric-amount
-                                                  (neg? (double amt)) :negative-amount
-                                                  :else nil)]
-                                      (when issue
-                                        {:index index
-                                         :adjustment-id (:held/adjustment-id member)
-                                         :amount-issue issue}))))
-                            valid-indexed)
+                            (keep-indexed (fn [i a]
+                                            (let [amt (:held/amount a)
+                                                  issue (cond
+                                                          (nil? amt) :missing-amount
+                                                          (not (number? amt)) :non-numeric-amount
+                                                          (neg? (double amt)) :negative-amount
+                                                          :else nil)]
+                                              (when issue
+                                                {:index i
+                                                 :adjustment-id (:held/adjustment-id a)
+                                                 :amount-issue issue}))))
+                            artifacts)
         issue-count (fn [issue-kind]
                       (count (filter #(= issue-kind (:amount-issue %)) amount-issues)))
         amounts (vec (keep (fn [a]
@@ -973,15 +1168,16 @@
                                         [(keyword t) (keyword d)])))
                                   valid-members))
         categories (into {}
-                         (map (fn [[cat-k field]]
-                                [cat-k (sorted-freq field)]))
+                         (map (fn [[cat-k field]] [cat-k (sorted-freq field)]))
                          category-field)
         categories (assoc categories :by-token-direction (into (sorted-map) by-token-direction))]
-    {:total member-count
+    {:total total
      :valid-count valid-count
      :invalid-count invalid-count
+     :invalid-artifacts (vec invalid-artifacts)
      :scope-verified-count scope-verified
-     :scope-unverified-count (- valid-count scope-verified)
+     :scope-unverified-count (- total scope-verified)
+     :unverified-authorization-ids unverified-auth-ids
      :total-amount total-amount
      :min-amount min-amount
      :max-amount max-amount
@@ -1003,30 +1199,89 @@
      :amount-by-owner (sum-by :owner/address)
      :categories categories}))
 
+(defn- summary-body-v2
+  "Canonical v2 summary body (without :artifact/hash / :artifact/preimage)
+   derived from a member set via the shared derivation."
+  [members]
+  (let [f (force-auth-add-held-summary-fields members)]
+    {:schema-version add-held-summary-schema-version
+     :artifact/kind add-held-summary-kind
+     :artifact/verifier add-held-summary-verifier-id
+     :total (:total f)
+     :valid-count (:valid-count f)
+     :invalid-count (:invalid-count f)
+     :invalid-artifacts (:invalid-artifacts f)
+     :scope-verified-count (:scope-verified-count f)
+     :scope-unverified-count (:scope-unverified-count f)
+     :unverified-authorization-ids (:unverified-authorization-ids f)
+     :total-amount (:total-amount f)
+     :min-amount (:min-amount f)
+     :max-amount (:max-amount f)
+     :missing-amount-count (:missing-amount-count f)
+     :non-numeric-amount-count (:non-numeric-amount-count f)
+     :negative-amount-count (:negative-amount-count f)
+     :amount-issues (:amount-issues f)
+     :consumed-at-earliest (:consumed-at-earliest f)
+     :consumed-at-latest (:consumed-at-latest f)
+     :distinct-adjustment-ids (:distinct-adjustment-ids f)
+     :distinct-tokens (:distinct-tokens f)
+     :distinct-accounts (:distinct-accounts f)
+     :distinct-owners (:distinct-owners f)
+     :by-token (:by-token f)
+     :by-direction (:by-direction f)
+     :amount-by-token (:amount-by-token f)
+     :amount-by-direction (:amount-by-direction f)
+     :amount-by-account (:amount-by-account f)
+     :amount-by-owner (:amount-by-owner f)
+     :categories (:categories f)}))
+
+(defn- summary-body-v1
+  "Canonical v1 summary body (without :artifact/hash / :artifact/preimage)
+   derived from a member set: the v2 body projected to the v1 shape."
+  [members]
+  (downgrade-add-held-summary-v2->v1 (summary-body-v2 members)))
+
+(defn- admit-members!
+  "Fail-fast admission for the production builders. Throws ex-info with
+   structured diagnostics when any supplied member does not pass the full
+   aggregate membership classification (canonical force-auth-add-held
+   verification, identity fields, verified authorization binding, and the
+   set-level integrity rules)."
+  [members options builder-name]
+  (let [members (vec (or members []))
+        {:keys [invalid]} (validate-member-set members options)]
+    (when (seq invalid)
+      (throw (ex-info (str builder-name ": member set contains non-passing members")
+                      {:member-count (count members)
+                       :invalid-count (count invalid)
+                       :invalid-members (vec invalid)})))))
+
 (defn- v1-summary-shape-valid?
   "Exact-shape check for a v1 summary body: no v2-only key, no unknown top-level
    key, and category keys within the v1 category set."
   [report]
-  (let [body (dissoc report :artifact/hash :artifact/preimage)
-        v1-category-set (set add-held-summary-v1-category-keys)]
-    (and (every? (fn [k] (not (contains? body k))) add-held-summary-v2-only-keys)
-         (every? (fn [k] (contains? add-held-summary-v1-body-keys k)) (keys body))
-         (let [cats (:categories body)]
-           (and (map? cats)
-                (every? (fn [k] (contains? v1-category-set k)) (keys cats)))))))
+  (and (map? report)
+       (let [body (artifact-body report)
+             v1-category-set (set add-held-summary-v1-category-keys)]
+         (and (every? (fn [k] (not (contains? body k))) add-held-summary-v2-only-keys)
+              (every? (fn [k] (contains? add-held-summary-v1-body-keys k)) (keys body))
+              (let [cats (:categories body)]
+                (and (map? cats)
+                     (every? (fn [k] (contains? v1-category-set k)) (keys cats))))))))
 
 (defn- v2-summary-shape-valid?
   "Exact-shape check for a v2 summary body: no unknown top-level key, and
    category keys within the v1 ∪ v2 category set."
   [report]
-  (let [body (dissoc report :artifact/hash :artifact/preimage)
-        v2-body-keys (into add-held-summary-v1-body-keys add-held-summary-v2-only-keys)
-        v2-category-set (set (into add-held-summary-v1-category-keys
-                                   add-held-summary-v2-category-keys))]
-    (and (every? (fn [k] (contains? v2-body-keys k)) (keys body))
-         (let [cats (:categories body)]
-           (and (map? cats)
-                (every? (fn [k] (contains? v2-category-set k)) (keys cats)))))))
+  (and (map? report)
+       (let [body (artifact-body report)
+             v2-body-keys (into add-held-summary-v1-body-keys add-held-summary-v2-only-keys)
+             v2-category-set (set (into add-held-summary-v1-category-keys
+                                        add-held-summary-v2-category-keys))]
+         (and (every? (fn [k] (contains? v2-body-keys k)) (keys body))
+              (let [cats (:categories body)]
+                (and (map? cats)
+                     (every? (fn [k] (contains? v2-category-set k)) (keys cats))))))))
 
 (def ^:private v1-simple-paths
   "Derivable summary fields committed by the v1 shape."
@@ -1041,7 +1296,9 @@
    [[:by-direction] :by-direction]])
 
 (def ^:private v2-simple-paths
-  "Derivable summary fields committed by the v2 shape (superset of v1)."
+  "Derivable summary fields committed by the v2 shape (superset of v1).
+   Includes the triage views (:invalid-artifacts, :unverified-authorization-ids,
+   :amount-issues) so reconciliation never silently excludes a committed field."
   (into v1-simple-paths
         [[[:min-amount] :min-amount]
          [[:max-amount] :max-amount]
@@ -1056,7 +1313,10 @@
          [[:amount-by-token] :amount-by-token]
          [[:amount-by-direction] :amount-by-direction]
          [[:amount-by-account] :amount-by-account]
-         [[:amount-by-owner] :amount-by-owner]]))
+         [[:amount-by-owner] :amount-by-owner]
+         [[:invalid-artifacts] :invalid-artifacts]
+         [[:unverified-authorization-ids] :unverified-authorization-ids]
+         [[:amount-issues] :amount-issues]]))
 
 (defn- reconcile
   "Compare every derivable field against the canonical recomputation. Returns a
@@ -1104,64 +1364,32 @@
 (defn recompute-force-auth-add-held-summary
   "Canonical recomputation of the force-auth-add-held-summary artifact from a
    member set. Pure projection: it reads ONLY members and options and never
-   copies identity fields, totals, or category values from any supplied summary.
+   copies identity fields, totals, triage, or category values from any supplied
+   summary.
 
    options:
      :summary-version  :v1 (default) or :v2
 
-   Returns a finalized content-addressed artifact in the requested shape,
-   computed over the validated member subset (invalid members are excluded from
-   totals and categories). This is the value check-aggregate compares a supplied
-   summary against."
+   Uses the SAME shared summary-body derivation as the builders, so for any
+   member set (all-valid, mixed-validity, verified or unverified
+   authorisations, empty) recomputation reproduces the builder output
+   byte-for-byte:
+
+     (recompute-force-auth-add-held-summary members {:summary-version :v2})
+       == (build-force-auth-add-held-summary-permissive members opts)
+       == (build-force-auth-add-held-summary members opts)   ; when all members pass
+
+   Invalid members are excluded from financial totals but are represented in the
+   :invalid-artifacts / :unverified-authorization-ids triage views exactly as
+   the builders commit them. Returns a finalized content-addressed artifact in
+   the requested shape."
   [members options]
   (let [options (or options {})
         version (resolve-summary-version options)
         members (vec (or members []))
-        {:keys [valid-indexed valid-count]} (validate-member-set members options)
-        fields (canonical-summary-fields valid-indexed (count members) valid-count)
         body (if (= version :v1)
-               {:schema-version add-held-summary-v1-schema-version
-                :artifact/kind add-held-summary-kind
-                :artifact/verifier add-held-summary-verifier-id
-                :total (:total fields)
-                :valid-count (:valid-count fields)
-                :invalid-count (:invalid-count fields)
-                :scope-verified-count (:scope-verified-count fields)
-                :scope-unverified-count (:scope-unverified-count fields)
-                :total-amount (:total-amount fields)
-                :distinct-adjustment-ids (:distinct-adjustment-ids fields)
-                :by-token (:by-token fields)
-                :by-direction (:by-direction fields)
-                :categories (select-keys (:categories fields)
-                                         add-held-summary-v1-category-keys)}
-               {:schema-version add-held-summary-schema-version
-                :artifact/kind add-held-summary-kind
-                :artifact/verifier add-held-summary-verifier-id
-                :total (:total fields)
-                :valid-count (:valid-count fields)
-                :invalid-count (:invalid-count fields)
-                :scope-verified-count (:scope-verified-count fields)
-                :scope-unverified-count (:scope-unverified-count fields)
-                :total-amount (:total-amount fields)
-                :min-amount (:min-amount fields)
-                :max-amount (:max-amount fields)
-                :missing-amount-count (:missing-amount-count fields)
-                :non-numeric-amount-count (:non-numeric-amount-count fields)
-                :negative-amount-count (:negative-amount-count fields)
-                :amount-issues (:amount-issues fields)
-                :consumed-at-earliest (:consumed-at-earliest fields)
-                :consumed-at-latest (:consumed-at-latest fields)
-                :distinct-adjustment-ids (:distinct-adjustment-ids fields)
-                :distinct-tokens (:distinct-tokens fields)
-                :distinct-accounts (:distinct-accounts fields)
-                :distinct-owners (:distinct-owners fields)
-                :by-token (:by-token fields)
-                :by-direction (:by-direction fields)
-                :amount-by-token (:amount-by-token fields)
-                :amount-by-direction (:amount-by-direction fields)
-                :amount-by-account (:amount-by-account fields)
-                :amount-by-owner (:amount-by-owner fields)
-                :categories (:categories fields)})]
+               (summary-body-v1 members)
+               (summary-body-v2 members))]
     (finalize-artifact body)))
 
 (defn check-aggregate
@@ -1212,13 +1440,13 @@
                           (if (= version :v1)
                             (v1-summary-shape-valid? summary)
                             (v2-summary-shape-valid? summary)))
-        {:keys [member-count valid-count valid-indexed invalid
+        {:keys [member-count valid-count invalid
                 duplicate-member-indexes duplicate-adjustment-indexes
                 duplicate-authorization-indexes warnings]}
         (validate-member-set members options)
         invalid-count (- member-count valid-count)
         members-valid? (zero? invalid-count)
-        fields (canonical-summary-fields valid-indexed member-count valid-count)
+        fields (force-auth-add-held-summary-fields members)
         simple-paths (if (= version :v1) v1-simple-paths v2-simple-paths)
         category-keys (if (= version :v1)
                         add-held-summary-v1-category-keys

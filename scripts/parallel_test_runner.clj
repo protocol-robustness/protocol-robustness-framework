@@ -9,7 +9,11 @@
    entirely (no disk I/O).  Use for pure unit tests.
 
    Environment variables:
-     PARALLEL_TEST_JOBS  — max concurrent namespaces (default: (dec n-cpus), min 1)
+     PARALLEL_TEST_JOBS  — max concurrent namespaces (default: min (dec n-cpus, heap-budget), min 1)
+     PARALLEL_TEST_MEM_BUDGET_MB — heap budget per concurrent namespace (default 1024)
+     PARALLEL_TEST_NS_TIMEOUT_MS — per-namespace timeout before the run is marked failed
+                                   (default 1_200_000 = 20 min; prevents an endless hang
+                                   from blocking the whole parallel run)
      KEEP_PARALLEL_TEST_ARTIFACTS — set to any truthy value to preserve temp dirs
                                     even on success (they are always kept on failure)
 
@@ -33,10 +37,29 @@
   []
   (max 1 (dec (.availableProcessors (Runtime/getRuntime)))))
 
-(defn- parse-job-limit
+(defn- memory-budget-jobs
+  "Cap concurrent jobs so each running namespace gets at least ~1 GiB of max
+   heap. Avoids OOM on high-core machines where `dec n-cpus` over-subscribes.
+   Env override: PARALLEL_TEST_MEM_BUDGET_MB (default 1024)."
   []
-  (or (some-> (System/getenv "PARALLEL_TEST_JOBS") Integer/parseInt)
-      (default-jobs)))
+  (let [budget-mb (or (some-> (System/getenv "PARALLEL_TEST_MEM_BUDGET_MB") Long/parseLong)
+                      1024)
+        budget-bytes (* budget-mb 1024 1024)
+        max-heap (.maxMemory (Runtime/getRuntime))]
+    (max 1 (quot max-heap budget-bytes))))
+
+(defn- parse-job-limit
+  "Jobs = user override (if set), else the smaller of the cpu-based default and
+   the memory budget, so we never run more namespaces than the heap can hold."
+  []
+  (if-let [env (System/getenv "PARALLEL_TEST_JOBS")]
+    (max 1 (Integer/parseInt env))
+    (max 1 (min (default-jobs) (memory-budget-jobs)))))
+
+(defn- ns-timeout-ms
+  []
+  (or (some-> (System/getenv "PARALLEL_TEST_NS_TIMEOUT_MS") Long/parseLong)
+      1200000))
 
 (defn- cleanup!
   [root]
@@ -94,7 +117,17 @@
                                 (.release sem))))))
                         (range)
                         syms)
-        results (mapv deref futures)
+        timeout-ms (ns-timeout-ms)
+        results (mapv (fn [sym fut]
+                        (let [r (deref fut timeout-ms :timeout)]
+                          (if (= r :timeout)
+                            {:sym sym
+                             :result {:test 0 :pass 0 :fail 0 :error 1}
+                             :output ""
+                             :err-output (format "TIMEOUT: %s did not complete within %dms\n"
+                                                 sym timeout-ms)}
+                            r)))
+                      syms futures)
         elapsed (- (System/currentTimeMillis) start)
         total {:test (apply + (map (comp :test :result) results))
                :pass (apply + (map (comp :pass :result) results))

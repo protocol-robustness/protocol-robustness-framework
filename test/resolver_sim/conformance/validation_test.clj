@@ -63,11 +63,15 @@
     (is (not (validation/valid? r)))))
 
 (deftest validate-layers-rules
-  (testing "duplicate validation layers are rejected"
+  (testing "duplicate validator ids are rejected"
     (let [{:keys [valid? issues]}
           (validation/validate-layers [:test.always-pass :test.always-pass] [:schema] {})]
       (is (not valid?))
-      (is (some #(= :duplicate-validation-layer (:issue/code %)) issues))))
+      (is (some #(= :duplicate-validator-id (:issue/code %)) issues))))
+  (testing "two distinct validators of the same kind are legitimate"
+    (let [r (validation/validate-layers
+             [:test.always-pass :test.always-reject] [:schema :semantic] {})]
+      (is (= 2 (count (:results r))))))
   (testing "required layers cannot be skipped"
     (let [{:keys [valid? issues]}
           (validation/validate-layers [:test.always-pass] [:schema :semantic] {})]

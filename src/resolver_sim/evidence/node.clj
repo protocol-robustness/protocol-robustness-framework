@@ -64,13 +64,14 @@
                                      (evidence_pack.clj).
 
    NOTE: The forensic/execution-dag.json (resolver-sim.forensic.execution-dag)
-   is a separate legacy DAG for scenario-run planning metadata only. It is NOT
-   the researcher-facing evidence DAG. The canonical researcher-facing DAG
+   is a separate run-plan execution DAG for scenario-run planning metadata. It is
+   NOT the researcher-facing evidence DAG. The canonical researcher-facing DAG
    abstraction is this namespace: resolver-sim.evidence.node."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.evidence.reachability :as reach]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.logging :as log]))
 
@@ -602,20 +603,6 @@
     (register-node! node)
     node))
 
-(defn- cycle-path
-  [graph node]
-  (letfn [(visit [n stack seen]
-            (cond
-              (some #{n} stack)
-              (conj (vec (drop-while #(not= n %) stack)) n)
-
-              (seen n)
-              nil
-
-              :else
-              (some #(visit % (conj stack n) (conj seen n)) (get graph n))))]
-    (visit node [] #{})))
-
 (defn validate-node
   "Validate one node against canonical hash integrity and local shape rules.
    Returns {:valid? .. :errors [...] :checks {...}}."
@@ -710,7 +697,7 @@
                                       (remove (valid-bootstraps bootstrap-roots))))])
                          nodes))
         cycle (when strict-dag?
-                (some #(cycle-path graph %) (keys graph)))
+                (reach/dag-cycle-path graph))
         errors (vec (concat (when (seq duplicates)
                               [{:error :node/duplicate-hashes
                                 :duplicates duplicates}])

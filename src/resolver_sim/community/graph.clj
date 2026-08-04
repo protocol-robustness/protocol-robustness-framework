@@ -5,7 +5,8 @@
   (:require [resolver-sim.community.task :as task]
             [resolver-sim.community.finding :as finding]
             [resolver-sim.community.attestation :as att]
-            [resolver-sim.community.mailbox :as mailbox]))
+            [resolver-sim.community.mailbox :as mailbox]
+            [resolver-sim.graph.layout :as layout]))
 
 (def ^:const schema-version "community-evidence-graph.v0")
 
@@ -142,37 +143,11 @@
      :findings findings
      :messages msgs}))
 
-(defn- node-layer
-  "Assign a display layer (y-row) based on node label prefix."
-  [label]
-  (cond
-    (.startsWith label "Research Task")      0
-    (.startsWith label "Execution Evidence")  1
-    (.startsWith label "Attestation:")        1
-    (.startsWith label "Mailbox:")            2
-    (.startsWith label "Finding:")            2
-    :else                                     3))
-
 (defn- layout-coordinates
-  "Assign deterministic x,y positions to graph nodes based on type layer.
-   Returns a map of node-id -> {:x N :y N}.
-   Nodes in the same layer are spread evenly across the width."
+  "Assign deterministic x,y positions to graph nodes based on type layer
+   (shared layout module). Returns a map of node-id -> {:x N :y N :w N :h N}."
   [nodes]
-  (let [by-layer (group-by (fn [n] (node-layer (:node/label n))) nodes)
-        layer-count (count by-layer)
-        per-layer (fn [layer layer-nodes]
-                    (let [count (count layer-nodes)
-                          spacing (max 1 (if (> count 1) (/ 500 (dec count)) 0))]
-                      (map-indexed
-                       (fn [i node]
-                         [(:node/id node)
-                          {:x (if (> count 1) (+ 50 (* i spacing)) 250)
-                           :y (+ 40 (* layer 140))
-                           :w 220 :h 40}])
-                       (vec layer-nodes))))
-        entries (mapcat (fn [layer] (per-layer layer (get by-layer layer [])))
-                        (sort (keys by-layer)))]
-    (into {} entries)))
+  (layout/layout-coordinates nodes))
 
 (defn export-graphml
   "Export a task graph projection as GraphML XML for yEd.

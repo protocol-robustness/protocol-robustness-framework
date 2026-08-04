@@ -71,36 +71,6 @@ jobs:
         timeout-minutes: 15
         run: ./scripts/test.sh invariants
 
-      - name: Integration tests
-        continue-on-error: true
-        timeout-minutes: 10
-        run: bb test:integration
-
-      - name: Contracts
-        continue-on-error: true
-        timeout-minutes: 5
-        run: ./scripts/test.sh contracts
-
-      - name: Coverage
-        continue-on-error: true
-        timeout-minutes: 5
-        run: ./scripts/test.sh coverage
-
-      - name: Triage
-        continue-on-error: true
-        timeout-minutes: 5
-        run: ./scripts/test.sh triage
-
-      - name: Monte Carlo
-        continue-on-error: true
-        timeout-minutes: 15
-        run: ./scripts/test.sh monte-carlo
-
-      - name: DR3 coverage
-        continue-on-error: true
-        timeout-minutes: 10
-        run: ./scripts/test.sh dr3-coverage
-
       - name: Run authoritative backstop (canonical invariant evidence)
         run: |
           echo "=== Running backstop:full ==="
@@ -158,6 +128,70 @@ jobs:
         with:
           name: evidence-bundle
           path: results/ci-bundle/
+          if-no-files-found: ignore
+
+  # Extended (informational, non-gating) validation targets run in parallel on
+  # their own runner VMs instead of serially inside core-validation. Each has
+  # its own workspace, so there is no shared-artifact race, and none of them
+  # gate the run (continue-on-error: true), mirroring the prior semantics.
+  extended-validation:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: integration,    cmd: "bb test:integration",       python: true,  test-timeout: 15 }
+          - { name: contracts,      cmd: "./scripts/test.sh contracts", python: true, test-timeout: 10 }
+          - { name: triage,         cmd: "./scripts/test.sh triage",    python: false, test-timeout: 10 }
+          - { name: monte-carlo,    cmd: "./scripts/test.sh monte-carlo", python: false, test-timeout: 20 }
+          - { name: dr3-coverage,   cmd: "./scripts/test.sh dr3-coverage", python: false, test-timeout: 15 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Clojure CLI
+        run: |
+          curl -fsSL https://download.clojure.org/install/linux-install-1.11.1.1413.sh -o /tmp/install-clojure.sh
+          chmod +x /tmp/install-clojure.sh
+          sudo /tmp/install-clojure.sh
+
+      - name: Install Babashka
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/babashka/babashka/master/install -o /tmp/install-bb.sh
+          chmod +x /tmp/install-bb.sh
+          sudo /tmp/install-bb.sh
+
+      - name: Setup Python
+        if: matrix.python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Run ${{ matrix.name }}
+        timeout-minutes: ${{ matrix.test-timeout }}
+        run: ${{ matrix.cmd }}
+
+      - name: Upload ${{ matrix.name }} artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-artifacts
+          path: results/test-artifacts/
           if-no-files-found: ignore
 
   coverage-gates:

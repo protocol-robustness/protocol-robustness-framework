@@ -6,7 +6,8 @@
    set against the subjects that were validated, executed, compared, and
    explicitly excluded."
   (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.conformance.environment :as environment]
+            [resolver-sim.conformance.canonical :as canonical]))
 
 ;; ---------------------------------------------------------------------------
 ;; Universe / inclusion / exclusion commitments
@@ -73,10 +74,9 @@
         excluded-set (set excluded-ids)
         partition-ok? (and (empty? (set/intersection included-set excluded-set))
                            (= (set universe) (set (concat included excluded-ids))))]
-    {:universe/root (hc/domain-hash "conformance.universe.v1" universe)
-     :included-subject-set/root (hc/domain-hash "conformance.included.v1" (vec (sort included)))
-     :exclusion-set/root (hc/domain-hash "conformance.exclusion.v1"
-                                         (vec (sort (map :subject/id excluded))))
+    {:universe/root (canonical/root universe)
+     :included-subject-set/root (canonical/root (vec (sort included)))
+     :exclusion-set/root (canonical/root (vec (sort (map :subject/id excluded))))
      :partition-ok? partition-ok?
      :included (vec included)
      :excluded excluded-ids}))
@@ -111,6 +111,7 @@
      :coverage/executed-subjects (vec executed-subjects)
      :coverage/compared-subjects (vec compared-subjects)
      :coverage/excluded-subjects excluded
+     :environment/root (environment/current-environment-root)
      :coverage/complete?
      (coverage-complete? required excluded
                          validated-subjects executed-subjects compared-subjects)}))
@@ -118,11 +119,9 @@
 (defn coverage-root
   "Content root of a coverage receipt (deterministic)."
   [receipt]
-  (hc/domain-hash "conformance.coverage.v1"
-                  (select-keys receipt
-                               [:coverage/universe-root
-                                :coverage/required-subjects
-                                :coverage/validated-subjects
-                                :coverage/executed-subjects
-                                :coverage/compared-subjects
-                                :coverage/excluded-subjects])))
+  (canonical/root
+   (select-keys receipt
+                [:coverage/universe-root :coverage/required-subjects
+                 :coverage/validated-subjects :coverage/executed-subjects
+                 :coverage/compared-subjects :coverage/excluded-subjects
+                 :environment/root])))

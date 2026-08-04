@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.contract-model.replay.temporal :as temporal]
+            [resolver-sim.contract-model.replay.analysis :as analysis]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.time.context :as time-ctx]
@@ -25,6 +26,58 @@
       (is (= 1015 (time-ctx/block-ts (:world fut))))
       (is (true? (:advanced? fut)))
       (is (= 15000 (:delta-ms fut))))))
+
+(deftest advance-world-time-rejects-regression
+  (testing "advance-world-time throws a structured :time-regression on regressive event time"
+    (let [w (time-ctx/with-temporal-context {} {:block-ts 2000})
+          ex (try
+               (temporal/advance-world-time w 1000)
+               nil
+               (catch clojure.lang.ExceptionInfo e e))]
+      (is (some? ex))
+      (is (= :time-regression (:type (ex-data ex))))
+      (is (= 2000 (:now-ts (ex-data ex))))
+      (is (= 1000 (:event-ts (ex-data ex)))))))
+
+(deftest clock-guard-rejects-when-temporal-disabled
+  (testing "regressive / malformed event times reject as trace entries (never crash) when temporal rules are off"
+    (let [world  (time-ctx/with-temporal-context {} {:block-ts 2000})
+          ctx    {:replay-flags {:temporal-enabled? false :check-invariants? false}}
+          reg    (replay/process-step sew/protocol ctx world
+                                      {:seq 0 :time 1000 :agent "alice"
+                                       :action "set-paused" :params {:paused? true}})
+          bad    (replay/process-step sew/protocol ctx world
+                                      {:seq 0 :time (java.util.Date.) :agent "alice"
+                                       :action "set-paused" :params {:paused? true}})]
+      (is (= :rejected (get-in reg [:trace-entry :result])))
+      (is (= :time-regression (get-in reg [:trace-entry :error])))
+      (is (= :non-regressive-time (get-in reg [:trace-entry :temporal-rule-id])))
+      (is (= 2000 (get-in reg [:trace-entry :time-after :block-ts]))
+          "the clock must not move on a rejected step")
+      (is (= :rejected (get-in bad [:trace-entry :result])))
+      (is (= :invalid-event-time (get-in bad [:trace-entry :error])))
+      (is (= :missing-event-time (get-in bad [:trace-entry :temporal-rule-id]))))))
+
+(deftest epoch-second-rejects-unsupported-type
+  (testing "epoch-second raises a structured :invalid-event-time for unsupported types"
+    (let [w (time-ctx/with-temporal-context {} {:block-ts 1000})
+          ex (try (temporal/advance-world-time w (java.util.Date.)) nil
+                  (catch clojure.lang.ExceptionInfo e e))]
+      (is (some? ex))
+      (is (= :invalid-event-time (:type (ex-data ex))))
+      (is (= "class java.util.Date" (:actual-type (ex-data ex)))))))
+
+(deftest time-evidence-schema-version-reflects-terminal-context
+  (testing "finalize-scenario-result labels :time-evidence with the actual terminal context version"
+    (let [v1-world {:context/time {:schema-version "temporal-context.v1"
+                                   :block-ts 5000 :step 3
+                                   :instant (java.time.Instant/ofEpochSecond 5000)}}
+          finalized (analysis/finalize-scenario-result
+                     {:scenario-id "x"}
+                     {:outcome :pass :world v1-world :trace [] :metrics {}})
+          evidence  (:time-evidence finalized)]
+      (is (= "temporal-context.v1" (:schema-version evidence)))
+      (is (= "temporal-context.v1" (get-in evidence [:terminal-time :schema-version]))))))
 
 (deftest temporal-rule-regression-rejected
   (testing "process-step rejects regressive time via temporal rule evaluation"

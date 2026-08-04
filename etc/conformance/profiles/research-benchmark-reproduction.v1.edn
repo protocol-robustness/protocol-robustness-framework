@@ -1,0 +1,40 @@
+{:profile/schema-version "conformance-profile.v1"
+ :profile/kind :research-benchmark-reproduction
+ :profile/domain-contract :research-benchmark-profile.v1
+ :profile/id :research-benchmark-reproduction.v1
+ :profile/version 1
+ :profile/fixture-contract :research-scenario.v1
+ :profile/subject-kind :benchmark-case
+
+ :profile/validators
+ [{:validator/id :research-scenario-schema
+   :validator/kind :schema
+   :validator/input-contract :research-scenario.v1
+   :validator/version 1}
+  {:validator/id :research-scenario-semantics
+   :validator/kind :semantic
+   :validator/input-contract :research-scenario.v1
+   :validator/version 1}]
+
+ :profile/transformations
+ [:scenario-to-run-plan
+  :run-to-outcome-manifest
+  :manifest-to-reproduction-result]
+
+ :profile/capabilities
+ {:required
+  [{:capability :case-set-reconstruction :version 1}
+   {:capability :outcome-root-recomputation :version 1}
+   {:capability :evidence-reference-closure :version 1}]}
+
+ :profile/comparison-policy :exact-outcome-reproduction.v1
+ :profile/verdict-policy
+ {:claim-classes [:attested :reproduced :candidate-compatible
+                  :accepted-divergence :not-evaluated]
+  :comparison-policy :exact-outcome-reproduction.v1}}
+
+;; Comparison policies (distinct claim families; never conflate):
+;;   :exact-outcome-reproduction.v1       — the same committed output
+;;   :tolerance-bounded-reproduction.v1   — numeric agreement under tolerances
+;;   :distributional-reproduction.v1      — sample/distribution comparison
+;;   :model-corroboration.v1              — compatible findings under non-identical scenarios

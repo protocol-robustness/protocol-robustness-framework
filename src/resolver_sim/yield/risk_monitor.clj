@@ -29,20 +29,26 @@
 
 (defn summary
   "Aggregate risk events by short-circuit type.
-   Returns {:short-circuit-type {:count N :total-deferred N ...}}."
+   Returns {:short-circuit-type {:count N :total-deferred N ...}}.
+
+   An event may carry multiple short-circuit types; each type contributes to its
+   own bucket, so a module that both degrades and caps is visible under both
+   types."
   []
   (let [events @*risk-events*]
     (reduce (fn [acc e]
-              (let [sc (first (:short-circuits e))
-                    row (get acc sc {:count 0 :total-deferred 0 :total-delta 0 :modules #{}})
-                    deferred (get e :deferred-delta 0)]
-                (assoc acc sc
-                       (-> row
-                           (update :count inc)
-                           (update :total-deferred + (max 0 deferred))
-                           (update :total-delta + (:yield-delta e 0))
-                           (update :modules conj (:module-id e))
-                           (update :samples (fnil conj []) (select-keys e [:ts :module-id :yield-delta :deferred-delta]))))))
+              (let [deferred (get e :deferred-delta 0)
+                    sample   (select-keys e [:ts :module-id :yield-delta :deferred-delta])
+                    add-type (fn [acc sc]
+                               (let [row (get acc sc {:count 0 :total-deferred 0 :total-delta 0 :modules #{}})]
+                                 (assoc acc sc
+                                        (-> row
+                                            (update :count inc)
+                                            (update :total-deferred + (max 0 deferred))
+                                            (update :total-delta + (:yield-delta e 0))
+                                            (update :modules conj (:module-id e))
+                                            (update :samples (fnil conj []) sample)))))]
+                (reduce add-type acc (:short-circuits e))))
             {}
             events)))
 

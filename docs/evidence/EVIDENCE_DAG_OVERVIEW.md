@@ -14,8 +14,8 @@ The DAG exists to answer four questions:
 3. What earlier evidence does it depend on?
 4. Can another runner, reviewer, or researcher verify the same chain of facts?
 
-The canonical implementation is `resolver-sim.evidence.node`. The older
-`resolver-sim.forensic.execution-dag` output is a separate planning artifact for
+The canonical implementation is `resolver-sim.evidence.node`. The separate
+`resolver-sim.forensic.execution-dag` output is a run-planning artifact for
 scenario-run metadata. It is not the canonical researcher-facing evidence DAG.
 
 ## Core Model
@@ -154,7 +154,7 @@ Canonical DAG nodes are not:
 - private researcher notes
 - mechanism summary tables
 - benchmark-local presentation fields
-- the legacy `forensic/execution-dag.json` planning artifact
+- the run-plan `forensic/execution-dag.json` artifact
 
 This boundary matters because the same evidence DAG must support multiple
 views: forensic verification, researcher navigation, benchmark reporting,

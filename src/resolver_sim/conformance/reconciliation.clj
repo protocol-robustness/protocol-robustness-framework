@@ -24,7 +24,9 @@
      - a failed or missing prerequisite makes downstream successful receipts
        inadmissible (dependency-mismatch);
      - the claim binds :reconciliation/root, not merely the plan fingerprint."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.conformance.registry :as registry]
+            [resolver-sim.conformance.environment :as environment]
+            [resolver-sim.conformance.canonical :as canonical]))
 
 (defn admissible-receipt?
   "True when a receipt is admissible for a required subject set and root.
@@ -36,9 +38,6 @@
 
 (defn- plan-step-ids [plan]
   (mapv :step/id (:steps plan)))
-
-(defn- skippable-step-ids [plan]
-  (set (map :step/id (filter :skippable? (:steps plan)))))
 
 (declare reconciliation-root)
 
@@ -60,7 +59,6 @@
   (let [required (set (:subjects subject-set))
         subject-set-root (:subject-set/root subject-set)
         plan-ids (plan-step-ids plan)
-        skippable (skippable-step-ids plan)
         by-step (group-by :step/id observed)
         admissible (fn [r] (admissible-receipt? r required subject-set-root))
         admissible-for (fn [step-id]
@@ -129,7 +127,8 @@
                  (empty? unexpected-steps)
                  (empty? subject-mismatches)
                  (empty? dependency-mismatches))
-        result {:reconciliation/status (if ok? :pass :fail)
+        result {:schema-version "conformance.reconciliation/v1"
+                :reconciliation/status (if ok? :pass :fail)
                 :plan/root (:plan/root plan)
                 :planned-step-ids plan-ids
                 :observed-step-ids (vec (map :step/id observed))
@@ -139,23 +138,20 @@
                 :subject-mismatches subject-mismatches
                 :dependency-mismatches dependency-mismatches
                 :terminal-receipts (vec (mapv #(select-keys % [:step/id :subject/id :subject/root])
-                                              terminal-receipts))}]
+                                              terminal-receipts))
+                :implementation-registry/root (registry/registry-root)
+                :environment/root (environment/current-environment-root)}]
     (assoc result :reconciliation/root (reconciliation-root result))))
 
 (defn reconciliation-root
   "Content root of a reconciliation result (deterministic, canonical)."
   [reconciliation]
-  (hc/domain-hash "conformance.reconciliation.v1"
-                  (select-keys reconciliation
-                               [:plan/root
-                                :planned-step-ids
-                                :observed-step-ids
-                                :missing-steps
-                                :unexpected-steps
-                                :duplicate-steps
-                                :subject-mismatches
-                                :dependency-mismatches
-                                :terminal-receipts])))
+  (canonical/root
+   (select-keys reconciliation
+               [:schema-version :plan/root :implementation-registry/root
+                :environment/root :planned-step-ids :observed-step-ids
+                :missing-steps :unexpected-steps :duplicate-steps
+                :subject-mismatches :dependency-mismatches :terminal-receipts])))
 
 (defn passed?
   [reconciliation]

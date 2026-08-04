@@ -54,6 +54,18 @@
     (is (some #(= :unsupported-cdrs-version (:issue/code %))
               (get-in results [0 :validation/issues])))))
 
+(deftest structural-layer-rejects-non-integer-fee-bps
+  (let [{:keys [results]} (validators/validate-fixture (assoc good-fixture :fee_bps "100"))]
+    (is (= :rejected (get-in results [0 :validation/status])))
+    (is (some #(= :fee-bps-not-integer (:issue/code %))
+              (get-in results [0 :validation/issues])))))
+
+(deftest structural-layer-rejects-negative-fee-bps
+  (let [{:keys [results]} (validators/validate-fixture (assoc good-fixture :fee_bps -1))]
+    (is (= :rejected (get-in results [0 :validation/status])))
+    (is (some #(= :fee-bps-negative (:issue/code %))
+              (get-in results [0 :validation/issues])))))
+
 (deftest semantic-layer-rejects-undefined-alias
   (let [{:keys [results]} (validators/validate-fixture
                            (assoc-in good-fixture [:steps 1 :attributes :wf_alias] "wf9"))]

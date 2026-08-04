@@ -1,359 +1,509 @@
-# Resolver Overflow and Force-Authorisation
+# Over-Capacity Capability Lifecycle and Force-Authorisation
 
-Two exceptional liveness mechanisms for dispute resolution when the primary
-resolver path is unavailable or at capacity.
+> **Scope note — implementation status.** This document is the **target contract** for
+> the over-capacity failover path: a coherent *capability lifecycle*, not a set of
+> isolated checks. The current Sew code still exposes the earlier record-based overflow
+> (`authorized-overflow-resolver?` in
+> `protocols_src/resolver_sim/protocols/sew/authority.clj`, `activate-resolver-overflow` /
+> `execute-overflow-resolution` in `protocols_src/resolver_sim/protocols/sew.clj`).
+> Migration to the lifecycle described here is in progress. Where the code differs, this
+> document describes the intended design and the worked example uses the target model.
 
 ---
 
-## 1. Resolver Overflow
+## 0. The central model
 
-### What it is
+```
+verified force-authorisation ──▶ durable overflow capability ──▶ bounded executions
+                                          │
+                                          ▼
+                          exhaustion │ expiry │ revocation
+```
 
-A governance-authorized failover mechanism. When a primary resolver is
-overcapacity (or otherwise unavailable), governance can activate an overflow
-record that allows designated failover resolvers to resolve disputes assigned
-to the overloaded resolver.
+Over-capacity mode is **not** "a governance action that flips a flag". It is a
+content-addressed, integrity-protected **capability** that is *minted from a
+consumed force-authorisation* and then *spent within hard bounds*:
 
-### Why it's needed
+1. **Verified force-authorisation** — governance grants a `:capacity-failover`
+   class force-authorisation binding the primary resolver, the exact failover set,
+   the requested workflow cap, the requested window, and the policy identity.
+2. **Durable overflow capability** — governance activates the overflow by
+   referencing that authorisation. Activation *verifies* the grant through the same
+   shared machinery as other force-authorised actions, *derives* the capacity
+   context from live world state, *atomically consumes* the grant, and mints the
+   capability record. The consumed grant is a **one-time** act; the capability is the
+   durable, bounded, multi-use authorization.
+3. **Bounded executions** — a listed failover resolver resolves a workflow *only if*
+   the capability verifies end-to-end (integrity, binding, scope, window, cap,
+   policy, state).
+4. **Exhaustion, expiry, or revocation** — the capability terminates when its
+   workflow cap is spent, its time window closes, or governance revokes it. There is
+   no transition out of a terminal state.
 
-Without overflow, a resolver at capacity creates a liveness deadlock: disputes
-assigned to that resolver cannot be resolved, funds remain locked, and the
-protocol stalls. Overflow provides a governance-controlled escape hatch
-without requiring permanent resolver reassignment.
+---
 
-### Where it's implemented
+## 1. How force-authorisation authorises over-capacity
 
-| Component | File | Role |
-|---|---|---|
-| Overflow authorization logic | `protocols_src/resolver_sim/protocols/sew/authority.clj:154-190` | `authorized-overflow-resolver?` and `active-overflows-for` |
-| Governance activation action | `protocols_src/resolver_sim/protocols/sew.clj:487-545` | `apply-action "activate-resolver-overflow"` |
-| Overflow resolution action | `protocols_src/resolver_sim/protocols/sew.clj:670-721` | `apply-action "execute-overflow-resolution"` |
-| Overflow record type | `protocols_src/resolver_sim/protocols/sew/types.clj:272-274` | World state keys `:resolver-overflows`, `:next-overflow-id` |
-| Invariant coverage | `protocols_src/resolver_sim/protocols/sew/invariants.clj:1222` | `dispute-resolution-path-exists?` includes active overflows |
-| Execution provenance | `protocols_src/resolver_sim/protocols/sew/resolution.clj:611` | `apply-resolution-transition` with `:resolution-source :resolver-overflow` |
-| Scenario tests | `scenarios/edn/DR-O-001-*`, `DR-O-002-*` | Basic success and cap-exhaustion paths |
-| Unit tests | `protocols_src/test/.../authority_test.clj:148-275` | 15 authorization-scoping tests |
+The force-authorisation machinery is the **source of authority**; the overflow
+capability is the **delegated, policy-bounded artifact** it produces.
 
-### Overflow record shape
+### 1.1 A `:capacity-failover` grant
+
+A normal force-authorisation is workflow-scoped and amount-bound (a single held
+custody movement). An over-capacity grant is a different *scope-kind*:
 
 ```clojure
-{:overflow-id         integer        ; unique identifier
- :resolver            address        ; primary resolver being overflowed
- :reason              keyword        ; reason for overflow activation
- :authorized-by       address        ; governance actor who activated
- :created-at          integer        ; block timestamp of creation
- :starts-at           integer        ; when overflow window opens
- :expires-at          integer        ; when overflow window closes
- :max-workflows       integer        ; cap on number of resolutions
- :failover-resolvers  #{address}     ; set of authorized failover actors
- :used-workflows      #{wf-id}       ; workflows already resolved under this overflow
- :status              keyword        ; :active, :exhausted, or :revoked
- :authorization/provenance  map      ; governance authorization provenance
- :authorization/last-provenance map ; most recent provenance
- :authorization/last-action   string ; most recent action
- :authorization/history  [map]      ; full provenance history}
+{:authorization/id          "fa-0"
+ :authorization/type        :force-authorisation
+ :authorization/class       :capacity-failover        ; ← delegation class
+ :authorization/scope-kind  :capacity-failover         ; ← not a held-adjustment scope
+ :authorization/status      :active
+ :reason                    :resolver-overcapacity
+ :allowed-action            "activate-resolver-overflow"
+ :authorization/scope       {:authorization/id          "fa-0"
+                             :authorization/type        :force-authorisation
+                             :authorization/class       :capacity-failover
+                             :authorization/scope-kind  :capacity-failover
+                             :overflow/resolver         "0xResolver"
+                             :overflow/failover-resolvers #{"0xFailover"}
+                             :overflow/max-workflows    2
+                             :overflow/expires-at       4685
+                             :overflow/capacity-policy-id "overflow-policy.v1"}
+ :authorization/scope-hash  <domain-hash over scope>
+ :starts-at                 1085
+ :expires-at                4685
+ :created-by                "0xGov"
+ :nonce                     "fa-0"
+ :consumed?                 false
+ :authorization/provenance  {governance envelope,
+                             :authorization/class :capacity-failover,
+                             :authorization/assurance :address-bound}}
 ```
 
-### How it works (end-to-end)
+The grant commits the **request** — who is authorized (failover set), over which
+primary, how many workflows, for how long, under which policy — via a scope-hash.
+Because it is `:capacity-failover` (not `:interactive-override`), it is never a
+single specific intervention: it is a template that activation converts into a
+bounded capability.
 
-1. **Detection** — A resolver reaches capacity (`current-active >= max-concurrent`).
-   Disputes destined for that resolver start failing with `:resolver-capacity-exceeded`.
+### 1.2 Grant → activate → consume
 
-2. **Governance activation** — A governance actor calls `activate-resolver-overflow`
-   with the overloaded resolver address, a reason, and (optionally) a list of
-   failover resolvers. The action is gated by `with-governance-actor` and
-   produces a signed governance authorization envelope.
+Activation does **not** trust a caller-supplied reason or capacity claim:
 
-   Default policy (from `:resolver-overflow-policy` in context):
-   - `:max-workflows` — 500
-   - `:default-duration` — 3600 seconds
-   - `:allowed-reasons` — `#{:resolver-overcapacity}`
-
-   A warning is logged if the resolver is not actually at capacity.
-
-3. **Failover resolution** — A listed failover resolver calls
-   `execute-overflow-resolution` with a workflow-id and overflow-id.
-   The authorization check (`authorized-overflow-resolver?`) verifies:
-
-   - Overflow record exists and status is `:active`
-   - Current time is within `[starts-at, expires-at)`
-   - `count(used-workflows) < max-workflows`
-   - Workflow-id not already in `used-workflows`
-   - Caller is in `failover-resolvers`
-   - Workflow's `dispute-resolver` matches the overflow's `resolver`
-   - Workflow state is `:disputed`
-
-4. **Execution** — On success, delegates to `apply-resolution-transition` with
-   `:resolution-source :resolver-overflow`. The overflow record is updated:
-   `used-workflows` gains the workflow-id, and `status` transitions to
-   `:exhausted` if the cap is reached. Execution provenance (schema version
-   `execution-provenance.v1`, type `:forced-capacity-failover`) is written
-   to both the escrow resolution and the overflow record history.
-
-5. **Termination** — An overflow ends when `expires-at` is reached, the
-   `max-workflows` cap is exhausted (`:exhausted` status), or (in tests)
-   via `:revoked` status (no action exists yet for governance revocation).
-
-### Authorization scope
-
-The overflow authorization is scoped by all of:
-- **Actor** — only `failover-resolvers` may execute
-- **Workflow** — only workflows whose primary resolver matches the overflow's resolver
-- **Time** — bounded window `[starts-at, expires-at)`
-- **Quantity** — capped at `max-workflows`
-- **Replay** — single-use per workflow (ids in `used-workflows` are rejected)
-- **State** — workflow must be in `:disputed` state
-
----
-
-## 2. Force-Authorisation
-
-### What it is
-
-An explicit, scoped, expiring, single-use authorization record for exceptional
-protocol actions. Unlike overflow (which delegates to pre-listed failover
-resolvers), force-authorisation is a general-purpose governance-authorized
-override that binds to a specific workflow, action, token, amount, and direction.
-
-### Why it's needed
-
-Some situations require protocol-level intervention beyond what overflow can
-cover: the primary resolver is not just overcapacity but frozen, the circuit
-breaker is active, the resolver is unavailable, or a governance-ordered
-correction is needed. Force-authorisation provides a replayable, auditable
-escape hatch with cryptographic evidence at every step.
-
-### Where it's implemented
-
-| Component | File | Role |
-|---|---|---|
-| Grant action | `protocols_src/resolver_sim/protocols/sew.clj:547-619` | `apply-action "grant-force-authorization"` |
-| Revoke action | `protocols_src/resolver_sim/protocols/sew.clj:621-663` | `apply-action "revoke-force-authorization"` |
-| Execute action | `protocols_src/resolver_sim/protocols/sew.clj:665-749` | `apply-action "execute-force-authorized-action"` |
-| Authorization record | `protocols_src/resolver_sim/protocols/sew/types.clj:275-277` | World state keys `:force-authorisations`, `:next-force-authorisation-id` |
-| Scope validation | `protocols_src/resolver_sim/protocols/sew/accounting.clj:327-361` | `adjust-held` scope-hash check and consumption |
-| Evidence | Built into each action | `:force-authorisation-granted`, `-revoked`, `-executed` |
-| Unit tests | `protocols_src/test/.../accounting_test.clj:236-415` | 4 force-auth scope and consumption tests |
-
-### Force-authorisation record shape
-
-```clojure
-{:authorization/id           string       ; unique identifier "fa-<n>"
- :authorization/type         :force-authorisation
- :authorization/source       :governance
- :authorization/status       :active | :consumed | :revoked
- :workflow-id                integer      ; bound to specific workflow
- :allowed-action             string       ; action authorized (only "execute-resolution")
- :authorization/scope        map          ; immutable grant-time custody movement
- :authorization/scope-hash   string       ; domain hash of the exact scope
- :nonce                      string       ; replay-protection nonce (= auth-id)
- :starts-at                  integer      ; earliest valid execution time
- :expires-at                 integer      ; latest valid execution time (nil = no expiry)
- :created-at                 integer      ; grant timestamp
- :created-by                 address      ; governance actor who granted
- :reason                     keyword      ; reason for force-authorisation
- :consumed?                  boolean      ; execution guard
- :authorization/provenance   map          ; governance authorization provenance
- :authorization/last-provenance map
- :authorization/last-action  string
- :authorization/history      [map]        ; full provenance history
- ;; Set on execution:
- :executed-by                address
- :executed-at                integer
- :execution/is-release       boolean
- :execution/provenance       map          ; structured execution provenance
- :execution/last-provenance  map
- :execution/last-action      string
- :execution/history          [map]}
-```
-
-### How it works (end-to-end)
-
-1. **Grant** — Governance calls `grant-force-authorisation` with a disputed
-   workflow-id, reason, settlement direction (`:is-release`), and timing
-   parameters (`:starts-at`, `:expires-at` XOR `:duration`). The action is gated
-   by `with-governance-actor`, derives the exact custody movement from the
-   current escrow, and persists both the immutable scope and its domain hash in
-   `world[:force-authorisations]`. A grant cannot be created for a nonexistent
-   or non-disputed workflow, an unsupported action/reason, or an invalid time
-   window. Emits `:force-authorisation-granted` evidence.
-
-2. **Revoke** (optional) — Governance calls `revoke-force-authorization` with an
-   auth-id. Sets status to `:revoked`. Emits `:force-authorisation-revoked`
-   evidence.
-
-3. **Execute** — Any resolved actor (not governance-gated) calls
-   `execute-force-authorized-action`. Eight checks must pass:
-
-   - Authorization record exists
-   - Status is `:active`
-   - `:consumed?` is `false`
-   - Workflow-id matches
-   - Allowed action matches (`execute-resolution`)
-   - Current time >= `:starts-at` (not-yet-started rejected)
-   - Current time < `:expires-at` (expired rejected)
-   - Not already consumed in accounting layer (`:force-authorisations/consumed`)
-
-   On success, derives the execution scope and requires it to equal the
-   immutable grant scope and hash (`:authorization/id`, `:authorization/type`,
-   `:held/direction`, `:token`, `:amount`, `:held/account`, `:owner/address`,
-   `:held/reason`, `:held/workflow-id`) before delegating to
-   `apply-resolution-transition` with `:resolution-source :force-authorised`.
-
-   Execution records provenance but leaves the grant active while the resolution
-   awaits settlement. At finalization, the accounting layer independently reloads
-   the live authorization record and verifies that it exists, is active and
-   in-window, has not been consumed, and commits to the exact actual held
-   adjustment. It then atomically records the adjustment and consumption (dual
-   guard: record flag `:consumed?` and accounting-level
-   `:force-authorisations/consumed` map). `:force-authorisation-executed`
-   evidence records the execution event; the linked held adjustment is the
-   authoritative consumption record.
-
-### Authorization scope (scope-hash)
-
-The scope-hash cryptographically binds the authorization to:
-
-```
-{:authorization/id     — unique authorization identifier
- :authorization/type   — :force-authorisation
- :held/direction       — :out (sub-held)
- :token                — token address
- :amount               — exact custody amount (:amount-after-fee)
- :held/account         — :escrow-principal
- :owner/address        — recipient of the settlement
- :held/reason          — :force-authorised-release or :force-authorised-refund
- :held/workflow-id     — workflow being resolved}
-```
-
-This is a **grant-time commitment**, not an execution-time checksum. It proves
-not just *that* governance approved an override, but *exactly which custody
-movement* was authorized — which token, how much, to whom, for which escrow.
-A release-scoped grant cannot later be executed as a refund.
-
----
-
-### Lifecycle state machine
-
-A force-authorisation has persisted states `:active`, `:consumed`, and
-`:revoked`. Its effective state is additionally **expired** when the current
-block time is at or after `:expires-at`; expiry is intentionally derived rather
-than a mutable state transition. Only an active, in-window record can execute.
-
-```text
-active --execute/atomic custody adjustment--> consumed
-active --governance revoke------------------> revoked
-active --time reaches expiry----------------> effectively expired
-```
-
-`consumed` and `revoked` are terminal. A consumed record must have exactly one
-matching held adjustment and consumption-registry entry; the adjustment must
-carry the record's immutable scope hash. An active record must have neither.
-These conditions are checked by the
-`:force-authorisations-lifecycle-consistent` world invariant.
-
-### Held-custody enforcement
-
-`add-held` and `sub-held` are the canonical custody mutation primitives. Every
-reason governed by the held-position policy derives a custody account and a
-position identifier. An outflow must satisfy both of these conditions before
-it is appended to the ledger:
-
-1. the token-wide `:total-held` balance covers the amount; and
-2. the derived custody position covers the amount.
-
-For address-scoped reasons, `:owner/address` is mandatory. A caller cannot
-supply an account conflicting with the reason policy, and an adjustment with
-incomplete position scope is rejected. These checks prevent an outflow for one
-workflow or bond position from being funded by another position that happens
-to hold the same token. The `:terminal-workflow-custody-closed` invariant also
-requires the terminal workflow's `:escrow-principal` position to be zero;
-deferred yield remains represented by the yield-liability model rather than as
-residual principal custody.
-
-Each custody artifact is content-addressed and includes the prior artifact hash,
-forming an ordered, tamper-evident custody chain. Forced artifacts retain the
-authorization ID, scope hash, workflow, action, and source needed to establish
-which grant justified the movement.
-
-When `:held-adjustments/complete?` is declared, replay reconstruction and the
-artifact's deterministic closed-form checks are mandatory. A complete ledger
-therefore cannot pass while its materialized views, artifact hashes, local
-deltas, or ordered replay are inconsistent.
-
-### Forensic bundle witness
-
-For any run with force-authorisation state, the bundle root contains a
-scenario-keyed `:protocol/state` witness with authorization records,
-consumption records, and canonical forced held adjustments. Scenario keys avoid
-collisions from deterministic local IDs such as `fa-0`. It commits to each
-section in `:protocol/state-hashes`, including `:held-adjustments/hash`, and to
-the JSON-native witness with `:protocol/state-witness-hash` (standard SHA-256
-of canonical sorted JSON). The latter is independently recomputed by the Python
-validator. `forensic:validate` requires this witness when force-authorisation
-evidence exists and verifies authorization → consumption → adjustment links,
-as well as their agreement with grant/revoke/execute evidence.
-
----
-
-## 3. Authorization Sources — Comparison
-
-| Aspect | `with-governance-actor` | `authorized-overflow-resolver?` | Force-authorisation |
-|---|---|---|---|
-| **Gates** | `activate-resolver-overflow`, `grant-force-authorization`, `revoke-force-authorization`, etc. | `execute-overflow-resolution` | `execute-force-authorized-action` |
-| **Who is authorized** | Any agent satisfying `governance-pred` (`:full` mode = all agents; `:restricted` mode = governance role) | Actors listed in `:failover-resolvers` on the overflow record | Any resolved actor (the authorization record itself provides authority) |
-| **What it authorizes** | Creating/altering protocol governance state | Resolving a specific workflow under a specific overflow | Executing a pre-authorized action bound to a specific workflow and amount |
-| **Provenance schema** | `governance-authorization.v1` | `execution-provenance.v1` | `force-authorisation.v2` |
-| **Provenance type** | `:governance` | `:forced-capacity-failover` | `:force-authorisation` |
-| **Evidence** | Captured by downstream action handlers | Captured by `apply-resolution-transition` | Explicit evidence at grant, revoke, AND execute |
-| **Scope mechanism** | Role-based (governance actor) | Record-based (overflow record with failover list, cap, time window) | Record-based + cryptographic scope-hash binding token, amount, direction, recipient |
-| **Consumption model** | N/A (governance actions modify state once) | Per-workflow dedupe via `used-workflows` set; cap via `max-workflows` | Dual guard: record `:consumed?` flag AND accounting-level `:force-authorisations/consumed` map |
-| **Time bounds** | N/A | `:starts-at` / `:expires-at` window | `:starts-at` / `:expires-at` window |
-| **Use case** | Day-to-day governance operations | Resolver overcapacity failover | Exceptional recovery (frozen resolver, circuit breaker, governance correction) |
-
-### When to use each
-
-- **`with-governance-actor`** — Standard governance actions: activating overflow,
-  rotating resolvers, pausing protocol, updating fees. The actor's role is the
-  sole authorization check.
-
-- **`authorized-overflow-resolver?`** — Resolver capacity failover only.
-  Requires a pre-existing overflow record activated by governance. The
-  authorization is scoped to specific failover actors, a specific primary
-  resolver, a time window, and a resolution cap.
-
-- **Force-authorisation** — Exceptional override when the normal authorization
-  path cannot work (resolver frozen, circuit breaker active, resolver
-  unavailable, governance-ordered correction). Requires a pre-existing
-  authorization record granted by governance. The authorization is bound to a
-  specific workflow, token, amount, and direction via cryptographic scope-hash.
-  Full evidence trail at every step.
-
----
-
-## 4. Interaction Between Overflow and Force-Authorisation
-
-Overflow and force-authorisation are complementary, not redundant:
-
-- **Overflow** solves the common case: resolver is busy but functional.
-  Governance pre-authorizes a list of alternates, and any of them can step in
-  until the cap or time window expires.
-
-- **Force-authorisation** solves the exceptional case: resolver is frozen,
-  circuit breaker is active, or governance needs to order a specific outcome.
-  The authorization is workflow-scoped and amount-bound — far narrower than
-  overflow.
-
-In practice: overflow handles routine capacity spikes; force-authorisation
-handles incidents and recovery.
-
----
-
-## 5. Known Gaps
-
-| Gap | Description |
+| Step | Check |
 |---|---|
-| No `revoke-resolver-overflow` action | `:revoked` status exists and is tested but no action sets it. Overflow can only expire or exhaust. |
-| Generic error on cap exhaustion | Overflow cap exhaustion returns `:not-authorized-resolver` (shared with other resolver auth failures) instead of a dedicated `:overflow-cap-exhausted`. |
-| No automatic overflow trigger | Activation is governance-only. No automatic trigger when `resolver-at-capacity?` becomes true. |
-| No overflow queue | Disputes arriving while a resolver is at capacity are rejected. No pending queue. The overflow mechanism only handles disputes *already raised*. |
+| Policy gate | Overflow policy `:enabled?` must be `true`; reason must be in `:allowed-reasons` (`:resolver-overcapacity`); failover set must be non-empty. |
+| Grant existence & class | Grant record exists, `:authorization/class` is `:capacity-failover`, scope-kind is `:capacity-failover`. |
+| Grant status | `:active`, `:consumed? false`, not present in `:force-authorisations/consumed`. |
+| Grant window | `now` within `[starts-at, expires-at)`. |
+| Scope binding | Recomputed `:authorization/scope-hash` equals the stored hash; `:authorization/scope` matches the grant. |
+| Policy identity | The grant's committed `:overflow/capacity-policy-id` equals the policy currently committed in the execution context. |
+| Governance authority | The grant carries a `:with-governance-actor` / `:governance` provenance envelope. |
+| Capacity, derived | Capacity context is **derived from live world state** (`current-active`, `max-concurrent`, disputed-count, committed threshold) — the resolver must be demonstrably at capacity. |
+| Policy caps | Requested duration ≤ `:max-duration`; requested workflow count ≤ `:max-workflows`. Excessive values are **rejected**, not clamped. |
+
+On success, activation **atomically**:
+
+1. mints the capability record (Section 2) and persists it under
+   `world[:resolver-overflows overflow-id]`, and
+2. consumes the grant — writing a `:force-authorisations/consumed` entry with
+   `:consumption/kind :overflow-activation` and the new capability id, and setting
+   the grant `:consumed? true`, `:authorization/status :consumed`.
+
+The grant is consumed **once, at activation** — never once per overflow execution.
+This is what turns a single authorization into a bounded multi-use capability.
+
+### 1.3 Two distinct authorization classes
+
+| Class | Meaning |
+|---|---|
+| `:capacity-failover` | Creates a policy-bounded, **delegated** capability (this mechanism). |
+| `:interactive-override` | Authorises a **specific interactive intervention** (the REPL `force-authorised` path for `execute-resolution`). |
+
+Both may carry the textual reason `:resolver-overcapacity`, but they are different
+authorization classes with different provenance and different consumption. They are
+**not** relabeled into each other.
+
+---
+
+## 2. Overflow capability schema
+
+The capability is a **content-addressed record**: a canonical preimage (the whole
+record minus its self-hash) and an independently recomputable domain hash. Any
+direct injection or mutation of a persisted record breaks the hash and is rejected
+at the verifier.
+
+```clojure
+{:overflow-id                      n                 ; world map key / short id
+ :overflow-capability/version      "overflow-capability.v1"
+ :overflow-capability/id           "oc-<n>"          ; stable capability id
+ :overflow-capability/hash         <hex>             ; SHA-256 domain-hash over preimage
+
+ ;; originating authorisation binding
+ :authorization/id                 "fa-0"            ; consumed grant id
+ :authorization/class              :capacity-failover
+ :authorization/hash               <hex>             ; content hash of the consumed grant scope
+
+ ;; delegation surface
+ :resolver                         "0xResolver"      ; primary resolver
+ :failover-resolvers               #{"0xFailover"}   ; exact failover set (committed)
+
+ ;; committed workflow scope
+ :workflow-scope                   #{0 1}            ; workflows disputed+assigned to primary at activation
+ :workflow-scope-root              <hex>             ; committed predicate root (scope semantics + set)
+
+ ;; derived capacity context
+ :capacity-context                 {:resolver "0xResolver"
+                                    :capacity-threshold :at-max-concurrent
+                                    :current-active 2
+                                    :max-concurrent 2
+                                    :disputed-count 2
+                                    :at-capacity? true}
+ :capacity-context-hash            <hex>             ; domain-hash over the context above
+
+ ;; committed policy identity
+ :capacity-policy-id               "overflow-policy.v1"
+ :capacity-policy-version          "v1"
+
+ ;; bounds
+ :created-at                       1090
+ :issued-at                        1090
+ :starts-at                        1090
+ :expires-at                       4685              ; must be non-nil, numeric
+ :max-workflows                    2
+
+ ;; lifecycle state (mutable, recomputed + re-hashed on every transition)
+ :used-workflows                   #{0}
+ :execution-count                  1
+ :status                           :active           ; :active | :exhausted | :revoked
+ :reason                           :resolver-overcapacity
+
+ ;; provenance + evidence
+ :authorized-by                    "0xGov"
+ :authorization/provenance         {...}             ; activation governance envelope
+ :revocation                       nil               ; nil | {:reason .. :by .. :at .. :provenance ..}
+ :overflow-capability/executions   [{...execution evidence...}]}
+```
+
+Every field is a canonical-safe value, so `:overflow-capability/hash` is a
+deterministic `SHA-256(domain || canonical-bytes(record minus self-hash))`.
+Mutation of **any** committed field — body or lifecycle state — changes the
+recomputed hash and fails verification.
+
+---
+
+## 3. Activation — verification rules
+
+`apply-action "activate-resolver-overflow"` (governance-gated via
+`run-governance-action`):
+
+1. **Policy authority**
+   - `:resolver-overflow-policy :enabled?` must be `true`, else `:overflow-disabled`.
+   - `:reason` must be in `:allowed-reasons`, else `:unauthorized-overflow-reason`.
+   - failover set (params or policy) must be non-empty, else `:no-failover-resolvers`.
+2. **Verified grant** — the event references `:authorization-id`; the grant must
+   satisfy every check in Section 1.2 (class, status, window, scope-hash, policy
+   identity, governance provenance).
+3. **Derived capacity** — capacity context is computed from
+   `world[:resolver-capacities resolver]` and the disputed escrows assigned to the
+   resolver, under the policy's committed `:capacity-threshold`. The resolver must
+   be demonstrably at capacity, else `:resolver-not-over-capacity`. A caller-forged
+   capacity context cannot pass: the context is re-derived, hashed, and committed.
+4. **Policy caps** — requested `max-workflows` ≤ `:max-workflows`, requested
+   duration ≤ `:max-duration`; both enforced at activation (defaults may supply the
+   requested values but never bypass the caps).
+5. **Atomic mint + consume** — the capability is constructed through the validated
+   constructor (integrity hash computed), persisted, and the grant is consumed in
+   the same transition.
+
+Emergency override when capacity *cannot* be derived is **not** a weakened
+`:capacity-failover`: it must be modeled as a separate explicit authorization class
+or reason. `:capacity-failover` always requires demonstrable over-capacity.
+
+---
+
+## 4. Execution — verification rules
+
+`apply-action "execute-overflow-resolution"` (any resolved actor) delegates to a
+detailed verifier. The checks run in order; the first failure wins and returns a
+**structured failure reason**, never a blanket `:not-authorized-resolver`:
+
+| # | Check | Failure code |
+|---|---|---|
+| 1 | Record has the capability schema (version, id, hash) | `:invalid-overflow-capability` |
+| 2 | Recomputed content hash equals `:overflow-capability/hash` (detects direct injection and any mutation) | `:invalid-overflow-capability` |
+| 3 | `:authorization/class` is `:capacity-failover` | `:wrong-authorization-class` |
+| 4 | Originating grant exists, was consumed **for this capability** (consumption entry references this capability id; grant's content hash matches) | `:invalid-overflow-capability` |
+| 5 | Status is `:active` | `:revoked-overflow-capability` / `:exhausted-overflow-capability` |
+| 6 | `:expires-at` and `:starts-at` are present, numeric, non-nil; `now` within window (fails closed, never throws) | `:expired-overflow-capability` / `:invalid-overflow-capability` |
+| 7 | Workflow's `:dispute-resolver` equals the capability's primary | `:primary-resolver-mismatch` |
+| 8 | Caller is in `:failover-resolvers` | `:resolver-not-authorized` |
+| 9 | Workflow is in the committed `:workflow-scope` | `:workflow-out-of-scope` |
+| 10 | Workflow is `:disputed` and assigned to the primary | `:workflow-not-disputed` |
+| 11 | Workflow not already in `:used-workflows` | `:workflow-already-consumed` |
+| 12 | `execution-count < max-workflows` and state consistent with the committed scope | `:exhausted-overflow-capability` |
+| 13 | `:capacity-policy-id` is still the policy committed at activation | `:overflow-policy-mismatch` |
+
+A malformed numeric field (e.g. missing `:expires-at`) **fails closed** with
+`:invalid-overflow-capability` rather than throwing a comparison exception.
+
+On success, execution atomically updates `:used-workflows`, increments
+`:execution-count`, transitions status to `:exhausted` when the cap is reached,
+appends execution evidence, and **recomputes the content hash** before delegating to
+`apply-resolution-transition` with `:resolution-source :resolver-overflow`.
+
+Execution does **not** re-prove that the resolver is still over capacity at that
+later time — it proves that the capability was **validly created from derived
+capacity state** and remained active for this execution.
+
+---
+
+## 5. Lifecycle transition table
+
+| From | To | Trigger | Notes |
+|---|---|---|---|
+| `:active` | `:exhausted` | execution reaches `max-workflows` | automatic, atomic with the spending execution |
+| `:active` | `:revoked` | governance `revoke-resolver-overflow` | explicit, evidence-linked |
+| `:active` | *effectively expired* | time reaches `:expires-at` | derived, not a stored transition |
+| `:revoked` | — | — | terminal, no transition |
+| `:exhausted` | — | — | terminal, no transition |
+
+Transitions are validated centrally by a transition validator; any attempt to move
+out of a terminal state is rejected with a precise result (`:revoked-overflow-capability` /
+`:exhausted-overflow-capability`), and revocation is idempotent or returns an exact
+already-terminal result.
+
+---
+
+## 6. Revocation
+
+`revoke-resolver-overflow` is a governance action (via `run-governance-action`):
+
+- validates the capability exists and is `:active`;
+- records `:revocation {:reason .. :by <governance addr> :at <ts> :provenance ..}` and
+  sets status `:revoked` (transition validator enforced);
+- recomputes the content hash;
+- emits evidence linking the governance action, capability id, prior status, new
+  status, and revocation reason.
+
+Revoking does not un-consume the originating grant — the grant was already consumed
+at activation. It simply terminates the delegated capability early.
+
+---
+
+## 7. Replay / idempotency design
+
+Activation, execution, and revocation are **replay-sensitive** actions with
+deterministic idempotency identities:
+
+| Action | Idempotency identity |
+|---|---|
+| `activate-resolver-overflow` | originating authorisation id + primary resolver |
+| `execute-overflow-resolution` | capability id + workflow id |
+| `revoke-resolver-overflow` | capability id + governance action identity |
+
+A replayed **activation** returns the existing result — it does **not** mint a second
+capability and does **not** advance `:next-overflow-id`. A replayed **execution**
+does not consume another unit of capacity (it never relies solely on the workflow
+becoming terminal). A replayed **revocation** is a no-op returning the prior result.
+
+---
+
+## 8. Interactive override stays distinct
+
+The REPL `force-authorised` path (`execute-resolution` with reason
+`:resolver-overcapacity`) remains an `:interactive-override`: a specific,
+single-use interactive intervention, never a delegated capability. The capacity
+predicate (Section 3, step 3) is extracted and shared so that both paths agree on
+whether a resolver is over capacity.
+
+---
+
+## 9. Worked example — over-capacity failover via force-auth
+
+### 9.1 Setup
+
+- Governance `0xGov` (restricted mode, `:governance/identity "0xGov"`).
+- Primary resolver `0xResolver` with `:max-concurrent 2`.
+- Failover resolver `0xFailover`.
+- Protocol params:
+
+```clojure
+{:resolver-overflow-policy {:policy/id           "overflow-policy.v1"
+                            :enabled?            true
+                            :allowed-reasons     #{:resolver-overcapacity}
+                            :capacity-threshold  :at-max-concurrent
+                            :default-duration    3600
+                            :max-duration        86400
+                            :default-max-workflows 2
+                            :max-workflows       500
+                            :failover-resolvers  #{"0xFailover"}}
+ :force-authorisation-policy {:enabled?          true
+                              :default-duration  3600
+                              :max-duration      86400
+                              :allowed-reasons   #{:resolver-overcapacity}}}
+```
+
+### 9.2 Capacity deadlock builds
+
+| t | Event | Result |
+|---|---|---|
+| 1000 | buyer creates escrow `wf-0` (USDC 5000, custom resolver `0xResolver`) | pending |
+| 1060 | buyer raises dispute on `wf-0` | disputed, assigned to `0xResolver`; `current-active` 0→1 |
+| 1062 | buyer creates escrow `wf-1` (USDC 4000, custom resolver `0xResolver`) | pending |
+| 1070 | buyer raises dispute on `wf-1` | disputed, assigned to `0xResolver`; `current-active` 1→2 (at capacity) |
+| 1080 | buyer raises dispute on `wf-2` | rejected `:resolver-capacity-exceeded` — liveness deadlock on `wf-0`, `wf-1` |
+
+### 9.3 Grant — the force-auth that authorises over-capacity
+
+Governance grants a `:capacity-failover` force-authorisation (Section 1.1):
+
+```clojure
+{:action "grant-force-authorisation" :agent "0xGov"
+ :params {:reason :resolver-overcapacity
+          :authorization/class :capacity-failover
+          :allowed-action "activate-resolver-overflow"
+          :resolver "0xResolver"
+          :failover-resolvers #{"0xFailover"}
+          :max-workflows 2
+          :expires-at 4685}}
+```
+
+Result: grant `fa-0` persisted as `:active` with a committed `:capacity-failover`
+scope-hash and a `:with-governance-actor` / `:address-bound` provenance envelope.
+`fa-0` is the **authorization** for over-capacity mode.
+
+### 9.4 Activate — verify, derive, mint, consume
+
+```clojure
+{:action "activate-resolver-overflow" :agent "0xGov"
+ :params {:authorization-id "fa-0" :resolver "0xResolver" :reason :resolver-overcapacity}}
+```
+
+Activation verifies `fa-0` (class, status, window, scope-hash, policy identity,
+governance provenance), derives capacity from the live world
+(`current-active 2 ≥ max-concurrent 2`, threshold `:at-max-concurrent` →
+`at-capacity? true`), checks policy caps (2 ≤ 500; 3600s ≤ 86400s), commits the
+workflow scope `#{0 1}`, mints capability `oc-0`, and **consumes** `fa-0` in the
+same transition.
+
+```clojure
+;; world[:resolver-overflows 0]
+{:overflow-id                  0
+ :overflow-capability/id       "oc-0"
+ :overflow-capability/hash     <hex>                    ; integrity hash
+ :authorization/id             "fa-0"
+ :authorization/class          :capacity-failover
+ :authorization/hash           <grant scope-hash hex>
+ :resolver                     "0xResolver"
+ :failover-resolvers           #{"0xFailover"}
+ :workflow-scope               #{0 1}
+ :capacity-context             {:resolver "0xResolver" :capacity-threshold :at-max-concurrent
+                                :current-active 2 :max-concurrent 2
+                                :disputed-count 2 :at-capacity? true}
+ :capacity-context-hash        <hex>
+ :capacity-policy-id           "overflow-policy.v1"
+ :capacity-policy-version      "v1"
+ :created-at                   1090
+ :issued-at                    1090
+ :starts-at                    1090
+ :expires-at                   4685
+ :max-workflows                2
+ :used-workflows               #{}
+ :execution-count              0
+ :status                       :active
+ :authorized-by                "0xGov"
+ :revocation                   nil
+ :overflow-capability/executions []}
+
+;; fa-0 is now consumed (once, at activation)
+;;   :authorization/status :consumed, :consumed? true
+;;   :force-authorisations/consumed "fa-0"
+;;     {:consumption/kind :overflow-activation
+;;      :overflow-capability/id "oc-0" :overflow-id 0 ...}
+```
+
+### 9.5 Execute — bounded spend
+
+```clojure
+{:action "execute-overflow-resolution" :agent "0xFailover"
+ :params {:workflow-id 0 :overflow-id 0 :is-release true}}
+```
+
+The verifier (Section 4) passes all 13 checks; `used-workflows #{0}`,
+`execution-count 1`, status stays `:active`; the resolution proceeds under
+`:resolution-source :resolver-overflow` with a full execution-provenance block that
+commits capability id/hash, grant id/hash, primary, executing failover, workflow,
+committed scope, capacity-context-hash, policy id/version, status and count before
+and after, reason, timestamp, and the resulting settlement/evidence root.
+
+Replaying the same event is a `:no-op-duplicate` — no second capacity unit is
+consumed. Resolving `wf-1` (also in scope) reaches `execution-count 2 = max`,
+transitioning status to `:exhausted`. A third execution attempt is rejected with
+`:exhausted-overflow-capability`; a `wf-2`-style workflow outside the committed
+scope is rejected with `:workflow-out-of-scope`.
+
+### 9.6 Alternative termination — revoke
+
+```clojure
+{:action "revoke-resolver-overflow" :agent "0xGov"
+ :params {:overflow-id 0 :reason "primary restored"}}
+```
+
+Transition `:active → :revoked`, `:revocation` populated with reason/actor/timestamp/
+provenance, evidence emitted, hash recomputed. All later executions are rejected
+with `:revoked-overflow-capability`.
+
+---
+
+## 10. Adversarial / security properties
+
+| Attack | Outcome |
+|---|---|
+| Directly inject a capability record | Fails schema check → `:invalid-overflow-capability` |
+| Copy a valid record but change the class | Hash mismatch and class check → `:wrong-authorization-class` |
+| Forge the authorization hash / mutate the capability body | Recomputed hash differs → `:invalid-overflow-capability` |
+| Activate while the resolver is not over capacity | Derived context says `at-capacity? false` → `:resolver-not-over-capacity` |
+| Forge a capacity context | Context is re-derived from world state and re-hashed → mismatch |
+| Disable the policy | `:overflow-disabled` |
+| Request duration/count above caps | `:overflow-duration-exceeds-max` / `:overflow-max-workflows-exceeds-max` |
+| Workflow outside committed scope | `:workflow-out-of-scope` |
+| Wrong primary resolver | `:primary-resolver-mismatch` |
+| Actor not in failover set | `:resolver-not-authorized` |
+| Nil / malformed expiry | Fails closed → `:invalid-overflow-capability` (no exception) |
+| Replay activation / execution / revocation | `:no-op-duplicate`, no second record, no extra capacity spend |
+| Mutate capability after one execution | Hash recomputed ≠ stored → `:invalid-overflow-capability` |
+
+Capability records are only constructible through the validated constructor
+(activation) or an explicitly named test/migration escape hatch — enforced by an
+architecture/boundary test.
+
+---
+
+## 11. Authorization sources — comparison
+
+| Aspect | `with-governance-actor` | Overflow capability verifier | `:capacity-failover` force-auth | `:interactive-override` |
+|---|---|---|---|---|
+| **Gates** | governance actions (`activate-resolver-overflow`, `revoke-resolver-overflow`, grants, …) | `execute-overflow-resolution` | `grant-force-authorisation` (scope-kind `:capacity-failover`) | REPL `force-authorised` |
+| **Who is authorized** | governance actor per mode | listed failover resolver | governance grant | any resolved actor, governance-approved |
+| **What it authorizes** | creating/altering governance state | one bounded resolution under a capability | the creation of a bounded delegated capability | one specific resolution intervention |
+| **Provenance** | `governance-authorization.v1` | `execution-provenance.v1` (`:forced-capacity-failover`) | `force-authorisation.v2` + `:authorization/class :capacity-failover` | `:interactive-override` |
+| **Consumption** | N/A | per-workflow `used-workflows`, cap `max-workflows`, self-hash re-commit | **once at activation** (`:consumption/kind :overflow-activation`) | single-use via grant/consumption registry |
+| **Time bounds** | N/A | `[starts-at, expires-at)` | `[starts-at, expires-at)` | `[starts-at, expires-at)` |
+| **Use case** | day-to-day governance | resolver overcapacity failover | authorising that failover | frozen/circuit-breaker/interactive override |
+
+---
+
+## 12. Known gaps / non-goals
+
+- **No automatic overflow trigger.** Activation is governance-only; nothing
+  auto-activates when a resolver crosses its capacity threshold.
+- **No overflow queue.** Disputes arriving while at capacity are rejected; the
+  capability handles only workflows already disputed and in its committed scope at
+  activation time.
+- **Snapshot workflow scope.** The committed scope is the disputed-and-assigned set
+  at activation; a workflow disputed later requires a fresh capability.
+- **No continuous over-capacity proof at execution time.** Execution proves the
+  capability was validly derived from capacity state and remained active — not that
+  the resolver is still over capacity at execution time (that is an intentional
+  semantic choice documented in Section 4).

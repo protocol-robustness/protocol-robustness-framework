@@ -11,8 +11,9 @@
      - bound into the final claim.
 
    This is NOT a workflow engine: the step vocabulary is closed."
-  (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.conformance.profile :as profile]))
+  (:require [resolver-sim.conformance.profile :as profile]
+            [resolver-sim.conformance.environment :as environment]
+            [resolver-sim.conformance.canonical :as canonical]))
 
 (def conformance-step-kinds
   "Closed vocabulary of conformance step kinds."
@@ -91,11 +92,11 @@
 (defn plan-root
   "Content root of a plan (deterministic, canonical)."
   [plan]
-  (hc/domain-hash "conformance.plan.v1"
-                  {:profile/root (:profile/root plan)
-                   :subject-set/root (:subject-set/root plan)
-                   :steps (mapv #(select-keys % [:step/id :requires :produces])
-                                (:steps plan))}))
+  (canonical/root
+   {:profile/root (:profile/root plan)
+    :subject-set/root (:subject-set/root plan)
+    :environment/root (:environment/root plan)
+    :steps (mapv #(select-keys % [:step/id :requires :produces]) (:steps plan))}))
 
 (defn build-plan
   "Build the conformance execution plan for a profile and subject classification.
@@ -116,5 +117,6 @@
                 :plan/root nil
                 :profile/root (profile/profile-root profile)
                 :subject-set/root (:subject-set/root subject-set)
+                :environment/root (environment/current-environment-root)
                 :steps steps}]
       (assoc plan :plan/root (plan-root plan)))))

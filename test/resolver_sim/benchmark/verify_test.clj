@@ -1,7 +1,7 @@
 (ns resolver-sim.benchmark.verify-test
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.test :refer [deftest is]]
+            [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.verify :as verify]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.hash.canonical :as canonical]
@@ -88,8 +88,81 @@
            (tamper! root) (is (false? (get-in (verify/verify! root) ["checks" check])) label)
            (finally (delete-tree! root))))))
 
+(deftest write-is-conditionally-idempotent
+  (let [root (temp-root)
+        file (io/file root "manifest/policy.json")
+        artifact (verdict-policy/build
+                  {:run-id "r" :run-type "benchmark"
+                   :policy-id "fixture.v1" :version-id "v1" :semantic-outcome "pass"
+                   :inputs []
+                   :registries {"evidence_policy_hash" "x" "claim_definition_registry_hash" "c" "evaluator_registry" "e"}
+                   :semantic-environment {"protocol_id" "p" "runner_id" "r"}
+                   :evaluator-implementation {"source_tree_hash" "s" "source_tree_hash_algorithm" "v1" "evaluator_id" "e"}
+                   :distribution-provenance {"mode" "source-classpath"}})]
+    (try
+      (io/make-parents file)
+      (is (= artifact (verdict-policy/write! file artifact))
+          "first write succeeds")
+      (is (= artifact (verdict-policy/write! file artifact))
+          "rewriting the identical artifact is allowed (idempotent re-run)")
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (verdict-policy/write! file (assoc artifact "version_id" "v2")))
+          "writing a divergent artifact to an existing file refuses")
+      (finally (delete-tree! root)))))
+
 (deftest verifier-rejects-tampered-input-snapshot
   (let [root (temp-root)]
     (try (fixture! root) (spit (io/file root "benchmark/executions/exec-1/input/scenario.edn") "tampered")
          (is (false? (get-in (verify/verify! root) ["checks" "input-set-recalculated"])))
          (finally (delete-tree! root)))))
+
+(deftest replace-draft-is-repeatable-and-idempotent
+  (let [root (temp-root)
+        draft-file (io/file root "manifest/draft-policy.json")]
+    (try
+      (io/make-parents draft-file)
+      (spit draft-file
+            (json/write-str {"schema_version" "verdict-policy.v1"
+                             "policy_id" "fixture.v1"
+                             "run" {"id" "r" "type" "benchmark"}
+                             "verdict" {"semantic_outcome" "pass"}
+                             "registries" {"evidence_policy_hash" "x"}
+                             "evaluator_implementation" {"source_tree_hash" "x"
+                                                         "source_tree_hash_algorithm" "v1"}
+                             "semantic_environment" {"runner_id" "r" "protocol_id" "p"}
+                             "distribution_provenance" {"mode" "source-classpath"}
+                             "immutable_inputs" []
+                             "version_id" "v1"
+                             "policy_sha256" "stale-draft-hash"}))
+      (testing "a genuinely finalised artifact (valid self-commitment) refuses"
+        (let [finalised (verdict-policy/build-artifact
+                         {"schema_version" "verdict-policy.v1"
+                          "policy_id" "fixture.v1"
+                          "run" {"id" "r" "type" "benchmark"}
+                          "verdict" {"semantic_outcome" "pass" "mapping" {"pass" "pass" "fail" "fail"}}
+                          "registries" {"evidence_policy_hash" "x"}
+                          "evaluator_implementation" {"source_tree_hash" "x"
+                                                      "source_tree_hash_algorithm" "v1"
+                                                      "evaluator_id" "e"}
+                          "semantic_environment" {"runner_id" "r" "protocol_id" "p"}
+                          "distribution_provenance" {"mode" "source-classpath"}
+                          "immutable_inputs" []
+                          "version_id" "v1"})
+              fin-file (io/file root "manifest/finalised-policy.json")]
+          (io/make-parents fin-file)
+          (spit fin-file (json/write-str finalised))
+          (is (thrown? clojure.lang.ExceptionInfo
+                       (verdict-policy/replace-draft! fin-file (constantly {})))
+              "replacing a finalised artifact refuses")))
+      (testing "a draft is replaced repeatably and idempotently"
+        (let [bump (fn [a] (assoc a "version_id" "v2"))]
+          (is (= "v2" (get (verdict-policy/replace-draft! draft-file bump) "version_id"))
+              "first replacement applies the draft mutation")
+          (is (nil? (get (json/read-str (slurp draft-file)) "policy_sha256"))
+              "the written result is still a draft (no valid self-commitment)")
+          (let [before (slurp draft-file)]
+            (is (= "v2" (get (verdict-policy/replace-draft! draft-file bump) "version_id"))
+                "a second replacement with the same f is not refused (repeatable)")
+            (is (= before (slurp draft-file))
+                "repeat application is idempotent: the file is unchanged"))))
+      (finally (delete-tree! root)))))

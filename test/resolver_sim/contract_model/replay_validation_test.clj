@@ -43,6 +43,34 @@
     (is (= false (:ok v)))
     (is (= :missing-scenario-author (:error v)))))
 
+(deftest rejects-malformed-event-time-type
+  (testing "a non-numeric / non-Instant event :time fails as :invalid-event-time, not a ClassCastException"
+    (doseq [bad ["yesterday" :yesterday (java.util.Date.) nil]]
+      (let [v (validate (assoc minimal-scenario :events
+                               [{:seq 0 :time bad :agent "buyer"
+                                 :action "create_escrow" :params {}}]))]
+        (is (= false (:ok v)) (str "time " (pr-str bad)))
+        (is (= :invalid-event-time (:error v)) (str "time " (pr-str bad)))))))
+
+(deftest accepts-mixed-number-and-instant-event-times
+  (testing "number and java.time.Instant event times may coexist when ordered"
+    (let [v (validate (assoc minimal-scenario :events
+                             [{:seq 0 :time 1000 :agent "buyer"
+                               :action "create_escrow" :params {}}
+                              {:seq 1 :time (java.time.Instant/ofEpochSecond 2000)
+                               :agent "buyer" :action "create_escrow" :params {}}]))]
+      (is (:ok v)))))
+
+(deftest detects-regression-across-mixed-event-time-types
+  (testing "monotonicity is enforced on epoch-seconds even when representation mixes"
+    (let [v (validate (assoc minimal-scenario :events
+                             [{:seq 0 :time (java.time.Instant/ofEpochSecond 1500)
+                               :agent "buyer" :action "create_escrow" :params {}}
+                              {:seq 1 :time 1400 :agent "buyer"
+                               :action "create_escrow" :params {}}]))]
+      (is (= false (:ok v)))
+      (is (= :non-monotonic-event-time (:error v))))))
+
 (deftest allows-population-metric-when-scope-declared
   (let [v (validate (-> minimal-scenario
                         (assoc-in [:theory :falsifies-if]

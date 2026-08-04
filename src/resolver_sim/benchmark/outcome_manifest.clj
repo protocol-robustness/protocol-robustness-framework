@@ -240,6 +240,15 @@
   [manifest]
   (:benchmark-outcome/hash manifest))
 
+(defn recompute-outcome-hash
+  "Deterministically recompute the outcome root from a manifest's committed
+   fields (excluding the committed hash).  Used for exact outcome-root
+   reproduction under the research-benchmark-reproduction.v1 conformance
+   profile."
+  [manifest]
+  (str "sha256:"
+       (hc/domain-hash :benchmark-outcome (hash-projection manifest))))
+
 (defn manifest-valid?
   "Structural validity check for a benchmark outcome manifest."
   [manifest]

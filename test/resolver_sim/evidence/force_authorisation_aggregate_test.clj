@@ -14,7 +14,8 @@
    The two lower layers exist only inside :force-auth-add-held in this codebase;
    the base/add validators are deliberately polymorphic and the exact-kind
    predicates exist so boundary-sensitive code never relies on them."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [deftest is testing]]
             [resolver-sim.assurance.force-authorisation :as fa]
             [resolver-sim.evidence.force-authorisation :as e]
             [resolver-sim.hash.canonical :as hc]))
@@ -63,10 +64,10 @@
 
 (defn- rehash
   "Rebuild an artifact's :artifact/hash and :artifact/preimage over a body,
-   matching the evidence namespace finalize-artifact convention (the envelope
-   is stripped before hashing)."
+   matching the evidence namespace finalize-artifact convention (the envelope —
+   including any optional canonical commitment — is stripped before hashing)."
   [body]
-  (let [clean (dissoc body :artifact/hash :artifact/preimage)
+  (let [clean (apply dissoc body e/artifact-envelope-keys)
         h (str "sha256:" (hc/domain-hash :evidence-record clean))]
     (assoc clean :artifact/hash h :artifact/preimage (pr-str clean))))
 
@@ -82,9 +83,16 @@
   [v1-summary & {:as changes}]
   (let [body (merge v1-summary changes)
         projected (e/downgrade-add-held-summary-v2->v1 body)]
-    (assoc (dissoc body :artifact/hash :artifact/preimage)
+    (assoc (apply dissoc body e/artifact-envelope-keys)
            :artifact/hash (str "sha256:" (hc/domain-hash :evidence-record projected))
            :artifact/preimage (pr-str projected))))
+
+(defn- permissive-v1
+  "Build a permissive v1 summary via the legacy v2 builder + v1 projection, for
+   mixed-validity member sets the fail-fast builders reject."
+  [member-set]
+  (rehash (e/downgrade-add-held-summary-v2->v1
+           (e/build-force-auth-add-held-summary-permissive member-set {}))))
 
 (def ^:private members
   (vec [(mk-member :USDC 100 :in "adj-1")
@@ -230,14 +238,33 @@
       (is (false? (:aggregate-shape-valid? (:checks (e/check-aggregate injected members {}))))))))
 
 (deftest v1-migration-reader-vs-aggregate-shape-strictness
-  (testing "the projection-based migration reader tolerates v2-only keys; the aggregate check does not"
+  (testing "the projection-based migration reader tolerates v2-only keys ONLY when
+            explicitly invoked; the exact reader and check-aggregate reject them"
     (let [v1 (summary-v1)
           relabeled (v1-projected-relabel v1 :min-amount 5)]
-      (is (e/valid-force-auth-add-held-summary-v1? relabeled)
-          "the v1 migration reader projects v2-only keys away before hashing")
+      (is (not (e/valid-force-auth-add-held-summary-v1? relabeled))
+          "the exact v1 reader rejects v2-only keys")
+      (is (e/valid-force-auth-add-held-summary-v1-migration? relabeled)
+          "the migration reader projects v2-only keys away before hashing — explicit migration only")
       (is (not (:valid? (e/check-aggregate relabeled members {})))
           "check-aggregate rejects the exact-shape violation")
       (is (false? (:aggregate-shape-valid? (:checks (e/check-aggregate relabeled members {}))))))))
+
+(deftest exact-v1-reader-rejects-v2-only-and-unknown-keys
+  (let [v1 (summary-v1)
+        v2-only (tamper v1 :min-amount 5)
+        unknown (tamper v1 :bogus-key :x)]
+    (is (not (e/valid-force-auth-add-held-summary-v1? v2-only)))
+    (is (not (e/valid-force-auth-add-held-summary-v1? unknown)))
+    (is (e/valid-force-auth-add-held-summary-v1? v1))
+    (is (e/valid-force-auth-add-held-summary-v1-migration? v1))))
+
+(deftest v2-cannot-pass-as-v1-through-any-boundary
+  (let [v2 (summary-v2)]
+    (is (not (e/valid-force-auth-add-held-summary-v1? v2)) "exact v1 reader")
+    (is (not (e/valid-force-auth-add-held-summary-v1-migration? v2)) "migration reader")
+    (is (not (:aggregate-schema-valid? (:checks (e/check-aggregate v2 members {})))) "check-aggregate (v1 target)")
+    (is (not (e/valid-force-auth-add-held-summary-v1? v2 members {})) "3-arity aggregate predicate")))
 
 ;; ── Member identity and classification ─────────────────────────────────────
 
@@ -297,15 +324,21 @@
 (deftest schema-version-changed
   (let [v1 (summary-v1)
         future-member (rehash (assoc (dissoc (nth members 0) :artifact/hash :artifact/preimage)
-                                     :schema-version "force-auth-add-held.v2"))
+                                     :schema-version "force-auth-add-held.v3"))
         wrong-member (rehash (assoc (dissoc (nth members 0) :artifact/hash :artifact/preimage)
                                     :schema-version "not-a-held.v1"))
+        relabeled-v2 (rehash (assoc (dissoc (nth members 0) :artifact/hash :artifact/preimage)
+                                    :schema-version "force-auth-add-held.v2"))
         result-future (e/check-aggregate v1 [future-member (nth members 1)] {})
-        result-wrong (e/check-aggregate v1 [wrong-member (nth members 1)] {})]
+        result-wrong (e/check-aggregate v1 [wrong-member (nth members 1)] {})
+        result-v2 (e/check-aggregate v1 [relabeled-v2 (nth members 1)] {})]
     (is (not (:valid? result-future)))
     (is (= [:unsupported-member-version] (reasons-of result-future)))
     (is (not (:valid? result-wrong)))
-    (is (= [:schema-version-mismatch] (reasons-of result-wrong)))))
+    (is (= [:schema-version-mismatch] (reasons-of result-wrong)))
+    (is (not (:valid? result-v2)))
+    (is (= [:content-hash-mismatch] (reasons-of result-v2))
+        "a v1 artifact relabeled to the now-supported v2 schema fails canonical v2 verification")))
 
 (deftest verifier-identifier-changed
   (let [v1 (summary-v1)
@@ -376,22 +409,22 @@
     (is (some #(= [:consumed-at-latest] (:path %)) (:mismatches result)))))
 
 (deftest invalid-member-excluded-from-totals-but-fails-aggregate
-  (testing "an invalid member causes failure, is reported in triage, and its
-            amount is excluded from the canonical totals"
+  (testing "an invalid member causes aggregate failure, is reported in triage,
+            and its amount never enters the totals (builder and recompute share
+            the same canonical derivation)"
     (let [good (nth members 0)
           bad (assoc (nth members 1) :held/amount 999)
-          v1 (e/build-force-auth-add-held-summary-v1 [good bad] {})
-          result (e/check-aggregate v1 [good bad] {})
-          total-mismatch (first (filter #(= [:total-amount] (:path %))
-                                        (:mismatches result)))]
+          v1 (permissive-v1 [good bad])
+          result (e/check-aggregate v1 [good bad] {})]
       (is (not (:valid? result)))
       (is (false? (:members-valid? (:checks result))))
       (is (= [:content-hash-mismatch] (reasons-of result)))
-      (is (= 1099 (:total-amount v1)) "the builder sums the invalid member's amount")
-      (is (= 100 (:expected total-mismatch))
-          "the canonical recomputation excludes the invalid member's amount")
-      (is (some #(= [:scope-verified-count] (:path %)) (:mismatches result))
-          "the builder trusts the scope flag on invalid members; the recomputation does not"))))
+      (is (= 100 (:total-amount v1)) "the invalid member's amount is excluded from the stored totals")
+      (is (= 100 (:total-amount (e/recompute-force-auth-add-held-summary [good bad] {})))
+          "the recomputation excludes it identically")
+      (is (true? (:summary-recomputes? (:checks result)))
+          "the stored summary honestly reflects the member set (shared derivation)")
+      (is (= 1 (:invalid-count v1))))))
 
 (deftest amount-integrity-triage-without-coercion
   (let [missing (rehash (dissoc (nth members 0) :held/amount))
@@ -518,11 +551,14 @@
 
 (deftest duplicate-member-identical-artifact-detected
   (let [same [(nth members 0) (nth members 0)]
-        v1 (e/build-force-auth-add-held-summary-v1 same {})
+        v1 (permissive-v1 same)
         result (e/check-aggregate v1 same {})]
     (is (not (:valid? result)))
     (is (false? (:member-identities-unique? (:checks result))))
-    (is (every? #(= :duplicate-member (:reason %)) (:invalid-members result)))))
+    (is (every? #(= :duplicate-member (:reason %)) (:invalid-members result)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (e/build-force-auth-add-held-summary-v1 same {}))
+        "the fail-fast builder rejects identical duplicate members")))
 
 (deftest inconsistent-authorization-scope
   (testing "two valid members binding the same authorization id to different scopes
@@ -537,14 +573,17 @@
                {:authorization (auth-for "fa-0" scope-b)
                 :scope-map scope-b
                 :adjustment {:held-adjustment/id "adj-2" :token :ETH :amount 50 :held/direction :in}})
-          v1 (e/build-force-auth-add-held-summary-v1 [m-a m-b] {})
+          v1 (permissive-v1 [m-a m-b])
           result (e/check-aggregate v1 [m-a m-b] {})]
       (is (true? (:authorization/scope-verifies? m-a)))
       (is (true? (:authorization/scope-verifies? m-b)))
       (is (not (nil? (:authorization/id m-a))))
       (is (not (:valid? result)))
       (is (every? #(= :authorization-binding-mismatch (:reason %))
-                  (:invalid-members result))))))
+                  (:invalid-members result)))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (e/build-force-auth-add-held-summary-v1 [m-a m-b] {}))
+          "the fail-fast builder rejects conflicting bindings"))))
 
 ;; ── Developer-facing API ────────────────────────────────────────────────────
 
@@ -554,10 +593,19 @@
            (e/build-force-auth-add-held-summary members {})))
     (is (= (e/build-force-auth-add-held-summary-v1 {:artifacts members})
            (e/build-force-auth-add-held-summary-v1 members {}))))
-  (testing "a builder output can be non-passing under check-aggregate"
+  (testing "the fail-fast builder rejects non-passing members with structured diagnostics"
     (let [good (nth members 0)
           bad (assoc (nth members 1) :held/amount 999)
-          built (e/build-force-auth-add-held-summary-v1 [good bad] {})]
+          ex (try (e/build-force-auth-add-held-summary [good bad] {})
+                  (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? ex))
+      (is (= 1 (:invalid-count (ex-data ex))))
+      (is (= [:content-hash-mismatch]
+             (mapv :reason (:invalid-members (ex-data ex)))))))
+  (testing "a permissive builder output can be non-passing under check-aggregate"
+    (let [good (nth members 0)
+          bad (assoc (nth members 1) :held/amount 999)
+          built (permissive-v1 [good bad])]
       (is (e/valid-force-auth-add-held-summary-v1? built) "content-hash reader passes")
       (is (not (e/valid-force-auth-add-held-summary-v1? built [good bad] {}))
           "aggregate predicate fails"))))
@@ -595,3 +643,256 @@
                 (catch clojure.lang.ExceptionInfo ex ex))]
     (is (some? ex))
     (is (= :v9 (:summary-version (ex-data ex))))))
+
+;; ── Preimage integrity (hardened valid-artifact?) ──────────────────────────
+
+(deftest preimage-integrity-adversarial
+  (testing "correct body + correct hash + forged preimage is rejected"
+    (let [member (nth members 0)
+          forged (assoc member :artifact/preimage "forged-preimage")
+          v1 (summary-v1)
+          forged-summary (assoc v1 :artifact/preimage "forged-preimage")]
+      (is (not (e/valid-force-auth-add-held? forged)))
+      (is (not (e/valid-force-auth-add-held-summary-v1? forged-summary)))
+      (is (not (e/valid-force-auth-add-held-summary? forged-summary)))))
+  (testing "correct body + correct preimage + forged hash is rejected"
+    (let [member (nth members 0)
+          forged (assoc member :artifact/hash "sha256:forged")
+          v1 (summary-v1)
+          forged-summary (assoc v1 :artifact/hash "sha256:forged")]
+      (is (not (e/valid-force-auth-add-held? forged)))
+      (is (not (e/valid-force-auth-add-held-summary-v1? forged-summary)))))
+  (testing "mutated body with the original preimage/hash is rejected"
+    (let [member (assoc (nth members 0) :held/amount 999)
+          v1 (summary-v1)
+          mutated (assoc v1 :total-amount 999)]
+      (is (not (e/valid-force-auth-add-held? member)))
+      (is (not (e/valid-force-auth-add-held-summary-v1? mutated)))
+      (is (false? (:aggregate-hash-valid?
+                   (:checks (e/check-aggregate mutated members {})))))))
+  (testing "non-string preimage is rejected"
+    (is (not (e/valid-force-auth-add-held? (assoc (nth members 0) :artifact/preimage 42))))
+    (is (not (e/valid-force-auth-add-held-summary-v1? (assoc (summary-v1) :artifact/preimage 42))))))
+
+(deftest preimage-integrity-valid-artifacts-still-pass
+  (let [member (nth members 0)
+        v1 (summary-v1)
+        v2 (summary-v2)
+        lifecycle (e/build-force-auth-lifecycle
+                   {:authorisations {"fa-0" (auth-for "fa-0" (scope-for "0xrecipient" 5000))}
+                    :consumption-registry {}})
+        lifecycle-summary (e/build-force-auth-lifecycle-summary
+                           {:authorisations {"fa-0" (auth-for "fa-0" (scope-for "0xrecipient" 5000))}
+                            :consumption-registry {}})]
+    (is (e/valid-force-auth-add-held? member))
+    (is (e/valid-force-auth-add-held-summary-v1? v1))
+    (is (e/valid-force-auth-add-held-summary? v2))
+    (is (e/valid-force-auth-lifecycle? lifecycle))
+    (is (e/valid-force-auth-lifecycle-summary? lifecycle-summary))))
+
+;; ── Fail-fast construction (builder / validator alignment) ─────────────────
+
+(deftest fail-fast-builder-rejects-non-passing-members
+  (testing "lower-layer artifacts are rejected as members"
+    (let [ex (try (e/build-force-auth-add-held-summary
+                   [force-auth-artifact (nth members 1)] {})
+                  (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? ex))
+      (is (= [:artifact-kind-mismatch] (mapv :reason (:invalid-members (ex-data ex)))))))
+  (testing "malformed members are rejected"
+    (let [ex (try (e/build-force-auth-add-held-summary [nil] {})
+                  (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? ex))
+      (is (= [:not-force-auth-add-held] (mapv :reason (:invalid-members (ex-data ex)))))))
+  (testing "unverified authorization bindings are rejected"
+    (let [unverified (rehash (assoc (dissoc (nth members 0) :artifact/hash :artifact/preimage)
+                                    :authorization/scope-verifies? false))
+          ex (try (e/build-force-auth-add-held-summary [unverified] {})
+                  (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? ex))
+      (is (= [:authorization-binding-mismatch]
+             (mapv :reason (:invalid-members (ex-data ex))))))))
+
+(deftest fail-fast-builder-permits-domain-multiplicity
+  (testing "duplicate adjustment ids remain permitted by default policy"
+    (let [dups [(mk-member :USDC 100 :in "adj-1")
+                (mk-member :ETH 50 :in "adj-1")]
+          built (e/build-force-auth-add-held-summary dups {})]
+      (is (= 2 (:valid-count built)))
+      (is (= 1 (:distinct-adjustment-ids built)))))
+  (testing "strict uniqueness options fail fast when enabled"
+    (let [dups [(mk-member :USDC 100 :in "adj-1")
+                (mk-member :ETH 50 :in "adj-1")]
+          ex (try (e/build-force-auth-add-held-summary dups {:unique-adjustment-ids? true})
+                  (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? ex))
+      (is (= [:duplicate-adjustment-id :duplicate-adjustment-id]
+             (mapv :reason (:invalid-members (ex-data ex))))))))
+
+(deftest fail-fast-builder-output-passes-check-aggregate
+  (let [built (e/build-force-auth-add-held-summary members {})
+        result (e/check-aggregate built members {:summary-version :v2})]
+    (is (true? (:valid? result)))
+    (is (empty? (:invalid-members result)))
+    (is (empty? (:mismatches result)))))
+
+;; ── v2 recomputation reproducibility ───────────────────────────────────────
+
+(deftest recompute-v2-reproduces-builder
+  (testing "all-valid members"
+    (is (= (e/build-force-auth-add-held-summary members {})
+           (e/recompute-force-auth-add-held-summary members {:summary-version :v2}))))
+  (testing "mixed valid/invalid members (permissive path)"
+    (let [mixed [(nth members 0) (assoc (nth members 1) :held/amount 999)]]
+      (is (= (e/build-force-auth-add-held-summary-permissive mixed {})
+             (e/recompute-force-auth-add-held-summary mixed {:summary-version :v2})))))
+  (testing "verified and unverified authorisations (permissive path)"
+    (let [unverified (rehash (assoc (dissoc (nth members 0) :artifact/hash :artifact/preimage)
+                                    :authorization/scope-verifies? false))
+          set-with-unverified [(nth members 1) unverified]]
+      (is (= (e/build-force-auth-add-held-summary-permissive set-with-unverified {})
+             (e/recompute-force-auth-add-held-summary set-with-unverified {:summary-version :v2})))))
+  (testing "empty input"
+    (is (= (e/build-force-auth-add-held-summary [] {})
+           (e/recompute-force-auth-add-held-summary [] {:summary-version :v2})))
+    (is (= (e/build-force-auth-add-held-summary-v1 [] {})
+           (e/recompute-force-auth-add-held-summary [] {}))))
+  (testing "triage fields are reproduced, not silently dropped"
+    (let [mixed [(nth members 0) (assoc (nth members 1) :held/amount 999)]
+          recomputed (e/recompute-force-auth-add-held-summary mixed {:summary-version :v2})]
+      (is (= 1 (:invalid-count recomputed)))
+      (is (some #(= :content-hash-mismatch (:reason %))
+                (:invalid-artifacts recomputed)))
+      (is (= [] (:unverified-authorization-ids recomputed))))
+    (let [unverified (rehash (assoc (dissoc (nth members 0) :artifact/hash :artifact/preimage)
+                                    :authorization/scope-verifies? false))
+          recomputed (e/recompute-force-auth-add-held-summary [unverified] {:summary-version :v2})]
+      (is (= ["fa-0"] (:unverified-authorization-ids recomputed))))))
+
+;; ── Scope verification assurance gap (#6) ──────────────────────────────────
+
+(deftest scope-verifies-flag-is-not-independently-derivable
+  (testing "a self-consistent artifact asserting scope-verifies? true passes content
+            and aggregate validation even though the binding was never verified —
+            the member commits only the scope-hash, not the scope map or the
+            recorded scope-hash, so the flag cannot be re-derived"
+    (let [forged (rehash (assoc (dissoc (nth members 0) :artifact/hash :artifact/preimage)
+                                :authorization/scope-hash "0xunverifiable"
+                                :authorization/scope-verifies? true))
+          built (e/build-force-auth-add-held-summary [forged] {})
+          result (e/check-aggregate built [forged] {:summary-version :v2})]
+      (is (e/valid-force-auth-add-held? forged)
+          "structural/content validation passes")
+      (is (true? (:authorization/scope-verifies? forged)))
+      (is (empty? (:invalid-members result))
+          "the aggregate accepts it as a verified member")
+      (is (= 1 (:scope-verified-count built))
+          "scope counts trust the asserted flag"))))
+
+;; ── force-auth-add-held.v2: derived scope commitment ───────────────────────
+
+(defn- mk-member-v2
+  "Build a canonical force-auth-add-held.v2 member with a committed scope
+   projection."
+  ([token amount direction] (mk-member-v2 token amount direction "adj-1"))
+  ([token amount direction adjustment-id]
+   (e/build-force-auth-add-held-v2
+    {:authorization (auth-for "fa-0" (scope-for "0xrecipient" 5000))
+     :scope-map (scope-for "0xrecipient" 5000)
+     :adjustment {:held-adjustment/id adjustment-id
+                  :token token
+                  :amount amount
+                  :held/direction direction}
+     :consumed-at 500
+     :consumed-by "0xgov"})))
+
+(deftest v2-member-scope-commitment
+  (testing "a v2 member commits the three-part scope commitment and never stores
+            the scope-verifies? boolean"
+    (let [m (mk-member-v2 :USDC 100 :in)]
+      (is (= "force-auth-add-held.v2" (:schema-version m)))
+      (is (= "force-authorisation-scope-hash.v1" (:authorization/scope-derivation m)))
+      (is (map? (:authorization/scope-projection m)))
+      (is (not (contains? m :authorization/scope-verifies?))
+          "scope-verifies? is derived, never stored")
+      (is (= (:authorization/scope-hash m)
+             (fa/force-authorisation-scope-hash (:authorization/scope-projection m))))
+      (is (e/valid-force-auth-add-held-v2? m))
+      (is (e/exact-force-auth-add-held? m))
+      (is (e/force-auth-add-held-scope-verifies? m) "derived, not trusted"))))
+
+(deftest v2-member-forged-scope-cannot-assert-verification
+  (testing "the #6 attack surface is closed for v2: a self-consistent artifact
+            cannot claim a verified binding its committed projection does not
+            authenticate"
+    (let [forged (rehash (assoc (dissoc (mk-member-v2 :USDC 10 :in "adj-9")
+                                        :artifact/hash :artifact/preimage)
+                                :authorization/scope-hash "0xunverifiable"))]
+      (is (not (e/valid-force-auth-add-held-v2? forged))
+          "the scope-hash must authenticate the committed projection")
+      (is (not (e/force-auth-add-held-scope-verifies? forged)))
+      (let [ex (try (e/build-force-auth-add-held-summary [forged] {})
+                    (catch clojure.lang.ExceptionInfo ex ex))]
+        (is (some? ex) "the fail-fast builder rejects the forged member")
+        (is (seq (:invalid-members (ex-data ex)))))
+      (let [summary (e/build-force-auth-add-held-summary-permissive [forged] {})
+            result (e/check-aggregate summary [forged] {:summary-version :v2})]
+        (is (not (:valid? result)))
+        (is (= 0 (:scope-verified-count summary)) "scope counts derive, never trust")))))
+
+(deftest v2-member-with-stored-scope-verifies-is-rejected
+  (let [m (rehash (assoc (dissoc (mk-member-v2 :USDC 10 :in "adj-9")
+                                 :artifact/hash :artifact/preimage)
+                         :authorization/scope-verifies? true))]
+    (is (not (e/valid-force-auth-add-held-v2? m))
+        "a stored scope-verifies? boolean is forbidden on v2 members")))
+
+(deftest v2-members-flow-through-aggregates
+  (let [members-v2 [(mk-member-v2 :USDC 100 :in "adj-1")
+                    (mk-member-v2 :ETH 50 :in "adj-2")]
+        v2 (e/build-force-auth-add-held-summary members-v2 {})
+        v1 (e/build-force-auth-add-held-summary-v1 members-v2 {})
+        chk (e/check-aggregate v2 members-v2 {:summary-version :v2})]
+    (is (= 2 (:valid-count v2)))
+    (is (= 2 (:scope-verified-count v2)))
+    (is (true? (:valid? chk)))
+    (is (e/valid-force-auth-add-held-summary-v1? v1))
+    (is (empty? (:invalid-members (e/check-aggregate v1 members-v2 {}))))))
+
+;; ── Optional parallel canonical commitment (portable hashing) ──────────────
+
+(deftest canonical-commitment-is-optional-and-non-breaking
+  (testing "attaching the commitment never changes :artifact/hash"
+    (let [v1 (summary-v1)
+          committed (e/attach-canonical-commitment v1)]
+      (is (= (:artifact/hash v1) (:artifact/hash committed)))
+      (is (= (:artifact/preimage v1) (:artifact/preimage committed)))
+      (is (string? (:artifact/canonical-bytes-v2 committed)))
+      (is (= (:artifact/hash v1) (:artifact/canonical-hash-v2 committed)))
+      (is (e/valid-force-auth-add-held-summary-v1? committed))))
+  (testing "artifacts without the commitment validate exactly as before"
+    (is (e/valid-force-auth-add-held-summary-v1? (summary-v1)))
+    (is (e/valid-force-auth-add-held-summary? (summary-v2)))
+    (is (e/valid-force-auth-add-held? (nth members 0)))))
+
+(deftest canonical-commitment-cannot-be-forged
+  (let [v1 (summary-v1)
+        committed (e/attach-canonical-commitment v1)]
+    (testing "a forged canonical-bytes-v2 is rejected"
+      (is (not (e/valid-force-auth-add-held-summary-v1?
+                (assoc committed :artifact/canonical-bytes-v2 "00ff")))))
+    (testing "a forged canonical-hash-v2 is rejected"
+      (is (not (e/valid-force-auth-add-held-summary-v1?
+                (assoc committed :artifact/canonical-hash-v2 "sha256:forged")))))
+    (testing "the commitment survives EDN round-trip"
+      (is (e/valid-force-auth-add-held-summary-v1?
+           (edn/read-string (pr-str committed)))))))
+
+(deftest canonical-commitment-verifies-on-members-and-lifecycle
+  (let [member (e/attach-canonical-commitment (nth members 0))
+        lifecycle (e/attach-canonical-commitment
+                   (e/build-force-auth-lifecycle-summary
+                    {:authorisations {"fa-0" (auth-for "fa-0" (scope-for "0xrecipient" 5000))}
+                     :consumption-registry {}}))]
+    (is (e/valid-force-auth-add-held? member))
+    (is (e/valid-force-auth-lifecycle-summary? lifecycle))))

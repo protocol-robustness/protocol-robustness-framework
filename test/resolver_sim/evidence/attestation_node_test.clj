@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-node :as an]
+            [resolver-sim.evidence.node :as node]
             [resolver-sim.hash.canonical :as hc]))
 
 (defn- attestor [] {:type :ci-runner :id :ci-validation})
@@ -11,8 +12,7 @@
   [& {:keys [signed-at claim-id signing-key-id provenance metadata claim]
       :or {claim :verified}}]
   (att/build-attestation (attestor) (subject) claim
-                         (cond-> {}
-                           signed-at (assoc :signed-at signed-at)
+                         (cond-> {:signed-at (or signed-at "2025-01-01T00:00:00Z")}
                            claim-id (assoc :claim-id claim-id)
                            signing-key-id (assoc :signing-key-id signing-key-id)
                            signing-key-id (assoc :signing-fn (fn [_]
@@ -25,76 +25,58 @@
 ;; ── build-attestation-node ───────────────────────────────────────────────────
 
 (deftest build-node-produces-required-fields
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z")
+  (let [a (build-attestation)
         node (an/build-attestation-node a)]
+    (is (some? (:schema-version node)))
+    (is (some? (:node-id node)))
     (is (some? (:node-hash node)))
+    (is (vector? (:parent-hashes node)))
+    (is (map? (:execution node)))
     (is (map? (:result node)))
-    (is (true? (:attestations/reference node)))))
+    (is (map? (:evidence node)))))
 
-(deftest build-node-captures-attestation-id
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z")
+(deftest build-node-is-attestation-execution
+  (let [node (an/build-attestation-node (build-attestation))]
+    (is (= :execution/attestation (get-in node [:execution :execution-id])))
+    (is (= :attestation (get-in node [:execution :execution-kind])))
+    (is (= :attestation-emitter (get-in node [:execution :runner])))))
+
+(deftest build-node-references-attestation
+  (let [a (build-attestation)
         node (an/build-attestation-node a)]
-    (is (= (:attestation/id a)
-           (get-in node [:result :attestation-node/attestation-id])))))
+    (is (= (str "attestation:sha256:" (:attestation/id a))
+           (first (:attestations node))))))
 
-(deftest build-node-captures-attestor-id
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z")
-        node (an/build-attestation-node a)]
-    (is (= :ci-validation
-           (get-in node [:result :attestation-node/attestor-id])))))
-
-(deftest build-node-captures-subject
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z")
-        node (an/build-attestation-node a)]
-    (is (= :evidence-node (get-in node [:result :attestation-node/subject-kind])))
-    (is (= "sha256:abc" (get-in node [:result :attestation-node/subject-hash])))))
-
-(deftest build-node-captures-claim
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z" :claim :reproduced
-                             :claim-id :claim/reproduced)
-        node (an/build-attestation-node a)]
-    (is (= :reproduced (get-in node [:result :attestation-node/claim-result])))
-    (is (= :claim/reproduced (get-in node [:result :attestation-node/claim-id])))))
-
-(deftest build-node-detects-signed-status
-  (let [unsigned (build-attestation :signed-at "2025-01-01T00:00:00Z")
-        signed (build-attestation :signed-at "2025-01-01T00:00:00Z"
-                                  :signing-key-id "key-001")
-        node-unsigned (an/build-attestation-node unsigned)
-        node-signed (an/build-attestation-node signed)]
-    (is (false? (get-in node-unsigned [:result :attestation-node/signed?])))
-    (is (true? (get-in node-signed [:result :attestation-node/signed?])))))
-
-(deftest build-node-captures-provenance
-  (let [prov {:provenance/run-id "run-123" :provenance/trigger :claim-evaluation}
-        a (build-attestation :signed-at "2025-01-01T00:00:00Z" :provenance prov)
-        node (an/build-attestation-node a)]
-    (is (= prov (get-in node [:result :attestation-node/provenance])))))
+(deftest build-node-has-hashed-inputs
+  (let [node (an/build-attestation-node (build-attestation))]
+    (is (string? (get-in node [:evidence :inputs-hash])))
+    (is (= 64 (count (get-in node [:evidence :inputs-hash]))))
+    (is (string? (get-in node [:evidence :outputs-hash])))))
 
 (deftest build-node-hash-is-content-addressed
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z")
-        node (an/build-attestation-node a)]
+  (let [node (an/build-attestation-node (build-attestation))]
     (is (string? (:node-hash node)))
     (is (= 64 (count (:node-hash node)))
         "sha256 hex strings are 64 characters")))
 
+(deftest build-node-validates-through-node-registry
+  (node/with-fresh-registry
+    (let [node (an/build-attestation-node (build-attestation))]
+      (is (:valid? (node/validate-node node))))))
+
+;; ── Determinism / content-addressing ─────────────────────────────────────────
+
 (deftest build-node-deterministic-hash
-  (let [opts {:signed-at "2025-01-01T00:00:00Z" :claim-id :claim/consistency
-              :signing-key-id "key-001" :provenance {:run-id "r1"}}
-        a1 (build-attestation opts)
-        a2 (build-attestation opts)
+  (let [a1 (build-attestation :claim-id :claim/consistency :signing-key-id "key-001")
+        a2 (build-attestation :claim-id :claim/consistency :signing-key-id "key-001")
         n1 (an/build-attestation-node a1)
         n2 (an/build-attestation-node a2)]
     (is (= (:node-hash n1) (:node-hash n2)))))
 
 (deftest build-node-different-claims-different-hash
   (testing "different claim results produce different node hashes"
-    (let [a1 (build-attestation :signed-at "2025-01-01T00:00:00Z" :claim :verified)
-          a2 (build-attestation :signed-at "2025-01-01T00:00:00Z" :claim :approved)
-          n1 (an/build-attestation-node a1)
-          n2 (an/build-attestation-node a2)]
-      (is (not= (:attestation/id a1) (:attestation/id a2))
-          "different claims produce different attestation hashes")
+    (let [n1 (an/build-attestation-node (build-attestation :claim :verified))
+          n2 (an/build-attestation-node (build-attestation :claim :approved))]
       (is (not= (:node-hash n1) (:node-hash n2))
           "different attestations produce different node hashes"))))
 
@@ -113,8 +95,8 @@
 
 (deftest build-node-metadata-excluded-from-hash
   (testing "metadata is excluded from the attestation hash by design"
-    (let [a1 (build-attestation :signed-at "2025-01-01T00:00:00Z" :metadata {:env "test"})
-          a2 (build-attestation :signed-at "2025-01-01T00:00:00Z" :metadata {:env "prod"})
+    (let [a1 (build-attestation :metadata {:env "test"})
+          a2 (build-attestation :metadata {:env "prod"})
           n1 (an/build-attestation-node a1)
           n2 (an/build-attestation-node a2)]
       ;; Metadata is excluded from attestation body before hashing, so attestation IDs match
@@ -127,15 +109,18 @@
 ;; ── Hash verification ───────────────────────────────────────────────────────
 
 (deftest build-node-hash-matches-recomputed
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z")
-        node (an/build-attestation-node a)
-        recomputed (hc/hash-with-intent {:hash/intent :evidence-record} (:result node))]
+  (let [node (an/build-attestation-node (build-attestation))
+        recomputed (hc/hash-with-intent {:hash/intent :evidence-node}
+                                        (dissoc node :node-id :node-hash))]
     (is (= recomputed (:node-hash node)))))
 
-;; ── Edge cases ───────────────────────────────────────────────────────────────
+;; ── Full pipeline ────────────────────────────────────────────────────────────
 
-(deftest build-node-unsigned-attestation
-  (let [a (build-attestation :signed-at "2025-01-01T00:00:00Z")
-        node (an/build-attestation-node a)]
-    (is (some? (:node-hash node)))
-    (is (= :ci-validation (get-in node [:result :attestation-node/attestor-id])))))
+(deftest emit-node-returns-persist-result
+  (node/with-fresh-registry
+    (let [result (an/emit-attestation-node! (build-attestation))]
+      (is (map? result))
+      (is (some? (get-in result [:node :node-hash])))
+      (is (map? (:artifact-entry result)))
+      (is (some? (:path result)))
+      (is (some? (node/lookup-node (:node-hash (:node result))))))))

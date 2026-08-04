@@ -25,7 +25,8 @@
 
    Domain adapters (e.g. resolver-sim.trace.conformance.*) register their
    validators into this registry; the generic package never references them."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.conformance.registry :as registry]))
 
 ;; ---------------------------------------------------------------------------
 ;; Validator registry (closed)
@@ -39,12 +40,23 @@
   "Register a validator implementation.  spec keys:
      :validator/id, :validator/kind, :validator/input-contract,
      :validator/version, :validator/implementation-root,
-     :validator/run (fn [subject] -> validation-result-map)"
+     :validator/run (fn [subject] -> validation-result-map)
+
+   Also mirrors the validator into the closed implementation registry so the
+   committed registry root reflects the full validator implementation surface
+   and receipts can bind the registry root used."
   [spec]
   (let [id (:validator/id spec)]
     (when-not id
       (throw (ex-info "validator requires :validator/id" {:spec spec})))
     (swap! validators assoc id spec)
+    (registry/register!
+     {:implementation/id id
+      :implementation/kind :validator
+      :implementation/domain (or (:validator/domain spec) :generic)
+      :implementation/version (or (:validator/version spec) 1)
+      :implementation/source-root (or (:validator/implementation-root spec) "sha256:none")
+      :implementation/status :active})
     id))
 
 (defn resolve-validator
@@ -82,13 +94,15 @@
 
 (defn- base-result
   [validator-id kind version implementation-root subject status issues]
-  {:validation/id validator-id
+  {:schema-version "conformance.validation-receipt/v1"
+   :validation/id validator-id
    :validation/kind kind
    :validation/version version
    :validation/status status
    :validation/issues (vec issues)
    :validation/subject-root (subject-root subject)
-   :validation/implementation-root implementation-root})
+   :validation/implementation-root implementation-root
+   :implementation-registry/root (registry/registry-root)})
 
 (defn pass-result
   "Produce a :pass validation result for a subject."
@@ -120,7 +134,9 @@
 
    Enforces the shared rules:
      - every id resolves;
-     - no two validators share a validation kind (duplicate layers rejected);
+     - the same validator is not registered twice (duplicate validator ids
+       rejected — two DISTINCT validators of the same kind, e.g. two semantic
+       validators in one profile, are legitimate);
      - every kind in required-kinds is present (required layers cannot be
        skipped).
 
@@ -130,19 +146,19 @@
   [validator-ids required-kinds subject]
   (let [specs (mapv resolve-validator validator-ids)
         missing (keep-indexed (fn [i s] (when (nil? s) (nth validator-ids i))) specs)
+        dup-ids (->> validator-ids frequencies
+                     (keep (fn [[id n]] (when (> n 1) id)))
+                     vec)
         kinds (keep :validator/kind specs)
-        dup-kinds (->> kinds frequencies
-                       (keep (fn [[k n]] (when (> n 1) k)))
-                       vec)
         absent-kinds (remove (set kinds) required-kinds)
         enforcement (into []
                           (concat
                            (map (fn [id] {:issue/code :validator-not-resolved
                                           :issue/details {:validator/id id}})
                                 missing)
-                           (map (fn [k] {:issue/code :duplicate-validation-layer
-                                         :issue/details {:kind k}})
-                                dup-kinds)
+                           (map (fn [id] {:issue/code :duplicate-validator-id
+                                          :issue/details {:validator/id id}})
+                                dup-ids)
                            (map (fn [k] {:issue/code :required-layer-skipped
                                          :issue/details {:kind k}})
                                 absent-kinds)))

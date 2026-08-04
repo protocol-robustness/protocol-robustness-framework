@@ -39,7 +39,7 @@ and linked by parent hash references. This is the canonical abstraction.
 
 ### 2.2 Forensic Execution DAG (`resolver-sim.forensic.execution-dag`)
 
-A separate legacy planning artifact for scenario-run metadata. Created before
+A separate run-planning artifact for scenario-run metadata. Created before
 execution (plan nodes with empty output hashes), populated during the run,
 written as a single JSON file. It is NOT the researcher-facing evidence DAG.
 
@@ -433,7 +433,7 @@ be present. Missing it produces `:missing-dag-root-node-hash`.
 | Attestation DAG | Nodes reference attestations via `:attestations ["attestation:sha256:..."]` |
 | Execution registry | `:execution-id` must be a registered execution kind |
 | Evidence policy | `:policy-id` must be in evidence-policy-registry; `:policy-output` is excluded from hash |
-| Evidence packs | Legacy execution-dag.json included in pack manifests |
+| Evidence packs | Run-plan execution-dag.json included in pack manifests |
 
 ## 11. Scaling Characteristics
 
@@ -457,7 +457,7 @@ hundreds per run). Properties relevant to scaling:
 - `src/resolver_sim/evidence/node.clj` — Canonical evidence DAG implementation
 - `src/resolver_sim/evidence/node_test.clj` — DAG tests (hashing, validation, navigation)
 - `src/resolver_sim/evidence/commitment_root_test.clj` — Commitment root pattern tests
-- `src/resolver_sim/forensic/execution_dag.clj` — Legacy execution DAG
+- `src/resolver_sim/forensic/execution_dag.clj` — Run-plan execution DAG
 - `src/resolver_sim/io/scenario_runner.clj` — Orchestration (DAG creation in run-and-report)
 - `src/resolver_sim/run/bundle_root.clj` — Bundle root construction
 - `src/resolver_sim/run/criteria.clj` — Bundle root validation criteria

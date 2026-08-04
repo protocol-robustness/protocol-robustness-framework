@@ -17,7 +17,6 @@
    trace-reconciliation.json and consumed by scripts/reconcile.py."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.conformance.plan :as plan]
             [resolver-sim.conformance.reconciliation :as rec]
@@ -75,7 +74,7 @@
         replay (some (fn [r] (when (= (:destination entry) (:fixture_path r)) r))
                      (replay-receipts sew-repo))
         replay-ok? (and replay (= "pass" (:replay_status replay)))
-        root (fn [step kind]
+        root (fn [step]
                {:step/id step
                 :subject/id sid
                 :subject/root (if cr (:subject/root cr)
@@ -84,15 +83,15 @@
                 :status :pass})]
     (cond-> []
       (and cr (validator-status cr :schema))
-      (conj (root :schema-validation :schema))
+      (conj (root :schema-validation))
       (and cr (validator-status cr :semantic))
-      (conj (root :semantic-validation :semantic))
-      src-ok? (conj (root :sync-integrity :sync))
+      (conj (root :semantic-validation))
+      src-ok? (conj (root :sync-integrity))
       (and cr (validator-status cr :schema)
            (validator-status cr :semantic)
            replay-ok?)
-      (conj (root :capability-check :capability))
-      replay-ok? (conj (root :replay :replay)))))
+      (conj (root :capability-check))
+      replay-ok? (conj (root :replay)))))
 
 (defn reconcile-trace!
   "Reconcile the trace pipeline against the conformance plan.

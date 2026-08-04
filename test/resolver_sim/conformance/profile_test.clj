@@ -32,10 +32,16 @@
               (:violations (profile/validate-profile p))))))
 
 (deftest validate-rejects-missing-keys
-  (let [p (dissoc (first-profile) :profile/required-components)]
+  (let [p (dissoc (first-profile) :profile/capabilities)]
     (is (not (:valid? (profile/validate-profile p))))
     (is (some #(= :violation/missing-profile-key (:violation/id %))
               (:violations (profile/validate-profile p))))))
+
+(deftest benchmark-profile-validates
+  (let [p (profile/load-profile
+           "etc/conformance/profiles/research-benchmark-reproduction.v1.edn")]
+    (is (:valid? (profile/validate-profile p)))
+    (is (= :research-benchmark-reproduction.v1 (:profile/id p)))))
 
 (deftest validate-rejects-duplicate-components
   (let [p (update (first-profile) :profile/required-components

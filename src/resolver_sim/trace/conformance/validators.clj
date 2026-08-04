@@ -11,6 +11,7 @@
    depend on this namespace."
   (:require [clojure.string :as str]
             [resolver-sim.conformance.validation :as validation]
+            [resolver-sim.conformance.profile :as profile]
             [resolver-sim.trace.conformance.vocabulary :as vocab]))
 
 (defn schema-validate
@@ -30,6 +31,14 @@
                  (conj (validation/validation-issue :missing-scenario-id))
                  (nil? (:fee_bps fixture))
                  (conj (validation/validation-issue :missing-fee-bps))
+                 (and (some? (:fee_bps fixture))
+                      (not (integer? (:fee_bps fixture))))
+                 (conj (validation/validation-issue :fee-bps-not-integer
+                                                    {:fee-bps (:fee_bps fixture)}))
+                 (and (integer? (:fee_bps fixture))
+                      (neg? (:fee_bps fixture)))
+                 (conj (validation/validation-issue :fee-bps-negative
+                                                    {:fee-bps (:fee_bps fixture)}))
                  (not (integer? (:step_count fixture)))
                  (conj (validation/validation-issue :missing-step-count))
                  (nil? (:invariant_profile fixture))
@@ -143,6 +152,20 @@
 (register-check-validator!
  :trace-fixture-v2-semantics :semantic
  vocab/trace-fixture-v2-semantics-root semantic-validate)
+
+;; Trace-equivalence profile-kind domain validator (two-stage validation).
+(profile/register-profile-domain-validator!
+ :trace-equivalence
+ (fn [profile]
+   (let [issues (cond-> []
+                  (not (contains? vocab/supported-fixture-contracts
+                                  (:profile/fixture-contract profile)))
+                  (conj (validation/validation-issue :unsupported-fixture-contract
+                                                     {:fixture-contract (:profile/fixture-contract profile)}))
+                  (not= :trace-equivalence-profile.v1 (:profile/domain-contract profile))
+                  (conj (validation/validation-issue :invalid-domain-contract
+                                                     {:domain-contract (:profile/domain-contract profile)})))]
+     (if (empty? issues) {:valid? true :violations []} {:valid? false :violations issues}))))
 
 (defn validate-fixture
   "Run the schema and semantic layers over a trace fixture (both required).

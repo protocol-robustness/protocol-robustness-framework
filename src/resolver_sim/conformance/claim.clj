@@ -67,6 +67,17 @@
   [class]
   (contains? claim-classes class))
 
+(def claim-scope-metadata
+  "Every claim asserts PROCEDURAL conformance only: declared procedures and
+   evidence support the permitted claim label.  It does not assert anything
+   about the underlying model, theorem, contract, or policy."
+  {:claim/scope :procedural-conformance
+   :claim/does-not-establish
+   #{:model-correctness
+     :economic-safety
+     :absence-of-undiscovered-bugs
+     :truth-of-all-research-interpretations}})
+
 (defn claim-result
   "Build a validated machine claim result.
 
@@ -95,6 +106,7 @@
      (merge {:evaluation/mode mode
              :claim/class class
              :claim/status status}
+            claim-scope-metadata
             opts))))
 
 (defn derive-claim
@@ -135,4 +147,7 @@
   [coverage reconciliation claim]
   (when (and (:coverage/complete? coverage)
              (= :pass (:reconciliation/status reconciliation)))
-    (assoc claim :reconciliation/root (:reconciliation/root reconciliation))))
+    (assoc claim
+           :reconciliation/root (:reconciliation/root reconciliation)
+           :environment/root (or (:environment/root reconciliation)
+                                 (:environment/root coverage)))))

@@ -192,6 +192,18 @@ def coverage_complete_for(
     return need <= set(validated) and need <= set(executed) and need <= set(compared)
 
 
+def load_trace_reconciliation(repo_root: Path) -> dict[str, Any] | None:
+    """Read the planned-versus-observed reconciliation emitted by
+    clojure -M:conformance-reconcile, or None when absent."""
+    p = repo_root / "results" / "conformance" / "trace-reconciliation.json"
+    if not p.is_file():
+        return None
+    try:
+        return json.loads(p.read_text("utf-8"))
+    except Exception:
+        return None
+
+
 def derive_claim(mode: str, ok: bool, diverge: bool = False) -> str:
     """Mirror of resolver-sim.conformance.claim/derive-claim."""
     if mode not in KNOWN_MODES or not ok:
@@ -469,13 +481,17 @@ def main() -> None:
     }
 
     # A claim is emitted ONLY when its class is permitted for the mode, the
-    # capability gate passed for the observed subject set, AND coverage is
-    # complete (a claim can never arise from aggregate success while individual
-    # subject coverage is incomplete).  In :attested/:reproduce mode a
-    # non-established claim is simply ABSENT; in :candidate/:compare mode a
-    # failed gate is a real :not-evaluated claim.
+    # capability gate passed for the observed subject set, coverage is
+    # complete, AND the planned-versus-observed reconciliation passed (the
+    # claim binds :reconciliation/root, proving the declared plan was
+    # followed).  In :attested/:reproduce mode a non-established claim is
+    # simply ABSENT; in :candidate/:compare mode a failed gate is a real
+    # :not-evaluated claim.
+    reconciliation = load_trace_reconciliation(repo_root)
+    recon_ok = bool(reconciliation) and reconciliation.get("reconciliation/status") == "pass"
+
     claim: dict[str, Any] | None = None
-    if ok and cap_ok and coverage_complete:
+    if ok and cap_ok and coverage_complete and recon_ok:
         claim_class = derive_claim(mode, True)
         if claim_class in mode_permissions.get(mode, set()):
             claim = {
@@ -490,6 +506,7 @@ def main() -> None:
                         "derivation-boundaries", []
                     ),
                 },
+                "reconciliation/root": reconciliation.get("reconciliation/root"),
             }
     elif mode in (":candidate", ":compare"):
         # In comparison modes a failed gate is a real :not-evaluated claim
@@ -521,6 +538,10 @@ def main() -> None:
         },
         "capability_check": capability_check,
         "coverage": coverage_receipt,
+        # Planned-versus-observed reconciliation result emitted by the Clojure
+        # trace runner (clojure -M:conformance-reconcile).  Absent when the
+        # runner has not been executed; the claim is then not evidence-bound.
+        "reconciliation": reconciliation,
         "errors": errors,
         "warnings": warnings,
     }
@@ -546,6 +567,7 @@ def main() -> None:
     print(f"  Coverage complete:    {coverage_receipt['coverage/complete?']} "
           f"({len(coverage_receipt['coverage/required-subjects'])} required, "
           f"{len(coverage_receipt['coverage/excluded-subjects'])} excluded)")
+    print(f"  Reconciliation:       {reconciliation.get('reconciliation/status') if reconciliation else '(not run)'}")
     if not ok:
         print()
         print("  ERRORS:")

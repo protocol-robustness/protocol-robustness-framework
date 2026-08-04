@@ -1,0 +1,20 @@
+{
+  "signature/algorithm": "ed25519",
+  "signature/value": "14e124694788137c423d18f0404c5ff5948ca59328e9e4240cba1128fe864a437e0dba28c97895992cd7a17f9046995a21092737904abf0029f7d29c2bbf8c09",
+  "signature/preimage": "63616e6f6e6963616c2d707265696d6167652d7631",
+  "signature/domain": "prf-evidence-package.v1",
+  "signer/id": "signer-a",
+  "signer/public-key": "302a300506032b657003210001fba18106ddb4da019e7bd658e3de8ab8c59e47e345c6caddca4e3e67ec75db",
+  "trust-policy/keys": {
+    "signer-a": {
+      "key/id": "key-1",
+      "key/status": "revoked",
+      "key/status-effective-at": 2000,
+      "key/authorised-kinds": [
+        "evidence-package"
+      ]
+    }
+  },
+  "valid-at": 1999,
+  "artifact-kind": "evidence-package"
+}

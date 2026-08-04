@@ -521,18 +521,20 @@
 
 (deftest test-solvency-strict-equality-passes-clean-world
   ;; Clean world: total-held exactly matches live escrow amount.
-  ;; total-principal-deposited must also be set to satisfy conservation-of-funds.
-  (let [world (-> (t/empty-world 1000)
-                  (assoc-in [:escrow-transfers 0]
-                            {:token "0xUSDC" :to "0xBob" :from "0xAlice"
-                             :amount-after-fee 5000
-                             :dispute-resolver nil
-                             :auto-release-time 0 :auto-cancel-time 0
-                             :escrow-state :pending
-                             :sender-status :none :recipient-status :none})
-                  (assoc-in [:total-held "0xUSDC"] 5000)
-                  (assoc-in [:total-principal-deposited "0xUSDC"] 5000))]
-    (let [r (inv/check-all world)]
+  ;; Built through the protocol command layer so held-adjustment history is
+  ;; complete and the custody reconstruction invariants evaluate (pass), while
+  ;; total-held strictly equals the live escrow sum.
+  (let [ctx   (proto/build-execution-context
+               sew/protocol
+               [{:id "alice" :address "0xAlice" :type "honest"}
+                {:id "bob"   :address "0xBob"   :type "honest"}]
+               {:resolver-fee-bps 50})
+        w0    (assoc-in (t/empty-world 1000) [:params :held-adjustments/complete?] true)
+        s1    (replay/process-step sew/protocol ctx w0
+                                   {:seq 0 :time 1000 :agent "alice" :action "create_escrow"
+                                    :params {:token "0xUSDC" :to "0xBob" :amount 5000}})]
+    (let [r (inv/check-all (:world s1))]
+      (is (= :ok (get-in s1 [:trace-entry :result])))
       (is (true? (:all-hold? r))))))
 
 ;; ---------------------------------------------------------------------------
@@ -631,9 +633,13 @@
 
 (defn- initial-disputed-world
   "Build a world with one :disputed escrow whose et.dispute-resolver = res-level-0.
-   Uses process-step to drive create_escrow + raise_dispute so invariants hold."
+   Uses process-step to drive create_escrow + raise_dispute so invariants hold.
+   Declares held-adjustment completeness: the world is driven only through the
+   protocol command layer from t/empty-world, so custody begins at zero, every
+   held mutation is logged, and the reconstruction invariants evaluate (rather
+   than reporting :not-evaluated-incomplete-history)."
   [context]
-  (let [w0 (t/empty-world 1000)
+  (let [w0 (assoc-in (t/empty-world 1000) [:params :held-adjustments/complete?] true)
         s1 (replay/process-step sew/protocol context w0
                                 {:seq 0 :time 1000 :agent "alice" :action "create_escrow"
                                  :params {:token "0xUSDC" :to "0xBob" :amount 10000}})
