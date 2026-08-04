@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sew-protocol.io/schemas/trace-fixture-v2.schema.json",
+  "title": "SEW Trace Fixture (CDRS v0.2)",
+  "description": "Canonical format for CDRS v0.2 SEW trace fixtures (schema_version 2), consumed by the trace-equivalence harness and validated by resolver-sim.trace.conformance.validators.",
+  "type": "object",
+  "required": [
+    "cdrs_version", "schema_version", "scenario_id", "description",
+    "fee_bps", "step_count", "steps", "invariant_profile"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "cdrs_version": { "type": "string", "const": "0.2" },
+    "schema_version": { "type": "string", "const": "2" },
+    "scenario_id": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "trace_kind": { "type": "array", "items": { "type": "string" } },
+    "fee_bps": { "type": "integer", "minimum": 0 },
+    "appeal_window_duration": { "type": "integer", "minimum": 0 },
+    "max_dispute_duration": { "type": "integer", "minimum": 0 },
+    "step_count": { "type": "integer", "minimum": 0 },
+    "terminal_projection_hash": { "type": ["string", "null"] },
+    "invariant_profile": {
+      "type": "object",
+      "required": ["id", "version", "root"],
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": "integer" },
+        "root": { "type": "string" }
+      }
+    },
+    "expected_semantics": { "type": "object" },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["seq", "event_type", "step_type", "context_id", "actor", "timestamp", "attributes", "expected"],
+        "properties": {
+          "seq": { "type": "integer", "minimum": 0 },
+          "cdrs_version": { "type": "string", "const": "0.2" },
+          "event_type": { "type": "string", "minLength": 1 },
+          "step_type": { "type": "string", "enum": ["protocol-transition", "economic-effect", "environmental-change"] },
+          "context_id": { "type": "string" },
+          "actor": { "type": "string", "minLength": 1 },
+          "timestamp": { "type": "integer", "minimum": 0 },
+          "attributes": {
+            "type": "object",
+            "required": ["action"],
+            "properties": {
+              "action": { "type": "string", "minLength": 1 },
+              "seq": { "type": "integer", "minimum": 0 },
+              "wf_alias": { "type": "string" },
+              "to_role": { "type": "string" },
+              "amount": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "expected": {
+            "type": "object",
+            "required": ["accepted"],
+            "properties": {
+              "accepted": { "type": "boolean" },
+              "state_changed": { "type": "boolean" },
+              "escrow_state": { "type": "integer", "minimum": 0 },
+              "escrow_amount_after_fee": { "type": "integer", "minimum": 0 },
+              "global_total_held": { "type": "integer", "minimum": 0 },
+              "global_total_fees": { "type": "integer", "minimum": 0 },
+              "pending_settlement_exists": { "type": "boolean" },
+              "dispute_level": { "type": "integer", "minimum": 0 },
+              "reverted": { "type": "boolean" },
+              "error": { "type": "string" },
+              "rejection_reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

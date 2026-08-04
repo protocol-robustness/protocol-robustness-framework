@@ -213,6 +213,12 @@
    {:extra-paths [:paths/protocols-src]
     :main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
 
+   :conformance-validate
+   {:main-opts ["-m" "resolver-sim.trace.conformance.runner"]}
+
+   :conformance-reconcile
+   {:main-opts ["-m" "resolver-sim.trace.conformance.reconcile-runner"]}
+
    :reference-validation
    {:extra-paths [:paths/protocols]
     :main-opts ["-m" "resolver-sim.sim.reference-validation"]}

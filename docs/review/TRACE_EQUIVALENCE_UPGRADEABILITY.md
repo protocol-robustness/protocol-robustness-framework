@@ -137,9 +137,76 @@ NOT automatically bump CDRS or schema version.
 # Emit receipts (also run by the attestation generator):
 cd <sew-repo> && mkdir -p out/receipts && forge test --match-contract TraceEquivalenceTest
 
-# Reconciliation gate (execution evidence vs manifest):
-python3 scripts/reconcile.py --sew-repo <sew-repo>
+# Reconciliation gate (execution evidence vs manifest) with explicit claim class:
+python3 scripts/reconcile.py --sew-repo <sew-repo> [--mode attested|reproduce|candidate|compare]
 
 # Receipt-derived attestation:
 python3 etc/generate-equivalence-attestation.py --sew-repo <sew-repo>
 ```
+
+## Phase G1 — complete the first profile (delivered)
+
+- **Generic validation contract** (`conformance.validation`): stable result shape
+  (`:validation/id|kind|version|status|issues|subject-root|implementation-root`),
+  a CLOSED validator registry with `resolve-validator`, and layer rules
+  (every required validator resolves; duplicates rejected; required layers
+  cannot be skipped; results bind the subject root).
+- **Trace-domain validators** (`resolver-sim.trace.conformance.validators` +
+  `vocabulary`): `:trace-fixture-v2-schema` (structural, mirrors
+  `etc/conformance/schemas/trace-fixture-v2.schema.json`) and
+  `:trace-fixture-v2-semantics` (action/role/version/alias rules). The committed
+  v2 JSON Schema is at `etc/conformance/schemas/trace-fixture-v2.schema.json`.
+- **Observed capability satisfaction** (`conformance.capability`): a capability
+  is satisfied only by a SUCCESSFUL receipt for the current subject set
+  (declared → resolved → exercised); stale declarations or bypassed validators
+  cannot satisfy it.
+- **Execution plan** (`conformance.plan`): deterministic, content-addressed,
+  topologically validated, complete against the profile's boundaries and
+  capabilities; closed step vocabulary.
+- **Per-trace coverage** (`conformance.coverage`) + **coverage-bound claims**
+  (`conformance.claim/claim-with-coverage`): claims are never emitted from
+  aggregate success while individual subject coverage is incomplete.
+- **Typed outcomes** (`conformance.outcome`) and **implementation registry with
+  completeness proofs** (`conformance.registry`, active/experimental/deprecated/
+  orphaned classification).
+- **Adoption**: `trace_export` fails closed on conformance validation;
+  `clojure -M:conformance-validate` emits per-source conformance receipts;
+  `reconcile.py` derives observed capabilities + coverage from receipts and
+  emits an explicit claim bound to a plan fingerprint. The attested claim for
+  the contract-replayed subject set (10, with 8 explicit exclusions) now passes
+  with coverage complete.
+
+**Remaining (G2–G5):** profile valid/satisfiable/executable distinctions,
+receipt graphs (DAG), planned-vs-observed step reconciliation, a second
+conformance profile (benchmark reproduction), then G4/G5 refinement and public
+surface stabilisation.
+
+## Cross-implementation conformance framework
+
+The trace-equivalence harness is the **first concrete profile**
+(`:sew-trace-equivalence.v1`) of a generic cross-implementation conformance
+pipeline. The shared primitives live in `resolver-sim.conformance.*`; trace
+equivalence adopts them without renaming or restructuring the existing system.
+
+| Primitive | Namespace | Purpose |
+|---|---|---|
+| Claim/verdict taxonomy | `conformance.claim` | `:attested` / `:reproduced` / `:candidate-compatible` / `:accepted-divergence` / `:not-evaluated` are first-class machine states. `claim-result` refuses to emit a class a mode may not claim; wording is always derived from the class, never from an exit code. |
+| Capability compatibility gate | `conformance.capability` | Structured `compatible-capabilities?` result (missing / version-conflict / satisfied). Unsupported combinations are "not executable" before replay. |
+| Derivation receipts | `conformance.derivation` | Generic boundary receipts (`input/root → output/root` under a named transformation) linked into chains, so "invalid at export" is distinguishable from "stale sync copy" from "unsupported at replay". |
+| Conformance profile | `conformance.profile` | Committed descriptor unifying fixture contract, vocabulary registry, actions, roles, projections, invariants, comparison policy, required components, verdict policy. Identifies registered executable implementations by id only. |
+
+**Committed data (single source of truth):** `etc/conformance/claims.edn` and
+`etc/conformance/profiles/sew-trace-equivalence.v1.edn`. Non-Clojure tooling
+reads them via `scripts/edn.py` (minimal EDN reader); the authoritative
+interpretation lives in the Clojure namespaces.
+
+**Adoption in the trace pipeline:** `reconcile.py` takes `--mode` and emits an
+explicit `claim` block (never implied by the exit code). It also runs the
+capability gate against the committed profile. The gate currently reports
+`:semantic-validation` as **missing** — that is the Phase-2 semantic validator,
+and the honest state is surfaced rather than claimed.
+
+**Guardrails (not built):** no dynamic plugin loader, no universal fixture
+schema, no generic action execution language, no single registry that erases
+action/role/profile distinctions, no repository-independent build orchestrator,
+and no umbrella attestation artifact until receipts and profiles are stable.

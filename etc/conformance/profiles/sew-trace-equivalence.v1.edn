@@ -1,0 +1,114 @@
+{:profile/schema-version "conformance-profile.v1"
+ :profile/id :sew-trace-equivalence.v1
+ :profile/version 1
+ :profile/fixture-contract :trace-fixture.v2
+ :profile/fixture-contracts #{:trace-fixture.v2 :trace-fixture.v1}
+
+ :profile/vocabulary-registry :sew-trace-vocabulary.v1
+
+ ;; Validators the profile requires to be resolvable and exercised (observed
+ ;; capability satisfaction).  Registered in resolver-sim.conformance.validation
+ ;; by the trace-domain adapter resolver-sim.trace.conformance.validators.
+ :profile/validators
+ [{:validator/id :trace-fixture-v2-schema
+   :validator/kind :schema
+   :validator/input-contract :trace-fixture.v2
+   :validator/version 1}
+  {:validator/id :trace-fixture-v2-semantics
+   :validator/kind :semantic
+   :validator/input-contract :trace-fixture.v2
+   :validator/version 1}]
+
+ ;; Action vocabulary — ids only; executable handlers are registered elsewhere.
+ :profile/actions
+ [{:action/id :create-escrow
+   :supported-fixture-specs #{:trace-fixture.v2 :trace-fixture.v1}}
+  {:action/id :release
+   :supported-fixture-specs #{:trace-fixture.v2 :trace-fixture.v1}}
+  {:action/id :sender-cancel
+   :supported-fixture-specs #{:trace-fixture.v2 :trace-fixture.v1}}
+  {:action/id :recipient-cancel
+   :supported-fixture-specs #{:trace-fixture.v2 :trace-fixture.v1}}
+  {:action/id :raise-dispute
+   :supported-fixture-specs #{:trace-fixture.v2 :trace-fixture.v1}}
+  {:action/id :release-as-dispute-resolver
+   :supported-fixture-specs #{:trace-fixture.v2}}
+  {:action/id :cancel-as-dispute-resolver
+   :supported-fixture-specs #{:trace-fixture.v2}}
+  {:action/id :execute-pending-settlement
+   :supported-fixture-specs #{:trace-fixture.v2}}
+  {:action/id :auto-cancel-disputed
+   :supported-fixture-specs #{:trace-fixture.v2}}
+  {:action/id :escalate-dispute
+   :supported-fixture-specs #{:trace-fixture.v2}}
+  {:action/id :register-stake
+   :supported-fixture-specs #{:trace-fixture.v2}}
+  {:action/id :withdraw-stake
+   :supported-fixture-specs #{:trace-fixture.v2}}]
+
+ ;; Role vocabulary — ids only; resolution to addresses is replay configuration.
+ :profile/roles
+ [{:role/id :buyer :resolution-policy :explicit-address-map}
+  {:role/id :seller :resolution-policy :explicit-address-map}
+  {:role/id :resolver :resolution-policy :explicit-address-map}
+  {:role/id :l0resolver :resolution-policy :explicit-address-map}
+  {:role/id :l1resolver :resolution-policy :explicit-address-map}
+  {:role/id :l2resolver :resolution-policy :explicit-address-map}
+  {:role/id :keeper :resolution-policy :explicit-address-map}
+  {:role/id :executor :resolution-policy :explicit-address-map}
+  {:role/id :governance :resolution-policy :explicit-address-map}
+  {:role/id :legacyresolver :resolution-policy :explicit-address-map}]
+
+ ;; Projections — normalized observation semantics.
+ :profile/projections
+ [{:projection/id :evm-projection.v1
+   :fixture-contract :trace-fixture.v2
+   :fields [:escrow-state :amount-after-fee :total-held :total-fees
+            :pending-settlement-exists :dispute-level]}
+  {:projection/id :evm-projection.v1
+   :fixture-contract :trace-fixture.v1
+   :fields [:escrow-state :amount-after-fee :total-held :total-fees
+            :pending-settlement-exists :dispute-level]}]
+
+ ;; Invariant profile — evaluative capability.
+ :profile/invariants
+ [{:invariant/id :conservation-of-funds :kind :state-equation}
+  {:invariant/id :dispute-level-bounded :kind :state-equation}
+  {:invariant/id :terminal-payout-exclusivity :kind :state-equation}
+  {:invariant/id :held-reconstruction :kind :state-equation}
+  {:invariant/id :state-transition-valid :kind :transition-equation}
+  {:invariant/id :escalation-monotonic :kind :transition-equation}
+  {:invariant/id :terminal-state-immutable :kind :transition-equation}]
+
+ :profile/comparison-policy
+ {:fields [:escrow-state :amount-after-fee :total-held :total-fees
+           :pending-settlement-exists :dispute-level]
+  :terminal-hash {:algorithm :sha256
+                  :fields [:state :afa :pending-settlement :dispute-level]}}
+
+ ;; Capability requirements — evaluated by the capability gate before replay.
+ :profile/capabilities
+ {:required
+  [{:capability :action/replay :version 1}
+   {:capability :profile/invariants :version 1}
+   {:capability :projection/state :version 2}
+   {:capability :canonicalization :version 1}
+   {:capability :semantic-validation :version 1}]}
+
+ ;; Implementation components whose presence is REQUIRED for a verdict.
+ ;; The completeness check asserts: components declared by the profile
+ ;; == components present in the implementation provenance bundle.
+ :profile/required-components
+ [{:component/id :sew-simulator :component/role :reference}
+  {:component/id :sew-solidity-contracts :component/role :replica}
+  {:component/id :cdrs-export :component/role :generator}
+  {:component/id :trace-replay-harness :component/role :replayer}
+  {:component/id :equivalence-invariant-profile.v1 :component/role :invariants}
+  {:component/id :cdrs-0.2-canonicalizer :component/role :canonicalizer}
+  {:component/id :trace-fixture-v2-semantic-validator :component/role :semantic-validator}]
+
+ :profile/verdict-policy
+ {:claim-classes [:attested :reproduced :candidate-compatible
+                  :accepted-divergence :not-evaluated]
+  :derivation-boundaries
+  [:simulation-result :export :generated-fixture :sync :solidity-fixture :replay]}}

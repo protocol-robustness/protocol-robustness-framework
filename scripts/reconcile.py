@@ -33,6 +33,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -44,6 +45,8 @@ try:
     import sha3  # noqa: F401  (keccak_256, matches Solidity keccak256)
 except ImportError:  # pragma: no cover
     sha3 = None
+
+from edn import parse_edn  # noqa: E402  (local minimal EDN reader)
 
 RECEIPT_SUFFIX = ".json"
 REGRESSION_DIR = "test/foundry/traces/v2/regression"
@@ -127,12 +130,166 @@ def git_commit(path: Path) -> str:
         return "(not a git repo)"
 
 
+# ---------------------------------------------------------------------------
+# Claim taxonomy + capability gate (adopted from resolver-sim.conformance.*)
+#
+# The authoritative taxonomy lives in etc/conformance/claims.edn and the
+# profile descriptor in etc/conformance/profiles/sew-trace-equivalence.v1.edn.
+# reconcile only mirrors the DERIVATION rules; the committed data is the single
+# source of truth.  A machine result always carries an explicit claim class —
+# wording is never implied by the exit code.
+# ---------------------------------------------------------------------------
+
+KNOWN_MODES = {":attested", ":reproduce", ":candidate", ":compare"}
+VALID_STATUSES = {":pass", ":fail", ":partial"}
+
+
+def load_claims(repo_root: Path) -> dict[str, Any]:
+    path = repo_root / "etc" / "conformance" / "claims.edn"
+    claims = parse_edn(path.read_text("utf-8"))
+    perms = claims.get(":claim/mode-permissions", {})
+    mode_permissions = {mode: set(classes) for mode, classes in perms.items()}
+    labels = {
+        e[":claim/class"]: e.get(":claim/label", e[":claim/class"])
+        for e in claims.get(":claim/taxonomy", [])
+    }
+    return {"mode_permissions": mode_permissions, "labels": labels}
+
+
+def load_profile_requirements(repo_root: Path) -> dict[str, Any]:
+    path = repo_root / "etc" / "conformance" / "profiles" / "sew-trace-equivalence.v1.edn"
+    profile = parse_edn(path.read_text("utf-8"))
+    caps = profile.get(":profile/capabilities", {}).get(":required", [])
+    verdict = profile.get(":profile/verdict-policy", {})
+    return {
+        "profile/id": profile.get(":profile/id"),
+        "fixture-contract": profile.get(":profile/fixture-contract"),
+        "required_capabilities": caps,
+        "claim-classes": verdict.get(":claim-classes", []),
+        "derivation-boundaries": verdict.get(":derivation-boundaries", []),
+    }
+
+
+def subject_set_root(sources: list[str]) -> str:
+    """Deterministic subject-set root over sorted source paths (Python-side
+    plan fingerprint; the authoritative plan root is computed by the Clojure
+    resolver-sim.conformance.plan/build-plan)."""
+    h = hashlib.sha256()
+    for s in sorted(sources):
+        h.update(s.encode("utf-8"))
+        h.update(b"\n")
+    return "sha256:" + h.hexdigest()
+
+
+def coverage_complete_for(
+    required: list[str], excluded: list[str],
+    validated: list[str], executed: list[str], compared: list[str],
+) -> bool:
+    """Mirror of resolver-sim.conformance.coverage/coverage-complete?: every
+    required subject (not explicitly excluded) must be validated, executed and
+    compared."""
+    need = set(required) - set(excluded)
+    return need <= set(validated) and need <= set(executed) and need <= set(compared)
+
+
+def derive_claim(mode: str, ok: bool, diverge: bool = False) -> str:
+    """Mirror of resolver-sim.conformance.claim/derive-claim."""
+    if mode not in KNOWN_MODES or not ok:
+        return ":not-evaluated"
+    if mode == ":attested":
+        return ":attested"
+    if mode == ":reproduce":
+        return ":reproduced"
+    if diverge:
+        return ":accepted-divergence"
+    return ":candidate-compatible"
+
+
+def check_capabilities(
+    required: list[dict[str, Any]], implementation: dict[str, int]
+) -> dict[str, Any]:
+    """Mirror of resolver-sim.conformance.capability/compatible-capabilities?."""
+    missing, conflicts, satisfied = [], [], []
+    for req in required:
+        kind = req.get(":capability")
+        req_v = req.get(":version")
+        avail = implementation.get(kind)
+        entry = {"capability": kind, "required": req_v, "available": avail}
+        if avail is None:
+            entry["kind"] = "missing"
+            missing.append(entry)
+        elif avail < req_v:
+            entry["kind"] = "version-conflict"
+            conflicts.append(entry)
+        else:
+            entry["kind"] = "satisfied"
+            satisfied.append(entry)
+    return {
+        "compatible?": (not missing and not conflicts),
+        "missing-capabilities": missing,
+        "version-conflicts": conflicts,
+        "unsupported-capabilities": missing + conflicts,
+        "satisfied-capabilities": satisfied,
+    }
+
+
+def observed_capabilities(
+    repo_root: Path,
+    subject_sources: list[str],
+    receipts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """OBSERVED capabilities derived ONLY from receipts for the current subject
+    set (declared -> resolved -> exercised).  A capability is exercised only
+    when an appropriate SUCCESSFUL receipt exists for the subject; it can never
+    be satisfied merely by being listed in a profile or CI config.
+
+    - :action/replay, :projection/state : exercised when a replay receipt exists
+      for the subject set;
+    - :profile/invariants              : exercised when a replay receipt reports
+      profile_applied;
+    - :semantic-validation, :canonicalization : exercised when every subject
+      source has a PASS conformance receipt (<source>.conformance.json)."""
+    replay_present = bool(receipts)
+    invariants_exercised = any(bool(r.get("profile_applied")) for r in receipts)
+
+    semantic_ok = True
+    canon_ok = True
+    for src in subject_sources:
+        cr_path = repo_root / (src + ".conformance.json")
+        if not cr_path.is_file():
+            semantic_ok = False
+            canon_ok = False
+            continue
+        try:
+            cr = json.loads(cr_path.read_text("utf-8"))
+        except Exception:
+            semantic_ok = False
+            canon_ok = False
+            continue
+        if not cr.get("valid?"):
+            semantic_ok = False
+        # canonicalization ran whenever the conformance receipt was produced
+        if not cr.get("validators"):
+            canon_ok = False
+
+    return {
+        ":action/replay": 1 if replay_present else None,
+        ":projection/state": 2 if replay_present else None,
+        ":profile/invariants": 1 if invariants_exercised else None,
+        ":semantic-validation": 1 if semantic_ok else None,
+        ":canonicalization": 1 if canon_ok else None,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Trace-equivalence set reconciliation gate")
     parser.add_argument("--manifest", default="etc/trace-solidity-manifest.edn")
     parser.add_argument("--sew-repo", default=None)
     parser.add_argument("--receipts-dir", default=None)
     parser.add_argument("--report", default=None)
+    parser.add_argument("--mode", choices=["attested", "reproduce", "candidate", "compare"],
+                        default="attested",
+                        help="Evaluation mode (drives the permitted claim class)")
     args = parser.parse_args()
 
     script_dir = Path(__file__).resolve().parent
@@ -272,6 +429,79 @@ def main() -> None:
 
     ok = not errors
 
+    # ---- Claim + capability (adopted conformance primitives) ----------------
+    mode = ":" + args.mode
+    claims_data = load_claims(repo_root)
+    mode_permissions = claims_data["mode_permissions"]
+    profile_requirements = load_profile_requirements(repo_root)
+
+    # Observed capability satisfaction: only receipts for the CURRENT subject
+    # set (the contract-replayed sources) can satisfy a capability.
+    subject_sources = [e.get("source", "") for e in contract_replayed]
+    impl_caps = observed_capabilities(repo_root, subject_sources, receipts)
+    capability_check = check_capabilities(
+        profile_requirements["required_capabilities"], impl_caps
+    )
+    cap_ok = capability_check["compatible?"]
+
+    # Per-subject coverage reconciliation (G1): the claim subject set is the
+    # contract-replayed sources; byte-synced-only traces are explicit
+    # exclusions.  validated/executed/comparsed derive from observed receipts.
+    excluded_sources = [e.get("source", "") for e in byte_synced]
+    validated_sources = [
+        s for s in subject_sources
+        if (repo_root / (s + ".conformance.json")).is_file()
+    ]
+    executed_sources = [e.get("source", "") for e in contract_replayed]
+    compared_sources = executed_sources  # replay receipts include projection comparison
+    coverage_complete = coverage_complete_for(
+        subject_sources, excluded_sources,
+        validated_sources, executed_sources, compared_sources,
+    )
+    coverage_receipt = {
+        "coverage/universe-root": subject_set_root(subject_sources + excluded_sources),
+        "coverage/required-subjects": subject_sources,
+        "coverage/validated-subjects": validated_sources,
+        "coverage/executed-subjects": executed_sources,
+        "coverage/compared-subjects": compared_sources,
+        "coverage/excluded-subjects": excluded_sources,
+        "coverage/complete?": coverage_complete,
+    }
+
+    # A claim is emitted ONLY when its class is permitted for the mode, the
+    # capability gate passed for the observed subject set, AND coverage is
+    # complete (a claim can never arise from aggregate success while individual
+    # subject coverage is incomplete).  In :attested/:reproduce mode a
+    # non-established claim is simply ABSENT; in :candidate/:compare mode a
+    # failed gate is a real :not-evaluated claim.
+    claim: dict[str, Any] | None = None
+    if ok and cap_ok and coverage_complete:
+        claim_class = derive_claim(mode, True)
+        if claim_class in mode_permissions.get(mode, set()):
+            claim = {
+                "evaluation/mode": mode,
+                "claim/class": claim_class,
+                "claim/label": claims_data["labels"].get(claim_class, claim_class),
+                "claim/status": ":pass",
+                "claim/plan": {
+                    "profile/id": profile_requirements["profile/id"],
+                    "subject-set/root": coverage_receipt["coverage/universe-root"],
+                    "derivation-boundaries": profile_requirements.get(
+                        "derivation-boundaries", []
+                    ),
+                },
+            }
+    elif mode in (":candidate", ":compare"):
+        # In comparison modes a failed gate is a real :not-evaluated claim
+        # (:not-evaluated is permitted there).  In :attested/:reproduce modes
+        # the only permitted class is the positive one, so no claim is emitted.
+        claim = {
+            "evaluation/mode": mode,
+            "claim/class": ":not-evaluated",
+            "claim/label": claims_data["labels"].get(":not-evaluated", ":not-evaluated"),
+            "claim/status": ":fail",
+        }
+
     report = {
         "reconciliation": "ok" if ok else "failed",
         "contract_commit": git_commit(sew_repo),
@@ -284,6 +514,13 @@ def main() -> None:
         "replayed_outside_manifest": sorted(
             fp for fp in replayed_destinations if fp not in manifest_destinations
         ),
+        "claim": claim,
+        "profile": {
+            "profile/id": profile_requirements["profile/id"],
+            "fixture-contract": profile_requirements["fixture-contract"],
+        },
+        "capability_check": capability_check,
+        "coverage": coverage_receipt,
         "errors": errors,
         "warnings": warnings,
     }
@@ -299,11 +536,29 @@ def main() -> None:
     print(f"  Manifest traces:      {len(entries)}")
     print(f"  Contract-replayed:    {len(contract_replayed)}")
     print(f"  Byte-synchronised:    {len(byte_synced)}")
+    claim = report["claim"]
+    print(f"  Evaluation mode:      {mode}")
+    if claim:
+        print(f"  Claim class:          {claim['claim/class']} ({claim['claim/label']})")
+        print(f"  Claim status:         {claim['claim/status']}")
+    else:
+        print("  Claim:               (not established - claim class not permitted for this mode)")
+    print(f"  Coverage complete:    {coverage_receipt['coverage/complete?']} "
+          f"({len(coverage_receipt['coverage/required-subjects'])} required, "
+          f"{len(coverage_receipt['coverage/excluded-subjects'])} excluded)")
     if not ok:
         print()
         print("  ERRORS:")
         for e in errors:
             print("    -", e.replace("\n", "\n      "))
+    if not capability_check["compatible?"]:
+        print()
+        print("  CAPABILITY GAP (reported, not structural):")
+        for c in capability_check["unsupported-capabilities"]:
+            print(
+                f"    - {c['capability']}: required {c['required']}"
+                f" / available {c.get('available')} ({c['kind']})"
+            )
     print()
     print(f"  Reconciliation:       {'OK' if ok else 'FAILED'}")
     sys.exit(0 if ok else 1)

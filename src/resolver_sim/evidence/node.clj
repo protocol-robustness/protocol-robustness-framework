@@ -84,6 +84,16 @@
   [s]
   (boolean (re-matches bootstrap-root-pattern s)))
 
+(defn- resolve-hash-ref
+  "Normalize a parent/edge reference to a bare node-hash key.
+   Strips the optional `sha256:` prefix so prefixed parent references
+   (`sha256:<hex>`) match bare 64-hex `:node-hash` keys consistently
+   across all validation tiers."
+  [s]
+  (if-let [stripped (second (re-find #"^sha256:(.+)" s))]
+    stripped
+    s))
+
 (def ^:private attestation-ref-pattern
   #"^attestation:sha256:[0-9a-f]{64}$")
 
@@ -617,16 +627,13 @@
         valid-status? (contains? #{:pass :fail :error} (get-in node [:result :status]))
         recomputed (compute-node-hash node)
         hash-valid? (= recomputed (:node-hash node))
-        resolve-ref #(if-let [stripped (second (re-find #"^sha256:(.+)" %))]
-                       stripped
-                       %)
         parent-set (set (:parent-hashes node))
         valid-bootstrap-roots (vec (filter #(re-matches bootstrap-root-pattern %)
                                            (:bootstrap-roots node)))
         invalid-bootstrap-roots (vec (remove #(re-matches bootstrap-root-pattern %)
                                              (:bootstrap-roots node)))
         valid-bootstrap-set (set valid-bootstrap-roots)
-        missing-parents (vec (remove #(or (contains? known-parent-hashes (resolve-ref %))
+        missing-parents (vec (remove #(or (contains? known-parent-hashes (resolve-hash-ref %))
                                           (contains? valid-bootstrap-set %))
                                      parent-set))
         attestations (:attestations node)
@@ -693,10 +700,14 @@
         node-map (into {} (map (juxt :node-hash identity) nodes))
         known-hashes (set (keys node-map))
         per-node (mapv #(validate-node % :known-parent-hashes known-hashes) nodes)
-        valid-bootstraps (fn [bs] (set (filter valid-bootstrap-root? bs)))
+        valid-bootstraps (fn [bs] (set (map resolve-hash-ref
+                                           (filter valid-bootstrap-root? bs))))
         graph (into {}
                     (map (fn [{:keys [node-hash parent-hashes bootstrap-roots]}]
-                           [node-hash (vec (remove (valid-bootstraps bootstrap-roots) parent-hashes))])
+                           [node-hash
+                            (vec (->> parent-hashes
+                                      (map resolve-hash-ref)
+                                      (remove (valid-bootstraps bootstrap-roots))))])
                          nodes))
         cycle (when strict-dag?
                 (some #(cycle-path graph %) (keys graph)))
@@ -761,8 +772,9 @@
   "Link check: all :parent-hashes must be resolvable from bootstrap-roots
    or from known-parent-hashes (passed via opts)."
   [node known-parent-hashes]
-  (let [parent-hashes (set (:parent-hashes node))
-        bootstrap-roots (set (filter valid-bootstrap-root? (:bootstrap-roots node)))
+  (let [parent-hashes (set (map resolve-hash-ref (:parent-hashes node)))
+        bootstrap-roots (set (map resolve-hash-ref
+                                  (filter valid-bootstrap-root? (:bootstrap-roots node))))
         missing (vec (remove #(or (contains? known-parent-hashes %)
                                   (contains? bootstrap-roots %))
                              parent-hashes))]
@@ -821,8 +833,9 @@
   [nodes]
   (if (empty? nodes)
     {:check/id :dag-single-root :check/status :pass :node-count 0}
-    (let [all-parents (set (mapcat :parent-hashes nodes))
-          all-bootstrap (set (filter valid-bootstrap-root? (mapcat :bootstrap-roots nodes)))
+    (let [all-parents (set (map resolve-hash-ref (mapcat :parent-hashes nodes)))
+          all-bootstrap (set (map resolve-hash-ref
+                                  (filter valid-bootstrap-root? (mapcat :bootstrap-roots nodes))))
           effective-parents (apply disj all-parents all-bootstrap)
           roots (remove #(contains? effective-parents (:node-hash %)) nodes)
           root-count (count roots)]
@@ -921,25 +934,28 @@
   [nodes]
   (let [entries (mapv node-summary-entry nodes)
         node-hashes (set (map :node-hash nodes))
-        bootstrap-set (set (filter valid-bootstrap-root? (mapcat :bootstrap-roots nodes)))
+        bootstrap-set (set (map resolve-hash-ref
+                                (filter valid-bootstrap-root? (mapcat :bootstrap-roots nodes))))
         by-hash (into {} (map (juxt :node-hash identity) entries))
         children (fn [parent-hash]
                    (vec (keep (fn [e]
-                                (when (some #(= % parent-hash) (:parent-hashes e))
+                                (when (some #(= (resolve-hash-ref %) parent-hash)
+                                            (:parent-hashes e))
                                   (:node-hash e)))
                               entries)))
         children-by-parent (into {} (map (fn [h] [h (children h)]) node-hashes))
         parents-by-child (into {}
                                (map (fn [e]
                                       [(:node-hash e)
-                                       (vec (remove (fn [p] (contains? bootstrap-set p))
-                                                    (:parent-hashes e)))]))
-                               entries)
+                                       (vec (->> (:parent-hashes e)
+                                                 (map resolve-hash-ref)
+                                                 (remove (fn [p] (contains? bootstrap-set p)))))])
+                               entries))
         roots (vec (sort (map :node-hash
                               (filter (fn [e]
                                         (every? (fn [p] (or (contains? bootstrap-set p)
                                                             (not (contains? node-hashes p))))
-                                                (:parent-hashes e)))
+                                                (map resolve-hash-ref (:parent-hashes e))))
                                       entries))))
         leaves (vec (sort (filter (fn [h] (empty? (children h))) node-hashes)))
         by-execution-id (reduce (fn [m e]
@@ -961,7 +977,7 @@
                                       (some (fn [p]
                                               (and (not (contains? bootstrap-set p))
                                                    (not (contains? node-hashes p))))
-                                            (:parent-hashes e)))
+                                            (map resolve-hash-ref (:parent-hashes e))))
                                     entries))]
     {:dag-index/schema-version "evidence-dag-index.v0"
      :dag-index/nodes-by-hash by-hash
