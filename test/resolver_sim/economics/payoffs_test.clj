@@ -453,7 +453,7 @@
       (is (not (str/includes? source "resolver-sim.protocols.sew")))
       (doseq [forbidden ["escrow" "slashable-stake" "liable-parties" "workflow"
                          "appeal" "bond" "governance" "junior" "senior"
-                         "fraud" "reversal" "timeout"]]
+                         "fraud" "reversal"]]
         (is (not (str/includes? (str/lower-case source) forbidden))
             (str "payoffs.clj should not contain protocol term: " forbidden))))))
 

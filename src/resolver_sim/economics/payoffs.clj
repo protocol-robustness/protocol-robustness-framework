@@ -86,8 +86,9 @@
 
 (def ^:dynamic *pro-rata-parallelism*
   "Runtime-only claimant worker budget. It is deliberately absent from every
-   canonical request, decision, evidence, and proof projection."
-  1)
+   canonical request, decision, evidence, and proof projection. Defaults to the
+   value in config/defaults.edn (:hardening :pro-rata-parallelism)."
+  (config-defaults/default [:hardening :pro-rata-parallelism] 1))
 
 (def ^:dynamic *pro-rata-parallel-threshold*
   "Minimum claimant count at which detached claimant determination may use the
@@ -164,16 +165,25 @@
         (claimant-quiesce! executor parallelism quiescence-timeout-seconds)))))
 
 (defn- claimant-quiesce!
-  "Authoritatively quiesce a claimant executor, failing closed on non-termination."
+  "Authoritatively quiesce a claimant executor, failing closed on non-termination.
+
+   The quiescence timeout is resolved consistently:
+     1. explicit execution/quiescence-timeout-seconds from the allocation request;
+     2. the canonical config default (config/defaults.edn :hardening
+        :quiescence-timeout-seconds, falling back to code constant 30).
+
+   This ensures --quiescence-timeout-seconds config changes flow through the
+   claimant shutdown path even when no explicit timeout was carried on the
+   request (e.g. direct protocol calls or tests)."
   [executor parallelism quiescence-timeout-seconds]
-  (let [q (if (some? quiescence-timeout-seconds)
-            (quiesce/quiesce-executor! executor quiescence-timeout-seconds)
-            (quiesce/quiesce-executor! executor))]
+  (let [timeout (or quiescence-timeout-seconds (quiesce/config-default-timeout-seconds))
+        q (quiesce/quiesce-executor! executor timeout)]
     (when-not (= :terminated (:status q))
       (throw (quiesce/quiescence-failed-exception
               "Claimant executor threads did not terminate before pool release"
               {:quiescence/status (:status q)
                :quiescence/remaining-tasks (:remaining-tasks q)
+               :quiescence/timeout-seconds timeout
                :executor-parallelism parallelism})))))
 
 (defn- registry-entry

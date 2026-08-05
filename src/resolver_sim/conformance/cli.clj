@@ -14,26 +14,26 @@
      {:schema-version :status :outcome/class :claimable?
       :artifact/root :issues [...]}"
   (:require [clojure.data.json :as json]
-            [resolver-sim.conformance.json :as json-scan]
-            [resolver-sim.conformance.bundle :as bundle]
-            [resolver-sim.conformance.profile :as profile]
-            ;; Load the production adapters so the committed implementation
-            ;; registry root matches the one bound into generated receipts.
-            [resolver-sim.trace.conformance.validators]
-            [resolver-sim.benchmark.conformance.reproduction]
-            [resolver-sim.evidence-package.conformance.admission]))
+             [resolver-sim.config.hardening :as hardening]
+             [resolver-sim.conformance.json :as json-scan]
+             [resolver-sim.conformance.bundle :as bundle]
+             [resolver-sim.conformance.profile :as profile]
+             ;; Load the production adapters so the committed implementation
+             ;; registry root matches the one bound into generated receipts.
+             [resolver-sim.trace.conformance.validators]
+             [resolver-sim.benchmark.conformance.reproduction]
+             [resolver-sim.evidence-package.conformance.admission]))
 
 (def cli-schema-version "conformance.cli/v1")
-
-(def max-bundle-bytes (* 10 1024 1024))
 
 (defn- read-json
   "Read a bundle JSON, rejecting duplicate object keys, oversized bundles, and
    excessive nesting (resource safety, CR-004): each yields a typed rejection
    shared by all verifiers."
   [path]
-  (let [text (slurp path)]
-    (when (> (.length text) max-bundle-bytes)
+  (let [text (slurp path)
+        max-bytes (hardening/value :conformance-max-bundle-bytes {:fallback (* 10 1024 1024)})]
+    (when (> (.length text) max-bytes)
       (throw (ex-info "bundle too large" {:issue/code :bundle-too-large})))
     (when (json-scan/nesting-too-deep? text)
       (throw (ex-info "nesting too deep" {:issue/code :nesting-too-deep})))

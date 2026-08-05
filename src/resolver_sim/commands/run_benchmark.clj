@@ -845,7 +845,15 @@
                                                                 quiescence-timeout-seconds)}))
 
       output
-      (let [result (invoke! benchmark-id {:output output :key key})]
+      (let [result (invoke! benchmark-id {:output output :key key
+                                          :parallelism (:parallelism opts)
+                                          :chunk-size (:chunk-size opts)
+                                          :claimant-parallelism (:claimant-parallelism opts)
+                                          :claimant-parallel-threshold (or (:claimant-parallel-threshold opts)
+                                                                           (hardening/claimant-parallel-threshold))
+                                          :budget execution-budget
+                                          :quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
+                                                                       quiescence-timeout-seconds)})]
         {:exit-code (or (:exit-code result) 1)})
 
       :else

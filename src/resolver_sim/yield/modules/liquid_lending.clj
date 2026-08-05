@@ -13,10 +13,12 @@
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.accounting :as acct]
             [resolver-sim.yield.market-state :as market-state]
-            [resolver-sim.execution.context :as execution]
-            [resolver-sim.util.attribution :as attr]
-            [resolver-sim.util.evidence :as util-evidence]
-            [resolver-sim.yield.evidence :as ye]
+             [resolver-sim.execution.context :as execution]
+             [resolver-sim.execution.parallel :as parallel]
+             [resolver-sim.util.attribution :as attr]
+             [resolver-sim.execution.context :as execution]
+             [resolver-sim.execution.parallel :as parallel]
+             [resolver-sim.yield.evidence :as ye]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.time.deadlines :as dl]
             [resolver-sim.hash.canonical :as hc]
@@ -404,17 +406,18 @@
                                  (and (= (:module/id position) module-id)
                                       (token= (:token position) token)
                                       (= (:status position) :active))))
-                       vec
-                       (util-evidence/contextual-pmap
-                        (fn [[owner-id position]]
-                          (let [updated (acct/update-position-yield
-                                         snapshot-world
-                                         position
-                                         scheduled-index)
-                                old-yield (:unrealized-yield position 0)
-                                yield-delta (- (:unrealized-yield updated 0)
-                                               old-yield)]
-                            [owner-id updated yield-delta]))))
+                        vec
+                        (parallel/ordered-bounded-mapv
+                         (or (-> execution/*context* :execution/claimant-parallelism) 1)
+                         (fn [[owner-id position]]
+                           (let [updated (acct/update-position-yield
+                                          snapshot-world
+                                          position
+                                          scheduled-index)
+                                 old-yield (:unrealized-yield position 0)
+                                 yield-delta (- (:unrealized-yield updated 0)
+                                                old-yield)]
+                             [owner-id updated yield-delta]))))
           world' (reduce (fn [next-world [owner-id updated yield-delta]]
                            (-> next-world
                                (assoc-in [:yield/positions owner-id] updated)
@@ -457,17 +460,18 @@
                                      (and (= (:module/id position) module-id)
                                           (token= (:token position) token)
                                           (= (:status position) :active))))
-                           vec
-                           (util-evidence/contextual-pmap
-                            (fn [[owner-id _position]]
-                              [owner-id
-                               (accrual/accrual-decision
-                                world
-                                {:module-id module-id
-                                 :token token
-                                 :position-id owner-id
-                                 :now now
-                                 :dt dt})])))]
+                            vec
+                            (parallel/ordered-bounded-mapv
+                             (or (-> execution/*context* :execution/claimant-parallelism) 1)
+                             (fn [[owner-id _position]]
+                               [owner-id
+                                (accrual/accrual-decision
+                                 world
+                                 {:module-id module-id
+                                  :token token
+                                  :position-id owner-id
+                                  :now now
+                                  :dt dt})])))]
         ;; All decisions were computed against the same pre-accrual snapshot, so the
         ;; recoverable-liquidity cap must be coordinated at module granularity —
         ;; otherwise each position independently spends the same net-solvent headroom.

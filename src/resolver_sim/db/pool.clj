@@ -14,7 +14,8 @@
    Application-instance identity is diagnostic only — it must never be part of
    canonical protocol semantics. It is surfaced in log lines and Hikari pool
    name so owners can attribute a connection to a specific instance/process."
-  (:require [clojure.string :as str])
+   (:require [clojure.string :as str]
+             [resolver-sim.config.hardening :as hardening])
   (:import [com.zaxxer.hikari HikariConfig HikariDataSource]))
 
 (defn instance-id
@@ -26,25 +27,29 @@
     (str host ":" pid)))
 
 (defn- hikari-config
-  [{:keys [jdbcUrl user password pool-size max-pool-size
-           min-idle idle-timeout-ms connection-timeout-ms max-lifetime-ms
-           pool-name postgres-options]
-    :or {pool-size 5
-         pool-name (str "prf-" (instance-id))}}]
-  (let [cfg (doto (HikariConfig.)
-              (.setPoolName (str pool-name "-" (System/currentTimeMillis)))
-              (.setJdbcUrl jdbcUrl)
-              (.setDriverClassName "org.postgresql.Driver"))]
-    (when user (.setUsername cfg user))
-    (when password (.setPassword cfg password))
-    (.setMaximumPoolSize cfg (long (or max-pool-size pool-size)))
-    (.setMinimumIdle cfg (long (or min-idle 1)))
-    (.setIdleTimeout cfg (long (or idle-timeout-ms 600000)))
-    (.setConnectionTimeout cfg (long (or connection-timeout-ms 30000)))
-    (.setMaxLifetime cfg (long (or max-lifetime-ms 1800000)))
-    ;; Fail fast rather than queue requests against a black-holed DB.
-    (.setConnectionInitSql cfg (or (:init-sql postgres-options) "SELECT 1"))
-    cfg))
+   [{:keys [jdbcUrl user password pool-size max-pool-size
+            min-idle idle-timeout-ms connection-timeout-ms max-lifetime-ms
+            pool-name postgres-options]
+     :or {pool-size (hardening/value :db-pool-size {:fallback 5})
+          pool-name (str "prf-" (instance-id))}}]
+   (let [cfg (doto (HikariConfig.)
+               (.setPoolName (str pool-name "-" (System/currentTimeMillis)))
+               (.setJdbcUrl jdbcUrl)
+               (.setDriverClassName "org.postgresql.Driver"))]
+     (when user (.setUsername cfg user))
+     (when password (.setPassword cfg password))
+     (.setMaximumPoolSize cfg (long (or max-pool-size pool-size)))
+     (.setMinimumIdle cfg (long (or min-idle
+                                    (hardening/value :db-pool-min-idle {:fallback 1}))))
+     (.setIdleTimeout cfg (long (or idle-timeout-ms
+                                    (hardening/value :db-pool-idle-timeout-ms {:fallback 600000}))))
+     (.setConnectionTimeout cfg (long (or connection-timeout-ms
+                                          (hardening/value :db-pool-connection-timeout-ms {:fallback 30000}))))
+     (.setMaxLifetime cfg (long (or max-lifetime-ms
+                                    (hardening/value :db-pool-max-lifetime-ms {:fallback 1800000}))))
+     ;; Fail fast rather than queue requests against a black-holed DB.
+     (.setConnectionInitSql cfg (or (:init-sql postgres-options) "SELECT 1"))
+     cfg))
 
 (defn pool
   "Build a bounded Hikari connection pool from a JDBC URL (and optional map).

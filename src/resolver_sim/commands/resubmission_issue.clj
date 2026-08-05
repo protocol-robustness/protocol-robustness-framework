@@ -18,19 +18,19 @@
    the immutable unsigned receipt projection and does not change its identity
    (resolver-sim.resubmission.receipt/sign-receipt)."
   (:require [clojure.edn :as edn]
-            [buddy.core.keys :as keys]
-            [resolver-sim.resubmission.issuance :as issuance]
-            [resolver-sim.resubmission.receipt :as receipt]
-            [resolver-sim.resubmission.transition :as transition]
-            [resolver-sim.signed-external-decision :as sed]
-            [resolver-sim.transaction.ordering :as ordering])
+             [buddy.core.keys :as keys]
+             [resolver-sim.config.hardening :as hardening]
+             [resolver-sim.resubmission.issuance :as issuance]
+             [resolver-sim.resubmission.receipt :as receipt]
+             [resolver-sim.resubmission.transition :as transition]
+             [resolver-sim.signed-external-decision :as sed]
+             [resolver-sim.transaction.ordering :as ordering])
   (:import [java.io PushbackReader Reader StringReader]))
 
 (def protocol-version 1)
 (def request-domain "PRF_RESUBMISSION_ISSUE_REQUEST_V1")
 (def response-kind :resubmission-issue-response)
 (def error-kind :resubmission-issue-error)
-(def max-request-bytes (* 16 1024 1024))
 
 (def request-allowed-top-level
   #{:request/kind :request/version :request/hash :request/id
@@ -245,7 +245,9 @@
   [r private-key validator-key-id]
   (let [request-id (atom nil)]
     (try
-      (let [raw (read-limited r max-request-bytes)
+       (let [raw (read-limited r
+                               (hardening/value :resubmission-max-request-bytes
+                                                {:fallback (* 16 1024 1024)}))
             request (read-one-request (StringReader. raw))
             _ (reset! request-id (:request/id request))
             _ (when-not (valid-request? request)

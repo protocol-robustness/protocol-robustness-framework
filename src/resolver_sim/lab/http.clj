@@ -13,23 +13,18 @@
        simple global rate limit;
      - sanitized errors: no stack traces, every failure carries a
        LAB-RUN-ID reference an operator can trace in the logs.";
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [resolver-sim.lab.exec :as exec]
-            [resolver-sim.lab.json :as lab-json]
-            [resolver-sim.lab.registry :as registry]
-            [resolver-sim.lab.runner :as lab-runner])
+   (:require [clojure.data.json :as json]
+             [clojure.java.io :as io]
+             [clojure.string :as str]
+             [resolver-sim.config.hardening :as hardening]
+             [resolver-sim.lab.exec :as exec]
+             [resolver-sim.lab.json :as lab-json]
+             [resolver-sim.lab.registry :as registry]
+             [resolver-sim.lab.runner :as lab-runner])
   (:import [com.sun.net.httpserver HttpExchange HttpServer]
            [java.io ByteArrayOutputStream InputStream]
            [java.net InetSocketAddress]
            [java.nio.charset StandardCharsets]))
-
-(def ^:private max-body-bytes (* 64 1024))
-(def ^:private default-timeout-ms 90000)
-(def ^:private max-concurrent-runs 2)
-(def ^:private rate-limit-window-ms 60000)
-(def ^:private rate-limit-max-requests 60)
 
 (defn- now-ms [] (System/currentTimeMillis))
 
@@ -40,6 +35,21 @@
       (System/getProperty prop)
       default))
 
+(defn- resolve-config
+  "Resolve all lab HTTP operational settings from config/env with code
+   fallbacks matching the historical literals. CLI values supplied via
+   start! options win over environment, then config/defaults.edn, then
+   the code fallback."
+  [{:keys [port max-concurrent]}]
+  {:max-body-bytes          (hardening/value :lab-http-max-body-bytes {:fallback (* 64 1024)})
+   :timeout-ms              (hardening/value :lab-http-timeout-ms {:fallback 90000})
+   :max-concurrent          (hardening/value :lab-http-max-concurrent-runs {:fallback 2})
+   :rate-limit-window-ms    (hardening/value :lab-http-rate-limit-window-ms {:fallback 60000})
+   :rate-limit-max-requests (hardening/value :lab-http-rate-limit-max-requests {:fallback 60})
+   :thread-pool-size        (hardening/value :lab-http-thread-pool-size {:fallback 4})
+   :port                    (hardening/value :lab-http-port {:cli-value port :fallback 8082})
+   :region                  (hardening/value :lab-http-region {:fallback "eu-north-1"})})
+
 (defn- new-limiter
   [max-concurrent]
   (let [sem (java.util.concurrent.Semaphore. (long max-concurrent))]
@@ -48,9 +58,10 @@
 (defonce ^:private state (atom nil))
 
 (defn- init-state!
-  []
-  (swap! state (fn [s] (or s {:limiter (new-limiter max-concurrent-runs)
-                              :started-at (now-ms)}))))
+  [cfg]
+  (swap! state (fn [s] (or s {:limiter (new-limiter (:max-concurrent cfg))
+                              :started-at (now-ms)
+                              :config cfg}))))
 
 (defn- acquire!
   "Try to acquire a concurrency slot. Returns true or false (non-blocking)."
@@ -67,11 +78,13 @@
    should be rejected (429)."
   []
   (let [queue (:request-times (:limiter @state))
+        cfg (:config @state)
         now (now-ms)
-        cutoff (- now rate-limit-window-ms)
+        cutoff (- now (get cfg :rate-limit-window-ms))
+        max-req (get cfg :rate-limit-max-requests)
         window (swap! queue (fn [q]
                               (->> q (drop-while #(< % cutoff)) vec)))]
-    (if (>= (count window) rate-limit-max-requests)
+    (if (>= (count window) max-req)
       true
       (do (swap! queue conj now)
           false))))
@@ -111,7 +124,7 @@
       (let [n (.read ^InputStream in chunk)]
         (cond
           (neg? n) {:ok? true :body (String. (.toByteArray buffer) StandardCharsets/UTF_8)}
-          (> (+ total n) max-body-bytes) {:ok? false :too-large? true}
+           (> (+ total n) (get-in @state [:config :max-body-bytes])) {:ok? false :too-large? true}
           :else
           (do (.write buffer chunk 0 n)
               (recur (+ total n))))))))
@@ -163,10 +176,11 @@
               (try
                 (let [run-id (lab-runner/generate-run-id)
                       runs-dir (config "LAB_RUNS_DIR" "lab.runs.dir" "/var/lib/lab/runs")
-                      timeout-ms (long (or (parse-long (config "LAB_RUN_TIMEOUT_MS" "lab.run.timeout.ms" ""))
-                                           default-timeout-ms))
-                      publish-bucket (config "LAB_PUBLISH_BUCKET" "lab.publish.bucket" "")
-                      region (or (config "LAB_REGION" "lab.region" "") "eu-north-1")
+                       timeout-ms (long (or (parse-long (config "LAB_RUN_TIMEOUT_MS" "lab.run.timeout.ms" ""))
+                                            (get-in @state [:config :timeout-ms])))
+                       publish-bucket (config "LAB_PUBLISH_BUCKET" "lab.publish.bucket" "")
+                       region (or (config "LAB_REGION" "lab.region" "")
+                                  (get-in @state [:config :region]))
                       result (exec/run-experiment!
                               request run-id
                               {:runs-dir runs-dir
@@ -235,24 +249,30 @@
 
 (defn start!
   "Start the lab HTTP server. options:
-     :port (default 8082), :bind (default \"127.0.0.1\"),
-     :max-concurrent (default 2)"
-  [& [{:keys [port bind max-concurrent]
-       :or {port 8082 bind "127.0.0.1" max-concurrent max-concurrent-runs}}]]
-  (init-state!)
-  (swap! state assoc :limiter (new-limiter max-concurrent))
-  (let [server (HttpServer/create (InetSocketAddress. ^String bind (int port)) 0)]
-    (.createContext server "/" (reify com.sun.net.httpserver.HttpHandler
-                                 (handle [_ exchange] (handler exchange))))
-    (.setExecutor server (java.util.concurrent.Executors/newFixedThreadPool 4))
-    (.start server)
-    (log "listening" (str bind ":" port))
-    server))
+     :port (default resolved via hardening/config, 8082),
+     :bind (default \"127.0.0.1\"),
+     :max-concurrent (default resolved via hardening/config, 2)"
+  [& [{:keys [port bind max-concurrent]}]]
+  (let [cfg (resolve-config {:port port :max-concurrent max-concurrent})
+        port (or port (:port cfg))
+        bind (or bind "127.0.0.1")
+        max-concurrent (or max-concurrent (:max-concurrent cfg))]
+    (init-state! cfg)
+    (swap! state assoc :limiter (new-limiter max-concurrent))
+    (let [server (HttpServer/create (InetSocketAddress. ^String bind (int port)) 0)]
+      (.createContext server "/" (reify com.sun.net.httpserver.HttpHandler
+                                  (handle [_ exchange] (handler exchange))))
+      (.setExecutor server (java.util.concurrent.Executors/newFixedThreadPool
+                             (int (:thread-pool-size cfg))))
+      (.start server)
+      (log "listening" (str bind ":" port))
+      server)))
 
 (defn -main
   "Standalone entry: java -jar ... -m resolver-sim.lab.http [port]"
   [& args]
-  (let [port (if (seq args) (parse-long (first args)) 8082)]
-    (let [server (start! {:port port})]
-      (.addShutdownHook (Runtime/getRuntime)
-                        (Thread. (fn [] (.stop server)))))))
+  (let [server (if (seq args)
+                 (start! {:port (parse-long (first args))})
+                 (start!))]
+    (.addShutdownHook (Runtime/getRuntime)
+                      (Thread. (fn [] (.stop server))))))

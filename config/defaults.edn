@@ -20,5 +20,58 @@
           :max-collection-depth 64
           :max-collection-members 100000}
 :hardening {:parallel-ceiling 8
-          :quiescence-timeout-seconds 30
-          :claimant-parallel-threshold 16}}
+:quiescence-timeout-seconds 30
+:claimant-parallel-threshold 16
+
+;; benchmark/economics entry boundary (reads defaults.edn; not a generic-resolver key)
+:pro-rata-parallelism 1
+
+;; lab HTTP server
+:lab-http-max-body-bytes 65536
+:lab-http-timeout-ms 90000
+:lab-http-max-concurrent-runs 2
+:lab-http-rate-limit-window-ms 60000
+:lab-http-rate-limit-max-requests 60
+:lab-http-thread-pool-size 4
+:lab-http-port 8082
+:lab-http-region "eu-north-1"
+
+;; lab exec subprocess
+:lab-exec-timeout-ms 90000
+:lab-publish-s3-timeout-s 30
+
+;; publish authority (out-of-process client)
+:publish-timeout-ms 60000
+:publish-max-io-chars 16777216
+;; publish authority (inbound stdin request size)
+:publish-max-request-bytes 16777216
+
+;; sentinel authority (out-of-process client)
+:sentinel-timeout-ms 30000
+:sentinel-max-io-chars 8388608
+:sentinel-max-request-bytes 4194304
+
+;; resubmission issue authority (inbound stdin request size)
+:resubmission-max-request-bytes 16777216
+
+;; DB pool (HikariCP)
+:db-pool-size 5
+:db-pool-min-idle 1
+:db-pool-idle-timeout-ms 600000
+:db-pool-connection-timeout-ms 30000
+:db-pool-max-lifetime-ms 1800000
+
+;; RFC 3161 time-stamp authority
+:tsa-timeout-ms 30000
+
+;; conformance CLI
+:conformance-max-bundle-bytes 10485760
+
+;; notebooks (Clerk)
+:notebook-port 7777
+:notebook-api-port 7778}}
+
+;; NOTE: :exclusive-gate-permits is intentionally NOT present in :hardening.
+;; A value of 1 for the runner's exclusive gate is a semantic invariant
+;; (benchmark determinism / resource isolation), not a deployment tuning knob.
+;; Externalise it only after proof that a value > 1 cannot alter canonical results.

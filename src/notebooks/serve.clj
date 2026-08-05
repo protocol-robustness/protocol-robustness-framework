@@ -1,8 +1,9 @@
 (ns notebooks.serve
   (:require [nextjournal.clerk :as clerk]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [resolver-sim.logging :as log]))
+             [clojure.java.io :as io]
+             [clojure.string :as str]
+             [resolver-sim.config.hardening :as hardening]
+             [resolver-sim.logging :as log]))
 
 (defn- show-notebook! [path]
   (if (.exists (io/file path))
@@ -10,13 +11,14 @@
     (log/warn! "notebook/server-skipping-missing" {:path path})))
 
 (defn -main []
-  (let [port 7777]
+  (let [port (hardening/value :notebook-port {:fallback 7777})
+        nrepl-port (hardening/value :notebook-api-port {:fallback 7778})]
     (log/info! "notebook/server-starting" {:port port})
-    (println (str "Starting Clerk notebook server on http://localhost:" port "/notebooks/xtdb_overview"))
+    (println (str "Starting Clerk notebook server on http://localhost:" port "/notebooks/xtdr_overview"))
     (clerk/serve! {:watch-paths ["src" "notebooks" "data"]
                    :browse true
                    :port port
-                   :render-nrepl {:port 7778}})
+                   :render-nrepl {:port nrepl-port}})
     ;; Pre-evaluate all notebooks so they are reachable by URL without a file-change trigger.
     ;; show! evaluates the file and registers it; the last call sets the default landing page.
     (show-notebook! "notebooks/xtdb_overview.clj")

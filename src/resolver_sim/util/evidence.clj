@@ -155,7 +155,16 @@
 
 (defn contextual-pmap
   "Parallel map that preserves the current attribution context across worker threads.
-   Prefer this over raw pmap in simulation and evidence-producing code."
+
+   WARNING: this delegates to ordinary Clojure `pmap`, which uses the JVM-shared
+   fork-join pool. It is NOT owned by the benchmark executor lifecycle: it cannot
+   be cancelled, quiesced, or proven quiescent before the benchmark returns.
+
+   Do NOT use this in benchmark-reachable canonical execution paths. Use
+   resolver-sim.execution.parallel/ordered-bounded-mapv instead, which provides
+   an owned executor lifecycle with explicit cancellation and quiescence.
+
+   Retained for non-canonical convenience/presentation paths only."
   [f coll]
   (let [attr (attr/current-attribution)
         capture evcapture/*capture-event-evidence!*

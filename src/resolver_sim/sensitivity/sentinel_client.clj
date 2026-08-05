@@ -22,19 +22,18 @@
        key with the :sensitivity-sentinel role.
      - Any failure is fail-closed: the gate throws and no disclosure proceeds."
   (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [resolver-sim.sensitivity.contract :as contract]
-            [resolver-sim.sensitivity.sentinel :as sentinel]
-            [resolver-sim.signed-external-decision :as sed])
+             [clojure.java.io :as io]
+             [clojure.string :as str]
+             [resolver-sim.config.hardening :as hardening]
+             [resolver-sim.sensitivity.contract :as contract]
+             [resolver-sim.sensitivity.sentinel :as sentinel]
+             [resolver-sim.signed-external-decision :as sed])
   (:import [java.io PushbackReader]
            [java.nio.charset StandardCharsets]
            [java.util.concurrent TimeUnit]))
 
 ;; ── Configuration ───────────────────────────────────────────────────────────
 
-(def default-timeout-ms 30000)
-(def max-io-chars (* 8 1024 1024))
 (def expected-role :sensitivity-sentinel)
 
 (defn- self-jar-command
@@ -97,12 +96,13 @@
 (defn process-runner
   "Run the authority via ProcessBuilder. Explicit argv, no shell."
   [argv ^String input timeout-ms]
-  (let [pb (ProcessBuilder. argv)
+  (let [max-chars (hardening/value :sentinel-max-io-chars {:fallback (* 8 1024 1024)})
+        pb (ProcessBuilder. argv)
         _ (.redirectErrorStream pb false)
         proc (.start pb)
         stdin (.getOutputStream proc)
-        out-fut (drain-capped (.getInputStream proc) max-io-chars)
-        err-fut (drain-capped (.getErrorStream proc) max-io-chars)]
+        out-fut (drain-capped (.getInputStream proc) max-chars)
+        err-fut (drain-capped (.getErrorStream proc) max-chars)]
     (try
       (let [bytes (.getBytes input StandardCharsets/UTF_8)]
         (doto stdin
@@ -253,7 +253,8 @@
         _ (when-not command
             (throw (ex-info "no sentinel authority command configured"
                             {:reason :sentinel-command-unavailable})))
-        timeout-ms (or (:timeout-ms config) default-timeout-ms)
+         timeout-ms (or (:timeout-ms config)
+                        (hardening/value :sentinel-timeout-ms {:fallback 30000}))
         input (pr-str request)
         {:keys [exit stdout stderr]} ((runner-for config) command input timeout-ms)]
     (when-not (zero? exit)

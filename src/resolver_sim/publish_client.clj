@@ -22,12 +22,13 @@
      - Promotion writes all files into a fresh sibling directory then atomically
        renames it into place; the target is never observed half-populated.
      - Any failure is fail-closed: the gate throws and nothing is promoted."
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [resolver-sim.publish.contract :as contract]
-            [resolver-sim.publish.manifest :as manifest]
-            [resolver-sim.signed-external-decision :as sed])
+   (:require [clojure.edn :as edn]
+             [clojure.java.io :as io]
+             [clojure.string :as str]
+             [resolver-sim.config.hardening :as hardening]
+             [resolver-sim.publish.contract :as contract]
+             [resolver-sim.publish.manifest :as manifest]
+             [resolver-sim.signed-external-decision :as sed])
   (:import            [java.io PushbackReader]
                       [java.nio.charset StandardCharsets]
                       [java.nio.file Files]
@@ -35,8 +36,6 @@
 
 ;; ── Configuration ───────────────────────────────────────────────────────────
 
-(def default-timeout-ms 60000)
-(def max-io-chars (* 16 1024 1024))
 (def expected-role :artifact-publisher)
 
 (defn- self-jar-command
@@ -91,12 +90,13 @@
 (defn process-runner
   "Run the publisher via ProcessBuilder. Explicit argv, no shell."
   [argv ^String input timeout-ms]
-  (let [pb (ProcessBuilder. argv)
+  (let [max-chars (hardening/value :publish-max-io-chars {:fallback (* 16 1024 1024)})
+        pb (ProcessBuilder. argv)
         _ (.redirectErrorStream pb false)
         proc (.start pb)
         stdin (.getOutputStream proc)
-        out-fut (drain-capped (.getInputStream proc) max-io-chars)
-        err-fut (drain-capped (.getErrorStream proc) max-io-chars)]
+        out-fut (drain-capped (.getInputStream proc) max-chars)
+        err-fut (drain-capped (.getErrorStream proc) max-chars)]
     (try
       (let [bytes (.getBytes input StandardCharsets/UTF_8)]
         (doto stdin
@@ -212,7 +212,7 @@
 
    opts: {:command [argv...] :trust-policy {...} :runner f
           :request <built request>}
-   config defaults (:command default-command, :timeout-ms default-timeout-ms).
+   config defaults (:command default-command, :timeout-ms from hardening/config :publish-timeout-ms).
 
    Returns the signed certificate. Throws (fail-closed) on any process,
    protocol, commitment or signature failure."
@@ -221,7 +221,8 @@
         _ (when-not command
             (throw (ex-info "no publisher authority command configured"
                             {:reason :publish-command-unavailable})))
-        timeout-ms (or timeout-ms default-timeout-ms)
+         timeout-ms (or timeout-ms
+                        (hardening/value :publish-timeout-ms {:fallback 60000}))
         input (pr-str request)
         {:keys [exit stdout stderr]} ((runner-for opts) command input timeout-ms)]
     (when-not (zero? exit)

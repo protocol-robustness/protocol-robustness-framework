@@ -59,7 +59,7 @@
                               {"unit" (get entry "unit") "amount" amount
                                "available" avail "shortfall" short}))
                           declared)]
-      {:available (mapv #(select-keys % ["unit" "available"]) projected)
+      {:available (mapv (fn [p] {"unit" (get p "unit") "amount" (get p "available")}) projected)
        :shortfall (mapv (fn [p] {"unit" (get p "unit") "amount" (get p "shortfall")})
                         projected)
        :basis (str "declared available-ratio " ratio " applied to protected amount")})
@@ -129,6 +129,42 @@
    (get-in execution [:run-result :results 0 :world] {})
    (get-in execution [:input/provenance :input/snapshot-relative])))
 
+(defn value-at-risk-timeline-projection
+  "Derive a per-event value-at-risk timeline for a shortfall scenario. When a
+   set-yield-risk :available-ratio is declared, each event row carries the
+   cumulative protected amount and the projected available / shortfall after
+   applying that ratio. Scenarios without a declared ratio return a not-declared
+   timeline (matching the strict observation timeline)."
+  [snapshot]
+  (let [ratio (when snapshot (declared-available-ratio snapshot))
+        events (:events snapshot)]
+    (if (or (nil? ratio) (empty? events))
+      {"schema_version" "scenario-value-at-risk-timeline.v1" "status" "not-declared" "rows" []}
+      (let [rows (loop [es events, protected 0, rows []]
+                   (if (empty? es)
+                     rows
+                     (let [event (first es)
+                           action (event-action event)
+                           deposit? (#{"yield_deposit" "create_escrow"} action)
+                           amount (get-in event [:params :amount] 0)
+                           protected (if deposit? (+ protected amount) protected)
+                           available (long (Math/floor (* protected ratio)))
+                           row {"event_index" (:seq event)
+                                "action" action
+                                "phase" "post-event"
+                                "asset" (or (get-in event [:params :token]) "USDC")
+                                "protected_amount" protected
+                                "available_amount" available
+                                "shortfall_amount" (- protected available)}]
+                       (recur (rest es) protected (conj rows row)))))]
+        {"schema_version" "scenario-value-at-risk-timeline.v1"
+         "status" "derived"
+         "authoritative" false
+         "rows" rows}))))
+
+(defn value-at-risk-timeline-summary [execution]
+  (value-at-risk-timeline-projection (read-snapshot execution)))
+
 (defn write! [context execution]
   (let [dir (io/file (str (:manifest/dir context)))
         status (if (zero? (:exit-code execution)) "pass" "fail")
@@ -161,6 +197,9 @@
         value-at-risk-persisted (if (= "not-declared" (get value-at-risk "status"))
                                   overview
                                   value-at-risk)
+        timeline-persisted (if (= "not-declared" (get value-at-risk-timeline "status"))
+                             (value-at-risk-timeline-summary execution)
+                             value-at-risk-timeline)
         summary {"manifest" {"schema_version" "summary.v1"}
                  "run" {"id" (:run/id context) "overall_status" status
                         "outcome" {"status" status "exit_code" (:exit-code execution) "duration_ms" (:duration-ms execution 0)}}
@@ -171,7 +210,7 @@
     (atomic-json! (io/file dir "run.json") run)
     (atomic-json! (io/file dir "summary.json") summary)
     (atomic-json! (io/file dir "value-at-risk.json") value-at-risk-persisted)
-    (atomic-json! (io/file dir "value-at-risk-timeline.json") value-at-risk-timeline)
+    (atomic-json! (io/file dir "value-at-risk-timeline.json") timeline-persisted)
     (atomic-json! (io/file dir "claimable-classification.json") claimable)
     {:run run :summary summary :claimable claimable}))
 
