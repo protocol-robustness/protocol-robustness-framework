@@ -497,8 +497,12 @@
               :authorization/scope-derivation add-held-scope-derivation-id
               :held/adjustment-id (:held-adjustment/id adjustment)
               :held/direction direction
-              :held/action (or (:held/action adjustment)
-                               (if (= :out direction) "sub-held" "add-held"))
+              :held/action (let [a (:held/action adjustment)]
+                             (cond
+                               (string? a) a
+                               (keyword? a) (name a)
+                               (nil? a) (if (= :out direction) "sub-held" "add-held")
+                               :else (str a)))
               :held/token (or (:token adjustment) (:token projection))
               :held/amount (or (:amount adjustment) (:amount projection))
               :held/account (or (:held/account adjustment) (:held/account projection))

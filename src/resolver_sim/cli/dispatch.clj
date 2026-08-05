@@ -72,7 +72,11 @@
    :verify-run 'resolver-sim.commands.verify-run/run
    :assure-package 'resolver-sim.commands.assure-package/run
    :ref-file 'resolver-sim.commands.ref-file/run
-   :sentinel-check 'resolver-sim.commands.sentinel/run})
+   :sentinel-check 'resolver-sim.commands.sentinel/run
+   :allocation-build-context 'resolver-sim.commands.allocation/build-context
+   :allocation-verify-proposal 'resolver-sim.commands.allocation/verify-proposal
+   :allocation-vectors 'resolver-sim.commands.allocation/vectors
+   :allocation-issue-certificate 'resolver-sim.commands.allocation/issue-certificate})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
@@ -164,8 +168,9 @@
    [nil "--format FORMAT" "Artifact format for compare: edn or json"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
-   [nil "--key PATH" "Path to private key"]
-   [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]])
+    [nil "--key PATH" "Path to private key"]
+    [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]
+    [nil "--input PATH" "Allocation: input JSON file; use '-' for stdin"]])
 
 ;; ---------------------------------------------------------------------------
 ;; Command path resolution

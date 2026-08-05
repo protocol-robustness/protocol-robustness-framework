@@ -218,7 +218,10 @@
    Returns {:valid? :verified? :status :checks :unverified :invalid-members []}."
   [artifact context]
   (let [authorization (:authorization context)
-        intrinsic (artifact/valid-artifact? artifact schema-version artifact-kind verifier-id)
+        ;; The held-custody .v1 contract uses the strict :exact preimage policy
+        ;; (decodes to body AND canonical fixed-point serialization).
+        intrinsic (artifact/valid-artifact? artifact schema-version artifact-kind
+                                            verifier-id :exact)
         action (normalize-action (:held/action artifact))
         direction (normalize-direction (:held/direction artifact))
         amount (:held/amount artifact)

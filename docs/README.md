@@ -145,8 +145,8 @@ Primary project framing and status live in the root `../README.md`.
 | `testing/RUNNING_TESTS.md` | Canonical test entrypoints and baseline |
 | `testing/TEST_SUITE.md` | Full suite coverage and structure |
 | `testing/TRAJECTORIES.md` | Trajectory technical reference |
-| `testing/ADDING_GAME_THEORETIC_VALIDATION.md` | Contributor guide for new game-theoretic validation |
-| `testing/CLOSED_FORM_GAME_THEORETIC_VALIDATION.md` | Closed-form game-theoretic validation |
+| `testing/ADDING_GAME_THEORETIC_VALIDATION.md` | Contributor guide for new bounded game-theoretic checks |
+| `testing/CLOSED_FORM_GAME_THEORETIC_VALIDATION.md` | Closed-form validation (algebraic and game-theoretic scope) |
 | `testing/CANCELLATION_SHIPPING_GATES.md` | Cancellation scenario shipping gates |
 | `testing/CANCELLATION_GAME_THEORY_GAP_CHECKLIST.md` | Cancellation game theory gap checklist |
 | `testing/IDEMPOTENCE_CHECKLIST.md` | Idempotence verification checklist |

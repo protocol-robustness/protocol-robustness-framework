@@ -398,7 +398,7 @@
     (views/notice-box "What to notice"
                       (str "At default bond (10%), the state machine absorbs attacks.")
                       (str "At breakeven bond (210%), rising detection produces a visible slash rate.")
-                      "This confirms: bond-at-stake must be high enough for detection to act as a meaningful security layer."
+                      "The sweep indicates: bond-at-stake must be high enough for detection to act as a meaningful security layer."
                       "The state machine -- not the bond -- is the load-bearing security mechanism.")]))
 
 ;; ## 7. Inline Invariant Check

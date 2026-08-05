@@ -967,3 +967,26 @@
     (is (some #(= :mixed-direction (:kind %)) (:warnings result))
         "mixing add and sub flows is surfaced as a warning")
     (is (true? (:valid? result)) "mixed directions are permitted, not a failure")))
+
+(deftest v2-builder-output-always-validates
+  (testing "build-force-auth-add-held-v2 never emits an artifact its own
+            validator rejects: keyword / string / absent :held/action all
+            normalize to the same string action and the same artifact"
+    (let [scope (assoc (scope-for "0xrecipient" 5000) :held/direction :out)
+          auth (auth-for "fa-0" scope)
+          mk (fn [action]
+               (e/build-force-auth-add-held-v2
+                {:authorization auth
+                 :scope-map scope
+                 :adjustment (cond-> {:held-adjustment/id "adj-sub"
+                                      :token "USDC" :amount 40 :held/direction :out}
+                               action (assoc :held/action action))}))
+          kw (mk :sub-held)
+          str (mk "sub-held")
+          absent (mk nil)]
+      (is (= "sub-held" (:held/action kw)))
+      (is (= kw str) "keyword and string actions produce the identical artifact")
+      (is (= kw absent) "absent action falls back to the same string action")
+      (is (e/valid-force-auth-add-held-v2? kw))
+      (is (e/valid-force-auth-add-held-v2? str))
+      (is (e/valid-force-auth-add-held-v2? absent)))))

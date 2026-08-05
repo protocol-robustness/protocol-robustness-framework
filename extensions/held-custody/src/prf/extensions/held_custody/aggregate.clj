@@ -302,8 +302,10 @@
                           (= summary-schema-version (:schema-version summary))
                           (= summary-kind (:artifact/kind summary))
                           (= summary-verifier-id (:artifact/verifier summary))
+                          ;; held-custody .v1 summary uses the strict :exact policy
                           (artifact/valid-artifact? summary summary-schema-version
-                                                    summary-kind summary-verifier-id))
+                                                    summary-kind summary-verifier-id
+                                                    :exact))
         {:keys [invalid valid-members]} (valid-member-summary members)
         members-valid? (zero? (count invalid))
         fields (held-mutation-summary-fields members)

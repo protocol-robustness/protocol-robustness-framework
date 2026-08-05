@@ -124,3 +124,15 @@
   (let [m (mk "m-1" :add-held :in 100 "fa-0")]
     (is (mut/valid-force-auth-held-mutation?
          (artifact/attach-canonical-commitment m) {}))))
+
+(deftest member-rejects-noncanonical-equivalent-preimage
+  (testing "the .v1 member contract uses :exact and rejects whitespace-equivalent
+            preimages that still decode to the same body"
+    (let [m (mk "m-1" :add-held :in 100 "fa-0")
+          p (:artifact/preimage m)
+          whitespaced (str "{ " (subs p 1 (dec (count p))) " }")]
+      (is (mut/valid-force-auth-held-mutation? m {}))
+      (is (artifact/preimage-decodes-to-body? m))
+      (is (artifact/canonical-preimage-valid? m))
+      (is (not (mut/valid-force-auth-held-mutation? (assoc m :artifact/preimage whitespaced) {}))
+          "a noncanonical equivalent preimage is rejected under :exact"))))

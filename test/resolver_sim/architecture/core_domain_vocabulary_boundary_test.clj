@@ -28,12 +28,20 @@
   (edn/read-string (slurp "config/architecture/protocol-boundaries.edn")))
 
 (def ^:private eof (Object.))
-(def ^:private artifact-vocab-re #"(?i)^force-auth-(add-held|held-custody)")
 
-(def operation-literals
-  "Exact operation vocabulary (keywords and strings)."
-  #{:add-held :sub-held :finalize-released :refund-held
-    "add-held" "sub-held" "finalize-released" "refund-held"})
+(def artifact-vocab-re
+  "Artifact/schema vocabulary matcher, derived from the
+   :architecture/artifact-vocabulary-prefixes policy — never hardcoded."
+  (let [prefixes (sort (get boundary-policy
+                            :architecture/artifact-vocabulary-prefixes #{}))
+        alternation (str/join "|" (map #(java.util.regex.Pattern/quote %) prefixes))]
+    (re-pattern (str "(?i)^(?:" alternation ")"))))
+
+(def operation-vocab-set
+  "Exact operation vocabulary (keywords and string spellings), derived from the
+   :architecture/operation-vocabulary policy — never hardcoded."
+  (let [ops (get boundary-policy :architecture/operation-vocabulary #{})]
+    (into ops (map name ops))))
 
 (defn- clojure-sources [root]
   (for [file (file-seq (io/file root))
@@ -65,7 +73,7 @@
        (boolean (re-find artifact-vocab-re (literal-name x)))))
 
 (defn- operation-vocab? [x]
-  (contains? operation-literals x))
+  (contains? operation-vocab-set x))
 
 (defn- relevant-literal? [x]
   (or (artifact-vocab? x) (operation-vocab? x)))

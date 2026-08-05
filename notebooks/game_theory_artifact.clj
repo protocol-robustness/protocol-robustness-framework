@@ -4,7 +4,7 @@
             [resolver-sim.notebook-support.common :as common]))
 
 ;; # Sew Protocol — Technical Validation Story
-;; ## Game Theory & Incentive Compatibility Surface
+;; ## Game Theory & Incentive Compatibility Surface (bounded)
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}
   :nextjournal.clerk/width :full}
@@ -155,12 +155,12 @@
       [:div.theory-item.check "✔ SUBGAME_PERFECT"]
       [:div.theory-item.check "✔ INCENTIVE_COMPAT"]
       [:div.theory-item.check "✔ COLLUSION_RESIST"]]
-     [:h1.hero-text {:style {:fontSize "42px"}} "GAME THEORY" [:br] "VALIDATION" [:br] "SURFACE"]
+     [:h1.hero-text {:style {:fontSize "42px"}} "GAME THEORY" [:br] "CHECK" [:br] "SURFACE"]
      [:p {:style {:fontSize "14px" :marginTop "16px" :color "#7ADDDC" :fontWeight 700}} 
-      "Falsification testing against rational adversaries and collusive coalitions."]]
+      "Falsification testing against rational adversaries and collusive coalitions (bounded traces)."]]
     [:div.frame-footer
      [:span "MODELS: 7 THEORY-FALSIFIERS"]
-     [:span "DEPTH: EXHAUSTIVE"]]]
+     [:span "DEPTH: BOUNDED TRACES"]]]
 
    ;; FRAME 2: PROFITABILITY BOUNDARY
    [:div.golden-frame
@@ -171,12 +171,12 @@
       [:div.attack-vector]
       [:div {:style {:position "absolute" :top "10px" :left "10px" :fontSize "8px" :color "#FF9800"}} "POTENTIAL_GAIN"]
       [:div {:style {:position "absolute" :bottom "5px" :left "10px" :fontSize "8px" :color "#03DAC6"}} "COST_OF_SLASH"]]
-     [:h2.hero-text.orange {:style {:fontSize "36px"}} "FRAUD" [:br] "ECONOMICALLY" [:br] "IRRATIONAL"]
+     [:h2.hero-text.orange {:style {:fontSize "36px"}} "FRAUD" [:br] "UNPROFITABLE" [:br] "ON SWEEP"]
      [:p {:style {:fontSize "14px" :marginTop "16px" :color "#7ADDDC" :fontWeight 700}} 
-      "Monte Carlo sweep confirms: No strategy where (Profit) > (Penalty) exists in the verified state-space."]]
+      "Monte Carlo sweep finds no strategy where (Profit) > (Penalty) across the evaluated state-space."]]
     [:div.frame-footer
      [:span "SWEEP: 1.2M CYCLES"]
-     [:span "REGRET: 0.00%"]]]
+     [:span "REGRET: 0.00% ON EVALUATED TRACES"]]]
 
    ;; FRAME 3: COLLUSION RESISTANCE
    [:div.golden-frame
@@ -186,26 +186,38 @@
       [:div {:style {:textAlign "center"}} [:div.orange "BYR"] [:div.orange "↓"] [:div.orange "RES"]]
       [:div {:style {:fontSize "24px" :paddingTop "10px"}} "≠"]
       [:div {:style {:textAlign "center"}} [:div.teal "SLR"] [:div.teal "↓"] [:div.teal "RES"]]]
-     [:h2.hero-text.teal {:style {:fontSize "44px"}} "COLLUSION" [:br] "DEFEATED"]
+     [:h2.hero-text.teal {:style {:fontSize "44px"}} "COLLUSION" [:br] "RESISTANCE" [:br] "OBSERVED"]
      [:p {:style {:fontSize "14px" :marginTop "16px" :color "#03DAC6" :fontWeight 800 :maxWidth "300px"}} 
-      "Verification of Phase L challenge bounties. Honest observers always profit from detecting malicious coalitions."]]
+      "Phase L challenge-bounty model. On evaluated traces, honest observers profit from detecting malicious coalitions (bounded)."]]
     [:div.frame-footer
      [:span "CHALLENGE_BOUNTY: 500 SEW"]
-     [:span "ATTACK_NET: NEGATIVE"]]]
+     [:span "ATTACK_NET: NEGATIVE ON EVAL TRACES"]]]
 
-   ;; FRAME 4: THE CERTIFICATE
+   ;; FRAME 4: THE REPORT
    [:div.golden-frame
-    [:div.frame-header "[SEW_PROT] THEORY_RUN: v1.1 | STATUS: FINALIZED"]
+    [:div.frame-header "[SEW_PROT] THEORY_RUN: v1.1 | STATUS: REPORTED"]
     [:div.frame-content
      [:div {:style {:border "4px double #03DAC6" :padding "24px" :textAlign "center"}}
-      [:div {:style {:fontSize "10px" :fontWeight 800 :marginBottom "8px"}} "CERTIFICATE OF"]
-      [:h2.hero-text.teal {:style {:fontSize "32px" :margin 0}} "INCENTIVE" [:br] "STABILITY"]
+      [:div {:style {:fontSize "10px" :fontWeight 800 :marginBottom "8px"}} "TRACE-CONSISTENCY"]
+      [:h2.hero-text.teal {:style {:fontSize "32px" :margin 0}} "EVIDENCE" [:br] "REPORT"]
       [:div {:style {:marginTop "16px" :fontFamily "JetBrains Mono" :fontSize "9px" :color "#004D59"}} 
-       "SIGNED: 0x92f...7c1a" [:br] "HASH: sha256:GT_STABLE_v1.1"]]
+       "SWEEP REF: theory-run-v1.1" [:br] "HASH: sha256:GT_STABLE_v1.1"]]
      [:p {:style {:fontSize "12px" :marginTop "24px" :color "#7ADDDC" :textAlign "center" :opacity 0.8}} 
-      "The Sew Protocol is robust under the assumption of rational, profit-maximizing agents."]]
+      "No profitable deviation found on the evaluated traces and declared deviation sets."]]
     [:div.frame-footer
-     [:span "VERIFIED: MAY 23 2026"]
-     [:span "MATCH: 100%"]]]
+     [:span "ANALYZED: MAY 23 2026"]
+     [:span "COVERAGE: 100% OF EVALUATED SUITES"]]]
 
-  ]])
+  ]
+
+  [:div {:style {:background "#020617" :border "1px solid #004D59" :maxWidth "1200px"
+                 :margin "40px auto 0" :padding "24px" :fontFamily "Inter, sans-serif"
+                 :color "#7ADDDC" :fontSize "13px" :lineHeight "1.6"}}
+   [:strong "Scope."] " These panels summarise the research surface, not a
+   universal game-theoretic proof. Checks are trace-conditioned, bounded
+   sequential-rationality diagnostics on declared workloads: a pass means no
+   falsification was found on the evaluated traces, not that an equilibrium
+   holds over the full (unbounded) strategy space. See
+   `docs/game-theory/SPE_ANALYSIS_SCOPE.md` and each artifact's
+   `:claim/validation-class` and `:claim/interpretation` for exact claim
+   strength."]])

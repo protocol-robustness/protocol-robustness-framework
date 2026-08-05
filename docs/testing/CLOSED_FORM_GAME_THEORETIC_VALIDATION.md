@@ -1,4 +1,4 @@
-# Closed-Form Game-Theoretic Validation: Partial-Fill, Pro-Rata, and Shortfalls
+# Closed-Form Validation: Partial-Fill, Pro-Rata, and Shortfalls
 
 ## Overview
 

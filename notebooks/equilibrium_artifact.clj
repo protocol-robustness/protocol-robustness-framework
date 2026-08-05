@@ -118,30 +118,39 @@
    [:div.golden-frame
     [:div.frame-header "[SEW_PROT] REP_SIM: J-PHASE | STATUS: STRESS_TEST"]
     [:div.frame-content
-     [:div.status-badge.teal "STRATEGY_DOMINANCE: VERIFIED"]
+     [:div.status-badge.teal "STRATEGY_DOMINANCE: OBSERVED ON SWEEP"]
      [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap "10px" :marginBottom "20px"}}
-      [:div {:style {:padding "12px" :background "#004D59"}} "HONESTY" [:div.stat-val "100%"]]
-      [:div {:style {:padding "12px" :background "#004D59"}} "MALICE" [:div.stat-val "0%"]]]
-     [:h2.hero-text.teal {:style {:fontSize "44px"}} "ROBUST" [:br] "EQUILIBRIUM" [:br] "MAINTAINED"]
+      [:div {:style {:padding "12px" :background "#004D59"}} "HONESTY" [:div.stat-val "100% ON EVAL EPOCHS"]]
+      [:div {:style {:padding "12px" :background "#004D59"}} "MALICE" [:div.stat-val "0% ON EVAL EPOCHS"]]]
+     [:h2.hero-text.teal {:style {:fontSize "44px"}} "EQUILIBRIUM" [:br] "CONSISTENT" [:br] "ON SWEEP"]
      [:p {:style {:fontSize "14px" :marginTop "16px" :color "#03DAC6" :fontWeight 800}} 
-      "Despite attrition and budget drift, honesty remains the dominant strategy."]]
+      "Despite attrition and budget drift, honesty dominates on the evaluated epoch sweep."]]
     [:div.frame-footer
-     [:span "WIN_RATE: 100.0%"]
+     [:span "WIN_RATE: 100.0% ON EVAL SWEEP"]
      [:span "STRATEGY: EQUILIBRIUM"]]]
 
-   ;; FRAME 4: THE CERTIFICATE
+   ;; FRAME 4: THE OBSERVATION
    [:div.golden-frame
     [:div.frame-header "[SEW_PROT] REP_SIM: J-PHASE | STATUS: ANALYZED"]
     [:div.frame-content
      [:div {:style {:border "4px double #FF9800" :padding "24px" :textAlign "center"}}
-      [:div {:style {:fontSize "10px" :fontWeight 800 :marginBottom "8px"}} "CERTIFICATE OF"]
+      [:div {:style {:fontSize "10px" :fontWeight 800 :marginBottom "8px"}} "SWEEP OBSERVATION OF"]
       [:h2.hero-text.orange {:style {:fontSize "32px" :margin 0}} "STOCHASTIC" [:br] "EQUILIBRIUM" [:br] "FAILURE"]
       [:div {:style {:marginTop "16px" :fontFamily "JetBrains Mono" :fontSize "9px" :color "#7ADDDC"}} 
-       "SIGNATURE: 0x92f...7c1a" [:br] "TYPE: FAILURE_OBSERVATION"]]
+       "SWEEP REF: rep-sim-j-phase" [:br] "TYPE: FAILURE_OBSERVATION"]]
      [:p {:style {:fontSize "12px" :marginTop "24px" :color "#7ADDDC" :textAlign "center" :opacity 0.8}} 
-      "The system identifies the fragility boundary—the protocol is robust until 20% concurrency load."]]
+      "The sweep identifies a fragility boundary: robustness degrades at ~20% concurrency load on the declared workload."]]
     [:div.frame-footer
-     [:span "VERIFIED: MAY 23 2026"]
-     [:span "STATUS: VULNERABLE_AT_LOAD"]]]
+     [:span "ANALYZED: MAY 23 2026"]
+     [:span "STATUS: VULNERABLE_AT_LOAD"]]
 
-  ]])
+  ]]
+
+  [:div {:style {:background "#020617" :border "1px solid #004D59" :maxWidth "1200px"
+                 :margin "40px auto 0" :padding "24px" :fontFamily "Inter, sans-serif"
+                 :color "#7ADDDC" :fontSize "13px" :lineHeight "1.6"}}
+   [:strong "Scope."] " These panels summarise a stochastic simulation run, not a
+   universal equilibrium proof. Figures are scoped to the evaluated epoch sweep
+   and declared load; they do not establish dominance or robustness over the full
+   (unbounded) strategy space. See `docs/game-theory/SPE_ANALYSIS_SCOPE.md` for
+    the claim-strength boundary."]])

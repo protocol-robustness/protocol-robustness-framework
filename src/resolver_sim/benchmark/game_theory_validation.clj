@@ -251,7 +251,7 @@
 (def run-strategic-claim-validation strategic/run-strategic-claim-validation)
 
 (defn run-held-custody-closed-form-validation
-  "Emit a minimal deterministic game-theoretic validation artifact over
+  "Emit a minimal deterministic closed-form validation artifact over
    first-class held custody artifacts.
 
    Inputs:
@@ -259,7 +259,10 @@
    - :held-artifacts explicit artifact collection
 
    This is intentionally narrow: one closed-form custody conservation claim,
-   one mechanism level, deterministic checks only."
+   one mechanism level, deterministic checks only. The checks are algebraic
+   (hash integrity, local delta, non-negativity, sequence replay) and carry
+   validation class :validation.class/algebraic-integrity — this is not a
+   game-theoretic claim."
   [& {:keys [world held-artifacts out-dir]
       :or {out-dir "./prf-out/game-theory"}}]
   (let [artifacts (->> (or held-artifacts
@@ -281,6 +284,12 @@
                   "Held custody artifacts should remain content-addressed,
                    locally conservative, non-negative after mutation, and
                    replay-consistent across the artifact sequence."
+                  :claim/interpretation
+                  "Pass means the closed-form custody invariants hold over the
+                   supplied artifact sequence. This is an algebraic check
+                   (validation class :validation.class/algebraic-integrity),
+                   not a game-theoretic claim."
+                  :claim/validation-class :validation.class/algebraic-integrity
                   :benchmark/id :benchmark/held-custody-local
                   :benchmark/scenario-suite nil
                   :matched-artifacts
@@ -378,6 +387,12 @@
         summary {:valid? overall-pass?
                  :exit-code exit-code
                  :run-id run-id
+                 :interpretation
+                 "Overall :valid? means no equilibrium/mechanism check failed on
+                  the evaluated traces. Equilibrium checks are trace-consistency
+                  and bounded-proxy checks (see each result's :basis and
+                  :validation-class); a pass is not a universal equilibrium proof
+                  and cannot falsify behavior off the evaluated traces."
                  :suites-executed (count suite-keys)
                  :suites-passed (count (filter :ok? results))
                  :scenario-count (count scenario-results)

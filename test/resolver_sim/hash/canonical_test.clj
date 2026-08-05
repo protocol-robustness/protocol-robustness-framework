@@ -1828,3 +1828,27 @@
     (is (not= (:allocation-result-hash artifact-no-sf)
               (:allocation-result-hash artifact-with-sf))
         "Adding shortfall outcome must change the result hash")))
+
+(deftest test-allocation-domain-tags-registered-and-unique
+  (let [allocation-tags [:allocation-context
+                         :claimant-set
+                         :outcome-set
+                         :proposed-rates
+                         :rate-derived-summary
+                         :selected-outcome
+                         :result-root
+                         :certificate-assertions]]
+    (doseq [tag allocation-tags]
+      (is (contains? hc/domain-tags tag)
+          (str "Domain tag " tag " must be registered")))
+    (is (= (count allocation-tags)
+           (count (distinct (map hc/domain-tags allocation-tags))))
+        "Allocation domain tag strings must be distinct")
+    (let [all-values (set (map hc/domain-tags allocation-tags))
+          existing-values (set (vals (apply dissoc hc/domain-tags allocation-tags)))]
+      (is (empty? (clojure.set/intersection all-values existing-values))
+          "Allocation domain tag strings must not collide with existing tags"))
+    (is (= 64 (count (hc/domain-hash :allocation-context {:sample :value}))))
+    (is (not= (hc/domain-hash :allocation-context {:sample :value})
+              (hc/domain-hash :claimant-set {:sample :value}))
+        "Allocation domains must be domain-separated")))

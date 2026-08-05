@@ -957,4 +957,56 @@
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
     :command/positional-args {:min 0 :max nil}
-    :command/description "Compute canonical sha256:<hex> file references (sha256-ref-file) or verify a refs file."}]}
+    :command/description "Compute canonical sha256:<hex> file references (sha256-ref-file) or verify a refs file."}
+
+   {:command/id :allocation-build-context
+    :command/path ["allocation" "build-context"]
+    :command/title "Build allocation context"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 1}
+    :command/description "Build and print the canonical allocation-context.v1 with its hash and roots."}
+
+   {:command/id :allocation-verify-proposal
+    :command/path ["allocation" "verify-proposal"]
+    :command/title "Verify allocation proposal"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 1}
+    :command/description "Run the reference allocation kernel and print the public-value projection."}
+
+   {:command/id :allocation-vectors
+    :command/path ["allocation" "vectors"]
+    :command/title "Generate allocation conformance vectors"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Generate and print the allocation kernel conformance vector suite as JSON."}
+
+   {:command/id :allocation-issue-certificate
+    :command/path ["allocation" "issue-certificate"]
+    :command/title "Issue allocation assurance certificate"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 1}
+    :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}]}

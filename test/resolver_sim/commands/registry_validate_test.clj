@@ -101,14 +101,14 @@
         ;; Must stay in lockstep with the Fixed-case availability matrix in
         ;; docs/specs/PRF_CLI_ARCHITECTURE_V1.md and validate-registry's
         ;; fixed-jar-availability-cases.
-        expected {[:prf :native] 39
+        expected {[:prf :native] 44
                   [:dev :native] 1
                   [:community :native] 9
                   [:bb :external] 9
                   [:bb :none] 12}]
-    (is (= 70 (count cmds)))
+    (is (= 75 (count cmds)))
     (is (= expected distribution))
-    (is (= 70 (apply + (vals distribution))))))
+    (is (= 75 (apply + (vals distribution))))))
 
 (deftest sew-artifact-gated-commands-are-coherent
   (let [cmds (real-registry-commands)

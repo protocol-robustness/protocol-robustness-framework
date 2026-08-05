@@ -175,6 +175,50 @@
    :reason "General protocol-neutral custody-held-adjustment effect vocabulary (emits :held/action \"add-held\"); not force-auth-add-held artifact vocabulary"
    :status :protocol-neutral}]
 
+ ;; ── no-new-legacy-production gate ──────────────────────────────────────────
+ ;; Phase 3A entry gate. Forbidden vars are legacy held-custody CONSTRUCTORS /
+ ;; emitters (builders and summary builders). References to them from
+ ;; production source roots (src, protocols_src) outside exact approved
+ ;; locations block Phase 3A. Legacy readers/validators/migration readers are
+ ;; permitted during Phase 3A and reported as :legacy-read-reference only.
+ :forbidden/legacy-production-vars
+ [{:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held
+   :replacement prf.extensions.held-custody.mutation/build-force-auth-held-mutation}
+  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-v2
+   :replacement prf.extensions.held-custody.mutation/build-force-auth-held-mutation}
+  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary
+   :replacement prf.extensions.held-custody.aggregate/build-held-mutation-summary}
+  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary-v1
+   :replacement prf.extensions.held-custody.aggregate/build-held-mutation-summary}
+  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary-permissive
+   :replacement prf.extensions.held-custody.aggregate/recompute-held-mutation-summary}]
+
+ :permitted/legacy-read-vars
+ #{resolver-sim.evidence.force-authorisation/valid-force-auth-add-held?
+   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-v2?
+   resolver-sim.evidence.force-authorisation/force-auth-add-held-scope-verifies?
+   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-summary?
+   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-summary-v1?
+   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-summary-v1-migration?
+   resolver-sim.evidence.force-authorisation/downgrade-add-held-summary-v2->v1
+   resolver-sim.evidence.force-authorisation/exact-force-auth-add-held?
+   resolver-sim.evidence.force-authorisation/recompute-force-auth-add-held-summary
+   resolver-sim.evidence.force-authorisation/check-aggregate}
+
+ :approved/legacy-production-locations
+ [{:file "src/resolver_sim/evidence/force_authorisation.clj"
+   :reason "Legacy implementation definitions and internal wiring; pending Phase 3B atomic removal"}]
+
+ ;; ── architecture vocabulary ────────────────────────────────────────────────
+ ;; The exact held-custody operation vocabulary (keywords) and the artifact
+ ;; vocabulary prefixes. The vocabulary test derives its matchers from these
+ ;; policies rather than hardcoding them.
+ :architecture/operation-vocabulary
+ #{:add-held :sub-held :finalize-released :refund-held}
+
+ :architecture/artifact-vocabulary-prefixes
+ #{"force-auth-add-held" "force-auth-held-custody"}
+
  :rules [{:id :framework-does-not-depend-on-protocol-implementations
           :description "Every src production namespace is scanned. Direct require/use/import and literal namespace-resolution references to extension prefixes fail unless an exact reviewed bridge is configured."}
          {:id :extension-depends-on-framework

@@ -48,29 +48,38 @@
       "Governance policy updated to mandate a floor-review floor of 2 per 5 disputes per epoch."]]
     [:div.frame-footer [:span "FLOOR: 2/5"] [:span "THRESHOLD: HARDENED"]]]
 
-   ;; FRAME 3: ROBUSTNESS PROOF
+   ;; FRAME 3: ROBUSTNESS EVIDENCE
    [:div.golden-frame
-    [:div.frame-header "[SEW_PROT] HARDENING: AD-01 | STATUS: VALIDATED"]
+    [:div.frame-header "[SEW_PROT] HARDENING: AD-01 | STATUS: ASSESSED"]
     [:div.frame-content
-     [:div.status-badge.teal "STRESS_TEST: PASSED"]
+     [:div.status-badge.teal "STRESS_TEST: PASSED ON DECLARED LOAD"]
      [:div {:style {:marginBottom "24px"}}
       [:div {:style {:fontSize "10px" :color "#03DAC6"}} "ATTACKER_WIN_RATE"]
       [:div.val-bar [:div.val-fill {:style {:width "15%"}}]]]
-     [:h2.hero-text.teal {:style {:fontSize "44px"}} "RESILIENCE" [:br] "RESTORED"]
+     [:h2.hero-text.teal {:style {:fontSize "44px"}} "RESILIENCE" [:br] "IMPROVED"]
      [:p {:style {:fontSize "14px" :marginTop "16px" :color "#03DAC6" :fontWeight 800}} 
-      "Post-hardening sweeps confirm attacker win-rate remains < 20% even under extreme flooding."]]
-    [:div.frame-footer [:span "WIN_RATE: 15.2%"] [:span "FLOOR: VALIDATED"]]]
+      "Post-hardening sweeps show attacker win-rate < 20% on the declared flooding load."]]
+    [:div.frame-footer [:span "WIN_RATE: 15.2% ON DECLARED LOAD"] [:span "FLOOR: CONSISTENT ON SWEEP"]]]
 
-   ;; FRAME 4: THE CERTIFICATE
+   ;; FRAME 4: THE EVIDENCE REPORT
    [:div.golden-frame
     [:div.frame-header "[SEW_PROT] HARDENING: AD-01 | STATUS: SEALED"]
     [:div.frame-content
      [:div {:style {:border "4px double #7ADDDC" :padding "24px" :textAlign "center"}}
-      [:div {:style {:fontSize "10px" :fontWeight 800 :marginBottom "8px"}} "CERTIFICATE OF"]
-      [:h2.hero-text {:style {:fontSize "32px" :margin 0}} "PROTOCOL" [:br] "HARDENING"]
+      [:div {:style {:fontSize "10px" :fontWeight 800 :marginBottom "8px"}} "HARDENING EVIDENCE"]
+      [:h2.hero-text {:style {:fontSize "32px" :margin 0}} "RESILIENCE" [:br] "REPORT"]
       [:div {:style {:marginTop "16px" :fontFamily "JetBrains Mono" :fontSize "9px" :color "#7ADDDC"}} 
-       "SIGNATURE: 0x92f...7c1a" [:br] "HASH: sha256:HARDENED_v1.1"]]
+       "SWEEP REF: ad-01" [:br] "HASH: sha256:HARDENED_v1.1"]]
      [:p {:style {:fontSize "12px" :marginTop "24px" :color "#7ADDDC" :textAlign "center" :opacity 0.8}} 
-      "This evidence confirms the governance bandwidth floor successfully mitigates high-load adversarial flooding."]]
-    [:div.frame-footer [:span "VERIFIED: MAY 23 2026"] [:span "STATUS: IMMUTABLE"]]]
-  ]])
+      "This evidence supports mitigation of high-load adversarial flooding on the declared load; it does not prove resilience over the full strategy space."]]
+    [:div.frame-footer [:span "ANALYZED: MAY 23 2026"] [:span "STATUS: EVIDENCE-SCOPED"]]]
+
+  ]
+
+  [:div {:style {:background "#020617" :border "1px solid #004D59" :maxWidth "1200px"
+                 :margin "40px auto 0" :padding "24px" :fontFamily "Inter, sans-serif"
+                 :color "#7ADDDC" :fontSize "13px" :lineHeight "1.6"}}
+   [:strong "Scope."] " These panels summarise a declared-load sweep, not a
+   universal robustness proof. Figures are scoped to the evaluated workload and
+   the specific governance floor; they do not establish resilience over the full
+   (unbounded) strategy space."]])

@@ -21,7 +21,7 @@
  :concept/note
    "A command artifact may be combined with the artifacts it selects through include directives and with evidence produced under it. Common combinations:
    - command-artifact + incentive-root — incentive evaluation output bound to the command that requested :incentive.
-   - command-artifact + held-custody-artifact — closed-form custody evidence (game-theoretic-validation artifact) bound to the command that produced it.
+   - command-artifact + held-custody-artifact — closed-form custody evidence (game-theoretic-validation artifact carrying validation class :validation.class/algebraic-integrity) bound to the command that produced it.
    - command-artifact + research-assignment — a research task bound to the command artifact and runner that executed it; the command-root is the shared reference.
    - command-artifact + semantic-commitments-artifact — binds meaning-bearing scope, authorisation-lifecycle, economic-application, assurance, configuration, and research-execution references that are not implied solely by the command-root. The allowed categories are defined by the semantic-commitments concept, not enumerated here.
    These combinations bind derived evidence to the exact command that produced it; the command-root (:execution/command-root) is the shared reference that ties them together in the outcome manifest or validation artifact."
@@ -90,7 +90,7 @@
   "The execution policy determines whether an unsupported include is treated as command failure or as a valid command with an explicit unsupported result."
   "The canonical hash covers the complete execution context: argv, includes, environment, runner, inputs, and outputs."
   "A command that includes :incentive commits its incentive evaluation output root in combination with its own command-root in the outcome manifest. The two roots are bound together in the same canonical :outcome-hashes projection."
-  "A command artifact combines with the evidence it produces through a shared command-root reference. This includes closed-form evidence artifacts (e.g. held-custody artifacts referenced by a game-theoretic-validation artifact), so derived evidence is attributable to the exact command that produced it."
+  "A command artifact combines with the evidence it produces through a shared command-root reference. This includes closed-form evidence artifacts (e.g. held-custody artifacts referenced by a game-theoretic-validation artifact, which carries validation class :validation.class/algebraic-integrity), so derived evidence is attributable to the exact command that produced it."
   "A command artifact combines with a research-assignment, binding a content-addressed research task to the command-root and runner that executed it. The command-root is the shared reference tying task, command, runner, and produced evidence together."
   "A command artifact combines with a semantic-commitments artifact to bind meaning-bearing scope, authorisation-lifecycle, economic-application, assurance, configuration, and research-execution references that are not implied by the command-root alone. The allowed categories are defined by the semantic-commitments concept."
   "Concept labels do not change protocol validity."]

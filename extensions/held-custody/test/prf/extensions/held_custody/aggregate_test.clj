@@ -135,3 +135,17 @@
           r (agg/check-held-mutation-aggregate tampered members {})]
       (is (not (:valid? r)))
       (is (false? (:amounts-non-negative? (:checks r)))))))
+
+(deftest summary-rejects-noncanonical-equivalent-preimage
+  (testing "the .v1 summary contract uses :exact and rejects noncanonical
+            equivalent preimages"
+    (let [members [(mk "m1" :add-held :in 100 "fa-0")]
+          summary (agg/build-held-mutation-summary members {})
+          p (:artifact/preimage summary)
+          whitespaced (assoc summary :artifact/preimage
+                             (str "{ " (subs p 1 (dec (count p))) " }"))
+          r (agg/check-held-mutation-aggregate whitespaced members {})]
+      (is (:valid? (agg/check-held-mutation-aggregate summary members {})))
+      (is (not (:valid? r))
+          "a noncanonical equivalent summary preimage fails the :exact check")
+      (is (false? (:summary-identity-valid? (:checks r)))))))

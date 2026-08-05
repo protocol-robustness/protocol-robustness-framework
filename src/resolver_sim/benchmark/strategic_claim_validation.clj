@@ -18,6 +18,7 @@
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.strategic-partial-fill :as strategic-partial-fill]
             [resolver-sim.config.paths :as paths]
+            [resolver-sim.validation.classes :as classes]
             [resolver-sim.validation.gate :as gate]
             [resolver-sim.io.edn :as ppedn]))
 
@@ -406,6 +407,12 @@
         all-check-results (mapcat :check-results level-verdicts)
         all-witnesses (mapcat :witnesses level-verdicts)
         integrity-verdicts (keep :integrity-gate level-verdicts)
+        validation-classes (->> (concat
+                                 (keep :validation-class all-check-results)
+                                 (keep :validation-class strategic-property-results))
+                                distinct
+                                (sort-by (fn [c] (.indexOf classes/class-order c)))
+                                vec)
         ;; Evaluate economic-model gate using upstream integrity verdicts
         combined-integrity (first integrity-verdicts)
         economic-model-gate (gate/evaluate-economic-model-gate
@@ -427,6 +434,12 @@
      :claim/id (:claim/id claim-spec)
      :claim/title (:claim/title claim-spec)
      :claim/description (:claim/description claim-spec)
+     :claim/interpretation
+     "Pass means the claim was not falsified by the matched scenarios and the
+      declared deviation sets on the evaluated evidence. It is bounded and
+      evidence-scoped: it does not prove the claim over the full strategy space,
+      unexercised mechanisms, or undeclared deviation sets."
+     :claim/validation-classes validation-classes
      :benchmark/id (:benchmark/id manifest)
      :benchmark/scenario-suite suite-key
      :benchmark/manifest-path (:benchmark/manifest-path claim-spec)

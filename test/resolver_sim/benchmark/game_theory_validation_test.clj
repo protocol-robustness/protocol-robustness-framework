@@ -112,6 +112,15 @@
       (is (= 2 (get-in artifact [:summary :matched-scenario-count])))
       (is (true? (get-in artifact [:summary :valid?]))))
 
+    (testing "artifact scopes its claim strength"
+      (is (string? (:claim/interpretation artifact)))
+      (is (re-find #"not falsified" (:claim/interpretation artifact)))
+      (is (vector? (:claim/validation-classes artifact)))
+      (is (contains? (set (:claim/validation-classes artifact))
+                     :validation.class/algebraic-integrity))
+      (is (contains? (set (:claim/validation-classes artifact))
+                     :validation.class/deviation-resistance)))
+
     (testing "matched scenarios carry auditable reasons and evidence references"
       (is (= #{"S-DR-043-payout-shortfall-deferred"
                "S103_negative-yield-shortfall-cascade"}
@@ -386,6 +395,8 @@
     (is (= 0 exit-code))
     (is (= :claim/held-custody-conservation (:claim/id artifact)))
     (is (= :benchmark/held-custody-local (:benchmark/id artifact)))
+    (is (= :validation.class/algebraic-integrity (:claim/validation-class artifact)))
+    (is (string? (:claim/interpretation artifact)))
     (is (= :custody/held-balance (:mechanism-level level)))
     (is (= :pass (:verdict level)))
     (is (= 2 (get-in artifact [:summary :matched-artifact-count])))

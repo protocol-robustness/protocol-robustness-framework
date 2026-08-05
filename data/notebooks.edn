@@ -85,7 +85,7 @@
    {:id             :game-theory-artifact
    :path           "notebooks/game_theory_artifact.clj"
    :title          "Game Theory — Validation Story"
-   :summary        "Game-theoretic analysis: Nash equilibria, dominant strategies, incentive alignment under adversarial conditions."
+    :summary        "Bounded game-theoretic analysis: Nash equilibria, dominant strategies, incentive alignment under adversarial conditions, scoped to evaluated traces."
    :categories     [:economic-analysis :security-validation]
    :audience       [:researcher :grant-reviewer]
    :status         :verified

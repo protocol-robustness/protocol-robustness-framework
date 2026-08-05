@@ -152,8 +152,16 @@
    :with-bounty-obligation-v1 "WITH_BOUNTY_OBLIGATION_V1"
    :with-bounty-effect-v1     "WITH_BOUNTY_EFFECT_V1"
    :with-bounty-effect-set-v1 "WITH_BOUNTY_EFFECT_SET_V1"
-   :with-bounty-application-plan-v1 "WITH_BOUNTY_APPLICATION_PLAN_V1"
-   :with-bounty-transition-evidence-v1 "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"})
+    :with-bounty-application-plan-v1 "WITH_BOUNTY_APPLICATION_PLAN_V1"
+    :with-bounty-transition-evidence-v1 "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"
+    :allocation-context         "ALLOCATION_CONTEXT_V1"
+    :claimant-set               "CLAIMANT_SET_V1"
+    :outcome-set                "OUTCOME_SET_V1"
+    :proposed-rates             "PROPOSED_RATES_V1"
+    :rate-derived-summary       "RATE_DERIVED_SUMMARY_V1"
+    :selected-outcome           "SELECTED_OUTCOME_V1"
+    :result-root                "RESULT_ROOT_V1"
+    :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
