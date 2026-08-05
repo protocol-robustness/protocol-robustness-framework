@@ -150,7 +150,22 @@
         event-context (or event-context {})
         base-result (or base-result {})
         normalized-policy (policy/normalize-with-bounty-policy policy)
-        policy-result (policy/validate-with-bounty-policy normalized-policy)]
+        policy-result (policy/validate-with-bounty-policy normalized-policy)
+        effective-inputs {:policy normalized-policy
+                          :base-result base-result
+                          :base-operation-root base-operation-root
+                          :base-plan-root base-plan-root
+                          :event-context event-context
+                          :parameter-context parameter-context
+                          :parameter-context-root parameter-context-root
+                          :extension-map extension-map
+                          :schema-registry schema-registry
+                          :effect-schema-registry effect-schema-registry
+                          :sealed? (boolean sealed?)
+                          :token token
+                          :declared-maximum declared-maximum
+                          :funding-available funding-available
+                          :adapter-support adapter-support}]
     (if-not (:valid? policy-result)
       {:status :invalid-policy :violations (:violations policy-result)}
       (let [policy-root (policy/with-bounty-policy-root normalized-policy)
@@ -162,10 +177,10 @@
             amt-ref [:economics/award-amount
                      (get-in bounty [:amount :capability/ref :capability/id])]
             resolution (ext-res/resolve-requested extension-map
-                                                   [elig-ref amt-ref]
-                                                   {:schemas schema-registry
-                                                    :effect-schemas effect-schema-registry
-                                                    :sealed? (boolean sealed?)})
+                                                  [elig-ref amt-ref]
+                                                  {:schemas schema-registry
+                                                   :effect-schemas effect-schema-registry
+                                                   :sealed? (boolean sealed?)})
             resolution-valid? (:valid? resolution)]
         (if-not resolution-valid?
           {:status :resolution-failed :violations (:violations resolution)}
@@ -174,111 +189,113 @@
              :violations [{:violation/id :violation/with-bounty-adapter-not-committed
                            :details {:reason "an application plan must commit the adapter-support declaration it was validated against"}}]}
             (let [resolution-root (get-in resolution [:resolution :extensions/resolution-root])
-                operation-root (or base-operation-root "sha256:base-operation")
-                recipient (or (:event/actor event-context)
-                              (get-in bounty [:recipient :default])
-                              :recipient/unspecified)
-                token (or token (get-in funding [:token] :token/usdc))
-                elig-result (ext-exec/invoke-capability
-                             (get extension-map elig-ref)
-                             {:event/context event-context
-                              :base/result base-result})
-                elig-evidence (invocation-evidence policy-root :eligibility 0
-                                                   elig-ref resolution-root
-                                                   elig-result)]
-            (if (false? (:result/value elig-result))
-              {:status :skipped
-               :receipt (wb-composition/skipped-receipt
-                         {:policy-root policy-root
-                          :base-operation-root operation-root
-                          :resolution-root resolution-root
-                          :bounty-id bounty-id
-                          :eligibility-evidence elig-evidence})}
-              (let [amt-result (ext-exec/invoke-capability
-                                (get extension-map amt-ref)
-                                {:base/result base-result
-                                 :param-values (or parameter-context {})})
-                    amount (:amount amt-result)
-                    amt-evidence (assoc (invocation-evidence policy-root :amount 1
-                                                             amt-ref resolution-root
-                                                             amt-result)
-                                        :result/amount amount)
-                    funding-ok? (wb-plan/funding-available? (:source funding)
-                                                            amount funding-available)]
-                (cond
-                  (or (nil? amount) (not (integer? amount)) (neg? amount))
-                  {:status :failed :reason :invalid-amount
-                   :violations [{:violation/id :violation/invalid-bounty-amount
-                                 :details {:amount amount}}]}
+                  operation-root (or base-operation-root "sha256:base-operation")
+                  recipient (or (:event/actor event-context)
+                                (get-in bounty [:recipient :default])
+                                :recipient/unspecified)
+                  token (or token (get-in funding [:token] :token/usdc))
+                  elig-result (ext-exec/invoke-capability
+                               (get extension-map elig-ref)
+                               {:event/context event-context
+                                :base/result base-result})
+                  elig-evidence (invocation-evidence policy-root :eligibility 0
+                                                     elig-ref resolution-root
+                                                     elig-result)]
+              (if (false? (:result/value elig-result))
+                {:status :skipped
+                 :replay/inputs effective-inputs
+                 :receipt (wb-composition/skipped-receipt
+                           {:policy-root policy-root
+                            :base-operation-root operation-root
+                            :resolution-root resolution-root
+                            :bounty-id bounty-id
+                            :eligibility-evidence elig-evidence})}
+                (let [amt-result (ext-exec/invoke-capability
+                                  (get extension-map amt-ref)
+                                  {:base/result base-result
+                                   :param-values (or parameter-context {})})
+                      amount (:amount amt-result)
+                      amt-evidence (assoc (invocation-evidence policy-root :amount 1
+                                                               amt-ref resolution-root
+                                                               amt-result)
+                                          :result/amount amount)
+                      funding-ok? (wb-plan/funding-available? (:source funding)
+                                                              amount funding-available)]
+                  (cond
+                    (or (nil? amount) (not (integer? amount)) (neg? amount))
+                    {:status :failed :reason :invalid-amount
+                     :violations [{:violation/id :violation/invalid-bounty-amount
+                                   :details {:amount amount}}]}
 
-                  (not funding-ok?)
-                  {:status :failed :reason :insufficient-funding
-                   :violations [{:violation/id :violation/insufficient-bounty-funding
-                                 :details {:available funding-available
-                                           :required amount}}]}
+                    (not funding-ok?)
+                    {:status :failed :reason :insufficient-funding
+                     :violations [{:violation/id :violation/insufficient-bounty-funding
+                                   :details {:available funding-available
+                                             :required amount}}]}
 
-                  :else
-                  (let [elig-inv-id (get-in elig-evidence
-                                            [:invocation/evidence-envelope :invocation/id])
-                        amt-inv-id (get-in amt-evidence
-                                           [:invocation/evidence-envelope :invocation/id])
-                        obligation-effect (build-bounty-effect
-                                           {:policy-root policy-root
-                                            :operation-root operation-root
-                                            :resolution-root resolution-root
-                                            :amount amount
-                                            :eligibility-invocation-id elig-inv-id
-                                            :amount-invocation-id amt-inv-id
-                                            :recipient recipient
-                                            :token token
-                                            :bounty-id bounty-id
-                                            :funding (funding-map funding
-                                                                   parameter-context-root)})
-                        effects (if (= :declared-reserve (:source funding))
-                                  [obligation-effect
-                                   (build-custody-reservation-effect
-                                    {:recipient recipient
-                                     :token token
-                                     :amount amount
-                                     :funding funding
-                                     :parameter-context-root parameter-context-root})]
-                                  [obligation-effect])
-                        effect-validation (effects/validate-effects effects)
-                        plan-result (wb-plan/build-with-bounty-plan
+                    :else
+                    (let [elig-inv-id (get-in elig-evidence
+                                              [:invocation/evidence-envelope :invocation/id])
+                          amt-inv-id (get-in amt-evidence
+                                             [:invocation/evidence-envelope :invocation/id])
+                          obligation-effect (build-bounty-effect
+                                             {:policy-root policy-root
+                                              :operation-root operation-root
+                                              :resolution-root resolution-root
+                                              :amount amount
+                                              :eligibility-invocation-id elig-inv-id
+                                              :amount-invocation-id amt-inv-id
+                                              :recipient recipient
+                                              :token token
+                                              :bounty-id bounty-id
+                                              :funding (funding-map funding
+                                                                    parameter-context-root)})
+                          effects (if (= :declared-reserve (:source funding))
+                                    [obligation-effect
+                                     (build-custody-reservation-effect
+                                      {:recipient recipient
+                                       :token token
+                                       :amount amount
+                                       :funding funding
+                                       :parameter-context-root parameter-context-root})]
+                                    [obligation-effect])
+                          effect-validation (effects/validate-effects effects)
+                          plan-result (wb-plan/build-with-bounty-plan
+                                       {:policy-root policy-root
+                                        :base-operation-root operation-root
+                                        :base-result-root operation-root
+                                        :base-plan-root base-plan-root
+                                        :extensions-resolution-root resolution-root
+                                        :adapter adapter-support
+                                        :effects effects
+                                        :effect-schema-roots effect-schema-registry
+                                        :declared-maximum declared-maximum
+                                        :funding-available funding-available})
+                          effect-root (wb-plan/effect-root obligation-effect)]
+                      (cond
+                        (not (:valid? effect-validation))
+                        {:status :failed :reason :effect-invalid
+                         :violations (:violations effect-validation)}
+
+                        (not= :valid (:status plan-result))
+                        {:status :failed :reason :plan-invalid
+                         :violations (:violations plan-result)}
+
+                        :else
+                        (let [plan (:plan plan-result)]
+                          {:status :applied
+                           :replay/inputs effective-inputs
+                           :receipt (wb-composition/applied-receipt
                                      {:policy-root policy-root
                                       :base-operation-root operation-root
-                                      :base-result-root operation-root
-                                      :base-plan-root base-plan-root
-                                      :extensions-resolution-root resolution-root
-                                      :adapter adapter-support
-                                      :effects effects
-                                      :effect-schema-roots effect-schema-registry
-                                      :declared-maximum declared-maximum
-                                      :funding-available funding-available})
-                        effect-root (wb-plan/effect-root obligation-effect)]
-                    (cond
-                      (not (:valid? effect-validation))
-                      {:status :failed :reason :effect-invalid
-                       :violations (:violations effect-validation)}
-
-                      (not= :valid (:status plan-result))
-                      {:status :failed :reason :plan-invalid
-                       :violations (:violations plan-result)}
-
-                      :else
-                      (let [plan (:plan plan-result)]
-                        {:status :applied
-                         :receipt (wb-composition/applied-receipt
-                                   {:policy-root policy-root
-                                    :base-operation-root operation-root
-                                    :resolution-root resolution-root
-                                    :bounty-id bounty-id
-                                    :eligibility-evidence elig-evidence
-                                    :amount-evidence amt-evidence
-                                    :obligation-id (:obligation/id obligation-effect)
-                                    :effect-root effect-root
-                                    :application-plan-root (:plan/hash plan)})
-                         :plan plan
-                         :effect obligation-effect
-                         :effects effects
-                         :effect-root effect-root})))))))))))))
+                                      :resolution-root resolution-root
+                                      :bounty-id bounty-id
+                                      :eligibility-evidence elig-evidence
+                                      :amount-evidence amt-evidence
+                                      :obligation-id (:obligation/id obligation-effect)
+                                      :effect-root effect-root
+                                      :application-plan-root (:plan/hash plan)})
+                           :plan plan
+                           :effect obligation-effect
+                           :effects effects
+                           :effect-root effect-root})))))))))))))

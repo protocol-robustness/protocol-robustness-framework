@@ -103,18 +103,26 @@
 ;; ── effect application (canonical paths only) ─────────────────────────────
 
 (defn- apply-custody-effect
-  "Reserve bounty funding custody through the canonical add-held path. Returns
-   the updated world; the appended held-adjustment record and its content-
-   addressed artifact carry the evidence."
+  "Reserve (or release) bounty custody through the canonical add-held/sub-held
+   paths. Returns the updated world; the appended held-adjustment record and its
+   content-addressed artifact carry the evidence."
   [world effect]
   (let [token (:effect/token effect)
         amount (:effect/amount effect)
         opts (-> (effects/custody-effect->add-held-opts effect)
+                 (assoc :action (if (= :sub (:effect/direction effect))
+                                  "sub-held"
+                                  "add-held"))
                  (update :extra merge
                          {:held/account (:effect/account effect)}
                          (when (:owner/address effect)
                            {:owner/address (:owner/address effect)})))]
-    (act/add-held world token amount opts)))
+    (case (:effect/direction effect)
+      :add (act/add-held world token amount opts)
+      :sub (act/sub-held world token amount opts)
+      (throw (ex-info "with-bounty: unsupported custody direction"
+                      {:violation/id :violation/unsupported-custody-direction
+                       :direction (:effect/direction effect)})))))
 
 (defn- custody-artifact-binding
   "Exact held-adjustment binding for transition evidence: the adjustment id and
@@ -202,7 +210,7 @@
     :world-after-root (world-root world-after)
     :payable-roots (mapv :payable/hash payables)
     :backing-roots (mapv :backing/hash backings)
-    :custody/adjustment-roots custody-adjustment-roots
+    :custody-adjustment-roots custody-adjustment-roots
     :idempotent? idempotent?}))
 
 (defn apply-with-bounty-plan
@@ -305,4 +313,4 @@
           {:world world' :idempotent? false
            :payables payables :backings backings
            :custody-adjustment-roots custody-adjustment-roots
-           :transition transition}))))))
+           :transition transition})))))

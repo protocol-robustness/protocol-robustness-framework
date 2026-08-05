@@ -253,32 +253,32 @@
                        :bundle/objects (vec (concat att-entries claim-entries node-entries))
                        :bundle/registries registry-snapshot
                        :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
-                                                     :sentinel/report-hash (:report-hash sensitivity-report)
-                                                     :sensitivity-report/ref
-                                                     {:schema "sensitivity-report.v2"
-                                                      :semantic-hash (:report/semantic-hash sensitivity-report)
-                                                      :sha256 (:report-byte-hash sensitivity-report)
-                                                      :byte-length (:report-byte-length sensitivity-report)
-                                                      :path (str bundle-dir "/reports/sensitivity-report.json")}}
-                                              sensitivity-provenance
-                                              (assoc :sentinel/provenance sensitivity-provenance)
-                                              out-of-process-sensitivity
-                                              (assoc :sentinel/mode :out-of-process
-                                                     :sentinel/required-authority :remote
-                                                     :sentinel/decision
-                                                     (get-in out-of-process-sensitivity
-                                                             [:sentinel/authority-decision :sentinel/decision])
-                                                     :sentinel/report-hash
-                                                     (get-in out-of-process-sensitivity
-                                                             [:sentinel/authority-decision :sentinel/report-hash])
-                                                     :sentinel/sink
-                                                     (get-in out-of-process-sensitivity
-                                                             [:sentinel/authority-decision :sentinel/sink])
-                                                     :sentinel/request (:sentinel/request out-of-process-sensitivity)
-                                                     :sentinel/report (:sentinel/report out-of-process-sensitivity)
-                                                     :sentinel/authority-decision
-                                                     (:sentinel/authority-decision out-of-process-sensitivity)
-                                                     :sentinel/signature (:sentinel/signature out-of-process-sensitivity)))
+                                                    :sentinel/report-hash (:report-hash sensitivity-report)
+                                                    :sensitivity-report/ref
+                                                    {:schema "sensitivity-report.v2"
+                                                     :semantic-hash (:report/semantic-hash sensitivity-report)
+                                                     :sha256 (:report-byte-hash sensitivity-report)
+                                                     :byte-length (:report-byte-length sensitivity-report)
+                                                     :path (str bundle-dir "/reports/sensitivity-report.json")}}
+                                             sensitivity-provenance
+                                             (assoc :sentinel/provenance sensitivity-provenance)
+                                             out-of-process-sensitivity
+                                             (assoc :sentinel/mode :out-of-process
+                                                    :sentinel/required-authority :remote
+                                                    :sentinel/decision
+                                                    (get-in out-of-process-sensitivity
+                                                            [:sentinel/authority-decision :sentinel/decision])
+                                                    :sentinel/report-hash
+                                                    (get-in out-of-process-sensitivity
+                                                            [:sentinel/authority-decision :sentinel/report-hash])
+                                                    :sentinel/sink
+                                                    (get-in out-of-process-sensitivity
+                                                            [:sentinel/authority-decision :sentinel/sink])
+                                                    :sentinel/request (:sentinel/request out-of-process-sensitivity)
+                                                    :sentinel/report (:sentinel/report out-of-process-sensitivity)
+                                                    :sentinel/authority-decision
+                                                    (:sentinel/authority-decision out-of-process-sensitivity)
+                                                    :sentinel/signature (:sentinel/signature out-of-process-sensitivity)))
                        :bundle/completeness-profile
                        {:profile/schema-version (:profile/schema-version profile)
                         :profile/mode (:profile/mode profile)
@@ -856,8 +856,8 @@
          _ (.mkdirs (io/file bundle-dir))
         ;; Write attestations
          _ (doseq [a (:attestations objects-map [])]
-              (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
-                (spit path (ppedn/ppr-str a))))
+             (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
+               (spit path (ppedn/ppr-str a))))
         ;; Write claim results
          _ (doseq [c (:claim-results objects-map [])]
              (let [h (or (:claim-result-hash c) (compute-object-hash c))

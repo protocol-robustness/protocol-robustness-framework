@@ -132,13 +132,13 @@
     (let [file (io/file path)]
       (.mkdirs (.getParentFile file))
       (spit file (ppedn/ppr-str (cond-> {:schema_version "benchmark-execution-plan.v1"
-                                  :benchmark/id (:benchmark/id benchmark)
-                                  :executions plan}
-                           (:benchmark/trust-sequence-definition-root benchmark)
-                           (assoc :trust-sequence-definition-root
+                                         :benchmark/id (:benchmark/id benchmark)
+                                         :executions plan}
                                   (:benchmark/trust-sequence-definition-root benchmark)
-                                  :expected-correlation-id
-                                  (:benchmark/expected-correlation-id benchmark))))))))
+                                  (assoc :trust-sequence-definition-root
+                                         (:benchmark/trust-sequence-definition-root benchmark)
+                                         :expected-correlation-id
+                                         (:benchmark/expected-correlation-id benchmark))))))))
 
 (defn- execution-output-dir
   [executions-dir ordinal descriptor]
@@ -171,10 +171,10 @@
         (io/copy in input-file))
       (spit replay-file (ppedn/ppr-str result))
       (spit summary-file (ppedn/ppr-str {:scenario/source-path (:input/ref scenario-source)
-                                  :scenario/protocol (:protocol scenario)
-                                  :outcome (:outcome result)
-                                  :halt-reason (:halt-reason result)
-                                  :events-processed (:events-processed result)}))
+                                         :scenario/protocol (:protocol scenario)
+                                         :outcome (:outcome result)
+                                         :halt-reason (:halt-reason result)
+                                         :events-processed (:events-processed result)}))
       {:scenario/artifact-dir output-dir
        :scenario/input-path (.getPath input-file)
        :scenario/replay-output (.getPath replay-file)
@@ -256,11 +256,11 @@
                           all-inv-ids)
         _ (when-let [summary-path (get-in execution-package [:scenario/summary])]
             (spit summary-path (ppedn/ppr-str {:scenario/source-path (:input/ref scenario-source)
-                                        :scenario/protocol protocol
-                                        :outcome (:outcome replay-result)
-                                        :halt-reason (:halt-reason replay-result)
-                                        :events-processed (:events-processed replay-result)
-                                        :invariant-results inv-results})))]
+                                               :scenario/protocol protocol
+                                               :outcome (:outcome replay-result)
+                                               :halt-reason (:halt-reason replay-result)
+                                               :events-processed (:events-processed replay-result)
+                                               :invariant-results inv-results})))]
     (merge entry
            {:file path
             :scenario/id (or public-id (:scenario-id entry) (:scenario-id scenario))

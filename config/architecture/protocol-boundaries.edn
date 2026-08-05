@@ -1,8 +1,40 @@
-{:schema/version :prf.protocol-boundaries/v2
- :core/source-roots ["src"]
- :extension/namespace-prefixes ["resolver-sim.protocols.sew"]
+{:schema/version :prf.protocol-boundaries/v3
 
- ;; Every exception is an existing, reviewed framework-to-Sew bridge.  Entries
+ ;; ── architecture zones ────────────────────────────────────────────────────
+ ;; Each zone owns explicit source roots and namespace prefixes. Dependencies
+ ;; between zones follow :architecture/dependency-rules. Exact per-file
+ ;; approvals (:approved/extension-dependencies) remain the exception
+ ;; mechanism, never the main way extensions are wired.
+ :architecture/zones
+ [{:zone/id :core
+   :source-roots ["src"]
+   :namespace-prefixes ["resolver-sim"]}
+
+  {:zone/id :protocol-sew
+   :source-roots ["protocols_src"]
+   :namespace-prefixes ["resolver-sim.protocols.sew"]}
+
+  {:zone/id :extension-held-custody
+   :source-roots ["extensions/held-custody/src"]
+   :namespace-prefixes ["prf.extensions.held-custody"]}]
+
+ ;; Cross-zone dependency graph (same-zone dependencies are implicitly
+ ;; permitted; :may-depend-on describes cross-zone dependencies only):
+ ;;   protocol-sew → extension-held-custody → core
+ ;;   protocol-sew → core
+ ;; Forbidden: core → extension, extension → protocol-sew.
+ :architecture/dependency-rules
+ [{:from :core
+   :may-depend-on #{}}
+
+  {:from :extension-held-custody
+   :may-depend-on #{:core}}
+
+  {:from :protocol-sew
+   :may-depend-on #{:core :extension-held-custody}}]
+
+ ;; ── exact per-file approvals (exception mechanism) ────────────────────────
+ ;; Every exception is an existing, reviewed framework-to-Sew bridge. Entries
  ;; are exact fully-qualified namespaces or vars, never a file- or prefix-wide
  ;; waiver; see docs/architecture/PROTOCOL_EXTENSION_BOUNDARIES.md.
  :approved/extension-dependencies
@@ -99,9 +131,53 @@
    :kind :legacy-dynamic-bridge
    :reason "Sew claimable-classification namespace is constructed for an optional command."}]
 
+ ;; ── core domain vocabulary approvals (parsed-form, policy-driven) ─────────
+ ;; Relevant vocabulary is force-auth held-custody ARTIFACT identifiers
+ ;; (artifact kinds, schema/verifier strings) matching
+ ;; ^force-auth-(add-held|held-custody). Only the frozen legacy implementation
+ ;; may carry them in core during the extraction; every entry must be :legacy
+ ;; with a :replacement. Phase 3 acceptance: this list is empty for
+ ;; held-custody vocabulary.
+ :approved/core-domain-literals
+ [{:file "src/resolver_sim/evidence/force_authorisation.clj"
+   :literals #{:force-auth-add-held
+               :force-auth-add-held-summary
+               :force-auth-held-custody-mutation
+               :force-auth-held-custody-mutation-summary
+               force-auth-add-held-scope-verifies?
+               force-auth-add-held-summary-fields
+               "force-auth-add-held.v1"
+               "force-auth-add-held.v2"
+               "force-auth-add-held-verifier.v1"
+               "force-auth-add-held-verifier.v2"
+               "force-auth-add-held-summary.v1"
+               "force-auth-add-held-summary.v2"
+               "force-auth-add-held-summary-verifier.v1"
+               "force-auth-add-held."
+               "force-auth-add-held-summary"}
+   :reason "Frozen legacy force-auth-add-held reader and validator pending held-custody extension extraction"
+   :status :legacy
+   :replacement :force-auth-held-custody-mutation}]
+
+ ;; ── core operation vocabulary approvals ────────────────────────────────────
+ ;; Exact held-custody operation literals (:add-held / :sub-held /
+ ;; :finalize-released / :refund-held and their string spellings). Only the
+ ;; frozen legacy implementation may carry them in core. Phase 6 acceptance:
+ ;; this list is empty for held-custody operations.
+ :approved/core-operation-literals
+ [{:file "src/resolver_sim/evidence/force_authorisation.clj"
+   :literals #{"add-held" "sub-held"}
+   :reason "Frozen legacy v2 builder derives :held/action strings; pending held-custody extension extraction"
+   :status :legacy
+   :replacement :force-auth-held-custody-mutation}
+  {:file "src/resolver_sim/economics/effects.clj"
+   :literals #{"add-held"}
+   :reason "General protocol-neutral custody-held-adjustment effect vocabulary (emits :held/action \"add-held\"); not force-auth-add-held artifact vocabulary"
+   :status :protocol-neutral}]
+
  :rules [{:id :framework-does-not-depend-on-protocol-implementations
           :description "Every src production namespace is scanned. Direct require/use/import and literal namespace-resolution references to extension prefixes fail unless an exact reviewed bridge is configured."}
          {:id :extension-depends-on-framework
-          :description "Protocol extensions may depend on framework interfaces and registries; framework code must not introduce named extension dependencies."}
+          :description "Protocol and evidence extensions may depend on framework interfaces and registries; framework code must not introduce named extension dependencies."}
          {:id :prf-jar-excludes-extension-sources
-          :description "The PRF distribution is built from src and resources only; Sew source and corpus are supplied by :with-sew."}]}
+          :description "The PRF distribution is built from src and resources only; Sew source, corpus, and extension sources are supplied by explicit aliases."}]}

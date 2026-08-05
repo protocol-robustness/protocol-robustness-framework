@@ -126,3 +126,108 @@
     (is (= 500 (:backing/amount backing)))
     (is (= 500 (:payable/amount payable)))
     (is (= 500 (reduce + 0 (vals (:backing/source-allocations backing)))))))
+
+;; ── boundary adversarial cases (pre-Stage-C review) ───────────────────────
+
+(deftest conflicting-plan-for-same-obligation-fails
+  (let [plan (evaluated-plan)
+        tampered (assoc plan :plan/context {:note "tampered"})
+        tampered (assoc tampered :plan/hash (wb-plan/plan-hash tampered))
+        world (:world (sew-wb/apply-with-bounty-plan plan {}))]
+    (is (not= (:plan/hash plan) (:plan/hash tampered)))
+    (is (= (:plan/obligation-id plan) (:plan/obligation-id tampered)))
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"conflicting application"
+         (sew-wb/apply-with-bounty-plan tampered world)))))
+
+(deftest different-obligation-same-duplicate-key-rejected
+  (let [plan (evaluated-plan)
+        other (evaluation/evaluate-with-bounty
+               {:policy proof/review-policy
+                :base-result {:resolved-amount 10000}
+                :base-operation-root "sha256:op"
+                :event-context {:review/finalised? true
+                                :event/actor :researcher/alice}
+                :parameter-context {:fixture/review-bounty-rate 500}
+                :parameter-context-root proof/parameter-context-root
+                :extension-map (fixtures/extension-map)
+                :sealed? true
+                :token :token/eth
+                :funding-available 1000
+                :adapter-support sew-wb/adapter-support})
+        other-plan (:plan other)
+        world (:world (sew-wb/apply-with-bounty-plan plan {}))]
+    (is (= :applied (:status other)))
+    (is (not= (:plan/obligation-id plan) (:plan/obligation-id other-plan)))
+    (is (= (:plan/no-duplicate-creation-key plan)
+           (:plan/no-duplicate-creation-key other-plan)))
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"duplicate obligation"
+         (sew-wb/apply-with-bounty-plan other-plan world)))))
+
+(deftest idempotent-replay-with-drifted-state-fails
+  (let [plan (evaluated-plan)
+        world (:world (sew-wb/apply-with-bounty-plan plan {}))
+        drifted (update world :with-bounty/backings dissoc (str "backing-" (:plan/obligation-id plan)))]
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"drifted state"
+         (sew-wb/apply-with-bounty-plan plan drifted)))))
+
+(deftest mid-application-failure-is-atomic
+  (let [base (evaluated-plan)
+        obligation (first (filter #(= :prf.effect/obligation-create.v2 (:effect/contract %))
+                                  (:plan/effects base)))
+        custody-add {:effect/type :custody/held-adjustment
+                     :effect/contract :prf.effect/custody-held-adjustment.v1
+                     :effect/direction :add
+                     :effect/account :bounty-reserve
+                     :effect/amount 500
+                     :effect/token :token/usdc
+                     :held/kind :bounty-reserve-reservation
+                     :parameter/context {:parameter-context/type :protocol-parameters
+                                         :parameter-context/root proof/parameter-context-root
+                                         :parameter-context/version 1}
+                     :parameter/address {:parameter/path [:bounties :review-reserve]}}
+        custody-sub (assoc custody-add :effect/direction :sub :effect/amount 1000)
+        plan-result (wb-plan/build-with-bounty-plan
+                     {:policy-root (:plan/policy-root base)
+                      :base-operation-root (:plan/base-operation-root base)
+                      :base-result-root (:plan/base-result-root base)
+                      :extensions-resolution-root (:plan/extensions-resolution-root base)
+                      :adapter sew-wb/adapter-support
+                      :effects [custody-add obligation custody-sub]
+                      :effect-schema-roots (:plan/effect-schema-roots base)
+                      :funding-available 1000})
+        tampered (:plan plan-result)
+        world-before {}]
+    (is (= :valid (:status plan-result)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sew-wb/apply-with-bounty-plan tampered world-before)))
+    (is (= world-before
+           (try (sew-wb/apply-with-bounty-plan tampered world-before)
+                (catch clojure.lang.ExceptionInfo _ world-before))))))
+
+(deftest transition-binds-exact-artifacts
+  (let [plan (evaluated-plan)
+        result (sew-wb/apply-with-bounty-plan plan {})
+        world (:world result)
+        transition (:transition result)]
+    (is (:valid? (verification/verify-transition-binds-world transition world)))
+    (is (:valid? (verification/verify-transition-with-plan transition plan)))
+    (is (not (:valid? (verification/verify-transition-binds-world
+                       transition (dissoc world :with-bounty/payables)))))
+    (is (= 1 (count (:custody/adjustment-roots transition))))
+    (is (string? (get-in transition [:custody/adjustment-roots 0 :artifact/hash])))))
+
+(deftest claimable-derives-from-backed-payable
+  (let [plan (evaluated-plan)
+        world (:world (sew-wb/apply-with-bounty-plan plan {}))]
+    (is (:valid? (verification/verify-application-world world)))
+    (is (not (:valid? (verification/verify-application-world
+                       (update world :with-bounty/payables dissoc (:plan/obligation-id plan))))))
+    (is (not (:valid? (verification/verify-application-world
+                       (update world :with-bounty/backings
+                               dissoc (str "backing-" (:plan/obligation-id plan)))))))))

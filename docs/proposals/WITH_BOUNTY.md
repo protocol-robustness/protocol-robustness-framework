@@ -363,6 +363,19 @@ Implementation replay; verifier disagreement and `:disputed`; additional failure
 modes; wider base-plan compatibility; released manifest and lockfile; protocol
 compatibility evidence.
 
+**C1 (implementation replay) — implemented.**
+`src/resolver_sim/economics/with_bounty/replay.clj` re-runs the exact sealed
+eligibility and amount implementations against the committed inputs
+(`:replay/inputs`) and reconciles receipt, plan, and effect roots, classified
+explicitly `:implementation-replay`. Replay stops at the capability boundary
+(protocol transition reproduction requires a sealed Sew runtime + state
+fixture and is not claimed). C2 (`:disputed`) and C3 (released manifest and
+lockfile) are deferred and intentionally not part of the same change.
+
+The pre-Stage-C boundary review (obligation vs duplicate identity, atomicity,
+plan completeness, verifier independence, frozen-resolution commitment) is
+recorded in ADR-0006.
+
 ### Stage D — later roadmap (deferred until an external or genuinely separate use exists)
 
 Independent-verifier claim; external Sew compatibility attestation; benchmark

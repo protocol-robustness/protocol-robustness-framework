@@ -520,11 +520,11 @@
                "metrics" (:metrics evidence)
                "execution_count" (count (:results evidence))
                "index_ref" "benchmark/index.edn"}]
-     (.mkdirs (.getParentFile target))
-     (spit temp (json/write-str value :indent true))
-     (Files/move (.toPath temp) (.toPath target)
-                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
-     value))
+    (.mkdirs (.getParentFile target))
+    (spit temp (json/write-str value :indent true))
+    (Files/move (.toPath temp) (.toPath target)
+                (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
+    value))
 
 (defn run-with-root!
   "Run a canonical benchmark root. Optional overrides replace phase functions

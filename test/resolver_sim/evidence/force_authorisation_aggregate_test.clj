@@ -942,7 +942,7 @@
 (deftest v2-validator-rejects-direction-vs-projection-conflict
   (let [add (v2-member-with-direction "fa-add" "adj-add" :USDC 100 :in)
         conflicting (rehash (assoc (dissoc add :artifact/hash :artifact/preimage)
-                                  :held/direction :out))]
+                                   :held/direction :out))]
     (is (not (e/valid-force-auth-add-held-v2? conflicting))
         "the recorded direction must match the committed scope projection")))
 

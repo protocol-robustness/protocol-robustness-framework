@@ -251,6 +251,94 @@ context root — no second attribution primitive.
 | Phase 5 — verification | Split across phases | Structural per phase (D8); replay in Stage C |
 | Phase 6 — ecosystem artifact | Later roadmap | Premature before stable implementation and external consumption |
 
+## Pre-Stage-C boundary review (review commitments)
+
+Five boundaries were reviewed before Stage C; the review conclusions are
+committed here.
+
+### B1. Obligation identity vs duplicate identity vs plan root
+
+These are deliberately separate identifiers with distinct equivalence relations:
+
+| Identifier | Intended equivalence relation |
+|---|---|
+| `bounty-obligation-id` | Identity of the economic obligation. Two obligations are the same iff the versioned projection `[:bounty-payable operation-root bounty-id recipient token amount policy-root]` is equal. |
+| `no-duplicate-creation key` | Exclusivity scope `[operation-root bounty-id recipient]` (design note §13): at most one live obligation per scope. Coarser than the obligation id — a different token or policy yields a different obligation id but the same scope, so duplicate creation is rejected. |
+| `application-plan-root` | Identity of one validated application attempt: the content-addressed plan committing policy root, base roots, resolution root, adapter, effects, and preconditions. Two materially different plans never share a root. |
+
+The Sew adapter enforces no-duplicate-creation at application time via a
+live-obligation index keyed on the scope, in addition to the per-obligation
+idempotency key. Retry idempotency (same plan root) and duplicate rejection
+(different obligation, same scope) are therefore both enforced.
+
+### B2. Atomicity between payable, backing, claimable, custody
+
+Application is a pure reduction over an immutable world: no partial state is
+ever observable if any effect fails (test `mid-application-failure-is-atomic`).
+Additional guarantees:
+
+- claimability derives from the created, backed payable (`record-claimable-v2`
+  is called with the payable's beneficiary and amount), never written
+  independently;
+- transition evidence binds the exact held-adjustment artifact
+  (`{:held-adjustment/id ... :artifact/hash ...}`), not merely its amount or
+  account;
+- idempotent replay verifies the existing payable/backing/claimable/custody
+  state before returning success; drifted state fails
+  (`with-bounty-state-drift`).
+
+### B3. Application-plan completeness
+
+The plan commits every field whose change could alter protocol mutation:
+policy root, base-operation root, base-result root, base-plan root,
+`extensions-resolution-root`, adapter-support declaration, the ordered effect
+set and its roots, combined effect-set root, effect-schema roots, obligation
+id, no-duplicate-creation key, `declared-maximum`, `funding-available`,
+preconditions, and idempotency key. Two materially different Sew transitions
+cannot validate against the same plan root: the adapter-support declaration and
+resolution root are part of the committed preimage, and preflight rejects a
+plan whose committed adapter differs from the applying adapter.
+
+### B4. Structural verifier independence from constructors
+
+Structural verifiers recompute from artifact bodies rather than trusting
+constructor caches:
+
+- `verify-with-bounty-plan` recomputes effect roots, combined effect-set root,
+  obligation id, no-duplicate key, and all four preconditions from the
+  committed effects and committed inputs, and enforces an exact committed shape
+  (unknown top-level keys rejected);
+- reconciliation verifiers (`verify-receipt-with-plan`,
+  `verify-transition-with-plan`, `verify-application-world`,
+  `verify-transition-binds-world`) cross-check artifacts against referenced
+  artifacts and fail closed on missing referenced evidence;
+- canonical hashing and schema predicates are the only primitives reused;
+  no constructor-assembled projection is trusted.
+
+### B5. Frozen-resolution commitment
+
+Exactly one run-level `:extensions/resolution-root` is computed by the
+evaluator and committed identically into the receipt, the application plan,
+and (via the plan root) the transition evidence. No artifact re-resolves
+capabilities from mutable registry state: evaluation resolves against the
+supplied frozen extension-map, and verification reconciles committed roots only.
+`verify-receipt-with-plan` rejects a receipt whose resolution root differs from
+the plan's.
+
+## C1 — implementation replay
+
+Implemented. `resolver-sim.economics.with-bounty.replay/replay-with-bounty`
+re-runs the exact sealed eligibility and amount implementations against the
+committed inputs (`:replay/inputs` captured by the evaluator) and reconciles
+the receipt, plan, and effect by full value comparison. Results are classified
+explicitly `:implementation-replay` — never independent verification.
+Replay stops at the capability boundary: protocol transition reproduction is
+not claimed (the Sew runtime and state fixture are not sealed). Covered by
+`resolver-sim.economics.with-bounty.replay-test`.
+
+C2 (`:disputed`, verifier composition) and C3 (released manifest and lockfile)
+are intentionally not part of this change.
+
 ## Acceptance bar (Stage B vertical slice)
 
 `with-bounty` reaches its first production-quality composition only when:

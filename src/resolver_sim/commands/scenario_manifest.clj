@@ -23,7 +23,7 @@
 
 (defn- declared-protected-amounts [snapshot]
   (->> (:events snapshot)
-       (filter #(#{ "create_escrow" "yield_deposit"} (event-action %)))
+       (filter #(#{"create_escrow" "yield_deposit"} (event-action %)))
        (keep (fn [event]
                (let [{:keys [token amount]} (:params event)]
                  (when (and (string? token) (number? amount) (not (neg? amount)))

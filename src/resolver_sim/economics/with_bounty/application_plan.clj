@@ -114,8 +114,8 @@
   (let [funding-source (get-in obligation [:obligation/funding :source])]
     {:effect/schema-valid? (:valid? (effects/validate-effects effects))
      :amount/bounded? (amount-bounded? amount declared-maximum)
-     :funding/available? (funding-available? funding-source amount funding-available)
-     :obligation-id/consistent? (obligation-id-consistent? obligation)}))
+     :funding/available? (boolean (funding-available? funding-source amount funding-available))
+     :obligation-id/consistent? (boolean (obligation-id-consistent? obligation))}))
 
 ;; ── plan identity ─────────────────────────────────────────────────────────
 
@@ -182,7 +182,7 @@
         obligation-id (when obligation (:obligation/id obligation))
         effect-roots (mapv effect-root effects)
         preconditions (compute-preconditions effects obligation amount
-                                              funding-available declared-maximum)
+                                             funding-available declared-maximum)
         failures (into []
                        (keep (fn [[k ok]]
                                (when (false? ok)
@@ -222,7 +222,7 @@
   [plan]
   (if-not (map? plan)
     {:valid? false :errors [:non-map-plan]}
-    (let [known (set plan-hash-projection-fields)
+    (let [known (set (conj plan-hash-projection-fields :plan/hash))
           unknown (vec (sort (remove known (keys plan))))
           errors (cond-> []
                    (not= schema-version (:schema-version plan))
@@ -269,8 +269,8 @@
         amount (obligation-amount effects)
         effect-roots (mapv effect-root effects)
         preconditions (compute-preconditions effects obligation amount
-                                              (:plan/funding-available plan)
-                                              (:plan/declared-maximum plan))]
+                                             (:plan/funding-available plan)
+                                             (:plan/declared-maximum plan))]
     {:plan/effect-roots effect-roots
      :plan/combined-effect-root (effect-set-root (:plan/base-plan-root plan)
                                                  effect-roots)

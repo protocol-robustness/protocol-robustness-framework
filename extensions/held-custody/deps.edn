@@ -1,0 +1,8 @@
+{:paths ["src" "test"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        ;; PRF core declared as an explicit dependency. Within this repository
+        ;; :local/root points at the repo root (whose :paths include "src");
+        ;; this proves the package does not rely on root-only source paths,
+        ;; root test aliases, or namespaces present only through the monorepo
+        ;; classpath. A published core artifact would be referenced here instead.
+        org.protocol-robustness/prf-core {:local/root "../.."}}}

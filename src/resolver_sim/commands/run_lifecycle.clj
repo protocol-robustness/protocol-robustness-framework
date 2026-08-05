@@ -86,7 +86,7 @@
     (.mkdirs root)
     (try
       (Files/createFile (.toPath lock) (make-array java.nio.file.attribute.FileAttribute 0))
-       (spit lock (ppedn/ppr-str {:run/id run-id :run/type run-type}))
+      (spit lock (ppedn/ppr-str {:run/id run-id :run/type run-type}))
       lock
       (catch FileAlreadyExistsException _
         (throw (ex-info "Run root is already in use"
@@ -101,7 +101,7 @@
   (let [root (io/file (str run-root))
         target (io/file root paths/run-state)]
     (.mkdirs root)
-     (spit target (ppedn/ppr-str {:run/id run-id :run/type run-type :lifecycle/status :running}))
+    (spit target (ppedn/ppr-str {:run/id run-id :run/type run-type :lifecycle/status :running}))
     target))
 
 (defn complete! [run-root completion]

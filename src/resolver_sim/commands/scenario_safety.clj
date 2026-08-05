@@ -91,28 +91,28 @@
   (boolean (re-find #"\.(json|edn|md|txt|csv)$" (.getName (io/file file)))))
 
 (defn- sensitivity-findings [run-root]  (let [root (io/file (str run-root))
-        forbidden #{paths/run-lock paths/run-state paths/completion}]
-    (reset! finding-counter 0)
-    (->> (file-seq root)
-         (filter #(.isFile %))
-         (remove #(contains? forbidden (.getName %)))
-         (filter text-file?)
-         (mapcat (fn [file]
-                   (let [body (slurp file)
-                         path (.getPath file)
-                         path-token (compute-path-token path)]
-                     (keep (fn [rule]
-                             (when (re-find (:pattern rule) body)
-                               (let [match-line (first (filter #(re-find (:pattern rule) %) (str/split-lines body)))]
-                                 {:finding/id (next-finding-id)
-                                  :finding/path-token path-token
-                                  :rule/id (:rule/id rule)
-                                  :rule/version (:rule/version rule)
-                                  :match/value-commitment
-                                  (when match-line
-                                    (:value-commitment (nonced-hash match-line)))})))
-                           secret-rules))))
-         vec)))
+                                              forbidden #{paths/run-lock paths/run-state paths/completion}]
+                                          (reset! finding-counter 0)
+                                          (->> (file-seq root)
+                                               (filter #(.isFile %))
+                                               (remove #(contains? forbidden (.getName %)))
+                                               (filter text-file?)
+                                               (mapcat (fn [file]
+                                                         (let [body (slurp file)
+                                                               path (.getPath file)
+                                                               path-token (compute-path-token path)]
+                                                           (keep (fn [rule]
+                                                                   (when (re-find (:pattern rule) body)
+                                                                     (let [match-line (first (filter #(re-find (:pattern rule) %) (str/split-lines body)))]
+                                                                       {:finding/id (next-finding-id)
+                                                                        :finding/path-token path-token
+                                                                        :rule/id (:rule/id rule)
+                                                                        :rule/version (:rule/version rule)
+                                                                        :match/value-commitment
+                                                                        (when match-line
+                                                                          (:value-commitment (nonced-hash match-line)))})))
+                                                                 secret-rules))))
+                                               vec)))
 
 (defn scan-content-findings
   "Scan a single string body for secret-scanner patterns and return findings.

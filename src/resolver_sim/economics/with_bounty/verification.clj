@@ -101,3 +101,132 @@
     (if (seq violations)
       {:valid? false :violations violations}
       {:valid? true})))
+
+;; ── cross-artifact reconciliation ─────────────────────────────────────────
+
+(defn verify-receipt-with-plan
+  "Reconciliation: the receipt's committed roots match the plan it references.
+   Guards against a receipt that binds a valid effect root but the wrong
+   application-plan root, or a different resolution root."
+  [receipt plan]
+  (let [violations (cond-> []
+                     (not= (:bounty/application-plan-root receipt) (:plan/hash plan))
+                     (conj {:violation/id :violation/receipt-plan-root-mismatch
+                            :details {:committed (:bounty/application-plan-root receipt)
+                                      :expected (:plan/hash plan)}})
+
+                     (not= (:bounty/effect-root receipt) (first (:plan/effect-roots plan)))
+                     (conj {:violation/id :violation/receipt-effect-root-mismatch
+                            :details {:committed (:bounty/effect-root receipt)
+                                      :expected (first (:plan/effect-roots plan))}})
+
+                     (not= (:bounty/obligation-id receipt) (:plan/obligation-id plan))
+                     (conj {:violation/id :violation/receipt-obligation-id-mismatch
+                            :details {:committed (:bounty/obligation-id receipt)
+                                      :expected (:plan/obligation-id plan)}})
+
+                     (not= (:extensions/resolution-root receipt)
+                           (:plan/extensions-resolution-root plan))
+                     (conj {:violation/id :violation/receipt-resolution-root-mismatch
+                            :details {:committed (:extensions/resolution-root receipt)
+                                      :expected (:plan/extensions-resolution-root plan)}}))]
+    (if (seq violations)
+      {:valid? false :violations violations}
+      {:valid? true})))
+
+(defn verify-transition-with-plan
+  "Reconciliation: the transition evidence binds the plan it references."
+  [transition plan]
+  (let [violations (cond-> []
+                     (not= (:plan/root transition) (:plan/hash plan))
+                     (conj {:violation/id :violation/transition-plan-root-mismatch
+                            :details {:committed (:plan/root transition)
+                                      :expected (:plan/hash plan)}})
+
+                     (not= (:effect-root transition) (first (:plan/effect-roots plan)))
+                     (conj {:violation/id :violation/transition-effect-root-mismatch
+                            :details {:committed (:effect-root transition)
+                                      :expected (first (:plan/effect-roots plan))}})
+
+                     (not= (:combined-effect-root transition)
+                           (:plan/combined-effect-root plan))
+                     (conj {:violation/id :violation/transition-effect-set-mismatch
+                            :details {:committed (:combined-effect-root transition)
+                                      :expected (:plan/combined-effect-root plan)}}))]
+    (if (seq violations)
+      {:valid? false :violations violations}
+      {:valid? true})))
+
+(defn verify-application-world
+  "Reconciliation of a with-bounty application result world: every payable is
+   backed by a backing referencing its root, no backing is orphaned, and each
+   payable's claimable amount is present under its obligation id. The claimable
+   domain is protocol-specific and supplied by the caller."
+  [world & [opts]]
+  (let [domain (or (:claimable/domain opts) :liability/bounty-payable)
+        payables (vals (:with-bounty/payables world {}))
+        backings (vals (:with-bounty/backings world {}))
+        payable-roots (set (map :payable/hash payables))
+        backing-payable-roots (map :backing/payable-root backings)
+        unbacked (into [] (remove #(some #{%} backing-payable-roots)) payable-roots)
+        orphan-backings (into []
+                              (remove #(contains? payable-roots (:backing/payable-root %)))
+                              backings)
+        claimable-missing? (not (every? (fn [p]
+                                          (= (:payable/amount p)
+                                             (get-in world [:claimable-v2 (:payable/id p)
+                                                            domain
+                                                            (:payable/beneficiary p)])))
+                                        payables))
+        violations (cond-> []
+                     (seq unbacked)
+                     (conj {:violation/id :violation/payable-without-backing
+                            :details {:payable-roots unbacked}})
+
+                     (seq orphan-backings)
+                     (conj {:violation/id :violation/backing-without-payable
+                            :details {:backings orphan-backings}})
+
+                     claimable-missing?
+                     (conj {:violation/id :violation/claimable-not-derived
+                            :details {}}))]
+    (if (seq violations)
+      {:valid? false :violations violations}
+      {:valid? true})))
+
+(defn verify-transition-binds-world
+  "Reconciliation: every custody adjustment root in the transition evidence
+   resolves to an actual held-custody artifact in the world, and every
+   payable/backing root referenced by the transition exists in the world."
+  [transition world]
+  (let [custody-roots (:custody/adjustment-roots transition [])
+        missing-artifacts (into []
+                                (keep (fn [c]
+                                        (when-not (get-in world
+                                                          [:held-artifacts
+                                                           (:held-adjustment/id c)])
+                                          c)))
+                                custody-roots)
+        payable-roots (set (:payable/roots transition []))
+        backing-roots (set (:backing/roots transition []))
+        world-payable-roots (set (map :payable/hash
+                                      (vals (:with-bounty/payables world {}))))
+        world-backing-roots (set (map :backing/hash
+                                      (vals (:with-bounty/backings world {}))))
+        missing-payables (seq (remove world-payable-roots payable-roots))
+        missing-backings (seq (remove world-backing-roots backing-roots))
+        violations (cond-> []
+                     (seq missing-artifacts)
+                     (conj {:violation/id :violation/custody-artifact-not-bound
+                            :details {:missing missing-artifacts}})
+
+                     missing-payables
+                     (conj {:violation/id :violation/payable-root-not-in-world
+                            :details {:roots (vec missing-payables)}})
+
+                     missing-backings
+                     (conj {:violation/id :violation/backing-root-not-in-world
+                            :details {:roots (vec missing-backings)}}))]
+    (if (seq violations)
+      {:valid? false :violations violations}
+      {:valid? true})))

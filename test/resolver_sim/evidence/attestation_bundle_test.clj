@@ -553,8 +553,8 @@
   (let [kp (fx/keypair)
         bundle (remote-bundle kp)
         stripped (assoc-in bundle [:bundle/sensitivity :sentinel/authority-decision] nil)
-         result (ab/verify-attestation-bundle stripped {:sentinel/trust-policy (fx/trust-policy kp)})
-         check (sentinel-check result)]
+        result (ab/verify-attestation-bundle stripped {:sentinel/trust-policy (fx/trust-policy kp)})
+        check (sentinel-check result)]
     (is (= :blocked (:check/status check)))))
 
 (deftest remote-required-bundle-rejects-local-only-decision

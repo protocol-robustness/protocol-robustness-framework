@@ -11,6 +11,7 @@
      - benchmarks/packs/sew/"
   (:require [clojure.string :as str]
             [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.evidence.artifact :as artifact]
             [resolver-sim.assurance.force-authorisation :as fa]))
 
 (declare valid-force-auth-add-held?
@@ -112,6 +113,30 @@
   "Algorithm/version identifier for the :authorization/scope-hash commitment
    (:authorization/scope-derivation on v2 members)."
   "force-authorisation-scope-hash.v1")
+
+(def legacy-force-auth-add-held-contracts
+  "Frozen legacy force-auth-add-held contract metadata. This is REGISTRY /
+   VALIDATOR metadata — it is NEVER committed into an artifact body or preimage,
+   and the legacy content-addressed contracts below are unchanged. New code
+   should use the held-custody mutation extension
+   (prf.extensions.held-custody). See prf.extensions.held-custody.legacy-add-held
+   for reading and classifying persisted legacy artifacts."
+  [{:artifact/kind :force-auth-add-held
+    :schema-version "force-auth-add-held.v1"
+    :status :legacy
+    :replacement :force-auth-held-custody-mutation}
+   {:artifact/kind :force-auth-add-held
+    :schema-version "force-auth-add-held.v2"
+    :status :legacy
+    :replacement :force-auth-held-custody-mutation}
+   {:artifact/kind :force-auth-add-held-summary
+    :schema-version "force-auth-add-held-summary.v1"
+    :status :legacy
+    :replacement :force-auth-held-custody-mutation-summary}
+   {:artifact/kind :force-auth-add-held-summary
+    :schema-version "force-auth-add-held-summary.v2"
+    :status :legacy
+    :replacement :force-auth-held-custody-mutation-summary}])
 
 (def ^:private lifecycle-schema-version "force-auth-lifecycle.v1")
 (def ^:private lifecycle-verifier-id "force-auth-lifecycle-verifier.v1")
@@ -312,114 +337,47 @@
     (= add-held-v2-schema-version (:schema-version report)) (valid-force-auth-add-held-v2? report)
     :else false))
 
+;; ── content-addressed artifact primitives ──────────────────────────────────
+;; Generic content-addressed-artifact logic lives in the neutral
+;; resolver-sim.evidence.artifact namespace. The bindings below are temporary
+;; delegations/aliases that keep existing callers inside this namespace stable;
+;; they are removed during the held-custody extraction (Phase 3+).
+
 (defn- finalize-artifact
-  "Attach the content hash and exact preimage to an artifact body."
+  "Attach the content hash and exact preimage to an artifact body.
+   Delegates to resolver-sim.evidence.artifact/finalize-artifact."
   [body]
-  (let [hash (str "sha256:"
-                  (hash/domain-hash :evidence-record body))]
-    (assoc body
-           :artifact/hash hash
-           :artifact/preimage (pr-str body))))
+  (artifact/finalize-artifact body))
 
 (def artifact-envelope-keys
-  "Envelope keys that are stripped from the artifact body before hashing or
-   canonical preimage computation. Includes the legacy :artifact/hash and
-   :artifact/preimage plus the OPTIONAL parallel canonical commitment
-   (:artifact/canonical-bytes-v2 / :artifact/canonical-hash-v2). The canonical
-   commitment is representation-independent proof of the committed hash; it is
-   envelope metadata so attaching it never changes :artifact/hash."
-  #{:artifact/hash
-    :artifact/preimage
-    :artifact/canonical-bytes-v2
-    :artifact/canonical-hash-v2})
+  "Envelope keys stripped from the artifact body before hashing or canonical
+   preimage computation. Delegates to resolver-sim.evidence.artifact."
+  artifact/artifact-envelope-keys)
 
 (defn- artifact-body
-  "The artifact body with every envelope key removed (what the content hash and
-   canonical preimage commit to)."
+  "The artifact body with every envelope key removed.
+   Delegates to resolver-sim.evidence.artifact/artifact-body."
   [report]
-  (apply dissoc report artifact-envelope-keys))
-
-(defn- bytes->hex-str
-  "Lowercase hex encoding of a byte array."
-  [^bytes ba]
-  (apply str (map #(format "%02x" (bit-and (int %) 0xFF)) ba)))
-
-(defn- canonical-commitment-valid?
-  "Verify the optional parallel canonical commitment when present. When the
-   commitment keys exist, :artifact/canonical-hash-v2 must equal the committed
-   :artifact/hash AND :artifact/canonical-bytes-v2 must be the hex of
-   canonical-bytes(artifact body) — the standard typed encoding per
-   CANONICAL_HASH_SPEC_V1. A cross-language consumer proves portable hashing via
-   sha256(domain-tag || hex-decode(canonical-bytes-v2)) == :artifact/hash.
-
-   Artifacts without the commitment (the default) validate exactly as before."
-  [report body]
-  (if (or (contains? report :artifact/canonical-bytes-v2)
-          (contains? report :artifact/canonical-hash-v2))
-    (and (string? (:artifact/hash report))
-         (string? (:artifact/canonical-hash-v2 report))
-         (= (:artifact/hash report) (:artifact/canonical-hash-v2 report))
-         (string? (:artifact/canonical-bytes-v2 report))
-         (= (:artifact/canonical-bytes-v2 report)
-            (bytes->hex-str (hash/canonical-bytes body))))
-    true))
+  (artifact/artifact-body report))
 
 (defn- preimage-and-hash-valid?
-  "Enforce the full content round trip for a content-addressed artifact:
-
-     body → canonical preimage (pr-str of the exact body) → content hash
-
-   Both must hold, so the :artifact/preimage and the decoded body can never
-   disagree: the stored preimage must be the exact string serialization of the
-   artifact body (with the envelope removed), and the stored hash must re-derive
-   from that same body. When the optional parallel canonical commitment is
-   present it is verified too. Independent of schema/kind/verifier identity
-   checks."
+  "Enforce the full content round trip for a content-addressed artifact.
+   Delegates to resolver-sim.evidence.artifact/preimage-and-hash-valid?."
   [report]
-  (and (string? (:artifact/hash report))
-       (string? (:artifact/preimage report))
-       (let [body (artifact-body report)]
-         (and (= (:artifact/preimage report) (pr-str body))
-              (= (:artifact/hash report)
-                 (str "sha256:" (hash/domain-hash :evidence-record body)))
-              (canonical-commitment-valid? report body)))))
+  (artifact/preimage-and-hash-valid? report))
 
-(defn attach-canonical-commitment
-  "Attach an OPTIONAL, non-breaking parallel commitment proving
-   representation-independent hashing alongside the legacy pr-str preimage:
+(def attach-canonical-commitment
+  "Attach an OPTIONAL, non-breaking parallel canonical commitment proving
+   representation-independent hashing alongside the legacy pr-str preimage.
+   Delegates to resolver-sim.evidence.artifact/attach-canonical-commitment."
+  artifact/attach-canonical-commitment)
 
-     :artifact/canonical-bytes-v2  lowercase hex of the canonical typed bytes
-                                   (canonical-bytes, per CANONICAL_HASH_SPEC_V1)
-                                   of the artifact body
-     :artifact/canonical-hash-v2   the domain-separated hash of the body, which
-                                   equals :artifact/hash
-
-   The commitment keys are envelope metadata: they are stripped before hashing,
-   so attaching them never changes :artifact/hash or :artifact/preimage.
-   valid-artifact? (and therefore every reader) verifies the commitment when
-   present, and it cannot be forged (canonical-hash-v2 must equal the committed
-   hash and the bytes must match canonical-bytes of the body). This is the
-   non-breaking migration path toward portable, cross-language verification:
-   adopt it behind your own version/feature flag and migrate gradually.
-
-   Throws ex-info if the body contains a type canonical-bytes cannot encode."
-  [artifact]
-  (let [body (artifact-body artifact)
-        hex (bytes->hex-str (hash/canonical-bytes body))]
-    (assoc artifact
-           :artifact/canonical-bytes-v2 hex
-           :artifact/canonical-hash-v2 (:artifact/hash artifact))))
-
-(defn valid-artifact?
+(defn- valid-artifact?
   "Re-verify a content-addressed artifact: schema version, kind, verifier id,
-   and the full content round trip (exact canonical preimage + content hash,
-   plus the optional parallel canonical commitment) must all agree."
+   and the full content round trip (exact canonical preimage + content hash).
+   Delegates to resolver-sim.evidence.artifact/valid-artifact?."
   [report schema-version kind verifier]
-  (and (map? report)
-       (= schema-version (:schema-version report))
-       (= kind (:artifact/kind report))
-       (= verifier (:artifact/verifier report))
-       (preimage-and-hash-valid? report)))
+  (artifact/valid-artifact? report schema-version kind verifier))
 
 ;; ── force-auth-add-held ────────────────────────────────────────────────────
 
@@ -1430,7 +1388,15 @@
     (finalize-artifact body)))
 
 (defn check-aggregate
-  "Structured, deterministic, data-only aggregate check for a
+  "LEGACY checker for force-auth-add-held-summary.v1 / .v2 only.
+
+   New code should use prf.extensions.held-custody.aggregate/check-held-mutation-aggregate
+   (the held-custody mutation extension). This function is retained during the
+   legacy extraction; its implementation is expected to move to the extension's
+   legacy-add-held compatibility module and be removed from core after callers
+   migrate.
+
+   Structured, deterministic, data-only aggregate check for a
    force-auth-add-held-summary artifact against the member artifacts it is
    claimed to aggregate over.
 
@@ -1514,10 +1480,10 @@
                 :member-set-complete? member-set-complete?
                 :summary-recomputes? summary-recomputes?}
         amount-warnings (mapv (fn [{:keys [index adjustment-id amount-issue]}]
-                                 {:kind amount-issue
-                                  :index index
-                                  :adjustment-id adjustment-id})
-                               (:amount-issues fields))
+                                {:kind amount-issue
+                                 :index index
+                                 :adjustment-id adjustment-id})
+                              (:amount-issues fields))
         direction-warnings
         (let [dirs (set (keep (fn [m]
                                 (when (valid-held-direction? (:held/direction m))

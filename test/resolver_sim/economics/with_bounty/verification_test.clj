@@ -13,7 +13,7 @@
   (let [root (policy/with-bounty-policy-root proof/review-policy)]
     (is (:valid? (verification/verify-policy-root proof/review-policy root)))
     (is (not (:valid? (verification/verify-policy-root proof/review-policy
-                                                      (str "deadbeef" root)))))))
+                                                       (str "deadbeef" root)))))))
 
 ;; ── invocation evidence ───────────────────────────────────────────────────
 
@@ -104,3 +104,42 @@
               :bounty/eligibility {}}
         missing-effect (assoc base :bounty/application-plan-root (apply str (repeat 64 "d")))]
     (is (not (:valid? (verification/verify-composition-receipt missing-effect))))))
+
+;; ── cross-artifact reconciliation ─────────────────────────────────────────
+
+(deftest receipt-plan-reconciliation
+  (let [applied (proof/evaluate-bounty
+                 {:event/context {:review/finalised? true}
+                  :base/result {:resolved-amount 10000}})
+        receipt (:receipt applied)
+        plan (:plan applied)]
+    (is (:valid? (verification/verify-receipt-with-plan receipt plan)))
+    ;; wrong application-plan root bound to a valid effect root is caught
+    (is (not (:valid? (verification/verify-receipt-with-plan
+                       (assoc receipt :bounty/application-plan-root
+                              (apply str (repeat 64 "f")))
+                       plan))))
+    ;; a resolution root that changed between evaluation and verification is caught
+    (is (not (:valid? (verification/verify-receipt-with-plan
+                       (assoc receipt :extensions/resolution-root
+                              (apply str (repeat 64 "e")))
+                       plan))))))
+
+(deftest transition-plan-reconciliation
+  (let [applied (proof/evaluate-bounty
+                 {:event/context {:review/finalised? true}
+                  :base/result {:resolved-amount 10000}})
+        plan (:plan applied)
+        evidence (wb-transition/build-transition-evidence
+                  {:plan plan
+                   :effect-root (first (:plan/effect-roots plan))
+                   :world-before-root "sha256:w0"
+                   :world-after-root "sha256:w1"
+                   :custody-adjustment-roots
+                   [{:held-adjustment/id "held-adjustment-0"
+                     :artifact/hash "sha256:artifact-0"}]})]
+    (is (:valid? (verification/verify-transition-with-plan evidence plan)))
+    (is (not (:valid? (verification/verify-transition-with-plan
+                       (assoc evidence :combined-effect-root
+                              (apply str (repeat 64 "9")))
+                       plan))))))

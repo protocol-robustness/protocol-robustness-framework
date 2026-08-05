@@ -196,8 +196,8 @@
           v (if (map? bounty)
               (validate-bounty v bounty)
               v)]
-        {:valid? (empty? v)
-         :violations (vec v)})))
+      {:valid? (empty? v)
+       :violations (vec v)})))
 
 (defn valid-with-bounty-policy?
   [policy]
