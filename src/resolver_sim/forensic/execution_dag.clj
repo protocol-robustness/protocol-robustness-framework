@@ -117,9 +117,9 @@
                                      (nil? value) [{:code :execution-dag/missing-identity :field field}]
                                      (not (and (string? value) (seq value))) [{:code :execution-dag/malformed-identity :field field :value value}]
                                      :else []))
-                                  [[:run/id (:run/id dag)]
-                                   [:scenario/id (:scenario/id dag)]
-                                   [:execution/id (:execution/id dag)]]))
+                                 [[:run/id (:run/id dag)]
+                                  [:scenario/id (:scenario/id dag)]
+                                  [:execution/id (:execution/id dag)]]))
                        (when-not (= "execution-dag.v1" (or (:dag/schema-version dag) (:schema-version dag))) [{:code :execution-dag/unsupported-schema}])
                        (when-not (vector? nodes) [{:code :execution-dag/nodes-not-vector}])
                        (when-not (= (count ids) (count id-set)) [{:code :execution-dag/duplicate-node-id}])

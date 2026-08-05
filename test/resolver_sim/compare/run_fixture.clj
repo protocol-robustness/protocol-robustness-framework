@@ -41,29 +41,29 @@
         _         (package-index/write! idx-path bundle)
         sha       (str "sha256:" (lifecycle/sha256-file idx-path))
         bytes     (.length idx-path)]
-      (write! (io/file root "completion.json")
-              (json/write-str
-               {:schema_version "run-completion.v1"
-                :run_id run-id
-                :lifecycle_status "completed"
-                :run_type "scenario"
-                :run_package_index_ref "manifest/run-package-index.json"
-                :run_package_index_sha256 sha
-                :run_package_index_bytes bytes}))
-      (write! (io/file root "evidence/finalizations/run/evidence-finalization.json")
-              (json/write-str
-               {"evidence" {"declared-evidence-hashes" ["sha256:aaa" "sha256:bbb"]
-                            "scenario-finalizations"
-                            [{"scenario-id" "scenario-1"
-                              "finalization" {"sha256" "sha256:2222"}}]}}))
-      (write! (io/file root "input/input.edn") "{:x 1}")
-      (when (seq scenario-results)
-        (write! (io/file root "scenarios/scenario-1/execution/replay-output.json")
-                (json/write-str {"run/scenario-results" scenario-results})))
-      (when semantic-outcome
-        (write! (io/file root "manifest/verdict-policy.json")
-                (json/write-str {"verdict" {"semantic_outcome" semantic-outcome}})))
-      root))
+    (write! (io/file root "completion.json")
+            (json/write-str
+             {:schema_version "run-completion.v1"
+              :run_id run-id
+              :lifecycle_status "completed"
+              :run_type "scenario"
+              :run_package_index_ref "manifest/run-package-index.json"
+              :run_package_index_sha256 sha
+              :run_package_index_bytes bytes}))
+    (write! (io/file root "evidence/finalizations/run/evidence-finalization.json")
+            (json/write-str
+             {"evidence" {"declared-evidence-hashes" ["sha256:aaa" "sha256:bbb"]
+                          "scenario-finalizations"
+                          [{"scenario-id" "scenario-1"
+                            "finalization" {"sha256" "sha256:2222"}}]}}))
+    (write! (io/file root "input/input.edn") "{:x 1}")
+    (when (seq scenario-results)
+      (write! (io/file root "scenarios/scenario-1/execution/replay-output.json")
+              (json/write-str {"run/scenario-results" scenario-results})))
+    (when semantic-outcome
+      (write! (io/file root "manifest/verdict-policy.json")
+              (json/write-str {"verdict" {"semantic_outcome" semantic-outcome}})))
+    root))
 
 (defn delete-tree!
   [root]

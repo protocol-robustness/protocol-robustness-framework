@@ -757,9 +757,9 @@
              (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
                (spit path (pr-str a))))
          ;; Write claim results
-          _ (doseq [c (:claim-results objects-map [])]
-              (spit (object-path bundle-dir "claims" (claim-result-hash c))
-                    (pr-str c)))
+         _ (doseq [c (:claim-results objects-map [])]
+             (spit (object-path bundle-dir "claims" (claim-result-hash c))
+                   (pr-str c)))
         ;; Write evidence nodes
          _ (doseq [n (:evidence-nodes objects-map [])]
              (let [path (object-path bundle-dir "evidence-nodes" (:node-hash n))]

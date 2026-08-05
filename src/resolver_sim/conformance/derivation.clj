@@ -47,8 +47,8 @@
   [receipts]
   (hc/domain-hash "conformance.derivation-chain.v1"
                   (mapv #(select-keys %
-                                     [:boundary/id :input/root :output/root
-                                      :transformation/id :status])
+                                      [:boundary/id :input/root :output/root
+                                       :transformation/id :status])
                         receipts)))
 
 (defn derivation-chain

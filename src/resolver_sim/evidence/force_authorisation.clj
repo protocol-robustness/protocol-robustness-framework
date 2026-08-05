@@ -797,17 +797,17 @@
 (defn downgrade-add-held-summary-v2->v1
   "Project a v2 summary artifact body back to the v1 shape (for migration
    verification). Discards the v2-only keys and v2-only category dimensions."
-   [report]
-   (let [v1-categories (select-keys (:categories report)
-                                    add-held-summary-v1-category-keys)
-         stripped (reduce dissoc
-                          (reduce dissoc report add-held-summary-v2-only-keys)
-                          artifact-envelope-keys)]
-     (assoc stripped
-            :schema-version add-held-summary-v1-schema-version
-            :artifact/kind add-held-summary-kind
-            :artifact/verifier add-held-summary-verifier-id
-            :categories v1-categories)))
+  [report]
+  (let [v1-categories (select-keys (:categories report)
+                                   add-held-summary-v1-category-keys)
+        stripped (reduce dissoc
+                         (reduce dissoc report add-held-summary-v2-only-keys)
+                         artifact-envelope-keys)]
+    (assoc stripped
+           :schema-version add-held-summary-v1-schema-version
+           :artifact/kind add-held-summary-kind
+           :artifact/verifier add-held-summary-verifier-id
+           :categories v1-categories)))
 
 (defn build-force-auth-add-held-summary-v1
   "Build a v1-shaped summary artifact from a collection of force-auth-add-held

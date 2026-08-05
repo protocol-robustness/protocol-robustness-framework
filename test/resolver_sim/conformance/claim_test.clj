@@ -61,8 +61,8 @@
     (let [mode :candidate
           class (claim/derive-claim mode true false)
           result (claim/claim-result mode class :pass
-                                    {:subject/root "sha256:s"
-                                     :profile/root "sha256:p"})]
+                                     {:subject/root "sha256:s"
+                                      :profile/root "sha256:p"})]
       (is (= :candidate-compatible (:claim/class result)))
       (is (claim/claim-consistent? result)))))
 

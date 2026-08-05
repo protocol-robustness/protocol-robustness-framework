@@ -9,7 +9,7 @@
        {:subject/id "s1" :subject/kind kind :subject/canonical-root canonical
         :subject/domain-roots domain-roots :subject/profile-root profile})
       (cond-> included (assoc :included? true)
-        excluded (assoc :excluded? true))))
+              excluded (assoc :excluded? true))))
 
 (deftest subject-identity-record
   (let [i (identity/subject-identity

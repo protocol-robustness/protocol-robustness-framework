@@ -35,7 +35,7 @@
 (deftest generic-conformance-imports-no-domain-namespace
   (doseq [f generic-conformance-namespaces]
     (let [imports (ns-requires f)
-          domain (filter #(or (re-find #"^resolver-sim\.trace" %) 
+          domain (filter #(or (re-find #"^resolver-sim\.trace" %)
                               (re-find #"^resolver-sim\.benchmark" %)
                               (re-find #"^resolver-sim\.evidence-package" %)) imports)]
       (testing (str f " must not import trace/benchmark namespaces")

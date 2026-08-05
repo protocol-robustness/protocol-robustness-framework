@@ -51,8 +51,8 @@
                                    results)}
         out-path (str abs-source ".conformance.json")]
     (spit out-path (json/write-str receipt
-                                  {:indent true
-                                   :key-fn (fn [k] (if (keyword? k)
+                                   {:indent true
+                                    :key-fn (fn [k] (if (keyword? k)
                                                       (if-let [ns (namespace k)]
                                                         (str ns "/" (name k))
                                                         (name k))

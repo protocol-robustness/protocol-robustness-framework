@@ -688,7 +688,7 @@
         known-hashes (set (keys node-map))
         per-node (mapv #(validate-node % :known-parent-hashes known-hashes) nodes)
         valid-bootstraps (fn [bs] (set (map resolve-hash-ref
-                                           (filter valid-bootstrap-root? bs))))
+                                            (filter valid-bootstrap-root? bs))))
         graph (into {}
                     (map (fn [{:keys [node-hash parent-hashes bootstrap-roots]}]
                            [node-hash
@@ -937,7 +937,7 @@
                                        (vec (->> (:parent-hashes e)
                                                  (map resolve-hash-ref)
                                                  (remove (fn [p] (contains? bootstrap-set p)))))])
-                               entries))
+                                    entries))
         roots (vec (sort (map :node-hash
                               (filter (fn [e]
                                         (every? (fn [p] (or (contains? bootstrap-set p)

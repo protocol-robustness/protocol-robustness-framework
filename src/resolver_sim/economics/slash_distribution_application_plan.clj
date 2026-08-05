@@ -119,10 +119,10 @@
                                                               (get-in a [:eligibility :evidence-reference]))
                                                             awards))
                        :plan/preconditions {:final-conservation (= gross final-sum)
-                                             :funding-conservation (= (reduce + 0 (vals funding-deductions))
-                                                                      awards-sum)
-                                             :award-count (count awards)
-                                             :non-negative-finals (every? #(not (neg? %)) (vals final))}
+                                            :funding-conservation (= (reduce + 0 (vals funding-deductions))
+                                                                     awards-sum)
+                                            :award-count (count awards)
+                                            :non-negative-finals (every? #(not (neg? %)) (vals final))}
                        :plan/context (or context {})}
             plan (assoc base-plan :plan/hash (plan-hash base-plan))
             ;; Hardening: preconditions are RECORDED for consumers, but a false

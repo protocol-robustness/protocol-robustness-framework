@@ -103,7 +103,7 @@
         ;; admissible receipt for the SAME subject.  A plan step's :requires are
         ;; RECEIPT ids; map them to the producing step via the plan's :produces.
         producer (into {} (mapcat (fn [s] (map (fn [p] [p (:step/id s)]) (:produces s))))
-                        (:steps plan))
+                       (:steps plan))
         skippable-producers (set (map :step/id (filter :skippable? (:steps plan))))
         dependency-mismatches
         (vec (for [step (:steps plan)
@@ -148,10 +148,10 @@
   [reconciliation]
   (canonical/root
    (select-keys reconciliation
-               [:schema-version :plan/root :implementation-registry/root
-                :environment/root :planned-step-ids :observed-step-ids
-                :missing-steps :unexpected-steps :duplicate-steps
-                :subject-mismatches :dependency-mismatches :terminal-receipts])))
+                [:schema-version :plan/root :implementation-registry/root
+                 :environment/root :planned-step-ids :observed-step-ids
+                 :missing-steps :unexpected-steps :duplicate-steps
+                 :subject-mismatches :dependency-mismatches :terminal-receipts])))
 
 (defn passed?
   [reconciliation]

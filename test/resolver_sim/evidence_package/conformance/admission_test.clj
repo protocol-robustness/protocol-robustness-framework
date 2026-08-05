@@ -98,7 +98,7 @@
 (deftest reference-closure-duplicate-and-unexpected
   (let [pkg {:package/root "sha256:pkg"
              :package/embedded-artifacts [{:artifact/id :a :artifact/root "sha256:ref-a" :artifact/kind :evidence}
-                                         {:artifact/id :b :artifact/root "sha256:orphan" :artifact/kind :evidence}]
+                                          {:artifact/id :b :artifact/root "sha256:orphan" :artifact/kind :evidence}]
              :package/reference-roots {:a "sha256:ref-a" :a2 "sha256:ref-a"}}
         c (admission/reference-closure pkg)]
     (is (not (:closure-complete? c)))

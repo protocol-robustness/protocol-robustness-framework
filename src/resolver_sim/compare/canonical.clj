@@ -126,11 +126,11 @@
           ext (when (and idx (pos? idx) (< idx (dec (count path))))
                 (str/lower-case (subs path (inc idx))))
           fmt (or format
-                   (case ext
-                     ("edn" "clj" "cljc") :edn
-                     "json" :json
-                     (throw (ex-info "cannot infer format; use --format edn|json"
-                                     {:path path :extension ext}))))]
+                  (case ext
+                    ("edn" "clj" "cljc") :edn
+                    "json" :json
+                    (throw (ex-info "cannot infer format; use --format edn|json"
+                                    {:path path :extension ext}))))]
       (case fmt
         :edn  (edn/read-string (slurp f))
         :json (json/read-str (slurp f) :key-fn keyword)))))

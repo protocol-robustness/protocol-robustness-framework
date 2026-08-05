@@ -134,14 +134,14 @@
         scoring (edn/read-string (slurp "benchmarks/scoring/severity-weighted-robustness-v1.edn"))
         claim-results (benchmark-claims/evaluate-manifest-claims
                        manifest
-                         [{:scenario/id "scenario-1"
-                          :file "scenario-1.edn"
-                          :outcome :pass
-                          :scenario/evidence-root (apply str (repeat 64 "a"))
-                          :invariant-results [{:id :conservation-of-funds
-                                               :result :fail}
-                                              {:id :released-monotonic
-                                               :result :pass}]}])
+                       [{:scenario/id "scenario-1"
+                         :file "scenario-1.edn"
+                         :outcome :pass
+                         :scenario/evidence-root (apply str (repeat 64 "a"))
+                         :invariant-results [{:id :conservation-of-funds
+                                              :result :fail}
+                                             {:id :released-monotonic
+                                              :result :pass}]}])
         failed-critical (first (filter #(= :claim/no-unauthorized-release (:claim/id %))
                                        claim-results))
         classification (rpt/classify-result 1 1 (:scoring/rules scoring) claim-results manifest)]

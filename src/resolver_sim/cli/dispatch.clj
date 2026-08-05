@@ -158,9 +158,9 @@
    [nil "--out DIR" "Output directory"
     :default "target/report"]
    [nil "--output PATH" "Output path for evidence bundle"]
-    [nil "--package-a DIR" "First completed canonical package"]
-    [nil "--package-b DIR" "Second completed canonical package"]
-    [nil "--format FORMAT" "Artifact format for compare: edn or json"]
+   [nil "--package-a DIR" "First completed canonical package"]
+   [nil "--package-b DIR" "Second completed canonical package"]
+   [nil "--format FORMAT" "Artifact format for compare: edn or json"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
    [nil "--key PATH" "Path to private key"]

@@ -140,10 +140,10 @@
    :claim-set              "CLAIM_SET_V1"
    :check-set              "CHECK_SET_V1"
    :award-policy           "AWARD_POLICY_V1"
-    :priority-order-v1      "PRIORITY_ORDER_V1"
-    :overflow-capability    "OVERFLOW_CAPABILITY_V1"
-    :overflow-authorisation-scope "OVERFLOW_AUTHORISATION_SCOPE_V1"
-    :overflow-capacity-context "OVERFLOW_CAPACITY_CONTEXT_V1"})
+   :priority-order-v1      "PRIORITY_ORDER_V1"
+   :overflow-capability    "OVERFLOW_CAPABILITY_V1"
+   :overflow-authorisation-scope "OVERFLOW_AUTHORISATION_SCOPE_V1"
+   :overflow-capacity-context "OVERFLOW_CAPACITY_CONTEXT_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
