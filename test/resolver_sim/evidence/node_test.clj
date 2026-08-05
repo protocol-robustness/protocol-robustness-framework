@@ -179,6 +179,30 @@
           (is (= 2 (count (:paths verification))))
           (is (true? (get-in verification [:checks :artifacts-matched?]))))))))
 
+(deftest verify-persisted-node-artifacts-prefixed-parent-format
+  "Persisted nodes reference parents with the `sha256:` prefix (as production
+   does). Batch verification (detailed DAG validation) must accept a valid
+   prefixed parent/child pair."
+  (node/with-fresh-registry
+    (chain/reset-registry!)
+    (let [artifact-dir (temp-artifact-dir)
+          parent (node/build-execution-node (base-node-spec {:execution-id :execution/simulation}))
+          child (node/build-execution-node
+                 (base-node-spec {:execution-id :execution/replay
+                                  :parent-hashes [(str "sha256:" (:node-hash parent))]}))]
+      (binding [evcfg/*artifact-dir* artifact-dir]
+        (let [parent-result (node/persist-execution-node! parent)
+              _ (node/register-node! parent)
+              child-result (node/persist-execution-node! child)
+              verification (node/verify-persisted-node-artifacts!
+                            artifact-dir
+                            [(:artifact-entry parent-result)
+                             (:artifact-entry child-result)])]
+          (is (:valid? verification))
+          (is (:valid? (:dag verification)))
+          (is (true? (get-in verification [:checks :dag-valid?])))
+          (is (= 2 (count (:paths verification)))))))))
+
 (deftest verify-persisted-node-artifacts-fails-when-node-directory-is-missing
   (let [run-dir (temp-run-dir)
         verification (node/verify-persisted-node-artifacts! run-dir nil)]
@@ -468,6 +492,50 @@
         result (node/validate-dag-detailed [a b])]
     (is (not (:valid? result)))
     (is (some #(= :node/cycle (:error %)) (:errors result)))))
+
+(deftest validate-dag-detailed-prefixed-parent-format
+  "Production emits parent-hashes with the `sha256:` prefix (scenario-runner).
+   Detailed validation must resolve the prefix so a valid parent/child pair
+   is a single-root DAG and parents resolve."
+  (let [parent (node/build-execution-node (base-node-spec))
+        child (node/build-execution-node
+               (base-node-spec {:execution-id :execution/replay
+                                :parent-hashes [(str "sha256:" (:node-hash parent))]}))
+        result (node/validate-dag-detailed [parent child] :strict-dag? true)]
+    (is (:valid? result))
+    (is (= 0 (:detailed-checks-failed (:summary result))))
+    (is (true? (:base-valid? (:summary result))))))
+
+(deftest validate-node-dag-detects-prefixed-cycle
+  "Cycle detection must operate in bare node-hash space even when edges are
+   expressed with the production `sha256:` prefix."
+  (let [a {:schema-version 1
+           :node-id "a" :node-hash "a"
+           :parent-hashes ["sha256:b"] :bootstrap-roots []
+           :execution {:execution-id :execution/diff :execution-kind :differential
+                       :runner :differential-runner :registry-hash "r"
+                       :policy-id :evidence-policy/computed :policy-hash "p"}
+           :result {:status :pass :summary {}}
+           :evidence {:inputs-hash "i" :outputs-hash "o"}
+           :attestations [] :extensions {}}
+        b (assoc a :node-id "b" :node-hash "b" :parent-hashes ["sha256:a"])
+        result (node/validate-node-dag [a b] :strict-dag? true)]
+    (is (not (:valid? result)))
+    (is (false? (get-in result [:checks :cycle-free?])))
+    (is (some #(= :node/cycle (:error %)) (:errors result)))))
+
+(deftest build-dag-index-prefixed-parent-format
+  ;; Navigation index must resolve prefixed parent references to bare node hashes.
+  (let [parent (node/build-execution-node (base-node-spec))
+        child (node/build-execution-node
+               (base-node-spec {:execution-id :execution/replay
+                                :parent-hashes [(str "sha256:" (:node-hash parent))]}))
+        index (node/build-dag-index [parent child])]
+    (is (= [(:node-hash parent)] (:dag-index/roots index)))
+    (is (= [(:node-hash child)] (:dag-index/leaves index)))
+    (is (= [(:node-hash child)]
+           (get-in index [:dag-index/children-by-parent (:node-hash parent)])))
+    (is (= 0 (get-in index [:dag-index/summary :orphan-count])))))
 
 ;; ── build-dag-index ──────────────────────────────────────────────────────────
 

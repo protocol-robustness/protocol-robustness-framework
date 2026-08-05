@@ -1,134 +1,63 @@
 (ns resolver-sim.evidence.attestation-node
-  "Attestation evidence nodes: lightweight evidence records that document
-   attestation creation events in the evidence chain.
+  "Attestation evidence nodes: canonical full execution evidence nodes that
+   record attestation creation events in the evidence DAG.
 
-   When an attestation is created, an attestation evidence node records:
-   - the attestation content hash
-   - the attestor, subject, claim, and signature status
-   - the signed-at timestamp and provenance
+   This namespace is a thin front-end over resolver-sim.evidence.attestation-dag
+   (the canonical attestation recorder). Both produce the same full evidence-node
+   shape via resolver-sim.evidence.node, so there is a single attestation node
+   shape across the codebase (execution-id :execution/attestation, runner
+   :attestation-emitter).
 
-   This follows the pattern established by build-claim-evaluation-node in
-   slashing.clj: a focused, content-addressed node that references the
-   original attestation without duplicating its full content.
+   The node is content-addressed and references the original attestation via its
+   typed :attestations reference (attestation:sha256:<id>) without duplicating
+   the attestation's full content.
 
    Usage:
      (require '[resolver-sim.evidence.attestation-node :as an])
 
-     ;; Build a lightweight evidence node from an attestation
+     ;; Build a canonical evidence node from an attestation
      (an/build-attestation-node attestation)
 
-     ;; Build, persist to disk, and register in the node + chain registries
+     ;; Build, persist, and register in the node + chain registries
      (an/emit-attestation-node! attestation)"
-  (:require [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.evidence.config :as evcfg]
-            [resolver-sim.hash.canonical :as hc]))
-
-;; ── Constants ────────────────────────────────────────────────────────────────
-
-(def ^:const node-schema-version
-  "Schema version for attestation evidence nodes."
-  "attestation-node.v1")
+  (:require [resolver-sim.evidence.attestation-dag :as adag]
+            [resolver-sim.evidence.node :as node]))
 
 ;; ── Node Builder ─────────────────────────────────────────────────────────────
 
 (defn build-attestation-node
-  "Build a lightweight evidence node from an attestation record.
+  "Build a canonical execution evidence node from an attestation record.
 
-   The node is content-addressed via :evidence-record hash intent and
-   captures the attestation's identity, attestor, subject, claim result,
-   signature status, and provenance. It does NOT duplicate the attestation's
-   full content — the attestation/id serves as the reference.
+   Delegates to build-attestation-dag-node, producing the single canonical
+   attestation evidence-node shape. Content-addressed: :node-id == :node-hash.
 
    Arguments:
      attestation — an attestation record as returned by build-attestation
+     opts        — optional map with keys :parent-hashes, :bootstrap-roots,
+                   :policy-id, :timestamp, :extensions (see attestation-dag)
 
-   Returns a map with:
-     :node-hash     — content-addressed hash of the node content
-     :result        — attestation summary fields
-     :attestations/reference — marker indicating this is an attestation node"
-  [attestation]
-  (let [content {:attestation-node/schema-version node-schema-version
-                 :attestation-node/attestation-id (:attestation/id attestation)
-                 :attestation-node/attestor-id (:attestation/attestor-id attestation)
-                 :attestation-node/subject-kind (:attestation/subject-kind attestation)
-                 :attestation-node/subject-hash (:attestation/subject-hash attestation)
-                 :attestation-node/claim-id (:attestation/claim-id attestation)
-                 :attestation-node/claim-result (:attestation/claim-result attestation)
-                 :attestation-node/signed-at (:attestation/signed-at attestation)
-                 :attestation-node/signed? (some? (:attestation/signature attestation))
-                 :attestation-node/provenance (:attestation/provenance attestation)}
-        node-hash (hc/hash-with-intent {:hash/intent :evidence-record} content)]
-    {:node-hash node-hash
-     :result content
-     :attestations/reference true}))
-
-;; ── Persistence ──────────────────────────────────────────────────────────────
-
-(defn- attestation-node-short-id
-  [node]
-  (subs (:node-hash node) 0 (min 12 (count (:node-hash node)))))
-
-(defn- attestation-node-filename
-  [node]
-  (str "attestation-node-" (attestation-node-short-id node) ".edn"))
-
-(defn- attestation-node-artifact-entry
-  [node path]
-  (let [result (:result node)
-        f (java.io.File. path)]
-    {:id (str "attestation-node-" (attestation-node-short-id node))
-     :kind :attestation-node
-     :artifact/type :attestation-node
-     :artifact/hash (:node-hash node)
-     :artifact/path path
-     :attestation/id (:attestation-node/attestation-id result)
-     :attestation/attestor-id (:attestation-node/attestor-id result)
-     :attestation/claim-id (:attestation-node/claim-id result)
-     :attestation/claim-result (:attestation-node/claim-result result)
-     :attestation/subject-hash (:attestation-node/subject-hash result)
-     :attestation/subject-kind (:attestation-node/subject-kind result)
-     :attestation/signed-at (:attestation-node/signed-at result)
-     :path path
-     :sha256 (chain/compute-file-sha256 path)
-     :bytes (.length f)
-     :mtime-utc (str (java.time.Instant/ofEpochMilli (.lastModified f)))}))
-
-(defn persist-attestation-node!
-  "Persist an attestation evidence node to disk and register it in the
-   chain registry. Returns {:node node :artifact-entry entry :path path}.
-
-   Arguments:
-     node — an attestation evidence node as returned by build-attestation-node
-     dir  — optional output directory (default: evcfg/artifact-dir + '/evidence-nodes')"
-  [node & [{:keys [dir]}]]
-  (let [out-dir (or dir (str (evcfg/artifact-dir) "/evidence-nodes"))
-        f (java.io.File. out-dir (attestation-node-filename node))
-        path (.getPath f)]
-    (.mkdirs (.getParentFile f))
-    (spit path (pr-str node))
-    (let [entry (attestation-node-artifact-entry node path)]
-      (chain/register-additional-artifact! entry)
-      {:node node
-       :artifact-entry entry
-       :path path})))
+   Returns the full evidence node map."
+  [attestation & [opts]]
+  (adag/build-attestation-dag-node attestation opts))
 
 ;; ── Full Pipeline ────────────────────────────────────────────────────────────
 
 (defn emit-attestation-node!
-  "Build, persist, and register an attestation evidence node in one call.
+  "Build, persist, and register a canonical attestation evidence node in one call.
 
-   This is the single entry point for recording an attestation creation event
-   in the evidence chain. It:
-     1. Builds the evidence node from the attestation
-     2. Persists it to disk as EDN
-     3. Registers it in the chain registry
+   This is the single entry point for recording an attestation creation event in
+   the evidence chain and node registry. It:
+     1. Builds the canonical evidence node
+     2. Persists it to disk (evidence-nodes/) and registers it in the chain
+     3. Registers it in the node registry
 
    Arguments:
      attestation — an attestation record
-     opts        — optional keys:
-                   :dir — output directory (default: artifact-dir/evidence-nodes)
+     opts        — optional map (same keys as build-attestation-node)
 
-   Returns {:node node :artifact-entry entry :path path}"
-  [attestation & opts]
-  (let [node (build-attestation-node attestation)]
-    (persist-attestation-node! node (apply hash-map opts))))
+   Returns {:node node :artifact-entry entry :path path}."
+  [attestation & [opts]]
+  (let [node (build-attestation-node attestation opts)
+        result (node/persist-execution-node! node)]
+    (node/register-node! node)
+    result))

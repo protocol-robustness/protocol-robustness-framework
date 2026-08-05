@@ -96,14 +96,73 @@
 
 ;; ── capability validation ─────────────────────────────────────────────────
 
+(def legacy-field-aliases
+  "Legacy descriptor field aliases mapped to the canonical vocabulary.
+   The canonical descriptor vocabulary is :input-schema, :output-schema,
+   and :verification/contract. The aliases below are migration aliases:
+   they are accepted, normalised to the canonical form for hashing, and
+   rejected when they conflict with a canonical value."
+  {:input-schema-ref :input-schema
+   :output-schema-ref :output-schema
+   :verification-contract :verification/contract})
+
+(defn normalize-capability-descriptor
+  "Normalize a capability descriptor to the canonical vocabulary. Legacy
+   aliases are mapped to canonical keys (removed from the result); a legacy
+   key conflicting with a canonical value is reported, not silently resolved.
+
+   Returns {:normalized <descriptor> :conflicts [<legacy-key> ...]}."
+  [cap]
+  (let [conflicts (vec (keep (fn [[legacy canonical]]
+                               (when (and (contains? cap legacy)
+                                          (contains? cap canonical)
+                                          (not= (get cap legacy) (get cap canonical)))
+                                 legacy))
+                             legacy-field-aliases))]
+    {:normalized (reduce (fn [m [legacy canonical]]
+                           (if (contains? m legacy)
+                             (-> m (assoc canonical (get m legacy)) (dissoc legacy))
+                             m))
+                         cap
+                         legacy-field-aliases)
+     :conflicts conflicts}))
+
+(defn- validate-embedded-composition-contract
+  "Local structural gate on a capability's composition contract, applied at
+   registration so a malformed contract cannot be content-hashed and
+   registered. Full semantic validation happens in the composition compiler."
+  [cc]
+  (cond-> []
+    (not (map? cc))
+    (conj {:violation/id :violation/non-map-composition-contract
+           :details {:composition-contract cc}})
+
+    (and (map? cc) (not (pos? (or (:composition-contract/version cc) 0))))
+    (conj {:violation/id :violation/invalid-composition-contract-version
+           :details {:version (:composition-contract/version cc)}})
+
+    (and (map? cc) (nil? (:composition/input cc)))
+    (conj {:violation/id :violation/missing-composition-input
+           :details {}})
+
+    (and (map? cc) (nil? (:composition/output cc)))
+    (conj {:violation/id :violation/missing-composition-output
+           :details {}})))
+
 (defn validate-capability
   "Validate a capability descriptor structurally.
    Returns {:valid? bool, :violations [violation-maps]}."
   [cap]
-  (let [kind (:capability/kind cap)
+  (let [{:keys [normalized conflicts]} (normalize-capability-descriptor cap)
+        cap normalized
+        kind (:capability/kind cap)
         id (:capability/id cap)
         deps (:declared-dependencies cap [])
         v (cond-> []
+            (seq conflicts)
+            (conj {:violation/id :violation/conflicting-capability-fields
+                   :details {:conflicting-fields conflicts}})
+
             (not (map? cap))
             (conj {:violation/id :violation/non-map-capability
                    :details {:capability cap}})
@@ -163,7 +222,10 @@
             v)
         v (reduce (fn [vs dep]
                     (into vs (validate-dependency dep (count vs))))
-                  v deps)]
+                  v deps)
+        v (if-let [cc (:composition-contract cap)]
+            (into v (validate-embedded-composition-contract cc))
+            v)]
     {:valid? (empty? v)
      :violations (vec v)}))
 

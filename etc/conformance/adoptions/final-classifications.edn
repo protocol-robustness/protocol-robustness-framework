@@ -1,0 +1,107 @@
+{:classifications/version 1
+ :classifications/generated-at "2026-08-04"
+ :classifications/rule "promote into resolver-sim.conformance only when at least two adopters use the abstraction without domain branching"
+
+ :entries
+ [{:concept :subject-identity
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.identity
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :implementation-registry-and-registry-root
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.registry
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :core-domain-two-stage-profile-validation
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.profile
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :validation-receipts
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.validation
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :capability-declared-resolved-exercised
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.capability
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :deterministic-execution-plan
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.plan
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :planned-versus-observed-reconciliation
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.reconciliation
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :universe-split-and-structured-exclusions
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.coverage
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :coverage-bound-claims
+   :classification :shared-unchanged
+   :adopters [:sew-trace-equivalence.v1 :research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.conformance.claim
+   :domain-branches []
+   :decision-status :promoted}
+
+  {:concept :reproduction-lineage
+   :classification :shared-parameterised
+   :adopters [:research-benchmark-reproduction.v1]
+   :generic-namespace resolver-sim.benchmark.conformance.reproduction
+   :domain-branches [:comparison-policy :must-match/may-differ]
+   :decision-status :promoted-as-parameterised}
+
+  {:concept :baseline-reproduced-terminology
+   :classification :benchmark-domain
+   :adopters [:research-benchmark-reproduction.v1]
+   :decision-status :domain}
+
+  {:concept :action-role-vocabulary
+   :classification :trace-domain
+   :adopters [:sew-trace-equivalence.v1]
+   :decision-status :domain}
+
+  {:concept :independent-run-production
+   :classification :benchmark-domain
+   :adopters [:research-benchmark-reproduction.v1]
+   :decision-status :domain}
+
+  {:concept :receipt-dag
+   :classification :premature
+   :adopters []
+   :promotion-trigger "a claim must commit shared branching ancestry not representable by plan prerequisites and root references"
+   :decision-status :deferred}
+
+  {:concept :named-coverage-dimensions
+   :classification :premature
+   :adopters []
+   :promotion-trigger "two profiles require multiple independently complete universes"
+   :decision-status :deferred}
+
+  {:concept :symmetric-comparison
+   :classification :premature
+   :adopters []
+   :promotion-trigger "an actual profile compares two equally authoritative implementations and passes operand-reversal tests"
+   :decision-status :deferred}]}

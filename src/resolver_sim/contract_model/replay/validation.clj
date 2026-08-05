@@ -8,6 +8,15 @@
 
 (def ^:private supported-versions (:supported-versions schema-profile/default-profile))
 
+(defn- to-epoch-second
+  "Normalize a validated event time to Unix epoch seconds for ordering checks.
+
+   Mirrors the replay clock's second-precision semantics (replay.temporal/epoch-second):
+   numbers are truncated via long, Instants via getEpochSecond. Only reached after
+   the type check below, so t is a number or a java.time.Instant."
+  [t]
+  (if (number? t) (long t) (.getEpochSecond ^java.time.Instant t)))
+
 (defn validate-agents
   "Validate a list of agent maps {:id :address :role :strategy ...} for structural correctness.
    Returns {:ok true} or {:ok false :error kw :detail {...}}.
@@ -46,7 +55,14 @@
                                   (keep :save-agent-as events)
                                   (keep :save-id-as events)))
          init-time   (get scenario :initial-block-time 1000)
-         agent-check (validate-agents agents)]
+         agent-check (validate-agents agents)
+         ;; Events whose :time is not a supported clock value (number or Instant).
+         ;; Computed up-front so the type check below can reference it in both the
+         ;; cond test and the failure detail, and so the ordering checks never see
+         ;; a non-comparable / mixed-type :time.
+         bad-times   (vec (remove #(or (number? (:time %))
+                                       (instance? java.time.Instant (:time %)))
+                                  events))]
      (cond
        (not (contains? supported-versions version))
        {:ok false :error :unsupported-schema-version
@@ -128,14 +144,23 @@
        (not= (mapv :seq events) (vec (range (count events))))
        {:ok false :error :non-contiguous-event-seq :detail {:got (mapv :seq events)}}
 
-       (some (fn [[a b]] (> (:time a) (:time b))) (partition 2 1 events))
-       {:ok false :error :non-monotonic-event-time
-        :detail {:violations (vec (filter (fn [[a b]] (> (:time a) (:time b))) (partition 2 1 events)))}}
+       ;; Type-check event times BEFORE any ordering comparison, so a
+       ;; non-numeric / mixed-type :time (e.g. a String or java.util.Date among
+       ;; numbers/Instants) fails as a structured :invalid instead of throwing a
+       ;; ClassCastException inside the >/< ordering checks below.
+       (seq bad-times)
+       {:ok false :error :invalid-event-time
+        :detail {:hint "each event :time must be a number (Unix epoch seconds) or java.time.Instant"
+                 :violations (mapv (fn [e] {:seq (:seq e) :time (:time e) :type (str (class (:time e)))}) bad-times)}}
 
-       (some #(< (:time %) init-time) events)
+       (some (fn [[a b]] (> (to-epoch-second (:time a)) (to-epoch-second (:time b)))) (partition 2 1 events))
+       {:ok false :error :non-monotonic-event-time
+        :detail {:violations (vec (filter (fn [[a b]] (> (to-epoch-second (:time a)) (to-epoch-second (:time b)))) (partition 2 1 events)))}}
+
+       (some #(< (to-epoch-second (:time %)) init-time) events)
        {:ok false :error :event-time-before-initial
         :detail {:initial-block-time init-time
-                 :violations (mapv :time (filter #(< (:time %) init-time) events))}}
+                 :violations (mapv :time (filter #(< (to-epoch-second (:time %)) init-time) events))}}
 
        (some #(not (contains? known-ids (:agent %))) events)
        {:ok false :error :unknown-agent-in-event

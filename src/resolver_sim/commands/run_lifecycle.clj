@@ -4,7 +4,8 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.io.input-source :as input-source]
-            [resolver-sim.io.paths :as paths])
+            [resolver-sim.io.paths :as paths]
+            [resolver-sim.io.edn :as ppedn])
   (:import [java.math BigInteger]
            [java.nio.file FileAlreadyExistsException Files LinkOption Path Paths StandardCopyOption]
            [java.security MessageDigest]))
@@ -42,7 +43,7 @@
   (let [target (io/file (str file))
         temp (io/file (str (.getPath target) ".tmp"))]
     (.mkdirs (.getParentFile target))
-    (spit temp (json/write-str value))
+    (spit temp (json/write-str value :indent true))
     (Files/move (.toPath temp) (.toPath target)
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
     value))
@@ -85,7 +86,7 @@
     (.mkdirs root)
     (try
       (Files/createFile (.toPath lock) (make-array java.nio.file.attribute.FileAttribute 0))
-      (spit lock (pr-str {:run/id run-id :run/type run-type}))
+       (spit lock (ppedn/ppr-str {:run/id run-id :run/type run-type}))
       lock
       (catch FileAlreadyExistsException _
         (throw (ex-info "Run root is already in use"
@@ -100,7 +101,7 @@
   (let [root (io/file (str run-root))
         target (io/file root paths/run-state)]
     (.mkdirs root)
-    (spit target (pr-str {:run/id run-id :run/type run-type :lifecycle/status :running}))
+     (spit target (ppedn/ppr-str {:run/id run-id :run/type run-type :lifecycle/status :running}))
     target))
 
 (defn complete! [run-root completion]

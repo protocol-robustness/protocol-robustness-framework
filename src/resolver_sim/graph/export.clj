@@ -21,6 +21,7 @@
             [clojure.string :as cstr]
             [clojure.edn :as edn]
             [clojure.data.json :as json]
+            [resolver-sim.graph.layout :as layout]
             [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const schema-version "evidence-graph.v1")
@@ -29,34 +30,26 @@
 
 (declare graph->svg-body-impl)
 
-;; ── Layer assignments (mirrors community.graph private helpers) ──────────────
+;; ── Layer assignments (shared with community.graph via graph.layout) ─────────
 
 (defn node-layer
-  "Assign display layer based on node label prefix."
+  "Assign display layer based on node label prefix.
+   Delegates to the shared resolver-sim.graph.layout module."
   [label]
-  (cond
-    (.startsWith label "Research Task")      0
-    (.startsWith label "Execution Evidence")  1
-    (.startsWith label "Attestation:")        1
-    (.startsWith label "Mailbox:")            2
-    (.startsWith label "Finding:")            2
-    :else                                     3))
+  (layout/node-layer label))
 
 (def layer-colors
-  "Node fill colors per layer index."
-  {0 "#1A73E8"
-   1 "#34A853"
-   2 "#FBBC04"
-   3 "#8B5CF6"})
+  "Node fill colors per layer index (shared layout module)."
+  layout/layer-colors)
 
 (def layer-names
-  {0 "Task"
-   1 "Execution / Attestation"
-   2 "Mailbox / Finding"
-   3 "Other"})
+  "Display names per layer index (shared layout module)."
+  layout/layer-names)
 
-(defn layer-color [layer]
-  (get layer-colors layer "#9CA3AF"))
+(defn layer-color
+  "Resolve a layer index to its fill color (shared layout module)."
+  [layer]
+  (layout/layer-color layer))
 
 ;; ── Evidence artifact builder ────────────────────────────────────────────────
 
@@ -102,85 +95,7 @@
      :artifact/generated-at (or (:generated-at metadata) (str (java.time.Instant/now)))}))
 
 ;; ── SVG rendering ────────────────────────────────────────────────────────────
-
-(def ^:private node-width 200.0)
-(def ^:private node-height 44.0)
-(def ^:private node-h-gap 28.0)
-(def ^:private row-v-gap 28.0)
-(def ^:private layer-h-gap 60.0)
-(def ^:private margin-x 60.0)
-(def ^:private margin-y-top 50.0)
-(def ^:private max-row-width 1100.0)
-
-(defn- floatify
-  "Ensure a value is a double for SVG coordinate output."
-  [x]
-  (double x))
-
-(defn- nodes-per-row
-  "Maximum nodes that fit in one row within max-row-width."
-  [total-nodes]
-  (if (zero? total-nodes)
-    0
-    (let [per-row (max 1 (int (/ (- max-row-width margin-x)
-                                 (+ node-width node-h-gap))))]
-      (min total-nodes per-row))))
-
-(defn- layout-coordinates
-  "Assign deterministic x,y positions to graph nodes based on type layer.
-   Nodes wrap into multiple rows within each layer to keep width compact.
-   All coordinates are doubles for valid SVG output.
-   Returns a map of node-id -> {:x N :y N :w N :h N}."
-  [nodes]
-  (let [by-layer (group-by (fn [n] (node-layer (:node/label n))) nodes)
-        per-layer (fn [layer layer-nodes]
-                    (if (empty? layer-nodes)
-                      []
-                      (let [n (count layer-nodes)
-                            npr (nodes-per-row n)
-                            n-rows (max 1 (int (Math/ceil (/ (double n) (double npr)))))
-                            row-fn (fn [row-idx]
-                                     (let [row-nodes (subvec (vec layer-nodes)
-                                                             (* row-idx npr)
-                                                             (min n (* (inc row-idx) npr)))
-                                           rn (count row-nodes)
-                                           spacing (if (> rn 1)
-                                                     (/ (- max-row-width (* (double rn) node-width))
-                                                        (double (dec rn)))
-                                                     node-h-gap)
-                                           total-w (+ (* (double rn) node-width)
-                                                      (* (double (dec rn)) spacing))
-                                           start-x (+ margin-x
-                                                      (/ (- max-row-width total-w) 2.0))]
-                                       (map-indexed
-                                        (fn [i node]
-                                          [(:node/id node)
-                                           {:x (floatify (+ start-x (* (double i) (+ node-width spacing))))
-                                            :y (floatify (+ margin-y-top
-                                                            (* (double layer) layer-h-gap)
-                                                            (* (double row-idx) (+ node-height row-v-gap))))
-                                            :w node-width :h node-height}])
-                                        row-nodes)))]
-                        (mapcat row-fn (range n-rows)))))
-        entries (mapcat (fn [layer] (per-layer layer (get by-layer layer [])))
-                        (sort (keys by-layer)))
-        coords (into {} entries)]
-    coords))
-
-(defn- svg-dimensions
-  "Compute SVG width and height from layout coordinates.
-   Uses actual node positions to determine canvas extent,
-   handling sparse layer assignments (e.g. all nodes in layer 3)."
-  [coords]
-  (let [max-x (if (seq coords)
-                (apply max (map (fn [c] (+ (:x c) (:w c))) (vals coords)))
-                0.0)
-        max-y (if (seq coords)
-                (apply max (map (fn [c] (+ (:y c) (:h c))) (vals coords)))
-                0.0)
-        w (max 820.0 (+ max-x margin-x))
-        h (max 314.0 (+ max-y 100.0))]
-    {:width (int w) :height (int h)}))
+;; Layout/layer logic is shared via resolver-sim.graph.layout.
 
 (defn- esc
   "Escape XML special characters for SVG attribute safety."
@@ -229,8 +144,8 @@
                   (:nodes graph-artifact) [])
         edges (or (:graph/edges graph-artifact)
                   (:edges graph-artifact) [])
-        coords (layout-coordinates nodes)
-        dims (svg-dimensions coords)
+        coords (layout/layout-coordinates nodes)
+        dims (layout/svg-dimensions coords)
         svg-width (:width dims)
         svg-height (:height dims)
         node-count (count nodes)
@@ -352,7 +267,7 @@
                   (:nodes graph-artifact) [])
         edges (or (:graph/edges graph-artifact)
                   (:edges graph-artifact) [])
-        coords (layout-coordinates nodes)]
+        coords (layout/layout-coordinates nodes)]
     {:nodes (mapv (fn [n]
                     (let [layer (node-layer (:node/label n))
                           c (get coords (:node/id n))]
@@ -568,7 +483,7 @@
                   (:nodes graph-artifact) [])
         edges (or (:graph/edges graph-artifact)
                   (:edges graph-artifact) [])
-        coords (layout-coordinates nodes)]
+        coords (layout/layout-coordinates nodes)]
     {:nodes (mapv (fn [n]
                     (let [node-id (str (:node/id n))
                           layer (node-layer (:node/label n))

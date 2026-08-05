@@ -3,7 +3,8 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.community.task :as task]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [resolver-sim.io.edn :as ppedn]))
 
 (def ^:const schema-version "community-attestation.v0")
 (def ^:const domain-tag "COMMUNITY_ATTESTATION_V0")
@@ -171,7 +172,7 @@
   (let [hash (:attestation/hash attestation)
         f (io/file dir "community-attestations" (str "att-" (subs hash 0 12) ".edn"))]
     (.mkdirs (.getParentFile f))
-    (spit f (pr-str attestation))
+    (spit f (ppedn/ppr-str attestation))
     {:path (.getPath f) :hash hash}))
 
 (defn resolve-attestation

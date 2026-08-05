@@ -155,8 +155,8 @@
    (if (nil? ds)
      []
      (let [clauses (cond-> ["1=1"]
-                     batch-id    (conj (str "batch_id = '"    (xtdb/kw->str batch-id)    "'"))
-                     protocol-id (conj (str "protocol_id = '" protocol-id "'")))]
+                     batch-id    (conj (str "batch_id = "    (xtdb/sql-str (xtdb/kw->str batch-id))))
+                     protocol-id (conj (str "protocol_id = " (xtdb/sql-str protocol-id))))]
        (mapv row->trial-result
              (jdbc/execute!
               ds

@@ -176,9 +176,9 @@
 (defn- validate-scoring
   [errors]
   (doseq [path [(str (paths/benchmarks-scoring-dir) "/robustness-dimensions-v0.edn")
-                 (str (paths/benchmarks-scoring-dir) "/binary-claims-v1.edn")
-                 (str (paths/benchmarks-scoring-dir) "/severity-weighted-robustness-v1.edn")
-                 (str (paths/benchmarks-scoring-dir) "/shortfall-allocation-v0.edn")]]
+                (str (paths/benchmarks-scoring-dir) "/binary-claims-v1.edn")
+                (str (paths/benchmarks-scoring-dir) "/severity-weighted-robustness-v1.edn")
+                (str (paths/benchmarks-scoring-dir) "/shortfall-allocation-v0.edn")]]
     (when-not (file-exists? path)
       (swap! errors conj (str "Scoring file not found: " path)))))
 

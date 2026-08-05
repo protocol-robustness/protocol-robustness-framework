@@ -14,6 +14,7 @@
             [resolver-sim.logging :as log]
             [resolver-sim.config.defaults :as defaults]
             [resolver-sim.config.paths :as paths]
+            [resolver-sim.io.edn :as ppedn]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.cli :refer [parse-opts]]
@@ -151,7 +152,7 @@
         "3" (if-let [key-path (:key options)]
               (let [att (sharing/attest output-path key-path (:password options))
                     att-path (str output-path ".attestation.edn")]
-                (spit att-path (pr-str att))
+                (spit att-path (ppedn/ppr-str att))
                 (println "Attestation written to:" att-path))
               (println "Private key path (-k) required for attestation."))
         "4" (let [tar-path (str output-path ".tar.gz")]
@@ -536,7 +537,7 @@
       (if-let [key-path (:key options)]
         (let [att (sharing/attest (:attest options) key-path (:password options))
               path (str (:attest options) ".attestation.edn")]
-          (spit path (pr-str att))
+          (spit path (ppedn/ppr-str att))
           (println "Attestation written to:" path)
           (System/exit 0))
         (do (println "Private key path (-k) required for attestation.")

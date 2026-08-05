@@ -468,6 +468,19 @@
   (io/make-parents path)
   (spit path (fixture->json-str fixture)))
 
+(defn write-fixture-file-validated!
+  "Validate the fixture against the trace-fixture.v2 conformance contract
+   (schema + semantic layers), then write it.  Throws on rejection so an
+   unsupported fixture fails closed AT EXPORT rather than at replay."
+  [fixture path]
+  (let [validate-fixture (requiring-resolve
+                          'resolver-sim.trace.conformance.validators/validate-fixture)
+        {:keys [valid? issues]} (validate-fixture fixture)]
+    (when-not valid?
+      (throw (ex-info (str "Exported fixture failed conformance validation: " path)
+                      {:path path :issues issues})))
+    (write-fixture-file fixture path)))
+
 ;; ---------------------------------------------------------------------------
 ;; CLI entry point
 ;; ---------------------------------------------------------------------------
@@ -490,7 +503,7 @@
         (println "ERROR: scenario invalid:" (:halt-reason result))
         (System/exit 2))
       (let [fixture (export-trace-fixture result scenario)]
-        (write-fixture-file fixture output-path)
+        (write-fixture-file-validated! fixture output-path)
         (log/info! "trace-export/written"
                    {:output output-path :steps (count (:steps fixture))})
         (println "Written" (count (:steps fixture)) "steps to" output-path)))))

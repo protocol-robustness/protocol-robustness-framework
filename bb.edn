@@ -250,6 +250,12 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
   {:doc "CI-optimized test suite (fast tests + monte-carlo, < 2 minutes total)"
    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "ci")}
 
+  test:ci:parallel
+  {:doc "CI-optimized suite with target-level parallelism (independent targets run
+         concurrently, each in its own isolated artifact subdir). ~2-4x faster wall-clock."
+   :task (shell "scripts/with-test-artifact-lock.sh" "bash" "-c"
+           "PARALLEL_TARGETS=1 ./scripts/test.sh ci")}
+
   test:parallel:smoke
   {:doc "Smoke test: verify parallel suite dispatch matches serial results (4 suites)"
    :task (shell "bash" "scripts/test_parallel_suites.sh")}

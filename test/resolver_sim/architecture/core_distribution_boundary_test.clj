@@ -15,7 +15,7 @@
 
 (def ^:private eof (Object.))
 (def ^:private namespace-resolution-forms
-  '#{require use import requiring-resolve resolve find-ns the-ns})
+  '#{require use import requiring-resolve resolve find-ns the-ns ns-resolve intern})
 
 (defn- clojure-sources [root]
   (for [file (file-seq (io/file root))
@@ -26,10 +26,17 @@
   (with-open [reader (clojure.lang.LineNumberingPushbackReader. (io/reader file))]
     (binding [*read-eval* false]
       (loop [forms []]
-        (let [form (read {:eof eof :read-cond :allow} reader)]
-          (if (identical? eof form)
-            forms
-            (recur (conj forms form))))))))
+        (let [res (try
+                    (let [form (read {:eof eof :read-cond :allow} reader)]
+                      {:ok true :form form})
+                    (catch Exception e
+                      {:ok false :err e}))]
+          (if (not (:ok res))
+            (do (println "Warning: failed to read" (.getPath file) "->" (str (:err res))) forms)
+            (let [form (:form res)]
+              (if (identical? eof form)
+                forms
+                (recur (conj forms form))))))))))
 
 (defn- extension-prefix? [policy value]
   (and (string? value)
@@ -59,7 +66,26 @@
     (->> nodes
          (mapcat (fn [node]
                    (cond
+                     ;; Simple symbol occurrences anywhere in the AST
                      (symbol? node) (keep identity [(symbol-dependency policy node)])
+
+                     ;; Recognize explicit runtime-resolution forms such as
+                     ;; (requiring-resolve 'ns/sym), (require 'ns), (ns-resolve ns sym),
+                     ;; and handle their literal symbol/string arguments.
+                     (and (seq? node)
+                          (symbol? (first node))
+                          (contains? namespace-resolution-forms (first node)))
+                     (let [args (rest node)]
+                       (keep identity
+                             (map (fn [a]
+                                    (cond
+                                      (symbol? a) (symbol-dependency policy a)
+                                      (string? a) (when (extension-prefix? policy a) a)
+                                      (and (seq? a) (= 'symbol (first a))) (dynamic-symbol-dependency policy a)
+                                      :else nil))
+                                  args)))
+
+                     ;; Fallback: detect explicit (symbol "ns" "var") forms
                      :else (keep identity [(dynamic-symbol-dependency policy node)]))))
          set)))
 
@@ -69,9 +95,14 @@
        set))
 
 (defn- approved-dependency? [policy file dependency]
-  (some #(and (= (.getPath file) (:file %))
-              (= dependency (:dependency %)))
-        (:approved/extension-dependencies policy)))
+  (let [canonical-file-path (try (.getCanonicalPath file) (catch Exception _ (.getPath file)))]
+    (some (fn [entry]
+            (try
+              (let [entry-path (-> (:file entry) io/file .getCanonicalPath)]
+                (and (= entry-path canonical-file-path)
+                     (= dependency (:dependency entry))))
+              (catch Exception _ nil)))
+          (:approved/extension-dependencies policy))))
 
 (defn- unapproved-dependencies [policy file]
   (->> (file-dependencies policy file)

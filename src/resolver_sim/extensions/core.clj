@@ -21,6 +21,34 @@
    source exists."
   "0.0.0-snapshot")
 
+(def core-composition-contract
+  "Typed sequential composition contract shared by the built-in economics
+   capabilities. The pipeline value is an :amount that each node consumes and
+   reduces; nodes emit effects and are deterministic, fail-closed, and
+   non-terminal in their default role."
+  {:composition-contract/version 1
+   :composition/input {:schema-ref :prf/award-amount-context.v1
+                       :semantic-type :amount
+                       :cardinality :one}
+   :composition/output {:schema-ref :prf/calculation-result.v1
+                        :semantic-type :amount
+                        :cardinality :one}
+   :composition/roles #{:step}
+   :composition/modes #{:sequential}
+   :composition/effects {:emits #{}
+                         :merge-strategy :accumulate
+                         :exclusive-effects #{}}
+   :composition/control {:terminal? false
+                         :may-short-circuit? false
+                         :failure-mode :abort}
+   :composition/determinism {:required? true
+                             :context-reads #{}
+                             :external-reads #{}}
+   :composition/adapters {:accepted #{}
+                          :implicit? false}
+   :composition/verification {:intermediate-output-committed? true
+                              :evidence-contract-ref :prf/calculation-result.v1}})
+
 (defn- core-capability
   [kind id entrypoint input-schema output-schema]
   {:capability/kind kind
@@ -29,7 +57,8 @@
    :capability/contract-version 1
    :entrypoint entrypoint
    :input-schema input-schema
-   :output-schema output-schema})
+   :output-schema output-schema
+   :composition-contract core-composition-contract})
 
 (def core-capabilities
   "Built-in economics capabilities (data only; dispatch wires these to the

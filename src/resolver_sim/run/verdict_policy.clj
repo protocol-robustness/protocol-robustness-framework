@@ -313,12 +313,18 @@
 
 (defn write!
   "Atomically write a verdict policy artifact to file.
-   Refuses to overwrite an existing file.
-   Use supersede to produce a successor artifact."
+   If the file already exists it is only overwritten when the existing bytes are
+   byte-identical to the serialized artifact (idempotent re-run); a divergent
+   existing file is refused so an authoritative artifact cannot be silently
+   replaced. Use supersede to produce a successor artifact."
   [file artifact]
-  (when (.exists (io/file (str file)))
-    (throw (ex-info "Refusing to overwrite existing verdict policy file"
-                    {:path (str file)})))
+  (let [target (io/file (str file))]
+    (when (.exists target)
+      (let [existing (slurp target)
+            incoming (json/write-str artifact)]
+        (when-not (= existing incoming)
+          (throw (ex-info "Refusing to overwrite divergent verdict policy file"
+                          {:path (str file)}))))))
   (lifecycle/atomic-json! file artifact)
   artifact)
 
@@ -503,14 +509,20 @@
    Refuses to operate on files that appear finalised (valid self-commitment).
    Only intended for development fixtures where the file is not yet
    referenced by any package index or external commitment.
-   Returns the new artifact."
+
+   The result is itself a draft: the policy_sha256 self-commitment is stripped
+   from the written artifact, so the file stays mutable and the operation is
+   repeatable (idempotent). Running the same `f` twice succeeds both times and
+   produces the same file, rather than refusing on the second run as if the
+   artifact had been finalised by the first write. Finalisation (a valid
+   self-commitment) happens later via build-artifact / supersede.
+   Returns the new draft artifact."
   [file f]
   (let [artifact (json/read-str (slurp file))]
     (when (= (get artifact "policy_sha256") (policy-hash artifact))
       (throw (ex-info "replace-draft! refused: artifact has valid self-commitment (appears finalised)"
-                      {:path (str file)}))))
-  (let [artifact (json/read-str (slurp file))
-        new-draft (f artifact)
-        updated (assoc new-draft "policy_sha256" (policy-hash new-draft))]
-    (lifecycle/atomic-json! file updated)
-    updated))
+                      {:path (str file)})))
+    (let [new-draft (f artifact)
+          draft (dissoc new-draft "policy_sha256")]
+      (lifecycle/atomic-json! file draft)
+      draft)))

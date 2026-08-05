@@ -16,20 +16,28 @@
   (* 365 seconds-per-day))
 
 (defn ensure-temporal-context
-  "Ensure the world has a valid temporal context. Initializes from legacy :block-time if missing."
+  "Ensure the world has a valid temporal context. Initializes from legacy :block-time if missing.
+
+   An existing :context/time is kept only when it is a map carrying a usable
+   :block-ts; a truthy-but-malformed context (e.g. {}) is rebuilt rather than
+   allowed to pass through, where downstream clock arithmetic would fail on nil
+   block-ts."
   [world]
-  (if (:context/time world)
-    world
-    (let [bt (or (:block-time world) 0)]
-      (assoc world :context/time
-             {:schema-version default-temporal-schema-version
-              :step 0
-              :event-seq 0
-              :block-ts bt
-              :instant (java.time.Instant/ofEpochSecond bt)
-              :clock/source :legacy
-              :clock/mode :discrete-step
-              :tick-seconds seconds-per-day}))))
+  (let [ctx (:context/time world)]
+    (if (and (map? ctx) (number? (:block-ts ctx)))
+      world
+      (let [bt (or (:block-time world)
+                   (when (map? ctx) (:block-ts ctx))
+                   0)]
+        (assoc world :context/time
+               {:schema-version default-temporal-schema-version
+                :step 0
+                :event-seq 0
+                :block-ts bt
+                :instant (java.time.Instant/ofEpochSecond bt)
+                :clock/source :legacy
+                :clock/mode :discrete-step
+                :tick-seconds seconds-per-day})))))
 
 (defn temporal-context
   "Return the canonical temporal context from the world.
@@ -76,22 +84,37 @@
 
 (defn with-temporal-context
   "Update world with a new temporal context map.
-   Maintains internal consistency between block-ts and instant.
+   Maintains internal consistency between block-ts and instant: :block-ts is the
+   single source of truth and :instant is always derived from it at the clock's
+   second precision. A caller-supplied sub-second :instant is floored to match the
+   stored block-ts, so the two fields (and hashed world state) never disagree.
+   When :block-ts is absent, :instant (if present) is used to derive it.
    Projects canonical block-ts back to legacy :block-time for backward compatibility."
   [world ctx]
   (let [bt (:block-ts ctx)
-        inst (or (:instant ctx) (when bt (java.time.Instant/ofEpochSecond bt)))
-        ctx' (cond-> ctx
-               (and bt (not (:instant ctx)))    (assoc :instant inst)
-               (and inst (not (:block-ts ctx))) (assoc :block-ts (.getEpochSecond ^java.time.Instant inst)))
+        bt (cond
+             (some? bt)  (long bt)
+             (some? (:instant ctx)) (.getEpochSecond ^java.time.Instant (:instant ctx))
+             :else nil)
+        ctx' (assoc ctx
+                    :block-ts bt
+                    :instant (when bt (java.time.Instant/ofEpochSecond bt)))
         world' (assoc world :context/time ctx')]
     (assoc world' :block-time (block-ts world'))))
 
 (defn advance-time
   "Atomically advance simulation time and step.
    Accepts :seconds (delta) or :to (absolute timestamp).
-   Increments :step by 1. Resets :event-seq to 0 if time advances."
+   Increments :step by 1. Resets :event-seq to 0 if time advances.
+
+   Negative :seconds are rejected (matching time.model/advance). The :to form
+   remains a permissive absolute-time primitive so exploratory tooling and tests
+   can probe arbitrary timestamps; monotonicity for replay execution is enforced
+   by advance-world-time and the :non-regressive-time rule."
   [world {:keys [seconds to steps] :or {steps 1}}]
+  (when (and seconds (neg? (long seconds)))
+    (throw (ex-info "advance-time: seconds must be non-negative"
+                    {:type :negative-seconds :seconds seconds})))
   (let [ctx (temporal-context world)
         old-ts (or (:block-ts ctx) 0)
         new-ts (cond

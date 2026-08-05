@@ -254,8 +254,8 @@
                       {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
                       {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
     :command/outputs ["<run-root>/completion.json" "<run-root>/manifest/artifacts.json"]
-     :command/positional-args {:min 0 :max 0}
-     :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. Registered suite execution is a separate future command."}
+     :command/positional-args {:min 0 :max 1}
+     :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. The scenario reference may be a positional path (or classpath: URI) or passed via --scenario. Registered suite execution is a separate future command."}
 
   {:command/id :verify-scenario
    :command/path ["verify-scenario"]
@@ -593,6 +593,72 @@
    :command/outputs ["run-comparison.json"]
    :command/positional-args {:min 0 :max 0}
    :command/description "Compare two completion-sealed run packages."}
+
+  {:command/id :compare
+   :command/path ["compare"]
+   :command/title "Canonically compare two artifacts"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--format" :type :string :doc "Artifact format: edn or json"}]
+   :command/outputs []
+   :command/positional-args {:min 2 :max 2}
+   :command/description "Compare two EDN/JSON artifacts by canonical hash equivalence; reports the first divergence."}
+
+  {:command/id :root-hash
+   :command/path ["root-hash"]
+   :command/title "Report run package root hashes"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Report the package-index, bundle-root, and completion-seal hashes of a run package."}
+
+  {:command/id :result-root
+   :command/path ["result-root"]
+   :command/title "Report run result roots"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Report the result-defining roots (bundle root, stable-result hash, scenario evidence roots) of a run package."}
+
+  {:command/id :semantic-equivalent
+   :command/path ["semantic-equivalent"]
+   :command/title "Compare run packages semantically"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--package-a" :type :string :required true}
+                     {:name "--package-b" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Compare two run packages for semantic equivalence via stable-result projection."}
+
+  {:command/id :declared-dependencies
+   :command/path ["declared-dependencies"]
+   :command/title "List declared dependencies of a run package"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "List declared dependencies: package artifacts, evidence hashes, scenario finalizations, DAG edges, benchmark bindings."}
 
   {:command/id :build-prf
    :command/path ["build" "prf"]

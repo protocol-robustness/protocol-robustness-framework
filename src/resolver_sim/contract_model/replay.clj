@@ -208,11 +208,14 @@
                        :run-id run-id
                        :replay-flags flags}
               run-loop #(execution/run-simulation-loop protocol context scenario-id events world0 [] (metrics/zero-metrics protocol (:metrics-profile flags)) options)
-              raw-result (if (= :none (:evidence-mode flags))
-                           (risk/with-fresh-risk-context
-                             (let [result (run-loop)]
-                               (assoc result :yield/risk-events (risk/events))))
-                           (run-loop))
+              ;; Risk-event isolation: always run under a fresh risk context so
+              ;; that :fail-on-short-circuits and the per-step loop check read only
+              ;; events from this run, never stale events left in the shared atom
+              ;; by an earlier direct replay-events call. The captured events are
+              ;; attached to the result for the post-hoc policy check below.
+              raw-result (risk/with-fresh-risk-context
+                           (let [result (run-loop)]
+                             (assoc result :yield/risk-events (risk/events))))
               trimmed-result (replay-checkpoints/apply-checkpoint-policy-to-result
                               (:world-checkpoint-policy flags)
                               raw-result)
@@ -298,7 +301,10 @@
                     :tsa-url tsa-url
                     :allow-dirty? allow-dirty?)))
                (chain/register-scenario-snapshot!)
-               (assoc result :risk-events (risk/events))))))))))
+               ;; replay-events now captures risk events under its own fresh
+               ;; context, so source :risk-events from the result rather than the
+               ;; (now outer) live atom, which is empty again after the inner run.
+               (assoc result :risk-events (:yield/risk-events result))))))))))
 
 (defn replay-yield-scenario
   "INTERNAL COMPATIBILITY ADAPTER — delegates to replay.yield/replay-yield-scenario.

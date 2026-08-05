@@ -1,0 +1,14 @@
+{
+  "canonicalisation\/version": "canonical-json-sha256.v1",
+  "vectors\/root": "7fd8573fc04e456d8102356087924d66637c1f9b57fd930b8c6cde2316cc1db8",
+  "profiles\/root": "0425330a515129f0f4f569ac5c32a0c4f7b1f7f6b0128dd80d9c3ab97b9baaf7",
+  "release\/id": "conformance-core-1.0.0",
+  "schemas\/root": "34595353a02b6a1c6bb86223ccb2941ba9afc95670b7d3a0eb883f4915d0379c",
+  "source\/revision": "742475732bd032f70555c42ade400ea542d284a7c435dd3e3cea701fe71f03d0",
+  "verifiers": "2707fa31bfaeec1f53dc7bb648c6f0fb4215ce1398e92f7ed0b0b09740dc9f9e",
+  "issues\/root": "c1dbf71c7b36d1c381f987f071adb316d227f25f460a9a1167a58341af337c22",
+  "registry\/root": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "conformance\/core-version": 1,
+  "release\/root": "8e34754cdd5b3e900bd24a8c8fdb9b9b7cc3e407ec35f1c4064514af2ab0db6e",
+  "corpus\/root": "0e2ea68fd1ca86df66efde25922862bb3c7a5e7fa80a6bf019c0c07e74fe18a6"
+}

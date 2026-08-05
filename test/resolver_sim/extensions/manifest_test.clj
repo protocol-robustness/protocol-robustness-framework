@@ -91,6 +91,19 @@
     (is (some #(= :violation/missing-entrypoint (:violation/id %))
               (:violations (em/validate-package pkg))))))
 
+(deftest conflicting-legacy-capability-fields-rejected
+  (testing "both a legacy alias and the canonical field present with different values
+            is rejected; a legacy alias alone is normalised"
+    (let [cap (assoc fx/rate-with-cap-cap
+                     :input-schema-ref :prf/OTHER.v1)]
+      (is (some #(= :violation/conflicting-capability-fields (:violation/id %))
+                (:violations (em/validate-capability cap)))))
+    (let [cap (-> (dissoc fx/rate-with-cap-cap :input-schema)
+                  (assoc :input-schema-ref :prf/award-amount-context.v1))]
+      (is (:valid? (em/validate-capability cap)))
+      (is (= :prf/award-amount-context.v1
+             (:input-schema (:normalized (em/normalize-capability-descriptor cap))))))))
+
 ;; ── package root ──────────────────────────────────────────────────────────
 
 (deftest package-root-excludes-hash-fields

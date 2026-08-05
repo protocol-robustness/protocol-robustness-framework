@@ -84,7 +84,7 @@ These phases produce pass/fail banners but do not exercise `resolve-dispute` or 
 - [ ] Audit which phases run in `scripts/test.sh` monte-carlo vs. which are excluded.
 - [ ] Add tier labels (`:protocol-kernel-evidence`, `:analytic`, `:exploratory`) to each phase's benchmark-id.
 - [ ] Add non-CI phases to a separate "nightly" or "extended" script with clear documentation that results are not publication-ready.
-- [ ] Add dedicated unit tests for untested sim modules: `phase_c`, `phase_f`, `phase_m`, `governance_impact`, `stress_propagation`, `stochastic_equilibrium`, `kernel_bridge`, `appeal_outcomes`, `reputation`.
+- [ ] Add dedicated unit tests for untested sim modules: `phase_c`, `phase_f`, `phase_m`, `governance_impact`, `stochastic_equilibrium`, `kernel_bridge`, `appeal_outcomes`, `reputation`.
 
 **Effort**: ~1 week.
 

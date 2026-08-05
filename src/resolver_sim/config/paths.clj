@@ -41,17 +41,17 @@
                          :env     "PRF_BENCHMARKS_CONCEPTS_DIR"}
    :benchmarks-claim-registry {:default hash-ref/claim-registry-path
                                :env     "PRF_BENCHMARKS_CLAIM_REGISTRY"}
-    :benchmarks-legacy    {:default "benchmarks/BENCHMARKS.edn"}
-    :benchmarks-scoring-dir {:default "benchmarks/scoring"
-                             :env     "PRF_BENCHMARKS_SCORING_DIR"}
-    :benchmarks-runners-dir {:default "benchmarks/runners"
-                             :env     "PRF_BENCHMARKS_RUNNERS_DIR"}
-    :prf-core-shortfall-manifest {:default "benchmarks/packs/prf-core/shortfall-allocation-v0.edn"}
-    :prf-core-yield-manifest     {:default "benchmarks/packs/prf-core/yield-partial-fill-v0.edn"}
-    :prf-core-deterministic-replay-manifest {:default "benchmarks/packs/prf-core/deterministic-replay-v1.edn"}
-    :results-root         {:default "results"
-                           :env     "PRF_RESULTS_ROOT"}
-    :reference-validation-suite-dir {:default "suites/reference-validation-v1"}
+   :benchmarks-legacy    {:default "benchmarks/BENCHMARKS.edn"}
+   :benchmarks-scoring-dir {:default "benchmarks/scoring"
+                            :env     "PRF_BENCHMARKS_SCORING_DIR"}
+   :benchmarks-runners-dir {:default "benchmarks/runners"
+                            :env     "PRF_BENCHMARKS_RUNNERS_DIR"}
+   :prf-core-shortfall-manifest {:default "benchmarks/packs/prf-core/shortfall-allocation-v0.edn"}
+   :prf-core-yield-manifest     {:default "benchmarks/packs/prf-core/yield-partial-fill-v0.edn"}
+   :prf-core-deterministic-replay-manifest {:default "benchmarks/packs/prf-core/deterministic-replay-v1.edn"}
+   :results-root         {:default "results"
+                          :env     "PRF_RESULTS_ROOT"}
+   :reference-validation-suite-dir {:default "suites/reference-validation-v1"}
    :docs-dir             {:default "docs"}
    :stability-manifest   {:default "docs/STABILITY_MANIFEST.edn"
                           :env     "PRF_STABILITY_MANIFEST"}
@@ -59,16 +59,16 @@
                           :env     "PRF_NOTEBOOKS_DIR"}
    :notebooks-registry   {:default "data/notebooks.edn"
                           :env     "PRF_NOTEBOOKS_REGISTRY"}
-    :fixtures-dir         {:default hash-ref/fixtures-dir}
-    :fixtures-protocol-dir {:default "data/fixtures/protocol"
-                            :env     "PRF_FIXTURES_PROTOCOL_DIR"}
+   :fixtures-dir         {:default hash-ref/fixtures-dir}
+   :fixtures-protocol-dir {:default "data/fixtures/protocol"
+                           :env     "PRF_FIXTURES_PROTOCOL_DIR"}
    :traces-dir           {:default hash-ref/traces-dir
                           :env     "PRF_TRACES_DIR"}
    :traces-regression-dir {:default "data/fixtures/traces/regression"}
-    :traces-store-dir      {:default "results/traces"
-                            :env     "PRF_TRACES_STORE_DIR"}
-    :test-vectors-dir      {:default "results/test-vectors"
-                            :env     "PRF_TEST_VECTORS_DIR"}
+   :traces-store-dir      {:default "results/traces"
+                           :env     "PRF_TRACES_STORE_DIR"}
+   :test-vectors-dir      {:default "results/test-vectors"
+                           :env     "PRF_TEST_VECTORS_DIR"}
    :golden-dir           {:default hash-ref/golden-dir
                           :env     "PRF_GOLDEN_DIR"}
    :fixture-manifest     {:default hash-ref/fixture-suite-manifest-path}

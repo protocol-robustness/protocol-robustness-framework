@@ -5,6 +5,7 @@
             [resolver-sim.contract-model.replay.metrics :as metrics]
             [resolver-sim.contract-model.replay.execution :as execution]
             [resolver-sim.evidence.chain :as chain]
+            [resolver-sim.yield.risk-monitor :as risk]
             [resolver-sim.protocols.dummy :as dummy]))
 
 (def minimal-scenario
@@ -37,6 +38,34 @@
     (is (contains? result :context/source))
     (is (= (:scenario-id minimal-scenario)
            (get-in result [:context/source :scenario-id])))))
+
+(deftest replay-events-attaches-yield-risk-events
+  (testing "replay-events attaches a :yield/risk-events vector under evidence-mode :all"
+    (let [result (replay/replay-events dummy/protocol minimal-scenario)]
+      (is (= :pass (:outcome result)))
+      (is (contains? result :yield/risk-events))
+      (is (vector? (:yield/risk-events result))))))
+
+(deftest replay-events-isolates-risk-atom
+  (testing "a stale shared risk atom must not trip :fail-on-short-circuits on a clean run"
+    (let [stale {:short-circuits [:recoverable-liquidity-cap] :deferred-delta 1 :module-id "stale" :ts 0}]
+      (risk/with-fresh-risk-context
+        (swap! @#'risk/*risk-events* conj stale)
+        (let [result (replay/replay-events dummy/protocol minimal-scenario
+                                           {:flags {:fail-on-short-circuits #{:recoverable-liquidity-cap}}})]
+          (is (= :pass (:outcome result)))
+          (is (nil? (:halt-reason result)))
+          (is (empty? (:yield/risk-events result))))))))
+
+(deftest replay-events-captures-fresh-short-circuits
+  (testing ":yield/risk-events reflects only this run's events (fresh context)"
+    (let [result (risk/with-fresh-risk-context
+                   (replay/replay-events dummy/protocol minimal-scenario
+                                         {:flags {:fail-on-short-circuits #{:recoverable-liquidity-cap}}}))]
+      (is (= :pass (:outcome result)))
+      (is (vector? (:yield/risk-events result)))
+      (is (not (some #(= :recoverable-liquidity-cap (first (:short-circuits %)))
+                     (:yield/risk-events result)))))))
 
 (deftest replay-events-without-opts-is-ok
   (let [result (replay/replay-events dummy/protocol minimal-scenario)]

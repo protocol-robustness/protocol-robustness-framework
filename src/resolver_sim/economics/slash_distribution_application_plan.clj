@@ -18,10 +18,12 @@
    - backing/restricted classifications
    - beneficiaries and evidence references
    - conservation equations"
-  (:require [resolver-sim.economics.slash-distribution :as sd]
+  (:require [resolver-sim.economics.effects :as effects]
+            [resolver-sim.economics.slash-distribution :as sd]
             [resolver-sim.hash.canonical :as hc]))
 
 (def schema-version "slash-distribution-application-plan.v1")
+(def schema-version-v2 "slash-distribution-application-plan.v2")
 
 ;; ── hash projection ─────────────────────────────────────────────────────────
 
@@ -42,10 +44,36 @@
                 :plan/preconditions
                 :plan/context]))
 
-(defn plan-hash
+(defn plan-hash-projection-v2
+  "v2 projection: v1 fields plus the validated effects and the effect
+   vocabulary roots. A v1 and a v2 plan for the same distribution commit
+   different preimages and therefore different roots."
   [plan]
-  (hc/domain-hash :slash-distribution-application-plan-v1
-                  (plan-hash-projection plan)))
+  (select-keys plan
+               [:schema-version
+                :plan/distribution-root
+                :plan/policy-root
+                :plan/gross-amount
+                :plan/idempotency-key
+                :plan/allocation-credits
+                :plan/funding-deductions
+                :plan/payables
+                :plan/backing-records
+                :plan/effects
+                :plan/effect-schema-roots
+                :plan/beneficiaries
+                :plan/evidence-references
+                :plan/preconditions
+                :plan/context]))
+
+(defn plan-hash
+  "Compute the content-addressed hash of a plan artifact (v1 or v2)."
+  [plan]
+  (if (= schema-version-v2 (:schema-version plan))
+    (hc/domain-hash :slash-distribution-application-plan-v2
+                    (plan-hash-projection-v2 plan))
+    (hc/domain-hash :slash-distribution-application-plan-v1
+                    (plan-hash-projection plan))))
 
 ;; ── plan builder ────────────────────────────────────────────────────────────
 
@@ -119,10 +147,10 @@
                                                               (get-in a [:eligibility :evidence-reference]))
                                                             awards))
                        :plan/preconditions {:final-conservation (= gross final-sum)
-                                             :funding-conservation (= (reduce + 0 (vals funding-deductions))
-                                                                      awards-sum)
-                                             :award-count (count awards)
-                                             :non-negative-finals (every? #(not (neg? %)) (vals final))}
+                                            :funding-conservation (= (reduce + 0 (vals funding-deductions))
+                                                                     awards-sum)
+                                            :award-count (count awards)
+                                            :non-negative-finals (every? #(not (neg? %)) (vals final))}
                        :plan/context (or context {})}
             plan (assoc base-plan :plan/hash (plan-hash base-plan))
             ;; Hardening: preconditions are RECORDED for consumers, but a false
@@ -139,13 +167,57 @@
           {:status :invalid :violations precondition-failures}
           {:status :valid :plan plan})))))
 
+(defn build-effects-plan
+  "Build a slash-distribution-application-plan.v2 from a verified distribution
+   and application context.
+
+   A v2 plan is identical to v1 but additionally commits the fully validated
+   :plan/effects (normalised, versioned effect intents derived from the
+   awards) and the :plan/effect-schema-roots in force. This is the artifact
+   consumed after effect schema validation — extension outputs are never
+   committed unvalidated.
+
+   Args mirror build-application-plan. Returns {:status :valid, :plan <plan>}
+   or {:status :invalid, :violations [...]}."
+  [{:keys [distribution policy policy-root idempotency-key context]}]
+  (let [v1 (build-application-plan
+            {:distribution distribution
+             :policy policy
+             :policy-root policy-root
+             :idempotency-key idempotency-key
+             :context context})]
+    (if-not (= :valid (:status v1))
+      v1
+      (let [{:keys [effects valid? violations]}
+            (effects/distribution->effects distribution)
+            base-plan (assoc (:plan v1)
+                             :schema-version schema-version-v2
+                             :plan/effects effects
+                             :plan/effect-schema-roots effects/effect-schema-roots)]
+        (if-not valid?
+          {:status :invalid :violations violations}
+          (let [plan (assoc base-plan :plan/hash (plan-hash base-plan))]
+            {:status :valid :plan plan}))))))
+
+(defn validate-plan-effects-for-adapter
+  "Fail-before-mutation check for a v2 plan against an adapter support
+   declaration: every committed effect must be supported by the adapter.
+   Returns {:valid? true} or {:valid? false :violations [...]}."
+  [adapter-support plan]
+  (let [result (effects/validate-effects-for-adapter
+                adapter-support (:plan/effects plan []))]
+    (if (:valid? result)
+      {:valid? true}
+      {:valid? false :violations (:violations result)})))
+
 ;; ── plan validator ──────────────────────────────────────────────────────────
 
 (defn validate-application-plan
-  "Validate an application-plan artifact structurally."
+  "Validate an application-plan artifact structurally (v1 or v2)."
   [plan]
   (let [errors (cond-> []
-                 (not= schema-version (:schema-version plan))
+                 (not (contains? #{schema-version schema-version-v2}
+                                 (:schema-version plan)))
                  (conj :unsupported-schema-version)
                  (nil? (:plan/distribution-root plan))
                  (conj :missing-distribution-root)
@@ -153,7 +225,10 @@
                  (conj :missing-idempotency-key)
                  (not (and (integer? (:plan/gross-amount plan))
                            (not (neg? (:plan/gross-amount plan)))))
-                 (conj :invalid-gross-amount))]
+                 (conj :invalid-gross-amount)
+                 (and (= schema-version-v2 (:schema-version plan))
+                      (nil? (:plan/effects plan)))
+                 (conj :missing-effects))]
     (if (seq errors)
       {:valid? false :errors errors}
       {:valid? true})))

@@ -7,7 +7,9 @@
    Usage: clojure -M:test:with-sew -m scripts.parallel-suite-runner :suites/all-invariants :suites/baseline-safety ...
 
    Environment variables:
-     PARALLEL_TEST_JOBS  — max concurrent suites (default: (dec n-cpus), min 1)
+     PARALLEL_TEST_JOBS  — max concurrent suites (default: min (dec n-cpus, heap-budget), min 1)
+     PARALLEL_TEST_MEM_BUDGET_MB — heap budget per concurrent suite (default 1024)
+     PARALLEL_TEST_SUITE_TIMEOUT_MS — per-suite timeout (default 3_600_000 = 60 min)
      KEEP_PARALLEL_TEST_ARTIFACTS — set to any truthy value to preserve temp dirs
                                    even on success (they are always kept on failure)
 
@@ -22,6 +24,7 @@
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.protocols.registry :as preg]
+            [scripts.artifact-scope :as artifact-scope]
             [scripts.test-summary :as summary])
   (:gen-class))
 
@@ -37,15 +40,28 @@
   []
   (max 1 (dec (.availableProcessors (Runtime/getRuntime)))))
 
-(defn- parse-job-limit
+(defn- memory-budget-jobs
+  "Cap concurrent suites so each gets at least ~1 GiB of max heap, avoiding OOM
+   on high-core machines. Env override: PARALLEL_TEST_MEM_BUDGET_MB (default 1024)."
   []
-  (or (some-> (System/getenv "PARALLEL_TEST_JOBS") Integer/parseInt)
-      (default-jobs)))
+  (let [budget-mb (or (some-> (System/getenv "PARALLEL_TEST_MEM_BUDGET_MB") Long/parseLong)
+                      1024)
+        budget-bytes (* budget-mb 1024 1024)
+        max-heap (.maxMemory (Runtime/getRuntime))]
+    (max 1 (quot max-heap budget-bytes))))
 
-(defn- cleanup!
-  [root]
-  (doseq [f (reverse (doall (file-seq (io/file root))))]
-    (.delete f)))
+(defn- parse-job-limit
+  "Jobs = user override (if set), else the smaller of the cpu-based default and
+   the memory budget, so we never run more suites than the heap can hold."
+  []
+  (if-let [env (System/getenv "PARALLEL_TEST_JOBS")]
+    (max 1 (Integer/parseInt env))
+    (max 1 (min (default-jobs) (memory-budget-jobs)))))
+
+(defn- suite-timeout-ms
+  []
+  (or (some-> (System/getenv "PARALLEL_TEST_SUITE_TIMEOUT_MS") Long/parseLong)
+      3600000))
 
 (defn- run-one-suite
   [suite-key artifact-dir]
@@ -83,8 +99,10 @@
         _ (flush)
         start (System/currentTimeMillis)
         shared-dir (evcfg/artifact-dir)
+        run-id (str (System/currentTimeMillis) "-" (java.util.UUID/randomUUID))
         tmp-root (str (System/getProperty "java.io.tmpdir")
                       "/parallel-suite-artifacts-" (java.util.UUID/randomUUID))
+        _ (artifact-scope/write-owner-marker! tmp-root {:run-id run-id :namespace :run-root})
         jobs (parse-job-limit)
         sem (java.util.concurrent.Semaphore. jobs)
         futures (mapv (fn [i sk]
@@ -98,7 +116,15 @@
                                 (.release sem))))))
                       (range)
                       suite-keys)
-        results (mapv deref futures)
+        timeout-ms (suite-timeout-ms)
+        results (mapv (fn [sk fut]
+                        (let [r (deref fut timeout-ms :timeout)]
+                          (if (= r :timeout)
+                            {:suite-key sk
+                             :ok? false
+                             :result {:ok? false :results []}}
+                            r)))
+                      suite-keys futures)
         elapsed (- (System/currentTimeMillis) start)
         failed (remove :ok? results)
         failed? (pos? (count failed))
@@ -135,12 +161,13 @@
                            (format "elapsed: %.2fs  jobs: %d" (/ elapsed 1000.0) jobs)])
       (summary/result-line totals elapsed)
       (summary/print-failures items))
-    ;; Cleanup — keep on failure, delete on success
+    ;; Cleanup — ownership-marker-guarded, keep on failure, delete on success
     (if keep?
-      (println "Keeping artifact dirs:" tmp-root)
+      (println "Keeping suite artifact dirs:" tmp-root)
       (try
-        (cleanup! tmp-root)
+        (artifact-scope/safe-delete! tmp-root run-id)
+        (println "Suite artifact dirs cleaned:" tmp-root)
         (catch Exception e
-          (println "WARN: artifact cleanup failed:" (.getMessage e)))))
+          (println "WARN: suite artifact cleanup failed:" (.getMessage e)))))
     (when failed?
       (System/exit 1))))

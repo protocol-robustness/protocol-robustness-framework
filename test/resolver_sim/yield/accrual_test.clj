@@ -4,7 +4,8 @@
             [resolver-sim.yield.accrual :as accrual]
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.position :as pos]
-            [resolver-sim.yield.risk-monitor :as risk]))
+            [resolver-sim.yield.risk-monitor :as risk]
+            [resolver-sim.time.context :as time-ctx]))
 
 (def base-world
   {:yield/indices {:test-mod {"USDC" 1}}
@@ -461,6 +462,30 @@
       (let [s (risk/summary)]
         (is (contains? s :module-frozen-zero-accrual))
         (is (= 1 (:count (get s :module-frozen-zero-accrual))))))))
+
+(deftest test-risk-monitor-summary-buckets-each-short-circuit-type
+  (testing "A multi-type short-circuit event contributes to every type's bucket"
+    (risk/with-fresh-risk-context
+      (swap! @#'risk/*risk-events* concat
+             [{:short-circuits [:stale-oracle-degraded-apy :recoverable-liquidity-cap]
+               :deferred-delta 100 :yield-delta 50 :module-id "m1" :ts 1}])
+      (let [s (risk/summary)]
+        (is (= 1 (get-in s [:stale-oracle-degraded-apy :count])))
+        (is (= 1 (get-in s [:recoverable-liquidity-cap :count]))
+            "the same event must also appear under its second short-circuit type")
+        (is (= 100 (get-in s [:recoverable-liquidity-cap :total-deferred])))))))
+
+(deftest test-make-decision-base-now-defaults-to-world-block-ts
+  (testing "make-decision-base without :now falls back to the world's block-ts, not epoch 0"
+    (let [world (-> (time-ctx/ensure-temporal-context {:block-time 5000})
+                    (assoc-in [:yield/positions "user1"]
+                              {:module/id :test-mod :token "USDC" :status :active :principal 1000}))
+          decision (accrual/make-decision-base world {:module-id :test-mod
+                                                      :token "USDC"
+                                                      :position-id "user1"
+                                                      :dt 100})]
+      (is (= 5000 (:now decision)))
+      (is (= 100 (:dt decision))))))
 
 (deftest test-dust-carry-prior-reflects-position-remainder
   (testing "Evidence :dust-carry-prior records the position's prior dust, not the new carry"

@@ -41,6 +41,8 @@
                       (str "schema_version mismatch: expected " schema-version ", got " (pr-str (get policy "schema_version"))))
                (check (string? (get policy "policy_id"))
                       (str "policy_id must be a string, got " (pr-str (get policy "policy_id"))))
+               (check (integer? (get policy "policy_version"))
+                      (str "policy_version must be an integer, got " (pr-str (get policy "policy_version"))))
                (check (integer? (get policy "member_count"))
                       (str "member_count must be an integer, got " (pr-str (get policy "member_count"))))
                (check (integer? (get policy "threshold"))

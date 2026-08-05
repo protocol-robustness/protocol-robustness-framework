@@ -4,7 +4,8 @@
    Callers may provide an explicit execution directory; the legacy arity writes
    to results/runs/<run-id>/execution-dag.json."
   (:require [clojure.java.io :as io]
-            [clojure.data.json :as json])
+            [clojure.data.json :as json]
+            [resolver-sim.evidence.reachability :as reach])
   (:import [java.security MessageDigest]
            [java.time Instant]))
 
@@ -99,16 +100,6 @@
          expected-root (sha256 (pr-str (sort-by :node/id nodes) (sort-by :edge/from edges)))
          edge-identities (map (fn [e] [(:edge/from e) (:edge/to e) (:edge/type e)]) edges)
          adjacency (reduce (fn [m {:edge/keys [from to]}] (update m from (fnil conj #{}) to)) {} edges)
-         indegree (reduce (fn [m {:edge/keys [to]}] (update m to (fnil inc 0))) (zipmap ids (repeat 0)) edges)
-         topological-count (loop [queue (vec (sort (for [[id degree] indegree :when (zero? degree)] id)))
-                                  processed #{}]
-                             (if-let [n (first queue)]
-                               (let [degrees (reduce (fn [d child] (update d child dec)) indegree (get adjacency n #{}))
-                                     nexts (sort (for [[id degree] degrees
-                                                       :when (and (zero? degree) (not (contains? processed id)) (not= id n))]
-                                                   id))]
-                                 (recur (into (vec (rest queue)) nexts) (conj processed n)))
-                               (count processed)))
          reachable (if-let [start (first ids)]
                      (loop [seen #{start} todo [start]]
                        (if-let [n (first todo)]
@@ -134,7 +125,7 @@
                        (when-not (= (count ids) (count id-set)) [{:code :execution-dag/duplicate-node-id}])
                        (when (some nil? ids) [{:code :execution-dag/missing-node-id}])
                        (when-not (= (count edge-identities) (count (set edge-identities))) [{:code :execution-dag/duplicate-edge}])
-                       (when (and (seq ids) (not= (count ids) topological-count)) [{:code :execution-dag/cycle-detected}])
+                       (when (and (seq ids) (reach/dag-cycle-path adjacency)) [{:code :execution-dag/cycle-detected}])
                        (for [n nodes :when (not= (:node/hash n) (node-hash (dissoc n :node/hash)))] {:code :execution-dag/node-hash-mismatch :node-id (:node/id n)})
                        (for [e edges :when (or (not (contains? id-set (:edge/from e))) (not (contains? id-set (:edge/to e))))] {:code :execution-dag/missing-edge-node :edge e})
                        (when-not (= (or (:dag/root-hash dag) (:root-hash dag)) expected-root) [{:code :execution-dag/root-hash-mismatch}])

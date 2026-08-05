@@ -10,11 +10,21 @@
 
    Replay clocks and protocol deadlines have second precision. `Instant` values
    therefore compare by their epoch second; sub-second precision is deliberately
-   not represented in the world clock."
+   floored, not represented in the world clock, and a number is truncated via
+   long (also toward zero). Unsupported types raise a structured
+   :invalid-event-time ex-info instead of a ClassCastException so the replay
+   boundary can reject them as a trace-level :rejected entry."
   [event-time]
-  (if (number? event-time)
-    (long event-time)
-    (.getEpochSecond ^java.time.Instant event-time)))
+  (cond
+    (number? event-time)                  (long event-time)
+    (instance? java.time.Instant event-time)
+    (.getEpochSecond ^java.time.Instant event-time)
+    :else
+    (throw (ex-info "unsupported event-time type"
+                    {:type :invalid-event-time
+                     :event-time event-time
+                     :actual-type (str (class event-time))
+                     :expected #{:number :java.time.Instant}}))))
 
 (defn advance-world-time
   "Advance :block-ts and scenario-step counter atomically.
@@ -23,11 +33,25 @@
    Same-timestamp events (event-time == block-time) still increment
    the logical step and event sequence, but do not move block-ts.
 
-   Throws when :block-ts is missing (uninitialized world)."
+   Rejects regressive event times with a structured :time-regression ex-info.
+   Scenario validation (:non-monotonic-event-time, :event-time-before-initial)
+   prevents this through the public replay API; this guard is the second line of
+   defence for internal kernels (resume-from-snapshot / run-simulation-loop) that
+   bypass validation, and for replay profiles with temporal rules disabled.
+
+   The free primitive time-ctx/advance-time intentionally stays permissive so
+   exploratory tooling can probe arbitrary timestamps; monotonicity is enforced
+   here at the replay boundary."
   [world event-time]
-  (let [now-ts       (time-ctx/block-ts world)
+  (let [now-ts       (or (time-ctx/block-ts world) 0)
         event-ts     (epoch-second event-time)
         delta-seconds (- event-ts now-ts)
+        _            (when (neg? delta-seconds)
+                       (throw (ex-info "advance-world-time: event time regresses simulation time"
+                                       {:type :time-regression
+                                        :now-ts now-ts
+                                        :event-ts event-ts
+                                        :event-time event-time})))
         world'       (time-ctx/advance-time world {:to event-ts})]
     {:world     world'
      :delta-ms  (max 0 (* delta-seconds 1000))

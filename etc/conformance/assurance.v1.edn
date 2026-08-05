@@ -1,0 +1,18 @@
+{
+  "holdout\/root": "7ec777bf406476876d4287f51a814e520037a2c2d1824b1fda325751ddbe4dfa",
+  "conformance-release\/root": "8e34754cdd5b3e900bd24a8c8fdb9b9b7cc3e407ec35f1c4064514af2ab0db6e",
+  "resource-safety\/root": "419a6a400c55bf6d3d74ed6329320a4a2d8bdf959846b703332f907a1a58fb0e",
+  "independent-clean-room": "pending",
+  "public-corpus\/root": "0b1aea4737a118f5b82a82a0dcbcc2411115e0360089707e50513140f261c444",
+  "mutation-report\/root": "572e1be4bf72c8b718c4adef414afccf16ff2a805818caa38432fb1c1fe820c3",
+  "fuzz-report\/root": "dd21ee9abc9913392d0c918e0157fa18fc63ba33a9f456a50971c98ec17a40c0",
+  "assurance-release\/id": "conformance-core-1-external-assurance-1",
+  "verifiers": {
+    "clojure": "sha256:2ba27b2144fa1dc949c92e0ea363c026496a16ed737db48c59a265d3e52e9dfe",
+    "python": "sha256:64f67b24290ceff6ff845c08dd51d20cc307bd4d402279158fe8c4c4d4e228d4",
+    "js": "sha256:b6e2d4d2e9479f2f4ecdc0156090c46e3d9fc26bbb9317ce0c1ce824de0f2bd0"
+  },
+  "verdict": "assurance-partial-awaiting-clean-room",
+  "assurance-release\/root": "7a7bbce04e91eec2e9c9c71aa18aa0b1a9feb7f851a061f3979938487706d715",
+  "ambiguity-log\/root": "d6e07a28bc831e3b4c879e0d30bfcf46f349e485ff994326f3513890cae49f2f"
+}

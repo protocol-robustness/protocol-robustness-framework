@@ -960,6 +960,148 @@ calculation-specific machinery.
 
 Canonical CI runs at least one fixture extension and one reference extension.
 
+## 21. Composition and comparability
+
+The framework distinguishes five concepts that are often conflated, and keeps
+them as separate, independently committed artifacts:
+
+| Concept | Artifact | Status | What it is NOT |
+|---|---|---|---|
+| **Composition contract** | `:composition-contract` on a capability descriptor | authored, content-addressed, validated | not proof a multi-capability graph is valid |
+| **Combination** | `:combination/*` (`resolver-sim.composition.combination`) | authored, declarative, may be invalid | not a compiled plan |
+| **Compiled plan** | `:plan/*` (`resolver-sim.composition.plan`) | derived by the compiler, content-addressed | not the requested combination |
+| **Composition** | runtime value flow + effects + evidence (`resolver-sim.composition.execution`) | executed | not merely the plan's shape |
+| **Comparability** | `:comparability/*` (`resolver-sim.composition.comparability`) | derived from committed contracts and plans | not composability, not substitutability |
+
+### Lifecycle
+
+```text
+capability package
+  → capability descriptor
+  → local composition contract
+  → requested combination
+  → composition compilation
+  → compiled composition plan
+  → execution
+  → execution evidence
+  → comparability evaluation
+```
+
+- **Authored**: capability descriptors and their composition contracts;
+  requested combinations.
+- **Derived**: compiled plans, execution evidence, comparability results.
+- **Content-addressed**: descriptor roots, composition-contract roots,
+  combination roots, compiled-plan roots.
+- **Validated**: composition contracts (schema + semantics), combinations,
+  and every capability at registration.
+- **Compiled**: combinations → plans by the compiler, the mandatory boundary
+  before multi-capability execution.
+- **Executed**: compiled plans only; a raw combination is rejected.
+- **Compared**: capability sides and compiled plans through the comparability
+  evaluator.
+- **Verified**: descriptor roots re-checked at execution; plan and compiler
+  provenance bound into execution evidence.
+
+### Composition contract
+
+A **local, versioned declaration** of how one capability may participate in a
+composition: admissible pipeline value inputs and outputs (schema ref,
+semantic type, cardinality), roles, execution modes, effects (emits, merge
+strategy, exclusivity), control (terminal, short-circuit, failure mode),
+determinism requirements, adapter policy, and verification obligations.
+Present on the descriptor and committed into the descriptor root. The
+canonical vocabulary is `:input-schema` / `:output-schema` /
+`:verification/contract`; the legacy spellings (`:input-schema-ref`,
+`:output-schema-ref`, `:verification-contract`) are migration aliases that are
+normalised and rejected when they conflict.
+
+### Combination
+
+A **concrete requested set of capability instances and edges**, declarative
+input to compilation. v1 supports a strict sequential pipeline:
+`:combination/nodes` is the declared order and `:combination/edges` (when
+present) must equal exactly the consecutive chain. Fan-in, fan-out, and all
+other shapes are rejected explicitly. A combination may carry held-custody
+address bindings (`:combination/addresses` — owner and parameter addresses),
+which are committed into the combination root, bound into the compiled plan as
+`:plan/addresses`, and threaded into every node invocation so custody-affecting
+effects carry them.
+
+### Compiler
+
+A **deterministic validator and compiler** resolving the combination against
+exact capability descriptors. It produces either a structured rejection or a
+canonical compiled plan. Rejections are machine-readable reasons, not
+boolean-only validation: unresolved capability, capability version mismatch,
+missing/invalid composition contract, unsupported composition mode,
+nondeterministic capability forbidden, input/output semantic mismatch, graph
+input/output not satisfied, illegal terminal placement, undeclared dependency,
+effect conflict, unsupported adapters, verification contract not preserved,
+cycle detected, and unreachable node.
+
+### Compiled plan
+
+A content-addressed artifact binding: the source combination root, exact
+capability descriptor roots, exact composition-contract roots, canonical node
+order, canonical edges, inserted adapters (empty in v1), graph input/output
+contracts, effect merge semantics, verification contract, and compiler
+identity/version. Execution consumes only the plan (or proves an equivalent
+plan was compiled) and re-checks every descriptor root before invocation.
+
+### Execution
+
+v1 value semantics: a running value flows through the pipeline; each node
+consumes it (value′ = value − amount) unless terminal. Effects accumulate from
+node results. Execution evidence binds `:execution/plan-root`,
+`:execution/compiler-id`, and `:execution/compiler-version`, so the exact
+compiled artifact that produced the result is committed. Intermediate outputs
+are committed when the contract requires it.
+
+### Comparability
+
+A **distinct contract and derivation process**: whether two capabilities or
+compiled compositions may be meaningfully compared. Classes are `:exact`,
+`:compatible` (through an explicit normalization), `:partial` (with an
+identified shared projection), `:incomparable`, and `:unknown` (missing or
+malformed comparison evidence — non-passing). Comparability is derived from
+committed contracts and plan roots; a capability cannot self-assert exact
+comparability. It is symmetric where the classification requires symmetry, and
+exact comparability is transitive only when the committed descriptor roots are
+identical.
+
+### Invariants (machine-enforced)
+
+- every compiled node resolves to exactly one descriptor root;
+- every edge satisfies the source output and target input contract;
+- every runtime execution binds one compiled-plan root;
+- compiled-plan roots change when any semantic input changes;
+- map ordering does not change roots;
+- irrelevant source metadata does not change semantic roots;
+- conflicting effects cannot compile;
+- undeclared dependencies cannot compile;
+- implicit adapters are rejected unless the contract permits them;
+- terminal nodes cannot have executable successors;
+- unreachable nodes are rejected;
+- cycles are rejected in the initial compiler version;
+- compilation is deterministic and idempotent;
+- descriptor or contract version changes invalidate the old plan;
+- comparison is symmetric where the classification requires symmetry;
+- exact comparability is transitive only when all relevant committed
+  contracts are identical;
+- partial comparability never upgrades silently to exact;
+- unknown or malformed comparability evidence is non-passing.
+
+### Explicitly not claimed
+
+The current compiler implements and tests only the strict sequential DAG
+subset. Full general graph composition (fan-out/fan-in, DAG branches, cycles,
+non-sequential modes) is **not** claimed. A descriptor is not an executable
+closure; a composition contract is not a compiled plan; a requested
+combination is not proof of compatibility; declared dependencies are runtime
+capability dependencies, not automatically composition edges; composability
+does not imply comparability; comparability does not imply substitutability;
+and runtime success does not prove contract preservation.
+
 ## Bottom line
 
 The extension direction improves PRF's development model and contributor

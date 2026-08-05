@@ -140,6 +140,17 @@ BENCHMARK_INPUT_REF="$(ref_for inputs/benchmarks/force-authorisation-custody-v1.
 PRO_RATA_INSUFFICIENT_VECTOR_REF="$(ref_for inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-insufficient.json)"
 PRO_RATA_DUST_VECTOR_REF="$(ref_for inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json)"
 
+# Canonical ref for the value-at-risk projection derived for the Y06 shortfall
+# example (written by the run above). The enriched projection lives in
+# manifest/summary.json under value_at_risk_overview; the strict observation
+# artifact (manifest/value-at-risk.json) remains the declaration-driven record.
+PRO_RATA_VAR_JSON="evidence/scenario-pro-rata/manifest/summary.json"
+PRO_RATA_VAR_REF="$( (cd "$OUTPUT_DIR" && java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main ref-file "$PRO_RATA_VAR_JSON") | awk -v t="$PRO_RATA_VAR_JSON" '$2 == t {print $1}' )"
+if [ -z "$PRO_RATA_VAR_REF" ]; then
+  echo "Failed to compute value-at-risk ref for $PRO_RATA_VAR_JSON" >&2
+  exit 2
+fi
+
 cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
 {
   "schema_version": "prf-ef-review-packet-manifest.v1",
@@ -184,7 +195,15 @@ cat > "$OUTPUT_DIR/REVIEW_PACKET_MANIFEST.json" <<EOF
       "input_sha256": "$PRO_RATA_INPUT_REF",
       "bundle_root": "evidence/scenario-pro-rata",
       "semantic_outcome": "pass",
-      "verify": ["verify-scenario", "--run-root", "evidence/scenario-pro-rata"]
+      "verify": ["verify-scenario", "--run-root", "evidence/scenario-pro-rata"],
+      "value_at_risk": {
+        "path": "$PRO_RATA_VAR_JSON",
+        "sha256": "$PRO_RATA_VAR_REF",
+        "field": "value_at_risk_overview",
+        "observation_path": "evidence/scenario-pro-rata/manifest/value-at-risk.json",
+        "role": "multi-party pro-rata shortfall: 3000 USDC protected, 0.6 available ratio, 1200 USDC at risk",
+        "authoritative": false
+      }
     },
     {
       "id": "scenario-semantic-failure",
@@ -231,6 +250,7 @@ EOF
     REVIEW_PACKET_MANIFEST.json \
     diagnostics/scenario-semantic-failure/diagnostic.mmd \
     diagnostics/scenario-semantic-failure/diagnostic.md \
+    evidence/scenario-pro-rata/manifest/summary.json \
     > SHA256SUMS
 )
 

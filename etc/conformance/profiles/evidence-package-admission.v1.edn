@@ -1,0 +1,37 @@
+{:profile/schema-version "conformance-profile.v1"
+ :profile/kind :artifact-package-admission
+ :profile/domain-contract :artifact-admission-profile.v1
+ :profile/id :evidence-package-admission.v1
+ :profile/version 1
+ :profile/fixture-contract :evidence-package.v1
+ :profile/subject-kind :artifact-package
+
+ :profile/validators
+ [{:validator/id :artifact-envelope-schema
+   :validator/kind :schema
+   :validator/input-contract :evidence-package.v1
+   :validator/version 1}
+  {:validator/id :artifact-reference-semantics
+   :validator/kind :semantic
+   :validator/input-contract :evidence-package.v1
+   :validator/version 1}
+  {:validator/id :artifact-signature-semantics
+   :validator/kind :semantic
+   :validator/input-contract :evidence-package.v1
+   :validator/version 1}]
+
+ :profile/capabilities
+ {:required
+  [{:capability :content-root-recomputation :version 1}
+   {:capability :reference-closure :version 1}
+   {:capability :signature-verification :version 1}
+   {:capability :admission-policy-evaluation :version 1}]}
+
+ :profile/comparison-policy :none
+ :profile/verdict-policy
+ {:claim-classes [:package-integrity-verified
+                  :package-reference-closure-verified
+                  :package-authenticity-verified
+                  :package-admissible
+                  :not-evaluated]
+  :claim-modes {:package-integrity-verified :package-integrity-verified}}}

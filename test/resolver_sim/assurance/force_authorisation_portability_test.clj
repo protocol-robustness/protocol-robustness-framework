@@ -4,8 +4,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.assurance.force-authorisation :as fa]
             [resolver-sim.assurance.custody :as custody]
-            [resolver-sim.evidence.force-authorisation :as fa-ev]
-            [resolver-sim.hash.canonical :as hash]))
+            [resolver-sim.evidence.force-authorisation :as fa-ev]))
 
 (def valid-scope
   {:authorization/id "fa-0"
@@ -462,16 +461,18 @@
              (:by-token-direction (:categories r)))))))
 
 (deftest force-auth-add-held-summary-evidence-detects-invalid
-  (let [good (sample-add-held :USDC 100 :in)
-        bad (assoc (sample-add-held :USDC 100 :in "adj-2") :held/amount 999)
-        r (fa-ev/build-force-auth-add-held-summary {:artifacts [good bad]})]
-    (is (= 2 (:total r)))
-    (is (= 1 (:valid-count r)))
-    (is (= 1 (:invalid-count r)))
-    (is (= [1] (mapv :index (:invalid-artifacts r))))
-    (is (= ["adj-2"] (mapv :adjustment-id (:invalid-artifacts r))))
-    (is (= [:content-hash-mismatch] (mapv :reason (:invalid-artifacts r))))
-    (is (true? (fa-ev/valid-force-auth-add-held-summary? r)))))
+  (testing "permissive builder: mixed-validity member sets are triaged, not rejected"
+    (let [good (sample-add-held :USDC 100 :in)
+          bad (assoc (sample-add-held :USDC 100 :in "adj-2") :held/amount 999)
+          r (fa-ev/build-force-auth-add-held-summary-permissive {:artifacts [good bad]})]
+      (is (= 2 (:total r)))
+      (is (= 1 (:valid-count r)))
+      (is (= 1 (:invalid-count r)))
+      (is (= [1] (mapv :index (:invalid-artifacts r))))
+      (is (= ["adj-2"] (mapv :adjustment-id (:invalid-artifacts r))))
+      (is (= [:content-hash-mismatch] (mapv :reason (:invalid-artifacts r))))
+      (is (= 100 (:total-amount r)) "the invalid member's amount is excluded from totals")
+      (is (true? (fa-ev/valid-force-auth-add-held-summary? r))))))
 
 (deftest force-auth-add-held-summary-invalid-reason-taxonomy
   (testing "invalid artifacts are triaged with a concrete reason"
@@ -482,11 +483,12 @@
                             :artifact/kind :not-add-held)
           wrong-verifier (assoc (sample-add-held :USDC 100 :in "adj-3")
                                 :artifact/verifier "wrong-verifier.v1")
-          r (fa-ev/build-force-auth-add-held-summary
+          r (fa-ev/build-force-auth-add-held-summary-permissive
              {:artifacts [good wrong-version wrong-kind wrong-verifier]})]
       (is (= 1 (:valid-count r)))
-      (is (= [:schema-version-mismatch :artifact-kind-mismatch :verifier-mismatch]
-             (mapv :reason (:invalid-artifacts r)))))))
+      (is (= [:unsupported-member-version :artifact-kind-mismatch :verifier-mismatch]
+             (mapv :reason (:invalid-artifacts r)))
+          "a member-family schema version is classified as :unsupported-member-version"))))
 
 (deftest force-auth-add-held-summary-amount-integrity-triage
   (testing "missing / non-numeric / negative amounts are flagged; only numeric amounts are summed"
@@ -497,7 +499,7 @@
           missing (dissoc (sample-add-held :USDC 100 :in "adj-missing") :held/amount)
           non-numeric (assoc (sample-add-held :USDC 100 :in "adj-char")
                              :held/amount "100")
-          r (fa-ev/build-force-auth-add-held-summary
+          r (fa-ev/build-force-auth-add-held-summary-permissive
              {:artifacts [good missing non-numeric negative]})]
       (is (= 50 (:total-amount r)))
       (is (= 1 (:missing-amount-count r)))
@@ -513,7 +515,7 @@
 
 (deftest force-auth-add-held-summary-amount-integrity-roundtrip
   (testing "amount-integrity triage survives the v2 content-addressed roundtrip"
-    (let [r (fa-ev/build-force-auth-add-held-summary
+    (let [r (fa-ev/build-force-auth-add-held-summary-permissive
              {:artifacts [(dissoc (sample-add-held :USDC 100 :in "adj-1")
                                   :held/amount)]})]
       (is (= 1 (:missing-amount-count r)))
@@ -543,13 +545,21 @@
              :scope-map valid-scope
              :adjustment {:held-adjustment/id "adj-1" :token :USDC :amount 100 :held/direction :in
                           :held/position-id "pos-1"}})
+        ;; a2 must carry a VERIFIED binding for scope-b (its recorded scope-hash
+        ;; is derived from scope-b, not from valid-scope).
+        a2-auth (assoc (hash-bound-auth "fa-1" :active)
+                       :authorization/scope-hash
+                       (fa/force-authorisation-scope-hash
+                        (fa/normalize-force-authorisation-scope scope-b))
+                       :authorization/scope (fa/normalize-force-authorisation-scope scope-b))
         a2 (fa-ev/build-force-auth-add-held
-            {:authorization (hash-bound-auth "fa-1" :active)
+            {:authorization a2-auth
              :scope-map scope-b
              :adjustment {:held-adjustment/id "adj-2" :token :ETH :amount 50 :held/direction :in
                           :held/position-id "pos-2"}})
         r (fa-ev/build-force-auth-add-held-summary {:artifacts [a1 a2]})
         cat (:categories r)]
+    (is (true? (:authorization/scope-verifies? a2)))
     (is (= 2 (:distinct-owners r)))
     (is (= 1 (:distinct-accounts r)))
     (is (= 2 (:distinct-tokens r)))
@@ -577,7 +587,7 @@
     (let [wrong (assoc (sample-add-held :USDC 100 :in "adj-1")
                        :authorization/scope-verifies? false
                        :authorization/id "fa-bad")
-          r (fa-ev/build-force-auth-add-held-summary
+          r (fa-ev/build-force-auth-add-held-summary-permissive
              {:artifacts [(sample-add-held :USDC 100 :in) wrong]})]
       (is (= 1 (:scope-unverified-count r)))
       (is (= ["fa-bad"] (:unverified-authorization-ids r))))))

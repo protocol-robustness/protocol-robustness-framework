@@ -8,14 +8,15 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.io.input-source :as input-source]
-            [resolver-sim.protocols.registry :as protocols]))
+            [resolver-sim.protocols.registry :as protocols]
+            [resolver-sim.io.edn :as ppedn]))
 
 (defn- child-file [root & parts]
   (apply io/file (str root) parts))
 
 (defn- write-edn! [file value]
   (.mkdirs (.getParentFile (io/file file)))
-  (spit file (pr-str value))
+  (spit file (ppedn/ppr-str value))
   file)
 
 (defn execute!

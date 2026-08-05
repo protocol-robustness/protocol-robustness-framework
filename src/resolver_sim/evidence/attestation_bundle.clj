@@ -33,7 +33,8 @@
             [resolver-sim.evidence.attestation-integrity :as integrity]
             [resolver-sim.evidence.attestation-signature :as signature]
             [resolver-sim.definitions.passive-registries :as registries]
-            [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.io.edn :as ppedn])
   (:import [java.security MessageDigest]))
 
 ;; ── Constants ────────────────────────────────────────────────────────────────
@@ -89,6 +90,50 @@
   [obj]
   (hc/hash-with-intent {:hash/intent :evidence-record} obj))
 
+;; ── Claim-result stable hash ─────────────────────────────────────────────────
+;; A scenario claim result carries run-local fields (`:name`, `:scenario-path`,
+;; and the derived `:scenario-hash`) whose values embed the run-root snapshot
+;; path.  Committing them to the claim's content hash made the same scenario
+;; address differently under a different run root (and across bb/jar dispatch).
+;; We therefore hash the claim over a projection that strips these fields,
+;; mirroring the community stable-projection treatment of volatile data.  The
+;; persisted claim still retains the full content for human inspection; only its
+;; content-addressed identity excludes the run-local surface.
+
+(defn- clear-key*
+  "Recursively remove the given key from every map node, leaving other nodes
+   unchanged."
+  [k x]
+  (letfn [(walk [v]
+            (cond
+              (map? v) (persistent!
+                        (reduce-kv (fn [m kk u]
+                                     (if (= k kk)
+                                       m
+                                       (assoc! m kk (walk u))))
+                                   (transient {}) v))
+              (vector? v) (mapv walk v)
+              (set? v) (into (empty v) (map walk) v)
+              :else v))]
+    (walk x)))
+
+(defn- strip-claim-run-local
+  "Exclude the run-local, path-bearing surface of a claim result.
+   `:name` and the derived `:scenario-hash` are dropped at the top level;
+   `:scenario-path` is cleared at every depth (it is unambiguously a path
+   field).  All genuine semantic content is preserved."
+  [c]
+  (clear-key* :scenario-path (dissoc c :name :scenario-hash)))
+
+(defn claim-result-hash
+  "Content hash for a claim result.  An explicit :claim-result-hash field is
+   authoritative when present; otherwise the hash is computed over the stable
+   run-local-stripped projection."
+  [c]
+  (or (:claim-result-hash c)
+      (hc/hash-with-intent {:hash/intent :evidence-record}
+                           (strip-claim-run-local c))))
+
 (defn- object-path
   [base-dir kind hash]
   (str base-dir "/" (name kind) "/" hash ".edn"))
@@ -132,8 +177,7 @@
                                :object/availability :included}))
                           attestations)
         claim-entries (mapv (fn [c]
-                              (let [h (or (:claim-result-hash c)
-                                          (compute-object-hash c))]
+                              (let [h (claim-result-hash c)]
                                 {:object/kind :claim-result
                                  :object/hash h
                                  :object/path (object-path bundle-dir "claims" h)
@@ -261,7 +305,9 @@
                                 :else
                                 (try
                                   (let [content (edn/read-string (slurp file))
-                                        computed (compute-object-hash content)]
+                                        computed (if (= :claim-result (:object/kind obj))
+                                                   (claim-result-hash content)
+                                                   (compute-object-hash content))]
                                     (if (= computed recorded-hash)
                                       {:object/hash recorded-hash :check/status :pass}
                                       {:object/hash recorded-hash :check/status :fail
@@ -709,28 +755,28 @@
          _ (.mkdirs (io/file bundle-dir))
         ;; Write attestations
          _ (doseq [a (:attestations objects-map [])]
-             (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
-               (spit path (pr-str a))))
+              (let [path (object-path bundle-dir "attestations" (:attestation/id a))]
+                (spit path (ppedn/ppr-str a))))
         ;; Write claim results
          _ (doseq [c (:claim-results objects-map [])]
              (let [h (or (:claim-result-hash c) (compute-object-hash c))
                    path (object-path bundle-dir "claims" h)]
-               (spit path (pr-str c))))
+               (spit path (ppedn/ppr-str c))))
         ;; Write evidence nodes
          _ (doseq [n (:evidence-nodes objects-map [])]
              (let [path (object-path bundle-dir "evidence-nodes" (:node-hash n))]
-               (spit path (pr-str n))))
+               (spit path (ppedn/ppr-str n))))
         ;; Write registries
          _ (doseq [[reg-kind reg-map] (:bundle/registries bundle)]
              (spit (require-contained-path bundle (:registry/path reg-map))
-                   (pr-str (get objects-map reg-kind))))
+                   (ppedn/ppr-str (get objects-map reg-kind))))
         ;; Write sensitivity report
          _ (when-let [report-path (get-in bundle [:bundle/sensitivity :sentinel/path])]
              (spit (require-contained-path bundle report-path)
                    (pr-str (:sensitivity-report objects-map))))
         ;; Write manifest without runtime-only trust context.
          manifest-path (io/file bundle-dir "manifest.edn")]
-     (spit manifest-path (pr-str (dissoc bundle runtime-root-key)))
+     (spit manifest-path (ppedn/ppr-str (dissoc bundle runtime-root-key)))
      (str (io/file bundle-dir ".written")))))
 
 (defn read-attestation-bundle

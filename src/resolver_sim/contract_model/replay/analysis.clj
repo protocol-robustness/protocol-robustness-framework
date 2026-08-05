@@ -92,7 +92,7 @@
          terminal-world (:world result')
          time-ctx      (when terminal-world (time-ctx/temporal-context terminal-world))
          result-ev     (cond-> result''
-                         time-ctx (assoc :time-evidence {:schema-version "temporal-context.v2"
+                         time-ctx (assoc :time-evidence {:schema-version (or (:schema-version time-ctx) "temporal-context.v2")
                                                          :terminal-time time-ctx}))
 
          outcomes-ok? (:ok? outcomes true)

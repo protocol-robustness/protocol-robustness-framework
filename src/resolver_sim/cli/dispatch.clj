@@ -30,6 +30,11 @@
    :verify-scenario 'resolver-sim.commands.verify-scenario/run
    :verify-benchmark 'resolver-sim.commands.verify-benchmark/run
    :compare-runs 'resolver-sim.commands.compare-runs/run
+   :compare 'resolver-sim.commands.compare/run
+   :root-hash 'resolver-sim.commands.root-hash/run
+   :result-root 'resolver-sim.commands.result-root/run
+   :semantic-equivalent 'resolver-sim.commands.semantic-equivalent/run
+   :declared-dependencies 'resolver-sim.commands.declared-dependencies/run
    :scenario-list 'resolver-sim.commands.scenario-list/list-scenarios
    :scenario-compare 'resolver-sim.commands.scenario-compare/compare-scenarios
    :scenario-pick 'resolver-sim.commands.scenario-pick/pick-scenarios
@@ -155,6 +160,7 @@
    [nil "--output PATH" "Output path for evidence bundle"]
    [nil "--package-a DIR" "First completed canonical package"]
    [nil "--package-b DIR" "Second completed canonical package"]
+   [nil "--format FORMAT" "Artifact format for compare: edn or json"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
    [nil "--key PATH" "Path to private key"]

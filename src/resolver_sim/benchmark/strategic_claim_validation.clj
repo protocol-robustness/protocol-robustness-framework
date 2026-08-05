@@ -18,7 +18,8 @@
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.strategic-partial-fill :as strategic-partial-fill]
             [resolver-sim.config.paths :as paths]
-            [resolver-sim.validation.gate :as gate]))
+            [resolver-sim.validation.gate :as gate]
+            [resolver-sim.io.edn :as ppedn]))
 
 (def strategic-claim-catalog
   {:claim/pro-rata-shortfall-conservation
@@ -526,7 +527,7 @@
                             validate-artifact!
                             sort-maps)]
     (io/make-parents edn-path)
-    (spit edn-path (pr-str stable-artifact))
+    (spit edn-path (ppedn/ppr-str stable-artifact))
     (spit json-path (json/write-str stable-artifact {:key-fn name}))
     {:exit-code (if (get-in stable-artifact [:summary :valid?]) 0 1)
      :artifact stable-artifact

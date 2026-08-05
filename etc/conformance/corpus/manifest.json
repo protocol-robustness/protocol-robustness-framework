@@ -1,0 +1,9 @@
+[
+  {"case_id": "trace-valid-001", "kind": "bundle", "path": "valid/trace-001.json", "expected_status": "pass", "expected_issue_codes": [], "claimable": true},
+  {"case_id": "claim-tampered-001", "kind": "bundle", "path": "invalid/claim/claim-tampered-001.json", "expected_status": "reject", "expected_issue_codes": ["derived-claim-mismatch"], "claimable": false},
+  {"case_id": "recon-tampered-001", "kind": "bundle", "path": "invalid/reconciliation/recon-tampered-001.json", "expected_status": "reject", "expected_issue_codes": ["reconciliation-not-reproducible"], "claimable": false},
+  {"case_id": "version-unsupported-001", "kind": "bundle", "path": "invalid/version/version-unsupported-001.json", "expected_status": "reject", "expected_issue_codes": ["unsupported-bundle-version"], "claimable": false},
+  {"case_id": "env-mismatch-001", "kind": "bundle", "path": "invalid/environment/env-mismatch-001.json", "expected_status": "reject", "expected_issue_codes": ["environment-root-disagreement"], "claimable": false},
+  {"case_id": "identity-substitution-001", "kind": "identity", "path": "invalid/identity/identity-substitution-001.json", "expected_status": "reject", "expected_issue_codes": ["inconsistent-canonical-root"], "claimable": false},
+  {"case_id": "schema-missing-content-001", "kind": "trace-schema", "path": "invalid/schema/schema-missing-content-001.json", "expected_status": "reject", "expected_issue_codes": ["missing-invariant-profile"], "claimable": false}
+]

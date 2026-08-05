@@ -217,7 +217,7 @@
      :workflow-id workflow-id
      :position-id position-id
      :position pos
-     :now (or now 0)
+     :now (or now (time-ctx/block-ts world))
      :dt (or dt 0)
      :base-apy-bps base-apy-bps
      :effective-apy-bps base-apy-bps

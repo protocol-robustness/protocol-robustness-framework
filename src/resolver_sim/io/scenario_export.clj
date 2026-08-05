@@ -4,7 +4,8 @@
             [clojure.java.io :as io]
             [clojure.walk :as walk]
             [resolver-sim.io.scenarios :as sc]
-            [resolver-sim.config.paths :as paths]))
+            [resolver-sim.config.paths :as paths]
+            [resolver-sim.io.edn :as ppedn]))
 
 (defn- agent->trace-agent
   [{:keys [id address strategy role]}]
@@ -204,7 +205,7 @@
   "Write a Clojure map as proper EDN with keyword keys."
   [doc path]
   (io/make-parents path)
-  (spit path (pr-str doc)))
+  (spit path (ppedn/ppr-str doc)))
 
 (defn- scenario-inline-metadata
   "Extract metadata directly from the scenario map if available.

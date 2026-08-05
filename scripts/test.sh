@@ -18,6 +18,15 @@
 #   ./scripts/test.sh monte-carlo # Representative Monte Carlo phase sweep (5 domains)
 #   ./scripts/test.sh long-horizon # Extended horizon scenarios (100/200/500/1000 epochs)
 #
+# Target-level parallelism (opt-in): set PARALLEL_TARGETS=1 to run the
+# independent targets in `all`/`ci` concurrently, each in its own isolated
+# artifact subdir. PARALLEL_TARGET_JOBS (default 4) caps concurrent targets.
+#   PARALLEL_TARGETS=1 PARALLEL_TARGET_JOBS=8 ./scripts/test.sh ci
+#
+# The parallel namespace runner (scripts/parallel-test-runner.clj) keeps
+# audit-flagged namespaces in a sequential safety lane by default. Override
+# via PARALLEL_TEST_EXCLUDE_NS (e.g. "" to disable, or a custom ns list).
+#
 # Evidence tiers (see core.phases/phase-evidence-tiers):
 #   :protocol-kernel-evidence — calls resolve-dispute or replay-with-protocol
 #   :analytic                 — algebraic/closed-form, no protocol calls
@@ -37,6 +46,13 @@ FAILURES=0
 TARGETS_COMPLETED=0
 TARGETS_PASSED=0
 FAST_MODE=false
+
+# When set to 1, the `all`/`ci` modes run independent targets concurrently,
+# each in its own isolated artifact subdirectory (see run_targets_parallel).
+# Off by default to preserve exact sequential behaviour.
+PARALLEL_TARGETS="${PARALLEL_TARGETS:-0}"
+# Cap on how many targets run at once in parallel-target mode.
+PARALLEL_TARGET_JOBS="${PARALLEL_TARGET_JOBS:-4}"
 
 # Check for fast mode
 if [ "$MODE" = "fast" ] || [ "$MODE" = "ci" ]; then
@@ -202,6 +218,64 @@ run_target() {
   return "$code"
 }
 
+# Run a batch of independent targets concurrently (opt-in target-level
+# parallelism). Each target runs in its own isolated artifact subdirectory so
+# evidence/suite/coverage outputs never collide across concurrent processes.
+#
+# Arguments: "target:func" pairs — order as passed (run longest first).
+# Returns the number of failing targets as the exit code; FAILURES and the
+# pass/completed counters are updated by the caller via $?.
+run_targets_parallel() {
+  local pairs=("$@")
+  local -a pids=()
+  local resfile="${ARTIFACT_DIR}/.parallel-results-${RUN_ID}.txt"
+  : > "$resfile"
+  echo "  [$(date +%H:%M:%S)] Running ${#pairs[@]} targets in parallel (jobs=${PARALLEL_TARGET_JOBS})..."
+  local i=0
+  for pair in "${pairs[@]}"; do
+    if [ "$i" -ge "$PARALLEL_TARGET_JOBS" ]; then
+      # wait for the earliest pending job to free a slot
+      wait "${pids[0]}" || true
+      pids=("${pids[@]:1}")
+    fi
+    local target="${pair%%:*}"
+    local func="${pair#*:}"
+    local tdir="${ARTIFACT_DIR}/targets/${target}"
+    mkdir -p "$tdir"
+    (
+      ARTIFACT_DIR="$tdir"
+      PRF_ARTIFACT_DIR="$tdir"
+      run_target "$target" "$func" >"${ARTIFACT_DIR}/.parallel-${target}.log" 2>&1
+      echo "$?" >> "$resfile"
+    ) &
+    pids+=($!)
+    i=$((i + 1))
+  done
+  for p in "${pids[@]}"; do wait "$p" || true; done
+
+  local nfail=0
+  while IFS= read -r code; do
+    [ -z "$code" ] && continue
+    TARGETS_COMPLETED=$((TARGETS_COMPLETED + 1))
+    if [ "$code" -eq 0 ]; then
+      TARGETS_PASSED=$((TARGETS_PASSED + 1))
+    else
+      nfail=$((nfail + 1))
+    fi
+  done < "$resfile"
+
+  echo "  [$(date +%H:%M:%S)] Parallel batch complete ($TARGETS_PASSED/$TARGETS_COMPLETED passed, $nfail failed)"
+  for pair in "${pairs[@]}"; do
+    local target="${pair%%:*}"
+    local log="${ARTIFACT_DIR}/.parallel-${target}.log"
+    if [ -f "$log" ]; then
+      echo "  ── $target  (isolated artifacts under ${ARTIFACT_DIR}/targets/$target)"
+      grep -E "✓ |✗ |completed|failed" "$log" | tail -2 || true
+    fi
+  done
+  return "$nfail"
+}
+
 run_unit() {
   require_clojure || return $?
   echo "Running unit tests (all — framework + Sew, parallel namespaces)..."
@@ -240,6 +314,8 @@ run_unit() {
     resolver-sim.hash.canonical-test \
     resolver-sim.hash.concat-properties-test \
     resolver-sim.hash.attestor-hash-test \
+    resolver-sim.ordering.priority-test \
+    resolver-sim.ordering.priority-composition-test \
     resolver-sim.evidence.chain-test \
     resolver-sim.evidence.commitment-root-test \
     resolver-sim.evidence.finalization-test \
@@ -892,28 +968,46 @@ case "$MODE" in
       echo "Starting full test suite..."
       echo "========================================"
 
-      run_target unit run_unit || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target generators run_generators || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target contracts run_contracts || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target invariants run_invariants || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target suites run_suites || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target coverage run_coverage_gates || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target triage run_triage || FAILURES=$((FAILURES + 1))
-      echo ""
-
-      # Skip slow tests in fast mode
-      if [ "$FAST_MODE" = true ]; then
-        echo "  [$(date +%H:%M:%S)] ⏩ Skipping monte-carlo (slow test) in fast mode"
+      if [ "$PARALLEL_TARGETS" = "1" ]; then
+        # Run independent targets concurrently (longest first). Each target gets
+        # its own isolated artifact subdir; reference-validation runs last as it
+        # manages its own make-driven outputs.
+        run_targets_parallel \
+          "monte-carlo:run_monte_carlo" \
+          "suites:run_suites" \
+          "unit:run_unit" \
+          "generators:run_generators" \
+          "invariants:run_invariants" \
+          "contracts:run_contracts" \
+          "coverage:run_coverage_gates" \
+          "triage:run_triage"
+        FAILURES=$((FAILURES + $?))
+        echo ""
+        run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
       else
-        run_target monte-carlo run_monte_carlo || FAILURES=$((FAILURES + 1))
+        run_target unit run_unit || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target generators run_generators || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target contracts run_contracts || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target invariants run_invariants || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target suites run_suites || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target coverage run_coverage_gates || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target triage run_triage || FAILURES=$((FAILURES + 1))
+        echo ""
+
+        # Skip slow tests in fast mode
+        if [ "$FAST_MODE" = true ]; then
+          echo "  [$(date +%H:%M:%S)] ⏩ Skipping monte-carlo (slow test) in fast mode"
+        else
+          run_target monte-carlo run_monte_carlo || FAILURES=$((FAILURES + 1))
+        fi
       fi
 
       echo ""
@@ -963,19 +1057,32 @@ case "$MODE" in
       echo "Starting CI-OPTIMIZED test suite (fast + critical slow, target: < 2 min)..."
       echo "========================================"
 
-      run_target unit run_unit || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target generators run_generators || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target contracts run_contracts || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target invariants run_invariants || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target suites run_suites || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
-      echo ""
-      run_target monte-carlo run_monte_carlo || FAILURES=$((FAILURES + 1))
+      if [ "$PARALLEL_TARGETS" = "1" ]; then
+        run_targets_parallel \
+          "monte-carlo:run_monte_carlo" \
+          "suites:run_suites" \
+          "unit:run_unit" \
+          "generators:run_generators" \
+          "invariants:run_invariants" \
+          "contracts:run_contracts"
+        FAILURES=$((FAILURES + $?))
+        echo ""
+        run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
+      else
+        run_target unit run_unit || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target generators run_generators || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target contracts run_contracts || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target invariants run_invariants || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target suites run_suites || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target monte-carlo run_monte_carlo || FAILURES=$((FAILURES + 1))
+      fi
 
       echo ""
       echo "========================================"

@@ -114,18 +114,26 @@
                (into (vec (rest queue)) unseen)))
       seen)))
 
-(defn- dag-cycle?
-  [adjacency node-ids]
+(defn dag-cycle-path
+  "Return one directed cycle in `adjacency` as a vector of node ids, or nil if
+   the graph is acyclic. `adjacency` maps a node id to a collection of its child
+   ids. This is the single canonical cycle-detection primitive for execution DAGs."
+  [adjacency]
   (let [state (atom {})]
-    (letfn [(visit [node]
+    (letfn [(visit [node path]
               (case (get @state node)
-                :visiting true
-                :visited false
+                :visiting (conj (vec (drop-while #(not= % node) path)) node)
+                :visited nil
                 (do (swap! state assoc node :visiting)
-                    (let [cyclic? (boolean (some visit (get adjacency node #{})))]
+                    (let [found (some #(visit % (conj path node))
+                                      (get adjacency node #{}))]
                       (swap! state assoc node :visited)
-                      cyclic?))))]
-      (boolean (some visit node-ids)))))
+                      found))))]
+      (some #(visit % []) (keys adjacency)))))
+
+(defn- dag-cycle?
+  [adjacency]
+  (boolean (dag-cycle-path adjacency)))
 
 (defn dag-structural-errors
   "Return deterministic structural errors for a declared execution DAG.
@@ -154,7 +162,7 @@
                       (some #(= (:edge/from %) (:edge/to %)) edges)
                       (conj :dag/self-loop))]
     (cond-> base-errors
-      (and (empty? base-errors) (dag-cycle? adjacency id-set))
+      (and (empty? base-errors) (dag-cycle? adjacency))
       (conj :dag/cycle))))
 
 (defn dag-reachable?

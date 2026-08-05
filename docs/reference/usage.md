@@ -124,3 +124,34 @@ bb cli evidence validate --run-root /tmp/prf-run
 The legacy `--artifact-dir` option is only for pre-canonical evidence directories.
 
 Use the registry rather than filesystem discovery or `latest`/mtime heuristics when investigating evidence.
+
+## Comparison and inspection
+
+Compare and inspect completed packages and artifacts:
+
+```bash
+# Canonical comparison of two EDN/JSON artifacts (byte-identical canonical encoding)
+java -jar prf.jar compare a.json b.json
+java -jar prf.jar compare --json a.json b.json
+
+# Structural root hashes of a completed run package
+java -jar prf.jar root-hash --run-root /tmp/prf-run
+
+# Roots of a run's realized result (bundle root, stable-result hash, evidence roots)
+java -jar prf.jar result-root --run-root /tmp/prf-run
+
+# Semantic equivalence of two run packages (stable-result projection)
+java -jar prf.jar semantic-equivalent --package-a /tmp/run-a --package-b /tmp/run-b
+
+# Declared dependency surface of a run package
+java -jar prf.jar declared-dependencies --run-root /tmp/prf-run
+
+# Completion-sealed package comparison (verification + policy/evaluator/distribution)
+java -jar prf.jar compare-runs --package-a /tmp/run-a --package-b /tmp/run-b
+```
+
+`compare` exits 0 when the two files are canonically equivalent and 1 otherwise.
+`semantic-equivalent` exits 0 when both runs realized a non-empty result set with
+identical stable-result hashes and matching verdict-policy outcomes.
+`root-hash` / `result-root` / `declared-dependencies` are read-only inspections of a
+single completed run package; they do not require a fully re-verified package.
