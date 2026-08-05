@@ -17,6 +17,7 @@
 
    No assertion is falsely classified as :zk-proof in this phase."
   (:require [resolver-sim.allocation.context :as context]
+            [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.hash.canonical :as hc]))
 
 (def schema-version "allocation-assurance-certificate.v1")
@@ -62,42 +63,59 @@
 
    The kernel result must be the stable public-value map returned by
    `kernel/run-kernel`. If the result is rejected, the certificate records the
-   rejection classification and proof fields remain :not-yet-evaluated."
-  [kernel-result]
-  (let [assertions (:assertions kernel-result [])
-        status (:result/status kernel-result)]
-    {:schema-version schema-version
-     :subject-roots {:allocation-context-hash (:allocation-context-hash kernel-result)
-                     :claimant-set-root (:claimant-set-root kernel-result)
-                     :outcome-set-root (:outcome-set-root kernel-result)
-                     :proposed-rates-root (:proposed-rates-root kernel-result)
-                     :rate-derived-summary-hash (:rate-derived-summary-hash kernel-result)}
-     :selected-outcome {:selected-outcome-id (:selected-outcome-id kernel-result)
-                        :selected-outcome-index (:selected-outcome-index kernel-result)
-                        :selected-outcome-hash (:selected-outcome-hash kernel-result)}
-     :result-root (:result-root kernel-result)
-     :result-totals {:total-allocated (:total-allocated kernel-result)
-                     :residual-capacity (:residual-capacity kernel-result)}
-     :assertions
-     (mapv (fn [{:keys [assertion/id assertion/result]}]
-             {:assertion/id id
-              :assertion/result result
-              :assurance (assertion-assurance id)})
-           assertions)
-     :exact-replication (exact-replication-classification)
-     :prf-artifact (prf-artifact-identity)
-     :assume-punishment-credible
-     {:status :declared-supported
-      :assurance :economic-assumption
-      :profile-hash nil}
-     :proof
-     {:status :not-yet-evaluated
-      :proof-hash nil
-      :proof-mode :mock-native
-      :public-values-hash (when (= status :passing)
-                            (hc/domain-hash :certificate-assertions
-                                            {:schema-version schema-version
-                                             :subject (:certificate-assertions-digest kernel-result)}))}
-     :result/status status
-     :rejection/classification (:rejection/classification kernel-result)
-     :rejection/reason (:rejection/reason kernel-result)}))
+   rejection classification and proof fields remain :not-yet-evaluated.
+
+   When a coprocessor `round-state` token is supplied (second arity), the
+   certificate additionally carries a `:round-lifecycle` block with the
+   `cancellation-window-assertion` for the canonical probabilistic-allocation
+   lifecycle. The lifecycle assertion is projected separately from the kernel
+   assertions; it never claims :zk-proof in this phase."
+  ([kernel-result] (compose-certificate kernel-result nil))
+  ([kernel-result round-state-token]
+   (let [assertions (:assertions kernel-result [])
+         status (:result/status kernel-result)
+         base
+         {:schema-version schema-version
+          :subject-roots {:allocation-context-hash (:allocation-context-hash kernel-result)
+                          :claimant-set-root (:claimant-set-root kernel-result)
+                          :outcome-set-root (:outcome-set-root kernel-result)
+                          :proposed-rates-root (:proposed-rates-root kernel-result)
+                          :rate-derived-summary-hash (:rate-derived-summary-hash kernel-result)}
+          :selected-outcome {:selected-outcome-id (:selected-outcome-id kernel-result)
+                             :selected-outcome-index (:selected-outcome-index kernel-result)
+                             :selected-outcome-hash (:selected-outcome-hash kernel-result)}
+          :result-root (:result-root kernel-result)
+          :result-totals {:total-allocated (:total-allocated kernel-result)
+                          :residual-capacity (:residual-capacity kernel-result)}
+          :assertions
+          (mapv (fn [{:keys [assertion/id assertion/result]}]
+                  {:assertion/id id
+                   :assertion/result result
+                   :assurance (assertion-assurance id)})
+                assertions)
+          :exact-replication (exact-replication-classification)
+          :prf-artifact (prf-artifact-identity)
+          :assume-punishment-credible
+          {:status :declared-supported
+           :assurance :economic-assumption
+           :profile-hash nil}
+          :proof
+          {:status :not-yet-evaluated
+           :proof-hash nil
+           :proof-mode :mock-native
+           :public-values-hash (when (= :passing status)
+                                  (hc/domain-hash :certificate-assertions
+                                                  {:schema-version schema-version
+                                                   :subject (:certificate-assertions-digest kernel-result)}))}
+          :result/status status
+          :rejection/classification (:rejection/classification kernel-result)
+          :rejection/reason (:rejection/reason kernel-result)}
+         lifecycle
+         (when (some? round-state-token)
+           {:round-state (round-state/lifecycle-target-state round-state-token)
+            :cancellation/assertion
+            (round-state/cancellation-assertion
+             {:profile-id "alloc/2-3"} round-state-token)})]
+       (if (nil? lifecycle)
+         base
+         (assoc base :round-lifecycle lifecycle)))))

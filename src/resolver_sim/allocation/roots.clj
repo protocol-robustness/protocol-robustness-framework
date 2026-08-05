@@ -121,10 +121,10 @@
   (merkle-root (mapv result-leaf-digest result-leaves)))
 
 (defn certificate-assertions-digest
-  "Digest committing to the allocation context hash, the ordered assertion
-   results, the selected outcome, the result root, totals, and the kernel
-   version. No diagnostics, timestamps, paths, runtime versions, or proof stubs
-   are included."
+  "CERTIFICATE_ASSERTIONS_V1 digest committing to the allocation context hash,
+   the ordered assertion results, the selected outcome, the result root,
+   totals, and the kernel version. No diagnostics, timestamps, paths, runtime
+   versions, or proof stubs are included."
   [{:keys [allocation-context-hash assertions selected-outcome-id
            selected-outcome-index result-root total-allocated residual-capacity
            allocation-kernel-version]}]
@@ -137,3 +137,39 @@
                    :total-allocated total-allocated
                    :residual-capacity residual-capacity
                    :allocation-kernel-version allocation-kernel-version}))
+
+(defn certificate-assertions-digest-v2
+  "CERTIFICATE_ASSERTIONS_V2 digest. Extends v1 by additionally committing the
+   round lifecycle observation: the observed round-state and its derived
+   lifecycle state, lifecycle profile identity (id/version), the window schema,
+   the window classification, cancellation possibility, the ordered blocking
+   reasons, the effective lifecycle assertion status, and the lifecycle
+   assurance classification. The allocation context hash is unchanged: the
+   round-state is a per-observation attribute and never enters the allocation
+   context hash."
+  [{:keys [allocation-context-hash assertions selected-outcome-id
+           selected-outcome-index result-root total-allocated residual-capacity
+           allocation-kernel-version round-state derived-state
+           lifecycle-profile-id lifecycle-profile-version
+           cancellation-window-schema cancellation-window
+           cancellation-possible cancellation-blocking-reasons
+           lifecycle-assertion-status lifecycle-assurance]}]
+  (hc/domain-hash :certificate-assertions-v2
+                  {:allocation-context-hash allocation-context-hash
+                   :assertions assertions
+                   :selected-outcome-id selected-outcome-id
+                   :selected-outcome-index selected-outcome-index
+                   :result-root result-root
+                   :total-allocated total-allocated
+                   :residual-capacity residual-capacity
+                   :allocation-kernel-version allocation-kernel-version
+                   :round-state round-state
+                   :derived-state derived-state
+                   :lifecycle-profile-id lifecycle-profile-id
+                   :lifecycle-profile-version lifecycle-profile-version
+                   :cancellation-window-schema cancellation-window-schema
+                   :cancellation-window cancellation-window
+                   :cancellation-possible cancellation-possible
+                   :cancellation-blocking-reasons cancellation-blocking-reasons
+                   :lifecycle-assertion-status lifecycle-assertion-status
+                   :lifecycle-assurance lifecycle-assurance}))

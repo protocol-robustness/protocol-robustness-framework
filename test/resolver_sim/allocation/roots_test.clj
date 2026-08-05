@@ -1,6 +1,6 @@
 (ns resolver-sim.allocation.roots-test
   "Tests for root and Merkle construction."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.allocation.context :as context]
             [resolver-sim.allocation.kernel :as kernel]
             [resolver-sim.allocation.roots :as roots]
@@ -109,6 +109,41 @@
                   :result-root "0x00" :total-allocated 50 :residual-capacity 0
                   :allocation-kernel-version "allocation-kernel.v1"})]
       (is (not= digest other)))))
+
+(deftest certificate-assertions-digest-v2-commits-lifecycle
+  (let [base {:allocation-context-hash "0x00"
+              :assertions [{:assertion/id :allocation.assertion/x :assertion/result true}]
+              :selected-outcome-id "O1" :selected-outcome-index 0
+              :result-root "0x00" :total-allocated 50 :residual-capacity 0
+              :allocation-kernel-version "allocation-kernel.v1"}
+        lifecycle {:round-state "allocation-committed"
+                   :derived-state "allocation-committed"
+                   :lifecycle-profile-id "prf.lifecycle-window/probabilistic-allocation"
+                   :lifecycle-profile-version 1
+                   :cancellation-window-schema "cancellation-window.v1"
+                   :cancellation-window "open"
+                   :cancellation-possible true
+                   :cancellation-blocking-reasons []
+                   :lifecycle-assertion-status "passing"
+                   :lifecycle-assurance "independent-replay"}
+        digest (roots/certificate-assertions-digest-v2 (merge base lifecycle))]
+    (is (= 64 (count digest)))
+    (testing "a change in the committed round-state changes the digest"
+      (is (not= digest (roots/certificate-assertions-digest-v2
+                        (merge base lifecycle
+                               {:round-state "randomness-requested"
+                                :derived-state "randomness-requested"
+                                :cancellation-window "closed"
+                                :cancellation-possible false
+                                :cancellation-blocking-reasons
+                                ["authoritative-randomness-requested"]})))))
+    (testing "a change in blocking reasons changes the digest"
+      (is (not= digest (roots/certificate-assertions-digest-v2
+                        (merge base lifecycle
+                               {:cancellation-blocking-reasons ["unknown-target-state"]})))))
+    (testing "v2 is distinct from v1 under the same values"
+      (is (not= digest (roots/certificate-assertions-digest
+                        (merge base lifecycle)))))))
 
 (deftest result-leaves-order-is-canonical-claimant-order
   (let [c (ctx)

@@ -6,7 +6,6 @@
    separately so that a missing var in a dynamically-loaded namespace
    does not mask a compile error in another."
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.java.io :as io]
             [clojure.string :as str]))
 
 (defn namespace-entries
@@ -26,6 +25,14 @@
     '[held-custody-closed-form-checks build-held-custody-artifact]]
    [(symbol "resolver-sim.assurance.force-authorisation")
     '[verify-authorisation-usable force-authorisation-scope-hash]]
+   [(symbol "resolver-sim.assurance.canonical-force-authorisation")
+    '[classify-profile reconcile-policy classify-representation
+      schema-change-compatibility decision-context
+      cancellation-possible? cancellation-window classify-cancellation
+      classify-lifecycle-window cancellation-window-assertion
+      validate-lifecycle-profile validate-lifecycle-monotonicity
+      cancellation-decision-required? cancellation-binding-complete?
+      cancellation-conflict-key]]
    [(symbol "resolver-sim.evidence.force-authorisation")
     '[valid-scope? valid-envelope? grant-before-execution?]]
    [(symbol "resolver-sim.commands.witness-build")
@@ -68,7 +75,13 @@
     '[hash-with-intent domain-hash domain-tags]]
    ;; Protocol-specific adapter — dynamically resolved at runtime
    [(symbol "resolver-sim.protocols.sew.procedure-evidence")
-    '[sew-evidence-adapter]]])
+    '[sew-evidence-adapter]]
+   ;; Allocation coprocessor round-state mapper (consumes cancellation vocabulary)
+   [(symbol "resolver-sim.allocation.round-state")
+    '[coprocessor-round-states lifecycle-target-state classify-round-state
+      classify-round-cancellation cancellation-assertion]]
+   [(symbol "resolver-sim.allocation.certificate")
+    '[schema-version compose-certificate]]])
 
 (deftest all-production-namespaces-load
   (let [results (atom [])]
@@ -88,7 +101,7 @@
                                       (if (resolve qualified)
                                         (str var-sym ":present")
                                         (str var-sym ":absent"))
-                                      (catch Exception e
+                                      (catch Exception _
                                         (str var-sym ":error")))))
                                 expected-vars))]
         (swap! results conj {:namespace ns-sym

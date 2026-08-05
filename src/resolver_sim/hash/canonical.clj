@@ -160,8 +160,9 @@
     :proposed-rates             "PROPOSED_RATES_V1"
     :rate-derived-summary       "RATE_DERIVED_SUMMARY_V1"
     :selected-outcome           "SELECTED_OUTCOME_V1"
-    :result-root                "RESULT_ROOT_V1"
-    :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"})
+     :result-root                "RESULT_ROOT_V1"
+     :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"
+     :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

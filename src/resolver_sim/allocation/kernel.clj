@@ -13,15 +13,23 @@
      6. constructs the selected result;
      7. computes the Merkle result root;
      8. computes total allocated and residual capacity;
-     9. computes the certificate assertions digest;
-    10. returns stable public values.
+     9. derives the round-lifecycle projection from the observed round-state;
+    10. computes the certificate assertions digest (CERTIFICATE_ASSERTIONS_V2);
+    11. returns stable public values.
 
    Failing vectors produce a stable rejection classification and structured
    reason rather than relying on exception-message text."
   (:require [resolver-sim.allocation.context :as context]
             [resolver-sim.allocation.proposal :as proposal]
             [resolver-sim.allocation.roots :as roots]
+            [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.allocation.selection :as selection]))
+
+(def lifecycle-decision-opts
+  "Cancellation decision profile used for the kernel's round-lifecycle
+   projection: the canonical three-member profile under its named allocation
+   policy id (mirrors `resolver-sim.allocation.certificate`)."
+  {:profile-id "alloc/2-3"})
 
 (def assertion-ids
   "The ordered 14-assertion contract. The order is part of the compatibility
@@ -171,6 +179,8 @@
   (try
     (let [context (context/build-context input)
           committed (parse-committed input)
+          round-state-token (get input "round-state")
+          lifecycle (round-state/round-lifecycle lifecycle-decision-opts round-state-token)
           ctx-hash (context/context-hash context)
           claim-root (roots/claimant-set-root context)
           outcome-root (roots/outcome-set-root context)
@@ -209,8 +219,18 @@
                         :result-root result-root
                         :total-allocated total-allocated
                         :residual-capacity residual
-                        :allocation-kernel-version context/kernel-version}
-          digest (roots/certificate-assertions-digest digest-input)]
+                        :allocation-kernel-version context/kernel-version
+                        :round-state (:round-state lifecycle)
+                        :derived-state (:derived-state lifecycle)
+                        :lifecycle-profile-id (:lifecycle-profile-id lifecycle)
+                        :lifecycle-profile-version (:lifecycle-profile-version lifecycle)
+                        :cancellation-window-schema (:cancellation-window-schema lifecycle)
+                        :cancellation-window (:cancellation-window lifecycle)
+                        :cancellation-possible (:cancellation-possible lifecycle)
+                        :cancellation-blocking-reasons (:cancellation-blocking-reasons lifecycle)
+                        :lifecycle-assertion-status (:lifecycle-assertion-status lifecycle)
+                        :lifecycle-assurance (:assurance lifecycle)}
+          digest (roots/certificate-assertions-digest-v2 digest-input)]
       (merge
        {:result/status (if all-pass? :passing :rejected)
         :allocation-context-hash ctx-hash
@@ -226,6 +246,7 @@
         :result-root result-root
         :total-allocated total-allocated
         :residual-capacity residual
+        :round-lifecycle lifecycle
         :certificate-assertions-digest digest
         :allocation-kernel-version context/kernel-version
         :selection-algorithm "domain-hash-rejection-v1"}

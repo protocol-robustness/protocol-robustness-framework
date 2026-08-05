@@ -94,6 +94,7 @@
    :result-root
    :total-allocated
    :residual-capacity
+   :round-lifecycle
    :certificate-assertions-digest
    :allocation-kernel-version
    :selection-algorithm])
@@ -256,7 +257,11 @@
                       "claimant-set-root"
                       (str "0x" (apply str (repeat 32 "00")))))
 
-        empty-outcomes (assoc happy "outcomes" [])]
+        empty-outcomes (assoc happy "outcomes" [])
+
+        lifecycle-variants
+        (fn [token]
+          (assoc happy-with-committed "round-state" token))]
     [(build-vector "a-vs-b-plus-c-happy-path"
                    "Happy path: A versus B plus C, all 14 assertions pass."
                    happy-with-committed)
@@ -311,4 +316,40 @@
 
      (build-vector "a-vs-b-plus-c-empty-outcome-set"
                    "The outcome set is empty."
-                   empty-outcomes)]))
+                   empty-outcomes)
+
+     (build-vector "a-vs-b-plus-c-lifecycle-pre-cutpoint-open"
+                   "Round at allocation-committed: still inside the cancellable window."
+                   (lifecycle-variants "allocation-committed"))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-cutpoint-randomness-requested"
+                   "Round at randomness-requested: the authoritative randomness cutpoint, first closed state."
+                   (lifecycle-variants "randomness-requested"))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-post-cutpoint-fulfilled"
+                   "Round at randomness-fulfilled: closed, cancellation blocked."
+                   (lifecycle-variants "randomness-fulfilled"))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-post-cutpoint-proposed"
+                   "Round at result-proposed: closed, cancellation blocked."
+                   (lifecycle-variants "result-proposed"))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-post-cutpoint-accepted"
+                   "Round at result-accepted: closed, cancellation blocked."
+                   (lifecycle-variants "result-accepted"))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-post-cutpoint-consumption"
+                   "Round at claim-consumption-started: closed, cancellation blocked."
+                   (lifecycle-variants "claim-consumption-started"))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-unknown-token"
+                   "Unknown round-state token: fail closed to invalid, unknown target state."
+                   (lifecycle-variants "no-such-round-state"))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-missing-token"
+                   "Explicit null round-state: fail closed to invalid, missing target state."
+                   (assoc happy-with-committed "round-state" nil))
+
+     (build-vector "a-vs-b-plus-c-lifecycle-malformed-token"
+                   "Non-string round-state: fail closed to invalid, malformed round state."
+                   (lifecycle-variants 42))]))
