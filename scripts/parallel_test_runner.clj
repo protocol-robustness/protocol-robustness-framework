@@ -20,6 +20,10 @@
                            string to disable exclusion.
      PARALLEL_TEST_RUN_ID — run id used for the artifact run root and ownership
                            markers (default: timestamp-uuid)
+     PARALLEL_TEST_LEAK_CHECK — set to 1 to snapshot process-global registries and
+                           the shared artifact dir before dispatch and verify they
+                           are left untouched afterwards (gating on diff; mirrors
+                           run-sew-tests SEW_TEST_LEAK_CHECK)
      KEEP_PARALLEL_TEST_ARTIFACTS — set to any truthy value to preserve the run
                            root even on success (always kept on failure)
 
@@ -42,7 +46,8 @@
      isolation, so test namespace require forms must be side-effect-light.
      Evidence writes, registry initialization, and artifact path writes must
      happen during test execution (run-tests), not at load time."
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :as t]
             [resolver-sim.evidence.capture :as cap]
             [resolver-sim.evidence.chain :as chain]
@@ -113,6 +118,68 @@
   "No-op evidence capture — suppresses all disk I/O."
   [& _]
   nil)
+
+;; ── Leak tripwire (mirrors scripts/run-sew-tests.clj) ──────────────────────
+
+(defn- chain-private
+  "Read the bound value of a private dynamic var in resolver-sim.evidence.chain."
+  [sym]
+  (var-get (ns-resolve 'resolver-sim.evidence.chain sym)))
+
+(defn- artifact-file-listing
+  [dir]
+  (when (and dir (.exists (io/file dir)))
+    (->> (file-seq (io/file dir))
+         (filter #(.isFile %))
+         (sort-by #(.getName %))
+         (mapv (fn [f] [(str f) (.length f)])))))
+
+(defn- snapshot-default-state
+  "Snapshot process-global state before/after the run.
+
+   Returns {:gating {...} :advisory {...}}:
+     :gating  — evidence/node/attestation registries + shared artifact dir;
+                these MUST be unchanged by isolated namespaces (hard gate).
+     :advisory — system properties, user.dir, locale/timezone, uncaught
+                exception handler, and the live thread set; changes are
+                reported but do not fail the run (avoid false positives
+                from JVM/agent activity)."
+  []
+  (let [dir (evcfg/artifact-dir)
+        threads (->> (.keySet (Thread/getAllStackTraces))
+                     (remove #(.isDaemon %))
+                     (map #(.getName %))
+                     sort vec)]
+    {:gating {:node-registry (pr-str @node/*node-registry*)
+              :node-lock node/*node-persistence-lock*
+              :attestation-registry (pr-str @ar/*attestation-registry*)
+              :evidence-registry (pr-str @(chain-private 'evidence-registry-atom))
+              :scenario-evidence (pr-str @(chain-private 'scenario-evidence-atom))
+              :chain-cursor (pr-str @(chain-private 'chain-cursor))
+              :artifact-dir dir
+              :artifact-files (artifact-file-listing dir)}
+     :advisory {:system-properties (pr-str (into (sorted-map) (System/getProperties)))
+                :user.dir (System/getProperty "user.dir")
+                :locale (str (java.util.Locale/getDefault))
+                :timezone (str (java.util.TimeZone/getDefault))
+                :uncaught-handler (str (Thread/getDefaultUncaughtExceptionHandler))
+                :threads threads}}))
+
+(defn- leak-diffs
+  "Compare two snapshots; return {:gating [...] :advisory [...]} of keys that
+   changed.  Lock identity is compared with identical?, everything else with =."
+  [before after]
+  (letfn [(changed [cat]
+            (keep (fn [k]
+                    (let [a (get (get before cat) k)
+                          b (get (get after cat) k)]
+                      (when (if (= k :node-lock)
+                              (not (identical? a b))
+                              (not= a b))
+                        k)))
+                  (keys (get before cat))))]
+    {:gating (vec (changed :gating))
+     :advisory (vec (changed :advisory))}))
 
 (defn- run-one-namespace
   "Execute a single namespace under fresh evidence/node/attestation registries
@@ -190,6 +257,9 @@
                    (str (System/currentTimeMillis) "-" (java.util.UUID/randomUUID)))
         tmp-root (str (System/getProperty "java.io.tmpdir") "/parallel-run-" run-id)
         _ (artifact-scope/write-owner-marker! tmp-root {:run-id run-id :namespace :run-root})
+        leak? (= "1" (System/getenv "PARALLEL_TEST_LEAK_CHECK"))
+        pre (when leak? (snapshot-default-state))
+        leak-failed-atom (atom false)
         start (System/currentTimeMillis)
         jobs (parse-job-limit)
         timeout-ms (ns-timeout-ms)
@@ -235,10 +305,24 @@
                :pass (apply + (map (comp :pass :result) results))
                :fail (apply + (map (comp :fail :result) results))
                :error (apply + err-extra)}
-        failed? (pos? (+ (:fail total) (:error total)))
+        failed? (or (pos? (+ (:fail total) (:error total)))
+                    @leak-failed-atom)
         all-complete? (every? #(= :complete (:scope-status %)) results)
         keep? (or failed? (not all-complete?)
-                 (some? (System/getenv "KEEP_PARALLEL_TEST_ARTIFACTS")))]
+                 (some? (System/getenv "KEEP_PARALLEL_TEST_ARTIFACTS")))
+        _ (when leak?
+            (let [{gating-diffs :gating advisory-diffs :advisory}
+                  (leak-diffs pre (snapshot-default-state))]
+              (when (seq advisory-diffs)
+                (println (str "  leak advisory (reported, not gating): "
+                              (str/join ", " advisory-diffs))))
+              (if (seq gating-diffs)
+                (do
+                  (println)
+                  (println "LEAK CHECK: FAILED — root registries or artifact dir changed:")
+                  (doseq [k gating-diffs] (println "  " k " changed"))
+                  (reset! leak-failed-atom true))
+                (println "\nLEAK CHECK: clean"))))]
     ;; Serialize per-namespace output (prevent interleaving from concurrent namespaces)
     (println)
     (let [items (mapv (fn [{:keys [sym output err-output]}]

@@ -44,6 +44,28 @@
 (def funding-result
   {:funding :map})
 
+(def eligibility-context
+  "Input contract for an :economics/eligibility capability under the
+   with-bounty composition: committed base result plus the event context the
+   eligibility decision may read."
+  {:event/context :map
+   :base/result :map})
+
+(def eligibility-result
+  "Result contract for an :economics/eligibility capability. An ineligible
+   result is not an error; it records :ineligible and a reason."
+  {:result/classification :keyword
+   :result/value :boolean
+   :result/domain-evidence :map-or-nil})
+
+(def with-bounty-amount-context
+  "Input contract for a with-bounty award-amount capability: the committed
+   base result projection the amount may reference plus the parameter values
+   declared by the policy. Distinct from :prf/award-amount-context.v1, which
+   is the slash-distribution award-amount contract."
+  {:base/result :map
+   :param-values :map})
+
 (def schema-maps
   "Schema-id -> schema map for the core economics contracts."
   {:prf/award-amount-context.v1 award-amount-context
@@ -51,7 +73,10 @@
    :prf/allocation-context.v1 allocation-context
    :prf/allocation-result.v1 allocation-result
    :prf/funding-context.v1 funding-context
-   :prf/funding-result.v1 funding-result})
+   :prf/funding-result.v1 funding-result
+   :prf/eligibility-context.v1 eligibility-context
+   :prf/eligibility-result.v1 eligibility-result
+   :prf/with-bounty-amount-context.v1 with-bounty-amount-context})
 
 (defn schema-root
   "Content-addressed root of a schema map."

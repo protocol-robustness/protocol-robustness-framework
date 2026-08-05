@@ -1,6 +1,6 @@
 {
   "holdout\/root": "7ec777bf406476876d4287f51a814e520037a2c2d1824b1fda325751ddbe4dfa",
-  "conformance-release\/root": "8e34754cdd5b3e900bd24a8c8fdb9b9b7cc3e407ec35f1c4064514af2ab0db6e",
+  "conformance-release\/root": "a93d1e1200c04934136caa0d358c50a4c749a4590806f1527a773eb279fb24cf",
   "resource-safety\/root": "419a6a400c55bf6d3d74ed6329320a4a2d8bdf959846b703332f907a1a58fb0e",
   "independent-clean-room": "pending",
   "public-corpus\/root": "0b1aea4737a118f5b82a82a0dcbcc2411115e0360089707e50513140f261c444",
@@ -13,6 +13,6 @@
     "js": "sha256:b6e2d4d2e9479f2f4ecdc0156090c46e3d9fc26bbb9317ce0c1ce824de0f2bd0"
   },
   "verdict": "assurance-partial-awaiting-clean-room",
-  "assurance-release\/root": "7a7bbce04e91eec2e9c9c71aa18aa0b1a9feb7f851a061f3979938487706d715",
+  "assurance-release\/root": "f83ddab77f4fc36e6c9a11ac8d614384cada16ab58e8d4a6c635f8c866c4fbd4",
   "ambiguity-log\/root": "d6e07a28bc831e3b4c879e0d30bfcf46f349e485ff994326f3513890cae49f2f"
 }

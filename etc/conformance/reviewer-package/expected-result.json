@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "claimable": true,
+  "claim_class": "attested",
+  "derived_claim_root": "<derived parity-core claim root>",
+  "profile_id": "sew-trace-equivalence.v1",
+  "included_subjects": 10,
+  "excluded_subjects": 8,
+  "issues": []
+}

@@ -5,7 +5,11 @@
             [resolver-sim.evidence.attestation-bundle :as ab]
             [resolver-sim.evidence.attestation-completeness-profile :as acp]
             [resolver-sim.definitions.passive-registries :as registries]
-            [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.sensitivity.contract :as c]
+            [resolver-sim.sensitivity.sentinel :as sentinel]
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.support.ed25519 :as fx])
   (:import [java.util UUID]))
 
 (defn- attestor [] {:type :ci-runner :id :ci-validation})
@@ -483,3 +487,96 @@
       (is (not= :fully-verified status)
           "missing required :attestation-records must not be labelled :fully-verified")
       (is (= :partially-verified status)))))
+
+;; ── Out-of-process sensitivity sentinel verification ────────────────────────
+
+(defn- signed-allow-decision
+  "Build an out-of-process sensitivity artifact carrying a signed :allow
+   decision for the given sink."
+  [kp sink]
+  (let [req (c/build-request {:artifact-id "req-bundle"
+                              :content {:scenario-id "s"}
+                              :sink sink
+                              :policy-hash-str (sentinel/policy-hash)})
+        report {:sentinel/version "sensitivity-sentinel.v1"
+                :sentinel/decision :allow
+                :sentinel/level :sensitivity/public
+                :sentinel/structural-level :sensitivity/public
+                :sentinel/reasons []
+                :sentinel/allowed-sinks [sink]
+                :sentinel/redaction-required? false
+                :sentinel/override-required? {:required? false :mode :single}}
+        decision (c/build-decision {:request req :report report :sink sink
+                                    :artifact-hash (:artifact/declared-hash req)
+                                    :authority-key-id (:key/id kp)
+                                    :authority-assurance :process-isolated
+                                    :issued-at "now"})
+        signed (sed/sign-envelope decision c/decision-domain (:private-key kp) (:key/id kp))]
+    {:sentinel/request req
+     :sentinel/report report
+     :sentinel/authority-decision signed
+     :sentinel/signature (:signature signed)}))
+
+(defn- remote-bundle [kp & [sink]]
+  (let [a (build-a)
+        os (signed-allow-decision kp (or sink :ipfs))]
+    (ab/build-attestation-bundle
+     {:attestations [a]
+      :registries {:attestors registries/attestor-registry
+                   :claim-definitions registries/claim-definition-registry
+                   :hash-intents hc/hash-intents}
+      :out-of-process-sensitivity os})))
+
+(defn- sentinel-check [result]
+  (first (filter #(= :sensitivity-sentinel-approved (:check/id %)) (:checks result))))
+
+(deftest remote-required-bundle-passes-with-valid-signed-decision
+  (let [kp (fx/keypair)
+        bundle (remote-bundle kp)
+        result (ab/verify-attestation-bundle bundle {:sentinel/trust-policy (fx/trust-policy kp)})
+        check (sentinel-check result)]
+    (is (= :pass (:check/status check)))
+    (is (= :remote (:check/mode check)))
+    (is (= :out-of-process (:check/authority check)))
+    (is (= :out-of-process (get-in bundle [:bundle/sensitivity :sentinel/mode])))
+    (is (= :remote (get-in bundle [:bundle/sensitivity :sentinel/required-authority])))))
+
+(deftest remote-required-bundle-blocked-without-trust-policy
+  (let [kp (fx/keypair)
+        bundle (remote-bundle kp)
+        result (ab/verify-attestation-bundle bundle {})
+        check (sentinel-check result)]
+    (is (= :blocked (:check/status check)))
+    (is (some? (:reason check)))))
+
+(deftest remote-required-bundle-blocked-without-decision
+  (let [kp (fx/keypair)
+        bundle (remote-bundle kp)
+        stripped (assoc-in bundle [:bundle/sensitivity :sentinel/authority-decision] nil)
+         result (ab/verify-attestation-bundle stripped {:sentinel/trust-policy (fx/trust-policy kp)})
+         check (sentinel-check result)]
+    (is (= :blocked (:check/status check)))))
+
+(deftest remote-required-bundle-rejects-local-only-decision
+  (testing "a local approval can never satisfy a remote-required sink"
+    (let [kp (fx/keypair)
+          bundle (remote-bundle kp)
+          ;; simulate a local-only decision embedded against a remote-required sink
+          local-only (-> bundle
+                         (assoc-in [:bundle/sensitivity :sentinel/required-authority] :remote)
+                         (assoc-in [:bundle/sensitivity :sentinel/authority-decision] nil)
+                         (assoc-in [:bundle/sensitivity :sentinel/decision] :allowed)
+                         (assoc-in [:bundle/sensitivity :sentinel/signature] nil))
+          result (ab/verify-attestation-bundle local-only {:sentinel/trust-policy (fx/trust-policy kp)})
+          check (sentinel-check result)]
+      (is (= :blocked (:check/status check)))
+      (is (re-find #"Remote authority required" (:reason check))))))
+
+(deftest remote-required-bundle-rejects-tampered-signature
+  (let [kp (fx/keypair)
+        bundle (remote-bundle kp)
+        tampered (assoc-in bundle [:bundle/sensitivity :sentinel/authority-decision :sentinel/decision] :block)
+        result (ab/verify-attestation-bundle tampered {:sentinel/trust-policy (fx/trust-policy kp)})
+        check (sentinel-check result)]
+    (is (= :blocked (:check/status check)))
+    (is (re-find #"signature invalid|signed-hash" (str (:reason check))))))

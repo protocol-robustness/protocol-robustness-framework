@@ -1,7 +1,16 @@
-# G9c — Clean-Room Verifier Challenge
+# G9c / G10a — Clean-Room Verifier Challenge
 
 An independent implementer builds a conforming verifier from the normative
 specification and the public corpus, without importing PRF execution code.
+
+The engagement contract is `G10A_ENGAGEMENT.md` (milestones, deliverables,
+bounty terms, adjudication).  The exact input file set is frozen by
+`etc/conformance/cleanroom/inputs.edn`:
+
+- cleanroom inputs root `5cc48112b817ad776cd7524aaa0820d132ba8b693d49edd4265a3c2c1bdcbed0`
+- private holdout root `06b4ca43fa91c45be6d6325f569c6d1f58990820f3fa4e376661df53a1be54db`
+  (the holdout **cases** are not released to the contributor; only this root is
+  attested).
 
 ## Purpose
 

@@ -4,11 +4,15 @@
   "profiles\/root": "0425330a515129f0f4f569ac5c32a0c4f7b1f7f6b0128dd80d9c3ab97b9baaf7",
   "release\/id": "conformance-core-1.0.0",
   "schemas\/root": "34595353a02b6a1c6bb86223ccb2941ba9afc95670b7d3a0eb883f4915d0379c",
-  "source\/revision": "742475732bd032f70555c42ade400ea542d284a7c435dd3e3cea701fe71f03d0",
-  "verifiers": "2707fa31bfaeec1f53dc7bb648c6f0fb4215ce1398e92f7ed0b0b09740dc9f9e",
+  "source\/revision": "476f272268c2cf37b3bc7d9c5d9d655226f62ca620c989af940dbbb7eea1275e",
+  "verifiers": {
+    "clojure": "00368c63f0b40b3a6f3b6fd732c16b992e05a80cb7e22f7515b3f1fb997645b9",
+    "python": "sha256:64f67b24290ceff6ff845c08dd51d20cc307bd4d402279158fe8c4c4d4e228d4",
+    "js": "sha256:b6e2d4d2e9479f2f4ecdc0156090c46e3d9fc26bbb9317ce0c1ce824de0f2bd0"
+  },
   "issues\/root": "c1dbf71c7b36d1c381f987f071adb316d227f25f460a9a1167a58341af337c22",
-  "registry\/root": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "registry\/root": "569918738a7a48439d17c73ffdb505d437ea8e4769438c560d7408694f2d09ac",
   "conformance\/core-version": 1,
-  "release\/root": "8e34754cdd5b3e900bd24a8c8fdb9b9b7cc3e407ec35f1c4064514af2ab0db6e",
+  "release\/root": "a93d1e1200c04934136caa0d358c50a4c749a4590806f1527a773eb279fb24cf",
   "corpus\/root": "0e2ea68fd1ca86df66efde25922862bb3c7a5e7fa80a6bf019c0c07e74fe18a6"
 }

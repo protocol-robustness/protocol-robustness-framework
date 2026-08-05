@@ -1,7 +1,13 @@
 # Conformance Core 1 — External-Assurance Report
 
 Scope: `:conformance/core-version 1` release `:conformance-core-1.0.0`
-(`etc/conformance/release.v1.edn`, release root `8e34754c…`).
+(`etc/conformance/release.v1.edn`, release root `a93d1e12…`).
+
+The milestone record `etc/conformance/milestone.v1.edn`
+(`:conformance-core-v1-author-assurance-complete`) carries the formal status:
+protocol `:feature-complete`, internal assurance `:complete`, cross-language
+`:three-implementations-pass`, clean-room independence and real-world adoption
+`:awaiting-external-*`, core changes `:frozen`.
 
 This report records what the G9c gates actually measured, the defects they
 found, and the residual risks.  It does not claim more than the evidence

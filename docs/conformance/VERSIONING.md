@@ -56,6 +56,23 @@ of the classes below.  The classification determines the version impact.
    profile version MUST produce a typed non-claimable result; a verifier MUST
    NOT guess.
 
+## Ambiguity resolution → version classification
+
+Every ambiguity logged in `AMBIGUITY_LOG.md` is resolved through one mechanism;
+the mechanism determines the version class.
+
+| Resolution mechanism | Version class |
+|---|---|
+| Normative clarification that only clarifies | `new minor version` |
+| Normative clarification that changes roots or verdicts | `breaking core version` (new release root) |
+| Additional vector | `compatible` |
+| Additional corpus case | `compatible` |
+| Implementation-defined rule | `new minor version` (new normative text) |
+| New version | per this policy's classification table |
+
+A clarification that alters existing roots or verdicts MUST be released under a
+new version, never silently under the existing release root.
+
 ## Version identifiers
 
 - `:conformance/core-version` — integer; bumped only on breaking core changes.

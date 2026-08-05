@@ -10,6 +10,12 @@
   (:require [resolver-sim.conformance.canonical :as canonical]
             [resolver-sim.conformance.registry :as registry]
             [resolver-sim.conformance.issue]
+            ;; Load the three domain adapters so the committed production
+            ;; registry (7 validators) is what the release binds — never the
+            ;; live, possibly-empty registry of the running process.
+            [resolver-sim.trace.conformance.validators]
+            [resolver-sim.benchmark.conformance.reproduction]
+            [resolver-sim.evidence-package.conformance.admission]
             [clojure.data.json :as json]
             [clojure.string :as str]
             [clojure.java.io :as io]))
@@ -30,6 +36,19 @@
      (into (sorted-map)
            (map (fn [rel] [(keyword rel) (sha256-file (str root-dir "/" rel))]))
            files))))
+
+(defn- source-revision
+  "Content root of the conformance implementation surface — the namespaces that
+   implement the protocol.  Deliberately NOT the whole src/ tree: unrelated
+   modules must not be able to drift the protocol's source binding."
+  []
+  (canonical/root
+   (into (sorted-map)
+         (map (fn [d] [(keyword d) (tree-root d)]))
+         (sort ["src/resolver_sim/conformance"
+                "src/resolver_sim/trace/conformance"
+                "src/resolver_sim/benchmark/conformance"
+                "src/resolver_sim/evidence_package/conformance"]))))
 
 (def profiles-root
   (canonical/root
@@ -71,32 +90,35 @@
          (map (fn [p] [(keyword p) (file-root (str "etc/conformance/vectors/" p))]))
          ["canonical-roots.json" "crypto.json"])))
 
-(def verifiers-root
+(def clojure-verifier-root
   (canonical/root
    (into (sorted-map)
-         {:clojure (canonical/root
-                    (into (sorted-map)
-                          (map (fn [p] [(keyword p) (file-root p)]))
-                          ["src/resolver_sim/conformance/canonical.clj"
-                           "src/resolver_sim/conformance/bundle.clj"
-                           "src/resolver_sim/conformance/claim.clj"
-                           "src/resolver_sim/conformance/crypto.clj"
-                           "src/resolver_sim/conformance/json.clj"
-                           "src/resolver_sim/conformance/cli.clj"
-                           "src/resolver_sim/conformance/issue.clj"]))
-          :python (file-root "scripts/bundle_verify.py")})))
+         (map (fn [p] [(keyword p) (file-root p)]))
+         ["src/resolver_sim/conformance/canonical.clj"
+          "src/resolver_sim/conformance/bundle.clj"
+          "src/resolver_sim/conformance/claim.clj"
+          "src/resolver_sim/conformance/crypto.clj"
+          "src/resolver_sim/conformance/json.clj"
+          "src/resolver_sim/conformance/cli.clj"
+          "src/resolver_sim/conformance/issue.clj"])))
+
+(def verifiers
+  "Structured per-implementation verifier roots (not a collapsed aggregate)."
+  {:clojure clojure-verifier-root
+   :python (file-root "scripts/bundle_verify.py")
+   :js (file-root "scripts/verify3.mjs")})
 
 (def release
   {:release/id :conformance-core-1.0.0
    :conformance/core-version 1
-   :source/revision (tree-root "src")
+   :source/revision (source-revision)
    :profiles/root profiles-root
    :registry/root (registry/registry-root)
    :schemas/root schemas-root
    :issues/root issues-root
    :corpus/root corpus-root
    :vectors/root vectors-root
-   :verifiers verifiers-root
+   :verifiers verifiers
    :canonicalisation/version "canonical-json-sha256.v1"})
 
 (defn- serialize [x]
@@ -109,6 +131,14 @@
 
 (def release-with-root (assoc release :release/root (canonical/root release)))
 
-(spit "etc/conformance/release.v1.edn" (serialize release-with-root))
-(println "wrote etc/conformance/release.v1.edn")
-(println "release/root:" (:release/root release-with-root))
+(defn write-release!
+  "Write the release artifact.  Called only by the explicit regen command
+   (WRITE_RELEASE=1); requiring this namespace for tests never rewrites the
+   committed artifact."
+  []
+  (spit "etc/conformance/release.v1.edn" (serialize release-with-root))
+  (println "wrote etc/conformance/release.v1.edn")
+  (println "release/root:" (:release/root release-with-root)))
+
+(when (= "1" (System/getenv "WRITE_RELEASE"))
+  (write-release!))

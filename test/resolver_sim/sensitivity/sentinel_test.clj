@@ -70,6 +70,28 @@
 (deftest unknown-sink-defaults-to-blocked
   (is (false? (sentinel/disclosure-allowed? :sensitivity/public :unknown-sink))))
 
+;; ── Authority mode by sink ─────────────────────────────────────────────────
+
+(deftest remote-authority-required-for-public-sinks
+  (doseq [sink sentinel/public-sinks]
+    (is (true? (sentinel/remote-authority-required? sink))
+        (str "public sink " sink " must require remote authority"))))
+
+(deftest in-process-authority-for-safe-and-low-risk-sinks
+  (doseq [sink (concat sentinel/safe-sinks sentinel/low-risk-sinks)]
+    (is (false? (sentinel/remote-authority-required? sink))
+        (str "sink " sink " must not require remote authority"))))
+
+(deftest unknown-sink-requires-remote-authority
+  (is (true? (sentinel/remote-authority-required? :unknown-sink))
+      "unknown sinks must conservatively require remote authority"))
+
+(deftest policy-hash-commits-authority-mode
+  (let [ph (sentinel/policy-hash)]
+    (is (string? ph))
+    (is (pos? (count ph)))
+    (is (= ph (sentinel/policy-hash)) "policy hash must be deterministic")))
+
 (deftest git-commit-sink-allows-internal
   (is (true? (sentinel/disclosure-allowed? :sensitivity/internal :git-commit)))
   (is (true? (sentinel/disclosure-allowed? :sensitivity/public :git-commit))))

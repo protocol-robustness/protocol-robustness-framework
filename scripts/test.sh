@@ -26,6 +26,8 @@
 # The parallel namespace runner (scripts/parallel-test-runner.clj) keeps
 # audit-flagged namespaces in a sequential safety lane by default. Override
 # via PARALLEL_TEST_EXCLUDE_NS (e.g. "" to disable, or a custom ns list).
+# Set PARALLEL_TEST_LEAK_CHECK=1 to also verify root registries and the shared
+# artifact dir are left untouched by the run (mirrors run-sew-tests).
 #
 # Evidence tiers (see core.phases/phase-evidence-tiers):
 #   :protocol-kernel-evidence — calls resolve-dispute or replay-with-protocol
@@ -311,6 +313,10 @@ run_unit() {
     resolver-sim.evidence.node-test \
     resolver-sim.evidence.attestation-dag-test \
     resolver-sim.economics.payoffs-test \
+    resolver-sim.economics.with-bounty.stage-a-test \
+    resolver-sim.economics.with-bounty.application-plan-test \
+    resolver-sim.economics.with-bounty.verification-test \
+    resolver-sim.protocols.sew.with-bounty-test \
     resolver-sim.hash.canonical-test \
     resolver-sim.hash.concat-properties-test \
     resolver-sim.hash.attestor-hash-test \

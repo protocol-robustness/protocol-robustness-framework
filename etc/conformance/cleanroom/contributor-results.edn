@@ -1,0 +1,41 @@
+{:contributor/results
+ {:contributor/id "..."
+  :engagement/reference :conformance-core-v1-cleanroom
+  :cleanroom/inputs-root "5cc48112b817ad776cd7524aaa0820d132ba8b693d49edd4265a3c2c1bdcbed0"
+  :date "..."
+  :language "rust | go | typescript | ..."
+  :dependencies [...]
+  :source/root "sha256:..."
+  :artifact/root "sha256:..."
+
+  :gates
+  {:public-corpus/status :pass
+   :public-corpus/table-root "sha256:..."
+   :vector-roots/status :all-derived-exactly
+   :claim-roots/status :match
+   :result-shape/status :conforms
+   :no-prf-execution/status :attested
+   :determinism/status :verified}
+
+  :ambiguity-log
+  [{:ambiguity/id :CR-xxx
+    :spec/section ...
+    :question ...
+    :implementer-choice ...
+    :existing-verifier-behaviour :not-consulted
+    :resolution :open
+    :change-class :open
+    :status :open} ...]
+
+  :holdout
+  {:status :pass | :fail
+   :disagreements [{:case-id ... :classification :implementation-defect
+                    | :spec-ambiguity | :corpus-defect :adjudicator ...}]}
+
+  :independence-declaration
+  {:materials-accessed [...]
+   :existing-verifier-sources-opened? false
+   :opened-after-freeze? nil
+   :date "..."}
+
+  :signature {:signer/id ... :signature/value ...}}}

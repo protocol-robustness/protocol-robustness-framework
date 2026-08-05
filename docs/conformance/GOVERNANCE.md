@@ -53,6 +53,42 @@ not a routine change:
   authoritative implementations and passes operand-reversal invariants);
 - schema migration (promote only when the first real v2 artifact exists).
 
+## Freeze policy
+
+The core is frozen at `:conformance/core-version 1`.  The core MUST NOT be
+reopened for:
+
+- more convenient profile authoring;
+- a speculative fourth profile;
+- prettier receipt topology;
+- general plugin support;
+- optional abstraction cleanup;
+- hypothetical migration machinery.
+
+A core change is justified ONLY by one of:
+
+1. an independent verifier exposes a specification ambiguity or divergent
+   normative interpretation;
+2. the real adoption bundle cannot express a necessary assurance fact
+   honestly;
+3. a security defect permits an incorrect or stronger claim;
+4. an actual v2 envelope or profile requires migration;
+5. a deferred feature crosses its committed promotion trigger.
+
+Everything else belongs in adapters, tooling, documentation, or reviewer UX
+and MUST NOT touch the normative specification, roots, or verdicts.
+
+## Adjudication
+
+One **protocol adjudicator** is nominated by the maintainer before recruitment.
+The adjudicator resolves all verifier/spec/corpus disagreements from a
+clean-room submission, classifies each holdout disagreement as an
+implementation defect, a specification ambiguity, or a corpus defect, and
+approves every ambiguity resolution before it changes normative text.  A
+resolution that alters existing roots or verdicts requires a new version and a
+new release root (VERSIONING.md); it MUST NOT be applied silently under the
+existing release root.
+
 ## Release discipline
 
 - `release.v1.edn` is immutable for a given core version.

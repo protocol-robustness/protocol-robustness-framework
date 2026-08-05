@@ -189,8 +189,37 @@
 (deftest effect-schema-roots-deterministic
   (is (= (fx/effect-schema-root (get fx/effect-schema-maps :prf.effect/balance-credit.v1))
          (fx/effect-schema-root (get fx/effect-schema-maps :prf.effect/balance-credit.v1))))
-  (is (= 3 (count fx/effect-schema-roots)))
+  (is (= 4 (count fx/effect-schema-roots)))
   (is (every? #(= 64 (count %)) (vals fx/effect-schema-roots))))
+
+(deftest obligation-create-v2-validates
+  (let [effect {:effect/type :obligation/create
+                :effect/contract :prf.effect/obligation-create.v2
+                :obligation/type :bounty-payable
+                :obligation/id "sha256:obligation"
+                :obligation/amount 500
+                :obligation/token :token/usdc
+                :obligation/owner :researcher/alice
+                :obligation/funding {:source :declared-reserve}
+                :obligation/subject {:operation-root "sha256:op"
+                                     :bounty-id :review-completion}
+                :effect/provenance {:policy-root "sha256:policy"}}]
+    (is (:valid? (fx/validate-effect effect)))
+    (is (contains? fx/effect-schema-roots :prf.effect/obligation-create.v2))
+    (is (not (:valid? (fx/validate-effect (assoc effect :obligation/token "USDC")))))))
+
+(deftest normalize-v1-obligation-create->v2
+  (let [v1 {:effect/type :obligation/create
+            :effect/contract :prf.effect/obligation-create.v1
+            :obligation/type :test.obligation/reward
+            :obligation/amount 50
+            :obligation/owner :test.participant/alice}
+        v2 (fx/normalize-v1-obligation-create v1)]
+    (is (= :prf.effect/obligation-create.v2 (:effect/contract v2)))
+    (is (string? (:obligation/id v2)))
+    (is (= 50 (:obligation/amount v2)))
+    (is (:valid? (fx/validate-effect v2)))
+    (is (= :token/unspecified (:obligation/token v2)))))
 
 ;; ── derivation ────────────────────────────────────────────────────────────
 
@@ -276,7 +305,7 @@
     (is (= plan/schema-version-v2 (:schema-version plan)))
     (is (= 2 (count (:plan/effects plan))))
     (is (contains? (:plan/effect-schema-roots plan) :prf.effect/balance-credit.v1))
-    (is (= 3 (count (:plan/effect-schema-roots plan))))
+    (is (= 4 (count (:plan/effect-schema-roots plan))))
     (is (= 64 (count (:plan/hash plan))))
     (is (:valid? (plan/validate-application-plan plan)))
     (is (:valid? (plan/verify-application-plan plan)))))

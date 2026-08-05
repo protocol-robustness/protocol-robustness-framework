@@ -15,6 +15,8 @@
 
 (declare valid-force-auth-add-held?
          valid-force-auth-add-held-v2?
+         normalize-direction
+         valid-held-direction?
          v1-summary-shape-valid?
          summary-body-v2
          summary-body-v1
@@ -507,12 +509,24 @@
    authorization record is not needed to verify the member's own scope
    commitment, which makes the aggregate's scope counts independently checkable.
 
+   The member records the ACTUAL mutation direction (:in for add-held, :out for
+   sub-held) and an :held/action label, and FAIL-FAST when that direction
+   disagrees with the granted scope direction committed in the projection — a
+   v2 member cannot be self-contradictory about add vs sub.
+
    opts: same as build-force-auth-add-held (:authorization, :scope-map,
      :adjustment, :consumed-at, :consumed-by)."
   [opts]
   (let [authorization (:authorization opts)
         projection (fa/normalize-force-authorisation-scope (:scope-map opts))
         adjustment (:adjustment opts)
+        direction (normalize-direction (or (:held/direction adjustment)
+                                           (:held/direction projection)))
+        projection-direction (normalize-direction (:held/direction projection))
+        _ (when (and direction projection-direction (not= direction projection-direction))
+            (throw (ex-info "build-force-auth-add-held-v2: mutation direction disagrees with granted scope direction"
+                            {:held/direction direction
+                             :scope/direction projection-direction})))
         recomputed-scope-hash (fa/force-authorisation-scope-hash projection)
         body {:schema-version add-held-v2-schema-version
               :artifact/kind add-held-kind
@@ -524,9 +538,10 @@
               :authorization/scope-hash recomputed-scope-hash
               :authorization/scope-derivation add-held-scope-derivation-id
               :held/adjustment-id (:held-adjustment/id adjustment)
+              :held/direction direction
+              :held/action (or (:held/action adjustment)
+                               (if (= :out direction) "sub-held" "add-held"))
               :held/token (or (:token adjustment) (:token projection))
-              :held/direction (or (:held/direction adjustment)
-                                  (:held/direction projection))
               :held/amount (or (:amount adjustment) (:amount projection))
               :held/account (or (:held/account adjustment) (:held/account projection))
               :held/position-id (or (:held/position-id adjustment)
@@ -539,17 +554,24 @@
 
 (defn valid-force-auth-add-held-v2?
   "Re-verify a force-auth-add-held.v2 member: full content round trip (exact
-   canonical preimage + content hash), the supported scope-derivation id, and
-   the three-part scope commitment — :authorization/scope-hash must equal
-   hash(canonical :authorization/scope-projection). Also rejects any member that
-   stores an :authorization/scope-verifies? boolean, which must be derived."
+   canonical preimage + content hash), the supported scope-derivation id, the
+   three-part scope commitment — :authorization/scope-hash must equal
+   hash(canonical :authorization/scope-projection) — a supported held direction,
+   a string :held/action, and consistency between the recorded mutation
+   direction and the committed projection direction. Also rejects any member
+   that stores an :authorization/scope-verifies? boolean, which must be derived."
   [report]
   (and (valid-artifact? report add-held-v2-schema-version add-held-kind
                         add-held-v2-verifier-id)
        (= add-held-scope-derivation-id (:authorization/scope-derivation report))
        (map? (:authorization/scope-projection report))
        (string? (:authorization/scope-hash report))
+       (string? (:held/action report))
+       (valid-held-direction? (:held/direction report))
        (not (contains? report :authorization/scope-verifies?))
+       (= (normalize-direction (:held/direction report))
+          (normalize-direction (get-in report [:authorization/scope-projection
+                                               :held/direction])))
        (= (:authorization/scope-hash report)
           (fa/force-authorisation-scope-hash (:authorization/scope-projection report)))))
 
@@ -927,6 +949,19 @@
        (str/starts-with? v "force-auth-add-held.")
        (not (str/starts-with? v "force-auth-add-held-summary"))))
 
+(defn- normalize-direction
+  "Normalize a held-custody mutation direction to a keyword (:in / :out),
+   accepting keyword or string spellings. Returns nil for nil input."
+  [d]
+  (when (some? d)
+    (if (keyword? d) d (keyword (name d)))))
+
+(defn- valid-held-direction?
+  "True when a held-custody mutation direction is a supported add (:in) or
+   sub (:out) direction."
+  [d]
+  (contains? #{:in :out} (normalize-direction d)))
+
 (defn- member-schema-supported?
   "True when a member schema version is a supported force-auth-add-held version."
   [v]
@@ -977,6 +1012,8 @@
     :missing-authorization-id
     (nil? (:held/adjustment-id m))
     :missing-adjustment-id
+    (not (valid-held-direction? (:held/direction m)))
+    :invalid-direction
     (not (force-auth-add-held-scope-verifies? m))
     :authorization-binding-mismatch
     :else nil))
@@ -1418,7 +1455,8 @@
       :invalid-members [...]   per-member failure classification
       :mismatches [...]        stored-vs-recomputed derivable field differences
       :warnings [...]          non-fatal conditions (duplicate ids, amount
-                               integrity triage, uncommitted member root)
+                               integrity triage, mixed add/sub-held direction,
+                               uncommitted member root)
       :member-root {...}}      informational (v1/v2 do not commit a member root)
 
    Every gate in :checks must be true for :valid? to be true. Ordinary malformed
@@ -1476,14 +1514,25 @@
                 :member-set-complete? member-set-complete?
                 :summary-recomputes? summary-recomputes?}
         amount-warnings (mapv (fn [{:keys [index adjustment-id amount-issue]}]
-                                {:kind amount-issue
-                                 :index index
-                                 :adjustment-id adjustment-id})
-                              (:amount-issues fields))
+                                 {:kind amount-issue
+                                  :index index
+                                  :adjustment-id adjustment-id})
+                               (:amount-issues fields))
+        direction-warnings
+        (let [dirs (set (keep (fn [m]
+                                (when (valid-held-direction? (:held/direction m))
+                                  (normalize-direction (:held/direction m))))
+                              members))]
+          (when (and (contains? dirs :in) (contains? dirs :out))
+            [{:kind :mixed-direction
+              :detail (str "member set mixes :in (add-held) and :out (sub-held) flows; "
+                           ":total-amount is gross flow — use :by-direction / "
+                           ":amount-by-direction for net interpretation")}]))
         all-warnings (into []
                            (sort-by pr-str
                                     (concat warnings
                                             amount-warnings
+                                            direction-warnings
                                             [{:kind :member-root-not-committed
                                               :detail (str expected-schema-version
                                                            " does not commit a member-set root; completeness is "

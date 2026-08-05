@@ -37,6 +37,21 @@
    :obligation/amount :integer
    :obligation/owner :keyword})
 
+(def obligation-create-v2-schema
+  "with-bounty obligation shape (ADR-0006 D1): carries the deterministic
+   obligation id, token, funding, subject, and provenance in addition to the
+   v1 fields. v1 keeps its committed meaning for slash-distribution evidence."
+  {:effect/type :keyword
+   :effect/contract :keyword
+   :obligation/type :keyword
+   :obligation/id :string
+   :obligation/amount :integer
+   :obligation/token :keyword
+   :obligation/owner :keyword
+   :obligation/funding :map
+   :obligation/subject :map
+   :effect/provenance :map})
+
 (def custody-held-adjustment-schema
   "A custody-held-adjustment effect models an add-held / sub-held custody
    mutation: the :held/kind is the economic custody reason (mapped to the
@@ -53,6 +68,7 @@
   "Effect contract id -> schema map."
   {:prf.effect/balance-credit.v1 balance-credit-schema
    :prf.effect/obligation-create.v1 obligation-create-schema
+   :prf.effect/obligation-create.v2 obligation-create-v2-schema
    :prf.effect/custody-held-adjustment.v1 custody-held-adjustment-schema})
 
 (defn effect-schema-root
@@ -95,6 +111,28 @@
   (let [violations (into [] (mapcat :violations (map validate-effect effects)))]
     {:valid? (empty? violations)
      :violations violations}))
+
+;; ── v1 → v2 migration (ADR-0006 D1) ──────────────────────────────────────
+
+(defn normalize-v1-obligation-create
+  "Normalise a compatible v1 obligation-create effect into the v2 internal
+   representation. v1 fields are preserved; v2-only fields receive
+   deterministic defaults, and the contract reference is set to v2 so a
+   v1-shaped payload cannot silently validate as v2."
+  [effect]
+  (let [v1 (select-keys effect [:effect/type :effect/contract
+                                :obligation/type :obligation/amount :obligation/owner])]
+    (-> v1
+        (assoc :effect/contract :prf.effect/obligation-create.v2)
+        (assoc :obligation/id (hc/domain-hash :with-bounty-obligation-v1
+                                              [:obligation-create-v1
+                                               (:obligation/type v1)
+                                               (:obligation/amount v1)
+                                               (:obligation/owner v1)]))
+        (assoc :obligation/token :token/unspecified)
+        (assoc :obligation/funding {})
+        (assoc :obligation/subject {})
+        (assoc :effect/provenance {}))))
 
 ;; ── derivation ────────────────────────────────────────────────────────────
 

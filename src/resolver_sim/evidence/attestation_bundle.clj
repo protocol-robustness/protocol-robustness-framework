@@ -34,7 +34,9 @@
             [resolver-sim.evidence.attestation-signature :as signature]
             [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.io.edn :as ppedn])
+            [resolver-sim.io.edn :as ppedn]
+            [resolver-sim.sensitivity.contract :as sens-contract]
+            [resolver-sim.signed-external-decision :as sed])
   (:import [java.security MessageDigest]))
 
 ;; ── Constants ────────────────────────────────────────────────────────────────
@@ -151,13 +153,23 @@
      :sensitivity-provenance — optional map with :originating-scenario,
                                :declared-level, :risk-meta (propagated from
                                scenario metadata through evidence/attestations)
+     :out-of-process-sensitivity — optional map carrying the complete signed
+                               out-of-process decision:
+                               {:sentinel/request {...}
+                                :sentinel/report {...}
+                                :sentinel/authority-decision <signed envelope>
+                                :sentinel/signature {...}}
+                               When present the bundle is marked
+                               :sentinel/mode :out-of-process and
+                               :sentinel/required-authority :remote, and
+                               verification requires the full remote chain.
      :completeness-profile — completeness profile map (optional; defaults
                              to acp/review-profile)
      :options          — map with :bundle-dir (output directory)
 
    Returns the bundle manifest map."
   [{:keys [attestations claim-results evidence-nodes registries sensitivity-report
-           sensitivity-provenance completeness-profile options]
+           sensitivity-provenance out-of-process-sensitivity completeness-profile options]
     :or {attestations [] claim-results [] evidence-nodes []
          completeness-profile acp/review-profile}}]
   (let [profile (acp/validate-profile completeness-profile)
@@ -241,15 +253,32 @@
                        :bundle/objects (vec (concat att-entries claim-entries node-entries))
                        :bundle/registries registry-snapshot
                        :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
-                                                    :sentinel/report-hash (:report-hash sensitivity-report)
-                                                    :sensitivity-report/ref
-                                                    {:schema "sensitivity-report.v2"
-                                                     :semantic-hash (:report/semantic-hash sensitivity-report)
-                                                     :sha256 (:report-byte-hash sensitivity-report)
-                                                     :byte-length (:report-byte-length sensitivity-report)
-                                                     :path (str bundle-dir "/reports/sensitivity-report.json")}}
-                                             sensitivity-provenance
-                                             (assoc :sentinel/provenance sensitivity-provenance))
+                                                     :sentinel/report-hash (:report-hash sensitivity-report)
+                                                     :sensitivity-report/ref
+                                                     {:schema "sensitivity-report.v2"
+                                                      :semantic-hash (:report/semantic-hash sensitivity-report)
+                                                      :sha256 (:report-byte-hash sensitivity-report)
+                                                      :byte-length (:report-byte-length sensitivity-report)
+                                                      :path (str bundle-dir "/reports/sensitivity-report.json")}}
+                                              sensitivity-provenance
+                                              (assoc :sentinel/provenance sensitivity-provenance)
+                                              out-of-process-sensitivity
+                                              (assoc :sentinel/mode :out-of-process
+                                                     :sentinel/required-authority :remote
+                                                     :sentinel/decision
+                                                     (get-in out-of-process-sensitivity
+                                                             [:sentinel/authority-decision :sentinel/decision])
+                                                     :sentinel/report-hash
+                                                     (get-in out-of-process-sensitivity
+                                                             [:sentinel/authority-decision :sentinel/report-hash])
+                                                     :sentinel/sink
+                                                     (get-in out-of-process-sensitivity
+                                                             [:sentinel/authority-decision :sentinel/sink])
+                                                     :sentinel/request (:sentinel/request out-of-process-sensitivity)
+                                                     :sentinel/report (:sentinel/report out-of-process-sensitivity)
+                                                     :sentinel/authority-decision
+                                                     (:sentinel/authority-decision out-of-process-sensitivity)
+                                                     :sentinel/signature (:sentinel/signature out-of-process-sensitivity)))
                        :bundle/completeness-profile
                        {:profile/schema-version (:profile/schema-version profile)
                         :profile/mode (:profile/mode profile)
@@ -558,60 +587,132 @@
   [ref]
   (and ref (or (:sha256 ref) (:semantic-hash ref))))
 
+(defn- remote-verification
+  "Verify the full out-of-process sensitivity decision chain embedded in a
+   bundle. `opts` may carry :sentinel/trust-policy (public keys with
+   :key/role :sensitivity-sentinel). Fail-closed: any missing commitment,
+   signature, or trust configuration yields :blocked."
+  [sensitivity opts]
+  (let [authority-decision (:sentinel/authority-decision sensitivity)
+        signature (:sentinel/signature sensitivity)
+        request (:sentinel/request sensitivity)
+        trust-policy (:sentinel/trust-policy opts)
+        decision (:sentinel/decision sensitivity)]
+    (cond
+      (nil? authority-decision)
+      {:check/status :blocked
+       :reason "Remote authority required but no signed decision embedded"}
+
+      (nil? signature)
+      {:check/status :blocked
+       :reason "Remote authority required but decision is unsigned"}
+
+      (nil? trust-policy)
+      {:check/status :blocked
+       :reason "Remote authority required but no sentinel trust policy configured"}
+
+      (nil? request)
+      {:check/status :blocked
+       :reason "Remote authority required but request commitment missing"}
+
+      :else
+      (let [verif (sed/verify-envelope authority-decision
+                                       sens-contract/decision-domain
+                                       trust-policy
+                                       :sensitivity-sentinel)]
+        (cond
+          (not (:valid? verif))
+          {:check/status :blocked
+           :reason (str "Remote sentinel decision signature invalid: " (:reason verif))
+           :signature-reason (:reason verif)}
+
+          (not= (:request/hash request) (:sentinel/request-hash authority-decision))
+          {:check/status :blocked
+           :reason "Remote decision request-hash does not match committed request"}
+
+          (= :block decision)
+          {:check/status :blocked
+           :reason "Remote sentinel decision blocked export"
+           :decision decision}
+
+          (:sentinel/override-required? authority-decision)
+          {:check/status :blocked
+           :reason "Remote sentinel decision requires override, not treated as approval"
+           :decision decision}
+
+          :else
+          {:check/status :pass
+           :reason "Remote sensitivity sentinel approved (signed, verified)"
+           :decision decision
+           :authority :out-of-process})))))
+
 (defn- check-sensitivity-sentinel
-  [bundle]
+  [bundle opts]
   (let [sensitivity (:bundle/sensitivity bundle)
         ref (:sensitivity-report/ref sensitivity)
-        decision (:sentinel/decision sensitivity)]
-    (if (and decision (not (ref-present? ref)))
-      ;; Backward-compatible path: no report ref, trust embedded decision
-      (merge {:check/id :sensitivity-sentinel-approved}
-             (cond
-               (= :blocked decision)
-               {:check/status :blocked :decision decision
-                :reason "Sensitivity sentinel blocked export (no report ref)"}
-               (= :internal-retention decision)
-               {:check/status :policy-constrained :decision decision
-                :reason "Sensitivity sentinel restricted to internal retention"}
-               :else
-               {:check/status :pass :decision decision
-                :reason "Sensitivity sentinel approved (embedded decision)"}))
-      ;; Full verification chain: verify report file against ref
-      (let [report-path (:path ref)
-            report-file (when report-path (contained-path bundle report-path))
-            file-check (when report-file
-                         (verify-sensitivity-report-file report-file ref))
-            content-check (when (and report-file (nil? file-check))
-                            (verify-sensitivity-report-content (slurp report-file) ref))
-            result (cond
-                     (not (ref-present? ref))
-                     {:check/status :warning
-                      :reason "No sensitivity-report/ref in bundle — cannot verify report binding"}
-                     (not report-file)
-                     {:check/status :warning
-                      :reason (str "Report file not found: " report-path)
-                      :path report-path}
-                     file-check
-                     (assoc file-check :step :file-verification :path report-path)
-                     content-check
-                     (assoc content-check :step :content-verification)
-                     (nil? decision)
-                     {:check/status :warning
-                      :reason "No decision in sensitivity report"}
-                     (= :blocked decision)
-                     {:check/status :blocked
-                      :decision decision
-                      :reason "Sensitivity sentinel blocked export"}
-                     (= :internal-retention decision)
-                     {:check/status :policy-constrained
-                      :decision decision
-                      :reason "Sensitivity sentinel restricted to internal retention"}
-                     :else
-                     {:check/status :pass
-                      :decision decision
-                      :reason "Sensitivity sentinel approved"})]
-        (merge {:check/id :sensitivity-sentinel-approved}
-               result)))))
+        decision (:sentinel/decision sensitivity)
+        remote-required? (or (= :remote (:sentinel/required-authority sensitivity))
+                             (= :out-of-process (:sentinel/mode sensitivity)))]
+    (if remote-required?
+      ;; Hardened remote path: a local-only or in-process decision must never
+      ;; satisfy a sink that requires out-of-process authorization.
+      (merge {:check/id :sensitivity-sentinel-approved
+              :check/mode :remote
+              :check/authority :out-of-process}
+             (remote-verification sensitivity opts))
+      (if (and decision (not (ref-present? ref)))
+        ;; Backward-compatible path: no report ref, trust embedded decision
+        (merge {:check/id :sensitivity-sentinel-approved
+                :check/mode :local
+                :check/authority :in-process}
+               (cond
+                 (= :blocked decision)
+                 {:check/status :blocked :decision decision
+                  :reason "Sensitivity sentinel blocked export (no report ref)"}
+                 (= :internal-retention decision)
+                 {:check/status :policy-constrained :decision decision
+                  :reason "Sensitivity sentinel restricted to internal retention"}
+                 :else
+                 {:check/status :pass :decision decision
+                  :reason "Sensitivity sentinel approved (embedded decision)"}))
+        ;; Full verification chain: verify report file against ref
+        (let [report-path (:path ref)
+              report-file (when report-path (contained-path bundle report-path))
+              file-check (when report-file
+                           (verify-sensitivity-report-file report-file ref))
+              content-check (when (and report-file (nil? file-check))
+                              (verify-sensitivity-report-content (slurp report-file) ref))
+              result (cond
+                       (not (ref-present? ref))
+                       {:check/status :warning
+                        :reason "No sensitivity-report/ref in bundle — cannot verify report binding"}
+                       (not report-file)
+                       {:check/status :warning
+                        :reason (str "Report file not found: " report-path)
+                        :path report-path}
+                       file-check
+                       (assoc file-check :step :file-verification :path report-path)
+                       content-check
+                       (assoc content-check :step :content-verification)
+                       (nil? decision)
+                       {:check/status :warning
+                        :reason "No decision in sensitivity report"}
+                       (= :blocked decision)
+                       {:check/status :blocked
+                        :decision decision
+                        :reason "Sensitivity sentinel blocked export"}
+                       (= :internal-retention decision)
+                       {:check/status :policy-constrained
+                        :decision decision
+                        :reason "Sensitivity sentinel restricted to internal retention"}
+                       :else
+                       {:check/status :pass
+                        :decision decision
+                        :reason "Sensitivity sentinel approved"})]
+          (merge {:check/id :sensitivity-sentinel-approved
+                  :check/mode :local
+                  :check/authority :in-process}
+                 result))))))
 
 (defn verify-attestation-bundle
   "Verify an attestation bundle against the verification pipeline.
@@ -679,7 +780,7 @@
                  (check-registry-references bundle)
                  (check-claim-definition-references bundle)
                  (check-subject-availability bundle)
-                 (check-sensitivity-sentinel bundle)
+                 (check-sensitivity-sentinel bundle opts)
                  cp-status]
          failures (filter #(= :fail (:check/status %)) checks)
          blocked (filter #(= :blocked (:check/status %)) checks)

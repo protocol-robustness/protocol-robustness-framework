@@ -793,18 +793,19 @@
 
 (defn- mk-member-v2
   "Build a canonical force-auth-add-held.v2 member with a committed scope
-   projection."
+   projection whose granted direction matches the mutation direction."
   ([token amount direction] (mk-member-v2 token amount direction "adj-1"))
   ([token amount direction adjustment-id]
-   (e/build-force-auth-add-held-v2
-    {:authorization (auth-for "fa-0" (scope-for "0xrecipient" 5000))
-     :scope-map (scope-for "0xrecipient" 5000)
-     :adjustment {:held-adjustment/id adjustment-id
-                  :token token
-                  :amount amount
-                  :held/direction direction}
-     :consumed-at 500
-     :consumed-by "0xgov"})))
+   (let [scope (assoc (scope-for "0xrecipient" 5000) :held/direction direction)]
+     (e/build-force-auth-add-held-v2
+      {:authorization (auth-for "fa-0" scope)
+       :scope-map scope
+       :adjustment {:held-adjustment/id adjustment-id
+                    :token token
+                    :amount amount
+                    :held/direction direction}
+       :consumed-at 500
+       :consumed-by "0xgov"}))))
 
 (deftest v2-member-scope-commitment
   (testing "a v2 member commits the three-part scope commitment and never stores
@@ -896,3 +897,73 @@
                      :consumption-registry {}}))]
     (is (e/valid-force-auth-add-held? member))
     (is (e/valid-force-auth-lifecycle-summary? lifecycle))))
+
+;; ── sub-held / add-held direction boundary ─────────────────────────────────
+
+(defn- v2-member-with-direction
+  "Build a force-auth-add-held.v2 member whose granted scope and mutation share
+   the given direction, under a distinct authorization id."
+  [id adjustment-id token amount direction]
+  (let [scope (assoc (scope-for "0xrecipient" 5000) :held/direction direction)]
+    (e/build-force-auth-add-held-v2
+     {:authorization (auth-for id scope)
+      :scope-map scope
+      :adjustment {:held-adjustment/id adjustment-id
+                   :token token
+                   :amount amount
+                   :held/direction direction}
+      :consumed-at 500
+      :consumed-by "0xgov"})))
+
+(deftest sub-held-v2-member-is-faithfully-labelled
+  (let [sub (v2-member-with-direction "fa-sub" "adj-sub" :USDC 40 :out)
+        add (v2-member-with-direction "fa-add" "adj-add" :USDC 100 :in)]
+    (testing "a force-authorised sub-held is recorded as direction :out / action sub-held"
+      (is (= :out (:held/direction sub)))
+      (is (= "sub-held" (:held/action sub)))
+      (is (e/valid-force-auth-add-held-v2? sub))
+      (is (e/force-auth-add-held-scope-verifies? sub)))
+    (testing "a force-authorised add-held is recorded as direction :in / action add-held"
+      (is (= :in (:held/direction add)))
+      (is (= "add-held" (:held/action add)))
+      (is (e/valid-force-auth-add-held-v2? add)))))
+
+(deftest v2-builder-rejects-direction-vs-scope-conflict
+  (let [scope (assoc (scope-for "0xrecipient" 5000) :held/direction :out)
+        ex (try (e/build-force-auth-add-held-v2
+                 {:authorization (auth-for "fa-0" scope)
+                  :scope-map scope
+                  :adjustment {:held-adjustment/id "adj-x" :token :USDC :amount 40 :held/direction :in}})
+                (catch clojure.lang.ExceptionInfo ex ex))]
+    (is (some? ex))
+    (is (= :in (:held/direction (ex-data ex))))
+    (is (= :out (:scope/direction (ex-data ex))))))
+
+(deftest v2-validator-rejects-direction-vs-projection-conflict
+  (let [add (v2-member-with-direction "fa-add" "adj-add" :USDC 100 :in)
+        conflicting (rehash (assoc (dissoc add :artifact/hash :artifact/preimage)
+                                  :held/direction :out))]
+    (is (not (e/valid-force-auth-add-held-v2? conflicting))
+        "the recorded direction must match the committed scope projection")))
+
+(deftest member-without-valid-direction-is-classified-invalid
+  (let [v1 (summary-v1)
+        no-direction (rehash (dissoc (nth members 0) :held/direction))
+        bogus-direction (rehash (assoc (nth members 0) :held/direction :diagonal))
+        r1 (e/check-aggregate v1 [no-direction (nth members 1)] {})
+        r2 (e/check-aggregate v1 [bogus-direction (nth members 1)] {})]
+    (is (not (:valid? r1)))
+    (is (= [:invalid-direction] (mapv :reason (:invalid-members r1))))
+    (is (not (:valid? r2)))
+    (is (= [:invalid-direction] (mapv :reason (:invalid-members r2))))))
+
+(deftest mixed-add-sub-summary-surfaces-gross-flow-warning
+  (let [add (v2-member-with-direction "fa-add" "adj-add" :USDC 100 :in)
+        sub (v2-member-with-direction "fa-sub" "adj-sub" :USDC 40 :out)
+        summary (e/build-force-auth-add-held-summary [add sub] {})
+        result (e/check-aggregate summary [add sub] {:summary-version :v2})]
+    (is (= 140 (:total-amount summary)) ":total-amount is gross flow, not net")
+    (is (= {:in 1 :out 1} (:by-direction summary)))
+    (is (some #(= :mixed-direction (:kind %)) (:warnings result))
+        "mixing add and sub flows is surfaced as a warning")
+    (is (true? (:valid? result)) "mixed directions are permitted, not a failure")))

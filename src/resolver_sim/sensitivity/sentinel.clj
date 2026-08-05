@@ -77,6 +77,30 @@
 (def all-sinks
   (set/union safe-sinks low-risk-sinks medium-risk-sinks high-risk-sinks))
 
+;; ── Authority mode by sink ──────────────────────────────────────────────────
+
+(def sink-policies
+  "Sink → required disclosure authority. A sink classified :remote requires
+   an out-of-process sentinel decision; :in-process sinks are served by the
+   local sentinel. Public sinks (medium + high risk) are remote-required."
+  (into {}
+        (concat
+         (map #(vector % :in-process) safe-sinks)
+         (map #(vector % :in-process) low-risk-sinks)
+         (map #(vector % :remote) medium-risk-sinks)
+         (map #(vector % :remote) high-risk-sinks))))
+
+(defn required-authority
+  "Return the disclosure authority required for a sink: :remote or :in-process.
+   Unknown sinks default to :remote (conservative)."
+  [sink]
+  (get sink-policies sink :remote))
+
+(defn remote-authority-required?
+  "True when a sink requires an out-of-process sentinel decision."
+  [sink]
+  (= :remote (required-authority sink)))
+
 ;; ── Reason Codes ────────────────────────────────────────────────────────────
 
 (def reason-code-set
@@ -324,14 +348,21 @@
 
 (defn policy-hash
   "Compute a deterministic hash of the sentinel policy configuration.
-   Covers version, level definitions, sink set, and disclosure rules.
-   This is a public pure function — no side effects."
+   Commits to the complete effective policy: version, level definitions,
+   sink set, sink→authority requirements, disclosure rules, override rules,
+   scanner/ruleset version, and risk-severity ordering. This is a public pure
+   function — no side effects."
   []
   (hc/hash-with-intent {:hash/intent :evidence-record}
                        {:version sentinel-version
+                        :policy/id "sensitivity-sentinel-policy.v1"
                         :levels levels
+                        :risk-severities risk-severities
                         :sinks (vec (sort all-sinks))
-                        :disclosure-rules "level>=:public required for public-sinks"}))
+                        :sink-policies (vec (sort-by key sink-policies))
+                        :disclosure-rules "level>=:public required for public-sinks"
+                        :authority-rules "remote authority required for public-sink set"
+                        :scanner "secret-scanner.v2"}))
 
 (def ^{:deprecated "0.1.0" :private true} compute-policy-hash
   "Deprecated alias; use policy-hash instead."

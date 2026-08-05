@@ -71,7 +71,8 @@
    :invariants-run 'resolver-sim.commands.invariants-run/run
    :verify-run 'resolver-sim.commands.verify-run/run
    :assure-package 'resolver-sim.commands.assure-package/run
-   :ref-file 'resolver-sim.commands.ref-file/run})
+   :ref-file 'resolver-sim.commands.ref-file/run
+   :sentinel-check 'resolver-sim.commands.sentinel/run})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke

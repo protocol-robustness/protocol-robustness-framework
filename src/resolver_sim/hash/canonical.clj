@@ -60,6 +60,7 @@
    :provenance      "PROVENANCE_V1"
    :bundle-root     "BUNDLE_ROOT_V1"
    :evidence-content "EVIDENCE_CONTENT_V1"
+   :sensitivity-sentinel-decision "SENSITIVITY_SENTINEL_DECISION_V1"
    :state-diff       "STATE_DIFF_V1"
    :protocol-state   "PROTOCOL_STATE_V1"
    :params-manifest  "PARAMS_MANIFEST_V1"
@@ -145,7 +146,14 @@
    :priority-order-v1      "PRIORITY_ORDER_V1"
    :overflow-capability    "OVERFLOW_CAPABILITY_V1"
    :overflow-authorisation-scope "OVERFLOW_AUTHORISATION_SCOPE_V1"
-   :overflow-capacity-context "OVERFLOW_CAPACITY_CONTEXT_V1"})
+   :overflow-capacity-context "OVERFLOW_CAPACITY_CONTEXT_V1"
+   :with-bounty-policy-v1     "WITH_BOUNTY_POLICY_V1"
+   :with-bounty-invocation-v1 "WITH_BOUNTY_INVOCATION_V1"
+   :with-bounty-obligation-v1 "WITH_BOUNTY_OBLIGATION_V1"
+   :with-bounty-effect-v1     "WITH_BOUNTY_EFFECT_V1"
+   :with-bounty-effect-set-v1 "WITH_BOUNTY_EFFECT_SET_V1"
+   :with-bounty-application-plan-v1 "WITH_BOUNTY_APPLICATION_PLAN_V1"
+   :with-bounty-transition-evidence-v1 "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
