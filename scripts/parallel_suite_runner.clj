@@ -24,6 +24,7 @@
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.protocols.registry :as preg]
+            [scripts.artifact-scope :as artifact-scope]
             [scripts.test-summary :as summary])
   (:gen-class))
 
@@ -62,11 +63,6 @@
   (or (some-> (System/getenv "PARALLEL_TEST_SUITE_TIMEOUT_MS") Long/parseLong)
       3600000))
 
-(defn- cleanup!
-  [root]
-  (doseq [f (reverse (doall (file-seq (io/file root))))]
-    (.delete f)))
-
 (defn- run-one-suite
   [suite-key artifact-dir]
   (chain/with-fresh-evidence-context*
@@ -103,8 +99,10 @@
         _ (flush)
         start (System/currentTimeMillis)
         shared-dir (evcfg/artifact-dir)
+        run-id (str (System/currentTimeMillis) "-" (java.util.UUID/randomUUID))
         tmp-root (str (System/getProperty "java.io.tmpdir")
                       "/parallel-suite-artifacts-" (java.util.UUID/randomUUID))
+        _ (artifact-scope/write-owner-marker! tmp-root {:run-id run-id :namespace :run-root})
         jobs (parse-job-limit)
         sem (java.util.concurrent.Semaphore. jobs)
         futures (mapv (fn [i sk]
@@ -163,12 +161,13 @@
                            (format "elapsed: %.2fs  jobs: %d" (/ elapsed 1000.0) jobs)])
       (summary/result-line totals elapsed)
       (summary/print-failures items))
-    ;; Cleanup — keep on failure, delete on success
+    ;; Cleanup — ownership-marker-guarded, keep on failure, delete on success
     (if keep?
-      (println "Keeping artifact dirs:" tmp-root)
+      (println "Keeping suite artifact dirs:" tmp-root)
       (try
-        (cleanup! tmp-root)
+        (artifact-scope/safe-delete! tmp-root run-id)
+        (println "Suite artifact dirs cleaned:" tmp-root)
         (catch Exception e
-          (println "WARN: artifact cleanup failed:" (.getMessage e)))))
+          (println "WARN: suite artifact cleanup failed:" (.getMessage e)))))
     (when failed?
       (System/exit 1))))

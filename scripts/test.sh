@@ -23,6 +23,10 @@
 # artifact subdir. PARALLEL_TARGET_JOBS (default 4) caps concurrent targets.
 #   PARALLEL_TARGETS=1 PARALLEL_TARGET_JOBS=8 ./scripts/test.sh ci
 #
+# The parallel namespace runner (scripts/parallel-test-runner.clj) keeps
+# audit-flagged namespaces in a sequential safety lane by default. Override
+# via PARALLEL_TEST_EXCLUDE_NS (e.g. "" to disable, or a custom ns list).
+#
 # Evidence tiers (see core.phases/phase-evidence-tiers):
 #   :protocol-kernel-evidence — calls resolve-dispute or replay-with-protocol
 #   :analytic                 — algebraic/closed-form, no protocol calls
