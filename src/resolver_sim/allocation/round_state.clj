@@ -127,7 +127,7 @@
    not affect the window classification, only the decision-conformance half of
    `classify-cancellation`."
 
-  [opts token]
+  [_opts token]
   (let [target (lifecycle-target-state token)
         classification (classify-round-state token)
         window-state (:window/state classification)

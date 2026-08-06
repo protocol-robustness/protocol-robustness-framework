@@ -144,8 +144,15 @@
          sort
          vec)))
 
-(defn- zone-by-id [id]
-  (first (filter #(= id (:zone/id %)) (:architecture/zones boundary-policy))))
+(defn- core-zone
+  "The core zone, derived from the policy as the zone with no permitted
+   dependencies (the root of the dependency graph) — not a hardcoded id."
+  []
+  (let [root-ids (set (map :from
+                           (filter #(empty? (:may-depend-on %))
+                                   (:architecture/dependency-rules boundary-policy))))]
+    (first (filter #(contains? root-ids (:zone/id %))
+                   (:architecture/zones boundary-policy)))))
 
 (defn- held-custody-extension-prefixes
   "Namespace prefixes of the held-custody extension zone, derived from the
