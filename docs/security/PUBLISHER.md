@@ -131,8 +131,11 @@ A test-artifact bundle is **accepted** only by passing, in order:
    basic encodings. Aborts before any filesystem or cryptographic work.
 2. **Content integrity and cross-file binding** — the run manifest and every
    artifact are re-hashed from disk; `run_id`, paths, required chain IDs
-   (`test-run`, `test-summary`, `claimable-classification`), and compatibility
-   fields are validated, including `claimable-classification.v2` integrity.
+   (`test-run`, `test-summary`, `claimable-classification`, **`results-artifact`**),
+   and compatibility fields are validated, including `claimable-classification.v2`
+   integrity. The canonical `results-artifact` must be unique, correctly typed
+   (`results-artifact.v1`), run-bound (`extensions.run_id == run_id`), and match
+   its on-disk bytes.
 3. **Publisher commitment and signature** — the signed commitment is
    reconstructed from the already-validated data, the digest is recomputed, the
    signature is verified, and the signing key is checked for authorisation under
@@ -183,9 +186,9 @@ re-hashes the run manifest and every artifact from disk:
 - `schema_version`, `contract_version`, `run_id`;
 - run-manifest path and **recomputed** SHA-256;
 - a deterministic, ordered projection of every artifact (id, path, **recomputed**
-  SHA-256, importance);
+  SHA-256, importance), including the canonical `results-artifact`;
 - the required-chain identifiers (`test-run`, `test-summary`,
-  `claimable-classification`);
+  `claimable-classification`, `results-artifact`);
 - `publisher-manifest` version;
 - publisher-policy identifier and recomputed policy hash.
 
@@ -196,6 +199,68 @@ serialization so Python, Clojure, and any future verifier cannot silently adopt
 different ordering or serialization rules. Binding `run_id` and using domain
 separation prevents a valid signature from being transplanted between runs or
 reused for another artifact type.
+
+## Acceptance stages (content validity vs acceptance)
+
+A bare `valid-artifact?` boolean is no longer a sufficient acceptance decision.
+The composed acceptance report (`resolver-sim.evidence.acceptance`,
+`scripts/validate/acceptance_report.py`, `--report-json`) separates:
+
+- **content-integrity** — `resolver-sim.evidence.artifact/verify-artifact`
+  returns an explainable `{:valid? bool :stage :content-integrity :reason kw
+  :details {}}` (unsupported schema version, wrong kind/verifier, malformed
+  preimage, body/preimage disagreement, canonical preimage mismatch, content
+  hash mismatch, canonical commitment missing/mismatch, unsupported
+  frozen-legacy mode). `:decoded-agreement` is frozen to the allowlisted v1
+  force-authorisation schemas only; no new artifact may emit it and publisher
+  acceptance never upgrades legacy parse agreement into canonical integrity;
+- **registry-membership**, **required-chain**, **publisher-commitment**,
+  **file-integrity** — distinct stages; a strong content result never implies
+  publisher authenticity and vice versa.
+
+The Python pipeline enforces file-integrity (on-disk sha256 re-hashed by the
+validator and bound by the publisher commitment) and the required `results-artifact`; the golden
+commitment-preimage fixture locks the cross-language serialization shared with
+Clojure.
+
+## Allocation reconciliation and native evidence
+
+- `:allocation.assertion/result-capacity-reconciles` (kernel assertion 14) now
+  requires **both** global reconciliation (total == committed capacity,
+  residual == 0) and per-award reconciliation (leaf-set completeness, per-award
+  correspondence to the committed selected outcome, admissible entitlements,
+  committed rounding policy honored, verified leaf set recomputes the committed
+  result root). Distinct reasons: `:result-total-capacity-mismatch`,
+  `:result-nonzero-residual`, `:result-award-mismatch`,
+  `:result-entitlement-mismatch`, `:result-rounding-rule-mismatch`,
+  `:result-leaf-set-incomplete`, `:result-root-mismatch`
+  (`resolver-sim.allocation.reconciliation`).
+- Exact-replication classification is bound to native Rust evidence
+  (`resolver-sim.allocation.native-evidence`): proof-backed
+  `:native-exact-match` only when the pinned native implementation actually
+  executed and matched under the exact-replication contract, bound to results
+  artifact hash, input root, pinned PRF identity, pinned Rust identity, run /
+  conformance-vector identity, comparison outcome, and verifier version. Mock
+  results are never proof-backed; evidence bound to another result or another
+  pinned implementation deterministically downgrades to
+  `:independent-replay`/`:not-yet-evaluated`.
+
+## Researcher resubmission
+
+Resubmission after structured rejection is **design-only** for this slice; see
+`docs/security/RESUBMISSION.md` (revision 3). The design is receipt-based: a
+resubmission links to a validator-issued submission-attempt receipt (not to a
+self-declared run), classifies against four status-bearing typed roots (subject
+/ execution / result / submission-basis) rather than a trusted `kind` field,
+uses a linear chain with compare-and-set admission and an explicit
+`:admitted`/`:not-admitted` cutpoint, keeps the link a standalone
+`resubmission-link.artifact.v1` artifact whose hash is committed by the
+publisher envelope, and resolves the package-commitment cycle via a
+circularity-free `submission-basis-root` cutpoint (the final bundle root lives
+only on the receipt). Lifecycle transitions are immutable disposition events,
+and missing/invalid previous results are classified as `:submission-repair`.
+Implementation (attempt-receipt issuance, root derivation, chain admission,
+resubmission verifier) is deferred until the design's tests are implemented.
 
 ## Cryptographic validity vs. publisher authority
 

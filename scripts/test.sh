@@ -24,10 +24,12 @@
 #   PARALLEL_TARGETS=1 PARALLEL_TARGET_JOBS=8 ./scripts/test.sh ci
 #
 # The parallel namespace runner (scripts/parallel-test-runner.clj) keeps
-# audit-flagged namespaces in a sequential safety lane by default. Override
-# via PARALLEL_TEST_EXCLUDE_NS (e.g. "" to disable, or a custom ns list).
-# Set PARALLEL_TEST_LEAK_CHECK=1 to also verify root registries and the shared
-# artifact dir are left untouched by the run (mirrors run-sew-tests).
+# audit-flagged namespaces in a sequential safety lane by default (and runs
+# them strictly before the pool). Override via PARALLEL_TEST_EXCLUDE_NS (e.g.
+# "" to disable, or a custom ns list). unit/generators enable the leak
+# tripwire (PARALLEL_TEST_LEAK_CHECK=1) — root registries and the shared
+# artifact dir must be left untouched; the parallel-test-runner manifest is
+# audited by `bb audit:parallel` (scripts/audit-parallel-safety.clj all).
 #
 # Evidence tiers (see core.phases/phase-evidence-tiers):
 #   :protocol-kernel-evidence — calls resolve-dispute or replay-with-protocol
@@ -115,7 +117,7 @@ parse_progress() {
   # Determine total tests dynamically if known
   local total=""
   case "$target" in
-    unit) total=307 ;;
+    unit) total=313 ;;
     suites) total=94 ;;
     dr3-coverage) total=15 ;;
     reference-validation) total=8 ;;
@@ -281,7 +283,7 @@ run_targets_parallel() {
 run_unit() {
   require_clojure || return $?
   echo "Running unit tests (all — framework + Sew, parallel namespaces)..."
-  clojure -M:test:with-sew -m scripts.parallel-test-runner \
+  PARALLEL_TEST_LEAK_CHECK=1 clojure -M:test:with-sew -m scripts.parallel-test-runner \
     resolver-sim.core-tests \
     resolver-sim.protocol-alignment-test \
     resolver-sim.protocols.sew.replay-test \
@@ -309,7 +311,13 @@ run_unit() {
     resolver-sim.run.overview-test \
     resolver-sim.benchmark.game-theory-validation-test \
     resolver-sim.benchmark.packs.partial-fill.evidence-test \
+    resolver-sim.benchmark.researcher-decision-v2-test \
+    resolver-sim.benchmark.decision-subject-test \
     resolver-sim.assurance.custody-summary-test \
+    resolver-sim.assurance.three-member-authority-test \
+    resolver-sim.assurance.cancellation-gates-test \
+    resolver-sim.assurance.deterministic-evidence-test \
+    resolver-sim.assurance.consumer-enforcement-test \
     resolver-sim.evidence.node-test \
     resolver-sim.evidence.attestation-dag-test \
     resolver-sim.economics.payoffs-test \
@@ -606,7 +614,7 @@ run_yield_scenarios() {
 run_generators() {
   require_clojure || return $?
   echo "Running generator regression tests (pinned seeds, parallel)..."
-  clojure -M:test:with-sew -m scripts.parallel-test-runner \
+  PARALLEL_TEST_LEAK_CHECK=1 clojure -M:test:with-sew -m scripts.parallel-test-runner \
     resolver-sim.generators.equilibrium-test \
     resolver-sim.generators.fixtures-test \
     resolver-sim.properties.invariants-test
@@ -1032,8 +1040,6 @@ case "$MODE" in
         echo "  Mode: FAST (slow tests skipped)"
       fi
       echo "========================================"
-
-      run_outcome_classification_report || true
       ;;
 
     fast)
@@ -1147,6 +1153,12 @@ if [ -f scripts/evidence/generate_test_summary.py ]; then
     "$RUN_MANIFEST_FILE" \
     "$ARTIFACT_REGISTRY_FILE" \
     "$CLAIMABLE_CLASSIFICATION_FILE"
+fi
+
+# The outcome classification report reads test-summary.json, so it must run
+# after generate_test_summary.py has written it (not inside the case block).
+if [ "$MODE" = "all" ]; then
+  run_outcome_classification_report || true
 fi
 
 exit $FAILURES

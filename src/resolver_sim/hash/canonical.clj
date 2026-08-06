@@ -114,6 +114,9 @@
    :researcher-decision "RESEARCHER_DECISION_V1"
    :researcher-decision-v2 "RESEARCHER_DECISION_V2"
    :researcher-decision-scope "RESEARCHER_DECISION_SCOPE_V1"
+   :decision-subject "DECISION_SUBJECT_V1"
+   :three-member-authority-report "THREE_MEMBER_AUTHORITY_REPORT_V1"
+   :canonical-value-sequence "CANONICAL_VALUE_SEQUENCE_V1"
    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
    :force-authorisation-consumption-v2 "FORCE_AUTHORISATION_CONSUMPTION_V2"
@@ -154,17 +157,19 @@
    :with-bounty-obligation-v1 "WITH_BOUNTY_OBLIGATION_V1"
    :with-bounty-effect-v1     "WITH_BOUNTY_EFFECT_V1"
    :with-bounty-effect-set-v1 "WITH_BOUNTY_EFFECT_SET_V1"
-    :with-bounty-application-plan-v1 "WITH_BOUNTY_APPLICATION_PLAN_V1"
-    :with-bounty-transition-evidence-v1 "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"
-    :allocation-context         "ALLOCATION_CONTEXT_V1"
-    :claimant-set               "CLAIMANT_SET_V1"
-    :outcome-set                "OUTCOME_SET_V1"
-    :proposed-rates             "PROPOSED_RATES_V1"
-    :rate-derived-summary       "RATE_DERIVED_SUMMARY_V1"
-    :selected-outcome           "SELECTED_OUTCOME_V1"
-     :result-root                "RESULT_ROOT_V1"
-     :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"
-     :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"})
+   :with-bounty-application-plan-v1 "WITH_BOUNTY_APPLICATION_PLAN_V1"
+   :with-bounty-transition-evidence-v1 "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"
+   :with-bounty-verification-basis-v1 "WITH_BOUNTY_VERIFICATION_BASIS_V1"
+   :with-bounty-public-result-v1 "WITH_BOUNTY_PUBLIC_RESULT_V1"
+   :allocation-context         "ALLOCATION_CONTEXT_V1"
+   :claimant-set               "CLAIMANT_SET_V1"
+   :outcome-set                "OUTCOME_SET_V1"
+   :proposed-rates             "PROPOSED_RATES_V1"
+   :rate-derived-summary       "RATE_DERIVED_SUMMARY_V1"
+   :selected-outcome           "SELECTED_OUTCOME_V1"
+   :result-root                "RESULT_ROOT_V1"
+   :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"
+   :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -299,10 +304,26 @@
   (or (instance? String k)
       (instance? clojure.lang.Keyword k)))
 
+(defn- out-of-domain!
+  "Fail closed: the value is outside the canonical type algebra
+   (CANONICAL_HASH_SPEC_V1 §4/§5).  It must be projected to a canonical-safe
+   representation before encoding — the encoder and validators never perform
+   silent coercion.  Always throws; never returns."
+  [x host-type guidance]
+  (throw (ex-info "Value is outside the canonical type domain; project it to a canonical-safe representation before hashing"
+                  {:type :canonical/out-of-domain
+                   :host-type host-type
+                   :value-class (some-> x class .getName)
+                   :guidance guidance})))
+
 (defn validate-canonical-value!
   "Walk a value tree and validate that all values are supported
-   canonical types. Throws ex-info on the first unsupported type.
-   Map keys must be String or Keyword."
+    canonical types. Throws ex-info on the first unsupported type.
+    Map keys must be String or Keyword.
+
+    STRICT DOMAIN: matches the encoder.  Records, map entries, sets, seqs,
+    temporal values, and every other host type outside the canonical type
+    algebra are rejected with a structured :canonical/out-of-domain error."
   [v]
   (let [walker (fn walk [x]
                  (cond
@@ -316,6 +337,12 @@
                    (instance? BigInteger x) x
                    (instance? String x) x
                    (instance? clojure.lang.Keyword x) x
+                   (instance? clojure.lang.IMapEntry x)
+                   (out-of-domain! x "clojure.lang.IMapEntry"
+                                   "map entries are not canonical values; project to an explicit vector before hashing")
+                   (instance? clojure.lang.IRecord x)
+                   (out-of-domain! x "clojure.lang.IRecord"
+                                   "records are prohibited (spec §5); convert to a plain map with (into {} x) before hashing")
                    (instance? clojure.lang.IPersistentVector x)
                    (do (run! walk x) x)
                    (instance? clojure.lang.IPersistentMap x)
@@ -326,8 +353,8 @@
                          (walk v))
                        x)
                    :else
-                   (throw (ex-info "Unsupported type for canonical hashing"
-                                   {:type (type x) :value x :class (.getName (class x))}))))]
+                   (out-of-domain! x (some-> x class .getName)
+                                   "value is outside the canonical type algebra; project it to a canonical-safe representation before hashing")))]
     (walker v)
     nil))
 
@@ -338,6 +365,16 @@
 (defn canonical-bytes
   "Produce the canonical typed binary encoding of a value.
     Returns a byte-array per CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI.
+
+    STRICT DOMAIN: this is the normative encoder.  Only the canonical type
+    algebra (CANONICAL_HASH_SPEC_V1 §3) may reach it — nil, boolean, integer,
+    string, keyword, vector, map.  Every host type outside that algebra — sets,
+    seqs/lists/lazy-seqs, map entries, records, temporal values, ratios,
+    floats, BigDecimal, Java collections/arrays — is REJECTED with a structured
+    :canonical/out-of-domain error rather than silently coerced into an
+    in-domain representation.  Callers that genuinely want a set→sorted-vector
+    or list→vector conversion must perform it explicitly (see
+    project-world-to-structure-view) before entering this boundary.
 
     Implemented iteratively over an explicit work stack so that deeply
     nested structures (per spec §8.4 concatenation stress) do not overflow
@@ -362,6 +399,9 @@
               ;; Only integer types have a canonical representation.  Do not use
               ;; number? here: coercing floating-point values or ratios to long
               ;; silently aliases distinct semantic values (for example, 1 and 1.9).
+              ;; Integer widths (Long/Integer/Short/Byte/BigInt/BigInteger) are
+              ;; declared equivalent — they are numerically equal canonical
+              ;; integers and encode identically.
               (or (instance? Long x)
                   (instance? Integer x)
                   (instance? Short x)
@@ -383,31 +423,38 @@
                     len (encode-varuint (count bs))]
                 (recur work (conj done (ba-concat (ba-of tag-keyword) len bs))))
 
+              ;; ── out-of-domain host types (rejected, never coerced) ──────────
+
               (instance? java.time.temporal.TemporalAccessor x)
-              (let [s (str x)
-                    bs (utf8-bytes s)
-                    len (encode-varuint (count bs))]
-                (recur work (conj done (ba-concat (ba-of tag-string) len bs))))
+              (out-of-domain! x "java.time.temporal.TemporalAccessor"
+                              "temporal values are outside the canonical domain; project to an ISO-8601 string before hashing")
 
               (instance? java.math.BigDecimal x)
-              (throw (ex-info "BigDecimal must be projected to a canonical-safe representation before hashing"
-                              {:type (type x) :value x}))
+              (out-of-domain! x "java.math.BigDecimal"
+                              "BigDecimal is outside the canonical domain; project to a canonical-safe representation before hashing")
+
+              (instance? clojure.lang.IMapEntry x)
+              (out-of-domain! x "clojure.lang.IMapEntry"
+                              "map entries are not canonical values; project to an explicit vector before hashing")
+
+              (instance? clojure.lang.IRecord x)
+              (out-of-domain! x "clojure.lang.IRecord"
+                              "records are prohibited (spec §5); convert to a plain map with (into {} x) before hashing")
+
+              (instance? clojure.lang.ISeq x)
+              (out-of-domain! x "clojure.lang.ISeq"
+                              "seqs/lists/lazy-seqs are outside the canonical domain; realize to a vector before hashing")
+
+              (instance? clojure.lang.IPersistentSet x)
+              (out-of-domain! x "clojure.lang.IPersistentSet"
+                              "sets are outside the canonical domain; project to a sorted vector before hashing")
+
+              ;; ── canonical composite types ───────────────────────────────────
 
               (instance? clojure.lang.IPersistentVector x)
               (let [n (count x)]
                 (recur (into (conj work [:array n])
                              (map (fn [e] [:encode e]) (reverse x)))
-                       done))
-
-              ;; LazySeq / PersistentList / Cons are not canonical-encodable as
-              ;; their runtime type; realize them to vectors (matching the
-              ;; pre-hash normalization elsewhere) so their contents encode
-              ;; deterministically as an array.
-              (instance? clojure.lang.ISeq x)
-              (let [v (vec x)
-                    n (count v)]
-                (recur (into (conj work [:array n])
-                             (map (fn [e] [:encode e]) (reverse v)))
                        done))
 
               (instance? clojure.lang.IPersistentMap x)
@@ -426,15 +473,9 @@
                              (map (fn [val] [:encode val]) (reverse vals)))
                        done))
 
-              (instance? clojure.lang.IPersistentSet x)
-              (let [n (count x)]
-                (recur (into (conj work [:set n])
-                             (map (fn [e] [:encode e]) (reverse x)))
-                       done))
-
               :else
-              (throw (ex-info "Cannot encode unsupported type"
-                              {:type (type x) :value x}))))
+              (out-of-domain! x (some-> x class .getName)
+                              "value is outside the canonical type algebra; project it to a canonical-safe representation before hashing")))
 
           :array
           (let [n (nth task 1)
@@ -442,15 +483,6 @@
                 elems (subvec done split)
                 rest-done (subvec done 0 split)
                 combined (apply ba-concat (ba-of tag-array) (encode-varuint n) elems)]
-            (recur work (conj rest-done combined)))
-
-          :set
-          (let [n (nth task 1)
-                split (- (count done) n)
-                elems (subvec done split)
-                rest-done (subvec done 0 split)
-                sorted (vec (sort byte-compare elems))
-                combined (apply ba-concat (ba-of tag-array) (encode-varuint n) sorted)]
             (recur work (conj rest-done combined)))
 
           :map

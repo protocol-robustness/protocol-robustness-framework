@@ -84,15 +84,16 @@ class EvidenceConfig:
     def artifact_path(self, artifact_id: str) -> str:
         """Resolve an artifact id to its full path string.
 
-        Returns absolute string path.  Raises KeyError if artifact has no
-        fixed file (e.g. scenario-result which is user-supplied).
+        Returns absolute string path.  Raises KeyError if the artifact has no
+        fixed default file (results-artifact is caller-supplied; the accepted
+        registry binds the exact file via the artifact entry's ``path``).
         """
         a = self.artifact(artifact_id)
         if a is None:
             raise KeyError(f"unknown artifact id: {artifact_id}")
         f = a.get("file")
         if not f:
-            raise KeyError(f"artifact {artifact_id} has no file (user-supplied)")
+            raise KeyError(f"artifact {artifact_id} has no fixed file (caller-supplied)")
         return str(self._artifact_dir / f)
 
     def artifact_verifies_against(self, artifact_id: str) -> list[str]:

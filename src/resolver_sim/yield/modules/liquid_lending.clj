@@ -18,6 +18,7 @@
             [resolver-sim.yield.evidence :as ye]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.time.deadlines :as dl]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.evidence.capture :as evidence]))
 
 (def ^:private propagation-content-hash-field :propagation/content-hash)
@@ -41,7 +42,7 @@
 
 (defn canonical-hash-safe
   "Canonical hash that normalizes ratios (and other types unsafe for
-   canonical-bytes) into deterministic safe equivalents before hashing.
+    canonical-bytes) into deterministic safe equivalents before hashing.
    Used for position data that may contain ratio fields like :shares,
    :entry-index, and :current-index."
   [value]
@@ -55,6 +56,30 @@
               (set? v) (set (map walk v))
               :else v))]
     (canonical-hash (walk value))))
+
+(defn- content-address-ledger
+  "Attach a content-addressed fixed-point certificate to a withdrawal ledger
+   record, mirroring the partial-fill decision artifacts: :ledger/hash is the
+   canonical hash of the record and :ledger/preimage is its canonical pr-str
+   fixed-point serialization. This makes the batch allocation bound
+   (`filled ≤ available`) independently re-verifiable against the fixed-point
+   canonical form instead of being a self-authored, un-hashed map."
+  [record]
+  (let [base (dissoc record :ledger/hash :ledger/preimage)
+        hash (hc/hash-with-intent {:hash/intent :evidence-record} base)]
+    (assoc record
+           :ledger/preimage (pr-str base)
+           :ledger/hash (str "sha256:" hash))))
+
+(defn ledger-hash-valid?
+  "Verify a withdrawal ledger record's fixed-point certificate: its :ledger/hash
+   must equal the canonical hash of its non-hash fields (the :ledger/preimage
+   fixed point). Returns false when the record carries no hash (legacy)."
+  [record]
+  (when-let [h (:ledger/hash record)]
+    (= h (str "sha256:"
+              (hc/hash-with-intent {:hash/intent :evidence-record}
+                                   (dissoc record :ledger/hash :ledger/preimage))))))
 
 (defn- fail!
   ([message reason]
@@ -156,6 +181,46 @@
   (or (get-in world [:total-held token])
       (get-in world [:yield/held-balances token])
       (get-in world [:yield/held-balances (name token)])
+      0))
+
+(defn- held-position-balance
+  "Read a single Sew held-ledger position value from either the flattened
+   `:held/positions` map or the `:held-ledger/index :by-position` view."
+  [world position-id]
+  (or (get-in world [:held/positions position-id])
+      (get-in world [:held-ledger/index :by-position position-id])
+      0))
+
+(defn- escrow-custody-base
+  "The escrow's own custody value (principal + accrued-yield partitions) in a
+   Sew world.
+
+   A withdrawal must be settled against the position's own custody, not the
+   aggregate token pool (`:total-held` / `:yield/held-balances`): the aggregate
+   includes other escrows' custody and bond/fee reserves that this position
+   cannot draw on. Settling against the aggregate makes shortfall detection
+   over-optimistic when more than one escrow shares a token (the Sew finalize
+   guard then hard-reverts with :insufficient-custody-position instead of
+   deferring). Returns nil when the world carries no held-ledger custody for
+   this escrow, in which case callers fall back to the aggregate pool."
+  [world token owner-id]
+  (when (and (vector? owner-id) (= :sew/escrow (first owner-id)))
+    (let [wf-id (second owner-id)
+          principal-pos [:held/position token :escrow-principal wf-id]
+          yield-pos     [:held/position token :yield-custody wf-id]
+          principal     (held-position-balance world principal-pos)
+          yield         (held-position-balance world yield-pos)
+          custody       (+ (long principal) (long yield))]
+      (when (pos? custody)
+        custody))))
+
+(defn- position-custody-base
+  "Resolve the liquidity base a withdrawal may draw on for one position:
+   the escrow's own custody when the enclosing world tracks it (Sew), else the
+   aggregate token pool. Used to compute `recoverable = base × available-ratio`."
+  [world token owner-id]
+  (or (escrow-custody-base world token owner-id)
+      (source-liquidity-balance world token)
       0))
 
 ;; ---------------------------------------------------------------------------
@@ -352,9 +417,8 @@
                world
                accrual-decision)
               position-after-accrue (get-in world-after-accrue position-path)
-              base-recoverable (or (source-liquidity-balance
-                                    world-after-accrue token)
-                                   0)
+              base-recoverable (position-custody-base
+                                world-after-accrue token owner-id)
               market (market-state/get-market-state
                       world-after-accrue module-id token now)
               available-ratio (:available-ratio market 1.0)
@@ -393,6 +457,21 @@
                   {:reason shortfall-reason
                    :basis-amount (+ adjusted-basis
                                     (if (pos? unrealized) unrealized 0))
+                    ;; The negative-unrealized term folded into :basis-amount at
+                    ;; settlement. The position's own :unrealized-yield is zeroed
+                    ;; on settle, so invariants must read this recorded fold rather
+                    ;; than the (post-settlement) position value to reconcile the
+                    ;; shortfall splits to basis (f + d + h + fold == basis).
+                   :basis-negative-unrealized negative-unrealized
+                    ;; Exact economic value backing this settlement (principal +
+                    ;; realized + unrealized at crystallization). check-aggregate
+                    ;; uses it as the value bound so basis can never exceed the
+                    ;; position's real value — the old reconstruction (principal +
+                    ;; deferred-amount) double-counted deferred principal and made
+                    ;; the over-count check vacuous.
+                   :settlement-value (+ (long (:principal position-after-accrue 0))
+                                        (long (:realized-yield position-after-accrue 0))
+                                        (long (:unrealized-yield position-after-accrue 0)))
                    :available-ratio (if (pos? gross-amount)
                                       (/ (rationalize fulfilled-total)
                                          (rationalize gross-amount))
@@ -428,7 +507,28 @@
                 decision-artifact
                 (partial-fill/attach-decision-artifact decision-artifact))
               final-world
-              (cond-> world-with-position
+              (cond-> (update-in world-with-position
+                                 [:yield/withdrawal-ledger]
+                                 (fnil conj [])
+                                 (content-address-ledger
+                                  {:ledger/kind :yield/withdrawal-single
+                                   :ledger/id [:withdrawal-single module-id token
+                                               owner-id (resolve-now world-after-accrue)]
+                                   :ledger/module-id module-id
+                                   :ledger/token token
+                                   :ledger/owner-ids [owner-id]
+                                   :ledger/run-id (:run/id world-after-accrue)
+                                   :ledger/execution-id (:execution/id world-after-accrue)
+                                   :ledger/available (max 0 (long recoverable))
+                                   :ledger/requested basis-total
+                                   :ledger/filled fulfilled-total
+                                   :ledger/deferred deferred-total
+                                   :ledger/haircut haircut-total
+                                   :ledger/rows [{:owner-id owner-id
+                                                  :requested basis-total
+                                                  :filled fulfilled-total
+                                                  :deferred deferred-total
+                                                  :haircut haircut-total}]}))
                 shortfall
                 (ye/emit-shortfall-event
                  :yield.shortfall/deferred-created
@@ -1216,11 +1316,21 @@
                               :position/pre-closure-snapshot current-deferred))
                      shortfall
                      (when (pos? deferred)
-                       {:reason :liquidity-shortfall
-                        :basis-amount (+ fulfilled deferred)
-                        :fulfilled-amount fulfilled
-                        :deferred-amount deferred
-                        :haircut-amount 0})
+                       (let [settlement-unrealized (long (:unrealized-yield position 0))
+                             fold (min 0 settlement-unrealized)]
+                         {:reason :liquidity-shortfall
+                          :basis-amount (+ fulfilled deferred fold)
+                          ;; Negative unrealized (mark-to-market loss) is folded
+                          ;; into basis exactly like the single-withdraw path, so
+                          ;; the splits reconcile (f + d + h + fold == basis) and
+                          ;; basis never exceeds the settlement value.
+                          :basis-negative-unrealized fold
+                          :settlement-value (+ (long (:principal position 0))
+                                               (long (:realized-yield position 0))
+                                               settlement-unrealized)
+                          :fulfilled-amount fulfilled
+                          :deferred-amount deferred
+                          :haircut-amount 0}))
                      updated-position
                      (cond->
                       (assoc position
@@ -1705,13 +1815,15 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- compute-withdrawal-result
-  "Pure computation for one batch withdrawal against a shared snapshot.
+  "Pure computation for one batch withdrawal against the current world.
 
-   Fulfilment is calculated from the crystallized position produced by the
-   accrual decision, not from the stale pre-accrual position."
-  [snapshot-positions world module-id now op]
+   Fulfilment is bounded by `available-liquidity` — the portion of the shared
+   pool remaining to this row (first-come, first-served in owner order). It is
+   calculated from the crystallized position produced by the accrual decision,
+   not from the stale pre-accrual position."
+  [world module-id now op available-liquidity]
   (let [owner-id (:owner/id op)
-        position (get snapshot-positions owner-id)]
+        position (get-in world [:yield/positions owner-id])]
     (when (and position
                (= (:status position) :active)
                (= (:module/id position) module-id))
@@ -1728,14 +1840,11 @@
             (accrual/apply-accrual-decision world accrual-decision)
             crystallized-position
             (get-in crystallized-world [:yield/positions owner-id])
-            base-recoverable
-            (or (source-liquidity-balance crystallized-world token) 0)
             market
             (market-state/get-market-state
              crystallized-world module-id token now)
-            available-ratio (:available-ratio market 1.0)
             shortfall-model (:shortfall-model market)
-            recoverable (long (* base-recoverable available-ratio))
+            recoverable (max 0 (long available-liquidity))
             gross-amount (+ (:principal crystallized-position 0)
                             (:unrealized-yield crystallized-position 0))
             settlement
@@ -1770,6 +1879,10 @@
                 {:reason shortfall-reason
                  :basis-amount (+ adjusted-basis
                                   (if (pos? unrealized) unrealized 0))
+                 :basis-negative-unrealized negative-unrealized
+                 :settlement-value (+ (long (:principal crystallized-position 0))
+                                      (long (:realized-yield crystallized-position 0))
+                                      (long (:unrealized-yield crystallized-position 0)))
                  :available-ratio
                  (if (pos? gross-amount)
                    (/ (rationalize fulfilled-total)
@@ -1810,9 +1923,19 @@
          :basis-total basis-total}))))
 
 (defn withdraw-many
-  "Batch withdraw multiple active positions using parallel pure computation and
-   deterministic serial application. This remains distinct from shared-pool
-   pro-rata settlement."
+  "Batch withdraw multiple active positions against one shared liquidity pool.
+
+   The batch is settled first-come, first-served in deterministic owner order:
+   each position draws at most the pool remaining after earlier rows in the
+   batch. This remains distinct from shared-pool pro-rata settlement
+   (`withdraw-shared`), which splits the pool proportionally.
+
+   A single coordinated pool prevents the double-spend that independent
+   per-position fulfillment would cause — each row otherwise draws the full
+   pool (`base × available-ratio`), over-crediting the batch whenever the pool
+   cannot cover the sum of the requests. Each batch also records a
+   content-addressed ledger entry (`:yield/withdrawal-ledger`) asserting the
+   allocation bound, which `:yield/withdrawal-ledger-conservation` re-checks."
   [world module ops]
   (let [owner-ids (mapv :owner/id ops)
         _ (when-not (= (count owner-ids) (count (distinct owner-ids)))
@@ -1820,54 +1943,105 @@
                    :duplicate-batch-withdrawal-owner
                    {:owner-ids owner-ids}))
         module-id (:module/id module)
-        snapshot-positions (:yield/positions world {})
         now (resolve-now world)
-        results
-        (util-evidence/contextual-pmap
-         (partial compute-withdrawal-result
-                  snapshot-positions
-                  world
-                  module-id
-                  now)
+        tokens (distinct
+                (keep (fn [op]
+                        (some-> (get-in world [:yield/positions (:owner/id op)])
+                                :token
+                                normalize-token))
+                      ops))
+        _ (when (> (count tokens) 1)
+            (fail! "Batch withdrawal spans multiple tokens"
+                   :batch-withdrawal-token-mismatch
+                   {:tokens tokens}))
+        token (first tokens)
+        base-recoverable (if token
+                           (or (source-liquidity-balance world token) 0)
+                           0)
+        market (market-state/get-market-state world module-id token now)
+        batch-available (long (* (long base-recoverable)
+                                 (double (:available-ratio market 1.0))))
+        application-order (current-application-order world)
+        ledger-id [:withdrawal-batch module-id token
+                   (:step application-order) (:event-id application-order)]
+        {:keys [w filled requested deferred haircut rows]}
+        (reduce
+         (fn [{:keys [w remaining filled requested deferred haircut rows]} op]
+           (let [result (compute-withdrawal-result
+                         w module-id now op remaining)]
+             (if (nil? result)
+               {:w w :remaining remaining
+                :filled filled :requested requested
+                :deferred deferred :haircut haircut :rows rows}
+               (let [owner-id (:owner/id op)
+                     accrual-decision (:accrual-decision result)
+                     updated-position (:updated-position result)
+                     decision-artifact (:decision-artifact result)
+                     shortfall (:shortfall result)
+                     world-after-accrue
+                     (accrual/apply-accrual-decision-with-attribution
+                      w accrual-decision)
+                     world-with-position
+                     (assoc-in world-after-accrue
+                               [:yield/positions owner-id]
+                               updated-position)
+                     world-with-artifact
+                     (if decision-artifact
+                       (partial-fill/attach-decision-artifact
+                        world-with-position decision-artifact)
+                       world-with-position)
+                     world'
+                     (if shortfall
+                       (ye/emit-shortfall-event
+                        world-with-artifact
+                        :yield.shortfall/deferred-created
+                        owner-id
+                        {:deferred-amount (:deferred-total result)
+                         :haircut-amount (:haircut-total result)
+                         :fulfilled-amount (:fulfilled-total result)
+                         :basis-amount (:basis-total result)
+                         :available-ratio (:available-ratio shortfall 1.0)
+                         :shortfall-kind
+                         (name (or (:reason shortfall) :unknown))})
+                       world-with-artifact)]
+                 {:w world'
+                  :remaining (- remaining (:fulfilled-total result 0))
+                  :filled (+ filled (:fulfilled-total result 0))
+                  :requested (+ requested (:basis-total result 0))
+                  :deferred (+ deferred (:deferred-total result 0))
+                  :haircut (+ haircut (:haircut-total result 0))
+                  :rows (conj rows
+                              {:owner-id owner-id
+                               :requested (:basis-total result)
+                               :filled (:fulfilled-total result)
+                               :deferred (:deferred-total result)
+                               :haircut (:haircut-total result)})}))))
+         {:w world :remaining batch-available
+          :filled 0 :requested 0 :deferred 0 :haircut 0 :rows []}
          ops)]
-    (reduce
-     (fn [next-world result]
-       (if (nil? result)
-         next-world
-         (let [owner-id (:owner-id result)
-               accrual-decision (:accrual-decision result)
-               updated-position (:updated-position result)
-               decision-artifact (:decision-artifact result)
-               shortfall (:shortfall result)
-               world-after-accrue
-               (accrual/apply-accrual-decision-with-attribution
-                next-world
-                accrual-decision)
-               world-with-position
-               (assoc-in world-after-accrue
-                         [:yield/positions owner-id]
-                         updated-position)
-               world-with-artifact
-               (if decision-artifact
-                 (partial-fill/attach-decision-artifact
-                  world-with-position
-                  decision-artifact)
-                 world-with-position)]
-           (if shortfall
-             (ye/emit-shortfall-event
-              world-with-artifact
-              :yield.shortfall/deferred-created
-              owner-id
-              {:deferred-amount (:deferred-total result)
-               :haircut-amount (:haircut-total result)
-               :fulfilled-amount (:fulfilled-total result)
-               :basis-amount (:basis-total result)
-               :available-ratio (:available-ratio shortfall 1.0)
-               :shortfall-kind
-               (name (or (:reason shortfall) :unknown))})
-             world-with-artifact))))
-     world
-     results)))
+    (when (> filled batch-available)
+      (fail! "Batch withdrawal filled exceeds the shared liquidity pool"
+             :batch-withdrawal-pool-overcommit
+             {:filled filled :available batch-available}))
+    (update-in w [:yield/withdrawal-ledger]
+               (fnil conj [])
+               (content-address-ledger
+                {:ledger/kind :yield/withdrawal-batch
+                 :ledger/id ledger-id
+                 :ledger/module-id module-id
+                 :ledger/token token
+                 :ledger/owner-ids owner-ids
+                 ;; Per-run binding: the certificate commits to the run/execution
+                 ;; identity so per-address withdrawal records are attributable to
+                 ;; the run that produced them (the world-level run-root analog).
+                 :ledger/run-id (:run/id world)
+                 :ledger/execution-id (:execution/id world)
+                 :ledger/available batch-available
+                 :ledger/requested requested
+                 :ledger/filled filled
+                 :ledger/deferred deferred
+                 :ledger/haircut haircut
+                 :ledger/rows rows}))))
 
 ;; ---------------------------------------------------------------------------
 ;; emergency unwind

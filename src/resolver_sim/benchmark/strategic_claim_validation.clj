@@ -23,6 +23,15 @@
             [resolver-sim.io.edn :as ppedn]))
 
 (def strategic-claim-catalog
+  "Registered strategic claims.
+
+   Strategic-scope discipline: :deviation-set-ids is declared only when
+   bounded deviation-resistance is part of the claim's subject. Only the
+   flagship :claim/pro-rata-shortfall-conservation declares it, so the known
+   split/merge/permute violations surface only for that claim. Other claims
+   must not declare deviation sets just because they share the partial-fill
+   mechanism — that would make unrelated known violations invalidate an
+   otherwise correctly scoped claim."
   {:claim/pro-rata-shortfall-conservation
    {:claim/id :claim/pro-rata-shortfall-conservation
     :claim/title "Pro-rata shortfall conservation"
@@ -63,7 +72,6 @@
     :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
     :closed-form-check-ids #{:partial-fill/rounding-residual-bounded}
-    :deviation-set-ids #{:partial-fill/claimant-split-merge-sybil}
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/partial-fill}}
 
@@ -104,7 +112,6 @@
     :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
     :closed-form-check-ids #{:partial-fill/pro-rata-cross-product}
-    :deviation-set-ids #{:partial-fill/claimant-split-merge-sybil}
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/partial-fill}}})
 
@@ -324,26 +331,48 @@
        :check-results (vec level-checks)
        :evidence-references (vec (mapcat :evidence-references matched-scenarios))})))
 
-(defn- strategic-properties-for-claim
+(defn- resolve-deviation-set-ids
+  "Resolve every declared :deviation-set-ids entry to a registered contract.
+
+   Fails closed: a declared id that does not resolve to a registered contract
+   throws, so the audit trail cannot silently drop part of the requested scope.
+
+   Returns {:deviation-set-ids [...] :contract-ids [...] :contracts [...]
+            :deviations #{...}} with deterministic, duplicate-free
+   :deviation-set-ids and :contract-ids (sorted by keyword), and the union of
+   the resolved contracts' deviation generators."
+  [set-ids]
+  (let [ids (vec (sort set-ids))
+        contracts (mapv (fn [id]
+                          (or (dc/get-contract id)
+                              (throw (ex-info "Unresolved deviation-set id"
+                                              {:deviation-set-id id
+                                               :known-ids (vec (sort (keys dc/registered-contracts)))}))))
+                        ids)]
+    {:deviation-set-ids ids
+     :contract-ids (mapv :contract/id contracts)
+     :contracts contracts
+     :deviations (into #{} (mapcat :deviation-generators) contracts)}))
+
+(defn- strategic-validation-for-claim
   "Run the strategic-property validation for a claim's declared deviation sets.
 
    Resolves each :deviation-set-ids entry to a registered deviation contract,
    unions the contracts' deviation generators, and runs the exhaustive
-   strategic-partial-fill validation. Returns the raw
-   {:properties [...] :summary {...}} artifact, or nil when the claim declares
-   no deviation sets.
+   strategic-partial-fill validation. Returns nil when the claim declares no
+   deviation sets; otherwise
+   {:deviation-set-ids [...] :contract-ids [...] :deviations #{...}
+    :artifact {:properties [...] :summary {...}}}.
 
    The unioned deviations are passed explicitly (no :contract-id) because
    validate-strategic-properties would otherwise derive the deviation set from a
    single contract and silently ignore the others."
   [claim-spec]
-  (let [set-ids (seq (:deviation-set-ids claim-spec))]
-    (when set-ids
-      (let [contracts (keep dc/get-contract set-ids)
-            deviations (into #{} (mapcat :deviation-generators) contracts)]
-        (strategic-partial-fill/validate-strategic-properties
-         :deviations deviations
-         :max-states 500)))))
+  (when (seq (:deviation-set-ids claim-spec))
+    (let [resolved (resolve-deviation-set-ids (:deviation-set-ids claim-spec))]
+      (assoc resolved
+             :artifact (strategic-partial-fill/validate-strategic-properties
+                        :deviations (:deviations resolved))))))
 
 (defn- strategic-claim-artifact
   [claim-spec manifest evidence]
@@ -379,7 +408,8 @@
                                               results-by-path
                                               claim-spec))
                              (:mechanism-levels claim-spec))
-        strategic-artifact (strategic-properties-for-claim claim-spec)
+        strategic-validation (strategic-validation-for-claim claim-spec)
+        strategic-artifact (:artifact strategic-validation)
         strategic-properties (or (:properties strategic-artifact) [])
         strategic-property-results (spr/strategic-properties->results strategic-artifact)
         strategic-deviation-results (spr/strategic-properties->deviation-results
@@ -426,19 +456,35 @@
                         economic-model-gate
                         strategic-deviation-results
                         []
-                        :contract-id (some (comp :contract/id dc/get-contract)
-                                           (:deviation-set-ids claim-spec))
-                        :scope {:mechanism-levels (:mechanism-levels claim-spec)})]
+                        :contract-ids (:contract-ids strategic-validation)
+                        :scope {:mechanism-levels (:mechanism-levels claim-spec)
+                                :deviation-set-ids (:deviation-set-ids strategic-validation)
+                                :deviations (vec (sort (:deviations strategic-validation)))})
+        gates-summary (let [integrity-v (get (first integrity-verdicts) :verdict :pass)
+                            economic-v (:verdict economic-model-gate)
+                            strategic-v (:verdict strategic-gate)]
+                        (cond
+                          (= :blocked integrity-v) :integrity-blocked
+                          (= :blocked economic-v) :economic-model-blocked
+                          (= :blocked strategic-v) :strategic-blocked
+                          (= :inconclusive economic-v) :economic-model-inconclusive
+                          (= :inconclusive strategic-v) :strategic-inconclusive
+                          (= :violated strategic-v) :strategic-violated
+                          :else :all-pass))]
     {:artifact/kind artifact-kind
      :artifact/version artifact-version
      :claim/id (:claim/id claim-spec)
      :claim/title (:claim/title claim-spec)
      :claim/description (:claim/description claim-spec)
      :claim/interpretation
-     "Pass means the claim was not falsified by the matched scenarios and the
-      declared deviation sets on the evaluated evidence. It is bounded and
-      evidence-scoped: it does not prove the claim over the full strategy space,
-      unexercised mechanisms, or undeclared deviation sets."
+     (if (:deviation-set-ids claim-spec)
+       "Pass means the claim was not falsified by the matched scenarios and the
+        declared deviation sets on the evaluated evidence. It is bounded and
+        evidence-scoped: it does not prove the claim over the full strategy space,
+        unexercised mechanisms, or undeclared deviation sets."
+       "Pass means the claim was not falsified by the matched scenarios on the
+        evaluated evidence. It is bounded and evidence-scoped: it does not prove
+        the claim over the full strategy space or unexercised mechanisms.")
      :claim/validation-classes validation-classes
      :benchmark/id (:benchmark/id manifest)
      :benchmark/scenario-suite suite-key
@@ -447,18 +493,14 @@
      :level-verdicts level-verdicts
      :coverage-gaps coverage-gaps
      :strategic-property-results strategic-property-results
+     :strategic-deviation-scope (when strategic-validation
+                                  {:deviation-set-ids (:deviation-set-ids strategic-validation)
+                                   :contract-ids (:contract-ids strategic-validation)
+                                   :deviations (vec (sort (:deviations strategic-validation)))})
      :gates {:integrity (first integrity-verdicts)
              :economic-model economic-model-gate
              :strategic strategic-gate}
-     :gates-summary (let [integrity-v (get (first integrity-verdicts) :verdict :pass)
-                          economic-v (:verdict economic-model-gate)
-                          strategic-v (:verdict strategic-gate)]
-                      (cond
-                        (= :blocked integrity-v) :integrity-blocked
-                        (= :blocked economic-v) :economic-model-blocked
-                        (= :blocked strategic-v) :strategic-blocked
-                        (= :violated strategic-v) :strategic-violated
-                        :else :all-pass))
+     :gates-summary gates-summary
      :summary {:matched-scenario-count (count matched-scenarios)
                :passed-level-count passed-level-count
                :failed-level-count failed-level-count
@@ -472,11 +514,7 @@
                                       strategic-gate])
                :valid? (and (zero? failed-level-count)
                             (zero? uncovered-level-count)
-                            (not (some #(= :blocked (:verdict %))
-                                       [(first integrity-verdicts)
-                                        economic-model-gate
-                                        strategic-gate]))
-                            (not (= :violated (:verdict strategic-gate))))}}))
+                            (= :all-pass gates-summary))}}))
 
 (defn- valid-coverage-gap?
   [gap]

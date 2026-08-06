@@ -339,6 +339,249 @@ not claimed (the Sew runtime and state fixture are not sealed). Covered by
 C2 (`:disputed`, verifier composition) and C3 (released manifest and lockfile)
 are intentionally not part of this change.
 
+## Pre-C2 specification review (gaps closed)
+
+This section folds in the pre-C2 review commitments. Items are numbered R1–R12
+for traceability; acceptance properties and stage changes follow.
+
+### R1. Verification basis is a first-class committed artifact
+
+Before two verifier outputs can legitimately disagree, they must be proven to
+have evaluated the exact same thing. Every verifier attestation therefore
+carries `with-bounty-verification-basis.v1`, a versioned, content-addressed
+artifact committing:
+
+- subject / package / artifact roots being verified;
+- verification contract and version;
+- entrypoint and invocation parameters;
+- dependency / lockfile root;
+- runtime / environment root;
+- benchmark or vector-set root;
+- resource-limit profile;
+- expected public-result schema;
+- classification policy / compatibility profile.
+
+Implemented as `resolver-sim.economics.with-bounty.verification-basis`.
+Two attestations with different basis roots are classified `:basis-mismatch`
+and excluded from status derivation — apparent disagreement caused by different
+inputs, versions, environments, policies, or limits is never a dispute.
+
+### R2. Disagreement taxonomy (complete)
+
+| Situation | Classification |
+|---|---|
+| Verifier cannot execute: unsupported runtime/version | `:incompatible` |
+| Timeout, resource exhaustion, missing dependency | `:inconclusive` |
+| Verifier used a different basis or subject | `:basis-mismatch` / invalid attestation |
+| Implementation disagrees with pinned replay vectors | `:verifier-nonconforming` |
+| Same implementation/identity emits conflicting results | `:equivocation` |
+| Conforming verifiers disagree; output nondeterministic | `:replay-nondeterministic` |
+| Two conforming implementations conflict over an identical frozen basis | `:disputed` |
+| Attestation signature/schema/provenance invalid | excluded from the derivation set |
+
+Critical rule: `:disputed` arises **only** from conflicting, valid, conforming
+attestations over an **identical verification basis**. A failed replay by the
+secondary implementation is normally evidence against that implementation
+(`:verifier-nonconforming`), not evidence that the subject is disputed.
+
+### R3. Verifier-set authority and independence
+
+Status derivation needs explicit authority rules:
+
+- accepted verifier capability/version ranges;
+- verifier identity and signing authority;
+- implementation root and build root;
+- **implementation-lineage / independence class** — mandatory field; without it
+  ten signatures over one binary could masquerade as ten-verifier consensus;
+- key rotation and revocation;
+- duplicate-attestation handling (canonical dedup);
+- multiple identities running the same implementation count once;
+- equivocation treatment;
+- minimum cardinality required to derive each status;
+- canonical ordering and deduplication of attestations.
+
+The in-repo verifier is described as a **secondary / diverse implementation**,
+never independent: it may share specifications, dependencies, canonical
+encoding, fixtures, or developer assumptions with the primary implementation.
+
+### R4. `:disputed` operational and lifecycle semantics
+
+`:disputed` consumers must know what it does. Specified consequences:
+
+- blocks bounty payment and obligation release;
+- blocks certification / package admission;
+- prevents a result from becoming final;
+- requires manual adjudication;
+- permits additional verifier attestations;
+- is superseded only by a later status-derivation artifact;
+- remains permanently visible after resolution;
+- does not alter already-executed effects.
+
+Model: attestations are immutable; a deterministic status-derivation artifact
+commits the attestation set; a later derivation may supersede it with a larger
+or corrected set; the original disputed state remains auditable; resolution
+requires an explicit rule or adjudication artifact — never mutation of the
+earlier status. Technical-correctness disputes are **fail-closed**: a conforming
+minority verifier may have found a real ambiguity, so a 2-of-3 majority does
+not outvote a dispute.
+
+### R5. Canonical public-result contract
+
+Verifier comparison requires an exact public result, not a coarse boolean:
+
+- frozen public-result schema (included and excluded fields);
+- canonical projection; diagnostics, stack traces, timestamps, paths, and
+  implementation-specific metadata excluded;
+- finding identifiers and ordering;
+- error and rejection taxonomy (stable machine-readable classifications);
+- equality is **canonical-byte equality** over the projection;
+- missing and extra public fields are failures.
+
+Implemented as `resolver-sim.economics.with-bounty.public-result`.
+
+### R6. Source-to-executable correspondence (C3)
+
+C3's package must bind the executable back to source and build instructions:
+
+- source-tree root;
+- build-recipe / toolchain root;
+- executable root;
+- source-to-executable build receipt;
+- build environment root;
+- reproducibility classification: `reproducible | attested | opaque`;
+- publisher identity/signature;
+- package identifier/version and immutable package root.
+
+A sealed executable without this link is reproducible as an input, not
+auditable as a product of the reviewed source.
+
+### R7. Hermetic environment contract (C3)
+
+Replay must constrain hidden inputs beyond dependency resolution: network
+access, environment variables, filesystem state and working directory, locale
+and timezone, system clock, randomness, thread/concurrency assumptions, native
+libraries, OS/architecture where material, classpath ordering, resource
+enumeration order, JVM/Clojure runtime details, dynamic namespace loading and
+code evaluation. The executable manifest declares required capabilities; replay
+fails closed when undeclared ambient reads are observed.
+
+### R8. Namespace ownership admission and runtime enforcement (C3)
+
+Ownership checks cover: duplicate namespace declarations, core namespace
+shadowing, preloaded namespace capture, transitive dependencies defining
+reserved namespaces, resource-path collisions, entrypoints resolving to a
+dependency rather than the sealed package, dynamic `require`/`load-string`/
+reflection/generated class names where relevant, and parent-first vs
+child-first classloader behaviour. The entrypoint-origin check binds the
+resolved var/class to the package root, not merely its namespace name.
+
+### R9. Compatibility attestation scope (C3)
+
+A Sew adapter compatibility attestation binds: adapter package root and version,
+reference package root, PRF version/runtime, lockfile and environment roots,
+compatibility profile, test/benchmark corpus root, complete result root, and
+verifier identity/implementation root. It states what it does not prove:
+passing the corpus establishes compatibility with that profile and corpus only —
+not general correctness, security, or correctness for every Sew configuration.
+The same attestation schema is used internally now so Stage D does not migrate
+the trust model.
+
+### R10. Benchmark pack moves to C3
+
+`with-bounty-v1.edn` ships in C3 (external execution stays in Stage D). The pack
+pins a corpus with: passing examples; every stable rejection/classification;
+tampered package and lockfile cases; runtime incompatibility; namespace
+collisions; dependency substitution; basis mismatch; timeout/resource-limit
+cases; deliberate primary/secondary verifier disagreement; golden public-result
+bytes. Without it, the stable replay contract has no released executable
+expression.
+
+### R11. Application-plan projection is frozen
+
+Because verifier attestations and package roots will bind roots derived from
+`with-bounty-application-plan.v1`, its projection is frozen to the B3 field set
+(see `plan-hash-projection-fields`). Changing it requires a v2 domain/version.
+A golden-preimage test pins the exact projection table so a change fails the
+test and forces a conscious decision.
+
+### R12. Declarative funding v1 semantics
+
+Declarative funding defines enough semantics to prevent false claims:
+
+- asset and denomination identity; amount and scale;
+- funding source/root;
+- whether funds are declared, reserved, escrowed, or proven available;
+- freshness / cut-point of availability evidence;
+- relationship between funding and obligation creation;
+- underfunding and overfunding behaviour; refund/release path; expiry;
+- idempotency and duplicate-application handling; atomicity expectations;
+- what the verifier may legitimately claim about funding.
+
+The safe v1 claim: *the plan commits a declared funding source and required
+amount; it does not prove custody, availability, reservation, or successful
+transfer unless separate evidence is supplied.* That boundary is explicit
+before an external consumer interprets "funded" more strongly.
+
+## C2/C3 acceptance properties
+
+### C2 — status derivation
+
+- status derivation is deterministic and permutation-invariant;
+- duplicate attestations do not alter status;
+- an unrelated-basis attestation cannot create a dispute;
+- an invalid or nonconforming verifier cannot create a dispute;
+- two identities using the same implementation do not establish diversity;
+- equivocation is detected;
+- adding a compatible agreeing verifier cannot turn `:verified` into
+  `:disputed`;
+- adding a valid conflicting verifier must not be silently ignored;
+- `:inconclusive` never falls through to a successful status;
+- every derived status carries the complete attestation-set root and
+  verification-basis root.
+
+### C3 — release gates
+
+- lockfile tampering rejected;
+- executable substitution rejected;
+- source/build/executable root mismatch rejected;
+- namespace shadowing through a transitive dependency rejected;
+- entrypoint origin spoofing rejected;
+- undeclared network/filesystem/environment access rejected;
+- runtime outside the declared range rejected;
+- repository/dependency substitution with same coordinates but different bytes
+  rejected;
+- archive path traversal, duplicate entries, symlink escape rejected (archives);
+- non-reproducible builds must not be represented as reproducible.
+
+## Recommended stage changes
+
+- **Into C2:** `verification-basis.v1` (R1); verifier-attestation schema and
+  authority model (R3); complete mismatch/dispute taxonomy (R2); status
+  derivation rules (R4); dispute consequences and supersession lifecycle (R4);
+  canonical public-result projection (R5); experimental benchmark vectors
+  exercising every classification.
+- **Into C3:** canonical `with-bounty-v1` benchmark pack (R10);
+  source/build/executable correspondence (R6); hermetic environment contract
+  (R7); package signing, publisher identity, revocation/deprecation policy (R6);
+  full transitive namespace and resource ownership checks (R8);
+  compatibility-attestation schema, even if only internally issued (R9).
+- **Stays in Stage D:** a genuinely clean-room verifier in another runtime;
+  external Sew execution/attestation; generalised compositions; extension-team
+  economic distribution; third-party certification ecosystem. Any public C3
+  claim must state that verification diversity is still in-repo and not
+  independently implemented.
+
+## Documentation gate (per stage)
+
+C2/C3 completion requires, in addition to code: ADR-0006 status updated from
+Proposed (to Accepted/Experimental as appropriate); exact artifact and
+projection tables; threat-model and trust-boundary section; verification-status
+taxonomy; package consumer/operator guide; compatibility matrix; versioning,
+migration, revocation, and deprecation policy; explicit guarantees and
+non-guarantees; and an explicit distinction between structural verification,
+replay verification, compatibility attestation, and independent assurance.
+Documentation is part of each stage's completion gate, not trailing cleanup.
+
 ## Acceptance bar (Stage B vertical slice)
 
 `with-bounty` reaches its first production-quality composition only when:

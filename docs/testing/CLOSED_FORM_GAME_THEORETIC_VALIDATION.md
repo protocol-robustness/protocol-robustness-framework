@@ -224,14 +224,19 @@ To add a new validator: write a function matching the signature `[projection] �
 
 ### Catalog: 6 Claims
 
+Only the flagship `:claim/pro-rata-shortfall-conservation` declares deviation
+sets, so the strategic (deviation-resistance) properties run for that claim
+alone. The other claims are scoped to their declared subject and must not fail
+because the default claim has known strategic violations.
+
 | Claim ID | Mechanism Levels | Match Dimensions | Benchmarked |
 |----------|-----------------|------------------|-------------|
-| `:claim/pro-rata-shortfall-conservation` | `[:allocation/partial-fill :allocation/shortfall]` | `#{:allocation/partial-fill :allocation/shortfall}` | Research validation; partial-fill level runs closed-form conservation checks |
+| `:claim/pro-rata-shortfall-conservation` | `[:allocation/partial-fill :allocation/shortfall]` | `#{:allocation/partial-fill :allocation/shortfall}` | Research validation; partial-fill level runs closed-form conservation checks. Declares `:deviation-set-ids #{:partial-fill/claimant-monotonicity :partial-fill/claimant-split-merge-sybil}`, so the five strategic properties run and the known split/merge/permute violations surface as `:property-violated` results (exit 1 / `:strategic-violated` by design). |
 | `:claim/waterfall-fill-integrity` | `[:allocation/partial-fill]` | `#{:allocation/partial-fill}` | Research validation; runs waterfall-priority check |
-| `:claim/partial-fill-rounding-integrity` | `[:allocation/partial-fill]` | `#{:allocation/partial-fill}` | Research validation; runs rounding-residual check |
+| `:claim/partial-fill-rounding-integrity` | `[:allocation/partial-fill]` | `#{:allocation/partial-fill}` | Research validation; runs rounding-residual check. No deviation sets — scoped to rounding bounds only. |
 | `:claim/mode-validity` | `[:allocation/partial-fill]` | `#{:allocation/partial-fill}` | Research validation; runs mode-validity checks |
 | `:claim/shortfall-detection-validity` | `[:allocation/shortfall]` | `#{:allocation/shortfall}` | Research validation; invariant-backed only |
-| `:claim/pro-rata-fairness-end-to-end` | `[:allocation/partial-fill]` | `#{:allocation/partial-fill}` | Research validation; runs cross-product check when a pro-rata decision artifact exists |
+| `:claim/pro-rata-fairness-end-to-end` | `[:allocation/partial-fill]` | `#{:allocation/partial-fill}` | Research validation; runs cross-product check when a pro-rata decision artifact exists. No deviation sets — scoped to pro-rata fairness only. |
 
 ### Running a Validation
 
@@ -240,6 +245,18 @@ bb benchmark:game-theory --strategic \
   --claim-id claim/pro-rata-shortfall-conservation \
   --out ./prf-out/game-theory
 ```
+
+The default claim (`:claim/pro-rata-shortfall-conservation`) declares deviation
+sets, so `--strategic` with no `--claim-id` runs the five strategic properties
+and reports the known split/merge/permute violations as `:property-violated`
+results. This is **by design**: the command exits 1 because integer pro-rata
+allocation is not exactly split/merge/permute invariant. On the current real
+shortfall pack the partial-fill mechanism is not exercised (no decision
+artifacts), so the upstream integrity gate blocks first and `:gates-summary` is
+`:integrity-blocked` while the raw `:property-violated` results remain exposed;
+when the mechanism is exercised and upstream gates pass, `:gates-summary` is
+`:strategic-violated`. Claims without deviation sets (e.g. `--claim-id
+claim/partial-fill-rounding-integrity`) exit 0 when their own evidence passes.
 
 Or from Clojure:
 
@@ -263,7 +280,19 @@ The artifact contains:
 - Matched scenarios with evidence references
 - Level verdicts (`:pass`, `:fail`, `:uncovered`)
 - Coverage gaps with reasons (`:no-declared-scenarios-for-level`, `:declared-scenarios-failed-match-basis`)
-- Summary with pass/fail/uncovered counts
+- Strategic property results (`:strategic-property-results`, violations as
+  `{:status :fail :reason :property-violated}`) plus `:strategic-deviation-scope`
+  recording the requested `:deviation-set-ids`, resolved `:contract-ids`, and
+  the unioned `:deviations` that were actually tested. Every declared
+  `:deviation-set-ids` entry must resolve to a registered contract or the run
+  fails closed.
+- Gates (`:gates {:integrity :economic-model :strategic}`) and
+  `:gates-summary` (`:integrity-blocked` / `:economic-model-blocked` /
+  `:strategic-blocked` / `:economic-model-inconclusive` /
+  `:strategic-inconclusive` / `:strategic-violated` / `:all-pass`). An artifact
+  is `:summary :valid?` **only** when `:gates-summary` is `:all-pass` and no
+  level failed or is uncovered — inconclusive gates never report valid.
+- Summary with pass/fail/uncovered counts and strategic-property counts
 
 For a partial-fill mechanism level, an absent decision artifact produces an
 explicit `:no-partial-fill-decision-artifacts` coverage gap. It is not treated
@@ -350,7 +379,7 @@ Registered in `yield-provider-scenario-ids`. Replays with `:outcome :pass`.
 | `pro_rata_characterization_test.clj` | 39 | LRA allocator, redistribution, caps, conservation |
 | `payoffs_test.clj` | 23 | Pro-rata allocation, iterative redistribution |
 | `equilibrium_test.clj` | 72 | All mechanism properties + equilibrium concepts |
-| `game_theory_validation_test.clj` | 4 | Strategic claim artifact emission, matching, level verdicts |
+| `game_theory_validation_test.clj` | 12 | Strategic claim artifact emission, matching, level verdicts, catalog scope, strategic-property result propagation, inconclusive fail-closed behavior |
 | `invariants_test.clj` | partial | Shortfall-splits, shortfall-detected (segmented from pre-existing ns issue) |
 
 ---

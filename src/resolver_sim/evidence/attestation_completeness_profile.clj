@@ -64,12 +64,27 @@
 
 ;; ── Profile hashing ───────────────────────────────────────────────────────
 
+(defn- project-evidence-sets
+  "Explicitly project the profile's evidence category sets to sorted vectors
+   for canonical hashing.  Sets are outside the canonical type algebra; the
+   caller requests the set→sorted-vector normalization explicitly here (it is
+   never performed silently by the encoder)."
+  [profile]
+  (update-in profile [:profile/rules]
+             (fn [rules]
+               (-> rules
+                   (update :evidence/required #(vec (sort %)))
+                   (update :evidence/optional #(vec (sort %)))
+                   (update :evidence/sensitivity-controlled #(vec (sort %)))))))
+
 (defn profile-hash
   "Compute the canonical hash of a completeness profile.
-   The hash covers all fields except :profile/hash itself."
+   The hash covers all fields except :profile/hash itself, after explicitly
+   projecting evidence category sets to sorted vectors."
   [profile]
   (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      (dissoc profile :profile/hash))))
+                                      (project-evidence-sets
+                                       (dissoc profile :profile/hash)))))
 
 ;; ── Profile construction ──────────────────────────────────────────────────
 

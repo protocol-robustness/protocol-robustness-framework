@@ -62,6 +62,55 @@ safety claim.
    scope limits. It must not embed sensitive final-world data or raw event
    payloads.
 
+## X, therefore Y conclusion definitions
+
+The canonical "X, therefore Y" definition artifact is `research-conclusion.v1`
+(`src/resolver_sim/benchmark/research_conclusion.clj`). It records an inference
+as a content-addressed artifact:
+
+```text
+X = :conclusion/premise   ; what was established
+∴  = :conclusion/inference :therefore   ; the inference step (pinned)
+Y = :conclusion/result    ; what follows
+```
+
+A conclusion also commits what it does NOT conclude
+(`:conclusion/qualifications`), its bounded `:conclusion/scope`, which
+falsifiers remain untested (`:conclusion/falsifiers`, sharing the theorem
+falsifier vocabulary `:observed | :not-observed | :untested`), and its
+`:conclusion/supporting-theorem-hashes`.
+
+### Definition rules
+
+- `build-conclusion` requires `:conclusion/premise {:x ...}` and
+  `:conclusion/result {:y ...}`; inference is always `:therefore`.
+- Status vocabulary: `:established` (default) | `:qualified` | `:tentative`
+  | `:contested` | `:withdrawn`.
+- `conclusion-valid?` / `validate-conclusion` recompute `:conclusion/hash`
+  (domain `research-conclusion`) and reject structural or hash mismatch.
+- `validate-conclusion` additionally enforces: falsifier shape, well-formed
+  `sha256:` supporting-theorem references, and the overreach guard — an
+  `:established` conclusion with no qualifications and no scope does not
+  validate.
+- `conclusion-overreaches?` flags an `:established` conclusion with no
+  qualifications and no scope — a finding must not overstate beyond its
+  committed parameter domain.
+- `verify-conclusion-support` applies the transitive commitment rule: every
+  supporting theorem must resolve through a theorem resolver to a theorem whose
+  own `:theorem/hash` recomputes to the claimed hash — missing or substituted
+  theorems fail.
+- `conclusion-collective-hash` derives the `:conclusion-root` used in
+  outcome-hashes, so a researcher can challenge one finding without disputing
+  the whole outcome.
+
+### Related inference machinery
+
+- Theorem inference rules (`research_theorem_outcome.clj`):
+  `:deductive-rule`, `:counterexample-refutation`, `:statistical-inference`.
+- `:implies` predicates in scenario theory and theory validation
+  (`theory.clj`, `theory_validation.clj`, `research_benchmark_model.clj`), used
+  to express conditional expectations over metrics/state.
+
 ## Registry contract
 
 The benchmark registry records this artifact as:

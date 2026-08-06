@@ -59,7 +59,8 @@
           (let [property (:property entry)
                 class (validation-class-for property)
                 state-count (long (or (:state-count entry)
-                                      (get-in artifact [:summary :states-examined] 0)))
+                                      (get-in artifact [:summary :distinct-states-examined]
+                                              (get-in artifact [:summary :states-examined] 0))))
                 basis (or (:basis entry) :strategic-partial-fill-enumeration)
                 observed {:state-count state-count
                           :violation-count (long (:violation-count entry 0))}

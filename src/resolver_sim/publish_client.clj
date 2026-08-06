@@ -29,9 +29,9 @@
             [resolver-sim.publish.manifest :as manifest]
             [resolver-sim.signed-external-decision :as sed])
   (:import            [java.io PushbackReader]
-           [java.nio.charset StandardCharsets]
-           [java.nio.file Files]
-           [java.util.concurrent TimeUnit]))
+                      [java.nio.charset StandardCharsets]
+                      [java.nio.file Files]
+                      [java.util.concurrent TimeUnit]))
 
 ;; ── Configuration ───────────────────────────────────────────────────────────
 

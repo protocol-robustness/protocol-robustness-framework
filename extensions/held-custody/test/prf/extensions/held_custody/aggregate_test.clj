@@ -1,9 +1,11 @@
 (ns prf.extensions.held-custody.aggregate-test
   "Tests for the held-custody mutation summary and aggregate checker: explicit
-   flow fields, canonical zero handling, no :total-amount, and the
-   :valid? / :verified? distinction."
+   flow fields, canonical zero handling, no :total-amount, the
+   :valid? / :verified? distinction, and the consecutive mutation-sequence
+   commitment."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.assurance.force-authorisation :as fa]
+            [resolver-sim.hash.framing-view :as fv]
             [prf.extensions.held-custody.mutation :as mut]
             [prf.extensions.held-custody.aggregate :as agg]))
 
@@ -29,18 +31,19 @@
      :starts-at 0
      :expires-at 1000}))
 
-(defn- mk [mutation-id action direction amount auth-id]
+(defn- mk [mutation-id action direction amount auth-id & [consumed-at]]
   (mut/build-force-auth-held-mutation
    (auth auth-id direction amount)
-   {:mutation/id mutation-id
-    :held/action action
-    :held/direction direction
-    :held/amount amount
-    :held/token "USDC"
-    :held/account :escrow-principal
-    :owner/address "0xrecipient"
-    :held/reason :force-authorised-release
-    :held/workflow-id 0}
+   (cond-> {:mutation/id mutation-id
+            :held/action action
+            :held/direction direction
+            :held/amount amount
+            :held/token "USDC"
+            :held/account :escrow-principal
+            :owner/address "0xrecipient"
+            :held/reason :force-authorised-release
+            :held/workflow-id 0}
+     consumed-at (assoc :consumed-at consumed-at))
    {}))
 
 (deftest summary-exposes-explicit-flow-fields
@@ -149,3 +152,206 @@
       (is (not (:valid? r))
           "a noncanonical equivalent summary preimage fails the :exact check")
       (is (false? (:summary-identity-valid? (:checks r)))))))
+
+;; ── consecutive mutation-sequence commitment ────────────────────────────────
+
+(deftest sequence-commits-the-ordered-run
+  (let [members [(mk "m1" :add-held :in 100 "fa-0")
+                 (mk "m2" :finalize-released :out 40 "fa-1")]
+        seq-artifact (agg/build-held-mutation-sequence members {})]
+    (is (= "force-auth-held-custody-mutation-sequence.v1"
+           (:schema-version seq-artifact)))
+    (is (= :force-auth-held-custody-mutation-sequence
+           (:artifact/kind seq-artifact)))
+    (is (= "canonical-value-sequence.v1" (:encoding-contract seq-artifact)))
+    (is (= :held-custody-mutations (:purpose seq-artifact)))
+    (is (= 2 (:component-count seq-artifact)))
+    (is (= ["m1" "m2"] (:member-order seq-artifact)))
+    (is (= (mapv :artifact/hash members) (:member-hashes seq-artifact))
+        "the ordered member content refs are committed")
+    (is (= [:add-held :finalize-released] (:actions seq-artifact))
+        "the run self-describes its held actions")
+    (is (= [:force-auth-held-custody-mutation] (:kinds seq-artifact))
+        "the run self-describes its artifact kinds")
+    (is (= {:add-held 1 :finalize-released 1} (:action-counts seq-artifact)))
+    (is (= {:force-auth-held-custody-mutation 2} (:kind-counts seq-artifact)))
+    (is (re-matches #"sha256:[0-9a-f]{64}" (:sequence-hash seq-artifact)))
+    (is (some? (:artifact/hash seq-artifact)))))
+
+(deftest sequence-order-is-consecutive-by-consumed-at
+  (let [members [(mk "m1" :add-held :in 100 "fa-0" 50)
+                 (mk "m2" :add-held :in 10 "fa-1" 10)
+                 (mk "m3" :sub-held :out 30 "fa-2" 30)]
+        seq-artifact (agg/build-held-mutation-sequence members {})]
+    (is (= ["m2" "m3" "m1"] (:member-order seq-artifact))
+        "consumed-at ascending commits the consecutive temporal order")
+    (testing "a different consecutive order commits different bytes"
+      (is (not= (:sequence-hash seq-artifact)
+                (:sequence-hash
+                 (agg/build-held-mutation-sequence
+                  [(mk "m1" :add-held :in 100 "fa-0" 50)
+                   (mk "m2" :add-held :in 10 "fa-1" 10)
+                   (mk "m3" :sub-held :out 30 "fa-2" 60)]
+                  {})))))))
+
+(deftest sequence-recompute-matches-builder-and-validates
+  (let [members [(mk "m1" :add-held :in 100 "fa-0")
+                 (mk "m2" :sub-held :out 40 "fa-1")]
+        seq-artifact (agg/build-held-mutation-sequence members {})]
+    (is (= seq-artifact (agg/recompute-held-mutation-sequence members {})))
+    (let [r (agg/check-held-mutation-sequence seq-artifact members {})]
+      (is (:valid? r))
+      (is (= :valid (:status r)))
+      (is (true? (:sequence-identity-valid? (:checks r))))
+      (is (true? (:sequence-recomputes? (:checks r)))))))
+
+(deftest sequence-check-rejects-tampering
+  (let [members [(mk "m1" :add-held :in 100 "fa-0")]
+        seq-artifact (agg/build-held-mutation-sequence members {})
+        tampered (assoc seq-artifact :sequence-hash
+                        "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+        r (agg/check-held-mutation-sequence tampered members {})]
+    (is (not (:valid? r)))
+    (is (false? (:sequence-identity-valid? (:checks r)))
+        "a tampered body fails the exact content round-trip")))
+
+(deftest sequence-check-rejects-divergent-member-set
+  (let [one [(mk "m1" :add-held :in 100 "fa-0")]
+        both [(mk "m1" :add-held :in 100 "fa-0")
+              (mk "m2" :sub-held :out 40 "fa-1")]
+        seq-artifact (agg/build-held-mutation-sequence one {})
+        r (agg/check-held-mutation-sequence seq-artifact both {})]
+    (is (not (:valid? r)))
+    (is (false? (:sequence-recomputes? (:checks r)))
+        "a valid sequence artifact over a different member run is rejected")
+    (is (seq (:mismatches r)))))
+
+(deftest aggregate-folds-sequence-validity
+  (let [members [(mk "m1" :add-held :in 100 "fa-0")
+                 (mk "m2" :sub-held :out 40 "fa-1")]
+        summary (agg/build-held-mutation-summary members {})
+        seq-artifact (agg/build-held-mutation-sequence members {})]
+    (testing "a matching sequence keeps the aggregate valid"
+      (let [r (agg/check-held-mutation-aggregate summary members {:sequence seq-artifact})]
+        (is (:valid? r))
+        (is (true? (:sequence-valid? (:checks r))))))
+    (testing "a tampered sequence makes the aggregate non-passing"
+      (let [bad (assoc seq-artifact :sequence-hash
+                       "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+            r (agg/check-held-mutation-aggregate summary members {:sequence bad})]
+        (is (not (:valid? r)))
+        (is (false? (:sequence-valid? (:checks r))))))))
+
+(deftest sequence-bytes-frame-as-a-single-canonical-value
+  (let [members [(mk "m1" :add-held :in 100 "fa-0")
+                 (mk "m2" :sub-held :out 40 "fa-1")]
+        ba (agg/held-mutation-sequence-bytes members)]
+    (testing "the bound sequence is itself one canonical value"
+      (let [v (fv/verify-single ba)]
+        (is (:canonical? v))
+        (is (:single? v))))
+    (testing "the framed commitment is self-describing"
+      (let [d (fv/frame-stream ba)
+            decoded (get-in d [:frames 0 :value])]
+        (is (= 1 (count (:frames d))) "one canonical value, not a bare stream")
+        (is (= "canonical-value-sequence.v1" (:encoding-contract decoded)))
+        (is (= :held-custody-mutations (:purpose decoded)))
+        (is (= 2 (:component-count decoded)))
+        (is (= 2 (count (:components decoded))))))))
+
+(deftest sequence-rejects-invalid-members-fail-fast
+  (let [good (mk "m1" :add-held :in 100 "fa-0")
+        bad (assoc (mk "m2" :sub-held :out 40 "fa-1") :held/amount 999)]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (agg/build-held-mutation-sequence [good bad] {})))))
+
+(deftest member-kind-attributes-add-held-kind
+  (testing "native members report their own artifact kind"
+    (is (= :force-auth-held-custody-mutation
+           (agg/member-kind (mk "m1" :add-held :in 100 "fa-0")))))
+  (testing "projected legacy add-held members are attributed to add-held-kind"
+    (is (= :force-auth-add-held
+           (agg/member-kind {:mutation/id "m1"
+                             :legacy/classification :legacy-direction-bound}))))
+  (testing "the add-held-kind constant matches the legacy evidence domain"
+    (is (= :force-auth-add-held agg/legacy-add-held-kind))))
+
+(deftest sequence-body-exposes-actions-and-kinds
+  (let [body (agg/held-mutation-sequence-body
+              [{:artifact/hash "sha256:a"
+                :mutation/id "m1" :held/action :add-held :held/amount 100
+                :held/consumed-at 10
+                :artifact/kind :force-auth-held-custody-mutation}
+               {:artifact/hash "sha256:b"
+                :mutation/id "m2" :held/action :add-held :held/amount 50
+                :held/consumed-at 20
+                :legacy/classification :legacy-direction-bound}])]
+    (is (= ["m1" "m2"] (:member-order body)))
+    (is (= [:add-held] (:actions body)))
+    (is (= #{:force-auth-add-held :force-auth-held-custody-mutation}
+           (set (:kinds body)))
+        "the run self-describes both the native and the add-held kind")
+    (is (= {:add-held 2} (:action-counts body)))
+    (is (= {:force-auth-add-held 1 :force-auth-held-custody-mutation 1}
+           (:kind-counts body)))
+    (is (= 150 (:add-held/amount body)))
+    (is (re-matches #"sha256:[0-9a-f]{64}" (:sequence-hash body)))))
+
+(deftest remote-authority-required-classification
+  (testing "a native add-held member is forbidden from local in-process
+            authorization (force-auth-add evidence)"
+    (is (agg/remote-authority-required? (mk "m1" :add-held :in 100 "fa-0"))))
+  (testing "outward mutations are not force-auth-add evidence"
+    (is (not (agg/remote-authority-required? (mk "m1" :sub-held :out 40 "fa-0"))))
+    (is (not (agg/remote-authority-required?
+              (mk "m1" :finalize-released :out 40 "fa-0")))))
+  (testing "add-held-kind :force-auth-add-held always requires remote authority"
+    (is (agg/remote-authority-required?
+         {:artifact/kind :force-auth-add-held :mutation/id "m1"})))
+  (testing "a projected legacy member carrying the add-held action is forbidden"
+    (is (agg/remote-authority-required?
+         {:mutation/id "m1" :held/action :add-held
+          :legacy/classification :legacy-direction-bound}))))
+
+(deftest sequence-exposes-force-auth-add-forbidden
+  (let [with-add [(mk "m1" :add-held :in 100 "fa-0")
+                  (mk "m2" :sub-held :out 40 "fa-1")]
+        out-only [(mk "m1" :sub-held :out 40 "fa-0")
+                  (mk "m2" :finalize-released :out 10 "fa-1")]
+        seq-with-add (agg/build-held-mutation-sequence with-add {})
+        seq-out-only (agg/build-held-mutation-sequence out-only {})]
+    (is (true? (:force-auth-add-forbidden? seq-with-add)))
+    (is (= 1 (:remote-authority-required-count seq-with-add)))
+    (is (false? (:force-auth-add-forbidden? seq-out-only)))
+    (is (= 0 (:remote-authority-required-count seq-out-only)))))
+
+(deftest sequence-exposes-force-auth-authorised
+  (let [members [(mk "m1" :add-held :in 100 "fa-0")
+                 (mk "m2" :sub-held :out 40 "fa-1")]
+        seq-artifact (agg/build-held-mutation-sequence members {})]
+    (is (true? (:force-auth-authorised? seq-artifact))
+        "every native member is force-authorisation-backed")
+    (is (= 2 (:authorisation/id-count seq-artifact)))
+    (testing "force-auth-authorised? documents the backing invariant"
+      (is (true? (agg/force-auth-authorised? members)))
+      (is (false? (agg/force-auth-authorised?
+                   [(assoc (first members) :authorization/id nil)]))))))
+
+(deftest sequence-exposes-add-held-amount-posture
+  (let [members [(mk "m1" :add-held :in 100 "fa-0")
+                 (mk "m2" :add-held :in 50 "fa-1")
+                 (mk "m3" :sub-held :out 40 "fa-2")
+                 (mk "m4" :finalize-released :out 10 "fa-3")]
+        seq-artifact (agg/build-held-mutation-sequence members {})]
+    (is (= 2 (:add-held/count seq-artifact)))
+    (is (= 150 (:add-held/amount seq-artifact))
+        "the run reports the total value added via add-held")
+    (is (= {:add-held 150 :finalize-released 10 :sub-held 40}
+           (:amount-by-action seq-artifact))
+        "amount posture by action, sorted")
+    (testing "a run with no add-held reports zero"
+      (let [out-only (agg/build-held-mutation-sequence
+                      [(mk "m1" :sub-held :out 40 "fa-0")] {})]
+        (is (= 0 (:add-held/count out-only)))
+        (is (= 0 (:add-held/amount out-only)))
+        (is (= {:sub-held 40} (:amount-by-action out-only)))))))

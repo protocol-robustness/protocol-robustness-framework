@@ -102,6 +102,24 @@
   (is (not (rp/valid-dimension-status? :model-authority :omitted)))
   (is (not (rp/valid-dimension-status? :reproduction :adequate))))
 
+(deftest valid-status-catalog-v3-dimensions
+  (is (rp/valid-dimension-status? :model-invariants :adequate))
+  (is (rp/valid-dimension-status? :model-invariants :inadequate))
+  (is (rp/valid-dimension-status? :temporal-fidelity :incomplete))
+  (is (rp/valid-dimension-status? :sampling-policy :insufficient-coverage))
+  (is (rp/valid-dimension-status? :sampling-policy :biased))
+  (is (rp/valid-dimension-status? :determinism :deterministic))
+  (is (rp/valid-dimension-status? :determinism :non-deterministic))
+  (is (rp/valid-dimension-status? :provenance :complete))
+  (is (rp/valid-dimension-status? :provenance :broken))
+  (doseq [dim [:model-invariants :temporal-fidelity :sampling-policy
+               :determinism :provenance]]
+    (is (rp/valid-dimension-status? dim :not-reviewed))
+    (is (rp/valid-dimension-status? dim :insufficient-information))
+    (is (rp/valid-dimension-status? dim :not-applicable)))
+  (is (not (rp/valid-dimension-status? :sampling-policy :adequate-extra)))
+  (is (not (rp/valid-dimension-status? :provenance :adequate))))
+
 ;; ── Theorem/conclusion targeting ──────────────────────────────────────────
 
 (deftest build-position-with-theorem-targets

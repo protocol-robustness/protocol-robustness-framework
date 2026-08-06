@@ -192,7 +192,7 @@ def write_artifacts_to(
                 all_potential_entries.append(entry)
     else:
         for aid in cfg.all_artifact_ids:
-            if aid == "scenario-result":
+            if aid == "results-artifact":
                 continue
             try:
                 p = cfg.artifact_path(aid)
@@ -203,8 +203,11 @@ def write_artifacts_to(
                 all_potential_entries.append(e)
 
         if args.output_file:
-            e = mk_artifact_entry(cfg, "scenario-result", args.output_file)
+            e = mk_artifact_entry(cfg, "results-artifact", args.output_file)
             if e:
+                # Bind the results artifact to the run explicitly: the accepted
+                # registry must prove the results artifact belongs to this run.
+                e.setdefault("extensions", {})["run_id"] = run_id
                 all_potential_entries.append(e)
 
         for sid in ("signature", "envelope"):

@@ -32,88 +32,88 @@
 
 (deftest decide-signs-valid-certificate
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          resp (cmd/decide {:private-key (:private-key kp) :key-id (:key/id kp)
-                            :assurance :process-isolated}
-                           req)
-          cert (:decision resp)
-          policy (fx/trust-policy kp :artifact-publisher :active)]
-      (is (= contract/response-kind (:response/kind resp)))
-      (is (= "req-pub" (:request/id resp)))
-      (is (= (:request/hash req) (:request/hash resp)))
-      (is (= contract/decision-kind (:artifact/kind cert)))
-      (is (= :approve (:publish/decision cert)))
-      (is (= :process-isolated (:publish/authority-assurance cert)))
-      (is (= "run-1" (:publish/run-id cert)))
-      (is (= (manifest/manifest-commit "run-1" (:publish/manifest req))
-             (:publish/manifest-commit cert)))
-      (is (true? (:valid? (sed/verify-envelope cert contract/decision-domain
-                                               policy :artifact-publisher))))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      resp (cmd/decide {:private-key (:private-key kp) :key-id (:key/id kp)
+                                        :assurance :process-isolated}
+                                       req)
+                      cert (:decision resp)
+                      policy (fx/trust-policy kp :artifact-publisher :active)]
+                  (is (= contract/response-kind (:response/kind resp)))
+                  (is (= "req-pub" (:request/id resp)))
+                  (is (= (:request/hash req) (:request/hash resp)))
+                  (is (= contract/decision-kind (:artifact/kind cert)))
+                  (is (= :approve (:publish/decision cert)))
+                  (is (= :process-isolated (:publish/authority-assurance cert)))
+                  (is (= "run-1" (:publish/run-id cert)))
+                  (is (= (manifest/manifest-commit "run-1" (:publish/manifest req))
+                         (:publish/manifest-commit cert)))
+                  (is (true? (:valid? (sed/verify-envelope cert contract/decision-domain
+                                                           policy :artifact-publisher))))))))
 
 (deftest decide-rejects-request-hash-mismatch
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          tampered (assoc req :request/hash "sha256:forged")]
-      (is (thrown-with-msg? Exception #"request hash mismatch"
-                            (cmd/decide {:private-key (:private-key kp)} tampered)))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      tampered (assoc req :request/hash "sha256:forged")]
+                  (is (thrown-with-msg? Exception #"request hash mismatch"
+                                        (cmd/decide {:private-key (:private-key kp)} tampered)))))))
 
 (deftest decide-rejects-policy-hash-mismatch
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          tampered (sed/attach-request-hash contract/request-domain
-                                             (assoc req :policy/hash "sha256:stale"))]
-      (is (thrown-with-msg? Exception #"policy hash mismatch"
-                            (cmd/decide {:private-key (:private-key kp)} tampered)))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      tampered (sed/attach-request-hash contract/request-domain
+                                                        (assoc req :policy/hash "sha256:stale"))]
+                  (is (thrown-with-msg? Exception #"policy hash mismatch"
+                                        (cmd/decide {:private-key (:private-key kp)} tampered)))))))
 
 (deftest decide-rejects-manifest-commit-mismatch
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          tampered (sed/attach-request-hash contract/request-domain
-                                             (assoc req :publish/declared-commit "sha256:forged"))]
-      (is (thrown-with-msg? Exception #"manifest commitment mismatch"
-                            (cmd/decide {:private-key (:private-key kp)} tampered)))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      tampered (sed/attach-request-hash contract/request-domain
+                                                        (assoc req :publish/declared-commit "sha256:forged"))]
+                  (is (thrown-with-msg? Exception #"manifest commitment mismatch"
+                                        (cmd/decide {:private-key (:private-key kp)} tampered)))))))
 
 (deftest decide-rejects-modified-artifact-all-or-nothing
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          _ (write-file dir "summary.json" "tampered-content")]
-      (is (thrown-with-msg? Exception #"all-or-nothing verification"
-                            (cmd/decide {:private-key (:private-key kp)} req)))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      _ (write-file dir "summary.json" "tampered-content")]
+                  (is (thrown-with-msg? Exception #"all-or-nothing verification"
+                                        (cmd/decide {:private-key (:private-key kp)} req)))))))
 
 (deftest decide-rejects-deleted-artifact
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          _ (io/delete-file (io/file dir "summary.json") true)]
-      (is (thrown-with-msg? Exception #"all-or-nothing verification"
-                            (cmd/decide {:private-key (:private-key kp)} req)))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      _ (io/delete-file (io/file dir "summary.json") true)]
+                  (is (thrown-with-msg? Exception #"all-or-nothing verification"
+                                        (cmd/decide {:private-key (:private-key kp)} req)))))))
 
 (deftest run-from-reader-outputs-response-and-exits-zero
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          out (with-out-str
-                (is (zero? (cmd/run-from-reader
-                            (io/reader (java.io.StringReader. (pr-str req)))
-                            (:private-key kp)
-                            {:key-id (:key/id kp) :assurance :process-isolated}))))]
-      (is (re-find #":response/kind" out))
-      (is (re-find #":artifact/kind :artifact-publish-certificate" out))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      out (with-out-str
+                            (is (zero? (cmd/run-from-reader
+                                        (io/reader (java.io.StringReader. (pr-str req)))
+                                        (:private-key kp)
+                                        {:key-id (:key/id kp) :assurance :process-isolated}))))]
+                  (is (re-find #":response/kind" out))
+                  (is (re-find #":artifact/kind :artifact-publish-certificate" out))))))
 
 (deftest run-from-reader-rejects-trailing-garbage
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          req (build-request dir "run-1")
-          out (with-out-str
-                (is (pos? (cmd/run-from-reader
-                           (io/reader (java.io.StringReader. (str (pr-str req) "\n:garbage")))
-                           (:private-key kp) {:key-id (:key/id kp)}))))]
-      (is (re-find #":error/reason :trailing-request" out))))))
+                (let [kp (fx/keypair)
+                      req (build-request dir "run-1")
+                      out (with-out-str
+                            (is (pos? (cmd/run-from-reader
+                                       (io/reader (java.io.StringReader. (str (pr-str req) "\n:garbage")))
+                                       (:private-key kp) {:key-id (:key/id kp)}))))]
+                  (is (re-find #":error/reason :trailing-request" out))))))
 
 (deftest run-from-reader-rejects-empty-input
   (let [kp (fx/keypair)
@@ -141,11 +141,11 @@
 
 (deftest run-cli-entry-loads-pem-and-signs
   (stage-with (fn [dir]
-    (let [kp (fx/keypair)
-          key-file (write-pem (:private-key kp))
-          req (build-request dir "run-1")
-          out (with-in-str (pr-str req)
-                (with-out-str
-                  (is (zero? (cmd/run {:key (.getPath key-file) :key-id (:key/id kp)})))))]
-      (is (string? out))
-      (io/delete-file key-file true)))))
+                (let [kp (fx/keypair)
+                      key-file (write-pem (:private-key kp))
+                      req (build-request dir "run-1")
+                      out (with-in-str (pr-str req)
+                            (with-out-str
+                              (is (zero? (cmd/run {:key (.getPath key-file) :key-id (:key/id kp)})))))]
+                  (is (string? out))
+                  (io/delete-file key-file true)))))

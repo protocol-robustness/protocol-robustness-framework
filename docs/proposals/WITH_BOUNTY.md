@@ -357,31 +357,49 @@ result), one obligation type (`:bounty-payable`), one protocol (Sew), no
 partial payments, no compatibility attestation, no benchmark publication claim,
 no independent-verification claim.
 
-### Stage C — after the vertical slice is stable
-
-Implementation replay; verifier disagreement and `:disputed`; additional failure
-modes; wider base-plan compatibility; released manifest and lockfile; protocol
-compatibility evidence.
+### Stage C — replay release
 
 **C1 (implementation replay) — implemented.**
 `src/resolver_sim/economics/with_bounty/replay.clj` re-runs the exact sealed
 eligibility and amount implementations against the committed inputs
 (`:replay/inputs`) and reconciles receipt, plan, and effect roots, classified
 explicitly `:implementation-replay`. Replay stops at the capability boundary
-(protocol transition reproduction requires a sealed Sew runtime + state
-fixture and is not claimed). C2 (`:disputed`) and C3 (released manifest and
-lockfile) are deferred and intentionally not part of the same change.
+(protocol transition reproduction requires a sealed Sew runtime + state fixture
+and is not claimed).
 
-The pre-Stage-C boundary review (obligation vs duplicate identity, atomicity,
-plan completeness, verifier independence, frozen-resolution commitment) is
-recorded in ADR-0006.
+Planned for the rest of Stage C (see ADR-0006 pre-C2 specification review
+R1–R12):
+
+- `verification-basis.v1` committed into every verifier attestation (R1);
+- complete mismatch/dispute taxonomy; `:disputed` only from conflicting, valid,
+  conforming attestations over an identical basis (R2);
+- verifier-set authority, implementation-lineage/independence class, and
+  in-repo verifier described as secondary/diverse, never independent (R3);
+- `:disputed` consequences and immutable supersession lifecycle, fail-closed on
+  technical disputes (R4);
+- canonical public-result projection with canonical-byte equality (R5);
+- source/build/executable correspondence and reproducibility classification (R6);
+- hermetic environment contract, fail-closed on undeclared ambient reads (R7);
+- full namespace/resource ownership and entrypoint-origin binding (R8);
+- compatibility-attestation schema with explicit non-claims (R9);
+- canonical `with-bounty-v1` benchmark pack published in C3 (R10) — external
+  execution and attestations stay in Stage D;
+- application-plan projection frozen (golden-preimage test) (R11);
+- declarative funding v1 semantics: the plan commits a declared source and
+  amount; it does not prove custody/availability/reservation/transfer unless
+  separate evidence is supplied (R12).
+
+C2 (`:disputed`, status derivation, verifier attestations) is a separate change
+after C1; C3 release gates are defined in ADR-0006.
 
 ### Stage D — later roadmap (deferred until an external or genuinely separate use exists)
 
-Independent-verifier claim; external Sew compatibility attestation; benchmark
-pack as ecosystem evidence; generalised `with-obligation` / `with-incentive` /
-governance-triggered composition; extension-team incentives and package
-distribution; conformance certification for third-party packages.
+Independent-verifier claim (clean-room / other runtime); external Sew execution
+and compatibility attestations against the published pack; generalised
+`with-obligation` / `with-incentive` / governance-triggered composition;
+extension-team incentives and package distribution; third-party conformance
+certification. Any public C3 claim must state that verification diversity is
+still in-repo and not independently implemented.
 
 A benchmark pack reports an established capability; it is not the first place
 where semantics are stabilised.

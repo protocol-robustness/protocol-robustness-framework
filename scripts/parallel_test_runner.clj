@@ -60,20 +60,118 @@
             [scripts.test-summary :as summary]))
 
 (def parallel-excluded-namespaces
-  "Namespaces with audit-flagged hard process-global hazards that never overlap
-   the parallel pool (derived from scripts/audit-parallel-safety.clj hard-pattern
-   scan of the framework/unit/evidence lists: with-redefs/alter-var-root on
-   shared vars, fixed path writes, port/server binding).  Override with
-   PARALLEL_TEST_EXCLUDE_NS (comma/space separated); empty string disables."
+  "Namespaces that never overlap the parallel pool; they always run first in a
+   sequential lane.  Two classes:
+     - audit-flagged hard process-global hazards (with-redefs/alter-var-root on
+       shared vars, fixed path writes, port/server binding) from the
+       scripts/audit-parallel-safety.clj hard-pattern scan.  The audit gate
+       (scripts.audit-parallel-safety parallel-test-runner|all) fails if a
+       hard-hazard namespace in parallel-runner-namespaces is missing here.
+     - scenario-group members (scripts.run-sew-tests scenario-test-namespaces),
+       which are validated sequential-only (see run-sew-tests GROUP POLICY) and
+       therefore must not run in a parallel pool.
+   `resolver-sim.community.result-test` is a static-scan false positive (the
+   fixed /tmp/ paths are fixture literal strings, not writes) but is kept in
+   the lane so the audit gate stays deterministic.
+   Override with PARALLEL_TEST_EXCLUDE_NS (comma/space separated); empty string
+   disables."
   '#{resolver-sim.evidence.chain-test
      resolver-sim.evidence.commitment-root-test
      resolver-sim.evidence.node-test
      resolver-sim.hash.attestor-hash-test
      resolver-sim.hash.canonical-test
-     resolver-sim.protocols.sew.dispute-resolution-coverage-test
-     resolver-sim.protocols.sew.replay-test
-     resolver-sim.validation.scenario-registry-test
-     resolver-sim.benchmark.game-theory-validation-test})
+      resolver-sim.protocols.sew.dispute-resolution-coverage-test
+      resolver-sim.protocols.sew.replay-test
+      resolver-sim.contract-model.replay-batch-sew-test
+      resolver-sim.validation.scenario-registry-test
+     resolver-sim.benchmark.game-theory-validation-test
+     resolver-sim.community.result-test})
+
+(def parallel-runner-namespaces
+  "Union of every namespace handed to scripts.parallel-test-runner by the
+   canonical invocations: test.sh run_unit + run_generators; bb.edn
+   test:framework, test:framework:parallel, test:evidence,
+   test:evidence-known-gaps, test:quick-sew, test:quick-sew:concurrent,
+   test:community.  This is the single source of truth for the
+   scripts.audit-parallel-safety parallel-test-runner mode: any namespace in
+   this set carrying an audit hard hazard, or any scenario-group member here,
+   must be in parallel-excluded-namespaces or the audit gate fails.
+   Keep in sync with those invocation lists."
+  '[resolver-sim.assurance.cancellation-gates-test
+    resolver-sim.assurance.consumer-enforcement-test
+    resolver-sim.assurance.custody-summary-test
+    resolver-sim.assurance.deterministic-evidence-test
+    resolver-sim.assurance.three-member-authority-test
+    resolver-sim.benchmark.decision-subject-test
+    resolver-sim.benchmark.game-theory-validation-test
+    resolver-sim.benchmark.packs.partial-fill.evidence-test
+    resolver-sim.benchmark.researcher-decision-v2-test
+    resolver-sim.claim-outcome-test
+    resolver-sim.community.core-test
+    resolver-sim.community.design-scrutiny-test
+    resolver-sim.community.end-to-end-test
+    resolver-sim.community.result-test
+    resolver-sim.contract-model.replay-batch-appeal-test
+    resolver-sim.contract-model.replay-batch-sew-test
+    resolver-sim.contract-model.replay-batch-slash-domain-test
+    resolver-sim.contract-model.replay-batch-test
+    resolver-sim.core-tests
+    resolver-sim.deferral-test
+    resolver-sim.economics.payoffs-test
+    resolver-sim.economics.with-bounty.application-plan-test
+    resolver-sim.economics.with-bounty.replay-test
+    resolver-sim.economics.with-bounty.stage-a-test
+    resolver-sim.economics.with-bounty.verification-test
+    resolver-sim.evidence.attestation-adversarial-test
+    resolver-sim.evidence.attestation-dag-test
+    resolver-sim.evidence.attestation-known-gaps-test
+    resolver-sim.evidence.attestation-node-test
+    resolver-sim.evidence.attestation-policy-test
+    resolver-sim.evidence.attestation-registry-test
+    resolver-sim.evidence.attestation-test
+    resolver-sim.evidence.chain-test
+    resolver-sim.evidence.commitment-root-test
+    resolver-sim.evidence.finalization-test
+    resolver-sim.evidence.integrity-test
+    resolver-sim.evidence.node-test
+    resolver-sim.evidence.qol-test
+    resolver-sim.evidence.registry-test
+    resolver-sim.evidence.revocation-test
+    resolver-sim.evidence.timestamping-test
+    resolver-sim.financial.pro-rata-characterization-test
+    resolver-sim.generators.equilibrium-test
+    resolver-sim.generators.fixtures-test
+    resolver-sim.grounded-amount-test
+    resolver-sim.hash.algorithm-test
+    resolver-sim.hash.attestor-hash-test
+    resolver-sim.hash.canonical-test
+    resolver-sim.hash.concat-properties-test
+    resolver-sim.io.scenario-fixture-parity-test
+    resolver-sim.ordering.priority-composition-test
+    resolver-sim.ordering.priority-test
+    resolver-sim.properties.invariants-test
+    resolver-sim.protocol-alignment-test
+    resolver-sim.protocols.sew.dispute-resolution-coverage-test
+    resolver-sim.protocols.sew.forking-strategist-expectations-test
+    resolver-sim.protocols.sew.phase-k-test
+    resolver-sim.protocols.sew.phase-m-test
+    resolver-sim.protocols.sew.replay-test
+    resolver-sim.protocols.sew.resolution-test
+    resolver-sim.protocols.sew.slashing-test
+    resolver-sim.protocols.sew.trace-export-idempotency-test
+    resolver-sim.protocols.sew.with-bounty-test
+    resolver-sim.run.overview-test
+    resolver-sim.scenario.equilibrium-test
+    resolver-sim.scenario.expectations-test
+    resolver-sim.scenario.suites-test
+    resolver-sim.sim.defection-test
+    resolver-sim.sim.multi-epoch-test
+    resolver-sim.sim.strategy-adaptation-test
+    resolver-sim.sim.waterfall-test
+    resolver-sim.time.context-test
+    resolver-sim.time.model-test
+    resolver-sim.validation.scenario-registry-test
+    resolver-sim.workflow-group-test])
 
 (defn- excluded-syms
   "Resolve the exclusion set: env override if set, else the default set.
@@ -272,6 +370,13 @@
             (println (str "  parallel-excluded (sequential lane): " (count excluded-idx)))
             (doseq [i excluded-idx] (println (str "    " (nth frozen i)))))
         task (fn [idx] (run-one-namespace run-id tmp-root frozen idx noop-capture?))
+        ;; Sequential safety lane runs FIRST and never overlaps the pool.  The
+        ;; pool futures are only submitted after every excluded namespace
+        ;; completes: submitting them earlier let the pool overlap the lane
+        ;; (clojure.core/future dispatches immediately), recreating the exact
+        ;; non-deterministic with-redefs race class that failed the
+        ;; run-sew-tests 8-run soak for accounting-test.
+        excl-results (mapv task excluded-idx)
         sem (java.util.concurrent.Semaphore. jobs)
         futures (mapv (fn [idx]
                         [idx (future
@@ -281,7 +386,6 @@
                                  (finally
                                    (.release sem))))])
                       eligible-idx)
-        excl-results (mapv task excluded-idx)
         elig-results (mapv (fn [[idx fut]]
                              (let [r (deref fut timeout-ms :timeout)]
                                (if (= r :timeout)

@@ -140,7 +140,16 @@
                              (assoc :replay-flags yield-replay-flags
                                     :run-id run-id))
              world0      (-> (proto/init-world protocol scenario)
-                             (assoc-in [:params :scenario-id] scenario-id))
+                             (assoc-in [:params :scenario-id] scenario-id)
+                              ;; Provide the run/execution identity that
+                              ;; shared-withdrawal application-order commitments
+                              ;; require (liquid_lending/current-application-order).
+                              ;; Without it every yield_withdraw_shared event was
+                              ;; silently rejected (:incomplete-application-order),
+                              ;; leaving shared-withdrawal scenarios vacuously
+                              ;; passing without exercising the mechanism.
+                             (assoc :run/id run-id
+                                    :execution/id (str run-id "-execution")))
              events      (:events scenario)
              raw (run-yield-loop protocol context scenario-id events world0)
              result (analysis/finalize-scenario-result scenario raw yield-replay-flags)]

@@ -278,26 +278,27 @@
 
 (defn- dispatch-game-theory
   [args options]
-  (let [{:keys [suite format out claim-id strategic?]} options]
-    (if strategic?
-      (let [claim-kw (or (some-> claim-id keyword)
-                         :claim/pro-rata-shortfall-conservation)
-            result (gt/run-strategic-claim-validation
-                    :claim-id claim-kw
-                    :out-dir (or out "./prf-out/game-theory"))
-            artifact (:artifact result)
-            summary (:summary artifact)]
-        (println "\nGame-theoretic validation"
-                 (if (zero? (:exit-code result)) "PASSED" "FAILED"))
-        (println "  Claim:" (:claim/id artifact))
-        (println "  Matched scenarios:" (:matched-scenario-count summary))
-        (println "  Levels:"
-                 "passed:" (:passed-level-count summary)
-                 "failed:" (:failed-level-count summary)
-                 "uncovered:" (:uncovered-level-count summary))
-        (doseq [f (:output-files result)]
-          (println "  Output:" f))
-        (System/exit (:exit-code result)))
+  (let [{:keys [suite format out claim-id strategic]} options]
+    (if strategic
+      (binding [chain/*allow-dirty* true]
+        (let [claim-kw (or (some-> claim-id keyword)
+                           :claim/pro-rata-shortfall-conservation)
+              result (gt/run-strategic-claim-validation
+                      :claim-id claim-kw
+                      :out-dir (or out "./prf-out/game-theory"))
+              artifact (:artifact result)
+              summary (:summary artifact)]
+          (println "\nGame-theoretic validation"
+                   (if (zero? (:exit-code result)) "PASSED" "FAILED"))
+          (println "  Claim:" (:claim/id artifact))
+          (println "  Matched scenarios:" (:matched-scenario-count summary))
+          (println "  Levels:"
+                   "passed:" (:passed-level-count summary)
+                   "failed:" (:failed-level-count summary)
+                   "uncovered:" (:uncovered-level-count summary))
+          (doseq [f (:output-files result)]
+            (println "  Output:" f))
+          (System/exit (:exit-code result))))
       (let [result (gt/run-equilibrium-validation
                     :suite (when suite
                              (keyword (str/replace-first suite #"^:" "")))

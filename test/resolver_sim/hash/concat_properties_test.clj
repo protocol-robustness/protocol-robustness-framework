@@ -222,12 +222,43 @@
                 (not (bytes= (hc/canonical-bytes s)
                              (concat-bytes (map hc/canonical-bytes s))))))
 
+(def prop-consecutive-injective
+  "Decisive injectivity of consecutive concatenation:
+
+     (bytes= (encode-consecutive xs) (encode-consecutive ys))  ⇒  (= xs ys)
+
+   because the stream is prefix-free and self-delimiting.  Sequences of
+   different lengths are generated freely, so [a b] vs [c], [a] vs [b c],
+   and [] vs [v] collisions are exercised by the generator."
+  (prop/for-all [xs (gen/vector gen-value 0 15)
+                 ys (gen/vector gen-value 0 15)]
+                (let [equal-bytes? (bytes= (concat-bytes (map hc/canonical-bytes xs))
+                                           (concat-bytes (map hc/canonical-bytes ys)))]
+                  (if equal-bytes?
+                    (= xs ys)
+                    (not= xs ys)))))
+
+(deftest test-injectivity-edge-cases
+  (testing "[a b] can never collide with a single-component stream [c]"
+    (is (not (bytes= (concat-bytes (map hc/canonical-bytes [1 2]))
+                     (concat-bytes (map hc/canonical-bytes [3]))))))
+  (testing "[a] can never collide with [b c]"
+    (is (not (bytes= (concat-bytes (map hc/canonical-bytes [1]))
+                     (concat-bytes (map hc/canonical-bytes [2 3]))))))
+  (testing "the empty sequence can never collide with any non-empty sequence"
+    (is (not (bytes= (concat-bytes [])
+                     (concat-bytes (map hc/canonical-bytes [nil]))))))
+  (testing "equal sequences produce equal streams"
+    (is (bytes= (concat-bytes (map hc/canonical-bytes ["a" 1 :b]))
+                (concat-bytes (map hc/canonical-bytes ["a" 1 :b]))))))
+
 (deftest test-decodeability-properties
   (doseq [[name p] {:roundtrip prop-roundtrip
                     :sequence-decode prop-sequence-decode
                     :distinct-sequences prop-distinct-sequences
                     :prefix-free prop-prefix-free
-                    :framing prop-framing}]
+                    :framing prop-framing
+                    :consecutive-injective prop-consecutive-injective}]
     (let [result (tc/quick-check 200 p)]
       (is (:pass? result)
           (str name " failed: " (pr-str (select-keys result [:num-tests :shrunk :fail]))))

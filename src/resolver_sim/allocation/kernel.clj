@@ -21,6 +21,7 @@
    reason rather than relying on exception-message text."
   (:require [resolver-sim.allocation.context :as context]
             [resolver-sim.allocation.proposal :as proposal]
+            [resolver-sim.allocation.reconciliation :as reconciliation]
             [resolver-sim.allocation.roots :as roots]
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.allocation.selection :as selection]))
@@ -96,8 +97,9 @@
 (defn- run-assertions
   "Evaluate the ordered 14 assertions against the context and the committed
    projection. Returns a vector of {:assertion/id <kw> :assertion/result bool}
-   in contract order."
-  [context committed roots-result]
+   in contract order. Failing reconciliation carries an :assertion/reason so
+   the rejection classification is specific, not a generic capacity mismatch."
+  [context committed roots-result leaves selected-outcome rounding-policy]
   (let [normalize (fn [s] (if (and (string? s) (re-matches #"^[0-9a-f]{64}$" s))
                             (str "0x" s)
                             s))
@@ -119,35 +121,46 @@
                            (or (nil? committed-sel-index) (= sel-index committed-sel-index)))
         selection-ok (and (pos? (:outcome-count selection-receipt))
                           (some? (:selected-index selection-receipt)))
-        capacity-reconcile (and (= (:total-allocated roots-result) (:capacity context))
-                                (zero? (:residual-capacity roots-result)))]
-    (mapv (fn [assertion-id]
-            {:assertion/id assertion-id
-             :assertion/result
-             (case assertion-id
-               :allocation.assertion/claimant-set-root-valid claim-root-ok
-               :allocation.assertion/outcome-set-root-valid outcome-root-ok
-               :allocation.assertion/proposed-rates-root-valid rates-root-ok
-               :allocation.assertion/rates-canonical-exact (proposal/rates-canonical-exact? context)
-               :allocation.assertion/rates-sum-to-one (proposal/rates-sum-to-one? (:proposed-rates context))
-               :allocation.assertion/outcomes-eligible-only (proposal/outcomes-eligible-only? context)
-               :allocation.assertion/outcomes-no-duplicate-claims (proposal/outcomes-no-duplicate-claims? context)
-               :allocation.assertion/outcomes-all-or-nothing (proposal/outcomes-all-or-nothing? context)
-               :allocation.assertion/outcomes-exact-capacity (proposal/outcomes-exact-capacity? context)
-               :allocation.assertion/proportional-proposed (proposal/proportional-proposed? context)
-               :allocation.assertion/randomness-selection-valid selection-ok
-               :allocation.assertion/selected-outcome-membership membership-ok
-               :allocation.assertion/result-root-valid result-root-ok
-               :allocation.assertion/result-capacity-reconciles capacity-reconcile
-               false)})
-          assertion-ids)))
+        capacity-reconcile
+        (reconciliation/reconcile
+         {:context context
+          :selected-outcome selected-outcome
+          :leaves leaves
+          :total-allocated (:total-allocated roots-result)
+          :residual-capacity (:residual-capacity roots-result)
+          :committed-result-root (get committed :result-root)
+          :rounding-policy rounding-policy})]    (mapv (fn [assertion-id]
+                                                         (let [res (case assertion-id
+                                                                     :allocation.assertion/claimant-set-root-valid claim-root-ok
+                                                                     :allocation.assertion/outcome-set-root-valid outcome-root-ok
+                                                                     :allocation.assertion/proposed-rates-root-valid rates-root-ok
+                                                                     :allocation.assertion/rates-canonical-exact (proposal/rates-canonical-exact? context)
+                                                                     :allocation.assertion/rates-sum-to-one (proposal/rates-sum-to-one? (:proposed-rates context))
+                                                                     :allocation.assertion/outcomes-eligible-only (proposal/outcomes-eligible-only? context)
+                                                                     :allocation.assertion/outcomes-no-duplicate-claims (proposal/outcomes-no-duplicate-claims? context)
+                                                                     :allocation.assertion/outcomes-all-or-nothing (proposal/outcomes-all-or-nothing? context)
+                                                                     :allocation.assertion/outcomes-exact-capacity (proposal/outcomes-exact-capacity? context)
+                                                                     :allocation.assertion/proportional-proposed (proposal/proportional-proposed? context)
+                                                                     :allocation.assertion/randomness-selection-valid selection-ok
+                                                                     :allocation.assertion/selected-outcome-membership membership-ok
+                                                                     :allocation.assertion/result-root-valid result-root-ok
+                                                                     :allocation.assertion/result-capacity-reconciles (:ok? capacity-reconcile)
+                                                                     false)]
+                                                           (cond-> {:assertion/id assertion-id :assertion/result res}
+                                                             (and (= assertion-id :allocation.assertion/result-capacity-reconciles)
+                                                                  (not res))
+                                                             (assoc :assertion/reason (:reason capacity-reconcile)))))
+                                                       assertion-ids)))
 
 (defn- first-failing-classification
   "Map the ordered assertion results to the first failing assertion's stable
-   classification, or nil when all pass."
+   classification, or nil when all pass. A failing reconciliation carries a
+   specific :assertion/reason (e.g. :result-award-mismatch) that overrides the
+   generic per-assertion classification map."
   [assertions]
   (when-let [failing (first (filter (comp false? :assertion/result) assertions))]
-    (get assertion-classification (:assertion/id failing) :assertion-failed)))
+    (or (:assertion/reason failing)
+        (get assertion-classification (:assertion/id failing) :assertion-failed))))
 
 (defn result-leaves
   "Construct the result Merkle leaves for the selected outcome in canonical
@@ -210,7 +223,8 @@
                         :result-root result-root
                         :total-allocated total-allocated
                         :residual-capacity residual}
-          assertions (run-assertions context committed roots-result)
+          assertions (run-assertions context committed roots-result leaves selected-outcome
+                                     (get input "rounding-policy"))
           all-pass? (every? :assertion/result assertions)
           digest-input {:allocation-context-hash ctx-hash
                         :assertions (vec assertions)

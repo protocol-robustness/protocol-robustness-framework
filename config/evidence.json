@@ -16,6 +16,7 @@
     "test-artifacts": "test-artifacts.v1.2",
     "claimable-classification": "claimable-classification.v2",
     "scenario-result": "scenario-result.v1",
+    "results-artifact": "results-artifact.v1",
     "coverage": "coverage.v1",
     "findings": "findings.v1",
     "issues": "issues.v1",
@@ -58,6 +59,7 @@
     "mc-failures": "mc-emitter.v1",
     "theory-eval": "theory-eval-emitter.v1",
     "scenario-result": "evidence-build-emitter.v1",
+    "results-artifact": "results-artifact-emitter.v1",
     "signature": "evidence-signer.v1",
     "simulation-engine": "simulation-engine.v1",
     "claimable-classification-classifier": "claimable-classification-emitter.v2.1",
@@ -242,11 +244,11 @@
       ]
     },
     {
-      "id": "scenario-result",
+      "id": "results-artifact",
       "file": null,
-      "kind": "scenario-result",
-      "schema_key": "scenario-result",
-      "producer_key": "scenario-result",
+      "kind": "results-artifact",
+      "schema_key": "results-artifact",
+      "producer_key": "results-artifact",
       "importance": "CORE",
       "verifies_against": [
         "test-run.v1"

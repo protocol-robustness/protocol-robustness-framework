@@ -56,13 +56,34 @@
   [cap]
   [(get cap :capability/kind) (get cap :capability/id)])
 
+;; ── canonical projection ───────────────────────────────────────────────────
+
+(defn- project-canonical
+  "Recursively project a descriptor value into the canonical hash domain:
+   sets become sorted vectors. The strict canonical encoder (resolver-sim.hash.
+   canonical) rejects raw sets — callers must project before hashing (mirrors
+   project-world-to-structure-view's set→sorted-vector contract)."
+  [v]
+  (cond
+    (nil? v) nil
+    (boolean? v) v
+    (integer? v) v
+    (string? v) v
+    (keyword? v) v
+    (set? v) (vec (sort (map project-canonical v)))
+    (map? v) (into {} (map (fn [[k val]] [k (project-canonical val)])) v)
+    (vector? v) (mapv project-canonical v)
+    (seq? v) (mapv project-canonical v)
+    :else v))
+
 (defn capability-projection
-  "Project a capability descriptor to its committed identity fields.
-   Entrypoints are symbols in the manifest but are normalised to strings here
-   because the canonical encoder does not support symbol values."
+  "Project a capability descriptor to its committed identity fields, in the
+   canonical hash domain (sets become sorted vectors, entrypoints become
+   strings)."
   [cap]
-  (cond-> (select-keys cap capability-projection-fields)
-    (:entrypoint cap) (update :entrypoint str)))
+  (project-canonical
+   (cond-> (select-keys cap capability-projection-fields)
+     (:entrypoint cap) (update :entrypoint str))))
 
 (defn capability-descriptor-root
   "Content-addressed root of a capability descriptor: the exact implementation

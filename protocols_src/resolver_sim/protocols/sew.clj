@@ -1683,21 +1683,27 @@
                 res            (reg/withdraw-stake world-accrued resolver-addr amount)]
             (if (:ok res)
               (let [world' (:world res)]
-                (if (and yield-profile-id full-withdraw? (pos? yield-amt))
+                (if (and yield-profile-id full-withdraw? pos)
+                  ;; Full stake withdrawal must close the yield position even when
+                  ;; accrued yield is zero or negative; otherwise an orphaned
+                  ;; :active position keeps accruing into :total-held after the
+                  ;; stake is gone. Held accounting applies only to positive yield
+                  ;; (negative yield already reduced :total-held at accrual).
                   (let [{:keys [module-id]} (yield-proto/resolve-yield-profile yield-profile-id)
-                        world'' (-> world'
-                                    (acct/sub-held token
-                                                   yield-amt
-                                                   {:action "withdraw-stake"
-                                                    :reason :resolver-yield-withdrawn
-                                                    :extra {:held/action "withdraw-stake"
-                                                            :held/resolver resolver-addr
-                                                            :held/owner-id owner-id}})
-                                    (update-in [:total-withdrawn token] (fnil + 0) yield-amt)
-                                    (yield-proto/apply-op {:op/type :yield/withdraw
-                                                           :owner/id owner-id
-                                                           :module/id module-id}))]
-                    (t/ok world''))
+                        world'' (cond-> world'
+                                  (pos? yield-amt)
+                                  (-> (acct/sub-held token
+                                                     yield-amt
+                                                     {:action "withdraw-stake"
+                                                      :reason :resolver-yield-withdrawn
+                                                      :extra {:held/action "withdraw-stake"
+                                                              :held/resolver resolver-addr
+                                                              :held/owner-id owner-id}})
+                                      (update-in [:total-withdrawn token] (fnil + 0) yield-amt)))
+                        world''' (yield-proto/apply-op world'' {:op/type :yield/withdraw
+                                                                :owner/id owner-id
+                                                                :module/id module-id})]
+                    (t/ok world'''))
                   (t/ok world')))
               res)))))))
 

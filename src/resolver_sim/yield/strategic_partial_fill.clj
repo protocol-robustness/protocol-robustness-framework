@@ -311,10 +311,15 @@
    Returns {:properties [...] :summary {...}}.
 
    Options:
-   - :scope — map with :claim-count-max, :request-max, :liquidity-max
+   - :scope — an EnumerationScope (:dimensions map of dimension-kw -> [lo hi],
+     :sampling, :max-states); defaults to default-scope
    - :policies — vector of policy maps to test
    - :deviations — vector of deviation keywords to test
-   - :max-states — max states to enumerate (default 500)
+   - :max-states — the configured evaluation cap.  Kept as the compatibility
+     input name, but it caps state × policy executions, not distinct states:
+     with P policies the enumeration examines at most (max-states / P) distinct
+     states.  The artifact reports this precisely via :state-policy-evaluations,
+     :distinct-states-examined, :policies, and :max-state-policy-evaluations.
    - :contract-id — deviation contract id; when set, deviations are derived
      from the contract and :deviations option is ignored"
   [& {:keys [scope policies deviations max-states contract-id]
@@ -326,15 +331,17 @@
                        (vec deviations)
                        (:deviations default-scope))
         results (atom [])
-        state-count (atom 0)
+        state-policy-count (atom 0)
+        distinct-states (atom #{})
         policies (vec policies)
         enum-states (enum/generate-states scope)]
     (doseq [state enum-states
             policy policies
-            :while (< @state-count max-states)]
+            :while (< @state-policy-count max-states)]
       (let [request-vec (:claims state)
             liquidity (:liquidity state)
-            _ (swap! state-count inc)
+            _ (swap! state-policy-count inc)
+            _ (swap! distinct-states conj [request-vec liquidity])
             checks (atom [])]
         (when (some #{:split} deviations)
           (let [v (check-split-invariance request-vec liquidity policy)]
@@ -395,7 +402,7 @@
                     :counterexamples (when (seq v) (take 3 v))
                     :state {:claims request-vec :liquidity liquidity
                             :policy (select-keys policy [:mode :rounding-policy])}})))
-        (swap! results conj {:state-count @state-count
+        (swap! results conj {:state-policy-evaluations @state-policy-count
                              :claims request-vec
                              :liquidity liquidity
                              :policy policy
@@ -403,30 +410,46 @@
     (let [all-verdicts (mapcat (fn [r] (map :verdict (:checks r))) @results)
           total-checks (count all-verdicts)
           verified (count (filter #{:verified} all-verdicts))
-          violated (count (filter #{:violated} all-verdicts))]
+          violated (count (filter #{:violated} all-verdicts))
+          policy-identifiers (mapv (fn [p] (select-keys p [:mode :rounding-policy]))
+                                   policies)
+          state-policy-evaluations @state-policy-count
+          distinct-states-examined (count @distinct-states)]
       {:artifact/kind :strategic-closed-form-validation
        :mechanism :yield/partial-fill
        :contract-id contract-id
-       :validation-scope (assoc {:dimensions (:dimensions scope)
-                                 :sampling (:sampling scope)}
-                                :states-examined @state-count)
+       :validation-scope {:dimensions (:dimensions scope)
+                          :sampling (:sampling scope)
+                          :policies policy-identifiers
+                          :max-state-policy-evaluations max-states
+                          :state-policy-evaluations state-policy-evaluations
+                          :distinct-states-examined distinct-states-examined
+                          :states-examined state-policy-evaluations}
        :properties (->> (mapcat :checks @results)
                         (group-by :property)
                         (mapv (fn [[prop results]]
                                 (let [verdict (if (every? #(= :verified (:verdict %)) results)
-                                                :verified :violated)]
+                                                :verified :violated)
+                                      state-keys (map (fn [r] [(get-in r [:state :claims])
+                                                               (get-in r [:state :liquidity])])
+                                                      results)]
                                   {:property prop
                                    :status verdict
                                    :verdict verdict
                                    :violation-count (count (filter #(= :violated (:verdict %)) results))
-                                   :state-count (count results)
+                                   :state-count (count (distinct state-keys))
+                                   :state-policy-evaluations (count results)
                                    :counterexample (some :regression-counterexample results)
                                    :sample-counterexamples (->> results
                                                                 (filter #(= :violated (:verdict %)))
                                                                 (take 2)
                                                                 (mapcat :counterexamples)
                                                                 (take 3))}))))
-       :summary {:states-examined @state-count
+       :summary {:states-examined state-policy-evaluations
+                 :state-policy-evaluations state-policy-evaluations
+                 :distinct-states-examined distinct-states-examined
+                 :policies policy-identifiers
+                 :max-state-policy-evaluations max-states
                  :properties-examined (count (distinct (mapcat (fn [r] (map :property (:checks r))) @results)))
                  :total-checks total-checks
                  :verified verified

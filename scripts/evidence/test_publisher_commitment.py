@@ -105,7 +105,8 @@ def _artifact(id_: str, path: str, sha: str, importance: str = "CORE", **extra) 
 
 
 def make_bundle(tmp: pathlib.Path, run_id: str = "run-test-001", **registry_overrides):
-    """Write a minimally valid bundle and return its parts."""
+    """Write a minimally valid bundle (including the canonical results artifact)
+    and return its parts."""
     tmp.mkdir(parents=True, exist_ok=True)
 
     run = {"schema_version": "test-run.v1", "run_id": run_id}
@@ -128,9 +129,15 @@ def make_bundle(tmp: pathlib.Path, run_id: str = "run-test-001", **registry_over
             "rounding_policy": "floor-to-asset-decimals.v1",
         },
     }
+    results = {
+        "schema_version": "results-artifact.v1",
+        "run_id": run_id,
+        "results": {"scenario_id": "S01", "outcome": "pass"},
+    }
     (tmp / "test-run.json").write_text(json.dumps(run))
     (tmp / "test-summary.json").write_text(json.dumps(summary))
     (tmp / "claimable-classification.json").write_text(json.dumps(claimable))
+    (tmp / "results-artifact.json").write_text(json.dumps(results))
 
     run_p = tmp / "test-run.json"
     registry = {
@@ -154,6 +161,11 @@ def make_bundle(tmp: pathlib.Path, run_id: str = "run-test-001", **registry_over
             _artifact("claimable-classification", "claimable-classification.json",
                       sha256_file(tmp / "claimable-classification.json"),
                       schema_version="claimable-classification.v2"),
+            _artifact("results-artifact", "results-artifact.json",
+                      sha256_file(tmp / "results-artifact.json"),
+                      kind="results-artifact",
+                      schema_version="results-artifact.v1",
+                      extensions={"run_id": run_id}),
         ],
     }
     registry.update(registry_overrides)
@@ -563,6 +575,159 @@ def test_integration_valid_signature_still_rejected_by_stage2():
               res.stdout)
 
 
+# ── P1: canonical results artifact ────────────────────────────────────────────
+
+def test_missing_results_artifact_rejected():
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        parts = make_abs_bundle(tmp)
+        reg = dict(parts["registry"])
+        reg["artifacts"] = [a for a in reg["artifacts"] if a["id"] != "results-artifact"]
+        (tmp / "test-artifacts.json").write_text(json.dumps(reg))
+        res = _run_validate(_REPO_ROOT, _validate_args(tmp))
+        check("RA-1: missing results artifact rejected by required chain",
+              res.returncode != 0 and "required artifact id missing from registry: results-artifact" in res.stdout,
+              res.stdout)
+
+
+def test_duplicate_results_artifact_rejected():
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        parts = make_abs_bundle(tmp)
+        first = next(a for a in parts["registry"]["artifacts"] if a["id"] == "results-artifact")
+        dup2 = dict(first, path=str(tmp / "test-run.json"), sha256=sha256_file(tmp / "test-run.json"))
+        reg = dict(parts["registry"], artifacts=parts["registry"]["artifacts"] + [dup2])
+        (tmp / "test-artifacts.json").write_text(json.dumps(reg))
+        res = _run_validate(_REPO_ROOT, _validate_args(tmp))
+        check("RA-2: duplicate results artifact rejected",
+              res.returncode != 0 and "duplicate results artifact entries" in res.stdout,
+              res.stdout)
+
+
+def test_results_artifact_wrong_kind_schema():
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        parts = make_abs_bundle(tmp)
+        reg = dict(parts["registry"])
+        reg["artifacts"] = [
+            {**a, "kind": "scenario-result", "schema_version": "scenario-result.v1"}
+            if a["id"] == "results-artifact" else a
+            for a in reg["artifacts"]
+        ]
+        (tmp / "test-artifacts.json").write_text(json.dumps(reg))
+        res = _run_validate(_REPO_ROOT, _validate_args(tmp))
+        check("RA-3: wrong results artifact kind/schema rejected",
+              res.returncode != 0 and ("results artifact kind must be" in res.stdout
+                                       or "results artifact schema_version must be" in res.stdout),
+              res.stdout)
+
+
+def test_results_artifact_other_run_id():
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        parts = make_abs_bundle(tmp)
+        reg = dict(parts["registry"])
+        reg["artifacts"] = [
+            {**a, "extensions": {"run_id": "other-run"}}
+            if a["id"] == "results-artifact" else a
+            for a in reg["artifacts"]
+        ]
+        (tmp / "test-artifacts.json").write_text(json.dumps(reg))
+        res = _run_validate(_REPO_ROOT, _validate_args(tmp))
+        check("RA-4: results artifact bound to another run_id rejected",
+              res.returncode != 0 and "results artifact run binding mismatch" in res.stdout,
+              res.stdout)
+
+
+def test_results_present_but_not_publisher_bound():
+    """A registry that adds a results artifact AFTER the envelope was signed
+    must be rejected: the publisher commitment does not cover it."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        parts = make_abs_bundle(tmp)
+        reg_no_results = dict(parts["registry"])
+        reg_no_results["artifacts"] = [a for a in reg_no_results["artifacts"]
+                                       if a["id"] != "results-artifact"]
+        env_no_results = sign_publisher_commitment(
+            reg_no_results, parts["run_p"], parts["policy"], parts["seed_hex"],
+            _PUBLISHER_ID, _KEY_ID,
+        )
+        (tmp / "publication.json").write_text(json.dumps(env_no_results))
+        res = _run_validate(_REPO_ROOT, _validate_args(tmp))
+        check("RA-5: results present but not publisher-bound rejected",
+              res.returncode != 0 and "publisher commitment rejected" in res.stdout,
+              res.stdout)
+
+
+def test_results_changed_after_publication():
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        parts = make_bundle(tmp)
+        (tmp / "results-artifact.json").write_text(
+            json.dumps({"schema_version": "results-artifact.v1", "run_id": "run-test-001",
+                        "results": {"outcome": "fail"}}))
+        r = verify_with(parts)
+        check("RA-6: results file changed after publication rejected",
+              r["reason"] == REASON_COMMITMENT_MISMATCH, str(r))
+
+
+def test_results_registry_entry_points_to_altered_bytes():
+    """The registry declares an old sha256 but the file on disk changed: stage 2
+    must reject the on-disk hash mismatch even before the publisher gate."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        parts = make_abs_bundle(tmp)
+        (tmp / "results-artifact.json").write_text(
+            json.dumps({"schema_version": "results-artifact.v1", "run_id": "run-test-001",
+                        "results": {"outcome": "tampered"}}))
+        res = _run_validate(_REPO_ROOT, _validate_args(tmp))
+        check("RA-7: registry entry pointing to altered bytes rejected at stage 2",
+              res.returncode != 0 and
+              ("results artifact on-disk hash mismatch" in res.stdout
+               or "sha256 mismatch for artifact id=results-artifact" in res.stdout),
+              res.stdout)
+
+
+def test_acceptance_report_composition():
+    from acceptance_report import acceptance_report, STAGES
+    ok = {"valid?": True, "reason": "ok", "details": {}}
+    report = acceptance_report({s: ok for s in STAGES})
+    check("AR-1: all-stages-ok composed report accepted",
+          report["accepted?"] is True and all(report[s]["valid?"] for s in STAGES),
+          str(report))
+    bad = acceptance_report({s: ok for s in STAGES if s != "publisher-commitment"})
+    check("AR-2: missing stage is fail-closed",
+          bad["accepted?"] is False and bad["publisher-commitment"]["reason"] == "stage-missing",
+          str(bad))
+    bad2 = acceptance_report({**{s: ok for s in STAGES},
+                              "content-integrity": {"valid?": False, "reason": "content-hash-mismatch"}})
+    check("AR-3: one failing stage rejects the report",
+          bad2["accepted?"] is False and bad2["content-integrity"]["reason"] == "content-hash-mismatch",
+          str(bad2))
+
+
+def test_report_json_integration():
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        make_abs_bundle(tmp)
+        report_path = tmp / "acceptance-report.json"
+        args = _validate_args(tmp) + ["--report-json", str(report_path)]
+        res = _run_validate(_REPO_ROOT, args)
+        check("AR-4: validator exits 0 with --report-json",
+              res.returncode == 0, f"exit={res.returncode} out={res.stdout}")
+        if report_path.exists():
+            report = json.loads(report_path.read_text())
+            check("AR-5: report accepted? true", report.get("accepted?") is True, str(report))
+            check("AR-6: publisher-commitment stage valid",
+                  report["publisher-commitment"]["valid?"] is True, str(report))
+            check("AR-7: all five stages present",
+                  all(s in report for s in ("content-integrity", "registry-membership",
+                                            "required-chain", "publisher-commitment",
+                                            "file-integrity")), str(list(report.keys())))
+        else:
+            check("AR-8: report file written", False, res.stdout)
+
+
 def test_cli_sign_and_verify_roundtrip():
     with tempfile.TemporaryDirectory() as td:
         tmp = pathlib.Path(td)
@@ -628,6 +793,19 @@ def main():
     test_integration_valid_signature_still_rejected_by_stage2()
     print("\n--- CLI round-trip ---")
     test_cli_sign_and_verify_roundtrip()
+
+    print("\n--- P1: canonical results artifact ---")
+    test_missing_results_artifact_rejected()
+    test_duplicate_results_artifact_rejected()
+    test_results_artifact_wrong_kind_schema()
+    test_results_artifact_other_run_id()
+    test_results_present_but_not_publisher_bound()
+    test_results_changed_after_publication()
+    test_results_registry_entry_points_to_altered_bytes()
+
+    print("\n--- P2: composed acceptance report ---")
+    test_acceptance_report_composition()
+    test_report_json_integration()
 
     print(f"\n=== {_PASS} passed, {_FAIL} failed ===")
     return 1 if _FAIL else 0

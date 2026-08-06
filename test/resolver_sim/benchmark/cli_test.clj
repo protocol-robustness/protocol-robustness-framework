@@ -1,8 +1,19 @@
 (ns resolver-sim.benchmark.cli-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.tools.cli :as cli-opts]
             [resolver-sim.benchmark.cli :as cli]
             [resolver-sim.benchmark.registry :as registry]
             [resolver-sim.hash.canonical :as hc]))
+
+(deftest game-theory-strategic-flag-parses-to-strategic
+  (testing "the --strategic flag routes the game-theory dispatch to the strategic branch"
+    (let [all-opts (into cli/cli-options
+                         (get cli/subcommand-options "validate-game-theory"))
+          {:keys [options errors]}
+          (cli-opts/parse-opts ["--strategic"] all-opts)]
+      (is (nil? errors))
+      (is (true? (:strategic options))
+          "dispatch-game-theory reads :strategic; a mismatch here is the dead-flag regression"))))
 
 (deftest record-history-best-effort-ignores-write-failures
   (testing "History write failures only emit a warning"

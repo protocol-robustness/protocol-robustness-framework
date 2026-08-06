@@ -123,7 +123,7 @@
          (:schema-bump (cfa/schema-change-compatibility
                         {:whole-outcome-meaning-changed true}))))
   (let [r (cfa/schema-change-compatibility {:reader-interpretation-changed true}
-                                          {:affected-schema "y.v3"})]
+                                           {:affected-schema "y.v3"})]
     (is (= "y.v3" (:affected-schema r)))))
 
 (deftest cancellation-decision-v1

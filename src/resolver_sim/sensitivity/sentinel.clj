@@ -385,7 +385,7 @@
                         :levels levels
                         :risk-severities risk-severities
                         :sinks (vec (sort all-sinks))
-                        :sink-policies (vec (sort-by key sink-policies))
+                         :sink-policies (vec (sort-by key (map vec sink-policies)))
                         :disclosure-rules "level>=:public required for public-sinks"
                         :authority-rules "remote authority required for public-sink set"
                         :remote-authority-required-artifact-kinds

@@ -59,6 +59,25 @@
             (bytes->hex-str (hash/canonical-bytes body))))
     true))
 
+(defn- canonical-commitment-status
+  "Classify the optional parallel canonical commitment:
+   :absent (no commitment keys) | :valid | :incomplete (one key only) |
+   :mismatch (keys present but inconsistent)."
+  [report body]
+  (let [has-bytes? (contains? report :artifact/canonical-bytes-v2)
+        has-hash? (contains? report :artifact/canonical-hash-v2)]
+    (cond
+      (and (not has-bytes?) (not has-hash?)) :absent
+      (or (not has-bytes?) (not has-hash?)) :incomplete
+      (not (and (string? (:artifact/hash report))
+                (string? (:artifact/canonical-hash-v2 report))
+                (= (:artifact/hash report) (:artifact/canonical-hash-v2 report))
+                (string? (:artifact/canonical-bytes-v2 report))
+                (= (:artifact/canonical-bytes-v2 report)
+                   (bytes->hex-str (hash/canonical-bytes body)))))
+      :mismatch
+      :else :valid)))
+
 (defn- safe-read-preimage
   "Read a preimage string to a value; returns ::unreadable on any parse error.
    Parse failures never raise."
@@ -104,6 +123,24 @@
   "Accepted preimage policies."
   #{:exact :decoded-agreement})
 
+(def frozen-legacy-schema-versions
+  "Schema versions that may still use the frozen :decoded-agreement preimage
+   policy. These are the pre-canonical v1 force-authorisation schemas, emitted
+   before canonical fixed-point serialization existed. No NEW artifact may be
+   emitted under :decoded-agreement, and a schema version not listed here is
+   rejected with :unsupported-frozen-legacy-mode. Publisher acceptance never
+   upgrades legacy parse agreement into canonical integrity."
+  #{"force-auth-add-held.v1"
+    "force-auth-add-held-summary.v1"
+    "force-auth-lifecycle.v1"
+    "force-auth-lifecycle-summary.v1"})
+
+(defn frozen-legacy-eligible?
+  "True when a schema version is allowlisted for the frozen :decoded-agreement
+   policy. Current and unknown versions return false (fail closed)."
+  [schema-version]
+  (contains? frozen-legacy-schema-versions schema-version))
+
 (defn- resolve-preimage-policy
   "Normalize a preimage policy argument (nil → :exact, keyword, or a
    {:preimage-policy ...} map)."
@@ -144,7 +181,8 @@
          (and (case p
                 :exact (and (preimage-decodes-to-body? artifact)
                             (canonical-preimage-valid? artifact))
-                :decoded-agreement (preimage-decodes-to-body? artifact))
+                :decoded-agreement (and (frozen-legacy-eligible? (:schema-version artifact))
+                                        (preimage-decodes-to-body? artifact)))
               (content-hash-valid? artifact)
               (canonical-commitment-valid? artifact body)))))))
 
@@ -172,6 +210,100 @@
         (= kind (:artifact/kind report))
         (= verifier (:artifact/verifier report))
         (preimage-and-hash-valid? report preimage-policy))))
+
+(defn verify-artifact
+  "Explainable content-integrity verification. Returns a map instead of a bare
+   boolean so a reader can diagnose WHY an artifact was rejected:
+
+     {:valid? bool :stage :content-integrity :reason kw :details {...}}
+
+   This is the content-integrity stage ONLY. Registry membership, required-chain
+   membership, publisher commitment, and on-disk file integrity are separate
+   acceptance stages and must not be folded into this result.
+
+   Reasons:
+     :malformed-artifact              report is not a map
+     :unsupported-schema-version      schema-version mismatch
+     :wrong-artifact-kind             artifact/kind mismatch
+     :wrong-verifier                  artifact/verifier mismatch
+     :unsupported-preimage-policy     unknown policy
+     :unsupported-frozen-legacy-mode  :decoded-agreement on a non-allowlisted
+                                      schema version
+     :malformed-preimage              preimage absent, non-string, or unreadable
+     :body-preimage-disagreement      preimage decodes but differs from the body
+     :canonical-preimage-mismatch     :exact requires the canonical fixed point
+     :content-hash-mismatch           committed hash does not re-derive
+     :canonical-commitment-missing    only one commitment key present
+     :canonical-commitment-mismatch   commitment keys present but inconsistent"
+  ([report schema-version kind verifier]
+   (verify-artifact report schema-version kind verifier :exact))
+  ([report schema-version kind verifier preimage-policy]
+   (let [stage :content-integrity
+         invalid (fn [reason details]
+                   {:valid? false :stage stage :reason reason :details details})]
+     (cond
+       (not (map? report))
+       (invalid :malformed-artifact {:report-type (some-> report class str)})
+
+       (not= schema-version (:schema-version report))
+       (invalid :unsupported-schema-version {:expected schema-version
+                                             :actual (:schema-version report)})
+
+       (not= kind (:artifact/kind report))
+       (invalid :wrong-artifact-kind {:expected kind :actual (:artifact/kind report)})
+
+       (not= verifier (:artifact/verifier report))
+       (invalid :wrong-verifier {:expected verifier :actual (:artifact/verifier report)})
+
+       :else
+       (let [p (resolve-preimage-policy preimage-policy)]
+         (cond
+           (not (contains? supported-preimage-policies p))
+           (invalid :unsupported-preimage-policy {:policy preimage-policy})
+
+           (and (= p :decoded-agreement)
+                (not (frozen-legacy-eligible? (:schema-version report))))
+           (invalid :unsupported-frozen-legacy-mode
+                    {:schema-version (:schema-version report)
+                     :policy :decoded-agreement
+                     :allowlist (vec (sort frozen-legacy-schema-versions))})
+
+           :else
+           (let [preimage (:artifact/preimage report)
+                 body (artifact-body report)
+                 decoded (if (string? preimage) (safe-read-preimage preimage) ::unreadable)]
+             (cond
+               (not (string? preimage))
+               (invalid :malformed-preimage {:preimage-type (some-> preimage class str)})
+
+               (= ::unreadable decoded)
+               (invalid :malformed-preimage {:reason :unreadable-edn})
+
+               (not= body decoded)
+               (invalid :body-preimage-disagreement {:body-paths (vec (sort (keys body)))
+                                                     :preimage-paths (vec (sort (keys decoded)))})
+
+               (and (= p :exact) (not (canonical-preimage-valid? report)))
+               (invalid :canonical-preimage-mismatch
+                        {:stored-prefix (subs preimage 0 (min 80 (count preimage)))})
+
+               (not (content-hash-valid? report))
+               (invalid :content-hash-mismatch {:committed (:artifact/hash report)})
+
+               :else
+               (case (canonical-commitment-status report body)
+                 :absent
+                 {:valid? true :stage stage :reason :ok :details {}}
+                 :incomplete
+                 (invalid :canonical-commitment-missing
+                          {:has-bytes? (contains? report :artifact/canonical-bytes-v2)
+                           :has-hash? (contains? report :artifact/canonical-hash-v2)})
+                 :mismatch
+                 (invalid :canonical-commitment-mismatch
+                          {:committed-hash (:artifact/hash report)
+                           :commitment-hash (:artifact/canonical-hash-v2 report)})
+                 :valid
+                 {:valid? true :stage stage :reason :ok :details {}})))))))))
 
 (defn attach-canonical-commitment
   "Attach an OPTIONAL, non-breaking parallel commitment proving

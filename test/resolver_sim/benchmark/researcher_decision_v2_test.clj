@@ -242,9 +242,7 @@
 
 (deftest v1-legacy-still-verifies-through-v1-path
   (testing "v1 artifacts remain verifiable through the legacy v1 verifier"
-    (let [d (sign-v2 "researcher-a" auth-id request-root round-hash outcome-a
-                     :approve)
-          ;; Build an equivalent v1 decision with the same fields.
+    (let [;; Build an equivalent v1 decision with the same fields.
           preimage {:researcher/id "researcher-a"
                     :authorisation/id auth-id
                     :authorisation/request-root request-root
@@ -280,7 +278,7 @@
                      outcome-a :approve)
           auth (v2-authorisation :refs [d])]
       (is (not (:consistent? (rfa/authorisation-outcome-consistency auth))))
-      (is (some #(re-find #"different authorisation/id" %) 
+      (is (some #(re-find #"different authorisation/id" %)
                 (:errors (rfa/authorisation-outcome-consistency auth)))))))
 
 ;; ── authorisation-outcome-consistency ─────────────────────────────────────

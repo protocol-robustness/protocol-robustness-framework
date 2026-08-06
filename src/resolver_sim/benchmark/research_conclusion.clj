@@ -15,9 +15,17 @@
 
    The inference is always :therefore — conclusions are validated by
    the bridge from established premises to bounded results, not by
-   the inference mechanism itself."
+   the inference mechanism itself.
+
+   Since the outcome-hardening work, a conclusion also commits which
+   falsifiers remain untested (:conclusion/falsifiers, sharing the theorem
+   falsifier vocabulary), and supporting theorem hashes are required to be
+   well-formed and — when a resolver is supplied — verifiable (see
+   verify-conclusion-support)."
   (:require [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.benchmark.research-theorem-outcome :as rto]))
 
 (def ^:const schema-version "research-conclusion.v1")
 
@@ -28,6 +36,17 @@
 (defn valid-conclusion-status?
   [s]
   (contains? valid-conclusion-statuses s))
+
+(defn valid-falsifier?
+  "True when f is a well-formed falsifier reference
+   {:falsifier/id kw :status kw}, status in the theorem falsifier vocabulary
+   (:observed | :not-observed | :untested)."
+  [f]
+  (and (map? f)
+       (keyword? (:falsifier/id f))
+       (contains? rto/valid-falsifier-statuses (:status f))))
+
+(declare conclusion-overreaches?)
 
 (defn build-conclusion
   "Build a canonical research conclusion artifact.
@@ -41,16 +60,23 @@
      conclusion/status        — :established (default) | :qualified | :tentative | ...
      conclusion/scope         — {:cases n :parameter-domain-root sha256 ...}
      conclusion/qualifications — [\"what was not concluded\" ...]
+     conclusion/falsifiers    — [{:falsifier/id kw :status kw} ...]
+                                (:observed | :not-observed | :untested)
      conclusion/supporting-theorem-hashes — [\"sha256:...\" ...]
      conclusion/hash          — pre-computed hash (rejected on mismatch)
 
-   Returns the conclusion map with :conclusion/hash computed."
+   Returns the conclusion map with :conclusion/hash computed.
+
+   Backward compatibility: :conclusion/falsifiers is bound in the preimage only
+   when non-empty, so pre-existing artifacts (without the field) recompute
+   unchanged."
   [{:keys [conclusion/id
            conclusion/premise
            conclusion/result
            conclusion/status
            conclusion/scope
            conclusion/qualifications
+           conclusion/falsifiers
            conclusion/supporting-theorem-hashes
            conclusion/hash]}]
   (let [errors (atom [])]
@@ -64,18 +90,22 @@
       (swap! errors conj "missing :conclusion/result"))
     (when (and (some? status) (not (valid-conclusion-status? status)))
       (swap! errors conj (str "invalid :conclusion/status: " status)))
+    (when (some? (some (fn [f] (not (valid-falsifier? f))) falsifiers))
+      (swap! errors conj "invalid :conclusion/falsifiers entry"))
     (when (seq @errors)
       (throw (ex-info (str "Conclusion build failed: " (str/join "; " @errors))
                       {:errors @errors})))
-    (let [base {:schema-version schema-version
-                :conclusion/id id
-                :conclusion/premise premise
-                :conclusion/inference :therefore
-                :conclusion/result result
-                :conclusion/status (or status :established)
-                :conclusion/scope (or scope {})
-                :conclusion/qualifications (vec (or qualifications []))
-                :conclusion/supporting-theorem-hashes (vec (or supporting-theorem-hashes []))}
+    (let [base (cond-> {:schema-version schema-version
+                        :conclusion/id id
+                        :conclusion/premise premise
+                        :conclusion/inference :therefore
+                        :conclusion/result result
+                        :conclusion/status (or status :established)
+                        :conclusion/scope (or scope {})
+                        :conclusion/qualifications (vec (or qualifications []))
+                        :conclusion/supporting-theorem-hashes (vec (or supporting-theorem-hashes []))}
+                 (seq falsifiers)
+                 (assoc :conclusion/falsifiers (vec falsifiers)))
           computed-hash (str "sha256:"
                              (hc/domain-hash :research-conclusion base))]
       (when (and (some? hash) (not= hash computed-hash))
@@ -99,7 +129,10 @@
 
 (defn validate-conclusion
   "Standalone validator for a loaded research conclusion.
-   Recomputes the conclusion hash and checks structural integrity.
+   Recomputes the conclusion hash and checks structural integrity, falsifier
+   shape, supporting-theorem hash well-formedness, and — for :established
+   conclusions — that the conclusion does not overreach (has qualifications or
+   scope).
 
    Returns {:valid? bool :errors [string]}."
   [conclusion]
@@ -116,6 +149,14 @@
     (let [s (:conclusion/status conclusion)]
       (when-not (valid-conclusion-status? s)
         (swap! errors conj (str "invalid :conclusion/status: " s))))
+    (when (some? (some (fn [f] (not (valid-falsifier? f)))
+                       (:conclusion/falsifiers conclusion)))
+      (swap! errors conj "invalid :conclusion/falsifiers entry"))
+    (when (some? (some (fn [h] (not (hash-ref/valid-sha256-ref? h)))
+                       (:conclusion/supporting-theorem-hashes conclusion)))
+      (swap! errors conj "invalid :conclusion/supporting-theorem-hashes entry"))
+    (when (conclusion-overreaches? conclusion)
+      (swap! errors conj "conclusion overreaches: :established with no qualifications and no scope"))
     (when (some? (:conclusion/hash conclusion))
       (let [without-hash (dissoc conclusion :conclusion/hash)
             computed (str "sha256:" (hc/domain-hash :research-conclusion without-hash))]
@@ -143,3 +184,37 @@
          (hc/domain-hash :evidence-collection
                          {:type :conclusion-collection
                           :conclusion-hashes (vec hashes)}))))
+
+(defn verify-conclusion-support
+  "Verify every :conclusion/supporting-theorem-hash against a theorem resolver,
+   applying the transitive commitment rule:
+     1. the referenced artifact is content-addressed (well-formed sha256);
+     2. a verifier recomputes its hash (the resolver must return a theorem whose
+        own :theorem/hash recomputes to the claimed hash);
+     3. it is resolved (present) — a missing theorem fails;
+     4. it cannot be substituted without verification failure.
+
+   theorem-resolver — fn (sha256-ref) -> theorem-map-or-nil. A resolver that
+   recomputes theorem hashes (e.g. re-validating the theorem artifact) is the
+   verifier half of the rule.
+
+   Returns {:valid? bool :errors [str] :resolved-theorems [theorem-map]}."
+  [conclusion theorem-resolver]
+  (let [results (mapv (fn [h]
+                        (cond
+                          (not (hash-ref/valid-sha256-ref? h))
+                          {:hash h :ok? false :reason "malformed theorem hash"}
+
+                          (nil? (theorem-resolver h))
+                          {:hash h :ok? false :reason "theorem not resolvable"}
+
+                          (not= h (:theorem/hash (theorem-resolver h)))
+                          {:hash h :ok? false :reason "theorem hash does not recompute"}
+
+                          :else
+                          {:hash h :ok? true :theorem (theorem-resolver h)}))
+                      (:conclusion/supporting-theorem-hashes conclusion))
+        failed (filter #(not (:ok? %)) results)]
+    {:valid? (empty? failed)
+     :errors (mapv (fn [r] (str (:reason r) ": " (:hash r))) failed)
+     :resolved-theorems (mapv :theorem (filter :ok? results))}))

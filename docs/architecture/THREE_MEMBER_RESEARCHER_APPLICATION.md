@@ -1,7 +1,9 @@
 # THREE-MEMBER RESEARCHER APPLICATION: Corrected Authority Model
 
-Status: **Design note** (records the review correction of the "how the
-three-member researcher applies" outline; not a new implementation commitment)
+Status: **Design note + implementation record** (records the review correction
+of the "how the three-member researcher applies" outline and the closed
+canonical-layer gaps: outcome commitment, equivocation/report, cancellation
+gates, deterministic evidence, replay wording)
 Date: 2026-08-06
 Applies to: `docs/proposals/THREE_MEMBER_CONSENSUS_THROUGHOUT.md` and
 `docs/architecture/ADR-0007-three-member-consensus-system-wide.md` (D1–D7).
@@ -219,29 +221,56 @@ Unique equivocation key:
 [review-round/hash, authorisation/id, decision-scope, member/id]
 ```
 
-Two incompatible valid signatures under one key ⇒ machine-visible equivocation.
-The member counts once; policy decides the seat's status
-(invalid/dissent/decision fails); proof is preserved. The forensic layer already
-implements runner-id and crypto equivocation detection
-(`test/forensic_python/test_phase3.py:344-395`), but the canonical Clojure
-decision path does not yet classify equivocation into the verification report.
+The decision scope is **derived from the complete committed projection**
+(`decision-scope-projection`: domain-hash over authorisation/id, review-round
+hash, request-root). The outcome is deliberately not part of the scope: two
+positions over the same scope but different outcomes are exactly the
+equivocation case. `:independent-replay`-compatible recomputation means the
+report never takes caller-supplied grouping or scope.
+
+**Implemented (Slice B)** in `resolver-sim.assurance.three-member-authority`:
+
+- `detect-equivocation` — machine-visible detection, no policy. Any two
+  positions with different committed hashes under one key are materially
+  different (approve vs dissent, approval of different outcome roots, distinct
+  dissents). Identical duplicates are compatible and never flagged.
+- `classify-equivocating-seat` — policy consequence only
+  (`:invalid-seat` default, `:count-as-dissent`, `:fail-certificate`). One
+  member occupies at most one counted seat; equivocation never creates votes;
+  all equivocating artifacts are preserved.
+- `evaluate-three-member-authority` — the full recomputable authority report
+  with `:valid-supporting-positions :valid-dissenting-positions
+  :valid-qualifying-positions :absent-members :invalid-positions
+  :equivocating-members :unknown-members :re-scoped-positions
+  :duplicate-seat-positions :counted-support :required-threshold :outcome-root
+  :policy-conforming? :identity-separate? :authority-status :authority/reasons`.
+
+Position validity is `decision-hash-valid?` (recomputed, never caller-supplied)
+AND an externally supplied signature check (keys are outside this layer). The
+report proves common decision scope and common complete outcome from committed
+roots, never from matching `:approve` values. `:identity-separate?` names seat
+distinctness — never real-world independence.
 
 ## 7. Cancellation: four predicates, not one
 
-`classify-cancellation` currently collapses the gates into a single
-`:cancellation/possible? (and profile-conforming? window-open?)`
-(`canonical_force_authorisation.clj:779`), and `cancellation-possible?`
-(`:703`) is window-only. Three distinct questions are conflated (profile +
-window, certificate authority, transition race). Replace with:
+`classify-cancellation` collapsed the gates into a single
+`:cancellation/possible? (and profile-conforming? window-open?)`. **Implemented
+(Slice C)**: `classify-cancellation` now exposes
+`:cancellation/window-possible?` (with `:cancellation/possible?` retained only
+as a deprecated derived view), and `classify-cancellation-gates` composes four
+predicates owned by four layers:
 
 - `:cancellation/window-possible?` = `(and profile-conforming? window-open?)` —
-  lifecycle gate only;
-- `:cancellation/authorised?` = `(three-member-standard-conforming? certificate)`
-  — authority gate;
-- `:cancellation/executable?` = `(and window-possible? authorised?)` —
-  certificate still bound to the current snapshot;
+  lifecycle reconciliation, no researcher decision semantics;
+- `:cancellation/authorised?` = `cancellation-authorised?` =
+  `(three-member-standard-conforming? certificate)` — certificate layer, never
+  reopens lifecycle state;
+- `:cancellation/executable?` = `(and window-possible? authorised?
+  current-snapshot-binding-valid?)` — contract 7 whole-snapshot binding;
 - `:cancellation/committable?` = `(and executable? conflict-key-transition-won?)`
-  — durable state race (`cancellation-conflict-key`, `:570`).
+  — the authoritative transition race. The canonical layer consumes a supplied,
+  verified race result; it never claims durable cross-process atomicity
+  (JVM-local compare-and-transition is not durable coordination).
 
 ## 8. "No panel required" never means "no verification required"
 
@@ -250,6 +279,16 @@ cutpoint, time/event, target binding, conflict-key result, provenance. Only
 researcher discretion is not required. The three-member cell is assigned to the
 adjudicative boundary, not to deterministic execution
 (`THREE_MEMBER_CONSENSUS_THROUGHOUT.md` §5–5.2).
+
+**Implemented (Slice D)**: `deterministic-operation-evidence` is a data-driven
+evidence checklist per deterministic operation in `cancellation-operations`
+(expiry at deadline, deterministic invalidation, post-cutpoint rejection,
+certified execution, fallback, submission); `deterministic-operation-evidence-valid?`
+fails closed on missing/nil/inconsistent evidence, and
+`deterministic-operation-verified?` is true only when the operation carries all
+required evidence. A certificate never turns a deterministic operation into a
+canonical cancellation decision (`cancellation-decision-required?` remains
+false for all deterministic operations).
 
 ## 9. Textual corrections to the earlier outline
 
@@ -267,19 +306,25 @@ evidence chain**. The panel may be constituted per review round / decision
 scope (as it is today: a frozen cell per round, `review_round.clj`); what stays
 continuous is the evidence/authority model, not a frozen electorate.
 
-## 11. Proposed verification-report shape
+## 11. Authority report shape — implemented
 
-Suggested result shape (not yet implemented):
+The §6 report shape is now implemented by
+`evaluate-three-member-authority` (`resolver-sim.assurance.three-member-authority`):
 
 ```text
-:valid-supporting-positions   (same outcome, counted toward threshold)
+:valid-supporting-positions   (same committed outcome, counted toward threshold)
 :valid-dissenting-positions   (same scope, dissent)
-:valid-qualifying-positions   (scope-concurring, not outcome-concurring)
+:valid-qualifying-positions   (scope-concurring, not outcome-concurring, incl.
+                               v1 outcome-binding-unavailable approvals)
+:absent-members               (constituted seats with no valid position)
 :invalid-positions            (excluded from count, PRESERVED as evidence)
 :equivocating-members         (member counts once; policy decides status)
 :unknown-members              (not constituted/eligible)
-:duplicate-seat-positions     (identity non-distinct; excluded)
-:authority-status             (concurrence reached / not)
+:re-scoped-positions          (fail at the scope stage, not the count)
+:duplicate-seat-positions     (identical dupes preserved, never extra votes)
+:counted-support / :required-threshold
+:outcome-root / :policy-conforming? / :identity-separate?
+:authority-status / :authority/reasons
 ```
 
 ## 12. Gaps and next actions
@@ -289,26 +334,105 @@ Suggested result shape (not yet implemented):
    v1 remains an explicitly versioned legacy path. `:panel/root` is unnecessary:
    `:review-round/hash` commits the exact seats. `build-signed-decision-v2`,
    `verify-signed-decision-v2`, `classify-decision-version`,
-   `decision-outcome-binding`, `complete-outcome-verified?`, and
-   `authorisation-outcome-consistency` are implemented with corruption,
-   cross-version, substitution, and replay tests (§2.3). Residual: effects /
-   state-transition commitment and outcome-relevant parameters are still not
-   bound by a signed position.
-2. **Equivocation classification** — port the forensic runner/crypto equivocation
-   logic into the canonical verification report; implement the §6 key and
-   member-counts-once rule.
-3. **Cancellation predicate split** — refactor `classify-cancellation` from one
-   combined `:cancellation/possible?` to the four-predicate model (§7); keep
-   `classify-lifecycle-window` free of decision semantics.
-4. **Deterministic-op evidence checklist** — encode the §8 evidence
-   requirements (profile, lifecycle, cutpoint, time/event, target binding,
-   conflict-key, provenance) as a checklist for non-discretionary operations.
-5. **Verification report shape** — adopt the §11 result shape so invalid
-   positions remain visible as evidence while being excluded from the count.
-6. **Replay claims** — qualify every "independent replay" claim with which of
-   the five properties (§5) are actually satisfied; contract 8 gives only
-   recomputable replay today.
+   `decision-outcome-binding`, `complete-outcome-verified?`,
+   `decision-hash-valid?`, and `authorisation-outcome-consistency` are
+   implemented with corruption, cross-version, substitution, and replay tests
+   (§2.3). Residual: effects / state-transition commitment and outcome-relevant
+   parameters are still not bound by a signed position.
+2. ~~**Equivocation classification**~~ **DONE (Slice B)** — `detect-equivocation`,
+   `classify-equivocating-seat`, and `evaluate-three-member-authority` are
+   implemented with the ten adversarial scenarios (§6/§11). Decision-scope is
+   derived from the complete committed projection, never an under-bound key.
+3. ~~**Cancellation predicate split**~~ **DONE (Slice C)** — four predicates with
+   layer ownership (`classify-cancellation-gates`), `current-snapshot-binding-valid?`
+   (contract 7), deprecated legacy `:cancellation/possible?`, and the full
+   window/certificate/snapshot/race matrix (§7).
+4. ~~**Deterministic-op evidence checklist**~~ **DONE (Slice D)** —
+   `deterministic-operation-evidence` + `deterministic-operation-evidence-valid?`
+   encode the §8 checklist; negative tests cover missing/nil/inconsistent
+   evidence (§8).
+5. ~~**Verification report shape**~~ **DONE (Slice B)** — §11 shape is machine
+   enforced by `evaluate-three-member-authority`.
+6. ~~**Replay claims**~~ **DONE (Slice D)** — `cancellation-window-assertion`
+   now states in its contract that `:independent-replay` means recomputation
+   independence and establishes exactly one of the five properties (§5); the
+   ADR-0007 contract 8 vocabulary already defined it that way.
 7. **Out of scope, documented** — implementation independence, state
    independence, and transition atomicity remain outside the current
    classification layer; the durable atomic transition boundary is a
-   coordinator/out-of-process concern.
+   coordinator/out-of-process concern. Coordinators, Rust/on-chain atomicity,
+   and independently implemented external verifiers remain out of scope.
+
+## 13. Outcome-source hardening and the decision-subject contract
+
+### 13.1 No plurality-derived outcome identity
+
+The authority report NEVER derives the authoritative outcome from the submitted
+positions. The outcome being decided is obtained only from the authorisation
+target (`:target/proposed-content-root`). Authority requires every supporter to
+have signed exactly that root:
+
+```clojure
+(and (= supporter-outcome-roots #{authoritative-target-root})
+     (>= counted-distinct-supporters required-threshold))
+```
+
+- `:decision-scope/root` — derived scope (the question);
+- `:position/outcome-root` — each member's signed answer (per position);
+- `:authoritative-target-root` — independently obtained from the FA target.
+
+When no authoritative target outcome exists the report classifies
+`:outcome-source :target-outcome-unavailable` and authority is never reached —
+plurality never manufactures a root, so two members cannot agree an outcome that
+was never the target. A single supporter signing a non-target outcome fails
+concurrence (`:non-target-outcome-concurrence`); non-target approvers are
+`:valid-qualifying-positions`, never counted.
+
+### 13.2 decision-subject.v1 (reusable, not researcher-decision.v3)
+
+`resolver-sim.benchmark.decision-subject` defines the reusable, content-addressed
+subject artifact (`decision-subject.v1`) committing:
+
+- `:subject/content-root` — the subject content;
+- `:subject/parameters-root` — the relevant parameters;
+- `:subject/effects-root` — the effects;
+- `:subject/branch-descriptor-hash` — the branch;
+- `:subject/transition-root` — the intended state transition.
+
+Domain separator `DECISION_SUBJECT_V1`; `build-decision-subject`,
+`validate-decision-subject`, `verify-decision-subject-root` recompute the root
+(integrity); `subject-commitment-summary` lists what is committed. This is the
+STABLE subject that a future decision version binds as `:subject/root`, closing
+the Slice-A residual (effects/parameters/branch/transition were not committed by
+a signed position). It is deliberately decision-schema-independent.
+
+### 13.3 Consumer-enforcement audit
+
+`evaluate-three-member-authority` is the canonical authority gate. The builder
+conveniences (`authorisation-approved?`, `authorisation-status`) compute status
+from `:approve` counts and are NOT authority. Audit results:
+
+- **`run/verdict_policy.clj`** gates supersession execution on
+  `authorisation-approved?` — a bypass: a v1-only "approved" artifact, or two
+  approves over different outcome roots, passes the builder status yet fails
+  `evaluate-three-member-authority`. Consumers must gate on the authority
+  report instead.
+- **`verify-authorisation-usable`** uses `authorisation-approved?` — usability,
+  not authority.
+- **`force_authorised_execution_evidence`** verifies signatures + policy
+  threshold but not three-member outcome concurrence or equivocation.
+- Proven by `consumer-enforcement-test`: builder `:approved` ≠ authority, and
+  divergent-outcome approvals are refused by the report.
+
+### 13.4 Committed equivocation policy and report trust boundary
+
+- The equivocation consequence is committed, not verifier-time: policy is taken
+  from `:review-round/equivocation-policy`, else the supplied option, else the
+  canonical `:invalid-seat` default; the applied policy is surfaced as
+  `:equivocation-policy-applied`.
+- Consumers must either recompute the report from committed inputs or bind it:
+  `authority-report-root` produces a canonical root over the recomputed report
+  (`THREE_MEMBER_AUTHORITY_REPORT_V1`), and `recompute-authority-report`
+  re-evaluates from committed inputs and compares — a stored classification that
+  fails to recompute is rejected. A stored classification is never trusted on
+  its own.

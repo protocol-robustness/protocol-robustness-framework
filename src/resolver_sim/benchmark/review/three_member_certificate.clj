@@ -36,18 +36,21 @@
             [resolver-sim.benchmark.researcher-position :as rp]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]))
 
-(def ^:const schema-version "three-member-research-certificate.v2")
-(def ^:const legacy-schema-version "three-member-research-certificate.v1")
+(def ^:const schema-version "three-member-research-certificate.v3")
+(def ^:const legacy-schema-version "three-member-research-certificate.v2")
+(def ^:const deprecated-schema-version "three-member-research-certificate.v1")
 
 (def ^:const model-dimensions
   [:model-state :model-transitions :model-authority
-   :model-adversary :model-parameters :model-cases])
+   :model-adversary :model-parameters :model-cases
+   :model-invariants :temporal-fidelity :sampling-policy])
 
 (def ^:const incentive-dimensions
   [:incentives-participants :incentives-strategies :incentives-coalitions])
 
 (def ^:const other-dimensions
-  [:reproduction :evidence :claims :publication])
+  [:reproduction :evidence :claims :publication
+   :determinism :provenance])
 
 (def consensus-dimensions
   "Dimensions surfaced as per-dimension consensus in the certificate."
@@ -312,7 +315,7 @@
                            :dissenting-members dissenting-members
                            :assessed-members assessed-members
                            :assessed-statuses assessed-statuses}
-                   contested-statuses (assoc :contested-statuses contested-statuses))
+                    contested-statuses (assoc :contested-statuses contested-statuses))
                   position-group)))))
 
 ;; ── Theorem/conclusion-level consensus ────────────────────────────────────
@@ -563,12 +566,23 @@
    content-addressed before the certificate hash is committed.
 
    :canonical-indices — an optional externally-built artifact.  When supplied,
-   it is verified against the review round.  When absent, it is auto-produced."
-  [{:keys [review-round reports positions force-authorisations disagreements canonical-indices]
+   it is verified against the review round.  When absent, it is auto-produced.
+
+   :supersedes-certificate-root — an optional sha256 reference to the
+   certificate this one re-certifies (e.g. a prior schema version of the same
+   review scope).  The reference is bound into the certificate body and hash,
+   making re-certification an explicit relationship rather than an implicit
+   schema bump."
+  [{:keys [review-round reports positions force-authorisations disagreements canonical-indices
+           supersedes-certificate-root]
     :or {force-authorisations [] disagreements []}}]
   ;; Every certificate carries the exact resolved source inputs.  This makes
   ;; loaded semantic validation possible without trusting summary fields.
   (let [ci-artifact (or canonical-indices (ci/build-canonical-indices review-round))
+        _ (when (and supersedes-certificate-root
+                     (not (hash-reference? supersedes-certificate-root)))
+            (throw (ex-info "Certificate :supersedes-certificate-root must be a sha256 content reference"
+                            {:supersedes-certificate-root supersedes-certificate-root})))
         pre-checks (pre-certificate-checks {:review-round review-round
                                             :canonical-indices ci-artifact
                                             :reports reports :positions positions
@@ -589,6 +603,7 @@
        :benchmark/content-root (:benchmark/content-root review-round)
        :review-round/id (:review-round/id review-round)
        :review-round/purpose (:review-round/purpose review-round)
+       :supersedes-certificate-root supersedes-certificate-root
        :execution
        {:status exec-status
         :replication-type rep-type
@@ -650,7 +665,7 @@
    The hash projection excludes :certificate/hash only.
    The full :review-member-canonical-indices map is excluded from the
    hash projection; only its committed hash is bound.
-   This hash projection is schema-versioned (three-member-research-certificate.v1)
+   This hash projection is schema-versioned (three-member-research-certificate.v3)
    and must not be changed without a schema version migration."
   [certificate]
   (let [hash-input (dissoc certificate :certificate/hash :review-member-canonical-indices)
@@ -658,7 +673,7 @@
     (assoc certificate :certificate/hash (str "sha256:" c-hash))))
 
 (defn certificate-valid?
-  "Quick structural check for a recomputable v2 certificate."
+  "Quick structural check for a recomputable v3 certificate."
   [certificate]
   (and (= schema-version (:schema-version certificate))
        (some? (:review-round/id certificate))
@@ -671,15 +686,45 @@
   [certificate]
   (some? (:certificate/hash certificate)))
 
+(defn legacy-certificate-status
+  "Distinguish the two legacy verdicts for v1/v2 certificates:
+
+   - :legacy-signature-verifiable — the stored certificate/hash still verifies
+     against the stored body (the certificate was signed/committed with the
+     original bytes; its self-hash can be checked even though the consensus
+     cannot be recomputed from normalized inputs).
+   - :legacy-not-recomputable — the stored self-hash cannot be verified.
+
+   Possession of the original signed bytes always permits the first check;
+   the current implementation simply cannot reconstruct a v1/v2 body from
+   normalized v3 inputs.  This is never reported as validated consensus."
+  [certificate]
+  (let [body (dissoc certificate :certificate/hash :review-member-canonical-indices)
+        declared (:certificate/hash certificate)
+        verifies? (and (hash-reference? declared)
+                       (= declared
+                          (str "sha256:"
+                               (hc/domain-hash :three-member-certificate body))))]
+    (if verifies?
+      {:valid? true
+       :status :legacy-signature-verifiable
+       :errors []
+       :note "legacy self-hash verifies against the stored body; consensus is not recomputable from normalized inputs"}
+      {:valid? false
+       :status :legacy-not-recomputable
+       :errors ["legacy certificate self-hash cannot be verified from the stored body"]})))
+
 (defn validate-certificate
-  "Validate a loaded certificate and, for v2, independently recompute it from
-   its embedded resolved input block.  v1 is retained as readable legacy data
-   but is never reported as validated consensus."
+  "Validate a loaded certificate and, for v3, independently recompute it from
+   its embedded resolved input block.  v1 and v2 are retained as readable
+   legacy data but are never reported as validated consensus; they are
+   distinguished into :legacy-signature-verifiable (self-hash verifies against
+   the stored body) and :legacy-not-recomputable."
   [certificate]
   (cond
-    (= legacy-schema-version (:schema-version certificate))
-    {:valid? false :status :legacy-not-recomputable
-     :errors ["legacy certificate lacks resolvable certificate inputs"]}
+    (or (= legacy-schema-version (:schema-version certificate))
+        (= deprecated-schema-version (:schema-version certificate)))
+    (legacy-certificate-status certificate)
 
     (not= schema-version (:schema-version certificate))
     {:valid? false :status :invalid-schema
@@ -703,7 +748,9 @@
                              :reports (:reports inputs)
                              :positions (:positions inputs)
                              :force-authorisations (:force-authorisations certificate)
-                             :disagreements (:unresolved-disagreements certificate)})
+                             :disagreements (:unresolved-disagreements certificate)
+                             :supersedes-certificate-root
+                             (:supersedes-certificate-root certificate)})
                 stored-body (dissoc certificate :certificate/hash)
                 recomputed-body (dissoc recomputed :certificate/hash)]
             (when-not (= stored-body recomputed-body)

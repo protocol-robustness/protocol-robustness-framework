@@ -15,8 +15,16 @@
                               economic assumption
      :not-yet-evaluated     — proof-backed fields
 
+   Exact-replication classification is bound to native Rust evidence
+   (resolver-sim.allocation.native-evidence): it is proof-backed ONLY when the
+   pinned native Rust implementation was actually executed and compared against
+   the reference under the exact-replication contract. A mock result, or
+   evidence bound to another result or another pinned implementation, never
+   produces a stronger classification than the evidence evaluated.
+
    No assertion is falsely classified as :zk-proof in this phase."
   (:require [resolver-sim.allocation.context :as context]
+            [resolver-sim.allocation.native-evidence :as native-evidence]
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.hash.canonical :as hc]))
 
@@ -43,13 +51,6 @@
     :independent-replay
     :not-yet-evaluated))
 
-(defn exact-replication-classification
-  "Classification of the PRF-versus-native comparison scope. In this phase the
-   kernel runs as a single reference path; the classification is recorded as
-   pending-independent-replay until the native Rust gate is attached."
-  []
-  :pending-independent-replay)
-
 (defn- prf-artifact-identity
   "PRF artifact identity for the certificate."
   []
@@ -57,6 +58,51 @@
    :kernel-version context/kernel-version
    :schema-version context/schema-version
    :canonical-abi-version "CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI"})
+
+(defn exact-replication-classification
+  "Classify the exact-replication scope from native Rust evidence bound to the
+   reference result.
+
+   native-evidence: nil, or a native-evidence map (native-evidence.v1).
+   kernel-result:   the kernel public values; carries an optional
+                    :native/reference block with the committed results-artifact
+                    hash and pinned Rust identity.
+
+   Returns {:classification kw :proof-backed? bool :reason kw :evidence {...}}.
+   Proof-backed (:native-exact-match) only when native evidence was actually
+   executed and matched under the exact-replication contract."
+  [native-evidence kernel-result]
+  (native-evidence/exact-replication-classification
+   native-evidence
+   {:results-artifact-hash (get-in kernel-result [:native/reference :results-artifact-hash])
+    :input-root (:allocation-context-hash kernel-result)
+    :result-root (:result-root kernel-result)
+    :pinned-prf (prf-artifact-identity)
+    :pinned-rust (get-in kernel-result [:native/reference :pinned-rust])}))
+
+(defn- proof-block
+  "Compose the proof block. Status is :valid only when the exact-replication
+   classification is proof-backed; a mock result never produces a valid proof."
+  [classification kernel-result]
+  (let [proof-backed? (:proof-backed? classification)
+        evidence (:evidence classification)
+        evidence-source (some-> evidence :native-evidence/source)
+        status (:result/status kernel-result)]
+    {:status (if proof-backed? :valid :not-yet-evaluated)
+     :proof-hash (when proof-backed?
+                   (hc/domain-hash "NATIVE_EXACT_REPLICATION_V1"
+                                   (dissoc evidence
+                                           :native-evidence/status
+                                           :native-evidence/reason)))
+     :proof-mode (cond
+                   (= :mock evidence-source) :mock-native
+                   proof-backed? :native-rust
+                   :else :mock-native)
+     :native-evidence evidence
+     :public-values-hash (when (= :passing status)
+                           (hc/domain-hash :certificate-assertions
+                                           {:schema-version schema-version
+                                            :subject (:certificate-assertions-digest kernel-result)}))}))
 
 (defn compose-certificate
   "Compose an allocation-assurance-certificate.v1 from a kernel result.
@@ -69,11 +115,19 @@
    certificate additionally carries a `:round-lifecycle` block with the
    `cancellation-window-assertion` for the canonical probabilistic-allocation
    lifecycle. The lifecycle assertion is projected separately from the kernel
-   assertions; it never claims :zk-proof in this phase."
-  ([kernel-result] (compose-certificate kernel-result nil))
-  ([kernel-result round-state-token]
+   assertions; it never claims :zk-proof in this phase.
+
+   When native Rust evidence is supplied (third arity), the exact-replication
+   classification and proof block are bound to that evidence (see
+   resolver-sim.allocation.native-evidence). Without it, exact-replication
+   stays :pending-independent-replay and the proof block stays
+   :not-yet-evaluated."
+  ([kernel-result] (compose-certificate kernel-result nil nil))
+  ([kernel-result round-state-token] (compose-certificate kernel-result round-state-token nil))
+  ([kernel-result round-state-token native-evidence]
    (let [assertions (:assertions kernel-result [])
          status (:result/status kernel-result)
+         exact-replication (exact-replication-classification native-evidence kernel-result)
          base
          {:schema-version schema-version
           :subject-roots {:allocation-context-hash (:allocation-context-hash kernel-result)
@@ -93,20 +147,13 @@
                    :assertion/result result
                    :assurance (assertion-assurance id)})
                 assertions)
-          :exact-replication (exact-replication-classification)
+          :exact-replication exact-replication
           :prf-artifact (prf-artifact-identity)
           :assume-punishment-credible
           {:status :declared-supported
            :assurance :economic-assumption
            :profile-hash nil}
-          :proof
-          {:status :not-yet-evaluated
-           :proof-hash nil
-           :proof-mode :mock-native
-           :public-values-hash (when (= :passing status)
-                                  (hc/domain-hash :certificate-assertions
-                                                  {:schema-version schema-version
-                                                   :subject (:certificate-assertions-digest kernel-result)}))}
+          :proof (proof-block exact-replication kernel-result)
           :result/status status
           :rejection/classification (:rejection/classification kernel-result)
           :rejection/reason (:rejection/reason kernel-result)}
@@ -116,6 +163,6 @@
             :cancellation/assertion
             (round-state/cancellation-assertion
              {:profile-id "alloc/2-3"} round-state-token)})]
-       (if (nil? lifecycle)
-         base
-         (assoc base :round-lifecycle lifecycle)))))
+     (if (nil? lifecycle)
+       base
+       (assoc base :round-lifecycle lifecycle)))))

@@ -1,5 +1,6 @@
 (ns resolver-sim.benchmark.review.three-member-certificate-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.edn :as edn]
             [resolver-sim.benchmark.review.three-member-certificate :as tmc]
             [resolver-sim.benchmark.researcher-position :as rp]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]
@@ -271,6 +272,48 @@
     (is (contains? cert :model-consensus))
     (is (contains? cert :incentive-consensus))
     (is (contains? cert :other-consensus))))
+
+(deftest certificate-v3-includes-new-consensus-dimensions
+  (let [cert (make-cert reports-exact
+                        [(make-pos "a") (make-pos "b") (make-pos "c")])
+        all-consensus (merge (:model-consensus cert)
+                             (:incentive-consensus cert)
+                             (:other-consensus cert))]
+    (is (= "three-member-research-certificate.v3" (:schema-version cert)))
+    (doseq [dim [:model-invariants :temporal-fidelity :sampling-policy]]
+      (is (contains? (:model-consensus cert) dim)
+          (str dim " reported under model-consensus"))
+      (is (= :not-evaluable (get-in cert [:model-consensus dim :status]))
+          (str dim " is not-evaluable when no member assessed it")))
+    (doseq [dim [:determinism :provenance]]
+      (is (contains? (:other-consensus cert) dim)
+          (str dim " reported under other-consensus"))
+      (is (= :not-evaluable (get-in cert [:other-consensus dim :status]))
+          (str dim " is not-evaluable when no member assessed it")))
+    (is (= 18 (count all-consensus))
+        "certificate surfaces 18 consensus dimensions (9 model, 3 incentive, 6 other)")))
+
+(deftest certificate-v3-disagreement-on-new-dimension
+  (let [pos (fn [id status] (rp/build-position
+                             {:benchmark/content-root "sha256:cr" :researcher/id id
+                              :outcome-hash "sha256:A"
+                              :dimensions {:model-invariants {:status status}}}))
+        positions [(pos "a" :adequate) (pos "b" :adequate) (pos "c" :inadequate)]
+        checks (tmc/pre-certificate-checks
+                {:review-round default-round
+                 :canonical-indices (ci/build-canonical-indices default-round)
+                 :reports reports-exact
+                 :positions positions
+                 :disagreements [{:researcher/id "c" :dimension :model-invariants
+                                  :status :inadequate :rationale "one invariant gap"}]})]
+    (is (:pre-certificate-valid? checks))
+    (let [cert (tmc/build-certificate
+                {:review-round default-round
+                 :canonical-indices (ci/build-canonical-indices default-round)
+                 :reports reports-exact :positions positions})
+          inv (get-in cert [:model-consensus :model-invariants])]
+      (is (= :majority-with-dissent (:status inv)))
+      (is (= ["c"] (:dissenting-members inv))))))
 
 (deftest certificate-with-absent-member
   (let [cert (make-cert reports-exact
@@ -559,6 +602,129 @@
              (:review-member/index pos))
           (str "member-position index " (:researcher/id pos)
                " must agree with canonical index")))))
+
+(deftest certificate-v3-does-not-fabricate-new-dimensions
+  (testing "unassessed new dimensions are :not-evaluable, never synthesized consensus"
+    (let [cert (make-cert reports-exact
+                          [(make-pos "a") (make-pos "b") (make-pos "c")])]
+      (doseq [dim [:model-invariants :temporal-fidelity :sampling-policy
+                   :determinism :provenance]]
+        (let [cell (or (get-in cert [:model-consensus dim])
+                       (get-in cert [:other-consensus dim]))]
+          (is (= :not-evaluable (:status cell)) (str dim " not-evaluable"))
+          (is (empty? (:assessed-members cell)) (str dim " has no assessed members")))))
+    (let [cert (make-cert reports-exact
+                          [(make-pos "a") (make-pos "b") (make-pos "c")])
+          final (tmc/finalise-certificate! cert)]
+      (is (:valid? (tmc/validate-certificate final))
+          "a certificate that never assessed the new dimensions still validates"))))
+
+;; ── Certificate v3 follow-through: re-certification and the v2→v3 transition ──
+
+(def ^:private v2-dimension-set
+  (into #{} [:model-state :model-transitions :model-authority :model-adversary
+             :model-parameters :model-cases
+             :incentives-participants :incentives-strategies :incentives-coalitions
+             :reproduction :evidence :claims :publication]))
+
+(defn- as-v2-shaped
+  "Project a v3 certificate body to the v2 shape: old schema version, old
+   13-dimension consensus set, no :supersedes-certificate-root.  Demonstrates
+   the version transition without fabricating a review that did not occur."
+  [cert]
+  (let [keep (fn [m] (into {} (filter (fn [[k _]] (contains? v2-dimension-set k))) m))]
+    (-> cert
+        (assoc :schema-version "three-member-research-certificate.v2")
+        (update :model-consensus keep)
+        (update :incentive-consensus keep)
+        (update :other-consensus keep)
+        (dissoc :supersedes-certificate-root :certificate/hash
+                :review-member-canonical-indices))))
+
+(deftest certificate-version-transition-roots-differ
+  (let [cert (make-cert reports-exact
+                        [(make-pos "a") (make-pos "b") (make-pos "c")])
+        v2-body (as-v2-shaped cert)
+        v3-body (dissoc cert :certificate/hash :review-member-canonical-indices)
+        v2-root (str "sha256:" (hc/domain-hash :three-member-certificate v2-body))
+        v3-root (str "sha256:" (hc/domain-hash :three-member-certificate v3-body))]
+    (is (not= v2-root v3-root)
+        "the same researcher positions produce different certificate roots under
+         v2 and v3 — the transition is observable, not silent")
+    (is (= "three-member-research-certificate.v2" (:schema-version v2-body)))
+    (is (= 13 (count (into {} (concat (:model-consensus v2-body)
+                                      (:incentive-consensus v2-body)
+                                      (:other-consensus v2-body)))))
+        "v2 shape carries only the 13 legacy dimensions")))
+
+(deftest certificate-legacy-status-distinguishes-verifiable
+  (let [cert (make-cert reports-exact
+                        [(make-pos "a") (make-pos "b") (make-pos "c")])
+        v2-body (as-v2-shaped cert)
+        v2-root (str "sha256:" (hc/domain-hash :three-member-certificate v2-body))]
+    (testing "possession of the original signed bytes permits self-hash verification"
+      (let [signed (assoc v2-body :certificate/hash v2-root)
+            status (tmc/legacy-certificate-status signed)]
+        (is (:valid? status))
+        (is (= :legacy-signature-verifiable (:status status)))))
+    (testing "a tampered legacy body is :legacy-not-recomputable"
+      (let [tampered (assoc v2-body :certificate/hash
+                            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+            status (tmc/legacy-certificate-status tampered)]
+        (is (not (:valid? status)))
+        (is (= :legacy-not-recomputable (:status status)))))
+    (testing "validate-certificate routes legacy schemas through the distinction"
+      (let [signed (assoc v2-body :certificate/hash v2-root)]
+        (is (= :legacy-signature-verifiable (:status (tmc/validate-certificate signed))))
+        (is (not (contains? #{:valid :invalid} (:status (tmc/validate-certificate signed)))))))))
+
+(deftest certificate-supersedes-root-binds-into-hash
+  (let [prior (make-cert reports-exact
+                         [(make-pos "a") (make-pos "b") (make-pos "c")])
+        prior-root (-> prior tmc/finalise-certificate! :certificate/hash)
+        cert (tmc/build-certificate
+              {:review-round default-round
+               :canonical-indices (ci/build-canonical-indices default-round)
+               :reports reports-exact
+               :positions [(make-pos "a") (make-pos "b") (make-pos "c")]
+               :supersedes-certificate-root prior-root})
+        final (tmc/finalise-certificate! cert)]
+    (is (= prior-root (:supersedes-certificate-root cert)))
+    (is (:valid? (tmc/validate-certificate final))
+        "supersedes-root is part of the recomputable, hash-bound body")
+    (is (not= (:certificate/hash final) prior-root)
+        "re-certification is a distinct certificate root")))
+
+(deftest certificate-supersedes-root-rejects-non-reference
+  (is (thrown? clojure.lang.ExceptionInfo
+               (tmc/build-certificate
+                {:review-round default-round
+                 :canonical-indices (ci/build-canonical-indices default-round)
+                 :reports reports-exact
+                 :positions [(make-pos "a") (make-pos "b") (make-pos "c")]
+                 :supersedes-certificate-root "not-a-hash"}))))
+
+(deftest fixture-version-transition-recomputes
+  (testing "the committed v2→v3 fixture recomputes from current code — if the
+            schema or hash projection changes, this test forces a fixture
+            regeneration rather than a silent transition"
+    (let [fixture (edn/read-string
+                   (slurp "test/fixtures/review/version_transition_v2_v3.edn"))
+          v2-root (get fixture :certificate-root/v2)
+          v3-root (get fixture :certificate-root/v3)
+          cert (tmc/build-certificate
+                {:review-round (:review-round fixture)
+                 :reports (:reports fixture)
+                 :positions (:positions fixture)})
+          v2-body (as-v2-shaped cert)
+          v3-body (dissoc cert :certificate/hash :review-member-canonical-indices)]
+      (is (:roots-differ? fixture))
+      (is (not= v2-root v3-root)
+          "the same positions have different roots under v2 and v3")
+      (is (= (:v2-shaped-body fixture) v2-body))
+      (is (= (:v3-body fixture) v3-body))
+      (is (= v2-root (str "sha256:" (hc/domain-hash :three-member-certificate v2-body))))
+      (is (= v3-root (str "sha256:" (hc/domain-hash :three-member-certificate v3-body)))))))
 
 ;; ── End-to-end canonical-indices certificate tests ─────────────────────────
 

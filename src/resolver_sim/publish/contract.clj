@@ -101,7 +101,7 @@
            (str "unexpected policy/id: " (:policy/id req)))
          (when (and (map? req) (not (string? (:policy/hash req))))
            "policy/hash required")
-                  (when (and (map? req)
+         (when (and (map? req)
                     (seq (remove request-allowed-top-level (keys req))))
            (str "unexpected top-level keys: "
                 (pr-str (vec (sort-by pr-str (remove request-allowed-top-level (keys req)))))))]))

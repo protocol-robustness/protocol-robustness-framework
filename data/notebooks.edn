@@ -394,6 +394,17 @@
    :protocol-areas [:evidence]
    :tags           ["graph" "D3" "evidence" "visualization" "attestation"]}
 
+  {:id             :canonical-framing
+   :path           "notebooks/canonical_framing.clj"
+   :title          "Consecutive Concatenation, Made Visible"
+   :summary        "Byte-level visualization of the consecutive-concatenation invariant (CANONICAL_HASH_SPEC_V1 §9): component boundaries, byte roles (tag/len/count/payload), nested semantic paths, canonical map key order, fail-closed canonicality verification, the named canonical-value-sequence.v1 contract, and redacted payload inspection."
+   :categories     [:tooling :evidence-artifacts]
+   :audience       [:reviewer :auditor :researcher]
+   :status         :verified
+   :risk           :informational
+   :protocol-areas [:evidence]
+   :tags           ["canonical-hash" "framing" "prefix-free" "visualization" "conformance" "verification"]}
+
   ;; ── archived / migrated notebooks ──────────────────────────────────────────────
   {:id             :workbench-production
    :notebook/status :archived

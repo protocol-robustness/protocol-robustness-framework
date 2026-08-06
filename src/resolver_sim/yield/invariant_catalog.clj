@@ -56,7 +56,11 @@
 
    :yield/pro-rata-accounting-reconciles
    {:description "The application record binds to its propagation and allocation decision; accounting entries cover all propagated movements; source, participant, and deferred-position state changes reconcile and form a continuous chain; and no active deferred position is past its policy deadline."
-    :prf-tags [:pro-rata :accounting :conservation :deadline]}})
+    :prf-tags [:pro-rata :accounting :conservation :deadline]}
+
+   :yield/withdrawal-ledger-conservation
+   {:description "Every recorded withdrawal (single or batch) settles at most the liquidity pool available to it: filled ≤ available, filled ≤ requested, and the settlement split (filled + deferred + haircut) reconciles to the requested value within rounding tolerance. Guards against over-allocation of a shared pool (double-spend) in persisted state."
+    :prf-tags [:liquidity :solvency :conservation :aggregate :withdrawal]}})
 
 (def default-runtime-invariant-ids
   "Checked on every successful replay step (yield-v1 adapter)."
@@ -74,7 +78,8 @@
    :yield/aggregate-shortfall
    :yield/aggregate
    :yield/pro-rata-propagation-complete
-   :yield/pro-rata-accounting-reconciles])
+   :yield/pro-rata-accounting-reconciles
+   :yield/withdrawal-ledger-conservation])
 
 (def default-transition-invariant-ids
   "Checked on each successful transition (yield-v1 adapter)."

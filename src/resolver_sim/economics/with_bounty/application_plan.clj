@@ -139,11 +139,25 @@
    :plan/idempotency-key
    :plan/context])
 
+(defn- project-canonical-safe
+  "Deep-project a value for canonical encoding: sets -> sorted vectors
+   (CANONICAL_HASH_SPEC_V1: sets are outside the canonical type domain and
+   must be projected to a sorted vector; this also makes plan hashes
+   deterministic across JVMs regardless of set iteration order)."
+  [v]
+  (cond
+    (set? v) (vec (sort-by str v))
+    (map? v) (into {} (map (fn [[k vv]] [k (project-canonical-safe vv)]) v))
+    (sequential? v) (mapv project-canonical-safe v)
+    :else v))
+
 (defn plan-hash
-  "Content-addressed root of a with-bounty application plan."
+  "Content-addressed root of a with-bounty application plan. Sets are projected
+   to sorted vectors before encoding (canonical-safe, deterministic)."
   [plan]
   (hc/domain-hash plan-domain-tag
-                  (select-keys plan plan-hash-projection-fields)))
+                  (project-canonical-safe
+                   (select-keys plan plan-hash-projection-fields))))
 
 ;; ── plan builder ──────────────────────────────────────────────────────────
 

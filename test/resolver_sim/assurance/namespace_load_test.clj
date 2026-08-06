@@ -32,7 +32,16 @@
       classify-lifecycle-window cancellation-window-assertion
       validate-lifecycle-profile validate-lifecycle-monotonicity
       cancellation-decision-required? cancellation-binding-complete?
-      cancellation-conflict-key]]
+      cancellation-conflict-key cancellation-authorised?
+      current-snapshot-binding-valid? cancellation-executable?
+      cancellation-committable? classify-cancellation-gates
+      deterministic-operation-evidence deterministic-operation-evidence-valid?
+      deterministic-operation-verified?]]
+   [(symbol "resolver-sim.assurance.three-member-authority")
+    '[decision-scope-projection equivocation-key
+      incompatible-positions? detect-equivocation
+      classify-equivocating-seat evaluate-three-member-authority
+      position-valid? authority-report-root recompute-authority-report]]
    [(symbol "resolver-sim.evidence.force-authorisation")
     '[valid-scope? valid-envelope? grant-before-execution?]]
    [(symbol "resolver-sim.commands.witness-build")
@@ -77,6 +86,14 @@
       classify-decision-version decision-outcome-binding
       complete-outcome-verified? position-outcome-root
       authorisation-outcome-consistency]]
+   [(symbol "resolver-sim.benchmark.decision-subject")
+    '[build-decision-subject decision-subject-hash validate-decision-subject
+      decision-subject-valid? verify-decision-subject-root
+      subject-commitment-summary]]
+   [(symbol "resolver-sim.benchmark.research-conclusion")
+    '[build-conclusion validate-conclusion conclusion-valid?
+      conclusion-overreaches? conclusion-collective-hash
+      verify-conclusion-support valid-falsifier?]]
    [(symbol "resolver-sim.hash.canonical")
     '[hash-with-intent domain-hash domain-tags]]
    ;; Protocol-specific adapter — dynamically resolved at runtime

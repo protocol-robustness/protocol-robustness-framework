@@ -32,7 +32,7 @@
         (is (re-find #"exec-0002-[0-9a-f]{16}$" run-2)))
       (testing "a package retains input, raw result, and execution summary"
         (let [package (#'runner/write-execution-package!
-                       run-1 scenario-file {:protocol "sew-v1"}
+                       run-1 source {:protocol "sew-v1"}
                        {:outcome :pass :events-processed 3})]
           (is (.exists (java.io.File. (:scenario/input-path package))))
           (is (.exists (java.io.File. (:scenario/replay-output package))))
@@ -146,15 +146,10 @@
    :input-hash "sha256:test-input-hash"
    :dirty? false})
 
-(defn- clean-vcs-redefs
-  "with-redefs bindings that present a clean, deterministic VCS/repo state."
-  []
-  [repo/metadata (fn [] {:repo {:commit "test-commit" :dirty? false}})
-   vcs/source-provenance clean-source-provenance])
-
 (deftest test-benchmark-run-basic
   (testing "Can run a benchmark (old format) and generate evidence"
-    (with-redefs (clean-vcs-redefs)
+    (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit" :dirty? false}})
+                  vcs/source-provenance clean-source-provenance]
       (let [manifest-path "benchmarks/packs/sew/dispute-liveness-v1.edn"
             evidence (runner/run-benchmark manifest-path)]
         (is (contains? evidence :benchmark))
@@ -164,7 +159,8 @@
 
 (deftest test-benchmark-run-new-format
   (testing "Can run a benchmark (new pack format) and generate evidence"
-    (with-redefs (clean-vcs-redefs)
+    (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit" :dirty? false}})
+                  vcs/source-provenance clean-source-provenance]
       (let [manifest-path "benchmarks/packs/sew/escrow-dispute-v1.edn"
             evidence (runner/run-benchmark manifest-path)]
         (is (contains? evidence :benchmark) "Evidence should contain :benchmark")
@@ -198,33 +194,34 @@
 
 (deftest test-evidence-shape
   (testing "Evidence bundle matches BENCHMARK_RESULT_SPEC_V1 shape"
-    (with-redefs (clean-vcs-redefs)
+    (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit" :dirty? false}})
+                  vcs/source-provenance clean-source-provenance]
       (let [evidence (runner/run-benchmark "benchmarks/packs/sew/escrow-dispute-v1.edn")]
       ;; Core shape
-      (is (contains? evidence :benchmark) ":benchmark key present")
-      (is (contains? evidence :repo) ":repo key present")
-      (is (contains? evidence :environment) ":environment key present")
-      (is (contains? evidence :results) ":results key present")
-      (is (contains? evidence :metrics) ":metrics key present")
-      (is (contains? evidence :evidence/hash) ":evidence/hash key present")
-      (is (contains? evidence :benchmark-certification) ":benchmark-certification key present")
+        (is (contains? evidence :benchmark) ":benchmark key present")
+        (is (contains? evidence :repo) ":repo key present")
+        (is (contains? evidence :environment) ":environment key present")
+        (is (contains? evidence :results) ":results key present")
+        (is (contains? evidence :metrics) ":metrics key present")
+        (is (contains? evidence :evidence/hash) ":evidence/hash key present")
+        (is (contains? evidence :benchmark-certification) ":benchmark-certification key present")
 
       ;; Environment shape
-      (is (contains? (:environment evidence) :os-name) ":environment :os-name")
-      (is (contains? (:environment evidence) :java-version) ":environment :java-version")
+        (is (contains? (:environment evidence) :os-name) ":environment :os-name")
+        (is (contains? (:environment evidence) :java-version) ":environment :java-version")
 
       ;; Metrics shape
-      (is (contains? (:metrics evidence) :total) ":metrics :total")
-      (is (contains? (:metrics evidence) :passed) ":metrics :passed")
+        (is (contains? (:metrics evidence) :total) ":metrics :total")
+        (is (contains? (:metrics evidence) :passed) ":metrics :passed")
 
       ;; Benchmark shape
-      (is (map? (:benchmark evidence)) ":benchmark is a map")
+        (is (map? (:benchmark evidence)) ":benchmark is a map")
 
       ;; Results vector
-      (is (every? #(contains? % :file) (:results evidence))
-          "Each result should have :file")
-      (is (every? #(contains? % :outcome) (:results evidence))
-          "Each result should have :outcome")))))
+        (is (every? #(contains? % :file) (:results evidence))
+            "Each result should have :file")
+        (is (every? #(contains? % :outcome) (:results evidence))
+            "Each result should have :outcome")))))
 
 (deftest test-deterministic-replay-benchmark-produces-claim-results
   (testing "PRF deterministic replay benchmark executes duplicate runs and resolves replay claims"

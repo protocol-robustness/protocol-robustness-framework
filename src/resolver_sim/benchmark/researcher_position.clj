@@ -69,12 +69,17 @@
    :model-adversary (into absent-statuses #{:adequate :incomplete :omitted})
    :model-parameters (into absent-statuses #{:adequate :insufficient-coverage})
    :model-cases   (into absent-statuses #{:adequate :insufficient})
+   :model-invariants (into absent-statuses #{:adequate :incomplete :inadequate})
+   :temporal-fidelity (into absent-statuses #{:adequate :incomplete :inadequate})
+   :sampling-policy (into absent-statuses #{:adequate :insufficient-coverage :biased})
    :incentives-participants (into absent-statuses #{:adequate :incomplete})
    :incentives-strategies (into absent-statuses #{:adequate :incomplete :omitted})
    :incentives-coalitions (into absent-statuses #{:adequate :omitted})
    :evidence      (into absent-statuses #{:sufficient :insufficient})
    :claims        (into absent-statuses #{:supported :overstated :not-supported})
-   :publication   (into absent-statuses #{:publish :publish-with-qualification :do-not-publish})})
+   :publication   (into absent-statuses #{:publish :publish-with-qualification :do-not-publish})
+   :determinism   (into absent-statuses #{:deterministic :non-deterministic :incomplete})
+   :provenance    (into absent-statuses #{:complete :incomplete :broken})})
 
 (defn valid-dimension-status?
   "True when status is valid for the given dimension."

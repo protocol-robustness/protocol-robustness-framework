@@ -82,9 +82,28 @@
 (def ^:private top-level-fields
   (into #{:schema-version :policy/id :policy/version :policy/domain} (keys required-fields)))
 
+(defn- canonical-bytes-hex
+  "Lowercase hex of a value's canonical encoding (used as a deterministic,
+   byte-lexicographic sort key for sets)."
+  [v]
+  (apply str (map #(format "%02x" (bit-and % 0xff)) (hc/canonical-bytes v))))
+
+(defn- project-sets
+  "Recursively project sets to sorted vectors.  Sets are outside the canonical
+   type algebra; the caller requests the set→sorted-vector normalization
+   explicitly here (it is never performed silently by the encoder).  Sorting by
+   canonical bytes reproduces the encoder's former byte-lexicographic set order
+   exactly, so policy hashes are unchanged."
+  [v]
+  (cond
+    (set? v) (vec (sort-by canonical-bytes-hex (map project-sets v)))
+    (map? v) (into {} (map (fn [[k val]] [k (project-sets val)]) v))
+    (vector? v) (mapv project-sets v)
+    :else v))
+
 (defn policy-hash [policy]
   (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      (dissoc policy :policy/hash))))
+                                      (project-sets (dissoc policy :policy/hash)))))
 
 (defn- ensure-fields! [policy section]
   (let [actual (get policy section)

@@ -32,7 +32,7 @@
 (deftest prf-replay-claims-pass-for-consistent-results
   (let [results [{:scenario/id "scenario-a"
                   :simulator/scenario-path "scenarios/a.edn"
-                  :benchmark/run-index 1
+                  :benchmark/run-index 0
                   :benchmark/run-count 2
                   :outcome :pass
                   :halt-reason nil
@@ -40,7 +40,7 @@
                   :scenario/evidence-root (apply str (repeat 64 "a"))}
                  {:scenario/id "scenario-a"
                   :simulator/scenario-path "scenarios/a.edn"
-                  :benchmark/run-index 2
+                  :benchmark/run-index 1
                   :benchmark/run-count 2
                   :outcome :pass
                   :halt-reason nil
@@ -48,7 +48,7 @@
                   :scenario/evidence-root (apply str (repeat 64 "a"))}
                  {:scenario/id "scenario-b"
                   :simulator/scenario-path "scenarios/b.edn"
-                  :benchmark/run-index 1
+                  :benchmark/run-index 0
                   :benchmark/run-count 2
                   :outcome :fail
                   :halt-reason :halted
@@ -56,7 +56,7 @@
                   :scenario/evidence-root (apply str (repeat 64 "b"))}
                  {:scenario/id "scenario-b"
                   :simulator/scenario-path "scenarios/b.edn"
-                  :benchmark/run-index 2
+                  :benchmark/run-index 1
                   :benchmark/run-count 2
                   :outcome :fail
                   :halt-reason :halted
@@ -74,7 +74,7 @@
 (deftest prf-replay-claims-fail-for-conflicting-results
   (let [results [{:scenario/id "scenario-a"
                   :simulator/scenario-path "scenarios/a.edn"
-                  :benchmark/run-index 1
+                  :benchmark/run-index 0
                   :benchmark/run-count 2
                   :outcome :pass
                   :halt-reason nil
@@ -82,7 +82,7 @@
                   :scenario/evidence-root (apply str (repeat 64 "a"))}
                  {:scenario/id "scenario-a"
                   :simulator/scenario-path "scenarios/a.edn"
-                  :benchmark/run-index 2
+                  :benchmark/run-index 1
                   :benchmark/run-count 2
                   :outcome :fail
                   :halt-reason :halted
@@ -104,7 +104,7 @@
 (deftest prf-replay-claims-fail-for-incomplete-run-pairing
   (let [results [{:scenario/id "scenario-a"
                   :simulator/scenario-path "scenarios/a.edn"
-                  :benchmark/run-index 1
+                  :benchmark/run-index 0
                   :benchmark/run-count 2
                   :outcome :pass
                   :halt-reason nil

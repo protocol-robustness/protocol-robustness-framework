@@ -25,7 +25,7 @@
                   :maps-to [:protocol.actor/verifier]}}
 
  :concept/entities
- {:research-certificate {:description "Content-addressed three-member-research-certificate.v1 package aggregating reports and positions."
+ {  :research-certificate {:description "Content-addressed three-member-research-certificate package (schema v3) aggregating reports and positions."
                          :maps-to [:protocol.entity/evidence]}
   :certificate-hash {:description "Canonical hash committing the certificate; excludes the full canonical-indices map, binding only its committed hash."
                      :maps-to [:protocol.entity/canonical-hash]}

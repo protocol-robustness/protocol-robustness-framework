@@ -9,14 +9,19 @@
    and make the aggregate non-passing.
 
    This extension depends ONLY on approved public PRF core namespaces
-   (resolver-sim.evidence.artifact) and the sibling mutation namespace.
+   (resolver-sim.evidence.artifact, resolver-sim.hash.sequence,
+   resolver-sim.sensitivity.sentinel) and the sibling mutation namespace.
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - resolver-sim.evidence.force-authorisation (legacy core domain)"
   (:require [resolver-sim.evidence.artifact :as artifact]
+            [resolver-sim.hash.sequence :as seq]
+            [resolver-sim.sensitivity.sentinel :as sentinel]
             [prf.extensions.held-custody.mutation :as mutation]))
+
+(declare check-held-mutation-sequence)
 
 ;; ── summary artifact contract ──────────────────────────────────────────────
 
@@ -283,6 +288,10 @@
                       every valid member's referenced authorisation is verified
                       (projection-hash == record :authorization/scope-hash) and
                       unverified ids are surfaced.
+     :sequence        optional held-mutation-sequence artifact. When supplied,
+                      the ordered consecutive mutation run is independently
+                      verified (see check-held-mutation-sequence) and its
+                      validity is folded into :valid?.
 
    Semantics:
      :valid?     — the summary is a well-formed summary consistent with an
@@ -297,6 +306,10 @@
   [summary members options]
   (let [options (or options {})
         authorizations (:authorizations options)
+        sequence (:sequence options)
+        sequence-check (when sequence
+                         (check-held-mutation-sequence sequence members {}))
+        sequence-ok? (or (nil? sequence) (:valid? sequence-check))
         summary-map? (map? summary)
         identity-ok? (and summary-map?
                           (= summary-schema-version (:schema-version summary))
@@ -338,7 +351,8 @@
                 :summary-recomputes? summary-recomputes?
                 :flow-reconciles? flow-ok?
                 :amounts-non-negative? non-negative-ok?
-                :authorizations-verified? (empty? unverified-ids)}
+                :authorizations-verified? (empty? unverified-ids)
+                :sequence-valid? sequence-ok?}
         valid? (every? true? (vals (dissoc checks :authorizations-verified?)))
         verified? (and valid? (empty? unverified-ids))]
     {:valid? valid?
@@ -352,3 +366,175 @@
      :unverified-authorization-ids unverified-ids
      :mismatches mismatches
      :warnings []}))
+
+;; ── consecutive mutation-sequence commitment ────────────────────────────────
+;;
+;; The summary commits *flow aggregates* over the member set.  The sequence
+;; artifact additionally commits the *ordered run* of consecutive held
+;; mutations (add-held, sub-held, finalize-released, refund-held) under the
+;; named canonical-value-sequence.v1 contract: the ordered member :artifact/hash
+;; refs are bound to a purpose and component-count so the same bytes cannot be
+;; silently reinterpreted as a different protocol object.
+
+(def sequence-schema-version
+  "Canonical schema version for a held-custody mutation sequence artifact."
+  "force-auth-held-custody-mutation-sequence.v1")
+
+(def sequence-kind
+  "Canonical :artifact/kind for a held-custody mutation sequence artifact."
+  :force-auth-held-custody-mutation-sequence)
+
+(def sequence-verifier-id
+  "Canonical verifier identifier for a held-custody mutation sequence artifact."
+  "force-auth-held-custody-mutation-sequence.verifier.v1")
+
+(def sequence-purpose
+  "Domain purpose bound into the sequence commitment."
+  :held-custody-mutations)
+
+(def sequence-contract
+  "Encoding-contract identifier for the named sequence framing."
+  "canonical-value-sequence.v1")
+
+(def legacy-add-held-kind
+  "Legacy add-held artifact kind (:force-auth-add-held — the add-held-kind of
+   the legacy evidence domain).  Used to attribute projected legacy members in
+   the sequence commitment without depending on the legacy evidence namespace."
+  :force-auth-add-held)
+
+(defn member-kind
+  "Artifact kind of a sequence member.  Native held-custody mutations carry
+   :artifact/kind; projected legacy add-held members (which carry
+   :legacy/classification instead) are attributed to add-held-kind
+   :force-auth-add-held."
+  [m]
+  (or (:artifact/kind m)
+      (when (some? (:legacy/classification m)) legacy-add-held-kind)))
+
+(defn remote-authority-required?
+  "True when a member is forbidden from local in-process authorization
+   (force-auth-add evidence): its kind is add-held-kind :force-auth-add-held or
+   its held action is :add-held.  Delegates to the sensitivity sentinel, the
+   authoritative classifier for the remote-authority-required boundary."
+  [m]
+  (sentinel/remote-authority-required-artifact? m))
+
+(defn force-auth-authorised?
+  "True when every member is force-authorisation-backed — each carries a
+   non-nil :authorization/id (native members are built only from a verified
+   authorisation, so this is a documentation invariant, not a weak check)."
+  [members]
+  (every? (comp some? :authorization/id) members))
+
+(defn member-order
+  "Deterministic consecutive order of a member set for the sequence commitment.
+   Sorted by :held/consumed-at (absent sorts first as 0), then :mutation/id,
+   then :authorization/id.  The order is part of the committed sequence — the
+   same member set in a different order commits to different bytes."
+  [members]
+  (sort-by (fn [m]
+             [(or (:held/consumed-at m) 0)
+              (:mutation/id m)
+              (:authorization/id m)])
+           members))
+
+(defn held-mutation-sequence-body
+  "Canonical sequence-commitment body (without the artifact envelope) from a
+   member set.  Commits the ordered member :artifact/hash refs under the
+   canonical-value-sequence.v1 contract, and self-describes the run: its
+   actions, artifact kinds (including add-held-kind :force-auth-add-held for
+   projected legacy members), force-authorisation boundary posture
+   (:force-auth-add-forbidden? / :force-auth-authorised?), and the add-held
+   amount posture (:add-held/count / :add-held/amount / :amount-by-action)."
+  [members]
+  (let [ordered (vec (member-order members))
+        refs (mapv :artifact/hash ordered)
+        remote-authority-required (filterv remote-authority-required? ordered)
+        add-held-members (filterv #(= :add-held (:held/action %)) ordered)
+        amount-by-action (into (sorted-map)
+                               (reduce (fn [m a]
+                                         (let [act (:held/action a)]
+                                           (if (some? act)
+                                             (update m act (fnil + 0) (:held/amount a))
+                                             m)))
+                                       {}
+                                       ordered))]
+    {:schema-version sequence-schema-version
+     :artifact/kind sequence-kind
+     :artifact/verifier sequence-verifier-id
+     :encoding-contract sequence-contract
+     :purpose sequence-purpose
+     :component-count (count refs)
+     :member-order (mapv :mutation/id ordered)
+     :member-hashes refs
+     :actions (vec (sort (distinct (keep :held/action ordered))))
+     :kinds (vec (sort (distinct (keep member-kind ordered))))
+     :action-counts (into (sorted-map)
+                          (frequencies (keep :held/action ordered)))
+     :kind-counts (into (sorted-map)
+                        (frequencies (keep member-kind ordered)))
+     :force-auth-add-forbidden? (boolean (seq remote-authority-required))
+     :remote-authority-required-count (count remote-authority-required)
+     :force-auth-authorised? (force-auth-authorised? ordered)
+     :authorisation/id-count (count (distinct (keep :authorization/id ordered)))
+     :add-held/count (count add-held-members)
+     :add-held/amount (reduce + 0 (keep :held/amount add-held-members))
+     :amount-by-action amount-by-action
+     :sequence-hash (str "sha256:"
+                         (seq/sequence-hash {:purpose sequence-purpose} refs))}))
+
+(defn held-mutation-sequence-bytes
+  "Raw canonical bytes of the bound sequence commitment (canonical-value-
+   sequence.v1) over the ordered member refs.  Framing-view compatible."
+  [members]
+  (seq/canonical-sequence-bytes
+   {:purpose sequence-purpose}
+   (mapv :artifact/hash (member-order members))))
+
+(defn build-held-mutation-sequence
+  "Build a held-custody mutation sequence artifact over an intrinsically valid
+   member set.  FAIL-FAST: non-passing members throw ex-info with structured
+   diagnostics (same admission as the summary).  Construction and recomputation
+   share the same canonical derivation."
+  [members _options]
+  (admit-members! members)
+  (artifact/finalize-artifact (held-mutation-sequence-body members)))
+
+(defn recompute-held-mutation-sequence
+  "Canonical recomputation of the sequence artifact from a member set.
+   Byte-equal to the builder for any admitted member set."
+  [members _options]
+  (artifact/finalize-artifact (held-mutation-sequence-body members)))
+
+(defn check-held-mutation-sequence
+  "Structured, deterministic, data-only check of a held-custody mutation
+   sequence artifact against the members it claims to commit.
+
+   :valid? requires artifact identity (schema/kind/verifier), exact content
+   round-trip, membership validity, and byte-equal recomputation of the ordered
+   run.  Returns {:valid? :status :checks :invalid-members :mismatches}."
+  [sequence members _options]
+  (let [identity-ok? (and (map? sequence)
+                          (= sequence-schema-version (:schema-version sequence))
+                          (= sequence-kind (:artifact/kind sequence))
+                          (= sequence-verifier-id (:artifact/verifier sequence))
+                          (artifact/valid-artifact? sequence sequence-schema-version
+                                                    sequence-kind sequence-verifier-id
+                                                    :exact))
+        {:keys [invalid]} (valid-member-summary members)
+        members-valid? (zero? (count invalid))
+        expected-body (held-mutation-sequence-body members)
+        recomputes? (and identity-ok?
+                         (= (artifact/artifact-body expected-body)
+                            (artifact/artifact-body sequence)))
+        checks {:sequence-identity-valid? identity-ok?
+                :members-valid? members-valid?
+                :sequence-recomputes? recomputes?}
+        valid? (every? true? (vals checks))]
+    {:valid? valid?
+     :status (if valid? :valid :invalid)
+     :checks checks
+     :invalid-members (vec invalid)
+     :mismatches (when (and identity-ok? (not recomputes?))
+                   [{:path [] :expected (artifact/artifact-body expected-body)
+                     :actual (artifact/artifact-body sequence)}])}))

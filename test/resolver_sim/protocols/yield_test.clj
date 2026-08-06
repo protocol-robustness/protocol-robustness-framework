@@ -21,7 +21,7 @@
 
 (deftest yield-protocol-satisfies-adapter
   (is (satisfies? proto/SimulationAdapter yp/protocol))
-  (is (not (satisfies? proto/EconomicModel yp/protocol))))
+  (is (satisfies? proto/EconomicModel yp/protocol)))
 
 (deftest registry-resolves-yield-v1
   (is (= yp/protocol (preg/get-protocol "yield-v1"))))
@@ -74,7 +74,7 @@
     (is (= :pro-rata (get-in decision [:policy :mode])))
     (is (= ["alice" "bob"] (:participants decision)))
     (let [propagation (first (vals (get-in result [:world :yield/pro-rata-propagations])))]
-      (is (= "pro-rata-propagation.v1" (:schema-version propagation)))
+      (is (= "pro-rata-propagation.v2" (:schema-version propagation)))
       (is (= 1800 (get-in propagation [:summary :allocated])))
       (is (= 1200 (get-in propagation [:summary :deferred])))
       (is (= :committed (:status propagation)))
@@ -84,7 +84,7 @@
         (doseq [check [:policy-reference-valid
                        :source-account-policy-compliant
                        :participant-account-policy-compliant
-                       :deferred-position-policy-compliant
+                       :deferred-position-policy-valid
                        :shortfall-policy-compliant
                        :residual-policy-compliant
                        :idempotency-policy-compliant]]

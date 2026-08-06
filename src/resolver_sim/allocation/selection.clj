@@ -56,9 +56,9 @@
           limit (rejection-limit outcome-count)]
       (if (neg? (.compareTo value limit))
           ;; candidate < limit
-          (let [selected-index (mod (bigint value) outcome-count)]
-            {:accepted-counter counter
-             :candidate-digest digest
-             :candidate-value value
-             :selected-index (bigint selected-index)})
-          (recur (inc counter))))))
+        (let [selected-index (mod (bigint value) outcome-count)]
+          {:accepted-counter counter
+           :candidate-digest digest
+           :candidate-value value
+           :selected-index (bigint selected-index)})
+        (recur (inc counter))))))

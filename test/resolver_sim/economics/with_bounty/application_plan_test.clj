@@ -1,7 +1,7 @@
 (ns resolver-sim.economics.with-bounty.application-plan-test
   "Stage B: composition application plan build/verify and creation-time
    fail-before-mutation preconditions (ADR-0006 D3/D5)."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.with-bounty.application-plan :as wb-plan]
             [resolver-sim.economics.with-bounty.identity :as identity]
             [resolver-sim.economics.with-bounty.policy :as policy]
@@ -175,6 +175,29 @@
                        {:adapter/id :sew/v1
                         :adapter/supported-effects #{:prf.effect/obligation-create.v2}}
                        plan))))))
+
+(deftest application-plan-projection-frozen
+  (testing "the committed projection table is frozen (ADR-0006 R11); changing it
+            requires a v2 domain, because attestations and package roots bind it"
+    (is (= [:schema-version
+            :plan/policy-root
+            :plan/base-operation-root
+            :plan/base-result-root
+            :plan/base-plan-root
+            :plan/extensions-resolution-root
+            :plan/adapter
+            :plan/effects
+            :plan/effect-roots
+            :plan/combined-effect-root
+            :plan/effect-schema-roots
+            :plan/declared-maximum
+            :plan/funding-available
+            :plan/obligation-id
+            :plan/no-duplicate-creation-key
+            :plan/preconditions
+            :plan/idempotency-key
+            :plan/context]
+           wb-plan/plan-hash-projection-fields))))
 
 (deftest base-plan-root-composes-into-roots
   (let [with-base (wb-plan/build-with-bounty-plan

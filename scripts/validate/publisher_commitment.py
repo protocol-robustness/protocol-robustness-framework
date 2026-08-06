@@ -77,7 +77,12 @@ DEFAULT_ALGORITHM = "ed25519"
 ED25519_SEED_HEX_LEN = 64
 ED25519_SIG_HEX_LEN = 128
 
-REQUIRED_CHAIN_IDS = ("test-run", "test-summary", "claimable-classification")
+REQUIRED_CHAIN_IDS = (
+    "test-run",
+    "test-summary",
+    "claimable-classification",
+    "results-artifact",
+)
 
 # Envelope fields the publisher manifest may carry.  Anything else is rejected.
 _ENVELOPE_FIELDS = frozenset({

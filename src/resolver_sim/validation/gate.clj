@@ -171,46 +171,66 @@
      `economic-verdict` — result from `evaluate-economic-model-gate`
      `deviation-results` — a seq of {:property kw, :verdict :verified | :violated, ...}
      `equilibrium-results` — a seq of {:property kw, :status kw, ...}
-     `contract-id` — the deviation contract id used
+     `contract-id` — a single deviation contract id (legacy form)
+     `contract-ids` — the resolved deviation contract ids used; when supplied,
+                      `:contract-id` is derived from the first member for
+                      single-contract compatibility
      `scope` — the enumeration scope
+
+   Contract provenance fails closed: when both `contract-id` and `contract-ids`
+   are supplied they must agree — `contract-id` must be the sole member of the
+   deduplicated `contract-ids` vector — otherwise an exception is thrown rather
+   than silently recording a misleading contract label.
 
    Returns {:gate :strategic
             :verdict :verified | :violated | :inconclusive | :blocked
             :properties [...]
-            :contract-id kw
+            :contract-id kw | nil
+            :contract-ids [kw ...]
             :scope map
             :blocked-reason nil | string}"
   [economic-verdict deviation-results equilibrium-results
-   & {:keys [contract-id scope]}]
-  (if (= :blocked (:verdict economic-verdict))
-    {:gate :strategic
-     :verdict :blocked
-     :blocked-reason (str "upstream economic-model gate blocked: " (:blocked-reason economic-verdict))
-     :properties []
-     :contract-id contract-id
-     :scope scope}
-    (let [all-results (concat deviation-results
-                              (map (fn [er] {:property (:property er)
-                                             :verdict (case (:status er)
-                                                        :pass :verified
-                                                        :fail :violated
-                                                        :inconclusive)
-                                             :status (:status er)})
-                                   equilibrium-results))
-          violated (filter #(= :violated (:verdict %)) all-results)
-          inconclusive (filter #(= :inconclusive (:verdict %)) all-results)]
+   & {:keys [contract-id contract-ids scope]}]
+  (let [ids (vec (distinct (or contract-ids
+                               (when contract-id [contract-id]))))
+        _ (when (and contract-id (some? contract-ids) (seq ids)
+                     (not (and (= 1 (count ids))
+                               (= contract-id (first ids)))))
+            (throw (ex-info "contract-id disagrees with contract-ids"
+                            {:contract-id contract-id
+                             :contract-ids ids})))
+        effective-id (or contract-id (first ids))]
+    (if (= :blocked (:verdict economic-verdict))
       {:gate :strategic
-       :verdict (cond
-                  (seq violated) :violated
-                  (seq inconclusive) :inconclusive
-                  :else :verified)
-       :properties (vec all-results)
-       :contract-id contract-id
-       :scope scope
-       :blocked-reason (cond
-                         (seq violated) (str (count violated) " property/properties violated")
-                         (seq inconclusive) (str (count inconclusive) " check(s) inconclusive")
-                         :else nil)})))
+       :verdict :blocked
+       :blocked-reason (str "upstream economic-model gate blocked: " (:blocked-reason economic-verdict))
+       :properties []
+       :contract-id effective-id
+       :contract-ids ids
+       :scope scope}
+      (let [all-results (concat deviation-results
+                                (map (fn [er] {:property (:property er)
+                                               :verdict (case (:status er)
+                                                          :pass :verified
+                                                          :fail :violated
+                                                          :inconclusive)
+                                               :status (:status er)})
+                                     equilibrium-results))
+            violated (filter #(= :violated (:verdict %)) all-results)
+            inconclusive (filter #(= :inconclusive (:verdict %)) all-results)]
+        {:gate :strategic
+         :verdict (cond
+                    (seq violated) :violated
+                    (seq inconclusive) :inconclusive
+                    :else :verified)
+         :properties (vec all-results)
+         :contract-id effective-id
+         :contract-ids ids
+         :scope scope
+         :blocked-reason (cond
+                           (seq violated) (str (count violated) " property/properties violated")
+                           (seq inconclusive) (str (count inconclusive) " check(s) inconclusive")
+                           :else nil)}))))
 
 ;; ---------------------------------------------------------------------------
 ;; Combined evaluation
@@ -225,7 +245,7 @@
             :overall-verdict kw} where overall-verdict is the weakest
    of the three gate verdicts."
   [integrity-checks economic-checks strategic-deviation-results strategic-equilibrium-results
-   & {:keys [witnesses required-mechanisms assumptions contract-id scope]}]
+   & {:keys [witnesses required-mechanisms assumptions contract-id contract-ids scope]}]
   (let [integrity (evaluate-integrity-gate integrity-checks
                                            :witnesses witnesses
                                            :required-mechanisms required-mechanisms)
@@ -235,6 +255,7 @@
                                            strategic-deviation-results
                                            strategic-equilibrium-results
                                            :contract-id contract-id
+                                           :contract-ids contract-ids
                                            :scope scope)
         verdicts [(:verdict integrity) (:verdict economic) (:verdict strategic)]
         ;; Weakest verdict wins

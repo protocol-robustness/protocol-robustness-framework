@@ -107,6 +107,9 @@ def main() -> int:
                     help="publisher manifest (publication.json); enables stage-3 publisher gate")
     ap.add_argument("--publisher-policy", default=None,
                     help="publisher policy JSON; enables stage-3 publisher gate")
+    ap.add_argument("--report-json", default=None,
+                    help="write the composed acceptance report (acceptance_report.py) to this path "
+                         "when validation succeeds")
     args = ap.parse_args()
 
     registry_p = Path(args.registry)
@@ -176,9 +179,38 @@ def main() -> int:
             fail(f"sha256 mismatch for artifact id={aid}")
 
     # Required chain anchors
-    for req in ("test-summary", "test-run", "claimable-classification"):
+    for req in ("test-summary", "test-run", "claimable-classification", "results-artifact"):
         if req not in by_id:
             fail(f"required artifact id missing from registry: {req}")
+
+    # Canonical results artifact: unique, correctly-typed, run-bound, on-disk.
+    results_entries = [a for a in artifacts if a.get("id") == "results-artifact"]
+    if len(results_entries) > 1:
+        fail(f"duplicate results artifact entries ({len(results_entries)}); expected exactly one")
+    results_art = by_id.get("results-artifact")
+    if results_art is not None:
+        if results_art.get("kind") != "results-artifact":
+            fail(f"results artifact kind must be 'results-artifact', got {results_art.get('kind')!r}")
+        if results_art.get("schema_version") != cfg.schema("results-artifact"):
+            fail(f"results artifact schema_version must be {cfg.schema('results-artifact')}, "
+                 f"got {results_art.get('schema_version')!r}")
+        bound_run = (results_art.get("extensions") or {}).get("run_id")
+        if bound_run != registry.get("run_id"):
+            fail(f"results artifact run binding mismatch: extensions.run_id={bound_run!r}, "
+                 f"registry run_id={registry.get('run_id')!r}")
+        ra_path = Path(results_art.get("path", ""))
+        if not ra_path.exists():
+            fail(f"results artifact file missing: {ra_path}")
+        if sha256_file(ra_path) != results_art.get("sha256"):
+            fail("results artifact on-disk hash mismatch")
+        try:
+            ra_doc = json.loads(ra_path.read_text())
+        except (json.JSONDecodeError, OSError, IOError):
+            ra_doc = None
+        if isinstance(ra_doc, dict) and ra_doc.get("run_id") is not None \
+                and ra_doc.get("run_id") != registry.get("run_id"):
+            fail(f"results artifact content run_id {ra_doc.get('run_id')!r} "
+                 f"!= registry run_id {registry.get('run_id')!r}")
 
     # Compatibility assertions
     ts = by_id["test-summary"]
@@ -232,6 +264,27 @@ def main() -> int:
                 f"{pub_result['reason']} — {pub_result['detail']}"
             )
         print("[artifact-registry] PASS: publisher commitment signed by authorised publisher")
+
+    if args.report_json:
+        from acceptance_report import acceptance_report
+        publisher_stage = (
+            {"valid?": True, "reason": "publisher-signature-valid", "details": {}}
+            if (args.publisher_manifest and args.publisher_policy)
+            else {"valid?": False, "reason": "stage-not-required", "details": {}}
+        )
+        report = acceptance_report({
+            "content-integrity": {
+                "valid?": True,
+                "reason": "content-hash-and-preimage-enforced-by-verify-artifact",
+                "details": {"note": "JVM verify-artifact + golden fixture lock serialization"},
+            },
+            "registry-membership": {"valid?": True, "reason": "registry-schema-valid", "details": {}},
+            "required-chain": {"valid?": True, "reason": "required-chain-complete", "details": {}},
+            "publisher-commitment": publisher_stage,
+            "file-integrity": {"valid?": True, "reason": "all-files-rehashed-from-disk", "details": {}},
+        })
+        Path(args.report_json).write_text(json.dumps(report, indent=2) + "\n")
+        print(f"[artifact-registry] acceptance report written to {args.report_json}")
 
     print("[artifact-registry] PASS: integrity + compatibility checks succeeded")
     return 0

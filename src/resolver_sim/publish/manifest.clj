@@ -46,7 +46,6 @@
                         :entries (vec (for [{:keys [path sha256]} (normalized-entries entries)]
                                         {:path path :sha256 sha256}))})))
 
-
 (defn verify-set
   "All-or-nothing verification of a staged artifact set.
 

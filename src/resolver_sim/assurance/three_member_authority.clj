@@ -118,9 +118,9 @@
      :invalid-seat        (default) — the seat supports nothing;
      :count-as-dissent    — the seat is counted as one dissent;
      :fail-certificate    — equivocation fails the whole certificate."
-  ([equivocation]
-   (classify-equivocating-seat equivocation default-equivocation-policy))
-  ([equivocation policy]
+  ([_equivocation]
+   (classify-equivocating-seat _equivocation default-equivocation-policy))
+  ([_equivocation policy]
    (case policy
      :invalid-seat :invalid
      :count-as-dissent :dissent
@@ -139,17 +139,14 @@
   (and (rfa/decision-hash-valid? position authorisation-id)
        (true? (signature-valid? position))))
 
-(defn- counted-reference-outcome
-  "The reference complete outcome for concurrence: the authorisation target's
-   proposed-content-root when present, else the deterministic plurality among
-   bound supporter outcome roots. nil when no bound root exists."
-  [target-outcome supporter-roots]
-  (if (some? target-outcome)
-    target-outcome
-    (when (seq supporter-roots)
-      (let [by-root (sort-by (fn [[r _]] r)
-                             (frequencies (remove nil? supporter-roots)))]
-        (ffirst (reverse by-root))))))
+(defn- authoritative-target-outcome
+  "The authoritative outcome being decided: the FA target's
+   :target/proposed-content-root, obtained independently of any submitted
+   position. Plurality NEVER manufactures an outcome identity — two members
+   agreeing on an outcome that was never the actual authorisation target is
+   exactly the failure this must prevent."
+  [authorisation]
+  (get-in authorisation [:authorisation/target :target/proposed-content-root]))
 
 (defn evaluate-three-member-authority
   "Evaluate signed positions against the canonical three-member standard.
@@ -172,15 +169,25 @@
    of these are caller-supplied. Signature authenticity is the only external
    input.
 
-   Returns a recomputable authority report."
+   Outcome concurrence requires EVERY supporter to have signed exactly the
+   authoritative target outcome (:target/proposed-content-root, obtained
+   independently of the positions). Plurality never manufactures an outcome
+   identity; when no authoritative target outcome exists the result classifies
+   `:outcome-source :target-outcome-unavailable` and authority is not reached.
+
+   The equivocation-policy consequence is committed: it is taken from the
+   review-round's `:review-round/equivocation-policy` when present, else the
+   supplied :equivocation-policy, else the canonical default
+   `default-equivocation-policy`. The applied policy is reported so the
+   consequence is not an implicit verifier-time choice."
   [& {:keys [authorisation review-round signature-valid? profile-opts
              equivocation-policy]}]
   (let [auth-id (:authorisation/id authorisation)
         auth-request-root (:authorisation/request-root authorisation)
         auth-round-hash (get-in authorisation
                                 [:authorisation/review-round :review-round/hash])
-        target-outcome (get-in authorisation
-                               [:authorisation/target :target/proposed-content-root])
+        authoritative-target-root (authoritative-target-outcome authorisation)
+        target-outcome-available? (some? authoritative-target-root)
         members (vec (:review-round/members review-round))
         constituted (set (map :researcher/id members))
         constituted-count (count constituted)
@@ -210,7 +217,8 @@
                     (update acc :re-scoped conj p)
 
                     (not (position-valid? p auth-id signature-valid?))
-                    (update acc :invalid-positions conj p)
+                    (update acc :invalid-positions conj {:position p
+                                                         :reason "integrity-or-signature-failed"})
 
                     :else
                     (update acc :valid-positions conj p)))
@@ -218,13 +226,19 @@
                  :valid-positions []}
                 positions)
         valid (vec valid-positions)
+        ;; Committed equivocation policy: round policy > supplied option >
+        ;; canonical default. The applied policy is surfaced in the report.
+        applied-equivocation-policy (or (:review-round/equivocation-policy review-round)
+                                        equivocation-policy
+                                        default-equivocation-policy)
         ;; Equivocation among valid positions
         equivocations (detect-equivocation valid auth-id)
         equivocating-ids (set (map :member/id equivocations))
         fail-certificate? (= :certificate-fail
-                             (classify-equivocating-seat nil equivocation-policy))
+                             (classify-equivocating-seat nil
+                                                         applied-equivocation-policy))
         equivocating-as-dissent?
-        (= :dissent (classify-equivocating-seat nil equivocation-policy))
+        (= :dissent (classify-equivocating-seat nil applied-equivocation-policy))
         non-equivocating (vec (remove #(contains? equivocating-ids (:researcher/id %))
                                       valid))
         ;; Single position per non-equivocating member; identical dupes count once
@@ -250,19 +264,26 @@
                                  (filter #(= :approve (:decision %)) single-positions)))
         dissenters (vec (sort-by :researcher/id
                                  (filter #(= :dissent (:decision %)) single-positions)))
-        reference-outcome (counted-reference-outcome target-outcome
-                                                     (map rfa/position-outcome-root
-                                                          supporters))
-        {counted-supporters :counted
+        supporter-outcome-roots (set (map rfa/position-outcome-root supporters))
+        ;; Authority requires EVERY supporter to have signed exactly the
+        ;; authoritative target root: (= supporter-outcome-roots #{target}).
+        ;; A supporter signing any other root (or a v1 position with none) is a
+        ;; non-target approver — evidence of non-concurrence on the subject, so
+        ;; the concurrence fails closed rather than counting a majority.
+        outcome-concurrence?
+        (and target-outcome-available?
+             (= supporter-outcome-roots #{authoritative-target-root}))
+        {target-concurring :counted
          qualifying :qualifying}
         (reduce (fn [acc s]
-                  (if (and (some? reference-outcome)
-                           (= reference-outcome (rfa/position-outcome-root s)))
+                  (if (and target-outcome-available?
+                           (= authoritative-target-root
+                              (rfa/position-outcome-root s)))
                     (update acc :counted conj s)
                     (update acc :qualifying conj s)))
                 {:counted [] :qualifying []}
                 supporters)
-        counted-support (count counted-supporters)
+        counted-support (count target-concurring)
         dissent-count (count dissenters)
         effective-dissent-count (if equivocating-as-dissent?
                                   (+ dissent-count (count equivocating-ids))
@@ -273,42 +294,91 @@
                                                             equivocations))))
                                   (map :researcher/id members))))
         identity-separate? (= constituted-count
-                                (count (set (map :researcher/id positions))))
-          authority-reached?
-          (and (not fail-certificate?)
-               (not (seq equivocations))
-               policy-conforming?
-               (= 3 constituted-count)
-               identity-separate?
-               (some? reference-outcome)
-               (>= counted-support required))
-          authority-status (if authority-reached? :authorised :not-authorised)
-          reasons (cond-> []
-                    fail-certificate? (conj :equivocation-fails-certificate)
-                    (seq equivocations) (conj :equivocation-present)
-                    (not policy-conforming?) (conj :policy-not-conforming)
-                    (not= 3 constituted-count) (conj :not-three-constituted-seats)
-                    (not identity-separate?) (conj :non-distinct-identities)
-                    (nil? reference-outcome) (conj :no-common-outcome)
-                    (< counted-support required) (conj :insufficient-support))]
-      {:constituted-member-count constituted-count
-       :required-threshold required
-       :counted-support counted-support
-       :outcome-root reference-outcome
-       :decision-scope (when (seq valid)
-                         (decision-scope-projection (first valid) auth-id))
-       :policy-conforming? policy-conforming?
-       :identity-separate? identity-separate?
-       :valid-supporting-positions counted-supporters
-       :valid-dissenting-positions dissenters
-       :valid-qualifying-positions (vec (sort-by :researcher/id qualifying))
-       :effective-dissent-count effective-dissent-count
-       :absent-members absent
-       :invalid-positions (vec (sort-by :researcher/id
-                                        (mapv :position invalid-positions)))
-       :equivocating-members equivocations
-       :unknown-members (vec (sort-by :researcher/id unknown-members))
-       :re-scoped-positions (vec (sort-by :researcher/id re-scoped))
-       :duplicate-seat-positions duplicate-seat-positions
-       :authority-status authority-status
-       :authority/reasons reasons}))
+                              (count (set (map :researcher/id positions))))
+        authority-reached?
+        (and (not fail-certificate?)
+             policy-conforming?
+             (= 3 constituted-count)
+             identity-separate?
+             outcome-concurrence?
+             (>= counted-support required))
+        authority-status (if authority-reached? :authorised :not-authorised)
+        reasons (cond-> []
+                  fail-certificate? (conj :equivocation-fails-certificate)
+                  (seq equivocations) (conj :equivocation-present)
+                  (not policy-conforming?) (conj :policy-not-conforming)
+                  (not= 3 constituted-count) (conj :not-three-constituted-seats)
+                  (not identity-separate?) (conj :non-distinct-identities)
+                  (not target-outcome-available?)
+                  (conj :target-outcome-unavailable)
+                  (and target-outcome-available? (seq supporters)
+                       (not outcome-concurrence?))
+                  (conj :non-target-outcome-concurrence)
+                  (< counted-support required) (conj :insufficient-support))]
+    {:constituted-member-count constituted-count
+     :required-threshold required
+     :counted-support counted-support
+     :outcome-root (when target-outcome-available?
+                     authoritative-target-root)
+     :outcome-source (if target-outcome-available?
+                       :authoritative-target
+                       :target-outcome-unavailable)
+     :authoritative-target-root authoritative-target-root
+     :decision-scope/root (when (seq valid)
+                            (decision-scope-projection (first valid) auth-id))
+     :policy-conforming? policy-conforming?
+     :identity-separate? identity-separate?
+     :valid-supporting-positions target-concurring
+     :valid-dissenting-positions dissenters
+     :valid-qualifying-positions (vec (sort-by :researcher/id qualifying))
+     :effective-dissent-count effective-dissent-count
+     :absent-members absent
+     :invalid-positions (vec (sort-by :researcher/id
+                                      (mapv :position invalid-positions)))
+     :equivocating-members equivocations
+     :unknown-members (vec (sort-by :researcher/id unknown-members))
+     :re-scoped-positions (vec (sort-by :researcher/id re-scoped))
+     :duplicate-seat-positions duplicate-seat-positions
+     :equivocation-policy-applied applied-equivocation-policy
+     :authority-status authority-status
+     :authority/reasons reasons}))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Authority-report trust boundary
+;; ═══════════════════════════════════════════════════════════════════════════
+;;
+;; Every consumer must either recompute the authority report from committed
+;; inputs or bind it into a canonical artifact with a recomputing verifier.
+;; A stored classification is never trusted on its own.
+
+(defn authority-report-root
+  "Canonical content-addressed root over the recomputed authority report. Binds
+   the classification into a consumer artifact so it can be recomputed and
+   compared, rather than trusted from storage."
+  [report]
+  (str "sha256:" (hc/domain-hash :three-member-authority-report
+                                 (dissoc report :authority/report-root))))
+
+(defn recompute-authority-report
+  "The trusted recomputation path for a consumer: re-evaluate the authority
+   report from the committed inputs (a map of the same options as
+   evaluate-three-member-authority) and compare the recomputed root against a
+   previously bound `expected-root`.
+
+   Consumers must either call `evaluate-three-member-authority` directly or
+   recompute + compare against this root. A stored classification that fails to
+   recompute is rejected.
+
+   Returns
+     {:recomputed? bool
+      :authority-report-root ...
+      :authority-status ...
+      :mismatch? bool}."
+  [expected-root opts-map]
+  (let [report (apply evaluate-three-member-authority
+                      (mapcat identity opts-map))
+        computed (authority-report-root report)]
+    {:recomputed? (= expected-root computed)
+     :authority-report-root computed
+     :authority-status (:authority-status report)
+     :mismatch? (not= expected-root computed)}))

@@ -95,14 +95,12 @@
       (is (not (bytes= (hc/canonical-bytes a) (hc/canonical-bytes b)))))))
 
 (deftest test-concat-set-mixed-type-ordering
-  (testing "sets of mixed-type elements sort by canonical byte order"
-    (let [s1 (hc/canonical-bytes #{:z :a "str" 5 10})
-          s2 (hc/canonical-bytes #{10 "str" 5 :a :z})]
-      (is (bytes= s1 s2) "order independence for mixed-type sets")
-      (is (= 0x30 (aget s1 0)) "sets encode as sorted arrays")))
-  (testing "distinct mixed-type set contents must differ"
-    (is (not (bytes= (hc/canonical-bytes #{:a :b})
-                     (hc/canonical-bytes #{:a :b "c"}))))))
+  (testing "sets are outside the canonical domain and rejected, not coerced"
+    (is (thrown? Exception (hc/canonical-bytes #{:z :a "str" 5 10})))
+    (is (thrown? Exception (hc/canonical-bytes #{:a :b}))))
+  (testing "distinct projected sorted vectors remain distinct"
+    (is (not (bytes= (hc/canonical-bytes [:a :b])
+                     (hc/canonical-bytes [:a :b "c"]))))))
 
 (deftest test-string
   (let [expected (byte-array [0x20 0x06 0x61 0x63 0x74 0x69 0x76 0x65])]
@@ -263,11 +261,13 @@
                (hc/domain-hash :evidence-record v)))))))
 
 (deftest test-concat-set-vector-equivalence
-  (testing "sets normalize to sorted vectors (canonical-bytes treats them identically)"
-    (is (bytes= (hc/canonical-bytes #{:a :b})
-                (hc/canonical-bytes [:a :b])))
-    (is (bytes= (hc/canonical-bytes #{:b :a})
-                (hc/canonical-bytes [:a :b]))))
+  (testing "sets are rejected by the strict encoder (must be projected first)"
+    (is (thrown? Exception (hc/canonical-bytes #{:a :b})))
+    (is (thrown? Exception (hc/canonical-bytes #{:b :a}))))
+  (testing "the explicit projection normalizes sets to sorted vectors"
+    (is (= [:a :b]
+           (get-in (hc/project-world-to-structure-view {:s #{:b :a}} :test)
+                   [:structure :s]))))
   (testing "validate-canonical-value! rejects sets (must be projected first)"
     (is (thrown? Exception (hc/validate-canonical-value! #{:a :b})))))
 
@@ -398,19 +398,10 @@
                 (hc/canonical-bytes {"ab" "c" "a" "bc"})))))
 
 (deftest test-concat-set-canonical-byte-order
-  (testing "sets sort by canonical byte representation, not host-language order"
-    ;; Byte order: int(0x10) < string(0x20) < keyword(0x22); zigzag 1→0x02 < -2→0x03;
-    ;; keyword length byte 0x01 < 0x03, so :x precedes :a/b.
-    (is (bytes= (hc/canonical-bytes #{:a 1 "b" :a/b -2})
-                (hc/canonical-bytes [1 -2 "b" :a :a/b])))
-    (is (bytes= (hc/canonical-bytes #{:x 9 "a" :a/b})
-                (hc/canonical-bytes [9 "a" :x :a/b]))))
-  (testing "namespaced and multibyte set members participate in byte order"
-    ;; ASCII 'z' (0x7A) < Cyrillic п (D0 BF) < CJK 中 (E4 B8 AD)
-    (is (bytes= (hc/canonical-bytes #{"\u043F" "z" "\u4E2D"})
-                (hc/canonical-bytes ["z" "\u043F" "\u4E2D"])))
-    (is (bytes= (hc/canonical-bytes #{:a/b :a :b})
-                (hc/canonical-bytes [:a :b :a/b])))))
+  (testing "sets are rejected by the strict encoder regardless of contents"
+    (doseq [s [#{:a 1 "b" :a/b -2} #{:x 9 "a" :a/b} #{"\u043F" "z" "\u4E2D"} #{:a/b :a :b}]]
+      (is (thrown? Exception (hc/canonical-bytes s)))
+      (is (thrown? Exception (hc/validate-canonical-value! s))))))
 
 (deftest test-concat-numeric-edge-cases
   (testing "extreme and adjacent longs are distinct and non-degenerate"
@@ -642,11 +633,19 @@
     (is (= :test-intent (:intent result)))))
 
 (deftest test-world-hash-roundtrip
-  (let [world-1 {:step 1 :resolver-unavailable #{:addr1}}
-        world-2 {:step 1 :resolver-unavailable [:addr1]}]
-    (is (= (hc/domain-hash :world-state world-1)
-           (hc/domain-hash :world-state world-2)))
-    (is (= 64 (count (hc/domain-hash :world-state world-1))))))
+  (testing "a raw set is rejected by direct domain-hash (must be projected)"
+    (is (thrown? Exception (hc/domain-hash :world-state {:step 1 :resolver-unavailable #{:addr1}}))))
+  (testing "the world-structure projection normalizes sets to sorted vectors,
+            so a set and its projected vector hash identically"
+    (let [world-1 (get-in (hc/project-world-to-structure-view
+                           {:step 1 :resolver-unavailable #{:addr1}} :world-structure)
+                          [:structure])
+          world-2 (get-in (hc/project-world-to-structure-view
+                           {:step 1 :resolver-unavailable [:addr1]} :world-structure)
+                          [:structure])]
+      (is (= (hc/domain-hash :world-state world-1)
+             (hc/domain-hash :world-state world-2)))
+      (is (= 64 (count (hc/domain-hash :world-state world-1)))))))
 
 (deftest test-projection-converts-ratio-to-tagged
   (let [result (hc/project-world-to-structure-view {:ratio (/ 1 3)} :test-intent)

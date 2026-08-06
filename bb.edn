@@ -76,7 +76,7 @@ Example: bb cli scenario list --search yield"
 
     test:framework:parallel
      {:doc "Run framework unit tests in parallel with noop evidence capture"
-     :task (shell "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
+     :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
                   "resolver-sim.core-tests"
                   "resolver-sim.protocol-alignment-test"
                   "resolver-sim.time.context-test"
@@ -98,7 +98,7 @@ Example: bb cli scenario list --search yield"
 
    test:evidence
    {:doc "Run evidence-chain unit tests (node, chain, registry, attestation, integrity, qol) with noop capture"
-    :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
+    :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
                  "resolver-sim.evidence.node-test"
                  "resolver-sim.evidence.chain-test"
                  "resolver-sim.evidence.registry-test"
@@ -118,7 +118,7 @@ Example: bb cli scenario list --search yield"
    {:doc "Run attestation known-gap characterisation tests (non-gating). These tests document
           places where the current implementation accepts inputs a hardened system should reject.
           They assert the current insecure behaviour and are not part of any CI gate."
-    :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
+    :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
                  "resolver-sim.evidence.attestation-known-gaps-test")}
     
    test:unit
@@ -133,7 +133,7 @@ Example: bb cli scenario list --search yield"
 
     test:framework
      {:doc "Run framework unit tests with noop capture (single JVM)"
-      :task (shell "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
+      :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"
                   "resolver-sim.core-tests"
                   "resolver-sim.protocol-alignment-test"
                   "resolver-sim.time.context-test"
@@ -268,6 +268,14 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
   {:doc "Verify per-namespace artifact isolation in parallel runs"
    :task (shell "clojure" "-M:test:with-sew" "-i" "scripts/test_artifact_isolation.clj")}
 
+  audit:parallel
+  {:doc "Static audit of all namespace-parallel test lanes (run-sew-tests
+         unit + scenario, and every namespace run through
+         scripts.parallel-test-runner).  Fails if a lane's HARD-hazard
+         namespace is missing from its exclusion set, or if a scenario-group
+         member runs in the parallel-test-runner pool."
+   :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.audit-parallel-safety" "all")}
+
    test:triage {:doc "Run failure triage grouped by purpose/threat-tag"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}
 
@@ -278,7 +286,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
    {:doc "Fast Sew confidence check in a single JVM with noop capture.
           Consolidates framework + dispute-resolution + evidence into one
            parallel-runner call.  Replaces 3 separate JVMs (~42s saved)."
-    :task (shell "clojure" "-M:test:with-sew" "-m"
+    :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test:with-sew" "-m"
                  "scripts.parallel-test-runner" "--noop-capture"
                  "resolver-sim.core-tests"
                  "resolver-sim.protocol-alignment-test"
@@ -310,7 +318,7 @@ test:quick
    test:quick-sew:concurrent
     {:doc "Run quick-sew tests concurrently (bypasses artifact lock, uses --noop-capture).
            Can run alongside bb test, bb backstop, etc. Use only when no other test is writing to results/test-artifacts/."
-     :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
+     :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
                   "resolver-sim.core-tests"
                   "resolver-sim.protocol-alignment-test"
                   "resolver-sim.time.context-test"
@@ -598,7 +606,7 @@ test:quick
                              :task (apply clojure "-M:with-sew" "-m" "resolver-sim.community.cli" "mailbox:clear" *command-line-args*)}
 
 test:community {:doc "Run community participation tests"
-                   :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner"
+                   :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner"
                                 "resolver-sim.community.core-test"
                                 "resolver-sim.community.result-test"
                                 "resolver-sim.community.design-scrutiny-test"

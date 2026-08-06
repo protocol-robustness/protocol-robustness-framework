@@ -6,6 +6,7 @@
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.time.context :as time-ctx]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.time.deadlines :as dl]
             [resolver-sim.logging :as log]))
 
@@ -68,15 +69,22 @@
     {:holds? holds? :violations [] :checks {:status-fsm-valid (if holds? :pass :fail)}}))
 
 (defn check-shortfall-splits
-  "When :shortfall exists, fulfilled + deferred + haircut = basis."
+  "When :shortfall exists, fulfilled + deferred + haircut (+ basis fold) = basis.
+
+   The single-position withdraw path folds a negative unrealized-yield into
+   :basis-amount and records it on the shortfall as
+   :basis-negative-unrealized; the splits reconcile once that term is restored.
+   Shared-withdrawal shortfalls never fold (basis = fulfilled + deferred) and
+   record 0, so this reduces to fulfilled + deferred + haircut = basis there."
   [world]
   (let [holds? (every? (fn [pos]
                          (if-let [sf (:shortfall pos)]
                            (let [f (long (or (:fulfilled-amount sf) 0))
                                  d (long (or (:deferred-amount sf) 0))
                                  h (long (or (:haircut-amount sf) 0))
-                                 b (long (or (:basis-amount sf) 0))]
-                             (= (+ f d h) b))
+                                 b (long (or (:basis-amount sf) 0))
+                                 fold (long (or (:basis-negative-unrealized sf) 0))]
+                             (= (+ f d h fold) b))
                            true))
                        (vals (:yield/positions world {})))]
     {:holds? holds? :violations [] :checks {:shortfall-splits-balanced (if holds? :pass :fail)}}))
@@ -93,10 +101,11 @@
                                    principal (:principal pos 0)
                                    f (long (or (:fulfilled-amount sf) 0))
                                    d (long (or (:deferred-amount sf) 0))
-                                   b (long (or (:basis-amount sf) 0))]
+                                   b (long (or (:basis-amount sf) 0))
+                                   fold (long (or (:basis-negative-unrealized sf) 0))]
                                (and (pos? principal)
                                     (zero? (long (or (:haircut-amount sf) 0)))
-                                    (= (+ f d) b)))
+                                    (= (+ f d fold) b)))
                              true)))
                        (vals (:yield/positions world {})))]
     {:holds? holds? :violations [] :checks {:partial-liquidity-principal-intact (if holds? :pass :fail)}}))
@@ -129,16 +138,22 @@
     {:holds? holds? :violations [] :checks {:value-conservation-valid (if holds? :pass :fail)}}))
 
 (defn- position-shortfall-value
-  "Total value backing a position: principal + realized-yield + max(0, unrealized-yield)
-   + deferred-amount. The deferred-amount is the crystallized yield/principal still owed
-   to the holder (recorded in the :shortfall map), so it must count toward available value;
-   otherwise a partial-liquidity withdraw that zeroes unrealized-yield would under-count
-   the position and falsely report basis > value."
+  "Total value backing a position's shortfall basis.
+
+   When the shortfall records :settlement-value (the exact economic value —
+   principal + realized + unrealized — at crystallization), use it: this is
+   precise and prevents the aggregate over-count check from being masked. The
+   legacy reconstruction (principal + realized + max(0, unrealized) +
+   deferred-amount) is retained only for shortfalls that predate the field; it
+   double-counts deferred principal and is therefore lenient (never false
+   positives, but cannot detect basis > value)."
   [p]
-  (+ (long (:principal p 0))
-     (long (:realized-yield p 0))
-     (max 0 (long (:unrealized-yield p 0)))
-     (long (or (get-in p [:shortfall :deferred-amount]) 0))))
+  (if-let [sv (get-in p [:shortfall :settlement-value])]
+    (long sv)
+    (+ (long (:principal p 0))
+       (long (:realized-yield p 0))
+       (max 0 (long (:unrealized-yield p 0)))
+       (long (or (get-in p [:shortfall :deferred-amount]) 0)))))
 
 (defn- position-shortfall-basis
   "Shortfall basis-amount for a position (0 when no shortfall or nil basis)."
@@ -209,12 +224,23 @@
                                                                       d (long (or (:deferred-amount sf) 0))
                                                                       h (long (or (:haircut-amount sf) 0))
                                                                       b (long (or (:basis-amount sf) 0))
-                                                              ;; The single-position withdraw path folds a negative
-                                                              ;; unrealized-yield into basis-amount without adjusting
-                                                              ;; the splits, so the splits reconcile to basis once that
-                                                              ;; term is restored: f + d + h + min(0, unrealized) == b.
-                                                                      neg (min 0 (long (:unrealized-yield p 0)))]
-                                                                  (= (+ f d h neg) b))
+                              ;; The single-position withdraw path folds a negative
+                              ;; unrealized-yield into basis-amount (recorded on the
+                              ;; shortfall as :basis-negative-unrealized) without
+                              ;; adjusting the splits, so the splits reconcile to
+                              ;; basis once that term is restored: f + d + h + fold == b.
+                              ;; The position's own :unrealized-yield is zeroed on
+                              ;; settle, so it cannot be used there.
+                              ;; Legacy/hand-authored shortfalls may instead retain a
+                              ;; negative :unrealized-yield on the position while the
+                              ;; splits exceed basis by that loss — accepted via the
+                              ;; second disjunct (f + d + h + fold + min(0, unrealized) == b).
+                              ;; Shared-withdrawal shortfalls never fold and record 0,
+                              ;; so the first disjunct reduces to f + d + h == b.
+                                                                      fold (long (or (:basis-negative-unrealized sf) 0))
+                                                                      pos-neg (min 0 (long (:unrealized-yield p 0)))]
+                                                                  (or (= (+ f d h fold) b)
+                                                                      (= (+ f d h fold pos-neg) b)))
                                                                 true)))
                                                           pos-group)
                                        total-basis (reduce + 0 (map position-shortfall-basis pos-group))
@@ -231,6 +257,126 @@
     {:holds? (empty? violations)
      :violations (vec violations)
      :checks {:aggregate-shortfall-consistent (if (seq violations) :fail :pass)}}))
+
+(defn check-withdrawal-ledger-conservation
+  "Withdrawal-ledger conservation: every recorded withdrawal (single or batch)
+   must not have settled more than the liquidity pool available to it.
+
+   Each module withdrawal writes a ledger record under `:yield/withdrawal-ledger`
+   carrying the pool available to that withdrawal (`:ledger/available`), the
+   requested settlement value, and the settlement split (filled/deferred/haircut).
+   The invariant asserts per record:
+     - ledger certificate valid  — :ledger/hash reconciles to the canonical
+       :ledger/preimage fixed point (tamper-evident, like the decision artifacts)
+     - filled ≤ available  — the pool bound (catches over-allocation / double-spend)
+     - filled ≤ requested  — never settle more than was requested
+     - filled + deferred + haircut ≤ requested + rounding slack
+     - deferred, haircut ≥ 0
+
+   The `withdraw-many` batch coordinator allocates one shared pool first-come,
+   first-served and enforces `filled ≤ available` by construction; this invariant
+   re-checks that contract on persisted state so a regression (independent
+   per-position fulfillment, each drawing the full pool) fails loudly instead of
+   silently over-crediting a shared pool. A world with no ledger records passes
+   vacuously (pre-ledger worlds are unaffected); records without a hash (legacy)
+   skip the certificate check but keep the arithmetic bounds.
+
+   Returns {:holds? bool
+            :violations [{:ledger/id [...] :issues [kw ...]
+                          :available n :requested n :filled n :deferred n :haircut n} ...]}."
+  [world]
+  (let [records (get world :yield/withdrawal-ledger [])
+        violations
+        (into []
+              (keep
+               (fn [r]
+                 (let [available (long (or (:ledger/available r) 0))
+                       requested (long (or (:ledger/requested r) 0))
+                       filled    (long (or (:ledger/filled r) 0))
+                       deferred  (long (or (:ledger/deferred r) 0))
+                       haircut   (long (or (:ledger/haircut r) 0))
+                       rows      (vec (:ledger/rows r))
+                       ;; rounding slack: floor-and-carry may leave ≤1 unit per bucket
+                       slack     2
+                       cert-valid? (if (contains? r :ledger/hash)
+                                     (= (:ledger/hash r)
+                                        (str "sha256:"
+                                             (hc/hash-with-intent
+                                              {:hash/intent :evidence-record}
+                                              (dissoc r :ledger/hash :ledger/preimage))))
+                                     true)
+                       row-total-filled (reduce + 0 (map #(long (or (:filled %) 0)) rows))
+                       row-total-requested (reduce + 0 (map #(long (or (:requested %) 0)) rows))
+                       row-negative-filled (some #(neg? (long (or (:filled %) 0))) rows)
+                       row-over-request
+                       (some (fn [{:keys [requested filled deferred haircut]}]
+                               (> (+ (long (or filled 0))
+                                     (long (or deferred 0))
+                                     (long (or haircut 0)))
+                                  (+ (long (or requested 0)) slack)))
+                             rows)
+                       fcfs-over-commit?
+                       (boolean
+                        (:over?
+                         (reduce (fn [{:keys [remaining over?]} row]
+                                   (let [row-filled (long (or (:filled row) 0))
+                                         remaining' (- remaining row-filled)]
+                                     {:remaining remaining'
+                                      :over? (or over? (neg? remaining'))}))
+                                 {:remaining available :over? false}
+                                 rows)))
+                       issues (cond-> []
+                                (not cert-valid?)
+                                (conj :withdrawal-ledger-certificate-invalid)
+                                (neg? filled)
+                                (conj :withdrawal-negative-filled)
+                                (> filled available)
+                                (conj :withdrawal-exceeds-available-pool)
+                                (> filled requested)
+                                (conj :withdrawal-exceeds-requested)
+                                (> (+ filled deferred haircut) (+ requested slack))
+                                (conj :withdrawal-settlement-exceeds-requested)
+                                (neg? deferred)
+                                (conj :withdrawal-negative-deferred)
+                                (neg? haircut)
+                                (conj :withdrawal-negative-haircut)
+                                ;; Per-run binding: a certificate committed to a
+                                ;; run must not appear under a different run.
+                                (and (some? (:ledger/run-id r))
+                                     (not= (:ledger/run-id r) (:run/id world)))
+                                (conj :withdrawal-run-mismatch)
+                                ;; Per-address coverage: the row set must cover
+                                ;; exactly the declared owner addresses.
+                                (and (seq rows)
+                                     (not= (set (map :owner-id rows))
+                                           (set (:ledger/owner-ids r))))
+                                (conj :withdrawal-address-coverage-mismatch)
+                                ;; Per-row reconstruction (rows present on new
+                                ;; records): totals reconcile to rows, each row
+                                ;; stays within its request, and the FCFS pool
+                                ;; bound holds for every prefix.
+                                (and (seq rows) (not= row-total-filled filled))
+                                (conj :withdrawal-row-total-mismatch)
+                                (and (seq rows) (not= row-total-requested requested))
+                                (conj :withdrawal-row-total-mismatch)
+                                (and (seq rows) row-negative-filled)
+                                (conj :withdrawal-negative-filled)
+                                (and (seq rows) row-over-request)
+                                (conj :withdrawal-row-exceeds-requested)
+                                (and (seq rows) fcfs-over-commit?)
+                                (conj :withdrawal-fcfs-over-commit))]
+                   (when (seq issues)
+                     (merge (select-keys r [:ledger/id :ledger/module-id :ledger/token])
+                            {:issues issues
+                             :available available
+                             :requested requested
+                             :filled filled
+                             :deferred deferred
+                             :haircut haircut}))))
+               records))]
+    {:holds? (empty? violations)
+     :violations (vec violations)
+     :checks {:withdrawal-ledger-conserved (if (seq violations) :fail :pass)}}))
 
 (defn check-deferred-reclaim
   "Withdrawn positions: no shortfall; reclaimed ≥ 0."
@@ -1322,7 +1468,8 @@
    :yield/aggregate-shortfall     check-aggregate-shortfall
    :yield/aggregate               check-aggregate
    :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete
-   :yield/pro-rata-accounting-reconciles check-pro-rata-accounting-reconciles})
+   :yield/pro-rata-accounting-reconciles check-pro-rata-accounting-reconciles
+   :yield/withdrawal-ledger-conservation check-withdrawal-ledger-conservation})
 
 (defn registered-ids []
   (vec (keys check-fns)))

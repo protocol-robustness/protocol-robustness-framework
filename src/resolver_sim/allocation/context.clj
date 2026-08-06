@@ -232,12 +232,12 @@
                                      (let [outcome-id (get raw "outcome-id")]
                                        (when-not (string? outcome-id)
                                          (rejection! :malformed-rate "Rate missing outcome-id"))
-                                      (let [numerator (parse-non-negative "numerator" (get raw "numerator"))
-                                            denominator (parse-decimal "denominator" (get raw "denominator"))]
-                                        (when (<= denominator 0)
-                                          (rejection! :non-positive-rate-denominator
-                                                      (str "Rate denominator must be positive, got: " denominator)))
-                                        [outcome-id {:numerator numerator :denominator denominator}]))))
+                                       (let [numerator (parse-non-negative "numerator" (get raw "numerator"))
+                                             denominator (parse-decimal "denominator" (get raw "denominator"))]
+                                         (when (<= denominator 0)
+                                           (rejection! :non-positive-rate-denominator
+                                                       (str "Rate denominator must be positive, got: " denominator)))
+                                         [outcome-id {:numerator numerator :denominator denominator}]))))
                               raw-rates)]
     (when-not (= (set outcome-ids) (set (keys rate-by-outcome)))
       (rejection! :rates-outcome-mismatch

@@ -62,7 +62,8 @@
    signature-valid? is supplied by the caller; the report still recomputes the
    decision-hash integrity gate itself."
   [member decision outcome & {:keys [dissent-reason signed-at]}]
-  (let [sig (str "sig-" (hash (str member decision outcome dissent-reason
+  (let [reason (or dissent-reason (when (= :dissent decision) "reason"))
+        sig (str "sig-" (hash (str member decision outcome reason
                                    (swap! position-seq inc))))]
     (cond-> {:schema-version "researcher-decision.v2"
              :researcher/id member
@@ -71,9 +72,9 @@
              :review-round/hash round-hash
              :outcome/root outcome
              :decision decision
-             :decision/hash (v2-hash member decision outcome dissent-reason)
+             :decision/hash (v2-hash member decision outcome reason)
              :signature {:value sig :signed-at (or signed-at "t0")}}
-      (= :dissent decision) (assoc :dissent/reason (or dissent-reason "reason")))))
+      (= :dissent decision) (assoc :dissent/reason reason))))
 
 (defn- v1-position
   "Build a genuine researcher-decision.v1 position (no :outcome/root, no
@@ -89,22 +90,30 @@
     (= :dissent decision) (assoc :dissent/reason (or dissent-reason "reason"))))
 
 (defn- auth
-  "Build a minimal authorisation context."
-  [positions & {:keys [id target-outcome]}]
-  {:authorisation/id (or id auth-id)
-   :authorisation/request-root request-root
-   :authorisation/review-round {:review-round/id :review-round/test
-                                :review-round/hash round-hash}
-   :authorisation/target {:target/kind :benchmark-branch
-                          :target/proposed-content-root
-                          (or target-outcome outcome-a)}
-   :authorisation/decision-references (vec positions)})
+  "Build a minimal authorisation context. When :target-outcome is supplied
+   (including nil), its value is used verbatim; otherwise it defaults to
+   outcome-a. Passing nil lets tests exercise :target-outcome-unavailable."
+  [positions & {:keys [id target-outcome] :as opts}]
+  (let [proposed (if (contains? opts :target-outcome) target-outcome outcome-a)]
+    {:authorisation/id (or id auth-id)
+     :authorisation/request-root request-root
+     :authorisation/review-round {:review-round/id :review-round/test
+                                  :review-round/hash round-hash}
+     :authorisation/target {:target/kind :benchmark-branch
+                            :target/baseline-content-root
+                            (str "sha256:" (apply str (take 64 (cycle "00"))))
+                            :target/branch-descriptor-hash
+                            (str "sha256:" (apply str (take 64 (cycle "11"))))
+                            :target/proposed-content-root proposed}
+     :authorisation/decision-references (vec positions)}))
 
 (defn- evaluate
   "Run the authority report with everything valid."
-  [positions & {:keys [target-outcome policy sig-fn]}]
+  [positions & {:keys [target-outcome policy sig-fn] :as opts}]
   (tma/evaluate-three-member-authority
-   :authorisation (auth positions :target-outcome target-outcome)
+   :authorisation (auth positions (cond-> {}
+                                    (contains? opts :target-outcome)
+                                    (assoc :target-outcome target-outcome)))
    :review-round {:review-round/members members}
    :signature-valid? (or sig-fn (constantly true))
    :equivocation-policy policy))
@@ -202,7 +211,8 @@
                             (pos "r-c" :approve outcome-a)]
                            :policy :count-as-dissent)]
       (is (= :authorised (:authority-status report)))
-      (is (= 2 (:effective-dissent-count report)))))
+      (is (= 1 (:effective-dissent-count report))
+          "one equivocating seat counts as exactly one dissent")))
   (testing ":fail-certificate policy fails the whole certificate"
     (let [report (evaluate [(pos "r-a" :approve outcome-a)
                             (pos "r-a" :dissent outcome-a)
@@ -235,7 +245,7 @@
   (let [report (evaluate [(pos "r-a" :approve outcome-a)
                           (pos "r-b" :approve outcome-a)
                           (pos "intruder" :approve outcome-a)])]
-    (is (= ["intruder"] (:unknown-members report)))
+    (is (= ["intruder"] (map :researcher/id (:unknown-members report))))
     (is (= 2 (:counted-support report)))
     (is (= :authorised (:authority-status report))
         "unknown signatures are visible but never block or add votes")))
@@ -323,6 +333,9 @@
     (is (= 3 (:constituted-member-count report)))
     (is (= 2 (:required-threshold report)))
     (is (= outcome-a (:outcome-root report)))
+    (is (= :authoritative-target (:outcome-source report)))
+    (is (= outcome-a (:authoritative-target-root report)))
+    (is (some? (:decision-scope/root report)))
     (is (= 2 (:counted-support report)))
     (is (= 1 (count (:valid-dissenting-positions report))))
     (is (= 2 (count (:valid-supporting-positions report))))
@@ -332,6 +345,45 @@
     (is (true? (:identity-separate? report)))
     (is (= :authorised (:authority-status report)))
     (is (empty? (:authority/reasons report)))))
+
+(deftest plurality-never-manufactures-outcome
+  (testing "two members approving an outcome that was never the target cannot
+            manufacture authority"
+    (let [report (evaluate [(pos "r-a" :approve outcome-b)
+                            (pos "r-b" :approve outcome-b)
+                            (pos "r-c" :approve outcome-a)])
+          ;; target is outcome-a; supporters signed outcome-b twice
+          _ nil]
+      (is (= :not-authorised (:authority-status report)))
+      (is (= :authoritative-target (:outcome-source report)))
+      (is (= 1 (:counted-support report)))
+      (is (= 2 (count (:valid-qualifying-positions report)))
+          "non-target approvers are qualifying, never counted")
+      (is (contains? (set (:authority/reasons report))
+                     :non-target-outcome-concurrence)))))
+
+(deftest target-outcome-unavailable-fails-closed
+  (testing "no independently committed target outcome => no authority, no
+            plurality-derived root"
+    (let [report (evaluate [(pos "r-a" :approve outcome-a)
+                            (pos "r-b" :approve outcome-a)
+                            (pos "r-c" :dissent outcome-a)]
+                           :target-outcome nil)]
+      (is (= :target-outcome-unavailable (:outcome-source report)))
+      (is (nil? (:outcome-root report)))
+      (is (= 0 (:counted-support report)))
+      (is (= :not-authorised (:authority-status report)))
+      (is (contains? (set (:authority/reasons report))
+                     :target-outcome-unavailable)))))
+
+(deftest single-non-target-approver-fails-concurrence
+  (testing "even one supporter signing a non-target outcome fails concurrence"
+    (let [report (evaluate [(pos "r-a" :approve outcome-a)
+                            (pos "r-b" :approve outcome-a)
+                            (pos "r-c" :approve outcome-b)])]
+      (is (= :not-authorised (:authority-status report)))
+      (is (contains? (set (:authority/reasons report))
+                     :non-target-outcome-concurrence)))))
 
 (deftest dissent-only-not-authorised
   (let [report (evaluate [(pos "r-a" :dissent outcome-a)
@@ -351,3 +403,53 @@
       (is (= 2 (count (:valid-qualifying-positions report)))
           "v1 approvals are honest qualifying positions (outcome-binding unavailable)")
       (is (= :not-authorised (:authority-status report))))))
+
+(deftest equivocation-policy-is-committed
+  (let [positions [(pos "r-a" :approve outcome-a)
+                   (pos "r-a" :dissent outcome-a)
+                   (pos "r-b" :approve outcome-a)
+                   (pos "r-c" :approve outcome-a)]]
+    (testing "round policy wins over verifier-time options"
+      (let [report (tma/evaluate-three-member-authority
+                    :authorisation (auth positions)
+                    :review-round {:review-round/members members
+                                   :review-round/equivocation-policy :fail-certificate}
+                    :signature-valid? (constantly true)
+                    :equivocation-policy :invalid-seat)]
+        (is (= :fail-certificate (:equivocation-policy-applied report)))
+        (is (= :not-authorised (:authority-status report)))
+        (is (contains? (set (:authority/reasons report))
+                       :equivocation-fails-certificate))))
+    (testing "supplied option is used when the round carries none"
+      (let [report (tma/evaluate-three-member-authority
+                    :authorisation (auth positions)
+                    :review-round {:review-round/members members}
+                    :signature-valid? (constantly true)
+                    :equivocation-policy :count-as-dissent)]
+        (is (= :count-as-dissent (:equivocation-policy-applied report)))
+        (is (= 1 (:effective-dissent-count report)))))
+    (testing "canonical default is surfaced when nothing commits a policy"
+      (let [report (evaluate positions)]
+        (is (= tma/default-equivocation-policy
+               (:equivocation-policy-applied report)))))))
+
+(deftest authority-report-trust-boundary
+  (let [positions [(pos "r-a" :approve outcome-a)
+                   (pos "r-b" :approve outcome-a)
+                   (pos "r-c" :dissent outcome-a)]
+        opts-map {:authorisation (auth positions)
+                  :review-round {:review-round/members members}
+                  :signature-valid? (constantly true)}
+        report (tma/evaluate-three-member-authority opts-map)
+        root (tma/authority-report-root report)]
+    (is (re-find #"^sha256:" root))
+    (testing "a stored report root recomputes identically"
+      (let [r (tma/recompute-authority-report root opts-map)]
+        (is (true? (:recomputed? r)))
+        (is (= root (:authority-report-root r)))
+        (is (= :authorised (:authority-status r)))))
+    (testing "a tampered stored classification fails recomputation"
+      (let [bad-root (str "sha256:" (apply str (take 64 (cycle "aa"))))
+            r (tma/recompute-authority-report bad-root opts-map)]
+        (is (false? (:recomputed? r)))
+        (is (true? (:mismatch? r)))))))

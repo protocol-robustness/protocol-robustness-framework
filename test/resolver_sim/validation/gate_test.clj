@@ -83,6 +83,35 @@
         result (gate/evaluate-strategic-gate economic [] [])]
     (is (= :blocked (:verdict result)))))
 
+(deftest strategic-gate-exposes-resolved-contract-ids
+  (let [economic {:gate :economic-model :verdict :pass}
+        multi (gate/evaluate-strategic-gate
+               economic
+               [{:property :split-invariance :verdict :verified}]
+               []
+               :contract-ids [:partial-fill/claimant-monotonicity
+                              :partial-fill/claimant-split-merge-sybil])
+        single (gate/evaluate-strategic-gate
+                economic
+                [{:property :split-invariance :verdict :verified}]
+                []
+                :contract-id :partial-fill/claimant-split-merge-sybil)]
+    (is (= :partial-fill/claimant-monotonicity (:contract-id multi)))
+    (is (= [:partial-fill/claimant-monotonicity
+            :partial-fill/claimant-split-merge-sybil]
+           (:contract-ids multi)))
+    (is (= :partial-fill/claimant-split-merge-sybil (:contract-id single)))
+    (is (= [:partial-fill/claimant-split-merge-sybil] (:contract-ids single)))))
+
+(deftest strategic-gate-rejects-contract-provenance-disagreement
+  (is (thrown? clojure.lang.ExceptionInfo
+               (gate/evaluate-strategic-gate
+                {:gate :economic-model :verdict :pass}
+                []
+                []
+                :contract-id :partial-fill/claimant-split-merge-sybil
+                :contract-ids [:partial-fill/claimant-monotonicity]))))
+
 (deftest combined-gates-all-pass
   (let [result (gate/evaluate-gates
                 [{:check/id :conservation :status :pass

@@ -633,6 +633,121 @@
   (= :canonical-decision (get cancellation-operations operation)))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
+;; Deterministic-operation evidence contract
+;; ═══════════════════════════════════════════════════════════════════════════
+;;
+;; INVARIANT: no researcher panel is required because no researcher discretion
+;; is exercised; verification remains mandatory. A deterministic operation is
+;; not a canonical decision, but it is never unverified — every required
+;; evidence category must be present and consistent.
+
+(def deterministic-operation-evidence
+  "Data-driven evidence checklist for every deterministic cancellation-adjacent
+   operation (contract 1 taxonomy). `:decide-cancel-valid-authorisation` is
+   intentionally absent: it is the single canonical contested decision.
+
+   Evidence categories (subset as required per operation):
+     :lifecycle/profile-id / :lifecycle/profile-version — which lifecycle;
+     :lifecycle/state        — current committed lifecycle state;
+     :cutpoint               — the irreversible boundary rule;
+     :applicable-time        — deadline/time at which the rule applies;
+     :target/id :target/hash — the exact target and its committed snapshot;
+     :domain-projection      — evidence -> lifecycle-state projection;
+     :conflict-key           — the contention key (contract 6);
+     :conflict-key-result    — the transition race result;
+     :certificate/hash       — the certified decision being executed;
+     :rule/id                — the deterministic rule identifier;
+     :operation/provenance   — who/what performed the operation and when.
+   :lifecycle/profile may be supplied for post-cutpoint operations; when it is,
+   the declared :lifecycle/state must classify :closed (never :open) relative to
+   it."
+  {:expire-at-deadline
+   {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
+                :lifecycle/state :cutpoint :applicable-time
+                :target/id :target/hash :rule/id :operation/provenance}
+    :reason "expiry at a committed deadline"}
+
+   :deterministic-invalidation
+   {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
+                :lifecycle/state :cutpoint
+                :target/id :target/hash :rule/id :operation/provenance}
+    :reason "deterministic invalidation"}
+
+   :reject-post-cutpoint-cancellation
+   {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
+                :lifecycle/state :cutpoint :target/id :target/hash
+                :domain-projection :rule/id :operation/provenance}
+    :reason "post-cutpoint rejection"}
+
+   :execute-certified-cancellation
+   {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
+                :lifecycle/state :cutpoint :target/id :target/hash
+                :certificate/hash :conflict-key :conflict-key-result
+                :operation/provenance}
+    :reason "execution of a certified decision"}
+
+   :apply-deterministic-fallback
+   {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
+                :lifecycle/state :cutpoint :target/id :target/hash
+                :domain-projection :rule/id :operation/provenance}
+    :reason "fallback under a precommitted failure policy"}
+
+   :submit-cancel-request
+   {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
+                :target/id :operation/provenance}
+    :reason "submission of a cancellation request"}})
+
+(defn- deterministic-evidence-consistent?
+  "Cross-field consistency for deterministic-operation evidence. A post-cutpoint
+   operation (rejection or certified execution) whose declared :lifecycle/state
+   is still :open under the supplied :lifecycle/profile contradicts the
+   declared cutpoint and is inconsistent. Profile-free evidence is presence
+   checked only."
+  [operation evidence]
+  (let [profile (:lifecycle/profile evidence)
+        state (:lifecycle/state evidence)]
+    (if (and (contains? #{:reject-post-cutpoint-cancellation
+                          :execute-certified-cancellation} operation)
+             (some? profile)
+             (some? state))
+      (not= :open (:window/state (classify-lifecycle-window profile state)))
+      true)))
+
+(defn deterministic-operation-evidence-valid?
+  "Check a deterministic operation's supplied evidence against its checklist.
+
+   Fails closed: every required evidence category must be present and non-nil,
+   and cross-field consistency must hold (post-cutpoint operations must not be
+   executed while the lifecycle window is still :open); an unknown operation is
+   invalid.
+
+   Returns
+     {:valid? bool
+      :operation <kw>
+      :missing-evidence [kw]
+      :reason <contract reason>}."
+  [operation evidence]
+  (let [contract (get deterministic-operation-evidence operation)]
+    (if-not contract
+      {:valid? false :operation operation :missing-evidence []
+       :reason :unknown-operation}
+      (let [missing (vec (sort (remove #(some? (get evidence %))
+                                       (:evidence contract))))
+            consistent? (deterministic-evidence-consistent? operation evidence)]
+        {:valid? (and (empty? missing) consistent?)
+         :operation operation
+         :missing-evidence missing
+         :consistent? consistent?
+         :reason (:reason contract)}))))
+
+(defn deterministic-operation-verified?
+  "True only when a deterministic operation carries all required evidence.
+   A certificate may exist but never turns a deterministic operation into a
+   canonical cancellation decision."
+  [operation evidence]
+  (:valid? (deterministic-operation-evidence-valid? operation evidence)))
+
+;; ═══════════════════════════════════════════════════════════════════════════
 ;; Lifecycle profiles (cancellation-window.v1 instantiations)
 ;; ═══════════════════════════════════════════════════════════════════════════
 
@@ -753,8 +868,14 @@
       :cancellation/lifecycle-profile-version <int>
       :cancellation/target-state <kw>
       :cancellation/window :open|:closed|:invalid
-      :cancellation/possible? bool
-      :cancellation/blocking-reasons [kw]}."
+      :cancellation/window-possible? bool
+      :cancellation/possible? bool   ;; DEPRECATED derived view of window-possible?
+      :cancellation/blocking-reasons [kw]}.
+
+   This classification owns the WINDOW gate only. It does not assess a
+   certificate: `:cancellation/window-possible?` is NOT complete cancellation
+   authority. Use `classify-cancellation-gates` / `cancellation-authorised?`
+   for the authority, executability, and committability gates."
   [opts target-state]
   (let [{:keys [member-count threshold profile-id named-policy? window]} opts
         lifecycle (or window force-authorisation-window)
@@ -766,6 +887,7 @@
         profile-conforming? (three-member-standard-conforming? declared)
         win (classify-lifecycle-window lifecycle target-state)
         window-open? (= :open (:window/state win))
+        window-possible? (and profile-conforming? window-open?)
         reasons (cond-> (:window/blocking-reasons win)
                   (not profile-conforming?)
                   (conj :non-conforming-decision-profile))]
@@ -776,7 +898,119 @@
      :cancellation/lifecycle-profile-version (:profile/version lifecycle)
      :cancellation/target-state target-state
      :cancellation/window (:window/state win)
-     :cancellation/possible? (and profile-conforming? window-open?)
+     :cancellation/window-possible? window-possible?
+     :cancellation/possible? window-possible?
+     :cancellation/blocking-reasons (vec reasons)}))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Cancellation gates: window / authority / executability / committability
+;; ═══════════════════════════════════════════════════════════════════════════
+;;
+;; The four cancellation predicates are owned by four different layers. They
+;; must not be collapsed into a single combined flag:
+;;
+;;   :cancellation/window-possible?   lifecycle reconciliation
+;;     (and profile-conforming? window-open?)
+;;   :cancellation/authorised?        three-member certificate
+;;     (three-member-standard-conforming? certificate)
+;;   :cancellation/executable?        composition
+;;     (and window-possible? authorised? current-snapshot-binding-valid?)
+;;   :cancellation/committable?       transition race
+;;     (and executable? conflict-key-transition-won?)
+
+(defn cancellation-authorised?
+  "Authority gate (three-member certificate layer): the certificate conforms to
+   the canonical profile. Never reopens or reinterprets lifecycle state.
+
+   certificate — a declared profile map from `declare-profile` (or nil when no
+   certificate is available)."
+  [certificate]
+  (and (some? certificate)
+       (three-member-standard-conforming? certificate)))
+
+(defn current-snapshot-binding-valid?
+  "Whole-snapshot binding (contract 7): true when a certificate's committed
+   cancellation binding still matches the COMPLETE current snapshot. A
+   certificate for an earlier open snapshot must not execute after a relevant
+   lifecycle change.
+
+   certificate-binding — the committed cancellation decision/binding map.
+   current-snapshot    — the current committed snapshot, keyed by the same
+                         `cancellation-binding-fields`."
+  [certificate-binding current-snapshot]
+  (and (cancellation-binding-complete? certificate-binding)
+       (= (select-keys certificate-binding cancellation-binding-fields)
+          (select-keys current-snapshot cancellation-binding-fields))))
+
+(defn cancellation-executable?
+  "Executability gate: window-possible AND authorised AND the certificate still
+   binds the complete current cancellation snapshot."
+  [window-possible? authorised? snapshot-binding-valid?]
+  (and window-possible? authorised? snapshot-binding-valid?))
+
+(defn cancellation-committable?
+  "Committability gate: executable AND the authoritative transition race over
+   `cancellation-conflict-key` was won.
+
+   This layer consumes a supplied, verified transition result. It does NOT
+   claim durable cross-process atomicity: JVM-local compare-and-transition is
+   not durable coordination."
+  [executable? transition-won?]
+  (and executable? transition-won?))
+
+(defn classify-cancellation-gates
+  "Compose the four cancellation predicates from independently owned gates.
+
+   inputs:
+     :decision-opts           profile opts exactly as `classify-cancellation`
+                              (:member-count :threshold :profile-id :named-policy?)
+     :target-state            lifecycle target state
+     :certificate             declared three-member certificate profile (or nil)
+     :snapshot-binding-valid? bool — contract 7 whole-snapshot binding, verified
+                              by the caller against the current snapshot
+     :transition-won?         bool — verified conflict-key race result
+     :window                  optional lifecycle profile
+
+   Ownership:
+     window-possible?  lifecycle reconciliation (recomputed here);
+     authorised?       three-member certificate;
+     executable?       both gates + current-snapshot binding;
+     committable?      executable + authoritative transition race result.
+
+   Returns
+     {:cancellation/window-possible? bool
+      :cancellation/authorised? bool
+      :cancellation/executable? bool
+      :cancellation/committable? bool
+      :cancellation/snapshot-binding-valid? bool
+      :cancellation/transition-won? bool
+      :cancellation/window ...
+      :cancellation/profile-conforming? bool
+      :cancellation/blocking-reasons [kw]}."
+  [{:keys [decision-opts target-state certificate snapshot-binding-valid?
+           transition-won? window]}]
+  (let [classification (classify-cancellation
+                        (assoc decision-opts :window window)
+                        target-state)
+        window-possible? (:cancellation/window-possible? classification)
+        authorised? (cancellation-authorised? certificate)
+        binding-valid? (boolean snapshot-binding-valid?)
+        executable? (cancellation-executable? window-possible? authorised?
+                                              binding-valid?)
+        race-won? (boolean transition-won?)
+        committable? (cancellation-committable? executable? race-won?)
+        reasons (cond-> (:cancellation/blocking-reasons classification)
+                  (not authorised?) (conj :certificate-not-authorised)
+                  (not binding-valid?) (conj :snapshot-binding-stale)
+                  (and executable? (not race-won?)) (conj :transition-race-lost))]
+    {:cancellation/window-possible? window-possible?
+     :cancellation/authorised? authorised?
+     :cancellation/executable? executable?
+     :cancellation/committable? committable?
+     :cancellation/snapshot-binding-valid? binding-valid?
+     :cancellation/transition-won? race-won?
+     :cancellation/window (:cancellation/window classification)
+     :cancellation/profile-conforming? (:cancellation/profile-conforming? classification)
      :cancellation/blocking-reasons (vec reasons)}))
 
 (defn- window-assertion-fields
@@ -793,6 +1027,12 @@
    Contract 8: only recomputation from committed evidence may claim
    `:assurance :independent-replay`. Passing a precomputed classification only
    yields a structural check (`:assurance :structural-check`), not replay.
+
+   `:independent-replay` means RECOMPUTATION independence: the classification
+   is recomputed from committed evidence. It establishes exactly one of the
+   five process properties — recomputable replay. It does NOT establish process
+   separation, implementation independence, state independence, or transition
+   atomicity. Do not read 'independent' as any of those stronger claims.
 
    - With a committed-evidence map (identified by a :target-evidence key), the
      domain state, window classification, possibility, and blocking reasons are
@@ -826,8 +1066,8 @@
                  input)
         window (:cancellation/window result)]
     (merge (window-assertion-fields (:cancellation/schema-version result)
-                                  window (:cancellation/possible? result)
-                                  (:cancellation/blocking-reasons result))
+                                    window (:cancellation/possible? result)
+                                    (:cancellation/blocking-reasons result))
            (if replay?
              {:status (if (= :invalid window) :failing :passing)
               :assurance :independent-replay}

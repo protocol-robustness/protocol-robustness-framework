@@ -9,6 +9,7 @@
 (def ^:private schema-version "test.artifact.v1")
 (def ^:private kind :test/artifact)
 (def ^:private verifier "test.artifact.verifier.v1")
+(def ^:private legacy-schema-version "force-auth-add-held.v1")
 
 (defn- build
   "Finalize a small artifact body with the identity fields committed before
@@ -18,6 +19,21 @@
    (assoc body :schema-version schema-version
           :artifact/kind kind
           :artifact/verifier verifier)))
+
+(defn- build-legacy
+  "Finalize an artifact under a frozen-legacy schema version (allowlisted for
+   the :decoded-agreement policy)."
+  [body]
+  (artifact/finalize-artifact
+   (assoc body :schema-version legacy-schema-version
+          :artifact/kind kind
+          :artifact/verifier verifier)))
+
+(defn- noncanonical-preimage
+  "A parse-equivalent preimage that is NOT the canonical pr-str fixed point
+   (comma removed between two map entries)."
+  [artifact]
+  (clojure.string/replace (:artifact/preimage artifact) ":a 1, :b" ":a 1 :b"))
 
 (def ^:private body {:id 1 :name "a" :tags [:x :y]})
 
@@ -107,24 +123,31 @@
 
 (deftest preimage-policy-exact-rejects-noncanonical-equivalents
   (let [a (build {:a 1 :b 2})
-        reordered (assoc a :artifact/preimage
-                         "{:b 2 :a 1, :schema-version \"test.artifact.v1\", :artifact/kind :test/artifact, :artifact/verifier \"test.artifact.verifier.v1\"}")
+        reordered (assoc a :artifact/preimage (noncanonical-preimage a))
         whitespaced (assoc a :artifact/preimage
                            "{ :a 1 :b 2 :schema-version \"test.artifact.v1\" :artifact/kind :test/artifact :artifact/verifier \"test.artifact.verifier.v1\" }")]
     (testing "equivalent body with different (non-canonical) key order fails :exact"
       (is (artifact/preimage-decodes-to-body? reordered))
       (is (not (artifact/canonical-preimage-valid? reordered)))
-      (is (not (artifact/valid-artifact? reordered schema-version kind verifier :exact)))
-      (is (artifact/valid-artifact? reordered schema-version kind verifier :decoded-agreement)))
+      (is (not (artifact/valid-artifact? reordered schema-version kind verifier :exact))))
     (testing "equivalent body with different whitespace fails :exact"
       (is (artifact/preimage-decodes-to-body? whitespaced))
       (is (not (artifact/canonical-preimage-valid? whitespaced)))
-      (is (not (artifact/valid-artifact? whitespaced schema-version kind verifier :exact)))
-      (is (artifact/valid-artifact? whitespaced schema-version kind verifier :decoded-agreement)))
+      (is (not (artifact/valid-artifact? whitespaced schema-version kind verifier :exact))))
     (testing "a canonical but reordered fixed-point is still a valid canonical serialization"
       (let [canonical-reorder (assoc a :artifact/preimage
                                      "{:b 2, :a 1, :schema-version \"test.artifact.v1\", :artifact/kind :test/artifact, :artifact/verifier \"test.artifact.verifier.v1\"}")]
-        (is (artifact/valid-artifact? canonical-reorder schema-version kind verifier :exact))))))
+        (is (artifact/valid-artifact? canonical-reorder schema-version kind verifier :exact))))
+    (testing ":decoded-agreement on a NON-allowlisted (current) schema version is rejected"
+      (let [r (:reason (artifact/verify-artifact reordered schema-version kind verifier :decoded-agreement))]
+        (is (= :unsupported-frozen-legacy-mode r))))
+    (testing "the same non-canonical preimage is accepted under :decoded-agreement for a frozen-legacy schema"
+      (let [legacy (build-legacy {:a 1 :b 2})
+            legacy-nc (assoc legacy :artifact/preimage (noncanonical-preimage legacy))]
+        (is (artifact/preimage-decodes-to-body? legacy-nc))
+        (is (not (artifact/canonical-preimage-valid? legacy-nc)))
+        (is (artifact/valid-artifact? legacy-nc legacy-schema-version kind verifier :decoded-agreement))
+        (is (not (artifact/valid-artifact? legacy-nc legacy-schema-version kind verifier :exact)))))))
 
 (deftest preimage-policy-rejects-forged-and-malformed
   (let [a (build {:a 1 :b 2})]
@@ -145,6 +168,68 @@
     (testing "exact hash with a mutated body (preimage/body disagreement) fails"
       (let [mutated (assoc a :a 99)]
         (is (not (artifact/valid-artifact? mutated schema-version kind verifier :exact)))))))
+
+(deftest verify-artifact-reason-taxonomy
+  (let [a (build {:a 1 :b 2})]
+    (testing "valid artifact reports :ok"
+      (let [r (artifact/verify-artifact a schema-version kind verifier)]
+        (is (true? (:valid? r)))
+        (is (= :content-integrity (:stage r)))
+        (is (= :ok (:reason r)))))
+    (testing "wrong schema version"
+      (is (= :unsupported-schema-version
+             (:reason (artifact/verify-artifact a "wrong.v1" kind verifier)))))
+    (testing "wrong kind"
+      (is (= :wrong-artifact-kind
+             (:reason (artifact/verify-artifact a schema-version :other verifier)))))
+    (testing "wrong verifier"
+      (is (= :wrong-verifier
+             (:reason (artifact/verify-artifact a schema-version kind "other.v1")))))
+    (testing "non-map report"
+      (is (= :malformed-artifact (:reason (artifact/verify-artifact nil schema-version kind verifier))))
+      (is (= :malformed-artifact (:reason (artifact/verify-artifact 42 schema-version kind verifier)))))
+    (testing "malformed preimage"
+      (is (= :malformed-preimage
+             (:reason (artifact/verify-artifact (assoc a :artifact/preimage 42)
+                                                schema-version kind verifier))))
+      (is (= :malformed-preimage
+             (:reason (artifact/verify-artifact (assoc a :artifact/preimage "{:a 1")
+                                                schema-version kind verifier)))))
+    (testing "body/preimage disagreement"
+      (is (= :body-preimage-disagreement
+             (:reason (artifact/verify-artifact
+                       (assoc a :artifact/preimage
+                              "{:a 1, :b 99, :schema-version \"test.artifact.v1\", :artifact/kind :test/artifact, :artifact/verifier \"test.artifact.verifier.v1\"}")
+                       schema-version kind verifier)))))
+    (testing "canonical preimage mismatch (non-canonical spelling)"
+      (is (= :canonical-preimage-mismatch
+             (:reason (artifact/verify-artifact
+                       (assoc a :artifact/preimage (noncanonical-preimage a))
+                       schema-version kind verifier)))))
+    (testing "content hash mismatch"
+      (is (= :content-hash-mismatch
+             (:reason (artifact/verify-artifact (assoc a :artifact/hash "sha256:forged")
+                                                schema-version kind verifier)))))
+    (testing "unknown policy"
+      (is (= :unsupported-preimage-policy
+             (:reason (artifact/verify-artifact a schema-version kind verifier :bogus)))))
+    (testing "frozen-legacy mode on a current schema"
+      (is (= :unsupported-frozen-legacy-mode
+             (:reason (artifact/verify-artifact a schema-version kind verifier :decoded-agreement)))))))
+
+(deftest verify-artifact-canonical-commitment-reasons
+  (let [a (build {:a 1 :b 2})
+        committed (artifact/attach-canonical-commitment a)]
+    (testing "a valid committed artifact passes"
+      (is (true? (:valid? (artifact/verify-artifact committed schema-version kind verifier)))))
+    (testing "an incomplete commitment (one key only) is :canonical-commitment-missing"
+      (let [one-key (dissoc committed :artifact/canonical-hash-v2)]
+        (is (= :canonical-commitment-missing
+               (:reason (artifact/verify-artifact one-key schema-version kind verifier))))))
+    (testing "a mismatched commitment is :canonical-commitment-mismatch"
+      (let [bad-bytes (assoc committed :artifact/canonical-bytes-v2 "00ff")]
+        (is (= :canonical-commitment-mismatch
+               (:reason (artifact/verify-artifact bad-bytes schema-version kind verifier))))))))
 
 (deftest preimage-policy-unknown-fails-closed
   (let [a (build {:a 1 :b 2})]

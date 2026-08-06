@@ -9,7 +9,11 @@
             [resolver-sim.protocols.sew.types :as sew-types]
             [resolver-sim.scenario.equilibrium :as equilibrium]
             [resolver-sim.scenario.suites]
-            [resolver-sim.benchmark.game-theory-validation :as sut]))
+            [resolver-sim.benchmark.game-theory-validation :as sut]
+            [resolver-sim.benchmark.strategic-claim-validation :as scv]
+            [resolver-sim.benchmark.strategic-property-results :as spr]
+            [resolver-sim.validation.gate :as gate]
+            [resolver-sim.yield.strategic-partial-fill :as strategic-partial-fill]))
 
 (def valid-partial-fill-decision
   {:decision/id "partial-fill-0123456789abcdef"
@@ -349,6 +353,174 @@
       (is (= :all-pass (:gates-summary artifact)))
       (is (true? (get-in artifact [:summary :valid?])))
       (is (zero? (get-in artifact [:summary :strategic-property-violations]))))))
+
+(deftest catalog-scope-respects-claim-subject
+  (let [catalog scv/strategic-claim-catalog
+        rounding (get catalog :claim/partial-fill-rounding-integrity)
+        fairness (get catalog :claim/pro-rata-fairness-end-to-end)
+        default (get catalog :claim/pro-rata-shortfall-conservation)]
+    (testing "deviation-resistance is declared only on the flagship claim"
+      (is (nil? (:deviation-set-ids rounding))
+          "rounding bounds are not a deviation-resistance subject")
+      (is (nil? (:deviation-set-ids fairness))
+          "pro-rata cross-product fairness is not a deviation-resistance subject")
+      (is (some? (:deviation-set-ids default))))))
+
+(deftest claim-without-deviation-sets-has-no-strategic-failure
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-rounding-claim")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}]}
+        {:keys [artifact]}
+        (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                      resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                      resolver-sim.scenario.suites/suite-paths
+                      (fn [_] ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"])
+                      resolver-sim.io.scenarios/load-scenario-file
+                      (fn [path] scenario-043)]
+          (sut/run-strategic-claim-validation
+           :claim-id :claim/partial-fill-rounding-integrity
+           :out-dir out-dir))]
+    (testing "a rounding-scoped claim does not inherit the default claim's strategic violations"
+      (is (zero? (get-in artifact [:summary :strategic-property-count])))
+      (is (= [] (:strategic-property-results artifact)))
+      (is (nil? (:strategic-deviation-scope artifact)))
+      (is (not= :strategic-violated (:gates-summary artifact)))
+      (is (true? (get-in artifact [:summary :valid?])))
+      (is (not (re-find #"declared deviation sets" (:claim/interpretation artifact)))
+          "claims without deviation sets must not over-claim deviation coverage"))))
+
+(deftest strategic-property-inconclusive-keeps-artifact-invalid
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-strategic-inconclusive")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}
+                                        {:scenario/id "S103_negative-yield-shortfall-cascade"
+                                         :dimension :allocation/shortfall
+                                         :claim :conservation}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        scenario-103 {:scenario-id "s103-negative-yield-shortfall-cascade"
+                      :title "Negative Yield and Liquidity Shortfall Cascade"
+                      :purpose "yield-stress"
+                      :threat-tags ["negative-yield" "shortfall" "deferred-recovery"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}
+                            {:file "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :simulator/scenario-path "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "b"))
+                             :invariant-results [{:id :inv/b :result :pass}]}]}
+        {:keys [artifact]}
+        (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                      resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                      resolver-sim.scenario.suites/suite-paths
+                      (fn [_]
+                        ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"])
+                      resolver-sim.io.scenarios/load-scenario-file
+                      (fn [path]
+                        (case path
+                          "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
+                          "scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
+                          (throw (ex-info "unexpected scenario path" {:path path}))))
+                      resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                      (fn [& _]
+                        {:summary {:states-examined 100}
+                         :properties
+                         [{:property :strategy/split-invariance
+                           :status :pending
+                           :state-count 100 :violation-count 0}]})]
+          (sut/run-strategic-claim-validation :out-dir out-dir))]
+    (testing "an inconclusive strategic property fails the artifact closed, not open"
+      (is (= :strategic-inconclusive (:gates-summary artifact)))
+      (is (= :inconclusive (get-in artifact [:gates :strategic :verdict])))
+      (is (false? (get-in artifact [:summary :valid?]))))))
+
+(deftest real-strategic-properties-propagate-through-adapter-and-gate
+  (let [artifact (strategic-partial-fill/validate-strategic-properties
+                  :deviations [:split :merge :permute :sybil :inflate]
+                  :max-states 500)
+        results (spr/strategic-properties->results artifact)
+        raw-by-property (into {} (map (juxt :property identity)) (:properties artifact))
+        by-property (into {} (map (juxt :property identity)) results)
+        gate-result (gate/evaluate-strategic-gate
+                     {:gate :economic-model :verdict :pass}
+                     (spr/strategic-properties->deviation-results artifact)
+                     []
+                     :contract-ids [:partial-fill/claimant-monotonicity
+                                    :partial-fill/claimant-split-merge-sybil]
+                     :scope {:mechanism-levels [:allocation/partial-fill
+                                                :allocation/shortfall]
+                             :deviation-set-ids [:partial-fill/claimant-monotonicity
+                                                 :partial-fill/claimant-split-merge-sybil]
+                             :deviations [:inflate :merge :permute :split :sybil]})]
+    (testing "coverage counters are precise and consistent"
+      (is (= 500 (get-in artifact [:summary :state-policy-evaluations])))
+      (is (= 500 (get-in artifact [:validation-scope :max-state-policy-evaluations])))
+      (is (= 500 (get-in artifact [:summary :max-state-policy-evaluations])))
+      (is (= 2 (count (get-in artifact [:summary :policies]))))
+      (is (<= (get-in artifact [:summary :distinct-states-examined])
+              (get-in artifact [:summary :state-policy-evaluations]))
+          "distinct states never exceed state x policy evaluations"))
+    (testing "the deterministic enumeration prefix contains the required witnesses"
+      (is (>= (get-in artifact [:summary :distinct-states-examined]) 200)
+          "a near-empty enumeration would make the witness assertions vacuous")
+      (is (= {:claims [1 1 1] :liquidity 2
+              :merged-indices [1 2] :merged-claims [1 2]
+              :individual-sum 0 :merged-allocation 1 :error 1}
+             (:counterexample (raw-by-property :allocation/exact-merge-invariance))))
+      (is (some #(= {:claims [1 1 1] :liquidity 2
+                     :merged-indices [1 2] :merged-claims [1 2]
+                     :individual-sum 0 :merged-allocation 1 :error 1}
+                    %)
+                (:offending (by-property :allocation/exact-merge-invariance)))))
+    (testing "adapter maps the real verdicts to structured results"
+      (is (= :fail (:status (by-property :allocation/exact-merge-invariance))))
+      (is (= :property-violated (:reason (by-property :allocation/exact-merge-invariance))))
+      (is (= :fail (:status (by-property :strategy/split-invariance))))
+      (is (= :fail (:status (by-property :strategy/permutation-invariance))))
+      (is (= :pass (:status (by-property :strategy/sybil-invariance))))
+      (is (= :pass (:status (by-property :strategy/request-monotonicity)))))
+    (testing "gate derives the legacy contract id from contract-ids"
+      (is (= :violated (:verdict gate-result)))
+      (is (= :partial-fill/claimant-monotonicity (:contract-id gate-result)))
+      (is (= [:partial-fill/claimant-monotonicity
+              :partial-fill/claimant-split-merge-sybil]
+             (:contract-ids gate-result)))
+      (is (re-find #"3 property/properties violated" (:blocked-reason gate-result))))
+    (testing "the gate records a canonical, sorted deviation scope"
+      (is (vector? (get-in gate-result [:scope :deviations])))
+      (is (= [:inflate :merge :permute :split :sybil]
+             (get-in gate-result [:scope :deviations])))
+      (is (= [:partial-fill/claimant-monotonicity
+              :partial-fill/claimant-split-merge-sybil]
+             (get-in gate-result [:scope :deviation-set-ids]))))))
 
 (deftest folk-theorem-catalogue-accurately-reports-multi-epoch-only-coverage
   (let [concepts (:equilibrium-concepts (sut/list-game-theory-checks))
