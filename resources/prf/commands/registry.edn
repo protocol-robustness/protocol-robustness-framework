@@ -311,6 +311,19 @@
     :command/positional-args {:min 0 :max 0}
     :command/description "Read an EDN sensitivity-check request from stdin, make a hash-verified, signed disclosure decision, and write one EDN response to stdout."}
 
+   {:command/id :publish-check
+    :command/path ["publish" "check"]
+    :command/title "Out-of-process artifact publisher authority"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Read an EDN artifact-publish request from stdin, independently re-verify the artifact set (all-or-nothing), sign a publish certificate, and write one EDN response to stdout."}
+
    {:command/id :assure-package
     :command/path ["assure-package"]
     :command/title "Evaluate package assurance"

@@ -17,7 +17,8 @@
 
   (testing "deferred, unknown, unrunnable, and mechanical-only coverage is rejected"
     (is (contains? (set (coverage/active-benchmark-errors
-                         (assoc valid-active :benchmark/deferred-scenario-claims #{:future/claim})
+                         (assoc valid-active :benchmark/deferred-scenario-claims
+                                #{:claim/funds-conserved})
                          known-claims))
                    :active/deferred-claims))
     (is (contains? (set (coverage/active-benchmark-errors

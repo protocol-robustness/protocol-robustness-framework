@@ -148,6 +148,115 @@
            :model-authority)]
     (is (= 3 (count (:positions c))))))
 
+(deftest per-dimension-qualified-majority-classifies-qualifying
+  (let [c (tmc/per-dimension-consensus
+           [(make-pos "a") (make-pos "b")
+            (make-pos "c" :publication-status :publish-with-qualification)]
+           :publication)]
+    (is (= :qualified-majority (:status c))
+        "2 publish + 1 publish-with-qualification -> qualified majority, not dissent")
+    (is (= ["a" "b"] (:supporting-members c)))
+    (is (= ["c"] (:qualifying-members c))
+        "qualification is classified separately from dissent")
+    (is (empty? (:dissenting-members c)))))
+
+(deftest per-item-qualified-target-is-qualifying-not-dissenting
+  (let [consensus (tmc/per-item-consensus
+                   :theorem/x :theorem
+                   [{:researcher/id "a" :status :reproduced}
+                    {:researcher/id "b" :status :reproduced}
+                    {:researcher/id "c" :status :qualified}]
+                   ["a" "b" "c"])]
+    (is (= :qualified-majority (:status consensus)))
+    (is (= ["a" "b"] (:supporting-members consensus)))
+    (is (= ["c"] (:qualifying-members consensus)))
+    (is (empty? (:dissenting-members consensus)))))
+
+(deftest per-dimension-contested-reports-status-groups
+  (let [c (tmc/per-dimension-consensus
+           [(make-pos "a") (make-pos "b" :authority-status :incomplete)
+            (make-pos "c" :authority-status :contested)]
+           :model-authority)]
+    (is (= :contested (:status c)))
+    (is (empty? (:supporting-members c)) "no majority exists in a contested cell")
+    (is (empty? (:dissenting-members c)) "no majority exists to dissent against")
+    (is (= 3 (count (:contested-statuses c)))
+        "each distinct assessed status is preserved in the per-status breakdown")
+    (is (= #{["a"] ["b"] ["c"]} (set (map :members (:contested-statuses c)))))))
+
+;; ── Disagreement records ─────────────────────────────────────────────────
+
+(defn- disagreement-positions []
+  [(make-pos "a") (make-pos "b")
+   (make-pos "c" :publication-status :do-not-publish)])
+
+(defn- disagreement-checks [positions disagreements]
+  (tmc/pre-certificate-checks
+   {:review-round default-round
+    :canonical-indices (ci/build-canonical-indices default-round)
+    :reports reports-exact :positions positions
+    :disagreements disagreements}))
+
+(deftest disagreement-record-validated-and-linked
+  (let [positions (disagreement-positions)
+        checks (disagreement-checks
+                positions
+                [{:researcher/id "c" :dimension :publication
+                  :status :do-not-publish
+                  :rationale "publishing would overreach the evidence"}])]
+    (is (:pre-certificate-valid? checks))
+    (let [cert (-> (tmc/build-certificate
+                    {:review-round default-round :reports reports-exact :positions positions
+                     :disagreements [{:researcher/id "c" :dimension :publication
+                                      :status :do-not-publish
+                                      :rationale "publishing would overreach the evidence"}]})
+                   tmc/finalise-certificate!)]
+      (is (= 1 (count (:unresolved-disagreements cert))))
+      (is (= :valid (:status (tmc/validate-certificate cert)))))))
+
+(deftest disagreement-record-for-supporting-member-rejected
+  (let [checks (disagreement-checks
+                (disagreement-positions)
+                [{:researcher/id "a" :dimension :publication
+                  :status :do-not-publish
+                  :rationale "a claims to disagree despite supporting"}])]
+    (is (not (:pre-certificate-valid? checks)))
+    (is (some #(re-find #"supports the consensus" %) (:errors checks)))))
+
+(deftest disagreement-record-for-non-member-rejected
+  (let [checks (disagreement-checks
+                (disagreement-positions)
+                [{:researcher/id "z" :dimension :publication
+                  :status :do-not-publish
+                  :rationale "outsider disagreement"}])]
+    (is (not (:pre-certificate-valid? checks)))
+    (is (some #(re-find #"not a review-round member" %) (:errors checks)))))
+
+(deftest disagreement-record-unknown-dimension-or-status-rejected
+  (let [checks (disagreement-checks
+                (disagreement-positions)
+                [{:researcher/id "c" :dimension :not-a-dimension
+                  :status :do-not-publish
+                  :rationale "unknown dimension"}
+                 {:researcher/id "c" :dimension :publication
+                  :status :nonsense
+                  :rationale "invalid status"}])]
+    (is (not (:pre-certificate-valid? checks)))
+    (is (some #(re-find #"not a consensus dimension" %) (:errors checks)))
+    (is (some #(re-find #"is invalid for dimension" %) (:errors checks)))))
+
+(deftest disagreement-record-duplicate-rejected
+  (let [checks (disagreement-checks
+                (disagreement-positions)
+                [{:researcher/id "c" :dimension :publication
+                  :status :do-not-publish
+                  :rationale "first"}
+                 {:researcher/id "c" :dimension :publication
+                  :status :do-not-publish
+                  :rationale "duplicate"}])]
+    (is (not (:pre-certificate-valid? checks)))
+    (is (some #(re-find #"duplicate disagreement" %) (:errors checks)))))
+
 ;; ── Certificate ───────────────────────────────────────────────────────────
 
 (deftest certificate-valid

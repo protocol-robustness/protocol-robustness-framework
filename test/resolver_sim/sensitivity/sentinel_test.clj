@@ -822,3 +822,35 @@
                                  {:signed-at "2025-01-01T00:00:00Z"})]
     (is (thrown? Exception
                  (sentinel/assert-attestation-allowed! a {:sink :on-chain-registry})))))
+
+;; ── remote authority required for force-auth add-held evidence ──────────────
+
+(deftest remote-authority-required-for-add-held-artifacts
+  (testing "force-auth add-held member and summary artifacts require remote
+            authority regardless of sink"
+    (is (true? (sentinel/remote-authority-required-artifact?
+                {:artifact/kind :force-auth-add-held})))
+    (is (true? (sentinel/remote-authority-required-artifact?
+                {:artifact/kind :force-auth-add-held-summary})))
+    (is (true? (sentinel/remote-authority-required-artifact?
+                {:artifact/kind :force-auth-add-held :held/action :add-held})))
+    (is (true? (sentinel/remote-authority-required-artifact?
+                {:held/action "add-held"}))))
+  (testing "non add-held artifacts do not require artifact-level remote authority"
+    (is (false? (sentinel/remote-authority-required-artifact?
+                 {:artifact/kind :evidence-node})))
+    (is (false? (sentinel/remote-authority-required-artifact? {})))))
+
+(deftest force-auth-add-held-classified-private
+  (is (= :sensitivity/private (sentinel/classify {:artifact/kind :force-auth-add-held})))
+  (is (= :sensitivity/private (sentinel/classify {:artifact/kind :force-auth-add-held-summary}))))
+
+(deftest force-auth-add-held-reasons-surfaced-in-report
+  (let [r (sentinel/sentinel-report {:artifact/kind :force-auth-add-held} :local)]
+    (is (some #{:contains-force-auth-add-held} (:sentinel/reasons r))))
+  (let [r (sentinel/sentinel-report {:artifact/kind :force-auth-add-held-summary} :local)]
+    (is (some #{:contains-force-auth-add-held-summary} (:sentinel/reasons r)))))
+
+(deftest remote-authority-required-artifact-kinds-committed-in-policy
+  (is (= #{:force-auth-add-held :force-auth-add-held-summary}
+         sentinel/remote-authority-required-artifact-kinds)))

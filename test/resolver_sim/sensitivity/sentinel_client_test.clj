@@ -282,3 +282,52 @@
 (deftest process-runner-reports-nonzero-exit
   (let [{:keys [exit]} (client/process-runner ["/bin/sh" "-c" "exit 3"] "" 10000)]
     (is (= 3 exit))))
+
+(deftest gate-forbids-local-authorization-for-add-held-artifacts
+  (testing "a force-auth add-held artifact to a safe sink must still go through
+            the out-of-process authority — local in-process authorization is
+            forbidden for it"
+    (let [kp (fx/keypair)
+          called (atom 0)
+          runner (fn [_argv input _timeout]
+                   (swap! called inc)
+                   (let [request (edn/read-string input)
+                         resp (cmd/decide {:private-key (:private-key kp)
+                                           :key-id (:key/id kp)}
+                                          request)]
+                     {:exit 0 :stdout (pr-str resp) :stderr ""}))
+          cfg (assoc (config kp) :runner runner)
+          artifact {:artifact/kind :force-auth-add-held
+                    :held/action :add-held
+                    :sensitivity/level :sensitivity/public}]
+      (client/out-of-process-gate! artifact :local cfg)
+      (is (pos? @called)
+          "the remote authority runner was invoked, proving the remote path,
+           not the local sentinel assertion"))))
+
+(deftest gate-uses-local-path-for-ordinary-artifacts-to-safe-sinks
+  (let [kp (fx/keypair)
+        called (atom 0)
+        runner (fn [& _] (swap! called inc) {:exit 0 :stdout "" :stderr ""})
+        cfg (assoc (config kp) :runner runner)
+        artifact {:artifact/kind :evidence-node :result {:status :pass}}]
+    (client/out-of-process-gate! artifact :local cfg)
+    (is (zero? @called)
+        "an ordinary artifact to a safe sink uses the local assertion, not the
+         remote authority")))
+
+(deftest real-authority-allowed-decision-verifies
+  (testing "regression: a genuinely allowed decision produced by the real
+            authority core verifies — the envelope decision value is normalized
+            to :allow/:block even though the report uses :allowed/:blocked"
+    (let [kp (fx/keypair)
+          artifact {:artifact/kind :evidence-node :result {:status :pass}}
+          req (contract/build-request {:artifact-id "a" :content artifact
+                                       :sink :local
+                                       :declared-level (:sensitivity/level artifact)
+                                       :policy-hash-str (sentinel/policy-hash)})
+          resp (cmd/decide {:private-key (:private-key kp) :key-id (:key/id kp)} req)
+          vr (client/verify-decision resp req (fx/trust-policy kp))]
+      (is (= :allow (get-in resp [:decision :sentinel/decision])))
+      (is (true? (:valid? vr)))
+      (is (true? (:allowed? vr))))))

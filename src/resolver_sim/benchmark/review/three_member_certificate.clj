@@ -39,6 +39,29 @@
 (def ^:const schema-version "three-member-research-certificate.v2")
 (def ^:const legacy-schema-version "three-member-research-certificate.v1")
 
+(def ^:const model-dimensions
+  [:model-state :model-transitions :model-authority
+   :model-adversary :model-parameters :model-cases])
+
+(def ^:const incentive-dimensions
+  [:incentives-participants :incentives-strategies :incentives-coalitions])
+
+(def ^:const other-dimensions
+  [:reproduction :evidence :claims :publication])
+
+(def consensus-dimensions
+  "Dimensions surfaced as per-dimension consensus in the certificate."
+  (into #{} cat [model-dimensions incentive-dimensions other-dimensions]))
+
+(def ^:const qualifying-dimension-statuses
+  "Dimension statuses that express assessment-with-qualification rather than
+   endorsement (supporting) or rejection (dissenting)."
+  #{:publish-with-qualification})
+
+(def ^:const qualifying-target-statuses
+  "Theorem/conclusion target statuses expressing assessment-with-qualification."
+  #{:qualified})
+
 (defn- hash-reference?
   "A portable content-addressed hash reference.  Older fixtures use short
    digests, so validation deliberately does not impose a digest length here."
@@ -171,13 +194,85 @@
 
 (defn- merge-pg
   "Merge computed consensus values into a position-group, preserving
-   computed :supporting-members, :dissenting-members, and other groups."
+   computed :supporting-members, :qualifying-members, :dissenting-members,
+   and other groups."
   [result pg-map]
   (-> (select-keys pg-map
                    [:supporting-members :qualifying-members :dissenting-members
                     :absent-members :not-reviewed-members
                     :insufficient-information-members :not-applicable-members])
       (merge result)))
+
+(defn- classify-assessed
+  "Split assessed entries (each with :researcher/id and :status) relative to
+   the plurality status into member-id groups:
+
+     supporting — status equals the plurality status
+     qualifying — explicit qualification status (:publish-with-qualification,
+                  :qualified), distinct from a dissent
+     dissenting — remaining assessed (rejection or alternate view)
+
+   Returns {:supporting-members [id] :qualifying-members [id]
+            :dissenting-members [id]}."
+  [assessed plurality-status qualifying-statuses]
+  (let [remaining (remove #(= plurality-status (:status %)) assessed)
+        qualifying (filterv #(contains? qualifying-statuses (:status %)) remaining)
+        dissenting (remove #(contains? qualifying-statuses (:status %)) remaining)]
+    {:supporting-members (mapv :researcher/id
+                               (filter #(= plurality-status (:status %)) assessed))
+     :qualifying-members (mapv :researcher/id qualifying)
+     :dissenting-members (mapv :researcher/id dissenting)}))
+
+(defn- classify-consensus
+  "Classify assessed entries into a full consensus result.
+
+   A plurality status (highest frequency) is never treated as a majority when
+   every assessed status is distinct: in that case the cell is :contested, no
+   member is labelled supporting, and the per-status breakdown is reported in
+   :contested-statuses (which is absent in non-contested cells).
+
+   Returns {:status keyword
+            :supporting-members [id]
+            :qualifying-members [id]
+            :dissenting-members [id]
+            :assessed-members [id]
+            :assessed-statuses [keyword]
+            :contested-statuses [{:status keyword :members [id]}...]}."
+  [assessed qualifying-statuses]
+  (let [assessed-statuses (mapv :status assessed)]
+    (if (= 1 (count (set assessed-statuses)))
+      {:status :unanimous
+       :supporting-members (mapv :researcher/id assessed)
+       :qualifying-members []
+       :dissenting-members []
+       :assessed-members (mapv :researcher/id assessed)
+       :assessed-statuses assessed-statuses}
+      (let [[plurality-status plurality-count]
+            (first (sort-by (comp - val) (frequencies assessed-statuses)))
+            {:keys [supporting-members qualifying-members dissenting-members]}
+            (classify-assessed assessed plurality-status qualifying-statuses)]
+        (if (>= plurality-count 2)
+          (let [status (if (seq dissenting-members)
+                         :majority-with-dissent
+                         :qualified-majority)]
+            {:status status
+             :supporting-members supporting-members
+             :qualifying-members qualifying-members
+             :dissenting-members dissenting-members
+             :assessed-members (mapv :researcher/id assessed)
+             :assessed-statuses assessed-statuses})
+          {:status :contested
+           :supporting-members []
+           :qualifying-members qualifying-members
+           :dissenting-members []
+           :assessed-members (mapv :researcher/id assessed)
+           :assessed-statuses assessed-statuses
+           :contested-statuses
+           (->> assessed
+                (group-by :status)
+                (map (fn [[st ms]] {:status st :members (mapv :researcher/id ms)}))
+                (sort-by (juxt (comp - count) (comp str :status)))
+                vec)})))))
 
 (defn per-dimension-consensus
   "Compute consensus for one dimension, with position-group classification.
@@ -191,7 +286,8 @@
             :absent-members [id...]
             :insufficient-information-members [id...]
             :not-reviewed-members [id...]
-            :not-applicable-members [id...]}
+            :not-applicable-members [id...]
+            :contested-statuses [{:status :members}]}  ;; contested cells only
 
    NOTE: here :absent-members are researchers whose dimension status is nil
    (no position on the dimension). This differs from per-item-consensus, where
@@ -205,29 +301,19 @@
       (merge-pg {:status :not-evaluable :positions positions
                  :assessed-members assessed-members}
                 position-group)
-      (let [unique-statuses (set assessed-statuses)]
-        (if (= 1 (count unique-statuses))
-          (merge-pg {:status :unanimous :positions positions
-                     :supporting-members assessed-members
-                     :assessed-members assessed-members}
-                    position-group)
-          (let [freqs (frequencies assessed-statuses)
-                sorted (sort-by (comp - val) freqs)
-                [majority-status majority-count] (first sorted)
-                [minority-status _] (second sorted)
-                majority-members (mapv :researcher/id
-                                       (filter #(= (:status %) majority-status) all-assessed))
-                minority-members (mapv :researcher/id
-                                       (filter #(not= (:status %) majority-status) all-assessed))]
-            (merge-pg {:status (cond
-                                 (and (= majority-count 2) (some? minority-status)) :majority-with-dissent
-                                 (= majority-count 2) :qualified-majority
-                                 :else :contested)
-                       :positions positions
-                       :supporting-members majority-members
-                       :dissenting-members minority-members
-                       :assessed-members assessed-members}
-                      position-group)))))))
+      (let [{:keys [status supporting-members qualifying-members
+                    dissenting-members assessed-members assessed-statuses
+                    contested-statuses]}
+            (classify-consensus all-assessed qualifying-dimension-statuses)]
+        (merge-pg (cond-> {:status status
+                           :positions positions
+                           :supporting-members supporting-members
+                           :qualifying-members qualifying-members
+                           :dissenting-members dissenting-members
+                           :assessed-members assessed-members
+                           :assessed-statuses assessed-statuses}
+                   contested-statuses (assoc :contested-statuses contested-statuses))
+                  position-group)))))
 
 ;; ── Theorem/conclusion-level consensus ────────────────────────────────────
 
@@ -264,7 +350,8 @@
             :absent-members [id...]  ;; researchers who didn't target this item
             :not-reviewed-members [id...]
             :insufficient-information-members [id...]
-            :not-applicable-members [id...]}
+            :not-applicable-members [id...]
+            :contested-statuses [{:status :members}]}  ;; contested cells only
 
    NOTE: here :absent-members are researchers who did not target this item
    (non-participants), which differs from per-dimension-consensus where
@@ -273,8 +360,6 @@
   (let [assessed (filter #(not (or (nil? (:status %))
                                    (contains? pg/absent-statuses (:status %))))
                          entries)
-        assessed-statuses (mapv :status assessed)
-        assessed-member-ids (mapv :researcher/id assessed)
         participant-ids (set (map :researcher/id entries))
         non-participants (remove participant-ids all-researcher-ids)
         base-pg (pg/position-group
@@ -284,36 +369,23 @@
                  :insufficient-information (mapv :researcher/id
                                                  (filter #(= :insufficient-information (:status %)) entries))
                  :not-applicable (mapv :researcher/id
-                                       (filter #(= :not-applicable (:status %)) entries)))
-        n-assessed (count assessed-statuses)]
-    (if (< n-assessed 1)
+                                       (filter #(= :not-applicable (:status %)) entries)))]
+    (if (< (count assessed) 1)
       (merge base-pg
              {:item/id item-id :item/kind kind :status :not-evaluable :entries entries
               :assessed-members []})
-      (let [unique-statuses (set assessed-statuses)]
-        (if (= 1 (count unique-statuses))
-          (merge base-pg
-                 {:item/id item-id :item/kind kind :status :unanimous :entries entries
-                  :supporting-members assessed-member-ids
-                  :assessed-members assessed-member-ids})
-          (let [freqs (frequencies assessed-statuses)
-                sorted (sort-by (comp - val) freqs)
-                [majority-status majority-count] (first sorted)
-                [minority-status _] (second sorted)
-                majority-members (mapv :researcher/id
-                                       (filter #(= (:status %) majority-status) assessed))
-                minority-members (mapv :researcher/id
-                                       (filter #(not= (:status %) majority-status) assessed))]
-            (merge base-pg
-                   {:item/id item-id :item/kind kind
-                    :status (cond
-                              (and (= majority-count 2) (some? minority-status)) :majority-with-dissent
-                              (= majority-count 2) :qualified-majority
-                              :else :contested)
-                    :entries entries
-                    :supporting-members majority-members
-                    :dissenting-members minority-members
-                    :assessed-members assessed-member-ids})))))))
+      (let [{:keys [status supporting-members qualifying-members
+                    dissenting-members assessed-members contested-statuses]}
+            (classify-consensus assessed qualifying-target-statuses)]
+        (merge base-pg
+               (cond-> {:item/id item-id :item/kind kind
+                        :entries entries
+                        :status status
+                        :supporting-members supporting-members
+                        :qualifying-members qualifying-members
+                        :dissenting-members dissenting-members
+                        :assessed-members assessed-members}
+                 contested-statuses (assoc :contested-statuses contested-statuses)))))))
 
 (defn per-theorem-consensus
   "Compute consensus for every theorem targeted across positions."
@@ -371,18 +443,67 @@
 
 ;; ── Certificate pre-conditions ───────────────────────────────────────────
 
+(defn- validate-disagreements
+  "Validate unresolved-disagreement records against the resolved input cell.
+
+   Each record must bind a round member to a known consensus dimension with a
+   valid dimension status and a non-empty rationale, and must be linked to the
+   computed consensus: a member who supports the majority on that dimension
+   cannot be recorded as disagreeing, and no (researcher/id, dimension) pair
+   may be duplicated.
+
+   Returns {:valid? bool :errors [string]}."
+  [positions member-ids disagreements]
+  (let [errors (atom [])]
+    (doseq [[i d] (map-indexed vector (vec (or disagreements [])))]
+      (when-not (map? d)
+        (swap! errors conj (str "disagreement[" i "] must be a map")))
+      (when (map? d)
+        (let [member (:researcher/id d)
+              dim (:dimension d)
+              st (:status d)
+              rationale (:rationale d)]
+          (when-not (contains? (set member-ids) member)
+            (swap! errors conj (str "disagreement[" i "] researcher/id "
+                                    (pr-str member) " is not a review-round member")))
+          (when-not (contains? consensus-dimensions dim)
+            (swap! errors conj (str "disagreement[" i "] dimension "
+                                    (pr-str dim) " is not a consensus dimension")))
+          (when (and (contains? consensus-dimensions dim)
+                     (not (rp/valid-dimension-status? dim st)))
+            (swap! errors conj (str "disagreement[" i "] status " (pr-str st)
+                                    " is invalid for dimension " (pr-str dim))))
+          (when-not (and (string? rationale) (seq rationale))
+            (swap! errors conj (str "disagreement[" i "] requires a non-empty :rationale string")))
+          (when (and (contains? consensus-dimensions dim) (seq positions))
+            (try
+              (let [cons (per-dimension-consensus positions dim)
+                    supporting (set (:supporting-members cons))]
+                (when (contains? supporting member)
+                  (swap! errors conj (str "disagreement[" i "] member " (pr-str member)
+                                          " is recorded as disagreeing on " (pr-str dim)
+                                          " but supports the consensus on that dimension"))))
+              (catch clojure.lang.ExceptionInfo _))))))
+    (let [pairs (map (juxt :researcher/id :dimension) (vec (or disagreements [])))]
+      (when-not (= (count pairs) (count (set pairs)))
+        (swap! errors conj "duplicate disagreement for the same (researcher/id, dimension) pair")))
+    {:valid? (empty? @errors) :errors @errors}))
+
 (defn pre-certificate-checks
   "Validate the complete, membership-bound three-member input cell.
    This is deliberately stricter than a count check: every supplied artifact
-   must join one-to-one with the frozen round membership and canonical index."
-  [{:keys [review-round reports positions canonical-indices]}]
+   must join one-to-one with the frozen round membership and canonical index.
+   Unresolved-disagreement records are validated and linked to the computed
+   per-dimension consensus."
+  [{:keys [review-round reports positions canonical-indices disagreements]}]
   (let [errors (atom [])
         member-ids (vec (rr/member-ids review-round))
         report-ids (mapv :researcher/id reports)
         position-ids (mapv :researcher/id positions)
         index-ids (mapv :researcher/id
                         (:review-member/canonical-indices canonical-indices))
-        content-root (:benchmark/content-root review-round)]
+        content-root (:benchmark/content-root review-round)
+        disagreement-result (validate-disagreements positions member-ids disagreements)]
     (when-not (rr/round-valid? review-round)
       (swap! errors conj "review-round is not a valid frozen three-member round"))
     (when-not (and (= 3 (count member-ids)) (= 3 (count (set member-ids)))
@@ -426,6 +547,8 @@
                    (not= (:researcher-run-report/outcome-hash report)
                          (:position/outcome-hash position)))
           (swap! errors conj (str "report and position outcome-hash mismatch for " id)))))
+    (doseq [e (:errors disagreement-result)]
+      (swap! errors conj e))
     {:pre-certificate-valid? (empty? @errors) :errors @errors}))
 
 ;; ── Certificate builder ───────────────────────────────────────────────────
@@ -448,7 +571,8 @@
   (let [ci-artifact (or canonical-indices (ci/build-canonical-indices review-round))
         pre-checks (pre-certificate-checks {:review-round review-round
                                             :canonical-indices ci-artifact
-                                            :reports reports :positions positions})]
+                                            :reports reports :positions positions
+                                            :disagreements disagreements})]
     (when-not (:pre-certificate-valid? pre-checks)
       (throw (ex-info "Certificate pre-conditions not met"
                       {:errors (:errors pre-checks)})))
@@ -458,11 +582,9 @@
     (let [outcome-groups (group-outcomes reports)
           exec-status (execution-status outcome-groups)
           rep-type (replication-type reports)
-          model-dims [:model-state :model-transitions :model-authority
-                      :model-adversary :model-parameters :model-cases]
-          incentive-dims [:incentives-participants :incentives-strategies
-                          :incentives-coalitions]
-          other-dims [:reproduction :evidence :claims :publication]]
+          model-dims model-dimensions
+          incentive-dims incentive-dimensions
+          other-dims other-dimensions]
       {:schema-version schema-version
        :benchmark/content-root (:benchmark/content-root review-round)
        :review-round/id (:review-round/id review-round)

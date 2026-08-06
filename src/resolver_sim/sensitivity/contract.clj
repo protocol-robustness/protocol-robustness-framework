@@ -141,7 +141,10 @@
    :sentinel/policy-id policy-id
    :sentinel/policy-hash (:policy/hash request)
    :sentinel/report-hash (report-commitment report)
-   :sentinel/decision (:sentinel/decision report)
+   :sentinel/decision (case (:sentinel/decision report)
+                        :allowed :allow
+                        :blocked :block
+                        (:sentinel/decision report))
    :sentinel/level (:sentinel/level report)
    :sentinel/structural-level (:sentinel/structural-level report)
    :sentinel/reasons (vec (sort (:sentinel/reasons report)))

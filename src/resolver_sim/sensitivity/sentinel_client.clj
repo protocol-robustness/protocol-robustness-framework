@@ -274,12 +274,15 @@
   "Authorize disclosure of an artifact to a sink according to the committed
    policy.
 
-   For a sink classified :remote, obtains and verifies a signed decision from
-   the out-of-process authority and returns it. For an :in-process sink, uses
+   For a sink classified :remote, OR an artifact that itself requires remote
+   authority (for example force-authorisation add-held evidence — local
+   in-process authorization is forbidden for it), obtains and verifies a signed
+   decision from the out-of-process authority and returns it. Otherwise uses
    the local sentinel assertion. Throws (fail-closed) when disclosure is not
    independently authorized."
   [artifact sink config]
-  (if (sentinel/remote-authority-required? sink)
+  (if (or (sentinel/remote-authority-required? sink)
+          (sentinel/remote-authority-required-artifact? artifact))
     (let [decision (request-decision artifact sink config)]
       (when (= :block (:sentinel/decision decision))
         (throw (ex-info "Disclosure blocked by out-of-process sensitivity sentinel"

@@ -21,7 +21,9 @@
    deviate from the established benchmark protocol.' They are independent
    truth domains."
   (:require [clojure.set]
+            [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.assurance.authorised-effect-correlation :as correlation]))
@@ -33,6 +35,14 @@
 (def ^:const schema-version "researcher-force-authorisation.v1")
 
 (def ^:const decision-schema-version "researcher-decision.v1")
+
+(def ^:const decision-v2-schema-version
+  "Version of the complete-outcome committing signed decision contract.
+   Unlike researcher-decision.v1, a v2 position binds an explicit
+   :outcome/root in its signed preimage so that whole-outcome concurrence
+   can be proven from committed roots rather than from matching :approve
+   values or field summaries."
+  "researcher-decision.v2")
 
 (def ^:const decision-statuses
   "Immutable decision statuses. These reflect the final determination
@@ -173,6 +183,10 @@
    :authorisation/request-root and :review-round/hash, ensuring the
    signature binds the exact scope.
 
+   This is the LEGACY v1 verifier. It does not bind an :outcome/root and
+   therefore cannot establish complete-outcome commitment. Prefer
+   verify-signed-decision-v2 for new decisions.
+
    Returns {:valid? true} or {:valid? false :reason str}."
   [decision-ref authorisation-id public-key-path]
   (let [signature (:signature decision-ref)]
@@ -199,6 +213,284 @@
               {:valid? false
                :reason (str "signature verification error: "
                             (.getMessage e))})))))))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; researcher-decision.v2 — complete-outcome committing positions
+;; ═══════════════════════════════════════════════════════════════════════════
+;;
+;; The v1 preimage binds :researcher/id :authorisation/id
+;; :authorisation/request-root :review-round/hash :decision. The v1
+;; :authorisation/request-root is an opaque caller-supplied reference to an
+;; external authorisation request artifact; there is no verifier in this
+;; codebase that recomputes it, and :review-round/hash commits content-root,
+;; members, policy-root and purpose but NOT the force-authorisation target.
+;; A v1 position therefore cannot machine-verify which complete outcome it
+;; approves. v2 adds an explicit :outcome/root to the signed preimage under a
+;; new domain separator (RESEARCHER_DECISION_V2) so whole-outcome concurrence
+;; is provable from committed roots.
+
+(defn- decision-v2-preimage
+  "Canonical preimage for a researcher-decision.v2 position. Identical to v1
+   plus :outcome/root — the content-addressed root of the COMPLETE proposed
+   outcome. Dissent reason is optional and bound only for dissents."
+  [researcher-id authorisation-id request-root review-round-hash outcome-root
+   decision dissent-reason]
+  (cond-> {:researcher/id researcher-id
+           :authorisation/id authorisation-id
+           :authorisation/request-root request-root
+           :review-round/hash review-round-hash
+           :outcome/root outcome-root
+           :decision decision}
+    (and (= :dissent decision) (some? dissent-reason))
+    (assoc :dissent/reason dissent-reason)))
+
+(defn- compute-decision-v2-hash
+  "Compute the content-addressed hash of a v2 decision preimage using the
+   RESEARCHER_DECISION_V2 domain separator."
+  [preimage]
+  (str "sha256:" (hc/domain-hash :researcher-decision-v2 preimage)))
+
+(defn build-signed-decision-v2
+  "Build a researcher-decision.v2 signed position.
+
+   Same contract as build-signed-decision plus:
+     outcome-root — sha256 of the COMPLETE proposed outcome. A v2 position
+                    cannot be built without it, and it must be a valid
+                    canonical sha256 reference.
+
+   The returned reference map is:
+     {:schema-version \"researcher-decision.v2\"
+      :researcher/id id
+      :authorisation/id id
+      :authorisation/request-root \"sha256:...\"
+      :review-round/hash \"sha256:...\"
+      :outcome/root \"sha256:...\"
+      :decision :approve | :dissent
+      :dissent/reason (only for dissents)
+      :decision/hash \"sha256:...\"
+      :signature {:algorithm :ed25519 :value \"...\" :signed-at \"...\"}}
+
+   Throws on missing/invalid outcome-root, invalid decision, or dissent
+   without a reason."
+  [researcher-id authorisation-id request-root review-round-hash outcome-root
+   decision private-key-path
+   & {:keys [dissent-reason password]}]
+  (when-not (valid-decision? decision)
+    (throw (ex-info "Invalid decision value" {:decision decision
+                                              :allowed decision-vocabulary})))
+  (when (and (= :dissent decision) (nil? dissent-reason))
+    (throw (ex-info "Dissent requires a reason" {})))
+  (when-not (hash-ref/valid-sha256-ref? outcome-root)
+    (throw (ex-info "Invalid or missing :outcome/root"
+                    {:outcome/root outcome-root})))
+  (when-not (hash-ref/valid-sha256-ref? request-root)
+    (throw (ex-info "Invalid or missing :authorisation/request-root"
+                    {:request-root request-root})))
+  (let [preimage (decision-v2-preimage researcher-id authorisation-id
+                                       request-root review-round-hash
+                                       outcome-root decision dissent-reason)
+        d-hash (compute-decision-v2-hash preimage)
+        stripped (str/replace d-hash #"^sha256:" "")
+        signature (signing/sign-hash stripped private-key-path password)]
+    (cond-> {:schema-version decision-v2-schema-version
+             :researcher/id researcher-id
+             :authorisation/id authorisation-id
+             :authorisation/request-root request-root
+             :review-round/hash review-round-hash
+             :outcome/root outcome-root
+             :decision decision
+             :decision/hash d-hash
+             :signature {:algorithm :ed25519
+                         :value signature
+                         :signed-at (str (java.time.Instant/now))}}
+      dissent-reason (assoc :dissent/reason dissent-reason))))
+
+(defn verify-signed-decision-v2
+  "Verify a researcher-decision.v2 position against a public key.
+
+   decision-ref        — the v2 decision reference map
+   public-key-path     — path to the researcher's Ed25519 public key
+
+   Reconstructs the v2 preimage from the decision-ref's embedded
+   :authorisation/id, :authorisation/request-root, :review-round/hash and
+   :outcome/root, ensuring the signature binds the exact authorisation,
+   scope, and complete outcome.
+
+   Fails closed on:
+     - a non-v2 schema-version;
+     - a missing or invalid :outcome/root;
+     - a hash mismatch (tampered without rehash);
+     - a signature that does not verify (modified+rehashed without re-signing).
+
+   Returns {:valid? true} or {:valid? false :reason str}."
+  [decision-ref public-key-path]
+  (let [signature (:signature decision-ref)]
+    (if-not signature
+      {:valid? false :reason "no signature present"}
+      (let [schema (:schema-version decision-ref)
+            outcome-root (:outcome/root decision-ref)]
+        (cond
+          (not= decision-v2-schema-version schema)
+          {:valid? false :reason (str "expected schema-version "
+                                      decision-v2-schema-version
+                                      " got " schema)}
+          (not (hash-ref/valid-sha256-ref? outcome-root))
+          {:valid? false :reason "missing or invalid :outcome/root"}
+          :else
+          (let [preimage (decision-v2-preimage
+                          (:researcher/id decision-ref)
+                          (:authorisation/id decision-ref)
+                          (:authorisation/request-root decision-ref)
+                          (:review-round/hash decision-ref)
+                          outcome-root
+                          (:decision decision-ref)
+                          (:dissent/reason decision-ref))
+                expected-hash (compute-decision-v2-hash preimage)
+                actual-hash (:decision/hash decision-ref)]
+            (if-not (= expected-hash actual-hash)
+              {:valid? false :reason "decision/hash mismatch"}
+              (try
+                (let [stripped (str/replace actual-hash #"^sha256:" "")
+                      valid? (signing/verify-signature
+                              stripped (:value signature) public-key-path)]
+                  {:valid? valid?
+                   :reason (when-not valid? "signature does not verify")})
+                (catch Exception e
+                  {:valid? false
+                   :reason (str "signature verification error: "
+                                (.getMessage e))})))))))))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Signed-decision version and outcome-binding classification
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(defn classify-decision-version
+  "Classify a signed decision reference by its schema version.
+
+     :v2-complete-outcome  — researcher-decision.v2 (binds :outcome/root)
+     :v1-legacy            — researcher-decision.v1 (no :outcome/root)
+     :unknown              — unrecognised or unclassifiable"
+  [decision-ref]
+  (if (nil? decision-ref)
+    :unknown
+    (let [v (:schema-version decision-ref)]
+      (cond
+        (= decision-v2-schema-version v) :v2-complete-outcome
+        (or (nil? v) (= decision-schema-version v)) :v1-legacy
+        :else :unknown))))
+
+(defn decision-outcome-binding
+  "Outcome-binding honesty classification for a signed decision.
+
+     :outcome-committed    — v2 position binds a valid :outcome/root
+     :outcome-unavailable  — v1 legacy position does not commit the complete
+                             outcome (cannot be reconstructed)
+     :invalid              — unclassifiable or malformed outcome reference"
+  [decision-ref]
+  (case (classify-decision-version decision-ref)
+    :v2-complete-outcome (if (hash-ref/valid-sha256-ref? (:outcome/root decision-ref))
+                           :outcome-committed
+                           :invalid)
+    :v1-legacy :outcome-unavailable
+    :unknown :invalid))
+
+(defn complete-outcome-verified?
+  "True only when a signed decision commits and can verify the complete
+   outcome. A v1 legacy position is never complete-outcome verified."
+  [decision-ref]
+  (= :outcome-committed (decision-outcome-binding decision-ref)))
+
+(defn position-outcome-root
+  "The committed :outcome/root of a signed position, or nil when the position
+   does not bind one (v1 legacy)."
+  [decision-ref]
+  (:outcome/root decision-ref))
+
+(defn decision-hash-valid?
+  "Recompute the :decision/hash of a position and compare it to the declared
+   value. Dispatches on `classify-decision-version`.
+
+   This is the INTEGRITY gate, not the authority gate: a valid hash proves the
+   preimage is what was signed over, but does not by itself make a position
+   valid or authoritative (signature authenticity, seat eligibility, scope and
+   outcome concurrence, and policy conformance are separate gates).
+
+   authorisation-id is the containing authorisation id, used to reconstruct the
+   v1 legacy preimage (v1 references do not embed the id)."
+  [position authorisation-id]
+  (case (classify-decision-version position)
+    :v2-complete-outcome
+    (= (:decision/hash position)
+       (compute-decision-v2-hash
+        (decision-v2-preimage (:researcher/id position)
+                              authorisation-id
+                              (:authorisation/request-root position)
+                              (:review-round/hash position)
+                              (:outcome/root position)
+                              (:decision position)
+                              (:dissent/reason position))))
+    :v1-legacy
+    (= (:decision/hash position)
+       (compute-decision-hash
+        (decision-preimage (:researcher/id position)
+                           authorisation-id
+                           (:authorisation/request-root position)
+                           (:review-round/hash position)
+                           (:decision position)
+                           (:dissent/reason position))))
+    false))
+
+(defn authorisation-outcome-consistency
+  "Verify that the decision references in an authorisation establish a common
+   complete-outcome commitment.
+
+   Checks:
+     1. Every v2 decision reference embeds the containing :authorisation/id
+        (rejects decision refs substituted from another authorisation).
+     2. Every v2 decision reference shares the same :outcome/root.
+     3. That shared outcome root equals the authorisation target's
+        :target/proposed-content-root, when the target is present.
+     4. v1 legacy decision references are classified honestly as
+        :outcome-unavailable — they cannot establish complete-outcome
+        concurrence from committed roots.
+
+   Returns
+     {:consistent? bool
+      :outcome/root <shared root or nil>
+      :binding :outcome-committed | :outcome-unavailable | :mixed | :invalid
+      :errors [str]}."
+  [authorisation]
+  (let [auth-id (:authorisation/id authorisation)
+        target (:authorisation/target authorisation)
+        proposed (:target/proposed-content-root target)
+        refs (:authorisation/decision-references authorisation)
+        v2-refs (filter #(= :v2-complete-outcome (classify-decision-version %)) refs)
+        v2-roots (distinct (map position-outcome-root v2-refs))
+        foreign-v2 (filter #(not= auth-id (:authorisation/id %)) v2-refs)
+        v1-count (count (filter #(= :v1-legacy (classify-decision-version %)) refs))
+        errors (cond-> []
+                 (empty? refs)
+                 (conj "no decision references present")
+                 (and (seq refs) (empty? v2-roots) (zero? v1-count))
+                 (conj "no recognised decision versions present")
+                 (seq foreign-v2)
+                 (conj (str "v2 decision(s) embed a different authorisation/id "
+                            "(substitution): " (map :authorisation/id foreign-v2)))
+                 (> (count v2-roots) 1)
+                 (conj (str "v2 decisions bind distinct outcome roots: " v2-roots))
+                 (and (some? proposed) (= 1 (count v2-roots))
+                      (not= proposed (first v2-roots)))
+                 (conj (str "v2 outcome root " (first v2-roots)
+                            " does not match target proposed-content-root "
+                            proposed)))]
+    {:consistent? (empty? errors)
+     :outcome/root (first v2-roots)
+     :binding (cond
+                (and (seq v2-roots) (pos? v1-count)) :mixed
+                (seq v2-roots) :outcome-committed
+                (pos? v1-count) :outcome-unavailable
+                :else :invalid)
+     :errors errors}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Pre-authorisation checks

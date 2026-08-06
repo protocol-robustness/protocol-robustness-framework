@@ -273,6 +273,264 @@
         :policy-id :confidence/aggregate-minimum}))))
 
 ;; ===========================================================================
+;; Composition
+;;
+;; Preserves the full component confidence sequence and derives an aggregate
+;; through an explicit, versioned composition policy.  This separates two
+;; questions that a single enum conflates:
+;;   - how strong is the evidence (level);
+;;   - over what domain does that strength apply (scope).
+;;
+;; The raw sequence is treated as evidence input, never as the final
+;; classification.  Supporting components remain committed but do not lower
+;; the aggregate unless the policy explicitly says they do.
+;; ===========================================================================
+
+(def roles
+  "Allowed component roles within a composition.
+   Only :required components normally constrain an :all-required aggregate."
+  #{:required :supporting})
+
+(def composition-policies
+  "Versioned confidence composition policies.
+
+   Each maps a logical relation between components to how they combine.
+   Policy ids are protocol contracts: changing the ranking or the aggregation
+   rule for an id requires a NEW id, never an in-place semantic change."
+  {:prf.confidence/all-required-v1
+   {:relation        :all-required
+    :level-rule      :minimum            ; weakest necessary dependency
+    :scope-rule      :intersection       ; claim valid only where ALL apply
+    :status-rule     :most-provisional
+    :uses-supporting? false}
+
+   :prf.confidence/any-sufficient-v1
+   {:relation        :any-sufficient     ; A or B independently establishes
+    :level-rule      :maximum
+    :scope-rule      :union              ; valid wherever ANY applies
+    :status-rule     :least-provisional
+    :uses-supporting? false}
+
+   :prf.confidence/independent-corroboration-v1
+   {:relation        :independent-corroboration
+    :level-rule      :maximum            ; corroboration raises or preserves
+    :scope-rule      :intersection
+    :status-rule     :least-provisional
+    :uses-supporting? false
+    :min-required    2}                  ; independence requires >1 source
+
+   :prf.confidence/conditional-v1
+   {:relation        :conditional        ; A assumes B; B gates the result
+    :level-rule      :minimum
+    :scope-rule      :intersection
+    :status-rule     :most-provisional
+    :uses-supporting? false}
+
+   :prf.confidence/informational-only-v1
+   {:relation        :informational-only ; no strength claim asserted
+    :level-rule      :none
+    :scope-rule      :intersection
+    :status-rule     :most-provisional
+    :uses-supporting? true}})
+
+(defn- scope-rank
+  "Nested scope ordering: :unbounded ⊃ :bounded ⊃ :trace-bounded.
+   Higher rank = more restricted (smaller domain)."
+  [s]
+  (case s
+    :unbounded      0
+    :bounded        1
+    :trace-bounded  2
+    -1))
+
+(defn scope-intersection
+  "Intersection of two scopes (most-restricted scope that is a subset of both).
+   Scopes are nested, so the intersection is the more-specific scope.
+   Returns nil when either scope is outside the canonical vocabulary."
+  [a b]
+  (let [ra (scope-rank a)
+        rb (scope-rank b)]
+    (when (and (not (neg? ra)) (not (neg? rb)))
+      (if (>= ra rb) a b))))
+
+(defn scope-union
+  "Union of two scopes (least-specific scope that contains both).
+   Returns nil when either scope is outside the canonical vocabulary."
+  [a b]
+  (let [ra (scope-rank a)
+        rb (scope-rank b)]
+    (when (and (not (neg? ra)) (not (neg? rb)))
+      (if (<= ra rb) a b))))
+
+(defn validate-component
+  "Validate a single bound confidence component.
+   Returns nil if valid, or a sequence of error messages.
+
+   Components must be bound to a subject-hash so confidence values cannot be
+   reordered or reassigned independently of the claims they qualify.  A
+   :required component must carry a level; :supporting components may be
+   informational (nil level) and never lower an aggregate."
+  [c]
+  (let [subject (:subject-hash c)
+        role    (:role c)
+        level   (:level c)
+        scope   (:scope c)
+        status  (:status c :final)
+        errors  (cond-> []
+                  (not (and (string? subject) (pos? (count subject))))
+                  (conj "Component must carry a :subject-hash string binding to the claim/artifact it qualifies")
+
+                  (not (contains? roles role))
+                  (conj (str "Invalid role: " (pr-str role)
+                             ". Must be one of: " (pr-str roles)))
+
+                  (and (= :required role) (nil? level))
+                  (conj "A :required component must carry a :level")
+
+                  (and level (not (confidence-level? level)))
+                  (conj (str "Invalid confidence level: " (pr-str level)
+                             ". Must be one of: " (pr-str levels)))
+
+                  (not (confidence-scope? scope))
+                  (conj (str "Invalid confidence scope: " (pr-str scope)
+                             ". Must be one of: " (pr-str scopes)))
+
+                  (not (confidence-status? status))
+                  (conj (str "Invalid confidence status: " (pr-str status)
+                             ". Must be one of: " (pr-str statuses))))]
+    (seq errors)))
+
+(defn validate-composition
+  "Validate a component vector and policy id.
+   Returns nil if valid, or a sequence of error messages."
+  [components policy-id]
+  (cond-> []
+    (not (vector? components))
+    (conj "Components must be a vector of bound confidence records")
+
+    (not (contains? composition-policies policy-id))
+    (conj (str "Unknown composition policy: " (pr-str policy-id)))
+
+    (and (vector? components) (some validate-component components))
+    (into (vec (mapcat (fn [c] (or (validate-component c) [])) components)))))
+
+(defn- required-component-levels
+  "Levels of the components that actually constrain the aggregate under a policy."
+  [policy components]
+  (let [eligible (if (:uses-supporting? policy) components
+                     (filter #(= :required (:role %)) components))]
+    (keep :level eligible)))
+
+(defn- aggregate-level
+  "Apply a policy's :level-rule to a set of levels."
+  [rule levels]
+  (case rule
+    :minimum  (when (seq levels) (apply min-key level-rank levels))
+    :maximum  (when (seq levels) (apply max-key level-rank levels))
+    :none     nil
+    nil))
+
+(defn- aggregate-scope
+  "Apply a policy's :scope-rule to a set of scopes."
+  [rule scopes]
+  (when (seq scopes)
+    (case rule
+      :intersection (reduce scope-intersection scopes)
+      :union        (reduce scope-union scopes)
+      nil)))
+
+(defn- aggregate-status
+  "Apply a policy's :status-rule to a set of statuses."
+  [rule statuses]
+  (case rule
+    :most-provisional  (if (some #{:provisional} statuses) :provisional :final)
+    :least-provisional (if (some #{:final} statuses) :final :provisional)
+    :none              nil
+    nil))
+
+(defn compose-confidence
+  "Compose component confidences into an aggregate under a versioned policy.
+
+   Arguments:
+     components — vector of bound records:
+                  {:subject-hash <str> :role :required|:supporting
+                   :level <kw> :scope <kw> [:status <kw>]}
+     policy-id  — a key of composition-policies (default :all-required-v1)
+
+   Returns a composition profile that PRESERVES the full component sequence
+   alongside the derived aggregate:
+
+     {:confidence/composition-policy <id>
+      :confidence/relation           <relation>
+      :confidence/components         <vector, unchanged>
+      :confidence/aggregate          {:level <kw|nil> :scope <kw> :status <kw>}
+      :confidence/reasons            [...]}
+
+   Fails closed: unknown levels/scopes/roles/statuses, strings where keywords
+   are required, missing subject-hash bindings, and unknown policy ids are
+   rejected, never silently defaulted.  An empty required set yields
+   :not-evaluated (never a vacuous :high)."
+  ([components]
+   (compose-confidence components :prf.confidence/all-required-v1))
+  ([components policy-id]
+   (when-let [errs (seq (validate-composition components policy-id))]
+     (throw (ex-info "Invalid confidence composition"
+                     {:errors errs :components components :policy-id policy-id})))
+   (let [policy     (get composition-policies policy-id)
+         eligible   (if (:uses-supporting? policy)
+                      components
+                      (filter #(= :required (:role %)) components))
+         min-required (:min-required policy)
+         levels     (required-component-levels policy components)
+         scopes     (keep :scope eligible)
+         statuses   (keep :status eligible)]
+     (when (and min-required (< (count eligible) min-required))
+       (throw (ex-info "Confidence composition requires more independent sources"
+                       {:policy-id policy-id :relation (:relation policy)
+                        :min-required min-required :actual (count eligible)})))
+     (if (empty? eligible)
+       {:confidence/composition-policy policy-id
+        :confidence/relation          (:relation policy)
+        :confidence/components         components
+        :confidence/aggregate          {:level :not-evaluated
+                                        :scope :unbounded
+                                        :status :provisional}
+        :confidence/reasons            [:empty-composition]}
+       {:confidence/composition-policy policy-id
+        :confidence/relation          (:relation policy)
+        :confidence/components         components
+        :confidence/aggregate          {:level (aggregate-level (:level-rule policy) levels)
+                                        :scope (aggregate-scope (:scope-rule policy) scopes)
+                                        :status (aggregate-status (:status-rule policy) statuses)}
+        :confidence/reasons            [:required (count (filter #(= :required (:role %)) components))
+                                        :supporting (count (filter #(= :supporting (:role %)) components))]}))))
+
+(defn verify-composition
+  "Verify a composition profile is internally consistent: the stated aggregate
+   must be recomputable from the committed components and policy id.
+
+   Returns true if recomputation matches the stored aggregate, false otherwise.
+   A producer may not state an aggregate without it being derivable from the
+   committed inputs."
+  [profile]
+  (let [recomputed (compose-confidence (:confidence/components profile)
+                                       (:confidence/composition-policy profile))]
+    (= (:confidence/aggregate recomputed)
+       (:confidence/aggregate profile))))
+
+(defn canonical-components
+  "Canonical component ordering for deterministic hashing.
+
+   Default (set semantics): sorted by the stable :subject-hash binding, so
+   permuting a logically-unordered component set does not change the committed
+   bytes.  If order is semantically meaningful, callers should commit an
+   explicit :order and sort by it instead."
+  ([components]
+   (vec (sort-by (juxt :subject-hash :role) components)))
+  ([components key-fn]
+   (vec (sort-by key-fn components))))
+
+;; ===========================================================================
 ;; Utility
 ;; ===========================================================================
 

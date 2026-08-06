@@ -186,16 +186,20 @@
       (is (= zone-ids rule-ids)))))
 
 (deftest production-source-tree-is-covered
-  (let [core-zone (zone-by-id :core)]
-    (is (= ["src"] (:source-roots core-zone)))
-    (is (every? #(str/starts-with? (.getPath %) "src/")
+  (let [core-zone (core-zone)
+        roots (:source-roots core-zone)]
+    (is (seq roots))
+    (is (every? #(.isDirectory (io/file %)) roots)
+        "every core source root exists as a directory")
+    (is (every? (fn [file]
+                  (some #(str/starts-with? (.getPath file) %) roots))
                 (zone-source-files core-zone)))))
 
 (deftest core-files-are-readable-as-forms
   (testing "every core source file must parse as Clojure forms so its
             dependencies can be fully scanned (an unreadable core file could
             hide an extension dependency)"
-    (let [core-zone (zone-by-id :core)
+    (let [core-zone (core-zone)
           unreadable (->> (zone-source-files core-zone)
                           (remove file-readable-as-forms?)
                           (map #(.getPath %))
@@ -218,7 +222,7 @@
           (str "Disallowed cross-zone dependencies: " (pr-str offenders))))))
 
 (deftest core-never-depends-on-the-held-custody-extension
-  (let [core-zone (zone-by-id :core)
+  (let [core-zone (core-zone)
         ext-prefixes (held-custody-extension-prefixes)
         offenders (->> (zone-source-files core-zone)
                        (keep (fn [file]

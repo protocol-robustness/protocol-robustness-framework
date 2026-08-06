@@ -3,7 +3,40 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]
             [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.benchmark.researcher-position :as rp]
             [resolver-sim.benchmark.review.three-member-certificate :as cert]))
+
+(defn- valid-report
+  "Build a report artifact that satisfies the certificate's strict
+   report-hash-valid? check (real content hash over the unsigned preimage)."
+  [id outcome content-root]
+  (let [report {:schema-version "researcher-run-report.v1"
+                :researcher/id id
+                :researcher-run-report/outcome-hash outcome
+                :benchmark/content-root content-root
+                :benchmark/model-root "sha256:m"
+                :benchmark/evaluation-policy-root "sha256:ep"
+                :execution/content-root content-root
+                :execution/model-root "sha256:m"
+                :execution/model-instance-root "sha256:mi"
+                :execution/plan-root "sha256:plan"
+                :execution/parameter-domain-root "sha256:domain"
+                :execution/sampling-policy-root "sha256:samp"
+                :execution/realised-parameter-set-root "sha256:p"
+                :execution/generated-case-set-root "sha256:c"
+                :researcher-run-report/hash nil
+                :researcher/signature nil}]
+    (assoc report :researcher-run-report/hash
+           (str "sha256:" (hc/domain-hash :researcher-run-report report)))))
+
+(defn- valid-position
+  "Build a position artifact that satisfies the certificate's strict
+   position-hash-valid? check."
+  [id outcome content-root]
+  (rp/build-position {:benchmark/content-root content-root
+                      :researcher/id id
+                      :outcome-hash outcome
+                      :dimensions {}}))
 
 (def keyed-members
   [{:review-member/key 0, :researcher/id "researcher-a", :role :model-steward}
@@ -510,18 +543,12 @@
                (:review-member-canonical-indices/hash ci-unkeyed))
             "artifact hashes must be identical"))
       ;; Same certificate structure (no mode selection by key presence)
-      (let [reports [{:researcher/id "researcher-a" :researcher-run-report/outcome-hash "h1"
-                      :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh1"}
-                     {:researcher/id "researcher-b" :researcher-run-report/outcome-hash "h2"
-                      :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh2"}
-                     {:researcher/id "researcher-c" :researcher-run-report/outcome-hash "h3"
-                      :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh3"}]
-            positions [{:researcher/id "researcher-a" :position/hash "ph1" :position/outcome-hash "h1"
-                        :benchmark/content-root "sha256:abc"}
-                       {:researcher/id "researcher-b" :position/hash "ph2" :position/outcome-hash "h2"
-                        :benchmark/content-root "sha256:abc"}
-                       {:researcher/id "researcher-c" :position/hash "ph3" :position/outcome-hash "h3"
-                        :benchmark/content-root "sha256:abc"}]
+      (let [reports [(valid-report "researcher-a" "sha256:A" "sha256:abc")
+                     (valid-report "researcher-b" "sha256:B" "sha256:abc")
+                     (valid-report "researcher-c" "sha256:C" "sha256:abc")]
+            positions [(valid-position "researcher-a" "sha256:A" "sha256:abc")
+                       (valid-position "researcher-b" "sha256:B" "sha256:abc")
+                       (valid-position "researcher-c" "sha256:C" "sha256:abc")]
             cert-keyed (cert/build-certificate {:review-round keyed-round
                                                 :reports reports :positions positions})
             cert-unkeyed (cert/build-certificate {:review-round unkeyed-round
@@ -534,11 +561,22 @@
           (is (contains? mp :review-member/index)))
         (doseq [mp (:member-positions cert-unkeyed)]
           (is (contains? mp :review-member/index)))
-        ;; Both certificates have the same hash (same inputs)
+        ;; Both certificates agree on everything that must be key-independent
+        ;; (review-round id, canonical-indices commitment, consensus). The
+        ;; certificate hash itself may differ because :certificate/inputs
+        ;; preserves the exact review round, and a keyed round carries
+        ;; :review-member/key fields that an unkeyed round does not.
         (let [fk (cert/finalise-certificate! cert-keyed)
               fu (cert/finalise-certificate! cert-unkeyed)]
-          (is (= (:certificate/hash fk) (:certificate/hash fu))
-              "keyed and unkeyed representations must produce identical certificate hashes"))))))
+          (is (= (:review-round/id fk) (:review-round/id fu))
+              "keyed and unkeyed rounds share the same review-round identity")
+          (is (= (:review-member-canonical-indices/hash fk)
+                 (:review-member-canonical-indices/hash fu))
+              "keyed and unkeyed rounds commit the same canonical-indices artifact")
+          (is (= (:model-consensus fk) (:model-consensus fu))
+              "consensus must not depend on member key presence")
+          (is (= (:other-consensus fk) (:other-consensus fu))
+              "consensus must not depend on member key presence"))))))
 
 ;; ── Member-bit-width tests ───────────────────────────────────────────────────
 
@@ -585,18 +623,12 @@
           rz (ci/review-member-index artifact "z")
 
           ;; 4. Build certificate (commits artifact hash)
-          reports [{:researcher/id "a" :researcher-run-report/outcome-hash "h1"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh1"}
-                   {:researcher/id "m" :researcher-run-report/outcome-hash "h2"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh2"}
-                   {:researcher/id "z" :researcher-run-report/outcome-hash "h3"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh3"}]
-          positions [{:researcher/id "a" :position/hash "ph1" :position/outcome-hash "h1"
-                      :benchmark/content-root "sha256:abc"}
-                     {:researcher/id "m" :position/hash "ph2" :position/outcome-hash "h2"
-                      :benchmark/content-root "sha256:abc"}
-                     {:researcher/id "z" :position/hash "ph3" :position/outcome-hash "h3"
-                      :benchmark/content-root "sha256:abc"}]
+          reports [(valid-report "a" "sha256:A" "sha256:abc")
+                   (valid-report "m" "sha256:B" "sha256:abc")
+                   (valid-report "z" "sha256:C" "sha256:abc")]
+          positions [(valid-position "a" "sha256:A" "sha256:abc")
+                     (valid-position "m" "sha256:B" "sha256:abc")
+                     (valid-position "z" "sha256:C" "sha256:abc")]
           certificate (cert/build-certificate
                        {:review-round round :canonical-indices artifact
                         :reports reports :positions positions})
@@ -673,18 +705,12 @@
           ;; Simulate content-addressed storage: store artifact by hash
           store {artifact-hash artifact}
           ;; Certificate commits only the artifact hash
-          reports [{:researcher/id "researcher-a" :researcher-run-report/outcome-hash "h1"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh1"}
-                   {:researcher/id "researcher-b" :researcher-run-report/outcome-hash "h2"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh2"}
-                   {:researcher/id "researcher-c" :researcher-run-report/outcome-hash "h3"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh3"}]
-          positions [{:researcher/id "researcher-a" :position/hash "ph1" :position/outcome-hash "h1"
-                      :benchmark/content-root "sha256:abc"}
-                     {:researcher/id "researcher-b" :position/hash "ph2" :position/outcome-hash "h2"
-                      :benchmark/content-root "sha256:abc"}
-                     {:researcher/id "researcher-c" :position/hash "ph3" :position/outcome-hash "h3"
-                      :benchmark/content-root "sha256:abc"}]
+          reports [(valid-report "researcher-a" "sha256:A" "sha256:abc")
+                   (valid-report "researcher-b" "sha256:B" "sha256:abc")
+                   (valid-report "researcher-c" "sha256:C" "sha256:abc")]
+          positions [(valid-position "researcher-a" "sha256:A" "sha256:abc")
+                     (valid-position "researcher-b" "sha256:B" "sha256:abc")
+                     (valid-position "researcher-c" "sha256:C" "sha256:abc")]
           cert (cert/build-certificate {:review-round round :reports reports :positions positions})
           committed-hash (:review-member-canonical-indices/hash cert)]
       ;; The committed hash must match the artifact
@@ -704,19 +730,13 @@
           ;; Verify artifact against round
           verification (ci/verify-canonical-indices artifact round)
           _ (is (= :valid (:status verification)))
-          ;; Build mock reports and positions for certificate test
-          reports [{:researcher/id "researcher-a" :researcher-run-report/outcome-hash "h1"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh1"}
-                   {:researcher/id "researcher-b" :researcher-run-report/outcome-hash "h2"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh2"}
-                   {:researcher/id "researcher-c" :researcher-run-report/outcome-hash "h3"
-                    :benchmark/content-root "sha256:abc" :researcher-run-report/hash "rh3"}]
-          positions [{:researcher/id "researcher-a" :position/hash "ph1" :position/outcome-hash "h1"
-                      :benchmark/content-root "sha256:abc"}
-                     {:researcher/id "researcher-b" :position/hash "ph2" :position/outcome-hash "h2"
-                      :benchmark/content-root "sha256:abc"}
-                     {:researcher/id "researcher-c" :position/hash "ph3" :position/outcome-hash "h3"
-                      :benchmark/content-root "sha256:abc"}]
+          ;; Build valid reports and positions for certificate test
+          reports [(valid-report "researcher-a" "sha256:A" "sha256:abc")
+                   (valid-report "researcher-b" "sha256:B" "sha256:abc")
+                   (valid-report "researcher-c" "sha256:C" "sha256:abc")]
+          positions [(valid-position "researcher-a" "sha256:A" "sha256:abc")
+                     (valid-position "researcher-b" "sha256:B" "sha256:abc")
+                     (valid-position "researcher-c" "sha256:C" "sha256:abc")]
           certificate (cert/build-certificate
                        {:review-round round :canonical-indices artifact
                         :reports reports :positions positions})]

@@ -1,0 +1,13 @@
+{
+  "schema_version": "publisher-policy.v1",
+  "policy_id": "artifact-publish-policy.v1",
+  "trusted_keys": [
+    {
+      "publisher_id": "artifact-publisher",
+      "key_id": "artifact-publisher-001",
+      "algorithm": "ed25519",
+      "public_key_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "status": "active"
+    }
+  ]
+}

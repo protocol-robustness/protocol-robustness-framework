@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/publisher-policy.v1.json",
+  "title": "Publisher policy v1",
+  "description": "Designates which Ed25519 keys are authorised to sign the test-artifacts publisher commitment. See docs/security/PUBLISHER.md.",
+  "type": "object",
+  "required": ["schema_version", "policy_id", "trusted_keys"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "publisher-policy.v1"
+    },
+    "policy_id": {
+      "type": "string", "minLength": 1,
+      "description": "Declared publisher policy identifier; bound into the commitment via policy hash."
+    },
+    "trusted_keys": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["publisher_id", "key_id", "algorithm", "public_key_hex", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "publisher_id":     { "type": "string", "minLength": 1 },
+          "key_id":           { "type": "string", "minLength": 1 },
+          "algorithm":        { "const": "ed25519" },
+          "public_key_hex":   { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "status":           { "type": "string", "enum": ["active", "revoked", "retired"] }
+        }
+      }
+    }
+  }
+}

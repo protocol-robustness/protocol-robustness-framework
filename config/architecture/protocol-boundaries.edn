@@ -163,6 +163,12 @@
                "force-auth-add-held-summary"}
    :reason "Protocol-independent reconciliation classifies the frozen legacy-evidence world by its artifact schema vocabulary; updated when the legacy world moves to the extension"
    :status :legacy
+   :replacement :force-auth-held-custody-mutation}
+  {:file "src/resolver_sim/sensitivity/sentinel.clj"
+   :literals #{:force-auth-add-held
+               :force-auth-add-held-summary}
+   :reason "Sensitivity sentinel classifies frozen legacy force-auth add-held evidence as remote-authority-required; updated when the legacy world moves to the extension"
+   :status :legacy
    :replacement :force-auth-held-custody-mutation}]
 
  ;; ── core operation vocabulary approvals ────────────────────────────────────
@@ -179,7 +185,12 @@
   {:file "src/resolver_sim/economics/effects.clj"
    :literals #{"add-held"}
    :reason "General protocol-neutral custody-held-adjustment effect vocabulary (emits :held/action \"add-held\"); not force-auth-add-held artifact vocabulary"
-   :status :protocol-neutral}]
+   :status :protocol-neutral}
+  {:file "src/resolver_sim/sensitivity/sentinel.clj"
+   :literals #{:add-held "add-held"}
+   :reason "Sensitivity sentinel treats a held add-held action as remote-authority-required (forbidden from local in-process authorization)"
+   :status :legacy
+   :replacement :force-auth-held-custody-mutation}]
 
  ;; ── no-new-legacy-production gate ──────────────────────────────────────────
  ;; Phase 3A entry gate. Forbidden vars are legacy held-custody CONSTRUCTORS /

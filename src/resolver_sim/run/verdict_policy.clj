@@ -321,7 +321,7 @@
   (let [target (io/file (str file))]
     (when (.exists target)
       (let [existing (slurp target)
-            incoming (json/write-str artifact)]
+            incoming (json/write-str artifact :indent true)]
         (when-not (= existing incoming)
           (throw (ex-info "Refusing to overwrite divergent verdict policy file"
                           {:path (str file)}))))))

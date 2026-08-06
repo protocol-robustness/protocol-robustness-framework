@@ -464,10 +464,25 @@
   (let [c (tmc/per-dimension-consensus [(pos "a") (pos "b" :authority :incomplete)
                                         (pos "c" :authority :insufficient-information)]
                                        :model-authority)]
-    (is (= :contested (:status c)) "three-way disagreement -> contested")
-    (is (= ["a"] (:supporting-members c)) "a said adequate -> supports")
-    (is (= ["b"] (:dissenting-members c)) "b said incomplete -> dissent")
-    (is (= ["c"] (:insufficient-information-members c)) "c -> separate group")))
+    (is (= :contested (:status c)) "1-1 tie among assessed -> contested")
+    (is (empty? (:supporting-members c)) "no member is labelled supporting in a contested cell")
+    (is (empty? (:dissenting-members c)) "no majority exists to dissent against")
+    (is (= ["c"] (:insufficient-information-members c)) "c -> separate group")
+    (is (= 2 (count (:contested-statuses c))) "per-status breakdown preserves the two assessed views")
+    (is (= ["a"] (:members (first (:contested-statuses c))))
+        "a said adequate -> preserved in the per-status breakdown")))
+
+(deftest three-way-distinct-statuses-contested-with-status-groups
+  (let [c (tmc/per-dimension-consensus [(pos "a") (pos "b" :authority :incomplete)
+                                        (pos "c" :authority :contested)]
+                                       :model-authority)]
+    (is (= :contested (:status c)) "three distinct assessed statuses -> contested")
+    (is (empty? (:supporting-members c)) "no majority exists, so nobody is labelled supporting")
+    (is (empty? (:dissenting-members c)) "no majority exists to dissent against")
+    (is (= 3 (count (:contested-statuses c))) "every distinct position is preserved")
+    (is (= #{["a"] ["b"] ["c"]}
+           (set (map :members (:contested-statuses c))))
+        "each researcher keeps their own position in the per-status breakdown")))
 
 (deftest all-absent-not-evaluable
   (let [c (tmc/per-dimension-consensus [(pos "a" :authority :not-reviewed)
@@ -683,9 +698,10 @@
     (is (contains? cert :theorem-consensus))
     (is (contains? cert :conclusion-consensus))
     (let [th-cons (get-in cert [:theorem-consensus [:theorem/quota-bounded (:theorem/hash th)]])]
-      (is (= :majority-with-dissent (:status th-cons)))
+      (is (= :qualified-majority (:status th-cons)))
       (is (= 2 (count (:supporting-members th-cons))))
-      (is (= 1 (count (:dissenting-members th-cons)))))))
+      (is (= 1 (count (:qualifying-members th-cons))))
+      (is (empty? (:dissenting-members th-cons))))))
 
 (deftest plural-outcome-hashes-allow-per-item-dispute
   (let [th1 (rto/build-theorem-outcome
@@ -813,9 +829,9 @@
 
 (def ^:private fa-target
   {:target/kind :benchmark-branch
-   :target/baseline-content-root "sha256:baseline-root"
-   :target/branch-descriptor-hash "sha256:branch-descriptor"
-   :target/proposed-content-root "sha256:proposed-root"})
+   :target/baseline-content-root (h "b4")
+   :target/branch-descriptor-hash (h "b7")
+   :target/proposed-content-root (h "bd")})
 
 (def ^:private fa-request-root "sha256:authorisation-request")
 
@@ -1084,8 +1100,8 @@
                    {:researcher/id "researcher-b" :decision :approve}
                    {:researcher/id "researcher-c" :decision :approve}]))
 
-(def ^:private fa-consumption-cmd-root "sha256:execution-command")
-(def ^:private fa-consumption-plan-root "sha256:execution-plan")
+(def ^:private fa-consumption-cmd-root (h "9c"))
+(def ^:private fa-consumption-plan-root (h "9d"))
 (def ^:private fa-consumption-attempt-id :execution/fa-consumption-test)
 (def ^:private fa-consumption-executed-root
   (get-in fa-target [:target/proposed-content-root]))
@@ -1367,7 +1383,7 @@
           "same execution fields + same FA section = exact replication scope"))
     ;; Same execution scope but different FA section = NOT exact replication
     (let [diff-fa (assoc fa-section :executed-content-root
-                         "sha256:different-execution")
+                         (h "df"))
           diff-fa-manifest (om/build-manifest
                             (assoc base-input
                                    :execution/plan-root fa-consumption-plan-root
@@ -1716,9 +1732,9 @@
                                             :review-round/hash round-hash}
                :authorisation/request-root "sha256:request"
                :authorisation/target {:target/kind :benchmark-branch
-                                      :target/baseline-content-root "sha256:baseline"
-                                      :target/branch-descriptor-hash "sha256:branch"
-                                      :target/proposed-content-root "sha256:proposed"}
+                                      :target/baseline-content-root (h "be")
+                                      :target/branch-descriptor-hash (h "b8")
+                                      :target/proposed-content-root (h "b9")}
                :authorisation/decision-references
                (mapv (fn [rid]
                        {:researcher/id rid :decision :approve
@@ -1731,22 +1747,22 @@
                      {:reservation/authorisation-hash (:authorisation/hash auth)
                       :reservation/consumption-key ck
                       :reservation/execution-attempt-id :execution/test
-                      :reservation/command-root "sha256:cmd"
-                      :reservation/plan-root "sha256:plan"})
+                      :reservation/command-root (h "9b")
+                      :reservation/plan-root (h "9a")})
         manifest-fa {:authorisation-hash (:authorisation/hash auth)
                      :consumption-key ck
                      :reservation-hash (:reservation/hash reservation)
                      :execution-attempt-id :execution/test
-                     :branch-descriptor-hash "sha256:branch"
-                     :baseline-content-root "sha256:baseline"
-                     :executed-content-root "sha256:executed"
+                     :branch-descriptor-hash (h "b8")
+                     :baseline-content-root (h "be")
+                     :executed-content-root (h "e4")
                      :status :consumed}
         manifest (om/build-manifest
                   (assoc base-input
-                         :execution/plan-root "sha256:plan"
-                         :execution/command-root "sha256:cmd"
+                         :execution/plan-root (h "9a")
+                         :execution/command-root (h "9b")
                          :execution/force-authorisation manifest-fa
-                         :benchmark/content-root "sha256:baseline"))
+                         :benchmark/content-root (h "be")))
         receipt (rfa/build-consumption-receipt
                  {:consumption/reservation-hash (:reservation/hash reservation)
                   :consumption/authorisation-hash (:authorisation/hash auth)

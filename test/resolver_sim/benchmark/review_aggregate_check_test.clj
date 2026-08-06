@@ -50,8 +50,11 @@
         indices (ci/build-canonical-indices round)
         tampered (assoc indices :review-member/count 7)
         result (rac/check-aggregate-member-bit-width round tampered)]
-    (is (:holds? result)
-        "bit-width alone may still match when only count is tampered; full density check handles this")))
+    (is (not (:holds? result))
+        "tampering the artifact count changes the derived bit-width (round 2 vs artifact 3), so the aggregate check detects the mismatch")
+    (is (= :resolver-sim.benchmark.review-aggregate-check/member-bit-width-mismatch
+           (:kind (first (:violations result))))
+        "violation kind must identify the bit-width mismatch")))
 
 (deftest aggregate-member-bit-width-holds-for-legacy-round
   (let [round (make-legacy-round)

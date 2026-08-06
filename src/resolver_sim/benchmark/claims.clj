@@ -317,7 +317,7 @@
         :file file
         :message "scenario result has invalid :benchmark/run-count"}]
 
-      (not-every? positive-int? run-indices)
+      (not-every? #(and (int? %) (not (neg? %))) run-indices)
       [{:type :invalid-run-index
         :scenario-id scenario-id
         :scenario-path scenario-path
@@ -338,7 +338,7 @@
         :file file
         :message "scenario replay results contain duplicate :benchmark/run-index values"}]
 
-      (not= (set run-indices) (set (range 1 (inc declared-run-count))))
+      (not= (set run-indices) (set (range declared-run-count)))
       [{:type :incomplete-run-pairing
         :scenario-id scenario-id
         :scenario-path scenario-path

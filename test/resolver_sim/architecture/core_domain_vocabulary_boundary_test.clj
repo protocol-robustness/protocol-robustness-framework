@@ -49,7 +49,11 @@
     file))
 
 (defn- core-zone []
-  (first (filter #(= :core (:zone/id %)) (:architecture/zones boundary-policy))))
+  (let [root-ids (set (map :from
+                           (filter #(empty? (:may-depend-on %))
+                                   (:architecture/dependency-rules boundary-policy))))]
+    (first (filter #(contains? root-ids (:zone/id %))
+                   (:architecture/zones boundary-policy)))))
 
 (defn- core-source-files []
   (mapcat clojure-sources (:source-roots (core-zone))))

@@ -112,6 +112,8 @@
    :procedure-execution-witness "PROCEDURE_EXECUTION_WITNESS_V1"
    :research-force-authorisation "RESEARCH_FORCE_AUTHORISATION_V1"
    :researcher-decision "RESEARCHER_DECISION_V1"
+   :researcher-decision-v2 "RESEARCHER_DECISION_V2"
+   :researcher-decision-scope "RESEARCHER_DECISION_SCOPE_V1"
    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
    :force-authorisation-consumption-v2 "FORCE_AUTHORISATION_CONSUMPTION_V2"

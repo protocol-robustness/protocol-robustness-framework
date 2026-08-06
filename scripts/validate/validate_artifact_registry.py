@@ -17,6 +17,7 @@ sys.path.insert(0, str(_EVIDENCE_DIR))
 
 from evidence_config import EvidenceConfig
 from schema_validator import SchemaValidator, SchemaValidationError
+from publisher_commitment import REASON_VALID, verify_publisher_commitment
 
 
 def sha256_file(path: Path) -> str:
@@ -42,9 +43,9 @@ def validate_schema_const(doc: dict, expected: str, label: str):
         fail(f"{label} schema_version mismatch: expected {expected}, got {actual}")
 
 
-def validate_claimable_v2_integrity(claim: dict, raw_text: str) -> None:
+def validate_claimable_v2_integrity(claim: dict, raw_text: str, claimable_schema: str) -> None:
     """Evidence-integrity checks for claimable-classification.v2 terminal observations."""
-    if claim.get("schema_version") != cfg.schema("claimable-classification"):
+    if claim.get("schema_version") != claimable_schema:
         return
 
     classes = claim.get("classes") or {}
@@ -102,6 +103,10 @@ def main() -> int:
     ap.add_argument("--run-manifest", default=cfg.artifact_path("test-run"))
     ap.add_argument("--summary", default=cfg.artifact_path("test-summary"))
     ap.add_argument("--claimable", default=cfg.artifact_path("claimable-classification"))
+    ap.add_argument("--publisher-manifest", default=None,
+                    help="publisher manifest (publication.json); enables stage-3 publisher gate")
+    ap.add_argument("--publisher-policy", default=None,
+                    help="publisher policy JSON; enables stage-3 publisher gate")
     args = ap.parse_args()
 
     registry_p = Path(args.registry)
@@ -200,7 +205,33 @@ def main() -> int:
     if sp.get("rounding_policy") != cfg.rounding_policy:
         fail(f"claimable-classification shortfall_policy.rounding_policy must be {cfg.rounding_policy}")
 
-    validate_claimable_v2_integrity(claim, claim_raw)
+    validate_claimable_v2_integrity(claim, claim_raw, cfg.schema("claimable-classification"))
+
+    # Stage 3: publisher commitment and authorization.  When enabled this is a
+    # required acceptance gate, not documentation.  It reconstructs the
+    # commitment from the data validated above and requires a signature by a
+    # key authorised under the applied publisher policy.
+    if args.publisher_manifest or args.publisher_policy:
+        if not (args.publisher_manifest and args.publisher_policy):
+            fail("publisher gate requires BOTH --publisher-manifest and --publisher-policy")
+        pub_p = Path(args.publisher_manifest)
+        policy_p = Path(args.publisher_policy)
+        for p in (pub_p, policy_p):
+            if not p.exists():
+                fail(f"required publisher file missing: {p}")
+        with open(pub_p) as f:
+            envelope = json.load(f)
+        with open(policy_p) as f:
+            policy = json.load(f)
+        pub_result = verify_publisher_commitment(
+            registry, run_p, envelope, policy, base_dir=registry_p.parent
+        )
+        if pub_result["reason"] != REASON_VALID:
+            fail(
+                "publisher commitment rejected: "
+                f"{pub_result['reason']} — {pub_result['detail']}"
+            )
+        print("[artifact-registry] PASS: publisher commitment signed by authorised publisher")
 
     print("[artifact-registry] PASS: integrity + compatibility checks succeeded")
     return 0

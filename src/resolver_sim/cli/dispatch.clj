@@ -72,8 +72,9 @@
    :verify-run 'resolver-sim.commands.verify-run/run
    :assure-package 'resolver-sim.commands.assure-package/run
    :ref-file 'resolver-sim.commands.ref-file/run
-   :sentinel-check 'resolver-sim.commands.sentinel/run
-   :allocation-build-context 'resolver-sim.commands.allocation/build-context
+:sentinel-check 'resolver-sim.commands.sentinel/run
+    :publish-check 'resolver-sim.commands.publish/run
+    :allocation-build-context 'resolver-sim.commands.allocation/build-context
    :allocation-verify-proposal 'resolver-sim.commands.allocation/verify-proposal
    :allocation-vectors 'resolver-sim.commands.allocation/vectors
    :allocation-issue-certificate 'resolver-sim.commands.allocation/issue-certificate})

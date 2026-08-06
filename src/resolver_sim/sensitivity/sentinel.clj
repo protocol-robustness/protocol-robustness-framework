@@ -101,6 +101,25 @@
   [sink]
   (= :remote (required-authority sink)))
 
+(def remote-authority-required-artifact-kinds
+  "Artifact kinds that ALWAYS require an out-of-process sentinel authority,
+   regardless of the requested sink. Force-authorisation add-held evidence is
+   unpublished protocol evidence: local in-process authorization is FORBIDDEN
+   for it. Committed in the policy hash so the authority requirement is part of
+   the signed sentinel policy."
+  #{:force-auth-add-held :force-auth-add-held-summary})
+
+(defn remote-authority-required-artifact?
+  "True when an artifact itself requires an out-of-process sentinel decision,
+   independent of the sink — local in-process authorization is forbidden.
+
+   Applies to force-authorisation add-held evidence artifact kinds
+   (:force-auth-add-held / :force-auth-add-held-summary) and to any artifact
+   carrying a held add-held action."
+  [artifact]
+  (or (contains? remote-authority-required-artifact-kinds (:artifact/kind artifact))
+      (contains? #{:add-held "add-held"} (:held/action artifact))))
+
 ;; ── Reason Codes ────────────────────────────────────────────────────────────
 
 (def reason-code-set
@@ -116,7 +135,9 @@
     :contains-unpublished-evidence
     :contains-linkable-subject-hash
     :contains-public-sink-reference
-    :contains-timing-metadata})
+    :contains-timing-metadata
+    :contains-force-auth-add-held
+    :contains-force-auth-add-held-summary})
 
 ;; ── Disclosure Matrix ───────────────────────────────────────────────────────
 
@@ -304,8 +325,13 @@
          ;; Medium: artifact with scenario provenance
         scenario-id :sensitivity/internal
 
-         ;; Bundle: classify as bundle
+         ;; Medium: bundle
         bundle-kind :sensitivity/internal
+
+         ;; High: force-authorisation add-held evidence (unpublished protocol
+         ;; evidence; requires remote authority for any disclosure)
+        (contains? remote-authority-required-artifact-kinds (:artifact/kind artifact))
+        :sensitivity/private
 
          ;; Default: conservative
         :else :sensitivity/critical-private))))
@@ -362,6 +388,8 @@
                         :sink-policies (vec (sort-by key sink-policies))
                         :disclosure-rules "level>=:public required for public-sinks"
                         :authority-rules "remote authority required for public-sink set"
+                        :remote-authority-required-artifact-kinds
+                        (vec (sort remote-authority-required-artifact-kinds))
                         :scanner "secret-scanner.v2"}))
 
 (def ^{:deprecated "0.1.0" :private true} compute-policy-hash
@@ -379,6 +407,16 @@
     :sensitivity/critical-private [:contains-unpublished-evidence :contains-attestation
                                    :contains-reproducible-exploit-path]
     [:contains-unpublished-evidence]))
+
+(defn force-auth-evidence-reasons
+  "Specific reason codes for force-authorisation add-held evidence artifacts."
+  [artifact]
+  (cond
+    (= :force-auth-add-held (:artifact/kind artifact))
+    [:contains-force-auth-add-held]
+    (= :force-auth-add-held-summary (:artifact/kind artifact))
+    [:contains-force-auth-add-held-summary]
+    :else []))
 
 (defn effective-override-mode
   "Determine the override mode for a given level and risk metadata.
@@ -443,7 +481,8 @@
         risk-meta (extract-risk-meta artifact)
         reasons (vec (distinct (concat (default-reasons level)
                                        (declared-reasons artifact)
-                                       (finding-reasons artifact))))
+                                       (finding-reasons artifact)
+                                       (force-auth-evidence-reasons artifact))))
         allowed-sinks (vec (sort (filter #(disclosure-allowed? level %) all-sinks)))
         input-kind (cond (:attestation/id artifact) :attestation-record
                          (:node-hash artifact) :evidence-node

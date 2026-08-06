@@ -1,0 +1,25 @@
+{
+  "_comment": "Golden commitment-preimage fixture (publisher-manifest.v1). Locks the canonical preimage serialization shared by verifier, signer, and any future Clojure verifier. Do not edit: regenerate by recomputing expected_sha256 from the module.",
+  "expected_sha256": "18fe2b38ccd97931db715b50c7498cf5ae4241eeeb5c01508201a1fe818b2ca2",
+  "preimage": {
+    "domain": "prf.test-artifacts.publisher-manifest.v1",
+    "publisher_manifest_schema": "publisher-manifest.v1",
+    "schema_version": "test-artifacts.v1.2",
+    "contract_version": "evidence-contract.v1",
+    "run_id": "20260806-120000",
+    "run_manifest": {
+      "path": "test-run.json",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "artifacts": [
+      {"id": "claimable-classification", "path": "claimable-classification.json", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "importance": "CORE"},
+      {"id": "test-run", "path": "test-run.json", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "importance": "CORE"},
+      {"id": "test-summary", "path": "test-summary.json", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "importance": "CORE"}
+    ],
+    "required_chain_ids": ["claimable-classification", "test-run", "test-summary"],
+    "policy": {
+      "id": "artifact-publish-policy.v1",
+      "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  }
+}

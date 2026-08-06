@@ -71,6 +71,12 @@
     '[run-benchmark build-execution-plan]]
    [(symbol "resolver-sim.benchmark.content-registry-entry") '[build-entry]]
    [(symbol "resolver-sim.benchmark.signing") '[sign-hash]]
+   [(symbol "resolver-sim.benchmark.researcher-force-authorisation")
+    '[build-signed-decision build-signed-decision-v2
+      verify-signed-decision verify-signed-decision-v2
+      classify-decision-version decision-outcome-binding
+      complete-outcome-verified? position-outcome-root
+      authorisation-outcome-consistency]]
    [(symbol "resolver-sim.hash.canonical")
     '[hash-with-intent domain-hash domain-tags]]
    ;; Protocol-specific adapter — dynamically resolved at runtime
