@@ -144,6 +144,27 @@
          sort
          vec)))
 
+(defn- zone-by-id [id]
+  (first (filter #(= id (:zone/id %)) (:architecture/zones boundary-policy))))
+
+(defn- held-custody-extension-prefixes
+  "Namespace prefixes of the held-custody extension zone, derived from the
+   policy (the zone whose source roots live under extensions/), not hardcoded."
+  []
+  (let [ext-zone (first (filter (fn [z]
+                                  (some #(str/starts-with? % "extensions/")
+                                        (:source-roots z)))
+                                (:architecture/zones boundary-policy)))]
+    (set (:namespace-prefixes ext-zone))))
+
+(defn- approved-extension-dependency
+  "The exact (file, dependency) pair of the first approved bridge, derived from
+   the policy."
+  []
+  (let [{:keys [file dependency]} (first (:approved/extension-dependencies
+                                          boundary-policy))]
+    [(io/file file) dependency]))
+
 (deftest policy-defines-architecture-zones
   (testing "every zone has source roots and namespace prefixes"
     (let [zones (:architecture/zones boundary-policy)]
@@ -158,8 +179,7 @@
       (is (= zone-ids rule-ids)))))
 
 (deftest production-source-tree-is-covered
-  (let [core-zone (first (filter #(= :core (:zone/id %))
-                                 (:architecture/zones boundary-policy)))]
+  (let [core-zone (zone-by-id :core)]
     (is (= ["src"] (:source-roots core-zone)))
     (is (every? #(str/starts-with? (.getPath %) "src/")
                 (zone-source-files core-zone)))))
@@ -168,8 +188,7 @@
   (testing "every core source file must parse as Clojure forms so its
             dependencies can be fully scanned (an unreadable core file could
             hide an extension dependency)"
-    (let [core-zone (first (filter #(= :core (:zone/id %))
-                                   (:architecture/zones boundary-policy)))
+    (let [core-zone (zone-by-id :core)
           unreadable (->> (zone-source-files core-zone)
                           (remove file-readable-as-forms?)
                           (map #(.getPath %))
@@ -192,13 +211,14 @@
           (str "Disallowed cross-zone dependencies: " (pr-str offenders))))))
 
 (deftest core-never-depends-on-the-held-custody-extension
-  (let [core-zone (first (filter #(= :core (:zone/id %))
-                                 (:architecture/zones boundary-policy)))
+  (let [core-zone (zone-by-id :core)
+        ext-prefixes (held-custody-extension-prefixes)
         offenders (->> (zone-source-files core-zone)
                        (keep (fn [file]
                                (let [deps (file-dependencies boundary-policy file)
-                                     ext (filter #(str/starts-with?
-                                                   (dependency-ns %) "prf.extensions.held-custody")
+                                     ext (filter #(some (fn [p]
+                                                          (prefix-matches? p (dependency-ns %)))
+                                                        ext-prefixes)
                                                  deps)]
                                  (when (seq ext) [(.getPath file) (vec ext)]))))
                        (into (sorted-map)))]
@@ -240,8 +260,6 @@
 
 (deftest policy-exceptions-are-exact
   (testing "an approved bridge cannot approve another dependency in the same file"
-    (let [file (io/file "src/resolver_sim/benchmark/runner.clj")]
-      (is (approved-dependency? boundary-policy file
-                                "resolver-sim.protocols.sew/replay-with-sew-protocol"))
-      (is (not (approved-dependency? boundary-policy file
-                                     "resolver-sim.protocols.sew/another-entry"))))))
+    (let [[file dep] (approved-extension-dependency)]
+      (is (approved-dependency? boundary-policy file dep))
+      (is (not (approved-dependency? boundary-policy file (str dep "-other")))))))

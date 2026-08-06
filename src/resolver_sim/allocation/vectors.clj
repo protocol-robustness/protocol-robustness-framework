@@ -352,4 +352,4 @@
 
      (build-vector "a-vs-b-plus-c-lifecycle-malformed-token"
                    "Non-string round-state: fail closed to invalid, malformed round state."
-                   (lifecycle-variants 42))]))
+                   (assoc happy-with-committed "round-state" {"not" "a-token"}))]))
