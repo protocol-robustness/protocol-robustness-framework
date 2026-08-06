@@ -48,10 +48,11 @@
         :when (and (.isFile file) (str/ends-with? (.getName file) ".clj"))]
     file))
 
+(defn- core-zone []
+  (first (filter #(= :core (:zone/id %)) (:architecture/zones boundary-policy))))
+
 (defn- core-source-files []
-  (let [core-zone (first (filter #(= :core (:zone/id %))
-                                 (:architecture/zones boundary-policy)))]
-    (mapcat clojure-sources (:source-roots core-zone))))
+  (mapcat clojure-sources (:source-roots (core-zone))))
 
 (defn- read-forms [file]
   (with-open [reader (clojure.lang.LineNumberingPushbackReader. (io/reader file))]
@@ -132,26 +133,27 @@
                                found)]
           (is (empty? violations)
               (str "Unapproved " vocab-name " vocabulary in core: " (pr-str violations)))))
-      (testing (str "an approved " vocab-name " literal appearing in another core file fails")
-        ;; Artifact-kind/schema vocabulary is unique to a single frozen core file.
-        ;; Operation vocabulary may legitimately appear in multiple approved core
-        ;; files (e.g. protocol-neutral custody effects + the frozen legacy
-        ;; builder); cross-file operation usage is governed per-file by the
-        ;; unapproved check above.
-        (when (= :artifact family-key)
-          (let [by-literal (reduce (fn [m [path lits]]
-                                     (reduce (fn [m lit]
-                                               (update m lit (fnil conj []) path))
-                                             m lits))
-                                   {}
-                                   found)
-                spread (into (sorted-map)
-                             (keep (fn [[lit paths]]
-                                     (when (> (count paths) 1)
-                                       [lit (sort paths)])))
-                             by-literal)]
-            (is (empty? spread)
-                (str vocab-name " vocabulary spread across core files: " (pr-str spread))))))
+      (testing (str "cross-file " vocab-name " usage must be approved in every file it appears")
+        ;; Artifact-kind/schema vocabulary may legitimately be referenced by more
+        ;; than one core file (e.g. a reconciliation namespace classifying the
+        ;; frozen legacy world). A literal appearing in N files must be approved
+        ;; in ALL of them — otherwise the per-file unapproved check above fails.
+        (let [by-literal (reduce (fn [m [path lits]]
+                                   (reduce (fn [m lit]
+                                             (update m lit (fnil conj []) path))
+                                           m lits))
+                                 {}
+                                 found)]
+          (is (every? (fn [[lit files]]
+                        (every? #(contains? (approved-by-file % #{}) lit) files))
+                      by-literal)
+              (str vocab-name " vocabulary used without approval in every file: "
+                   (pr-str (into (sorted-map)
+                                 (keep (fn [[lit files]]
+                                         (when-not (every? #(contains? (approved-by-file % #{}) lit)
+                                                           files)
+                                           [lit files])))
+                                 by-literal))))))
       (testing (str vocab-name " approvals carry an allowed status; legacy entries require a replacement")
         (doseq [a approvals]
           (is (contains? allowed-statuses (:status a))

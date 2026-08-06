@@ -47,9 +47,11 @@
     (is (= (count ids) (count (distinct ids))))))
 
 (deftest vector-suite-matrix-is-stable
-  "Pin the full 14-vector table: vector id -> expected status -> classification.
+  "Pin the full 23-vector table: vector id -> expected status -> classification.
    Vectors 7 and 8 intentionally share outcome-not-exact-capacity, so 11
-   rejected vectors map to 10 distinct classifications."
+   rejected vectors map to 10 distinct classifications. The 9 lifecycle
+   vectors all keep the allocation verdict (passing here); the lifecycle
+   projection never changes the allocation pass/reject status."
   (let [expected
         {"a-vs-b-plus-c-happy-path" {:status :passing :classification nil}
          "a-vs-b-plus-c-claimant-order-permutation" {:status :passing :classification nil}
@@ -64,7 +66,16 @@
          "a-vs-b-plus-c-proportionality-failure" {:status :rejected :classification :proportionality-failure}
          "a-vs-b-plus-c-changed-authoritative-randomness" {:status :rejected :classification :selected-outcome-mismatch}
          "a-vs-b-plus-c-forged-expected-root" {:status :rejected :classification :claimant-set-root-mismatch}
-         "a-vs-b-plus-c-empty-outcome-set" {:status :rejected :classification :empty-outcome-set}}]
+         "a-vs-b-plus-c-empty-outcome-set" {:status :rejected :classification :empty-outcome-set}
+         "a-vs-b-plus-c-lifecycle-pre-cutpoint-open" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-cutpoint-randomness-requested" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-post-cutpoint-fulfilled" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-post-cutpoint-proposed" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-post-cutpoint-accepted" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-post-cutpoint-consumption" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-unknown-token" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-missing-token" {:status :passing :classification nil}
+         "a-vs-b-plus-c-lifecycle-malformed-token" {:status :passing :classification nil}}]
     (let [actual (into {}
                        (map (fn [v]
                               [(:vector_id v)
@@ -72,7 +83,7 @@
                                 :classification (get-in v [:expected :rejection/classification])}]))
                        (vectors/all-vectors))]
       (is (= expected actual)))
-    (is (= 14 (count expected)))
-    (is (= 3 (count (filter #(= :passing (:status (val %))) expected))))
+    (is (= 23 (count expected)))
+    (is (= 12 (count (filter #(= :passing (:status (val %))) expected))))
     (is (= 11 (count (filter #(= :rejected (:status (val %))) expected))))
     (is (= 10 (count (distinct (keep :classification (vals expected))))))))

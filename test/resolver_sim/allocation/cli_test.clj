@@ -42,7 +42,7 @@
     (is (zero? exit))
     (is (empty? err))
     (let [parsed (json/read-str out)]
-      (is (= 14 (count parsed)))
+      (is (= 23 (count parsed)))
       (is (= "allocation-kernel-vector.v1" (get (first parsed) "vector_version"))))))
 
 (deftest verify-proposal-rejects-trailing-positional-args

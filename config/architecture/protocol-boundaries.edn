@@ -157,6 +157,12 @@
                "force-auth-add-held-summary"}
    :reason "Frozen legacy force-auth-add-held reader and validator pending held-custody extension extraction"
    :status :legacy
+   :replacement :force-auth-held-custody-mutation}
+  {:file "src/resolver_sim/assurance/canonical_force_authorisation.clj"
+   :literals #{"force-auth-add-held"
+               "force-auth-add-held-summary"}
+   :reason "Protocol-independent reconciliation classifies the frozen legacy-evidence world by its artifact schema vocabulary; updated when the legacy world moves to the extension"
+   :status :legacy
    :replacement :force-auth-held-custody-mutation}]
 
  ;; ── core operation vocabulary approvals ────────────────────────────────────

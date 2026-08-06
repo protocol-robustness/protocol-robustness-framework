@@ -47,10 +47,15 @@
             forms
             (recur (conj forms form))))))))
 
+(defn- production-zone?
+  "A production zone is one whose source roots are not under the extensions/
+   layout — derived from the layout convention, not a hardcoded zone id."
+  [zone]
+  (every? #(not (str/starts-with? % "extensions/")) (:source-roots zone)))
+
 (defn- production-source-files []
-  (let [zones (:architecture/zones boundary-policy)
-        roots (mapcat :source-roots
-                      (filter #(not= :extension-held-custody (:zone/id %)) zones))]
+  (let [zones (filter production-zone? (:architecture/zones boundary-policy))
+        roots (mapcat :source-roots zones)]
     (for [root roots
           file (file-seq (io/file root))
           :when (and (.isFile file) (str/ends-with? (.getName file) ".clj"))]
