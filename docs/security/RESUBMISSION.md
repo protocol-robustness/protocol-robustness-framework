@@ -15,11 +15,35 @@ contract below is authoritative. The pure core is implemented and tested under
 | 6. acceptance-report binding | partial — `verify.clj` composes the report; receipt `:attempt-receipt/evaluation` block defined |
 | 7. CAS admission after golden vectors | golden vectors done; production transactional store deferred |
 | 8. transaction-ordering layer | done — `transaction/ordering.clj`, `transaction/protocol.clj`, `transition.clj`, `store.clj`; `chain.clj` is a facade; trace-equivalence tests |
+| 9. attempt-receipt issuance | done — `resubmission/issuance.clj` + out-of-process signer authority `prf resubmission issue` (`commands/resubmission_issue.clj`); independent transition re-derivation; attestation-after-commit |
 
-Remaining before enabling in the acceptance pipeline: receipt issuance inside
-the acceptance validator, historical policy/key stores, the Python/JVM
-equivalence for the new projections, a durable transactional backend behind
-`resolver-sim.transaction.protocol/transact!`, and a broader trace corpus.
+Remaining before enabling in the acceptance pipeline: historical policy/key
+stores, the Python/JVM equivalence for the new projections, a durable
+transactional backend behind `resolver-sim.transaction.protocol/transact!`, a
+broader trace corpus, and wiring the conditional resubmission-link artifact
+into `validate_artifact_registry.py`.
+
+## Receipt issuance
+
+The validator owns the mutable chain store; for each issuance it presents
+`state-before + command + ordering + candidate-receipt` to the out-of-process
+signer authority `prf resubmission issue` (key isolated via `PRF_VALIDATOR_KEY`,
+never in argv). The authority:
+
+1. verifies `:request/hash`;
+2. re-runs the pure transition over the presented pre-state — it must commit;
+3. verifies ordering integrity and that the action is
+   `:prf.resubmission/admit-child`;
+4. compares the derived `state-after-root` to the ordering's committed root;
+5. verifies the candidate receipt shape and its chain binding (admission
+   `:admitted`, ordering hash, sequence, parent);
+6. signs via attestation-after-commit (`receipt/sign-receipt` on the unsigned
+   projection — identity unchanged).
+
+Because the receipt id hashes the UNSIGNED projection, it is deterministic
+across validator keys and is locked as a golden vector. Full receipt persistence
+alongside the state, `:committed-receipt-pending` recovery, and moving the store
+into the authority remain deferred until a durable backend exists.
 
 ## Transaction-ordering layer
 

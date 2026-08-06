@@ -1,7 +1,8 @@
 (ns resolver-sim.benchmark.research-conclusion-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.research-conclusion :as rc]
-            [resolver-sim.benchmark.research-theorem-outcome :as rto]))
+            [resolver-sim.benchmark.research-theorem-outcome :as rto]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const minimal-conclusion
   {:conclusion/id :conclusion/quota-bounded-write-back
@@ -102,6 +103,105 @@
   (is (rc/valid-conclusion-status? :contested))
   (is (rc/valid-conclusion-status? :withdrawn))
   (is (not (rc/valid-conclusion-status? :bogus))))
+
+;; ── :withdrawn terminal-retraction semantics ────────────────────────────────
+
+(defn- withdrawn-input
+  "A :withdrawn conclusion carrying only premise/result and a retraction note."
+  []
+  (-> minimal-conclusion
+      (assoc :conclusion/status :withdrawn
+             :conclusion/scope {}
+             :conclusion/supporting-theorem-hashes []
+             :conclusion/qualifications
+             ["Retracted: the follow-up reproduction did not replicate the observed outcome."])))
+
+(deftest withdrawn-predicate
+  (let [c (rc/build-conclusion (withdrawn-input))]
+    (is (rc/withdrawn? c))
+    (is (not (rc/withdrawn? (rc/build-conclusion minimal-conclusion))))))
+
+(deftest build-withdrawn-allows-retraction-note
+  (let [c (rc/build-conclusion (withdrawn-input))]
+    (is (rc/conclusion-valid? c))
+    (is (rc/withdrawn? c))
+    (is (= 1 (count (:conclusion/qualifications c))))))
+
+(deftest build-withdrawn-rejects-scope
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"cannot carry :conclusion/scope"
+                        (rc/build-conclusion
+                         (assoc (withdrawn-input) :conclusion/scope {:cases 1})))))
+
+(deftest build-withdrawn-rejects-supporting-theorems
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                        #"cannot carry :conclusion/supporting-theorem-hashes"
+                        (rc/build-conclusion
+                         (assoc (withdrawn-input)
+                                :conclusion/supporting-theorem-hashes
+                                [(str "sha256:" (apply str (take 64 (cycle "33"))))])))))
+
+(deftest build-withdrawn-rejects-falsifiers
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                        #"cannot carry :conclusion/falsifiers"
+                        (rc/build-conclusion
+                         (assoc (withdrawn-input)
+                                :conclusion/falsifiers
+                                [{:falsifier/id :f1 :status :observed}])))))
+
+(deftest validate-withdrawn-with-note-valid
+  (let [c (rc/build-conclusion (withdrawn-input))]
+    (is (:valid? (rc/validate-conclusion c)))))
+
+(deftest validate-rejects-withdrawn-with-scope
+  (let [c (rc/build-conclusion (withdrawn-input))
+        tampered (assoc c :conclusion/scope {:cases 1})
+        result (rc/validate-conclusion tampered)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #"cannot carry :conclusion/scope" %) (:errors result)))))
+
+(deftest validate-rejects-withdrawn-with-supporting-theorems
+  (let [c (rc/build-conclusion (withdrawn-input))
+        tampered (assoc c :conclusion/supporting-theorem-hashes
+                        [(str "sha256:" (apply str (take 64 (cycle "44"))))])
+        result (rc/validate-conclusion tampered)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #"cannot carry :conclusion/supporting-theorem-hashes" %)
+              (:errors result)))))
+
+(deftest validate-rejects-withdrawn-with-falsifiers
+  (let [c (rc/build-conclusion (withdrawn-input))
+        tampered (assoc c :conclusion/falsifiers
+                        [{:falsifier/id :f1 :status :untested}])
+        result (rc/validate-conclusion tampered)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #"cannot carry :conclusion/falsifiers" %) (:errors result)))))
+
+(deftest withdrawn-does-not-overreach
+  (let [c (rc/build-conclusion (withdrawn-input))]
+    (is (not (rc/conclusion-overreaches? c))
+        "a withdrawn retraction is never an overreaching established claim")))
+
+(deftest collective-hash-excludes-withdrawn
+  (let [active (rc/build-conclusion minimal-conclusion)
+        withdrawn (rc/build-conclusion (withdrawn-input))]
+    (is (= (rc/conclusion-collective-hash [active])
+           (rc/conclusion-collective-hash [active withdrawn]))
+        "a withdrawn conclusion must not contribute to the collective root")))
+
+(deftest collective-hash-regression-all-active
+  (let [c1 (rc/build-conclusion minimal-conclusion)
+        c2 (rc/build-conclusion
+            (assoc minimal-conclusion
+                   :conclusion/id :conclusion/incentive-compatibility
+                   :conclusion/premise {:x "Different premise"}
+                   :conclusion/result {:y "Different result"}))
+        expected (str "sha256:"
+                      (hc/domain-hash :evidence-collection
+                                      {:type :conclusion-collection
+                                       :conclusion-hashes
+                                       (vec (sort (map :conclusion/hash [c1 c2])))}))]
+    (is (= expected (rc/conclusion-collective-hash [c1 c2]))
+        "all-active input must produce the unfiltered collective root (no hash churn)")))
 
 ;; ── Outcome hardening: falsifiers, overreach enforcement, support ─────────
 

@@ -74,6 +74,7 @@
    :ref-file 'resolver-sim.commands.ref-file/run
    :sentinel-check 'resolver-sim.commands.sentinel/run
    :publish-check 'resolver-sim.commands.publish/run
+   :resubmission-issue 'resolver-sim.commands.resubmission-issue/run
    :allocation-build-context 'resolver-sim.commands.allocation/build-context
    :allocation-verify-proposal 'resolver-sim.commands.allocation/verify-proposal
    :allocation-vectors 'resolver-sim.commands.allocation/vectors

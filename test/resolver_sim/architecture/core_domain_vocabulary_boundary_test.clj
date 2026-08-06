@@ -2,7 +2,7 @@
   "Policy-driven vocabulary guard for force-authorisation held-custody
    vocabulary in core.
 
-   Two vocabulary families are guarded, each with its own exact per-file
+   Three vocabulary families are guarded, each with its own exact per-file
    approval policy:
 
    :approved/core-domain-literals      — artifact/schema family: artifact kinds,
@@ -12,12 +12,18 @@
    :approved/core-operation-literals   — operation family: exact :add-held /
                                          :sub-held / :finalize-released /
                                          :refund-held keywords and strings.
+   :approved/core-status-literals     — status family: the exact status terms
+                                         in :architecture/status-vocabulary
+                                         (:state-after, :state-after-root,
+                                         :stablecoin, :add-held,
+                                         :add-held-kind), matched by name like
+                                         the artifact family.
 
    The guard reads parsed Clojure forms (comments are not forms; docstring
    slots of def/defn/defmacro are excluded), so English prose and unrelated
    keywords (e.g. :finalize/sub-held-amount, :held-custody-position-isolation
    claim ids) are out of scope. It permits only exact frozen-legacy entries;
-   Phase 6 acceptance: both approval lists are empty for held-custody
+   Phase 6 acceptance: the approval lists are empty for held-custody
    vocabulary."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
@@ -42,6 +48,12 @@
    :architecture/operation-vocabulary policy — never hardcoded."
   (let [ops (get boundary-policy :architecture/operation-vocabulary #{})]
     (into ops (map name ops))))
+
+(def status-vocab-names
+  "Status vocabulary names (keyword names + string/symbol spellings), derived
+   from the :architecture/status-vocabulary policy — never hardcoded."
+  (let [sv (get boundary-policy :architecture/status-vocabulary #{})]
+    (into #{} (map name) sv)))
 
 (defn- clojure-sources [root]
   (for [file (file-seq (io/file root))
@@ -80,18 +92,24 @@
 (defn- operation-vocab? [x]
   (contains? operation-vocab-set x))
 
+(defn- status-vocab? [x]
+  (and (or (keyword? x) (symbol? x) (string? x))
+       (contains? status-vocab-names (literal-name x))))
+
 (defn- relevant-literal? [x]
-  (or (artifact-vocab? x) (operation-vocab? x)))
+  (or (artifact-vocab? x) (operation-vocab? x) (status-vocab? x)))
 
 (defn- collect-literals
   "Collect relevant literals from a form, excluding docstring slots of
-   def/defn/defmacro. Returns {:artifact <set> :operation <set>}."
+   def/defn/defmacro. Each literal is classified into every family it belongs
+   to. Returns {:artifact <set> :operation <set> :status <set>}."
   [form]
   (letfn [(walk [acc f]
             (cond
-              (relevant-literal? f) (update acc
-                                            (if (operation-vocab? f) :operation :artifact)
-                                            conj f)
+              (relevant-literal? f) (cond-> acc
+                                      (artifact-vocab? f) (update :artifact conj f)
+                                      (operation-vocab? f) (update :operation conj f)
+                                      (status-vocab? f) (update :status conj f))
               (seq? f)
               (let [head (first f)]
                 (if (contains? '#{def defn defmacro} head)
@@ -101,14 +119,15 @@
                   (reduce walk acc (rest f))))
               (coll? f) (reduce walk acc (seq f))
               :else acc))]
-    (walk {:artifact #{} :operation #{}} form)))
+    (walk {:artifact #{} :operation #{} :status #{}} form)))
 
 (defn- file-literals [file]
   (reduce (fn [acc m]
             (-> acc
                 (update :artifact into (:artifact m))
-                (update :operation into (:operation m))))
-          {:artifact #{} :operation #{}}
+                (update :operation into (:operation m))
+                (update :status into (:status m))))
+          {:artifact #{} :operation #{} :status #{}}
           (map collect-literals (read-forms file))))
 
 (defn- approvals-by-file [approvals]
@@ -118,6 +137,8 @@
   (doseq [[approvals-key family-key vocab-name allowed-statuses]
           [[:approved/core-domain-literals :artifact "artifact/schema" #{:legacy}]
            [:approved/core-operation-literals :operation "operation"
+            #{:legacy :protocol-neutral}]
+           [:approved/core-status-literals :status "status"
             #{:legacy :protocol-neutral}]]]
     (let [approvals (get boundary-policy approvals-key [])
           approved-by-file (approvals-by-file approvals)

@@ -16,7 +16,7 @@
 
 (deftest bound-sequence-carries-the-contract
   (let [b (seq/bound-sequence {:purpose :evidence-content} [1 "a" :b])]
-    (is (= "canonical-value-sequence.v1" (:encoding-contract b)))
+    (is (= seq/sequence-contract (:encoding-contract b)))
     (is (= :evidence-content (:purpose b)))
     (is (= 3 (:component-count b)))
     (is (= [1 "a" :b] (:components b)))))
@@ -95,7 +95,7 @@
                      (seq/canonical-sequence-bytes {:purpose :a} [1 2 3])))
         "the bound sequence is likewise distinct from a vector value")
     (is (not (bytes= (hc/canonical-bytes [1 2 3])
-                     (hc/canonical-bytes {:encoding-contract "canonical-value-sequence.v1"
+                     (hc/canonical-bytes {:encoding-contract seq/sequence-contract
                                           :purpose :a :component-count 3
                                           :components [1 2 3]}))))))
 
@@ -110,7 +110,7 @@
         decoded (fv/decode-one ba 0)
         m (:value decoded)]
     (is (= :map (:tag-name decoded)))
-    (is (= "canonical-value-sequence.v1" (:encoding-contract m)))
+    (is (= seq/sequence-contract (:encoding-contract m)))
     (is (= :a (:purpose m)))
     (is (= 3 (:component-count m)))
     (is (= [1 "x" :k] (:components m)))))
@@ -131,14 +131,14 @@
     (is (empty? (:errors r)))))
 
 (deftest verify-sequence-commitment-rejects-inconsistent-count
-  (let [m {:encoding-contract "canonical-value-sequence.v1"
+  (let [m {:encoding-contract seq/sequence-contract
            :purpose :a :component-count 2 :components [1]}
         r (seq/verify-sequence-commitment (hc/canonical-bytes m))]
     (is (not (:valid? r)))
     (is (some #(re-find #"does not match" %) (:errors r)))))
 
 (deftest verify-sequence-commitment-rejects-non-keyword-purpose
-  (let [m {:encoding-contract "canonical-value-sequence.v1"
+  (let [m {:encoding-contract seq/sequence-contract
            :purpose "a" :component-count 1 :components [1]}
         r (seq/verify-sequence-commitment (hc/canonical-bytes m))]
     (is (not (:valid? r)))
@@ -155,6 +155,33 @@
   (let [r (seq/verify-sequence-commitment (hc/canonical-bytes [1 2 3]))]
     (is (not (:valid? r)))
     (is (some #(re-find #"not a map" %) (:errors r)))))
+
+(deftest verify-sequence-commitment-rejects-extra-key
+  (let [m {:encoding-contract seq/sequence-contract
+           :purpose :a :component-count 1 :components [1] :evil :x}
+        r (seq/verify-sequence-commitment (hc/canonical-bytes m))]
+    (is (not (:valid? r)))
+    (is (some #(re-find #"not a fixed point" %) (:errors r)))))
+
+(deftest verify-sequence-commitment-rejects-trailing-bytes
+  (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1 2])
+        trailing (byte-array (conj (vec ba) 0x00))
+        r (seq/verify-sequence-commitment trailing)]
+    (is (not (:valid? r)))
+    (is (some #(re-find #"trailing byte" %) (:errors r)))))
+
+(deftest verify-sequence-commitment-rejects-non-canonical-encoding
+  (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1])
+        idx (loop [i 0]
+              (if (and (= 0x10 (get ba i)) (= 0x02 (get ba (inc i))))
+                i
+                (recur (inc i))))
+        ;; a non-minimal varint for the component-count: 0x10 0x82 0x00
+        noncanonical (byte-array (concat (take idx ba) [0x10 0x82 0x00]
+                                         (drop (+ idx 2) ba)))
+        r (seq/verify-sequence-commitment noncanonical)]
+    (is (not (:valid? r)))
+    (is (some #(re-find #"canonical fixed point" %) (:errors r)))))
 
 (deftest verify-sequence-commitment-round-trips-hash
   (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1 "x" :k])

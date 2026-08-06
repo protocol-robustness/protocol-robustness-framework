@@ -35,10 +35,12 @@
                                                         :parent-rejection-not-final /
                                                         :parent-rejection-not-resubmittable
      6. current-head check                         -> :rejected :parent-not-current-head
-     7. successor existence                        -> :rejected :parent-already-has-successor
-     8. sequence validation                        -> :rejected :sequence-gap / :sequence-regression
-     9. cycle validation                           -> :rejected :cycle-detected
-     10. commit contention (expected chain version)-> :rejected :commit-contention"
+      7. successor existence                        -> :rejected :parent-already-has-successor
+      8. sequence validation                        -> :rejected :sequence-gap / :sequence-regression
+      9. child already committed under another
+         parent (prior-state integrity)             -> :rejected :receipt-already-committed
+      9b. cycle validation                          -> :rejected :cycle-detected
+      10. commit contention (expected chain version)-> :rejected :commit-contention"
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.resubmission.receipt :as receipt]))
 
@@ -211,7 +213,13 @@
       {:status :rejected :reason :sequence-gap
        :public-result {:sequence sequence :expected expected-seq}}
 
-      ;; 9. cycle
+      ;; 9. child identity already committed under another parent (prior-state
+      ;;    integrity): re-admitting an existing receipt hash would overwrite its
+      ;;    prior parent/sequence and fork the chain.
+      (contains? (:chain/attempt-receipts state) child-receipt-hash)
+      {:status :rejected :reason :receipt-already-committed}
+
+      ;; 9b. cycle
       (= child-receipt-hash parent-receipt-hash)
       {:status :rejected :reason :cycle-detected}
 

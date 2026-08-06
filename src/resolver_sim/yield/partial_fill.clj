@@ -594,7 +594,7 @@
                      extra)
          decision-hash (str "sha256:"
                             (hc/hash-with-intent {:hash/intent :evidence-record}
-                                                 base))]
+                                                 (hc/project-committable-content base)))]
      (assoc base
             :decision/id (str "partial-fill-" (subs decision-hash 7 (min (count decision-hash) 23)))
             :decision/hash decision-hash
@@ -609,7 +609,8 @@
   [decision]
   (= (:decision/hash decision)
      (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                         (dissoc decision :decision/id :decision/hash :decision/preimage)))))
+                                         (hc/project-committable-content
+                                          (dissoc decision :decision/id :decision/hash :decision/preimage))))))
 
 (defn attach-decision-artifact
   "Attach a partial-fill decision artifact to world state under a stable map."
@@ -636,6 +637,38 @@
   [application]
   (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
                                       (application-hash-preimage application))))
+
+(defn ledger-run-root
+  "Content-addressed root of the exact execution context a withdrawal ledger is
+   bound to: run id, execution id, scenario id, and a root over the world
+   parameters (policy/config context).
+
+   Committing this root (rather than bare identifiers) turns the ledger claim
+   from 'these withdrawals belong to run X / execution Y' into 'these
+   withdrawals occurred in this exact execution world' — the world-level analog
+   of a benchmark run-root."
+  [world]
+  (application-hash
+   {:schema-version "withdrawal-run-root.v1"
+    :run/id (:run/id world)
+    :execution/id (:execution/id world)
+    :scenario/id (get-in world [:params :scenario-id])
+    :params-root (application-hash (or (:params world) {}))}))
+
+(defn ledger-request-set-root
+  "Content-addressed root of the withdrawal subject: the distinct principals and
+   their requested amounts.
+
+   Order-independent by construction (sorted) because request-set identity does
+   not depend on FCFS processing order. It distinguishes one withdrawal from
+   another within the same run/execution, so a ledger from a different
+   withdrawal cannot be substituted in merely because the enclosing run matches."
+  [owner-ids rows]
+  (application-hash
+   {:schema-version "withdrawal-request-set.v1"
+    :owner-ids (vec (sort owner-ids))
+    :requests (vec (sort-by (juxt :owner-id :requested)
+                            (map #(select-keys % [:owner-id :requested]) rows)))}))
 
 (defn- normalize-entry
   "Normalize an accounting entry to a sorted map for deterministic

@@ -151,17 +151,28 @@
      :purpose          is a keyword
      :component-count  is a non-negative integer equal to (count :components)
      :components       is a vector
+     the map has exactly the four contract keys (bound-sequence emits no other
+     fields, so any extra key means the commitment is not a fixed point)
+     the byte array decodes to exactly one commitment (no trailing bytes)
+     the byte stream is canonical (no decoder :issues such as non-minimal
+     varints or out-of-order map keys), so re-encoding reproduces the bytes
 
    A hand-crafted or corrupted map that disagrees with the contract (for
-   example :component-count 2 with :components [1]) frames as canonical bytes
-   but is rejected here.
+   example :component-count 2 with :components [1], an extra key, trailing
+   bytes after the value, or a non-minimal/non-canonical encoding) frames as
+   canonical bytes but is rejected here.
 
    Returns {:valid? bool :value (decoded map | nil) :errors [string]}.
    Decoder resource limits (depth/payload) are inherited from framing-view."
   [^bytes ba]
   (try
-    (let [value (:value (fv/decode-one ba 0))
+    (let [decoded (fv/decode-one ba 0)
+          value (:value decoded)
           errors (atom [])]
+      (when (seq (:issues decoded))
+        (swap! errors conj (str "commitment is not a canonical fixed point: decoder "
+                                "reported " (count (:issues decoded)) " issue(s): "
+                                (pr-str (mapv :code (:issues decoded))))))
       (when-not (map? value)
         (swap! errors conj (str "decoded commitment is not a map: " (type value))))
       (when (map? value)
@@ -180,7 +191,20 @@
             (swap! errors conj (str ":components must be a vector, got " (type cs))))
           (when (and (integer? n) (vector? cs) (not= n (count cs)))
             (swap! errors conj (str ":component-count " n " does not match component count "
-                                    (count cs))))))
+                                    (count cs)))))
+        (when-not (= #{:encoding-contract :purpose :component-count :components}
+                     (set (keys value)))
+          (swap! errors conj (str "commitment is not a fixed point of bound-sequence: "
+                                  "unexpected keys "
+                                  (pr-str (vec (sort-by pr-str (remove #{:encoding-contract
+                                                                         :purpose
+                                                                         :component-count
+                                                                         :components}
+                                                                       (keys value)))))))))
+      (when-not (= (count ba) (:next decoded))
+        (swap! errors conj (str "commitment carries " (- (count ba) (:next decoded))
+                                " trailing byte(s); the value must decode to the entire "
+                                "byte array")))
       {:valid? (empty? @errors) :value (when (empty? @errors) value) :errors @errors})
     (catch Exception e
       {:valid? false :value nil

@@ -23,7 +23,8 @@
   This namespace is protocol-independent (no Sew import) and provides pure data
   classification only; it does not re-implement either world."
   (:require [clojure.set]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [resolver-sim.hash.canonical :as hc]))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Canonical profile (D1 / D4)
@@ -604,6 +605,41 @@
   "The binding keys absent from a committed cancellation decision map."
   [binding]
   (vec (clojure.set/difference cancellation-binding-fields (set (keys binding)))))
+
+(defn- project-cancellation-binding
+  "Project a committed cancellation binding into canonical-safe form.  Sets
+   (e.g. the :cancellation/effects vocabulary) become sorted vectors so the
+   binding can be content-addressed by the strict encoder, which rejects sets."
+  [binding]
+  (letfn [(walk [v]
+            (cond
+              (set? v) (vec (sort-by pr-str (map walk v)))
+              (map? v) (into {} (map (fn [[k val]] [k (walk val)]) v))
+              (vector? v) (mapv walk v)
+              :else v))]
+    (walk binding)))
+
+(defn cancellation-binding-hash
+  "Content hash of a committed cancellation binding (contract 7 whole-outcome
+   binding).  Requires every `cancellation-binding-fields` key to be present,
+   projects set values (e.g. :cancellation/effects) to sorted vectors, and
+   commits the exact binding fields via canonical-bytes under the
+   :cancellation-binding domain.  Returns \"sha256:<hex>\"."
+  [binding]
+  (when-not (cancellation-binding-complete? binding)
+    (throw (ex-info "cannot content-hash an incomplete cancellation binding"
+                    {:missing (missing-cancellation-binding-fields binding)})))
+  (str "sha256:" (hc/domain-hash :cancellation-binding
+                                 (project-cancellation-binding
+                                  (select-keys binding cancellation-binding-fields)))))
+
+(defn cancellation-binding-hash-valid?
+  "True when the committed :cancellation/binding-hash recomputes from the
+   binding's exact binding-fields projection."
+  [binding]
+  (and (cancellation-binding-complete? binding)
+       (= (:cancellation/binding-hash binding)
+          (cancellation-binding-hash (dissoc binding :cancellation/binding-hash)))))
 
 (def cancellation-operations
   "Contract 1 taxonomy of cancellation-adjacent operations. Only an EXPLICIT

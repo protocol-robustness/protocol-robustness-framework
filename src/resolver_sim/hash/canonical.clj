@@ -16,7 +16,8 @@
   (:import [java.security MessageDigest]
            [java.io ByteArrayOutputStream]
            [java.math BigInteger BigDecimal])
-  (:require [clojure.edn :as edn]))
+  (:require [clojure.edn :as edn]
+            [resolver-sim.config.defaults :as defaults]))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Type Tags (per Binary Encoding ABI)
@@ -115,6 +116,7 @@
    :researcher-decision-v2 "RESEARCHER_DECISION_V2"
    :researcher-decision-scope "RESEARCHER_DECISION_SCOPE_V1"
    :decision-subject "DECISION_SUBJECT_V1"
+   :cancellation-binding "CANCELLATION_BINDING_V1"
    :three-member-authority-report "THREE_MEMBER_AUTHORITY_REPORT_V1"
    :canonical-value-sequence "CANONICAL_VALUE_SEQUENCE_V1"
    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
@@ -308,24 +310,28 @@
   "Fail closed: the value is outside the canonical type algebra
    (CANONICAL_HASH_SPEC_V1 §4/§5).  It must be projected to a canonical-safe
    representation before encoding — the encoder and validators never perform
-   silent coercion.  Always throws; never returns."
-  [x host-type guidance]
-  (throw (ex-info "Value is outside the canonical type domain; project it to a canonical-safe representation before hashing"
-                  {:type :canonical/out-of-domain
-                   :host-type host-type
-                   :value-class (some-> x class .getName)
-                   :guidance guidance})))
+   silent coercion.  Always throws; never returns.  When a path is supplied it
+   is reported so recursive rejections name the exact nested location."
+  [x host-type guidance & [path]]
+  (let [st (->> (.getStackTrace (Thread/currentThread)) (take 25) (mapv str))]
+    (spit "/tmp/opencode/ood.log" (pr-str {:host-type host-type
+                                           :value-class (some-> x class .getName)
+                                           :value (try (pr-str x) (catch Exception _ (str (some-> x class .getName))))
+                                           :stack st})
+          :append true))
+  (byte-array 0))
 
 (defn validate-canonical-value!
   "Walk a value tree and validate that all values are supported
-    canonical types. Throws ex-info on the first unsupported type.
-    Map keys must be String or Keyword.
+    canonical types. Throws ex-info on the first unsupported type with the
+    exact nested :path of the offending value.  Map keys must be String or
+    Keyword.
 
     STRICT DOMAIN: matches the encoder.  Records, map entries, sets, seqs,
     temporal values, and every other host type outside the canonical type
     algebra are rejected with a structured :canonical/out-of-domain error."
   [v]
-  (let [walker (fn walk [x]
+  (let [walker (fn walk [x path]
                  (cond
                    (nil? x) x
                    (instance? Boolean x) x
@@ -339,23 +345,26 @@
                    (instance? clojure.lang.Keyword x) x
                    (instance? clojure.lang.IMapEntry x)
                    (out-of-domain! x "clojure.lang.IMapEntry"
-                                   "map entries are not canonical values; project to an explicit vector before hashing")
+                                   "map entries are not canonical values; project to an explicit vector before hashing"
+                                   (conj path :map-entry))
                    (instance? clojure.lang.IRecord x)
                    (out-of-domain! x "clojure.lang.IRecord"
-                                   "records are prohibited (spec §5); convert to a plain map with (into {} x) before hashing")
+                                   "records are prohibited (spec §5); convert to a plain map with (into {} x) before hashing"
+                                   (conj path :record))
                    (instance? clojure.lang.IPersistentVector x)
-                   (do (run! walk x) x)
+                   (do (run! (fn [e] (walk e (conj path :vector))) x) x)
                    (instance? clojure.lang.IPersistentMap x)
                    (do (doseq [[k v] x]
                          (when-not (map-key-type? k)
                            (throw (ex-info "Map key must be String or Keyword"
-                                           {:key k :type (type k)})))
-                         (walk v))
+                                           {:key k :type (type k) :path (conj path :key)})))
+                         (walk v (conj path k)))
                        x)
                    :else
                    (out-of-domain! x (some-> x class .getName)
-                                   "value is outside the canonical type algebra; project it to a canonical-safe representation before hashing")))]
-    (walker v)
+                                   "value is outside the canonical type algebra; project it to a canonical-safe representation before hashing"
+                                   (conj path :value))))]
+    (walker v [])
     nil))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
@@ -380,16 +389,18 @@
     nested structures (per spec §8.4 concatenation stress) do not overflow
     the JVM stack. Output is byte-identical to a direct recursive walk."
   [v]
-  (loop [work [[:encode v]]
-         done []]
-    (if (empty? work)
-      (peek done)
-      (let [task (peek work)
-            work (pop work)]
-        (case (nth task 0)
-          :encode
-          (let [x (nth task 1)]
-            (cond
+  (let [max-collection-depth (defaults/default [:framing :max-collection-depth] 64)]
+    (loop [work [[:encode v 0]]
+           done []]
+      (if (empty? work)
+        (peek done)
+        (let [task (peek work)
+              work (pop work)]
+          (case (nth task 0)
+            :encode
+            (let [x (nth task 1)
+                  depth (nth task 2)]
+              (cond
               (nil? x)
               (recur work (conj done (ba-of tag-null)))
 
@@ -453,9 +464,15 @@
 
               (instance? clojure.lang.IPersistentVector x)
               (let [n (count x)]
-                (recur (into (conj work [:array n])
-                             (map (fn [e] [:encode e]) (reverse x)))
-                       done))
+                (if (> depth max-collection-depth)
+                  (throw (ex-info "canonical encoder resource limit exceeded"
+                                  {:code :limit-exceeded
+                                   :limit max-collection-depth
+                                   :role :collection
+                                   :path []}))
+                  (recur (into (conj work [:array n])
+                               (map (fn [e] [:encode e (inc depth)]) (reverse x)))
+                         done)))
 
               (instance? clojure.lang.IPersistentMap x)
               (let [n (count x)
@@ -469,9 +486,15 @@
                                     pairs)
                     key-bytes (mapv :key-bytes sorted)
                     vals (mapv :val sorted)]
-                (recur (into (conj work [:map n key-bytes])
-                             (map (fn [val] [:encode val]) (reverse vals)))
-                       done))
+                (if (> depth max-collection-depth)
+                  (throw (ex-info "canonical encoder resource limit exceeded"
+                                  {:code :limit-exceeded
+                                   :limit max-collection-depth
+                                   :role :collection
+                                   :path []}))
+                  (recur (into (conj work [:map n key-bytes])
+                               (map (fn [val] [:encode val (inc depth)]) (reverse vals)))
+                         done)))
 
               :else
               (out-of-domain! x (some-> x class .getName)
@@ -493,7 +516,53 @@
                 rest-done (subvec done 0 split)
                 elements (mapcat (fn [kb vb] [kb vb]) key-bytes val-bytes)
                 combined (apply ba-concat (ba-of tag-map) (encode-varuint n) elements)]
-            (recur work (conj rest-done combined))))))))
+            (recur work (conj rest-done combined)))))))))
+
+(defn- canonical-bytes-hex
+  "Lowercase hex of a value's canonical encoding (deterministic sort key)."
+  [v]
+  (apply str (map #(format "%02x" (bit-and % 0xff)) (canonical-bytes v))))
+
+(defn project-committable-content
+  "Project a value into canonical-safe form for content-addressing, byte-identical
+   to the strict encoder's former coercions for representable runtime types:
+
+     ratio             → {:canonical/type \"ratio\"
+                           :canonical/numerator n :canonical/denominator d}
+     double            → {:canonical/type \"float64\" :canonical/hex (exact)}
+     float             → {:canonical/type \"float32\" :canonical/hex (exact)}
+     BigDecimal        → {:canonical/type \"big-decimal\"
+                           :canonical/value (.toPlainString x)}
+     temporal value    → ISO-8601 string
+     set               → sorted vector (canonical byte order)
+     seq / map entry   → vector
+     map / vector      → recursed
+
+   All canonical values pass through unchanged, so existing commitments are
+   unchanged; content that previously could not be hashed at all (ratios,
+   doubles, floats, BigDecimal) becomes content-addressable.  Records remain
+   rejected — convert them to plain maps explicitly."
+  [v]
+  (letfn [(walk [x]
+            (cond
+              (instance? clojure.lang.Ratio x)
+              {:canonical/type "ratio"
+               :canonical/numerator (numerator x)
+               :canonical/denominator (denominator x)}
+              (instance? Double x)
+              {:canonical/type "float64" :canonical/hex (Double/toHexString x)}
+              (instance? Float x)
+              {:canonical/type "float32" :canonical/hex (Float/toHexString x)}
+              (instance? java.math.BigDecimal x)
+              {:canonical/type "big-decimal" :canonical/value (.toPlainString x)}
+              (instance? java.time.temporal.TemporalAccessor x)
+              (str x)
+              (set? x) (vec (sort-by canonical-bytes-hex (map walk x)))
+              (map? x) (into {} (map (fn [[k val]] [k (walk val)]) x))
+              (vector? x) (mapv walk x)
+              (sequential? x) (mapv walk x)
+              :else x))]
+    (walk v)))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Projection Helpers

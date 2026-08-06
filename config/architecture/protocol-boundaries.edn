@@ -169,6 +169,12 @@
                :force-auth-add-held-summary}
    :reason "Sensitivity sentinel classifies frozen legacy force-auth add-held evidence as remote-authority-required; updated when the legacy world moves to the extension"
    :status :legacy
+   :replacement :force-auth-held-custody-mutation}
+  {:file "src/resolver_sim/evidence/artifact.clj"
+   :literals #{"force-auth-add-held.v1"
+               "force-auth-add-held-summary.v1"}
+   :reason "Neutral artifact namespace lists frozen legacy add-held schema versions as unsupported-frozen-legacy modes pending held-custody extension extraction"
+   :status :legacy
    :replacement :force-auth-held-custody-mutation}]
 
  ;; ── core operation vocabulary approvals ────────────────────────────────────
@@ -192,7 +198,41 @@
    :status :legacy
    :replacement :force-auth-held-custody-mutation}]
 
- ;; ── no-new-legacy-production gate ──────────────────────────────────────────
+  ;; ── core status vocabulary approvals ───────────────────────────────────────
+  ;; Status vocabulary (name-matched, like the artifact family): the exact
+  ;; status terms in :architecture/status-vocabulary that appear in core
+  ;; source. Entries mirror the operation-family convention — legacy
+  ;; held-custody statuses (:add-held / add-held-kind) require a :replacement;
+  ;; domain-neutral statuses (:state-after-root) are :protocol-neutral.
+  :approved/core-status-literals
+  [{:file "src/resolver_sim/evidence/force_authorisation.clj"
+    :literals #{"add-held" add-held-kind}
+    :reason "Frozen legacy force-auth add-held status vocabulary (held action and held kind) pending held-custody extension extraction"
+    :status :legacy
+    :replacement :force-auth-held-custody-mutation}
+   {:file "src/resolver_sim/sensitivity/sentinel.clj"
+    :literals #{:add-held "add-held"}
+    :reason "Sensitivity sentinel classifies the held add-held action as remote-authority-required"
+    :status :legacy
+    :replacement :force-auth-held-custody-mutation}
+   {:file "src/resolver_sim/economics/effects.clj"
+    :literals #{"add-held"}
+    :reason "Protocol-neutral custody-held-adjustment effect emits the add-held held action"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/resubmission/store.clj"
+    :literals #{:transaction/state-after-root state-after-root}
+    :reason "Domain-neutral transaction-ordering state-after-root in the resubmission store projection"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/transaction/ordering.clj"
+    :literals #{:transaction/state-after-root}
+    :reason "Domain-neutral transaction-ordering state-after-root in the generic ordering primitive's required-fields contract"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/notebook_support/trust_boundary.clj"
+    :literals #{:state-after-root}
+    :reason "Domain-neutral state-after-root field in the trust-boundary projection"
+    :status :protocol-neutral}]
+
+  ;; ── no-new-legacy-production gate ──────────────────────────────────────────
  ;; Phase 3A entry gate. Forbidden vars are legacy held-custody CONSTRUCTORS /
  ;; emitters (builders and summary builders). References to them from
  ;; production source roots (src, protocols_src) outside exact approved
@@ -233,10 +273,13 @@
  :architecture/operation-vocabulary
  #{:add-held :sub-held :finalize-released :refund-held}
 
- :architecture/artifact-vocabulary-prefixes
- #{"force-auth-add-held" "force-auth-held-custody"}
+  :architecture/artifact-vocabulary-prefixes
+  #{"force-auth-add-held" "force-auth-held-custody"}
 
- :rules [{:id :framework-does-not-depend-on-protocol-implementations
+  :architecture/status-vocabulary
+  #{:state-after :state-after-root :stablecoin :add-held :add-held-kind :cancellation}
+
+  :rules [{:id :framework-does-not-depend-on-protocol-implementations
           :description "Every src production namespace is scanned. Direct require/use/import and literal namespace-resolution references to extension prefixes fail unless an exact reviewed bridge is configured."}
          {:id :extension-depends-on-framework
           :description "Protocol and evidence extensions may depend on framework interfaces and registries; framework code must not introduce named extension dependencies."}

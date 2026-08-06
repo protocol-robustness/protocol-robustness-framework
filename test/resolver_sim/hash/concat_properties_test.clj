@@ -19,7 +19,8 @@
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.sequence :as seq])
   (:import [java.util Arrays]))
 
 (defn- bytes=
@@ -252,13 +253,76 @@
     (is (bytes= (concat-bytes (map hc/canonical-bytes ["a" 1 :b]))
                 (concat-bytes (map hc/canonical-bytes ["a" 1 :b]))))))
 
+(def prop-typed-injectivity
+  "Typed injectivity over the ACCEPTED canonical domain:
+
+     (= x y)  ⟺  (bytes= (encode x) (encode y))
+
+   Clojure = restricted to canonical values IS the typed equality used here:
+   integer widths (1 and 1N) are declared equivalent; vectors/maps compare
+   structurally; keywords are distinct from strings.  Sets, seqs, records,
+   map entries, and temporal values are outside the domain and can never
+   reach the encoder, so they cannot defeat the equality (see the rejection
+   tests below)."
+  (prop/for-all [[x y] (gen/tuple gen-value gen-value)]
+                (let [same? (= x y)
+                      same-bytes? (bytes= (hc/canonical-bytes x)
+                                          (hc/canonical-bytes y))]
+                  (= same? same-bytes?))))
+
+(deftest test-typed-injectivity-edges
+  (testing "integer widths are equivalent canonical integers"
+    (is (bytes= (hc/canonical-bytes 1) (hc/canonical-bytes (bigint 1))))
+    (is (bytes= (hc/canonical-bytes 1) (hc/canonical-bytes (java.math.BigInteger. "1")))))
+  (testing "keywords are distinct from strings"
+    (is (not (bytes= (hc/canonical-bytes :active) (hc/canonical-bytes "active")))))
+  (testing "distinct vectors and maps produce distinct bytes"
+    (is (not (bytes= (hc/canonical-bytes [1 2]) (hc/canonical-bytes [2 1]))))
+    (is (not (bytes= (hc/canonical-bytes {:a 1}) (hc/canonical-bytes {:a 2}))))
+    (is (not (bytes= (hc/canonical-bytes {:a 1}) (hc/canonical-bytes {:b 1}))))))
+
+(def out-of-domain-samples
+  "One representative value per out-of-domain host type."
+  [[#(hash-set :a :b) "IPersistentSet"]
+   [(fn [] (list 1 2)) "ISeq"]
+   [(fn [] (first {:a 1})) "IMapEntry"]
+   [(fn [] (java.time.Instant/ofEpochSecond 0)) "TemporalAccessor"]])
+
+(deftest test-out-of-domain-rejection-everywhere
+  (testing "every public commitment boundary rejects out-of-domain values with
+            a structured error — no value outside the canonical algebra
+            produces commitment bytes"
+    (let [rejects? (fn [f x]
+                     (try (f x) false (catch clojure.lang.ExceptionInfo e
+                                        (= :canonical/out-of-domain (:type (ex-data e))))))]
+      (doseq [[make _] out-of-domain-samples]
+        (let [x (make)]
+          (is (rejects? hc/canonical-bytes x)
+              (str "canonical-bytes rejects " (type x)))
+          (is (rejects? hc/validate-canonical-value! x)
+              (str "validate-canonical-value! rejects " (type x)))
+          (is (rejects? #(seq/sequence-hash {:purpose :p} [%]) x)
+              (str "sequence-hash rejects " (type x))))))))
+
+(deftest test-recursive-rejection-reports-nested-path
+  (let [nested {:a [1 {:b #{"in"}}]}]
+    (try
+      (hc/validate-canonical-value! nested)
+      (is false "should have thrown")
+      (catch clojure.lang.ExceptionInfo e
+        (let [d (ex-data e)]
+          (is (= :canonical/out-of-domain (:type d)))
+          (is (= [:a :vector :b :value] (vec (:path d)))
+              "the exact nested path of the offending set is reported"))))))
+
 (deftest test-decodeability-properties
   (doseq [[name p] {:roundtrip prop-roundtrip
                     :sequence-decode prop-sequence-decode
                     :distinct-sequences prop-distinct-sequences
                     :prefix-free prop-prefix-free
                     :framing prop-framing
-                    :consecutive-injective prop-consecutive-injective}]
+                    :consecutive-injective prop-consecutive-injective
+                    :typed-injectivity prop-typed-injectivity}]
     (let [result (tc/quick-check 200 p)]
       (is (:pass? result)
           (str name " failed: " (pr-str (select-keys result [:num-tests :shrunk :fail]))))

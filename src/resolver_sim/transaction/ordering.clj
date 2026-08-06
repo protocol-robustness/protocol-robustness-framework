@@ -60,9 +60,69 @@
   "Recompute the ordering hash and compare. Returns {:valid? bool :reason kw
    :detail str}."
   [ordering]
-  (let [recomputed (ordering-hash ordering)]
-    (if (= recomputed (:transaction-ordering/hash ordering))
-      {:valid? true :reason :ok}
-      {:valid? false :reason :ordering-hash-mismatch
-       :detail (str "stored " (:transaction-ordering/hash ordering)
-                    " recomputed " recomputed)})))
+  (let [missing (remove #(some? (get ordering %))
+                        [:transaction-ordering/schema
+                         :transaction/action
+                         :transaction/scope
+                         :transaction/conflict-key
+                         :transaction/commit-index
+                         :transaction/state-before-root
+                         :transaction/state-after-root
+                         :transaction/effects-root])]
+    (cond
+      (seq missing)
+      {:valid? false :reason :missing-required-fields
+       :detail (str "missing fields: " (pr-str missing))}
+
+      (not= ordering-schema (:transaction-ordering/schema ordering))
+      {:valid? false :reason :ordering-schema-mismatch
+       :detail (str "expected schema " ordering-schema
+                    " got " (:transaction-ordering/schema ordering))}
+
+      :else
+      (let [recomputed (ordering-hash ordering)]
+        (if (= recomputed (:transaction-ordering/hash ordering))
+          {:valid? true :reason :ok}
+          {:valid? false :reason :ordering-hash-mismatch
+           :detail (str "stored " (:transaction-ordering/hash ordering)
+                        " recomputed " recomputed)})))))
+
+(defn verify-ordering-chain
+  "Verify the prior-state fixed-point linkage across a chain of consecutive
+   transaction orderings (ordered by commit). Each ordering must:
+
+     - itself verify (self-hash recomputes);
+     - commit to the previous ordering hash via
+       :transaction/previous-transaction-hash (nil for the first ordering);
+     - commit to the previous ordering's resulting state via
+       :transaction/state-before-root == prior :transaction/state-after-root
+       (prior-state fixed point).
+
+   The first ordering must carry a nil :transaction/previous-transaction-hash.
+   Returns {:valid? bool :errors [str]}."
+  [orderings]
+  (let [errors (atom [])
+        vs (mapv (fn [o] {:ordering o :v (verify-ordering o)}) orderings)]
+    (doseq [[i {:keys [ordering v]}] (map-indexed vector vs)]
+      (when-not (:valid? v)
+        (swap! errors conj (str "ordering[" i "] " (:detail v)))))
+    (doseq [[i {:keys [ordering]}] (map-indexed vector vs)]
+      (when (zero? i)
+        (when (some? (:transaction/previous-transaction-hash ordering))
+          (swap! errors conj (str "ordering[0] must carry nil "
+                                  ":transaction/previous-transaction-hash"))))
+      (when (pos? i)
+        (let [prior (get vs (dec i))
+              prior-ordering (:ordering prior)
+              prior-valid? (:valid? (:v prior))]
+          (when (and prior-valid? (:valid? (:v (get vs i))))
+            (when-not (= (:transaction-ordering/hash prior-ordering)
+                         (:transaction/previous-transaction-hash ordering))
+              (swap! errors conj (str "ordering[" i "] previous-transaction-hash does not "
+                                      "match prior ordering hash")))
+            (when-not (= (:transaction/state-after-root prior-ordering)
+                         (:transaction/state-before-root ordering))
+              (swap! errors conj (str "ordering[" i "] state-before-root is not the "
+                                      "prior-state fixed point of ordering[" (dec i)
+                                      "] (prior state-after-root) ")))))))
+    {:valid? (empty? @errors) :errors @errors}))

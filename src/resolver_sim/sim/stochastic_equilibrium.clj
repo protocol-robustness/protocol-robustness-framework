@@ -762,7 +762,7 @@
     (instance? clojure.lang.ISeq v)
     (mapv project-for-theorem-hash (vec v))
     (instance? clojure.lang.IPersistentSet v)
-    (sort-by pr-str (map project-for-theorem-hash v))
+    (vec (sort-by pr-str (map project-for-theorem-hash v)))
     :else v))
 
 (defn- base-theorem-certificate

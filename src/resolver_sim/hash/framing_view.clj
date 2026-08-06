@@ -30,7 +30,8 @@
      bytes, collection counts inconsistent with their contents, noncanonical
      map ordering, duplicate canonical map keys, and non-canonical map key
      types.  The explanatory decoder is never the acceptance path."
-  (:require [resolver-sim.hash.canonical :as hc])
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.config.defaults :as defaults])
   (:import [java.util Arrays]))
 
 (def tag-names
@@ -51,12 +52,16 @@
 (def default-limits
   "Resource limits applied by the explanatory and validating decoders.
    Hostile framing data can use valid-looking lengths and counts to cause
-   memory or CPU exhaustion; lengths are validated before allocation."
-  {:max-stream-bytes       (* 1024 1024)
-   :max-component-count    10000
-   :max-payload-bytes      (* 1024 1024)
-   :max-collection-depth   64
-   :max-collection-members 100000})
+   memory or CPU exhaustion; lengths are validated before allocation.
+
+   Source of truth: the :framing section of config/defaults.edn (overridable
+   via PRF_DEFAULTS_CONFIG_PATH).  The code-level values are fallbacks only,
+   used when no configuration file is resolvable."
+  {:max-stream-bytes       (defaults/default [:framing :max-stream-bytes] (* 1024 1024))
+   :max-component-count    (defaults/default [:framing :max-component-count] 10000)
+   :max-payload-bytes      (defaults/default [:framing :max-payload-bytes] (* 1024 1024))
+   :max-collection-depth   (defaults/default [:framing :max-collection-depth] 64)
+   :max-collection-members (defaults/default [:framing :max-collection-members] 100000)})
 
 (defn- byte-int
   "Unsigned byte value at offset."

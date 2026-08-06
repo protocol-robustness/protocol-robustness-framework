@@ -281,6 +281,31 @@
     (is (some? (get-in manifest [:outcome-hashes :theorem-root])))
     (is (some? (get-in manifest [:outcome-hashes :conclusion-root])))))
 
+(deftest withdrawn-conclusion-excluded-from-conclusion-root
+  (let [active (rc/build-conclusion sample-conclusion-params)
+        withdrawn (rc/build-conclusion
+                   (assoc sample-conclusion-params
+                          :conclusion/status :withdrawn
+                          :conclusion/qualifications
+                          ["Retracted after failed replication."]))
+        manifest-both (om/build-manifest
+                       (assoc base-manifest
+                              :outcomes/conclusions
+                              [{:conclusion/id (:conclusion/id active)
+                                :conclusion/hash (:conclusion/hash active)}
+                               {:conclusion/id (:conclusion/id withdrawn)
+                                :conclusion/hash (:conclusion/hash withdrawn)
+                                :conclusion/status :withdrawn}]))
+        manifest-active (om/build-manifest
+                         (assoc base-manifest
+                                :outcomes/conclusions
+                                [{:conclusion/id (:conclusion/id active)
+                                  :conclusion/hash (:conclusion/hash active)}]))]
+    (is (om/manifest-valid? manifest-both))
+    (is (= (get-in manifest-active [:outcome-hashes :conclusion-root])
+           (get-in manifest-both [:outcome-hashes :conclusion-root]))
+        "a withdrawn conclusion must not contribute to the manifest conclusion-root")))
+
 (deftest build-manifest-without-hierarchical-is-backward-compatible
   (let [manifest (om/build-manifest base-manifest)]
     (is (om/manifest-valid? manifest))

@@ -78,7 +78,9 @@
    The returned record includes an :evidence-hash that covers all other fields,
    making the record tamper-evident."
   [{:keys [artifact-kind block-time step before after action result attribution]}]
-  (let [context-hash (hc/hash-with-intent {:hash/intent :evidence-record} attribution)
+  (let [project hc/project-committable-content
+        context-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                          (project attribution))
         before-hash (hc/hash-with-intent {:hash/intent :world-structure} before)
         after-hash (hc/hash-with-intent {:hash/intent :world-structure} after)
         action-hash (hc/hash-with-intent {:hash/intent :action} action)
@@ -86,7 +88,8 @@
                                             {:action-hash action-hash
                                              :step step
                                              :block-time block-time})
-        result-hash (hc/hash-with-intent {:hash/intent :evidence-record} result)
+        result-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                         (project result))
         base {:schema-version (evcfg/schema :evidence-record)
               :artifact-kind artifact-kind
               :temporal-context {:block-time block-time :step step}
@@ -99,7 +102,8 @@
               :action-hash-at action-hash-at
               :result result
               :result-hash result-hash}
-        evidence-hash (hc/hash-with-intent {:hash/intent :evidence-record} base)
+        evidence-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                           (project base))
         group-id (:ctx/evidence-group-id attribution)]
     (cond-> (assoc base :evidence-hash evidence-hash)
       group-id (assoc :evidence/group-id group-id :evidence/layer :generic-trace))))

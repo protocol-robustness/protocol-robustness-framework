@@ -29,8 +29,10 @@
   {:liquidity-shortfall :liquidity-shortfall})
 
 (def supported-deferred-classes
-  "Set of all valid deferred-class values."
-  (into #{} (vals shortfall-reason->deferred-class)))
+  "All valid deferred-class values, as a sorted vector.  Vectors are canonical
+   values; sets are outside the canonical type algebra and must not appear in a
+   policy that flows into worlds, ledgers, or evidence hashing."
+  (vec (sort (vals shortfall-reason->deferred-class))))
 
 (defn derive-deferred-class
   "Deterministically derive the deferred class from a committed shortfall
@@ -126,7 +128,7 @@
       (throw (ex-info "max-lineage-round must be a non-negative integer"
                       {:reason :invalid-max-lineage-round
                        :actual mlr})))
-    (let [expected-classes (set (vals shortfall-reason->deferred-class))
+    (let [expected-classes (vec (sort (vals shortfall-reason->deferred-class)))
           policy-classes (get def-section :supported-classes)]
       (when-not (= expected-classes policy-classes)
         (throw (ex-info "supported-classes does not match derivation table"

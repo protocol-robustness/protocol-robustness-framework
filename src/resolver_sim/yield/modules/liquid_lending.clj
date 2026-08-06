@@ -514,11 +514,18 @@
                                   {:ledger/kind :yield/withdrawal-single
                                    :ledger/id [:withdrawal-single module-id token
                                                owner-id (resolve-now world-after-accrue)]
+                                   :ledger/domain "withdrawal-ledger.v1"
                                    :ledger/module-id module-id
                                    :ledger/token token
                                    :ledger/owner-ids [owner-id]
                                    :ledger/run-id (:run/id world-after-accrue)
                                    :ledger/execution-id (:execution/id world-after-accrue)
+                                   :ledger/run-root (partial-fill/ledger-run-root world-after-accrue)
+                                   :ledger/request-set-root
+                                   (partial-fill/ledger-request-set-root
+                                    [owner-id]
+                                    [{:owner-id owner-id
+                                      :requested basis-total}])
                                    :ledger/available (max 0 (long recoverable))
                                    :ledger/requested basis-total
                                    :ledger/filled fulfilled-total
@@ -2028,14 +2035,21 @@
                (content-address-ledger
                 {:ledger/kind :yield/withdrawal-batch
                  :ledger/id ledger-id
+                 :ledger/domain "withdrawal-ledger.v1"
                  :ledger/module-id module-id
                  :ledger/token token
                  :ledger/owner-ids owner-ids
-                 ;; Per-run binding: the certificate commits to the run/execution
-                 ;; identity so per-address withdrawal records are attributable to
-                 ;; the run that produced them (the world-level run-root analog).
+                 ;; Per-run root binding: commit the content-addressed execution
+                 ;; root (run/execution/scenario/params) plus the withdrawal
+                 ;; subject root (distinct principals + requested amounts), so
+                 ;; the certificate says "these withdrawals occurred in this
+                 ;; exact execution world" and cannot be substituted with a
+                 ;; different withdrawal in the same run.
                  :ledger/run-id (:run/id world)
                  :ledger/execution-id (:execution/id world)
+                 :ledger/run-root (partial-fill/ledger-run-root world)
+                 :ledger/request-set-root
+                 (partial-fill/ledger-request-set-root owner-ids rows)
                  :ledger/available batch-available
                  :ledger/requested requested
                  :ledger/filled filled

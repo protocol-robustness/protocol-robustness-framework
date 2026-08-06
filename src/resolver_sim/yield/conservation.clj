@@ -172,7 +172,7 @@
                     :artifact/verifier conservation-report-verifier-id)
         report-hash (str "sha256:"
                          (hc/hash-with-intent {:hash/intent :evidence-record}
-                                              body))]
+                                              (hc/project-committable-content body)))]
     (assoc body
            :report/hash report-hash
            :report/preimage (pr-str body))))
@@ -190,4 +190,5 @@
        (let [body (dissoc report :report/hash :report/preimage)]
          (= (:report/hash report)
             (str "sha256:"
-                 (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
+                 (hc/hash-with-intent {:hash/intent :evidence-record}
+                                      (hc/project-committable-content body)))))))

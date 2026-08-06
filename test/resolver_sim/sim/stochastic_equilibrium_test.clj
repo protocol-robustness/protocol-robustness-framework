@@ -687,6 +687,21 @@
       (is (true? (:theorem/holds? report)))
       (is (true? (:inequality/holds? report))))))
 
+(deftest test-deterrence-root-hash-accepts-set-bearing-deviation-domain
+  (testing "a deviation-domain with a set-valued :actions projects to a sorted
+            vector, so the strict canonical encoder accepts the certificate"
+    (let [domain {:actors :single :duration-epochs 1 :timing :cooperative-path
+                  :actions #{:relabelling :partial-deviation :specified-deviation}
+                  :coalitions? false}
+          r1 (sut/evaluate-grim-trigger-deterrence (base-result)
+                                                   :deviation-domain domain)
+          r2 (sut/evaluate-grim-trigger-deterrence (base-result)
+                                                   :deviation-domain domain)]
+      (is (re-find #"^[0-9a-f]{64}$" (:theorem/root-hash r1)))
+      (is (= (:theorem/root-hash r1) (:theorem/root-hash r2))
+          "set-derived projection must be deterministic")
+      (is (= domain (:deviation-domain r1))))))
+
 (deftest test-deterrence-root-hash-mutation-sensitive
   (testing "any committed theorem-input mutation changes the root hash"
     (let [r1 (sut/evaluate-grim-trigger-deterrence (base-result))

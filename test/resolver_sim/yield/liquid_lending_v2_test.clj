@@ -735,9 +735,13 @@
 
 (defn- re-certify-ledger
   "Recompute the fixed-point certificate (:ledger/hash / :ledger/preimage) after
-   tampering a ledger record's fields (mirrors content-address-ledger)."
+   tampering a ledger record's fields (mirrors content-address-ledger). Rows are
+   normalized to a vector so a lazy/reversed seq cannot leak into the preimage."
   [rec]
-  (let [base (dissoc rec :ledger/hash :ledger/preimage)]
+  (let [rec (cond-> rec
+              (contains? rec :ledger/rows)
+              (update :ledger/rows vec))
+        base (dissoc rec :ledger/hash :ledger/preimage)]
     (assoc rec
            :ledger/preimage (pr-str base)
            :ledger/hash (str "sha256:"
@@ -813,13 +817,22 @@
           rec (last (get w :yield/withdrawal-ledger []))]
       (is (= "test-run" (:ledger/run-id rec)) "certificate commits to the run id")
       (is (= "test-execution" (:ledger/execution-id rec)) "certificate commits to the execution id")
-      (is (= ["u1" "u2"] (:ledger/owner-ids rec)) "per-address owners are declared")
+      (is (some? (:ledger/run-root rec)) "certificate commits a content-addressed execution root")
+      (is (some? (:ledger/request-set-root rec)) "certificate commits a withdrawal-subject root")
+      (is (= "withdrawal-ledger.v1" (:ledger/domain rec)) "certificate is domain-versioned")
+      (is (= ["u1" "u2"] (:ledger/owner-ids rec)) "per-principal owners are declared")
       (is (= #{"u1" "u2"} (set (map :owner-id (:ledger/rows rec))))
-          "every declared address has a per-address row")
+          "every declared principal has a per-principal row")
+      (is (= (count (:ledger/owner-ids rec))
+             (count (distinct (:ledger/owner-ids rec))))
+          "declared owner ids are unique")
+      (is (= (count (map :owner-id (:ledger/rows rec)))
+             (count (distinct (map :owner-id (:ledger/rows rec)))))
+          "row owner ids are unique (exact bijection)")
       (is (ll/ledger-hash-valid? rec) "run/address binding is content-addressed")
       (is (inv/holds? :yield/withdrawal-ledger-conservation w)
-          "genuine per-run per-address certificate passes")))
-  (testing "a certificate transplanted to another run is rejected"
+          "genuine per-run per-principal certificate passes")))
+  (testing "a certificate transplanted to another run is rejected by the execution root"
     (let [w (deposit-two (constrained-world 100))
           w (ll/withdraw-many w test-mod
                               [{:owner/id "u1" :token "USDC"}
@@ -829,9 +842,21 @@
           result (inv/run-invariants w' [:yield/withdrawal-ledger-conservation])]
       (is (contains? (set (get-in result [:yield/withdrawal-ledger-conservation
                                           :violations 0 :issues]))
-                     :withdrawal-run-mismatch)
-          "run mismatch is detected")))
-  (testing "a missing per-address row is rejected"
+                     :withdrawal-run-root-mismatch)
+          "execution-root mismatch is detected")))
+  (testing "a certificate transplanted to a different execution (same run) is rejected"
+    (let [w (deposit-two (constrained-world 100))
+          w (ll/withdraw-many w test-mod
+                              [{:owner/id "u1" :token "USDC"}
+                               {:owner/id "u2" :token "USDC"}])
+          rec (last (get w :yield/withdrawal-ledger []))
+          w' (assoc w :execution/id "other-execution" :yield/withdrawal-ledger [rec])
+          result (inv/run-invariants w' [:yield/withdrawal-ledger-conservation])]
+      (is (contains? (set (get-in result [:yield/withdrawal-ledger-conservation
+                                          :violations 0 :issues]))
+                     :withdrawal-run-root-mismatch)
+          "execution binding is committed into the run root")))
+  (testing "a missing per-principal row is rejected"
     (let [w (deposit-two (constrained-world 100))
           w (ll/withdraw-many w test-mod
                               [{:owner/id "u1" :token "USDC"}
@@ -844,4 +869,91 @@
       (is (contains? (set (get-in result [:yield/withdrawal-ledger-conservation
                                           :violations 0 :issues]))
                      :withdrawal-address-coverage-mismatch)
-          "dropped per-address row is detected"))))
+          "dropped per-principal row is detected"))))
+
+(deftest withdrawal-ledger-substitution-and-conservation
+  (testing "duplicate declared owner ids are rejected"
+    (let [w (deposit-two (constrained-world 100))
+          w (ll/withdraw-many w test-mod
+                              [{:owner/id "u1" :token "USDC"}
+                               {:owner/id "u2" :token "USDC"}])
+          rec (last (get w :yield/withdrawal-ledger []))
+          dup (assoc rec :ledger/owner-ids ["u1" "u1"])
+          result (inv/run-invariants
+                  (assoc w :yield/withdrawal-ledger [dup])
+                  [:yield/withdrawal-ledger-conservation])]
+      (is (contains? (set (get-in result [:yield/withdrawal-ledger-conservation
+                                          :violations 0 :issues]))
+                     :withdrawal-duplicate-owner)
+          "duplicate declared owner is rejected")))
+  (testing "duplicate row for one owner is rejected (not just set equality)"
+    (let [w (deposit-two (constrained-world 100))
+          w (ll/withdraw-many w test-mod
+                              [{:owner/id "u1" :token "USDC"}
+                               {:owner/id "u2" :token "USDC"}])
+          rec (last (get w :yield/withdrawal-ledger []))
+          dup-row (assoc (first (:ledger/rows rec)) :filled 1 :deferred 0 :requested 1)
+          rows (conj (:ledger/rows rec) dup-row)
+          dup (assoc rec :ledger/rows rows :ledger/filled 81 :ledger/requested 81)
+          result (inv/run-invariants
+                  (assoc w :yield/withdrawal-ledger [dup])
+                  [:yield/withdrawal-ledger-conservation])]
+      (is (contains? (set (get-in result [:yield/withdrawal-ledger-conservation
+                                          :violations 0 :issues]))
+                     :withdrawal-duplicate-row-owner)
+          "duplicate row owner is rejected even though set equality holds")))
+  (testing "row-value substitution: a changed filled amount (unbalanced) is rejected"
+    (let [w (deposit-two (constrained-world 100))
+          w (ll/withdraw-many w test-mod
+                              [{:owner/id "u1" :token "USDC"}
+                               {:owner/id "u2" :token "USDC"}])
+          rec (last (get w :yield/withdrawal-ledger []))
+          rows (update-in (:ledger/rows rec) [1] assoc :filled 40)
+          forged (assoc rec :ledger/rows rows :ledger/filled 120)
+          result (inv/run-invariants
+                  (assoc w :yield/withdrawal-ledger [forged])
+                  [:yield/withdrawal-ledger-conservation])]
+      (is (contains? (set (get-in result [:yield/withdrawal-ledger-conservation
+                                          :violations 0 :issues]))
+                     :withdrawal-row-conservation)
+          "per-row economic conservation detects the substituted value")))
+  (testing "row-value substitution: a changed deferred amount (totals updated) is rejected"
+    (let [w (deposit-two (constrained-world 100))
+          w (ll/withdraw-many w test-mod
+                              [{:owner/id "u1" :token "USDC"}
+                               {:owner/id "u2" :token "USDC"}])
+          rec (last (get w :yield/withdrawal-ledger []))
+          rows (update-in (:ledger/rows rec) [1] assoc :deferred 40)
+          forged (assoc rec :ledger/rows rows)
+          result (inv/run-invariants
+                  (assoc w :yield/withdrawal-ledger [forged])
+                  [:yield/withdrawal-ledger-conservation])]
+      (is (contains? (set (get-in result [:yield/withdrawal-ledger-conservation
+                                          :violations 0 :issues]))
+                     :withdrawal-row-total-mismatch)
+          "aggregate deferred reconciliation detects the substituted value")))
+  (testing "a different withdrawal in the same run has a distinct request-set root"
+    (let [w1 (deposit-two (constrained-world 100))
+          w1 (ll/withdraw-many w1 test-mod
+                               [{:owner/id "u1" :token "USDC"}
+                                {:owner/id "u2" :token "USDC"}])
+          w2 (-> (constrained-world 100)
+                 (ll/deposit test-mod {:owner/id "u1" :amount 80 :token "USDC"})
+                 (ll/deposit test-mod {:owner/id "u2" :amount 80 :token "USDC"})
+                 (ll/deposit test-mod {:owner/id "u3" :amount 40 :token "USDC"})
+                 (ll/withdraw-many test-mod [{:owner/id "u1" :token "USDC"}
+                                             {:owner/id "u2" :token "USDC"}
+                                             {:owner/id "u3" :token "USDC"}]))
+          ra (last (get w1 :yield/withdrawal-ledger []))
+          rb (last (get w2 :yield/withdrawal-ledger []))]
+      (is (not= (:ledger/request-set-root ra) (:ledger/request-set-root rb))
+          "withdrawals in the same run are distinguished by their subject root")))
+  (testing "FCFS row order is committed (reordering changes the certificate)"
+    (let [w (deposit-two (constrained-world 100))
+          w (ll/withdraw-many w test-mod
+                              [{:owner/id "u1" :token "USDC"}
+                               {:owner/id "u2" :token "USDC"}])
+          rec (last (get w :yield/withdrawal-ledger []))
+          reversed (re-certify-ledger (assoc rec :ledger/rows (vec (reverse (:ledger/rows rec)))))]
+      (is (not= (:ledger/hash rec) (:ledger/hash reversed))
+          "FCFS order is semantically committed (reordering changes the hash)"))))

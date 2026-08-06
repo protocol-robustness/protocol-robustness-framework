@@ -142,6 +142,23 @@
                                                        {:transaction/action :bogus/action
                                                         :transaction/input {}}))))))
 
+(deftest re-admit-existing-receipt-rejected
+  (testing "re-admitting an already-committed receipt under a new parent is rejected (prior-state integrity)"
+    (let [s0 (transition/empty-state family)
+          r1 (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))
+          s1 (:state r1)
+          r2 (transition/apply-action s1 (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))
+          s2 (:state r2)
+          fork (transition/apply-action s2 (admit-cmd :child "sha256:R1" :seq 3 :parent "sha256:R2" :basis "sha256:B3" :link "sha256:L3" :idem "sha256:I3"))]
+      (is (= :rejected (:status fork)))
+      (is (= :receipt-already-committed (:reason fork)))
+      (is (= "sha256:R2" (:chain/head s2))
+          "prior committed head must be untouched")
+      (is (= {:sequence 1 :parent-receipt-hash nil}
+             (select-keys (get-in s2 [:chain/attempt-receipts "sha256:R1"])
+                          [:sequence :parent-receipt-hash]))
+          "prior committed R1 parent/sequence must be preserved"))))
+
 ;; ── store: transact! + CAS + ordering evidence ──────────────────────────────
 
 (deftest store-transact
@@ -177,6 +194,38 @@
       (is (not= (:transaction/state-before-root o1) (:transaction/state-after-root o1)))
       (is (= (:transaction/state-after-root o1) (:transaction/state-before-root o2)))
       (is (= (transition/state-root s2) (:transaction/state-after-root o2))))))
+
+(deftest verify-ordering-chain-prior-state-fixed-point
+  (testing "a committed chain verifies the prior-state fixed-point linkage"
+    (let [s (store/new-resubmission-store family)
+          r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          r2 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
+          chain [(:transaction-ordering r1) (:transaction-ordering r2)]
+          result (ordering/verify-ordering-chain chain)]
+      (is (:valid? result))))
+  (testing "a broken prior-state-after linkage is rejected"
+    (let [s (store/new-resubmission-store family)
+          r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          r2 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
+          o2 (:transaction-ordering r2)
+          tampered (ordering/transaction-ordering
+                    (assoc (ordering/unsigned-ordering-projection o2)
+                           :transaction/state-before-root "sha256:WRONG"))
+          result (ordering/verify-ordering-chain
+                  [(:transaction-ordering r1) tampered])]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"state-before-root is not the prior-state fixed point" %)
+                (:errors result)))))
+  (testing "a first ordering with a non-nil previous-transaction-hash is rejected"
+    (let [s (store/new-resubmission-store family)
+          r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          o1 (:transaction-ordering r1)
+          tampered (ordering/transaction-ordering
+                    (assoc (ordering/unsigned-ordering-projection o1)
+                           :transaction/previous-transaction-hash "sha256:SOMETHING"))
+          result (ordering/verify-ordering-chain [tampered])]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"ordering\[0\]" %) (:errors result))))))
 
 ;; ── trace equivalence: reference transition vs persistent store ─────────────
 

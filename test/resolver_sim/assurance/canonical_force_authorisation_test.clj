@@ -1,7 +1,35 @@
 (ns resolver-sim.assurance.canonical-force-authorisation-test
   "Phase A/B tests for the force-authorisation reconciliation layer (ADR-0007)."
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.assurance.canonical-force-authorisation :as cfa]))
+            [resolver-sim.assurance.canonical-force-authorisation :as cfa]
+            [resolver-sim.hash.canonical :as hc]))
+
+(deftest cancellation-decision-content-is-canonical-safe
+  (testing "the cancellation decision and assertion content are within the
+            canonical type algebra: every field is a keyword, boolean, string,
+            integer, or vector — never a set/seq/record/map-entry that the
+            strict encoder would reject"
+    (doseq [r [(cfa/classify-cancellation {:member-count 3 :threshold 2
+                                           :profile-id :D1} :proposed)
+               (cfa/classify-cancellation {:member-count 3 :threshold 2
+                                           :profile-id :D1} :consumed)
+               (cfa/cancellation-window-assertion
+                {:cancellation/window :open
+                 :cancellation/possible? true
+                 :cancellation/blocking-reasons []})]]
+      (is (nil? (hc/validate-canonical-value! r))
+          (str "decision content is canonical-safe: " (pr-str (select-keys r [:cancellation/schema-version :assertion/id]))))
+      (is (string? (hc/domain-hash :decision-subject r))
+          "decision content hashes cleanly through canonical-bytes")))
+  (testing "the lifecycle window profiles intentionally carry sets (configuration),
+            but those sets are consumed via set operations and never reach the
+            encoder"
+    (is (set? (:valid-states cfa/force-authorisation-window)))
+    (is (set? (:open-states cfa/force-authorisation-window)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (hc/canonical-bytes cfa/force-authorisation-window))
+        "the raw profile (with sets) is rejected by the strict encoder, as it
+         must be — it is config, not committed content")))
 
 (deftest profile-conformance
   (is (= :canonical (cfa/classify-profile 3 2)))
@@ -304,6 +332,50 @@
       (is (not (cfa/cancellation-binding-complete? (dissoc complete :target/hash))))
       (is (= [:target/hash] (cfa/missing-cancellation-binding-fields
                              (dissoc complete :target/hash)))))))
+
+(defn- complete-binding
+  "A contract-7 complete binding, with the effects vocabulary as a raw SET to
+   prove the hash-bound projection handles it."
+  []
+  {:target/id "alloc/9" :target/hash "sha256:0"
+   :lifecycle/profile-id :x :lifecycle/profile-version 1
+   :target/state-evidence-root "sha256:1"
+   :cancellation/action :cancel :cancellation/effects cfa/cancellation-effects
+   :cancellation/reason :mistake :decision/profile-id "2-3"
+   :policy/instance "pol/1" :decision/validity-window "t0..t1"
+   :conflict/consumption-key "ck"})
+
+(deftest cancellation-binding-is-hash-bound
+  (let [binding (complete-binding)
+        binding-hash (cfa/cancellation-binding-hash binding)]
+    (testing "the committed binding is content-hashed via canonical-bytes"
+      (is (re-matches #"sha256:[0-9a-f]{64}" binding-hash))
+      (is (= "sha256:" (subs binding-hash 0 7))))
+    (testing "the set-valued :cancellation/effects vocabulary is projected to a
+              sorted vector (pr-str order), so the set form and its projected
+              vector hash identically"
+      (is (= binding-hash
+             (cfa/cancellation-binding-hash
+              (assoc binding :cancellation/effects
+                     [:emit-terminal-cancellation-receipt
+                      :invalidate-authorisation
+                      :preserve-cancellation-evidence
+                      :prevent-consumption
+                      :release-reservation])))))
+    (testing "a committed :cancellation/binding-hash validates against its
+              projection"
+      (let [committed (assoc binding :cancellation/binding-hash binding-hash)]
+        (is (cfa/cancellation-binding-hash-valid? committed))))
+    (testing "a tampered committed hash is rejected"
+      (is (not (cfa/cancellation-binding-hash-valid?
+                (assoc binding :cancellation/binding-hash "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")))))
+    (testing "incomplete bindings refuse to hash"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (cfa/cancellation-binding-hash (dissoc binding :target/hash)))))
+    (testing "distinct bindings commit distinct hashes"
+      (is (not= binding-hash
+                (cfa/cancellation-binding-hash
+                 (assoc binding :target/hash "sha256:different")))))))
 
 (deftest probabilistic-allocation-cancellation-cutpoint
   (testing "allocation state mapping"

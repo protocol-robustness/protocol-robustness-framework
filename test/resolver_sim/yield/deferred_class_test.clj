@@ -51,10 +51,12 @@
 
 (deftest supported-classes-match-derivation-table
   (testing "policy :supported-classes matches shortfall-reason->deferred-class values"
-    (let [expected (set (vals policy/shortfall-reason->deferred-class))
+    (let [expected (vec (sort (vals policy/shortfall-reason->deferred-class)))
           policy-classes (get-in policy/shared-withdrawal-policy
                                  [:deferred :supported-classes])]
-      (is (= expected policy-classes)))))
+      (is (= expected policy-classes))
+      (is (vector? policy-classes)
+          ":supported-classes must be a vector (sets are outside the canonical type algebra)"))))
 
 ;; ── Max-lineage-round enforcement ─────────────────────────────────────────
 

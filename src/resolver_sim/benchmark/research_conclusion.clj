@@ -21,7 +21,14 @@
    falsifiers remain untested (:conclusion/falsifiers, sharing the theorem
    falsifier vocabulary), and supporting theorem hashes are required to be
    well-formed and — when a resolver is supplied — verifiable (see
-   verify-conclusion-support)."
+   verify-conclusion-support).
+
+   :withdrawn is a terminal retraction, not a downgraded finding.  A withdrawn
+   conclusion asserts no evidence: it must not carry :conclusion/scope or
+   :conclusion/supporting-theorem-hashes (enforced at build and validate), and
+   it is excluded from the collective evidence root (conclusion-collective-hash)
+   and from reproduction claims.  A free-text retraction note is permitted via
+   :conclusion/qualifications."
   (:require [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
@@ -36,6 +43,20 @@
 (defn valid-conclusion-status?
   [s]
   (contains? valid-conclusion-statuses s))
+
+(defn withdrawn?
+  "True when the conclusion is a :withdrawn terminal retraction."
+  [conclusion]
+  (= :withdrawn (:conclusion/status conclusion)))
+
+(defn- withdrawn-with-evidence-claims?
+  "True when a :withdrawn conclusion carries scope, supporting-theorem, or
+   falsifier references it must not assert (a retraction asserts no evidence)."
+  [status scope supporting-theorem-hashes falsifiers]
+  (and (= :withdrawn status)
+       (or (seq (or scope {}))
+           (seq (or supporting-theorem-hashes []))
+           (seq (or falsifiers [])))))
 
 (defn valid-falsifier?
   "True when f is a well-formed falsifier reference
@@ -90,6 +111,13 @@
       (swap! errors conj "missing :conclusion/result"))
     (when (and (some? status) (not (valid-conclusion-status? status)))
       (swap! errors conj (str "invalid :conclusion/status: " status)))
+    (when (withdrawn-with-evidence-claims? status scope supporting-theorem-hashes falsifiers)
+      (when (seq (or scope {}))
+        (swap! errors conj ":withdrawn conclusions cannot carry :conclusion/scope"))
+      (when (seq (or supporting-theorem-hashes []))
+        (swap! errors conj ":withdrawn conclusions cannot carry :conclusion/supporting-theorem-hashes"))
+      (when (seq (or falsifiers []))
+        (swap! errors conj ":withdrawn conclusions cannot carry :conclusion/falsifiers")))
     (when (some? (some (fn [f] (not (valid-falsifier? f))) falsifiers))
       (swap! errors conj "invalid :conclusion/falsifiers entry"))
     (when (seq @errors)
@@ -148,7 +176,17 @@
       (swap! errors conj "missing :conclusion/result"))
     (let [s (:conclusion/status conclusion)]
       (when-not (valid-conclusion-status? s)
-        (swap! errors conj (str "invalid :conclusion/status: " s))))
+        (swap! errors conj (str "invalid :conclusion/status: " s)))
+      (when (withdrawn-with-evidence-claims? s
+                                             (:conclusion/scope conclusion)
+                                             (:conclusion/supporting-theorem-hashes conclusion)
+                                             (:conclusion/falsifiers conclusion))
+        (when (seq (:conclusion/scope conclusion))
+          (swap! errors conj ":withdrawn conclusions cannot carry :conclusion/scope"))
+        (when (seq (:conclusion/supporting-theorem-hashes conclusion))
+          (swap! errors conj ":withdrawn conclusions cannot carry :conclusion/supporting-theorem-hashes"))
+        (when (seq (:conclusion/falsifiers conclusion))
+          (swap! errors conj ":withdrawn conclusions cannot carry :conclusion/falsifiers"))))
     (when (some? (some (fn [f] (not (valid-falsifier? f)))
                        (:conclusion/falsifiers conclusion)))
       (swap! errors conj "invalid :conclusion/falsifiers entry"))
@@ -177,9 +215,12 @@
 
 (defn conclusion-collective-hash
   "Compute the collective hash for a set of conclusions.
-   Used to produce the :conclusion-root in outcome-hashes."
+   A :withdrawn conclusion is a terminal retraction and does not constitute
+   evidence, so it is excluded from the collective root.  Used to produce the
+   :conclusion-root in outcome-hashes.  For an all-active input the root is
+   byte-identical to the unfiltered hash (the filter is a no-op)."
   [conclusions]
-  (let [hashes (sort (map :conclusion/hash conclusions))]
+  (let [hashes (sort (map :conclusion/hash (remove withdrawn? conclusions)))]
     (str "sha256:"
          (hc/domain-hash :evidence-collection
                          {:type :conclusion-collection
