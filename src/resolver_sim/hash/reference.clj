@@ -171,14 +171,37 @@
 (defn sha256-ref
   "Construct a canonical sha256 reference from a hex digest string.
 
-   (sha256-ref \"abc...\") => \"sha256:abc...\"
+   This is the authoritative constructor for the externally observable
+   \"sha256:<64-lowercase-hex>\" protocol format.  It owns the format
+   invariants:
 
-   The hex string must be a 64-character lowercase hex SHA-256 digest.
-   When the argument already has a sha256: prefix, returns it unchanged."
+     - the \"sha256:\" algorithm prefix;
+     - lowercase canonical hex representation;
+     - exactly 64 hex characters;
+     - output validity (the result always satisfies sha256-ref?).
+
+   (sha256-ref \"abc...64hex...\")      => \"sha256:abc...64hex...\"
+   (sha256-ref \"sha256:abc...64hex...\") => unchanged (already canonical)
+
+   Fails closed on any other input: nil, non-strings, non-hex digests,
+   wrong-length digests, uppercase hex, and non-canonical prefixes all throw
+   ex-info.  Callers that only need to TEST validity use sha256-ref?; callers
+   that already hold a canonical reference pass it through unchanged.
+
+   This deliberately does NOT coerce or pad — \"one canonical reference
+   representation\" means construction is strict, not permissive."
   [hex-or-ref]
-  (if (and (string? hex-or-ref) (.startsWith hex-or-ref sha256-ref-prefix))
+  (cond
+    (and (string? hex-or-ref) (re-find sha256-ref-pattern hex-or-ref))
     hex-or-ref
-    (str sha256-ref-prefix hex-or-ref)))
+
+    (and (string? hex-or-ref)
+         (re-matches #"[0-9a-f]{64}" hex-or-ref))
+    (str sha256-ref-prefix hex-or-ref)
+
+    :else
+    (throw (ex-info "invalid sha256-ref construction: expected a 64-character lowercase hex digest or a canonical \"sha256:<64hex>\" reference"
+                    {:input hex-or-ref :input-type (some-> hex-or-ref class .getName)}))))
 
 (defn parse-sha256-ref
   "Parse a canonical sha256 reference to its raw hex digest.

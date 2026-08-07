@@ -12,7 +12,8 @@
   (:require [clojure.string :as str]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.evidence.artifact :as artifact]
-            [resolver-sim.assurance.force-authorisation :as fa]))
+            [resolver-sim.assurance.force-authorisation :as fa]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (declare valid-force-auth-add-held?
          valid-force-auth-add-held-v2?
@@ -701,7 +702,7 @@
        (string? (:artifact/preimage report))
        (let [body (downgrade-force-auth-lifecycle-summary-v2->v1 report)]
          (= (:artifact/hash report)
-            (str "sha256:" (hash/domain-hash :evidence-record body))))))
+            (hash-ref/sha256-ref (hash/domain-hash :evidence-record body))))))
 
 ;; ── force-auth-add-held-summary ────────────────────────────────────────────
 
@@ -853,7 +854,7 @@
        (string? (:artifact/preimage report))
        (let [v1-body (downgrade-add-held-summary-v2->v1 report)]
          (= (:artifact/hash report)
-            (str "sha256:" (hash/domain-hash :evidence-record v1-body))))))
+            (hash-ref/sha256-ref (hash/domain-hash :evidence-record v1-body))))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; force-auth-add-held-summary — aggregate boundary, membership, reconciliation

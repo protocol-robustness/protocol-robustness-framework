@@ -23,6 +23,7 @@
             [resolver-sim.run.overview :as overview]
             [resolver-sim.run.criteria :as criteria]
             [resolver-sim.sensitivity.propagation :as prop]
+            [resolver-sim.sensitivity.report :as sens-report]
             [resolver-sim.vcs :as vcs])
   (:import [java.security MessageDigest]
            [java.util Arrays]))
@@ -293,7 +294,7 @@
                                       results))
                        :sentinel/report-reference
                        {:schema "sensitivity-report-reference"
-                        :format "sensitivity-report.v2"
+                        :format sens-report/report-schema-version
                         :path paths/sensitivity-report}}))
         ;; :bundle/hash is the portable canonical-JSON content address verified
         ;; by compute-json-hash. Keeping construction and verification on this

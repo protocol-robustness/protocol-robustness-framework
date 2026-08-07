@@ -13,7 +13,8 @@
    `resolver-sim.commands.publish`."
   (:require [buddy.core.codecs :as codecs]
             [resolver-sim.hash.canonical :as hc]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.security MessageDigest]))
 
 (def manifest-domain "PRF_ARTIFACT_PUBLISH_MANIFEST_V1")
@@ -40,11 +41,11 @@
   "Canonical, domain-separated commitment to a manifest (path → sha256) plus
    its run identity. Excludes nothing: the whole declared set is bound."
   [run-id entries]
-  (str "sha256:"
-       (hc/domain-hash manifest-domain
-                       {:run-id run-id
-                        :entries (vec (for [{:keys [path sha256]} (normalized-entries entries)]
-                                        {:path path :sha256 sha256}))})))
+  (hash-ref/sha256-ref
+   (hc/domain-hash manifest-domain
+                   {:run-id run-id
+                    :entries (vec (for [{:keys [path sha256]} (normalized-entries entries)]
+                                    {:path path :sha256 sha256}))})))
 
 (defn verify-set
   "All-or-nothing verification of a staged artifact set.

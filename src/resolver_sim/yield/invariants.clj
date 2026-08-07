@@ -160,28 +160,58 @@
   [p]
   (long (or (get-in p [:shortfall :basis-amount]) 0)))
 
+(defn- shortfall-amounts
+  "All amounts that participate in the aggregate shortfall cap for a position:
+   basis/settlement/deferred shortfall amounts and the position value terms."
+  [p]
+  (let [sf (:shortfall p)]
+    (remove nil? [(:basis-amount sf)
+                  (:settlement-value sf)
+                  (:deferred-amount sf)
+                  (:principal p)
+                  (:realized-yield p)
+                  (:unrealized-yield p)])))
+
 (defn check-aggregate-shortfall-cap
   "Aggregate shortfall per (module-id, token) pair must not exceed
    the sum of position values (principal + realized-yield + max(0, unrealized-yield)
    + deferred-amount) in that pair. This prevents systemic over-counting where the
    total recorded shortfall across all positions exceeds available value.
 
+   Fails closed on non-integral amounts: a fractional basis-amount or value term
+   is never silently truncated to long (which could mask a genuine overage); it
+   is reported as a :non-integral-amount violation instead.
+
    Returns {:holds? bool :violations [{:module-id mid :token tok
                                        :total-basis n :total-value n
-                                       :imbalance n}]}."
+                                       :imbalance n} | {:code :non-integral-amount ...}]}."
   [world]
   (let [positions (vals (:yield/positions world {}))
         by-key (group-by (fn [p] [(:module/id p) (:token p)]) positions)
-        violations (into []
-                         (keep (fn [[[mid tok] pos-group]]
-                                 (let [total-basis (reduce + 0 (map (comp (fn [v] (long (or v 0))) :basis-amount :shortfall) pos-group))
-                                       total-value (reduce + 0 (map position-shortfall-value pos-group))]
-                                   (when (> total-basis total-value)
-                                     {:module-id mid :token tok
-                                      :total-basis total-basis
-                                      :total-value total-value
-                                      :imbalance (- total-basis total-value)})))
-                               by-key))]
+        non-integral
+        (into []
+              (keep (fn [p]
+                      (let [amounts (shortfall-amounts p)
+                            non-int (filter (fn [v] (not (integer? v))) amounts)]
+                        (when (seq non-int)
+                          {:code :non-integral-amount
+                           :module-id (:module/id p)
+                           :token (:token p)
+                           :amounts (vec non-int)}))))
+              positions)
+        violations
+        (if (seq non-integral)
+          non-integral
+          (into []
+                (keep (fn [[[mid tok] pos-group]]
+                        (let [total-basis (reduce + 0 (map position-shortfall-basis pos-group))
+                              total-value (reduce + 0 (map position-shortfall-value pos-group))]
+                          (when (> total-basis total-value)
+                            {:module-id mid :token tok
+                             :total-basis total-basis
+                             :total-value total-value
+                             :imbalance (- total-basis total-value)})))
+                      by-key)))]
     {:holds? (empty? violations)
      :violations (vec violations)
      :checks {:aggregate-shortfall-within-value (if (seq violations) :fail :pass)}}))
@@ -290,122 +320,184 @@
         (into []
               (keep
                (fn [r]
-                  (let [available (long (or (:ledger/available r) 0))
-                        requested (long (or (:ledger/requested r) 0))
-                        filled    (long (or (:ledger/filled r) 0))
-                        deferred  (long (or (:ledger/deferred r) 0))
-                        haircut   (long (or (:ledger/haircut r) 0))
-                        rows      (vec (:ledger/rows r))
-                        owner-ids (vec (:ledger/owner-ids r))
-                        row-owner-ids (mapv :owner-id rows)
-                        ;; rounding slack: floor-and-carry may leave ≤1 unit per bucket
-                        slack     2
-                        cert-valid? (if (contains? r :ledger/hash)
-                                      (= (:ledger/hash r)
-                                         (str "sha256:"
-                                              (hc/hash-with-intent
-                                               {:hash/intent :evidence-record}
-                                               (dissoc r :ledger/hash :ledger/preimage))))
-                                      true)
-                        row-total-filled (reduce + 0 (map #(long (or (:filled %) 0)) rows))
-                        row-total-requested (reduce + 0 (map #(long (or (:requested %) 0)) rows))
-                        row-total-deferred (reduce + 0 (map #(long (or (:deferred %) 0)) rows))
-                        row-total-haircut (reduce + 0 (map #(long (or (:haircut %) 0)) rows))
-                        row-negative-filled (some #(neg? (long (or (:filled %) 0))) rows)
-                        duplicate-owner? (not= (count owner-ids) (count (distinct owner-ids)))
-                        duplicate-row-owner? (not= (count row-owner-ids)
+                 (let [available (long (or (:ledger/available r) 0))
+                       requested (long (or (:ledger/requested r) 0))
+                       filled    (long (or (:ledger/filled r) 0))
+                       deferred  (long (or (:ledger/deferred r) 0))
+                       haircut   (long (or (:ledger/haircut r) 0))
+                       rows      (vec (:ledger/rows r))
+                       owner-ids (vec (:ledger/owner-ids r))
+                       row-owner-ids (mapv :owner-id rows)
+                         ;; conservation tolerance is a committed policy field
+                         ;; (numerical contract), not an implicit constant
+                       slack (long (or (get-in r [:ledger/allocation-policy :conservation :tolerance])
+                                       (get-in r [:ledger/conservation :tolerance])
+                                       2))
+                       cert-valid? (if (contains? r :ledger/hash)
+                                     (let [body (dissoc r :ledger/hash :ledger/preimage
+                                                        :ledger/canonical-bytes
+                                                        :ledger/canonical-hash)
+                                           proj (hc/project-committable-content body)]
+                                       (and (or (nil? (:ledger/preimage r))
+                                                (= (:ledger/preimage r) (pr-str body)))
+                                            (= (:ledger/hash r)
+                                               (:canonical/hash
+                                                (hc/canonical-commitment
+                                                 :evidence-record proj)))
+                                            (hc/canonical-commitment-valid?
+                                             :evidence-record proj
+                                             {:canonical/bytes (:ledger/canonical-bytes r)
+                                              :canonical/hash (:ledger/canonical-hash r)})))
+                                     true)
+                       row-total-filled (reduce + 0 (map #(long (or (:filled %) 0)) rows))
+                       row-total-requested (reduce + 0 (map #(long (or (:requested %) 0)) rows))
+                       row-total-deferred (reduce + 0 (map #(long (or (:deferred %) 0)) rows))
+                       row-total-haircut (reduce + 0 (map #(long (or (:haircut %) 0)) rows))
+                       row-negative-filled (some #(neg? (long (or (:filled %) 0))) rows)
+                       duplicate-owner? (not= (count owner-ids) (count (distinct owner-ids)))
+                       duplicate-row-owner? (not= (count row-owner-ids)
                                                   (count (distinct row-owner-ids)))
-                        row-conservation-broken?
-                        (some (fn [{:keys [requested filled deferred haircut]}]
-                                (> (abs (- (+ (long (or filled 0))
-                                              (long (or deferred 0))
-                                              (long (or haircut 0)))
-                                           (long (or requested 0))))
-                                   slack))
-                              rows)
-                        row-over-request
-                        (some (fn [{:keys [requested filled deferred haircut]}]
-                                (> (+ (long (or filled 0))
-                                      (long (or deferred 0))
-                                      (long (or haircut 0)))
-                                   (+ (long (or requested 0)) slack)))
-                              rows)
-                        run-root-mismatch?
-                        (and (some? (:ledger/run-root r))
-                             (not= (:ledger/run-root r)
-                                   (partial-fill/ledger-run-root world)))
-                        request-set-root-mismatch?
-                        (and (some? (:ledger/request-set-root r))
-                             (not= (:ledger/request-set-root r)
-                                   (partial-fill/ledger-request-set-root
-                                    owner-ids rows)))
-                        fcfs-over-commit?
-                        (boolean
-                         (:over?
-                          (reduce (fn [{:keys [remaining over?]} row]
-                                    (let [row-filled (long (or (:filled row) 0))
-                                          remaining' (- remaining row-filled)]
-                                      {:remaining remaining'
-                                       :over? (or over? (neg? remaining'))}))
-                                  {:remaining available :over? false}
-                                  rows)))
-                        issues (cond-> []
-                                 (not cert-valid?)
-                                 (conj :withdrawal-ledger-certificate-invalid)
-                                 (neg? filled)
-                                 (conj :withdrawal-negative-filled)
-                                 (> filled available)
-                                 (conj :withdrawal-exceeds-available-pool)
-                                 (> filled requested)
-                                 (conj :withdrawal-exceeds-requested)
-                                 (> (+ filled deferred haircut) (+ requested slack))
-                                 (conj :withdrawal-settlement-exceeds-requested)
-                                 (neg? deferred)
-                                 (conj :withdrawal-negative-deferred)
-                                 (neg? haircut)
-                                 (conj :withdrawal-negative-haircut)
+                       row-conservation-broken?
+                       (some (fn [{:keys [requested filled deferred haircut]}]
+                               (> (abs (- (+ (long (or filled 0))
+                                             (long (or deferred 0))
+                                             (long (or haircut 0)))
+                                          (long (or requested 0))))
+                                  slack))
+                             rows)
+                       row-over-request
+                       (some (fn [{:keys [requested filled deferred haircut]}]
+                               (> (+ (long (or filled 0))
+                                     (long (or deferred 0))
+                                     (long (or haircut 0)))
+                                  (+ (long (or requested 0)) slack)))
+                             rows)
+                       run-root-mismatch?
+                       (and (some? (:ledger/run-root r))
+                            (not= (:ledger/run-root r)
+                                  (partial-fill/ledger-run-root world)))
+                       params-root-mismatch?
+                       (and (some? (:ledger/params-root r))
+                            (not= (:ledger/params-root r)
+                                  (partial-fill/ledger-params-root world)))
+                       state-cutpoint-mismatch?
+                       (and (some? (:ledger/state-cutpoint-root r))
+                            (not= (:ledger/state-cutpoint-root r)
+                                  (partial-fill/ledger-state-cutpoint-root world)))
+                       basis-root-mismatch?
+                       (and (some? (:ledger/basis-root r))
+                            (not= (:ledger/basis-root r)
+                                  (partial-fill/ledger-basis-root
+                                   {:state-cutpoint-root (:ledger/state-cutpoint-root r)
+                                    :request-set-root (:ledger/request-set-root r)
+                                    :request-order-root (:ledger/request-order-root r)
+                                    :capacity-root (partial-fill/application-hash
+                                                    {:available (long (:ledger/available r 0))})
+                                    :allocation-policy-root (:ledger/allocation-policy-root r)
+                                    :params-root (:ledger/params-root r)})))
+                       request-set-root-mismatch?
+                       (and (some? (:ledger/request-set-root r))
+                            (not= (:ledger/request-set-root r)
+                                  (partial-fill/ledger-request-set-root
+                                   owner-ids rows)))
+                       request-order-root-mismatch?
+                       (and (some? (:ledger/request-order-root r))
+                            (not= (:ledger/request-order-root r)
+                                  (partial-fill/ledger-request-order-root owner-ids)))
+                       allocation-policy-root-mismatch?
+                       (and (some? (:ledger/allocation-policy r))
+                            (some? (:ledger/allocation-policy-root r))
+                            (not= (:ledger/allocation-policy-root r)
+                                  (partial-fill/ledger-allocation-policy-root
+                                   (:ledger/allocation-policy r))))
+                       fcfs-over-commit?
+                       (boolean
+                        (:over?
+                         (reduce (fn [{:keys [remaining over?]} row]
+                                   (let [row-filled (long (or (:filled row) 0))
+                                         remaining' (- remaining row-filled)]
+                                     {:remaining remaining'
+                                      :over? (or over? (neg? remaining'))}))
+                                 {:remaining available :over? false}
+                                 rows)))
+                       issues (cond-> []
+                                (not cert-valid?)
+                                (conj :withdrawal-ledger-certificate-invalid)
+                                (neg? filled)
+                                (conj :withdrawal-negative-filled)
+                                (> filled available)
+                                (conj :withdrawal-exceeds-available-pool)
+                                (> filled requested)
+                                (conj :withdrawal-exceeds-requested)
+                                (> (+ filled deferred haircut) (+ requested slack))
+                                (conj :withdrawal-settlement-exceeds-requested)
+                                (neg? deferred)
+                                (conj :withdrawal-negative-deferred)
+                                (neg? haircut)
+                                (conj :withdrawal-negative-haircut)
                                  ;; Per-run root binding: a certificate committed
                                  ;; to an execution root must not appear under a
                                  ;; different execution world (recomputed).
-                                 run-root-mismatch?
-                                 (conj :withdrawal-run-root-mismatch)
+                                run-root-mismatch?
+                                (conj :withdrawal-run-root-mismatch)
+                                 ;; State-cutpoint binding: the committed state
+                                 ;; reference must reconcile to the current state
+                                 ;; (content-addressed, not a timestamp label).
+                                state-cutpoint-mismatch?
+                                (conj :withdrawal-state-cutpoint-mismatch)
+                                 ;; Params binding at the cutpoint.
+                                params-root-mismatch?
+                                (conj :withdrawal-params-root-mismatch)
+                                 ;; Compositional basis: the basis root must
+                                 ;; reconcile to its committed constituents.
+                                basis-root-mismatch?
+                                (conj :withdrawal-basis-root-mismatch)
                                  ;; Withdrawal-subject binding: the committed
                                  ;; request-set root must reconcile to this
                                  ;; ledger's own rows (no substitution between
                                  ;; withdrawals in the same run).
-                                 request-set-root-mismatch?
-                                 (conj :withdrawal-request-set-root-mismatch)
+                                request-set-root-mismatch?
+                                (conj :withdrawal-request-set-root-mismatch)
+                                 ;; Input-order binding (FCFS): the committed
+                                 ;; request order must reconcile to the declared
+                                 ;; principals in order.
+                                request-order-root-mismatch?
+                                (conj :withdrawal-request-order-root-mismatch)
+                                 ;; Allocator-policy binding: the committed policy
+                                 ;; root must reconcile to the committed policy.
+                                allocation-policy-root-mismatch?
+                                (conj :withdrawal-allocation-policy-root-mismatch)
                                  ;; Per-principal uniqueness + exact bijection:
                                  ;; declared owners unique, row owners unique,
                                  ;; and the two sets identical.
-                                 (and (seq owner-ids) duplicate-owner?)
-                                 (conj :withdrawal-duplicate-owner)
-                                 (and (seq rows) duplicate-row-owner?)
-                                 (conj :withdrawal-duplicate-row-owner)
-                                 (and (seq rows)
-                                      (not= (set row-owner-ids) (set owner-ids)))
-                                 (conj :withdrawal-address-coverage-mismatch)
+                                (and (seq owner-ids) duplicate-owner?)
+                                (conj :withdrawal-duplicate-owner)
+                                (and (seq rows) duplicate-row-owner?)
+                                (conj :withdrawal-duplicate-row-owner)
+                                (and (seq rows)
+                                     (not= (set row-owner-ids) (set owner-ids)))
+                                (conj :withdrawal-address-coverage-mismatch)
                                  ;; Per-row economic conservation: each row's
                                  ;; settlement splits reconcile to its request.
-                                 (and (seq rows) row-conservation-broken?)
-                                 (conj :withdrawal-row-conservation)
+                                (and (seq rows) row-conservation-broken?)
+                                (conj :withdrawal-row-conservation)
                                  ;; Per-row reconstruction: totals reconcile to
                                  ;; rows, each row stays within its request, and
                                  ;; the FCFS pool bound holds for every prefix.
-                                 (and (seq rows) (not= row-total-filled filled))
-                                 (conj :withdrawal-row-total-mismatch)
-                                 (and (seq rows) (not= row-total-requested requested))
-                                 (conj :withdrawal-row-total-mismatch)
-                                 (and (seq rows) (not= row-total-deferred deferred))
-                                 (conj :withdrawal-row-total-mismatch)
-                                 (and (seq rows) (not= row-total-haircut haircut))
-                                 (conj :withdrawal-row-total-mismatch)
-                                 (and (seq rows) row-negative-filled)
-                                 (conj :withdrawal-negative-filled)
-                                 (and (seq rows) row-over-request)
-                                 (conj :withdrawal-row-exceeds-requested)
-                                 (and (seq rows) fcfs-over-commit?)
-                                 (conj :withdrawal-fcfs-over-commit))]
+                                (and (seq rows) (not= row-total-filled filled))
+                                (conj :withdrawal-row-total-mismatch)
+                                (and (seq rows) (not= row-total-requested requested))
+                                (conj :withdrawal-row-total-mismatch)
+                                (and (seq rows) (not= row-total-deferred deferred))
+                                (conj :withdrawal-row-total-mismatch)
+                                (and (seq rows) (not= row-total-haircut haircut))
+                                (conj :withdrawal-row-total-mismatch)
+                                (and (seq rows) row-negative-filled)
+                                (conj :withdrawal-negative-filled)
+                                (and (seq rows) row-over-request)
+                                (conj :withdrawal-row-exceeds-requested)
+                                (and (seq rows) fcfs-over-commit?)
+                                (conj :withdrawal-fcfs-over-commit))]
                    (when (seq issues)
                      (merge (select-keys r [:ledger/id :ledger/module-id :ledger/token])
                             {:issues issues

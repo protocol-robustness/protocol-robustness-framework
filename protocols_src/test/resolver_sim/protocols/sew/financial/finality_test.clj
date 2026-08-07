@@ -142,12 +142,13 @@
 
 ;; ── Cryptographic solvency ──────────────────────────────────────────────────
 
-(deftest solvency-defaults-to-unproven
-  (testing "Without cryptographic proof, solvency status is :unproven"
+(deftest solvency-defaults-to-solvent-unproven
+  (testing "Without cryptographic proof, the legacy tier is :unproven; canonical status is :solvent"
     (let [world (t/empty-world 1000)
           result (solv/classify-solvency world)]
-      (is (= :unproven (:solvency/status result)))
-      (is (nil? (:solvency/proof-valid? result))))))
+      (is (= :solvent (:assessment/status result)))
+      (is (= :unproven (:assessment/legacy-tier result)))
+      (is (= :unverified (:verification/status result))))))
 
 (deftest test-open-gates-exhaustive
   (testing "Exhaustive coverage of open-gates logic"

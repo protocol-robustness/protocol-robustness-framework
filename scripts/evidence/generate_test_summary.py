@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Write the concise, machine-readable result for scripts/test.sh."""
+"""Write the concise, machine-readable result for scripts/test.sh.
+
+Emits both:
+  test-summary.json   schema: test-summary.v2
+  test-run.json       schema: test-run.v1   (run manifest)
+
+The unified test-artifacts.json registry is produced afterwards by
+scripts/evidence/consolidate_test_artifacts.py.
+"""
 
 from __future__ import annotations
 
@@ -25,12 +33,13 @@ def main(argv: list[str]) -> int:
         failures_s,
         mode,
         summary_file_s,
-        _run_manifest_file,
+        run_manifest_file_s,
         _registry_file,
         _claimable_file,
     ) = argv
     artifact_dir = pathlib.Path(artifact_dir_s)
     summary_file = pathlib.Path(summary_file_s)
+    run_manifest_file = pathlib.Path(run_manifest_file_s)
     failures = int(failures_s)
     targets_file = artifact_dir / f".targets-{run_id}.csv"
 
@@ -48,11 +57,12 @@ def main(argv: list[str]) -> int:
                     }
                 )
 
+    created_at = datetime.now(timezone.utc).isoformat()
     summary = {
         "schema_version": "test-summary.v2",
         "run_id": run_id,
         "mode": mode,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": created_at,
         "overall_status": "pass" if failures == 0 else "fail",
         "failure_count": failures,
         "target_count": len(targets),
@@ -62,6 +72,29 @@ def main(argv: list[str]) -> int:
     summary_file.parent.mkdir(parents=True, exist_ok=True)
     summary_file.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote machine-readable test summary: {summary_file}")
+
+    # Run manifest (test-run.v1).  This is the dependency target for
+    # test-summary in the artifact registry, so it must exist before the
+    # consolidation step builds test-artifacts.json.
+    run_manifest = {
+        "schema_version": "test-run.v1",
+        "run_id": run_id,
+        "created_at": created_at,
+        "framework": {"name": "protocol-robustness-framework-test-runner",
+                      "version": "0.1.0"},
+        "model": {},
+        "suite": {"mode": mode},
+        "capabilities_resolved": {},
+        "artifacts": {},
+        "overall_status": summary["overall_status"],
+        "failure_count": failures,
+        "target_count": len(targets),
+        "targets": targets,
+    }
+    run_manifest_file.parent.mkdir(parents=True, exist_ok=True)
+    run_manifest_file.write_text(json.dumps(run_manifest, indent=2) + "\n",
+                                 encoding="utf-8")
+    print(f"Wrote run manifest: {run_manifest_file}")
     return 0
 
 

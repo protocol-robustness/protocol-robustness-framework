@@ -24,7 +24,8 @@
             [resolver-sim.yield.token :as tok]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.util.evidence :as util-evidence]
-            [resolver-sim.io.event-evidence :as evidence]))
+            [resolver-sim.io.event-evidence :as evidence]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:private schema-version (evcfg/schema :partial-fill-decision))
 
@@ -592,25 +593,36 @@
                       :policy (:policy decision)
                       :evidence (:evidence decision)}
                      extra)
-         decision-hash (str "sha256:"
-                            (hc/hash-with-intent {:hash/intent :evidence-record}
-                                                 (hc/project-committable-content base)))]
+         proj-base (hc/project-committable-content base)
+         commitment (hc/canonical-commitment :evidence-record proj-base)
+         decision-hash (:canonical/hash commitment)]
      (assoc base
             :decision/id (str "partial-fill-" (subs decision-hash 7 (min (count decision-hash) 23)))
             :decision/hash decision-hash
             ;; JSON replay output cannot distinguish string claim keys from
             ;; keyword claim buckets. Preserve the exact typed hash preimage
             ;; for independent post-persistence verification.
-            :decision/preimage (pr-str base)))))
+            :decision/preimage (pr-str base)
+            ;; Portable canonical commitment: hex of canonical-bytes(projected
+            ;; base), so a cross-language verifier recomputes
+            ;; sha256(EVIDENCE_RECORD_V1 || hex-decode(bytes)) == hash without
+            ;; needing the Clojure printer preimage.
+            :decision/canonical-bytes (:canonical/bytes commitment)
+            :decision/canonical-hash decision-hash))))
 
 (defn decision-hash-valid?
   "Verify the exact decision artifact preimage that downstream propagation
    references. This does not depend on caller-provided position state."
   [decision]
-  (= (:decision/hash decision)
-     (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                         (hc/project-committable-content
-                                          (dissoc decision :decision/id :decision/hash :decision/preimage))))))
+  (let [body (dissoc decision :decision/id :decision/hash :decision/preimage
+                     :decision/canonical-bytes :decision/canonical-hash)
+        proj (hc/project-committable-content body)
+        recomputed (:canonical/hash (hc/canonical-commitment :evidence-record proj))]
+    (and (= recomputed (:decision/hash decision))
+         (hc/canonical-commitment-valid?
+          :evidence-record proj
+          {:canonical/bytes (:decision/canonical-bytes decision)
+           :canonical/hash (:decision/canonical-hash decision)}))))
 
 (defn attach-decision-artifact
   "Attach a partial-fill decision artifact to world state under a stable map."
@@ -635,8 +647,8 @@
 
 (defn application-hash
   [application]
-  (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      (application-hash-preimage application))))
+  (hash-ref/sha256-ref (hc/hash-with-intent {:hash/intent :evidence-record}
+                                            (application-hash-preimage application))))
 
 (defn ledger-run-root
   "Content-addressed root of the exact execution context a withdrawal ledger is
@@ -656,19 +668,96 @@
     :params-root (application-hash (or (:params world) {}))}))
 
 (defn ledger-request-set-root
-  "Content-addressed root of the withdrawal subject: the distinct principals and
-   their requested amounts.
+  "Content-addressed root of the withdrawal subject: the principals and their
+   requested amounts.
 
-   Order-independent by construction (sorted) because request-set identity does
-   not depend on FCFS processing order. It distinguishes one withdrawal from
-   another within the same run/execution, so a ledger from a different
-   withdrawal cannot be substituted in merely because the enclosing run matches."
+   Membership semantics: the root is order-independent (sorted) because request
+   SET identity does not depend on processing order. Multiplicity is PRESERVED,
+   not collapsed — `sort` keeps duplicates, so a malformed population
+   [(a,10),(a,10)] commits differently from [(a,10)] and cannot alias a
+   legitimate one at the input-commitment boundary. Uniqueness is an invariant
+   (see :withdrawal-duplicate-owner), never a preprocessing step here.
+
+   It distinguishes one withdrawal from another within the same run/execution,
+   so a ledger from a different withdrawal cannot be substituted in merely
+   because the enclosing run matches."
   [owner-ids rows]
   (application-hash
    {:schema-version "withdrawal-request-set.v1"
     :owner-ids (vec (sort owner-ids))
     :requests (vec (sort-by (juxt :owner-id :requested)
                             (map #(select-keys % [:owner-id :requested]) rows)))}))
+
+(defn ledger-request-order-root
+  "Content-addressed root of the request ORDER the allocator was obligated to use.
+
+   For FCFS the input ordering is economically material — who is served first
+   changes the allocation — so the order is committed as an input, not merely
+   reflected in the output rows. Order-preserving (NOT sorted): a different
+   request order must commit differently, and the certificate proves 'this was
+   the order of requests the allocator was obligated to use'."
+  [owner-ids]
+  (application-hash
+   {:schema-version "withdrawal-request-order.v1"
+    :owner-ids (vec owner-ids)}))
+
+(defn ledger-allocation-policy-root
+  "Content-addressed root of the allocation policy semantics that turned the
+   committed request population into the committed result.
+
+   This closes the loop toward `result = F(request-set, order, capacity,
+   policy, params, state-cutpoint)`: the certificate commits not only the
+   inputs and the output but the allocator contract that maps one to the
+   other."
+  [policy]
+  (application-hash
+   {:schema-version "withdrawal-allocation-policy.v1"
+    :policy policy}))
+
+(defn ledger-params-root
+  "Content root over the world parameters (policy/config context) at the
+   cutpoint."
+  [world]
+  (application-hash (or (:params world) {})))
+
+(defn ledger-state-cutpoint-root
+  "Content-addressed reference to the allocation-relevant world state at the
+   cutpoint: positions, indices, and risk/market state.
+
+   This is a state reference, not a timestamp/block/run identifier — two
+   withdrawals at the same run and block but different state commit
+   differently, and the ledger cannot be composed from state fragments taken
+   at different cutpoints.
+
+   Capacity (`:yield/held-balances` / `:total-held`) is intentionally EXCLUDED:
+   it is committed separately as the capacity root, and it is recomputed by
+   protocol custody sync after a withdrawal (so committing it here would make
+   the recompute diverge from the settlement-time reference)."
+  [world]
+  (let [proj (hc/project-committable-content
+              {:yield/positions (:yield/positions world)
+               :yield/indices (:yield/indices world)
+               :yield/risk (:yield/risk world)
+               :yield/shortfall-models (:yield/shortfall-models world)
+               :yield/withdrawal-policies (:yield/withdrawal-policies world)})]
+    (:canonical/hash (hc/canonical-commitment :evidence-record proj))))
+
+(defn ledger-basis-root
+  "Compositional identity of ONE allocation basis: ties the state cutpoint,
+   admissible population, request order, capacity, policy, and parameters to a
+   single cutpoint, so the ledger binds to one basis rather than independently
+   carrying a growing list of roots.
+
+   This prevents cross-state substitution — universe from X, capacity from Y,
+   ordering from X, policy from Z — where every individual artifact is valid
+   but the composition is temporally incoherent. Constituent roots remain
+   committed separately for inspection."
+  [m]
+  (application-hash
+   (merge {:schema-version "withdrawal-allocation-basis.v1"}
+          (select-keys m [:state-cutpoint-root :request-set-root
+                          :request-order-root :capacity-root
+                          :allocation-policy-root :params-root]))))
 
 (defn- normalize-entry
   "Normalize an accounting entry to a sorted map for deterministic
@@ -689,8 +778,8 @@
 (defn accounting-entry-set-hash
   "Hash the duplicate-preserving canonical accounting-entry list."
   [entries]
-  (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      (canonical-accounting-entries entries))))
+  (hash-ref/sha256-ref (hc/hash-with-intent {:hash/intent :evidence-record}
+                                            (canonical-accounting-entries entries))))
 
 (defn- canonical-output-participants
   "Project participant credit records with token identity, sorted deterministically.
@@ -814,9 +903,9 @@
    This hash is independent of the application/hash and verifies the semantic
    correctness of the mutation's outputs rather than the application record itself."
   [application propagation]
-  (str "sha256:" (hc/hash-with-intent
-                  {:hash/intent :evidence-record}
-                  (pro-rata-application-output-projection application propagation))))
+  (hash-ref/sha256-ref (hc/hash-with-intent
+                        {:hash/intent :evidence-record}
+                        (pro-rata-application-output-projection application propagation))))
 
 (defn- capped-keys-from-passes
   "Extract participant keys that were cap-constrained in redistribution passes.
@@ -958,7 +1047,7 @@
               :status :committed}
         entry-hash (accounting-entry-set-hash (:accounting-entries base))
         base (assoc base :accounting-entry-set-hash entry-hash)
-        artifact-hash (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record} base))]
+        artifact-hash (hash-ref/sha256-ref (hc/hash-with-intent {:hash/intent :evidence-record} base))]
     (assoc base
            :propagation/id (str "pro-rata-propagation-" (subs artifact-hash 7 (min (count artifact-hash) 23)))
            :propagation/hash artifact-hash)))
@@ -971,8 +1060,8 @@
     (let [validated-artifact
           (or (:application/base-propagation artifact) artifact)
           expected-propagation-hash
-          (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                              (dissoc validated-artifact :propagation/id :propagation/hash)))
+          (hash-ref/sha256-ref (hc/hash-with-intent {:hash/intent :evidence-record}
+                                                    (dissoc validated-artifact :propagation/id :propagation/hash)))
           hash-errors (cond-> []
                         (nil? (:propagation/id validated-artifact)) (conj :propagation-id-missing)
                         (nil? (:propagation/hash validated-artifact)) (conj :propagation-hash-missing)

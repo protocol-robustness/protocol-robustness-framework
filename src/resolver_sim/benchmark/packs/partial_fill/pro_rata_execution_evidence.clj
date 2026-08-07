@@ -8,7 +8,8 @@
    cross-validates against the outcome manifest's theorem and conclusion
    commitments."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.benchmark.outcome-manifest :as om]))
+            [resolver-sim.benchmark.outcome-manifest :as om]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "pro-rata-execution-evidence.v1")
 (def ^:const profile-id :evidence-profile/pro-rata-execution)
@@ -99,9 +100,9 @@
                  :fully-satisfied? full-sat?
                  :deferred-residual-created? deferred?}
                 :evidence-profile/verification verification}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :pro-rata-execution-evidence
-                                             base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :pro-rata-execution-evidence
+                                         base))]
       (assoc base :evidence-profile/hash computed-hash))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -133,9 +134,9 @@
         (swap! errors conj (str "missing " (name f)))))
     (when (some? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
-            computed (str "sha256:"
-                          (hc/domain-hash :pro-rata-execution-evidence
-                                          without-hash))]
+            computed (hash-ref/sha256-ref
+                      (hc/domain-hash :pro-rata-execution-evidence
+                                      without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)

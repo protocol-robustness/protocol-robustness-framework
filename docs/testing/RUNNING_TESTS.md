@@ -83,6 +83,40 @@ bb backstop:concurrent &
 These work because each process writes to its own artifact directory (`PRF_ARTIFACT_DIR`)
 and neither acquires the global lock.
 
+### Unified artifact keep flag: `KEEP_TEST_ARTIFACTS`
+
+Every parallel runner — `scripts/parallel-test-runner`, `scripts/parallel-suite-runner`,
+`scripts/run-sew-tests`, and the temp-evidence helpers in `test/resolver_sim/test_util.clj` —
+uses one keep flag:
+
+```bash
+KEEP_TEST_ARTIFACTS=1 ./scripts/test.sh unit   # preserve artifact run-roots on success
+```
+
+When unset, per-runner artifact roots (e.g. `/tmp/parallel-run-*`, `/tmp/sew-run-*`,
+`/tmp/parallel-suite-artifacts-*`) are cleaned up on success and **always retained on
+failure** (or when any scope is incomplete). The old per-runner names
+(`KEEP_PARALLEL_TEST_ARTIFACTS`, `SEW_TEST_CLEANUP_RUN`) are removed.
+
+### Staging artifacts for consolidation: `PARALLEL_TEST_RUN_ROOT`
+
+All three parallel runners accept `PARALLEL_TEST_RUN_ROOT` to place per-namespace /
+per-suite artifact roots under a specific directory instead of `/tmp`. When set, the
+roots are **left in place** (no auto-cleanup) so they can be merged by the artifact
+collector:
+
+```bash
+export PARALLEL_TEST_RUN_ROOT=results/test-artifacts/targets/unit
+clojure -M:test:with-sew -m scripts.parallel-test-runner --noop-capture <ns>...
+python3 scripts/evidence/consolidate_test_artifacts.py \
+  --run-root results/test-artifacts \
+  --producer-roots "$PARALLEL_TEST_RUN_ROOT"
+```
+
+The leak tripwire excludes the staged root from its shared-artifact-dir check, so
+staging under the canonical artifact dir is safe. Each staged root carries an
+ownership marker (`_owner.edn`) and a machine-readable `_manifest.json`.
+
 ## 🔴 Required: Trace Equivalence Verification (Model + Solidity, manifest-scoped)
 
 This is a **mandatory release check** for equivalence claims on the
@@ -127,6 +161,19 @@ When running `./scripts/test.sh all`, the script writes a JSON summary:
 ```text
 results/test-artifacts/test-summary.json
 ```
+
+Every mode now also emits a run manifest and a unified artifact registry after
+targets complete (non-blocking, best-effort):
+
+```text
+results/test-artifacts/test-run.json         # schema: test-run.v1
+results/test-artifacts/test-artifacts.json   # schema: test-artifacts.v1.2
+```
+
+`test-artifacts.json` is built by `scripts/evidence/consolidate_test_artifacts.py`
+from the canonical artifact dir (sequential mode) or from the per-target dirs
+under `targets/` (`PARALLEL_TARGETS=1` mode). Validate it with
+`bb validation:artifact-registry`.
 
 It includes per-target status, exit codes, durations, and log file paths.
 

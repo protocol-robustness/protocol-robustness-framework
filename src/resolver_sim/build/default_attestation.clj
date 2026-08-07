@@ -38,7 +38,7 @@
   (throw (ex-info message (assoc data :reason reason))))
 
 (defn- sha256-ref [value]
-  (str "sha256:" (canonical/domain-hash "DEFAULT_BUILD_ATTESTATION_V1" value)))
+  (hash-ref/sha256-ref (canonical/domain-hash "DEFAULT_BUILD_ATTESTATION_V1" value)))
 
 (defn- source-input-paths [variant]
   (cond-> ["deps.edn"

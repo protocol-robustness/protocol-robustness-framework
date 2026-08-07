@@ -181,7 +181,7 @@
 (defn- file-sha256-ref [file]
   (let [digest (MessageDigest/getInstance "SHA-256")
         bytes (Files/readAllBytes (.toPath (io/file file)))]
-    (str "sha256:" (format "%064x" (BigInteger. 1 (.digest digest bytes))))))
+    (hash-ref/sha256-ref (format "%064x" (BigInteger. 1 (.digest digest bytes))))))
 
 (defn- normalize-persisted-evidence-record [record]
   ;; clojure.data.json serializes keyword namespaces away. The forensic event

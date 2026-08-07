@@ -42,8 +42,8 @@
 (defn correlation-hash
   "Return the domain-separated canonical hash reference for a correlation."
   [correlation]
-  (str "sha256:" (hc/domain-hash :authorised-effect-correlation
-                                 (preimage correlation))))
+  (hash-ref/sha256-ref (hc/domain-hash :authorised-effect-correlation
+                                       (preimage correlation))))
 
 (defn correlation-error
   "Return a stable structural error keyword, or nil for a valid correlation."

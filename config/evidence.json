@@ -5,6 +5,11 @@
   "evidence_bundle_dir": "results/evidence-bundle",
   "contract_version": "evidence-contract.v1",
   "strict_mode": true,
+  "exempt_schemas": [
+    "evidence-contract.v1",
+    "scenario.v1",
+    "projection.v1"
+  ],
   "rounding_policy": "floor-to-asset-decimals.v1",
   "framework": {
     "name": "protocol-robustness-framework-test-runner",

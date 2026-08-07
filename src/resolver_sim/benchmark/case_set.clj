@@ -13,7 +13,8 @@
    Case keys are dense zero-based integers matching the execution ordinal
    of each scenario run.  They enable compact references to individual
    cases without repeating content hashes."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (defn case-key-for-execution
   "Derive the :case/key for an execution from its :execution/ordinal.
@@ -62,7 +63,7 @@
      (compute-case-set-root (build-case-set plan))
      ;; => \"sha256:...\""
   [case-set]
-  (str "sha256:"
-       (hc/domain-hash :generated-case-set
-                       {:case-count (count case-set)
-                        :cases case-set})))
+  (hash-ref/sha256-ref
+   (hc/domain-hash :generated-case-set
+                   {:case-count (count case-set)
+                    :cases case-set})))

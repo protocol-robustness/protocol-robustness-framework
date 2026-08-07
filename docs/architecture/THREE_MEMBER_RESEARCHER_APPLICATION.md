@@ -436,3 +436,80 @@ from `:approve` counts and are NOT authority. Audit results:
   re-evaluates from committed inputs and compares — a stored classification that
   fails to recompute is rejected. A stored classification is never trusted on
   its own.
+
+### 13.5 Three-classifications-preserved threaded through the aggregate check
+
+`resolver-sim.benchmark.review-aggregate-check` threads the three-member
+authority classifications so they cannot be collapsed or double-counted at the
+review-aggregate layer:
+
+- `run-review-aggregate-checks` — the composed aggregate runner: every consumer
+  can run the full three-member review-aggregate surface (member bit-width,
+  member-key density, three-member standard, and — when an authority report is
+  supplied — three-member classifications) in one call.
+- `check-aggregate-three-member-standard` — a canonical round must constitute
+  exactly three DISTINCT identities (seat distinctness, never real-world
+  independence), with roles from the canonical vocabulary and dense unique keys
+  when keyed.
+- `check-aggregate-three-member-classifications` — an authority report must
+  preserve all THREE classification dimensions and their cross-dimension
+  rules:
+  1. `:authority-status` (`:authorised | :not-authorised`);
+  2. `:outcome-source` (`:authoritative-target | :target-outcome-unavailable`);
+  3. the non-collapsed position categories (supporting / dissenting /
+     qualifying / invalid / equivocating / unknown / re-scoped / duplicate),
+     disjoint — no position in more than one, none silently dropped, none
+     counted twice.
+
+  The check reveals violations such as: authorised-without-authoritative-outcome,
+  authorised-below-threshold, counted-support ≠ valid-supporting count, position
+  category overlap, an equivocator counted as supporter/dissenter, excluded
+  positions counted, and report↔round member-count / identity-separation
+  mismatches. A legitimate equivocation exclusion (default `:invalid-seat`
+  policy) HOLDS — it is preserved, not flagged.
+
+  **Member classifications preserved (threaded).** The same invariant is
+  threaded at the MEMBER level, not just the position level: each constituted
+  member is in at most one member-level category (supporting / dissenting /
+  qualifying / absent / equivocating / invalid / re-scoped / duplicate / unknown)
+  and every constituted member is accounted for in at least one — a
+  double-classified member (`::member-category-overlap`) or a silently dropped
+  member (`::member-unaccounted`) is revealed. Real reports (including
+  equivocation-exclusion reports) hold; the violations only fire on
+  classification corruption.
+
+**Threaded consumer.** `build-force-authorised-execution-evidence` now
+recomputes the authority report from the committed positions (decision-hash
+integrity recomputed by the report; signature authenticity via the resolver) and
+records `:three-member-aggregate-holds?` + the aggregate checks in the evidence
+profile's `:verification` map — the three classifications are preserved and
+recorded in a production artifact, never caller-supplied. A non-three-member
+round (e.g. a 2-member fixture) is recorded honestly as failing the
+three-member-standard check.
+
+### 13.6 claim-consumption-receipt.v1
+
+`resolver-sim.allocation.claim-consumption-receipt` defines the terminal,
+content-addressed receipt for claim consumption in the probabilistic-allocation
+lifecycle (`CLAIM_CONSUMPTION_RECEIPT_V1` domain separator).
+
+`:claim-consumption-started` is the terminal/irreversible cutpoint of the
+probabilistic-allocation window (ADR-0007), yet — unlike force-authorisation,
+which has `.v1/.v2` consumption receipts — claim consumption previously had **no
+terminal receipt artifact**. `claim-consumption-receipt.v1` closes that gap:
+
+- Binds `:claim/id`, `:allocation/result-root`, `:claim/amount`, the consumed
+  `:claim-consumption/consumed-claimable-hash`, a single-use
+  `:claim-consumption/consumption-key`, and the terminal status
+  (`:consumed | :failed-after-consumption | :rolled-back-after-consumption`),
+  mirroring the force-authorisation-consumption receipt conventions.
+- Fails closed: non-integral or negative amounts are rejected (never silently
+  truncated), non-canonical references are rejected, and status/evidence rules
+  are enforced (`:failed-after-consumption` / `:rolled-back-after-consumption`
+  require terminal evidence).
+- `validate-claim-consumption-receipt` recomputes the hash (tamper detection);
+  `claim-consumption-receipt-valid?` is the structural-only quick check (matching
+  the FA `receipt-valid?` convention).
+- `claim-consumption-conflict-key` is the cancellation-window contract-6
+  analogue: cancellation of a probabilistic-allocation round and the
+  claim-consumption cutpoint transition contend over exactly one key.

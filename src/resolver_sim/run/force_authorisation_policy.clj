@@ -9,7 +9,8 @@
    policy artifact — never trust an unverified registry lookup."
   (:require [clojure.java.io :as io]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
-            [resolver-sim.hash.canonical :as canonical]))
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def schema-version "force-authorisation-policy.v1")
 (def domain "PRF_FORCE_AUTHORISATION_POLICY_V1")
@@ -24,7 +25,7 @@
 (defn policy-hash
   "Compute the self-committing hash of a force-authorisation policy."
   [policy]
-  (str "sha256:" (canonical/domain-hash domain (dissoc policy "policy_sha256"))))
+  (hash-ref/sha256-ref (canonical/domain-hash domain (dissoc policy "policy_sha256"))))
 
 ;;; ============================================================
 ;;; Validation

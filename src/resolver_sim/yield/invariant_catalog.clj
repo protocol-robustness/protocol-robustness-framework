@@ -59,8 +59,8 @@
     :prf-tags [:pro-rata :accounting :conservation :deadline]}
 
    :yield/withdrawal-ledger-conservation
-   {:description "Every recorded withdrawal (single or batch) settles at most the liquidity pool available to it: filled ≤ available, filled ≤ requested, and the settlement split (filled + deferred + haircut) reconciles to the requested value within rounding tolerance. Guards against over-allocation of a shared pool (double-spend) in persisted state."
-    :prf-tags [:liquidity :solvency :conservation :aggregate :withdrawal]}})
+   {:description "Every recorded withdrawal (single or batch) settles at most the liquidity pool available to it, bound to its exact execution world and withdrawal subject. Per record: the fixed-point certificate is valid; the committed run-root matches the recomputed execution context (run/execution/scenario/params); the request-set root matches the ledger's own rows; declared principals are unique and biject to row owners; filled ≤ available; per-row and aggregate economic conservation (filled + deferred + haircut = requested, totals reconcile to rows); FCFS prefix pool bound holds."
+    :prf-tags [:liquidity :solvency :conservation :aggregate :withdrawal :provenance]}})
 
 (def default-runtime-invariant-ids
   "Checked on every successful replay step (yield-v1 adapter)."

@@ -16,12 +16,16 @@
 (deftest sha256-ref-already-prefixed
   (is (= valid-ref (hr/sha256-ref valid-ref))))
 
-(deftest sha256-ref-short-hex-creates-invalid-ref
-  (testing "63 chars is not a valid sha256 ref"
-    (is (false? (hr/valid-sha256-ref? (hr/sha256-ref (subs valid-hex 0 63)))))))
-
-(deftest sha256-ref-empty-string
-  (is (= "sha256:" (hr/sha256-ref ""))))
+(deftest sha256-ref-fails-closed-on-invalid-input
+  (testing "the constructor owns format validation and throws on non-canonical input"
+    (is (thrown? clojure.lang.ExceptionInfo (hr/sha256-ref nil)))
+    (is (thrown? clojure.lang.ExceptionInfo (hr/sha256-ref :abc)))
+    (is (thrown? clojure.lang.ExceptionInfo (hr/sha256-ref 12345)))
+    (is (thrown? clojure.lang.ExceptionInfo (hr/sha256-ref "")))
+    (is (thrown? clojure.lang.ExceptionInfo (hr/sha256-ref (subs valid-hex 0 63))))
+    (is (thrown? clojure.lang.ExceptionInfo (hr/sha256-ref (str valid-hex "a"))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (hr/sha256-ref (str "sha256:" (clojure.string/upper-case valid-hex)))))))
 
 ;; ── parse-sha256-ref ──────────────────────────────────────────────────────────
 
@@ -105,31 +109,43 @@
     (let [digest (apply str (repeat 64 "a"))]
       (is (= (str "sha256:" digest) (hr/sha256-ref digest))))))
 
-(deftest sha256-ref-uppercase-hex
-  (testing "sha256-ref passes through a prefixed string unchanged,
-            so uppercase within a prefixed string is not rejected"
-    (let [upper (str "sha256:" (clojure.string/upper-case (apply str (repeat 64 "a"))))]
-      (is (= upper (hr/sha256-ref upper))))))
-
-(deftest sha256-ref-short-hex
-  (testing "sha256-ref on a short hex produces an invalid ref"
-    (let [ref (hr/sha256-ref "abc")]
-      (is (false? (hr/valid-sha256-ref? ref))))))
-
-(deftest sha256-ref-nil
-  (testing "sha256-ref on nil produces a string but not a valid ref"
-    (let [ref (hr/sha256-ref nil)]
-      (is (string? ref))
-      (is (false? (hr/valid-sha256-ref? ref))))))
-
-(deftest sha256-ref-non-string
-  (testing "sha256-ref on a keyword produces a string but not a valid ref"
-    (let [ref (hr/sha256-ref :abc)]
-      (is (string? ref))
-      (is (false? (hr/valid-sha256-ref? ref))))))
-
 (deftest sha256-ref-round-trip
   (is (= valid-ref (-> valid-ref hr/parse-sha256-ref hr/sha256-ref))))
+
+;; ── Constructor/parser algebra ──────────────────────────────────────────────
+;; parse(sha256-ref(digest)) = digest and sha256-ref(parse(ref)) = ref for every
+;; admitted canonical reference.  Lowercase and 64-hex length are canonicality
+;; properties of the format, not incidental regex details.
+
+(deftest reference-algebra-construct-parse-identity
+  (testing "parse(sha256-ref(digest)) = digest for any 64-char lowercase hex digest"
+    (doseq [digest [valid-hex
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]]
+      (is (= digest (hr/parse-sha256-ref (hr/sha256-ref digest)))))))
+
+(deftest reference-algebra-parse-construct-identity
+  (testing "sha256-ref(parse(ref)) = ref for every admitted canonical reference"
+    (is (= valid-ref (-> valid-ref hr/parse-sha256-ref hr/sha256-ref)))
+    (doseq [r [(str "sha256:" valid-hex)
+               (str "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]]
+      (is (= r (hr/sha256-ref (hr/parse-sha256-ref r)))))))
+
+(deftest reference-algebra-rejects-non-canonical-forms
+  (testing "uppercase prefix, uppercase hex, wrong lengths, empty, and trailing
+            junk are all rejected by both parse and construct"
+    (let [bad-forms [(str "SHA256:" valid-hex)
+                     (str "sha256:" (clojure.string/upper-case valid-hex))
+                     (str "sha256:" (subs valid-hex 0 63))
+                     (str "sha256:" valid-hex "a")
+                     "sha256:"
+                     (str "sha256:" valid-hex "trailing")]]
+      (doseq [bad bad-forms]
+        (is (nil? (hr/parse-sha256-ref bad)) (str "parse rejects " bad))
+        (is (false? (hr/valid-sha256-ref? bad)) (str "valid rejects " bad))
+        (is (thrown? clojure.lang.ExceptionInfo (hr/sha256-ref bad))
+            (str "construct throws on " bad))))))
 
 (deftest sha256-ref-file-round-trip
   (let [tmp (doto (java.io.File/createTempFile "prf-ref-roundtrip" ".txt")

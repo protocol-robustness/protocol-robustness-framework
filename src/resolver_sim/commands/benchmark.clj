@@ -8,6 +8,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [resolver-sim.benchmark.coverage :as coverage]
+            [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
@@ -188,24 +189,16 @@
 
 (defn- validate-claim-registry
   [errors]
-  (let [path hash-ref/claim-registry-path]
-    (if-not (file-exists? path)
-      (swap! errors conj "Claim registry not found: " path)
-      (let [data (read-edn path)]
-        (if (nil? data)
-          (swap! errors conj "Claim registry unreadable: " path)
-          (let [claims (:claims data [])]
-            (when (empty? claims)
-              (swap! errors conj "Claim registry has no claims"))
-            (let [id-set (atom #{})]
-              (doseq [claim claims]
-                (let [cid (:claim/id claim)]
-                  (when (contains? @id-set cid)
-                    (swap! errors conj (str "Duplicate claim ID " cid " in " path)))
-                  (swap! id-set conj cid)
-                  (doseq [k [:claim/title :claim/description :claim/property-types :claim/evaluator]]
-                    (when-not (get claim k)
-                      (swap! errors conj (str "Claim " cid " missing " (name k) " in " path)))))))))))))
+  (try
+    (let [loaded (claim-registry/load-claim-registry nil)]
+      (doseq [claim (:claims loaded)]
+        (doseq [k [:claim/title :claim/description :claim/property-types :claim/evaluator]]
+          (when-not (get claim k)
+            (swap! errors conj (str "Claim " (:claim/id claim) " missing " (name k)
+                                    " in " (:claim-registry/path loaded)))))))
+    (catch Exception e
+      (swap! errors conj (str "Claim registry invalid: " (.getMessage e)
+                              " (source " (claim-registry/claim-registry-source) ")")))))
 
 ;; ───────────────────────────────────────────────────────────────────────
 ;; Manifest validation
@@ -219,10 +212,10 @@
       (set (map io-sc/scenario-file->id paths)))))
 
 (defn- claim-registry-map
-  [claim-registry-path]
-  (let [data (read-edn claim-registry-path)]
-    (when data
-      (into {} (map (fn [c] [(:claim/id c) c]) (:claims data []))))))
+  []
+  (try
+    (:claim-map (claim-registry/load-claim-registry nil))
+    (catch Exception _ nil)))
 
 (defn- validate-manifest
   [errors manifest manifest-path bid status-from-registry]
@@ -313,7 +306,7 @@
                 (when-not (contains? (set (:benchmark/concepts manifest)) dim)
                   (swap! errors conj (str "Scenario dimension " dim " not declared in :benchmark/concepts in " manifest-path))))))))
     ;; Claim references validate against claim registry
-      (let [claim-reg (claim-registry-map hash-ref/claim-registry-path)]
+      (let [claim-reg (claim-registry-map)]
         (when claim-reg
           (let [deferred (or (:benchmark/deferred-scenario-claims manifest) #{})
                 all-registered-ids (set (keys claim-reg))
@@ -355,7 +348,7 @@
                                             [(:benchmark/id benchmark-ref)
                                              (assoc m :benchmark/status (:benchmark/status benchmark-ref))])))
                                   (:benchmarks pack))
-            claim-reg (claim-registry-map hash-ref/claim-registry-path)
+            claim-reg (claim-registry-map)
             known-ids (if claim-reg (set (keys claim-reg)) #{})]
         (doseq [error-id (coverage/pack-capability-errors pack manifests-by-id known-ids)]
           (swap! errors conj (str "Pack capability violation " error-id " in " reg-path)))))))

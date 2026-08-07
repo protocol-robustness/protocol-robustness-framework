@@ -32,7 +32,8 @@
    → certificate (commits artifact hash) → verify-canonical-indices
    (resolves artifact by hash, rederives expected entries, compares)."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.benchmark.review-round :as rr]))
+            [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "review-member-canonical-indices.v1")
 
@@ -58,7 +59,7 @@
    Returns a \"sha256:...\" string, or nil for an empty entries vector."
   [entries]
   (when (seq entries)
-    (str "sha256:" (hc/domain-hash :review-member-canonical-indices-entries entries))))
+    (hash-ref/sha256-ref (hc/domain-hash :review-member-canonical-indices-entries entries))))
 
 ;; ── Builder ───────────────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@
                   :review-member/canonical-indices entries
                   :review-member/indices-hash i-hash}
         artifact (dissoc preimage :review-member-canonical-indices/hash)
-        chash (str "sha256:" (hc/domain-hash :review-member-canonical-indices artifact))]
+        chash (hash-ref/sha256-ref (hc/domain-hash :review-member-canonical-indices artifact))]
     (assoc artifact :review-member-canonical-indices/hash chash)))
 
 ;; ── Structural validator ──────────────────────────────────────────────────
@@ -183,7 +184,7 @@
     (let [declared-hash (:review-member-canonical-indices/hash artifact)]
       (when declared-hash
         (let [preimage (dissoc artifact :review-member-canonical-indices/hash)
-              computed (str "sha256:" (hc/domain-hash :review-member-canonical-indices preimage))]
+              computed (hash-ref/sha256-ref (hc/domain-hash :review-member-canonical-indices preimage))]
           (when-not (= declared-hash computed)
             (swap! errors conj (str "hash mismatch: declared " declared-hash
                                     " computed " computed))))))
@@ -218,7 +219,7 @@
   (let [declared-hash (:review-member-canonical-indices/hash artifact)]
     (when declared-hash
       (let [preimage (dissoc artifact :review-member-canonical-indices/hash)
-            computed (str "sha256:" (hc/domain-hash :review-member-canonical-indices preimage))]
+            computed (hash-ref/sha256-ref (hc/domain-hash :review-member-canonical-indices preimage))]
         (when-not (= declared-hash computed)
           (swap! errors conj (str "artifact hash mismatch: declared "
                                   declared-hash " computed " computed)))))))

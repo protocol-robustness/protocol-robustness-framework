@@ -34,7 +34,8 @@
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.review.position-group :as pg]
             [resolver-sim.benchmark.researcher-position :as rp]
-            [resolver-sim.benchmark.review-member-canonical-indices :as ci]))
+            [resolver-sim.benchmark.review-member-canonical-indices :as ci]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "three-member-research-certificate.v3")
 (def ^:const legacy-schema-version "three-member-research-certificate.v2")
@@ -74,9 +75,9 @@
 (defn- position-hash-valid? [position]
   (and (rp/position-valid? position)
        (= (:position/hash position)
-          (str "sha256:"
-               (hc/domain-hash :researcher-position
-                               (dissoc position :position/hash))))))
+          (hash-ref/sha256-ref
+           (hc/domain-hash :researcher-position
+                           (dissoc position :position/hash))))))
 
 (defn- report-hash-valid? [report]
   ;; A report builder hashes its unsigned, unfinalised representation.
@@ -85,8 +86,8 @@
                         :researcher-run-report/hash nil
                         :researcher/signature nil)]
     (and (hash-reference? declared)
-         (= declared (str "sha256:"
-                          (hc/domain-hash :researcher-run-report preimage))))))
+         (= declared (hash-ref/sha256-ref
+                      (hc/domain-hash :researcher-run-report preimage))))))
 
 ;; ── Outcome grouping ──────────────────────────────────────────────────────
 
@@ -161,6 +162,8 @@
 
 ;; ── Per-dimension consensus with position-groups ─────────────────────────
 
+(declare sort-ids)
+
 (defn- group-members
   "Partition dimension statuses into position groups.
    Returns {:positions entries :all-assessed assessed
@@ -178,17 +181,23 @@
       (if (empty? remaining)
         (let [absent (filter #(nil? (:status %)) entries)
               nr (filter #(= :not-reviewed (:status %)) entries)
+              ;; :insufficient-information and :not-evaluable are both
+              ;; non-assessments (excluded from majority computation) but are
+              ;; kept as distinct groups so the certificate never conflates
+              ;; “evidence insufficient” with “cannot meaningfully evaluate”.
               ii (filter #(= :insufficient-information (:status %)) entries)
+              ne (filter #(= :not-evaluable (:status %)) entries)
               na (filter #(= :not-applicable (:status %)) entries)]
           {:positions entries
            :all-assessed assessed
            :assessed-members (mapv :researcher/id assessed)
            :assessed-statuses (mapv :status assessed)
            :position-group (pg/position-group
-                            :absent (mapv :researcher/id absent)
-                            :not-reviewed (mapv :researcher/id nr)
-                            :insufficient-information (mapv :researcher/id ii)
-                            :not-applicable (mapv :researcher/id na))})
+                            :absent (sort-ids (map :researcher/id absent))
+                            :not-reviewed (sort-ids (map :researcher/id nr))
+                            :insufficient-information (sort-ids (map :researcher/id ii))
+                            :not-applicable (sort-ids (map :researcher/id na))
+                            :not-evaluable (sort-ids (map :researcher/id ne)))})
         (let [entry (first remaining)
               status (:status entry)]
           (if (or (nil? status) (contains? pg/absent-statuses status))
@@ -203,8 +212,16 @@
   (-> (select-keys pg-map
                    [:supporting-members :qualifying-members :dissenting-members
                     :absent-members :not-reviewed-members
-                    :insufficient-information-members :not-applicable-members])
+                    :insufficient-information-members :not-applicable-members
+                    :not-evaluable-members])
       (merge result)))
+
+(defn- sort-ids
+  "Canonical member-id ordering (researcher ids are strings).  Every consensus
+   member group is emitted in this order so consensus is a pure function of the
+   member set, independent of input order."
+  [ids]
+  (vec (sort ids)))
 
 (defn- classify-assessed
   "Split assessed entries (each with :researcher/id and :status) relative to
@@ -221,10 +238,11 @@
   (let [remaining (remove #(= plurality-status (:status %)) assessed)
         qualifying (filterv #(contains? qualifying-statuses (:status %)) remaining)
         dissenting (remove #(contains? qualifying-statuses (:status %)) remaining)]
-    {:supporting-members (mapv :researcher/id
-                               (filter #(= plurality-status (:status %)) assessed))
-     :qualifying-members (mapv :researcher/id qualifying)
-     :dissenting-members (mapv :researcher/id dissenting)}))
+    {:supporting-members (sort-ids
+                          (map :researcher/id
+                               (filter #(= plurality-status (:status %)) assessed)))
+     :qualifying-members (sort-ids (map :researcher/id qualifying))
+     :dissenting-members (sort-ids (map :researcher/id dissenting))}))
 
 (defn- classify-consensus
   "Classify assessed entries into a full consensus result.
@@ -240,16 +258,22 @@
             :dissenting-members [id]
             :assessed-members [id]
             :assessed-statuses [keyword]
-            :contested-statuses [{:status keyword :members [id]}...]}."
+            :contested-statuses [{:status keyword :members [id]}...]}.
+
+   Contract: :unanimous means unanimous among the ASSESSED members — a single
+   assessor produces :single-assessment (never the misleading :unanimous), and
+   callers attach :assessed-count / :member-count so a 1/3 assessment is
+   externally legible as such, not as three researchers agreeing."
   [assessed qualifying-statuses]
   (let [assessed-statuses (mapv :status assessed)]
     (if (= 1 (count (set assessed-statuses)))
-      {:status :unanimous
-       :supporting-members (mapv :researcher/id assessed)
-       :qualifying-members []
-       :dissenting-members []
-       :assessed-members (mapv :researcher/id assessed)
-       :assessed-statuses assessed-statuses}
+      (let [assessed-members (sort-ids (map :researcher/id assessed))]
+        {:status (if (= 1 (count assessed)) :single-assessment :unanimous)
+         :supporting-members assessed-members
+         :qualifying-members []
+         :dissenting-members []
+         :assessed-members assessed-members
+         :assessed-statuses assessed-statuses})
       (let [[plurality-status plurality-count]
             (first (sort-by (comp - val) (frequencies assessed-statuses)))
             {:keys [supporting-members qualifying-members dissenting-members]}
@@ -262,18 +286,18 @@
              :supporting-members supporting-members
              :qualifying-members qualifying-members
              :dissenting-members dissenting-members
-             :assessed-members (mapv :researcher/id assessed)
+             :assessed-members (sort-ids (map :researcher/id assessed))
              :assessed-statuses assessed-statuses})
           {:status :contested
            :supporting-members []
            :qualifying-members qualifying-members
            :dissenting-members []
-           :assessed-members (mapv :researcher/id assessed)
+           :assessed-members (sort-ids (map :researcher/id assessed))
            :assessed-statuses assessed-statuses
            :contested-statuses
            (->> assessed
                 (group-by :status)
-                (map (fn [[st ms]] {:status st :members (mapv :researcher/id ms)}))
+                (map (fn [[st ms]] {:status st :members (sort-ids (map :researcher/id ms))}))
                 (sort-by (juxt (comp - count) (comp str :status)))
                 vec)})))))
 
@@ -290,19 +314,27 @@
             :insufficient-information-members [id...]
             :not-reviewed-members [id...]
             :not-applicable-members [id...]
+            :not-evaluable-members [id...]
+            :assessed-count int
+            :member-count int
             :contested-statuses [{:status :members}]}  ;; contested cells only
 
    NOTE: here :absent-members are researchers whose dimension status is nil
    (no position on the dimension). This differs from per-item-consensus, where
-   :absent-members are researchers who did not target that theorem/conclusion."
+   :absent-members are researchers who did not target that theorem/conclusion.
+   :member-count is the total panel size and :assessed-count the number who
+   formed an assessment, so e.g. a :single-assessment from a 3-member panel is
+   legible as 1/3 rather than as three researchers agreeing."
   [positions dimension-key]
   (let [{:keys [positions all-assessed assessed-members
                 assessed-statuses position-group]}
         (group-members positions dimension-key)
-        n-assessed (count assessed-statuses)]
+        n-assessed (count assessed-statuses)
+        member-count (count positions)]
     (if (< n-assessed 1)
       (merge-pg {:status :not-evaluable :positions positions
-                 :assessed-members assessed-members}
+                 :assessed-members assessed-members
+                 :assessed-count 0 :member-count member-count}
                 position-group)
       (let [{:keys [status supporting-members qualifying-members
                     dissenting-members assessed-members assessed-statuses
@@ -314,7 +346,9 @@
                            :qualifying-members qualifying-members
                            :dissenting-members dissenting-members
                            :assessed-members assessed-members
-                           :assessed-statuses assessed-statuses}
+                           :assessed-statuses assessed-statuses
+                           :assessed-count (count assessed-members)
+                           :member-count member-count}
                     contested-statuses (assoc :contested-statuses contested-statuses))
                   position-group)))))
 
@@ -354,11 +388,17 @@
             :not-reviewed-members [id...]
             :insufficient-information-members [id...]
             :not-applicable-members [id...]
+            :not-evaluable-members [id...]
+            :assessed-count int
+            :member-count int
             :contested-statuses [{:status :members}]}  ;; contested cells only
 
    NOTE: here :absent-members are researchers who did not target this item
    (non-participants), which differs from per-dimension-consensus where
-   :absent-members are researchers whose dimension status is nil."
+   :absent-members are researchers whose dimension status is nil.
+   :member-count is the total panel size and :assessed-count the number who
+   formed an assessment, so e.g. a :single-assessment from a 3-member panel is
+   legible as 1/3 rather than as three researchers agreeing."
   [item-id kind entries all-researcher-ids]
   (let [assessed (filter #(not (or (nil? (:status %))
                                    (contains? pg/absent-statuses (:status %))))
@@ -366,17 +406,22 @@
         participant-ids (set (map :researcher/id entries))
         non-participants (remove participant-ids all-researcher-ids)
         base-pg (pg/position-group
-                 :absent (vec non-participants)
-                 :not-reviewed (mapv :researcher/id
-                                     (filter #(= :not-reviewed (:status %)) entries))
-                 :insufficient-information (mapv :researcher/id
-                                                 (filter #(= :insufficient-information (:status %)) entries))
-                 :not-applicable (mapv :researcher/id
-                                       (filter #(= :not-applicable (:status %)) entries)))]
+                 :absent (sort-ids non-participants)
+                 :not-reviewed (sort-ids (map :researcher/id
+                                              (filter #(= :not-reviewed (:status %)) entries)))
+                 ;; :insufficient-information and :not-evaluable are both
+                 ;; non-assessments but are kept as distinct groups.
+                 :insufficient-information (sort-ids (map :researcher/id
+                                                          (filter #(= :insufficient-information (:status %)) entries)))
+                 :not-evaluable (sort-ids (map :researcher/id
+                                               (filter #(= :not-evaluable (:status %)) entries)))
+                 :not-applicable (sort-ids (map :researcher/id
+                                                (filter #(= :not-applicable (:status %)) entries))))
+        member-count (count all-researcher-ids)]
     (if (< (count assessed) 1)
       (merge base-pg
              {:item/id item-id :item/kind kind :status :not-evaluable :entries entries
-              :assessed-members []})
+              :assessed-members [] :assessed-count 0 :member-count member-count})
       (let [{:keys [status supporting-members qualifying-members
                     dissenting-members assessed-members contested-statuses]}
             (classify-consensus assessed qualifying-target-statuses)]
@@ -387,7 +432,9 @@
                         :supporting-members supporting-members
                         :qualifying-members qualifying-members
                         :dissenting-members dissenting-members
-                        :assessed-members assessed-members}
+                        :assessed-members assessed-members
+                        :assessed-count (count assessed-members)
+                        :member-count member-count}
                  contested-statuses (assoc :contested-statuses contested-statuses)))))))
 
 (defn per-theorem-consensus
@@ -440,6 +487,8 @@
                {:insufficient-information-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:not-applicable-members consensus))]
                {:not-applicable-member-indices (mapv index-fn ids)})
+             (when-let [ids (seq (:not-evaluable-members consensus))]
+               {:not-evaluable-member-indices (mapv index-fn ids)})
              (when-let [ids (seq (:assessed-members consensus))]
                {:assessed-member-indices (mapv index-fn ids)})))
     consensus))
@@ -572,13 +621,23 @@
    certificate this one re-certifies (e.g. a prior schema version of the same
    review scope).  The reference is bound into the certificate body and hash,
    making re-certification an explicit relationship rather than an implicit
-   schema bump."
+   schema bump.
+
+   ORDER-CANONICAL: reports and positions are canonicalized to `:researcher/id`
+   order before any derivation, so the certificate is a pure function of the
+   member SET — the same three members in any input order commit to the same
+   certificate root (consensus member lists, :member-positions, and
+   :certificate/inputs are all emitted in canonical member order)."
   [{:keys [review-round reports positions force-authorisations disagreements canonical-indices
            supersedes-certificate-root]
     :or {force-authorisations [] disagreements []}}]
   ;; Every certificate carries the exact resolved source inputs.  This makes
-  ;; loaded semantic validation possible without trusting summary fields.
-  (let [ci-artifact (or canonical-indices (ci/build-canonical-indices review-round))
+  ;; loaded semantic validation possible without trusting summary fields.  The
+  ;; inputs are canonicalized to member-id order so the certificate hash does
+  ;; not depend on caller-supplied input order.
+  (let [reports (vec (sort-by :researcher/id reports))
+        positions (vec (sort-by :researcher/id positions))
+        ci-artifact (or canonical-indices (ci/build-canonical-indices review-round))
         _ (when (and supersedes-certificate-root
                      (not (hash-reference? supersedes-certificate-root)))
             (throw (ex-info "Certificate :supersedes-certificate-root must be a sha256 content reference"
@@ -670,7 +729,7 @@
   [certificate]
   (let [hash-input (dissoc certificate :certificate/hash :review-member-canonical-indices)
         c-hash (hc/domain-hash :three-member-certificate hash-input)]
-    (assoc certificate :certificate/hash (str "sha256:" c-hash))))
+    (assoc certificate :certificate/hash (hash-ref/sha256-ref  c-hash))))
 
 (defn certificate-valid?
   "Quick structural check for a recomputable v3 certificate."
@@ -703,8 +762,8 @@
         declared (:certificate/hash certificate)
         verifies? (and (hash-reference? declared)
                        (= declared
-                          (str "sha256:"
-                               (hc/domain-hash :three-member-certificate body))))]
+                          (hash-ref/sha256-ref
+                           (hc/domain-hash :three-member-certificate body))))]
     (if verifies?
       {:valid? true
        :status :legacy-signature-verifiable
@@ -761,7 +820,7 @@
           (swap! errors conj "missing or malformed :certificate/hash"))
         (when (hash-reference? (:certificate/hash certificate))
           (let [hash-input (dissoc certificate :certificate/hash :review-member-canonical-indices)
-                expected (str "sha256:" (hc/domain-hash :three-member-certificate hash-input))]
+                expected (hash-ref/sha256-ref (hc/domain-hash :three-member-certificate hash-input))]
             (when-not (= expected (:certificate/hash certificate))
               (swap! errors conj "certificate/hash mismatch"))))
         {:valid? (empty? @errors)

@@ -5,7 +5,8 @@
    cryptographic verification are deliberately deferred to later work packages."
   (:require [resolver-sim.evidence.attestation :as att]
             [resolver-sim.hash.canonical :as hc]
-            [buddy.core.codecs :as codecs])
+            [buddy.core.codecs :as codecs]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.security KeyFactory Signature]
            [java.security.spec X509EncodedKeySpec]
            [java.time Instant]))
@@ -21,8 +22,8 @@
   ;; attestation-record's projection must receive the record, not the already
   ;; projected {:intent ... :artifact ...} wrapper. This is the same content
   ;; identity stored in :attestation/hash.
-  (str "sha256:" (hc/hash-with-intent {:hash/intent :attestation-record}
-                                      attestation)))
+  (hash-ref/sha256-ref (hc/hash-with-intent {:hash/intent :attestation-record}
+                                            attestation)))
 
 (defn signature-envelope-v1?
   [signature]

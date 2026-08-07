@@ -43,7 +43,7 @@
 (defn decision-subject-hash
   "Canonical domain-separated hash reference for a decision-subject."
   [subject]
-  (str "sha256:" (hc/domain-hash :decision-subject (subject-preimage subject))))
+  (hash-ref/sha256-ref (hc/domain-hash :decision-subject (subject-preimage subject))))
 
 (defn- errors-for
   [subject]

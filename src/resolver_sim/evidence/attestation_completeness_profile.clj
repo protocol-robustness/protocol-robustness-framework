@@ -14,7 +14,8 @@
      (acp/evaluate-evidence-status profile evidence-state)
      (acp/validate-profile profile)"
   (:require [clojure.set]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── Supported profiles ────────────────────────────────────────────────────
 
@@ -82,9 +83,9 @@
    The hash covers all fields except :profile/hash itself, after explicitly
    projecting evidence category sets to sorted vectors."
   [profile]
-  (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      (project-evidence-sets
-                                       (dissoc profile :profile/hash)))))
+  (hash-ref/sha256-ref (hc/hash-with-intent {:hash/intent :evidence-record}
+                                            (project-evidence-sets
+                                             (dissoc profile :profile/hash)))))
 
 ;; ── Profile construction ──────────────────────────────────────────────────
 

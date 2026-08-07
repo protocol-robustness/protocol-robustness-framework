@@ -57,9 +57,17 @@
   (select-keys contract contract-projection-fields))
 
 (defn composition-contract-root
-  "Content-addressed root of the canonical composition contract."
+  "Content-addressed root of the canonical composition contract.
+
+   The projection may carry set-valued fields (:composition/roles /
+   :composition/modes are sets in the normalized contract form), so the
+   committed value is projected to canonical-safe form (sets → sorted
+   vectors) before hashing — otherwise the strict canonical encoder would
+   reject the contract. Projection is deterministic: reordered contracts
+   commit identically."
   [contract]
-  (hc/domain-hash contract-domain-tag (contract-projection contract)))
+  (hc/domain-hash contract-domain-tag
+                  (hc/project-committable-content (contract-projection contract))))
 
 ;; ── defaults ──────────────────────────────────────────────────────────────
 

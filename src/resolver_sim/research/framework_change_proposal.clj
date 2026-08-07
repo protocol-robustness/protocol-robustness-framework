@@ -9,7 +9,8 @@
    
    The artifact does not block ordinary development — proposals are
    purely opt-in research artifacts."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "research-framework-change-proposal.v1")
 
@@ -105,10 +106,10 @@
            :proposal/implementation implementation
            :proposal/impact impact
            :proposal/provenance provenance}
-          semantic-hash (str "sha256:"
-                             (hc/domain-hash :research-framework-change-proposal
-                                             semantic-base))
-          proposal-id (str "prop:" (subs semantic-hash (count "sha256:")))]
+          semantic-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :research-framework-change-proposal
+                                         semantic-base))
+          proposal-id (str "prop:" (hash-ref/parse-sha256-ref semantic-hash))]
 
       {:schema-version schema-version
        :proposal/id proposal-id
@@ -178,9 +179,9 @@
                :proposal/implementation (:proposal/implementation proposal)
                :proposal/impact (:proposal/impact proposal)
                :proposal/provenance (:proposal/provenance proposal)}
-              computed (str "sha256:"
-                            (hc/domain-hash :research-framework-change-proposal
-                                            semantic-base))]
+              computed (hash-ref/sha256-ref
+                        (hc/domain-hash :research-framework-change-proposal
+                                        semantic-base))]
           (when-not (= computed hash-field)
             (swap! errors conj (str "proposal/hash mismatch: declared "
                                     hash-field " computed " computed))))))

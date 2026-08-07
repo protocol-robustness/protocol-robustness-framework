@@ -29,7 +29,42 @@
      reserved tags, non-minimal varints, declared lengths exceeding remaining
      bytes, collection counts inconsistent with their contents, noncanonical
      map ordering, duplicate canonical map keys, and non-canonical map key
-     types.  The explanatory decoder is never the acceptance path."
+     types.  The explanatory decoder is never the acceptance path.
+
+   ════════════════════════════════════════════════════════════════
+   CANONICAL REPRESENTATION vs UNTRUSTED-INPUT ADMISSION (normative)
+   ════════════════════════════════════════════════════════════════
+
+   Two distinct contracts must not be conflated:
+
+   - Canonical representation contract (resolver-sim.hash.canonical /
+     canonical-bytes): value → canonical bytes.  Supports arbitrarily deep
+     nesting, bounded only by practical machine resources and the encoder's
+     stack-safe implementation.
+
+   - Untrusted-input admission contract (this namespace): bytes → admitted
+     canonical value.  Deliberately narrower: decoding enforces defensive
+     resource limits (see `default-limits`, e.g. :max-collection-depth 64).
+
+   Consequently the strong fixed-point identity
+
+       decode(canonical-bytes(x)) = x   for every encodable x
+
+   is NOT promised.  The promised implication is
+
+       admissible(x) ⇒ decode(canonical-bytes(x)) = x
+
+   where admissibility is decided by the active admission (resource) profile.
+   A deeply nested canonical stream can be well-framed + canonical +
+   semantically representable yet inadmissible under the default defensive
+   profile.  That is a resource-policy rejection (:type :limit-exceeded /
+   :code :limit-exceeded), NOT a malformed or non-canonical finding, and
+   verifiers must not collapse \"inadmissible under profile X\" into \"invalid\".
+   Every security-relevant verification path that admits externally supplied
+   canonical bytes should share this same normative profile, or explicitly
+   identify a different one — resource limits are otherwise an accidental
+   consensus boundary between independent verifiers.
+   ════════════════════════════════════════════════════════════════"
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.config.defaults :as defaults])
   (:import [java.util Arrays]))

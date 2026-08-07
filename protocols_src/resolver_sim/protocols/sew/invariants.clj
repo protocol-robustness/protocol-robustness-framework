@@ -30,6 +30,8 @@
             [resolver-sim.protocols.sew.invariants.escrow :as escrow]
             [resolver-sim.protocols.sew.invariants.governance :as governance]
             [resolver-sim.protocols.sew.invariants.solvency :as solvency]
+            [resolver-sim.protocols.sew.financial.liabilities :as liab]
+            [resolver-sim.protocols.sew.financial.solvency :as fin-solv]
             [resolver-sim.protocols.sew.invariants.fees :as fees]
             [resolver-sim.protocols.sew.invariants.state :as state]
             [resolver-sim.protocols.sew.invariants.bond :as bond]
@@ -53,6 +55,8 @@
   "Single-world invariants run by `check-all` on every replay step."
   #{:solvency
     :contract-payout-solvency
+    :economic-solvency
+    :reserved-coverage-sufficient
     :cancellation-mutex
     :fees-non-negative
     :held-non-negative
@@ -194,7 +198,12 @@
 ;; Invariant 1: Solvency
 ;; ---------------------------------------------------------------------------
 
-(defn solvency-holds? [world token-balances] (solvency/solvency-holds? world token-balances))
+(defn held-custody-reconciles? [world token-balances] (solvency/held-custody-reconciles? world token-balances))
+
+(defn solvency-holds?
+  "DEPRECATED: compatibility alias for held-custody-reconciles? (accounting
+   reconciliation, not economic solvency)."
+  [world token-balances] (held-custody-reconciles? world token-balances))
 
 (defn contract-payout-solvency?
   "Verify observed Solidity custody balances cover modeled unpaid obligations.
@@ -1508,49 +1517,67 @@
 ;; New Invariant: Solvency KPI helper
 ;; ---------------------------------------------------------------------------
 
-(defn- sum-amounts
-  "Sum numeric values from a collection that may be flat (token → amount)
-   or nested (token → address → amount). Returns 0 for empty/nil."
-  [m]
-  (let [entries (vals (or m {}))]
-    (if (every? number? entries)
-      (reduce + 0 entries)                        ;; flat: {:USDC 5000}
-      (reduce + 0 (for [nested entries]
-                    (reduce + 0 (vals (or nested {}))))))))  ;; nested: {:USDC {\"0x1\" 1000}}
-
 (defn calculate-solvency-ratio
-  "Returns the robust solvency ratio: Total-Assets / Total-Inflows.
+  "Economic coverage ratio: realizable custody assets / canonical economic
+   liabilities.
 
-   Total-Assets includes:
-     - Current balances (held, claimable, fees, bond-balances, bond-fees)
-     - Slashed distributions (insurance, protocol, retained reserves)
-     - Cumulative outflows (total-withdrawn)
+   Assets     = total-held + claimable-v2 (settled-but-unwithdrawn claims remain
+                physically in custody until withdrawn).
+   Liabilities = economic-liability-set.v1 (live custody obligations, yield
+                incl. deferred, claimable-v2 payables, slash-credit
+                liabilities). See
+                resolver-sim.protocols.sew.financial.liabilities.
 
-   Total-Inflows includes:
-     - Initial-Principal-Deposits (escrows + bonds)
-     - Total-Yield-Generated (as an internal inflow)
+   A ratio >= 1.0 means realizable assets are sufficient for the canonical
+   economic liabilities. This is an economic-coverage KPI consumed by the same
+   canonical liability universe as every other solvency predicate — NOT a
+   cross-token conservation KPI (value conservation is tracked by
+   conservation-of-funds?).
 
-   A ratio >= 1.0 indicates perfect value conservation."
+   EDGE SEMANTICS (defined, not incidental):
+     - liabilities = 0, assets > 0        → ##Inf  (surplus with no obligations)
+     - liabilities = 0, assets = 0        → 1.0    (COVERAGE CONVENTION: no
+                                             obligations are fully covered — a
+                                             defined sentinel, NOT a division
+                                             result, so downstream analysts
+                                             never mistake it for a literal
+                                             ratio)
+     - negative/malformed assets          → treated as 0 for a single token;
+                                             cross-token totals clamp to >= 0
+     - multiple tokens                    → the headline aggregates per-token
+                                             totals; this is only economically
+                                             meaningful when tokens are priced
+                                             comparably. Per-token ratios are
+                                             always available via
+                                             resolver-sim.protocols.sew.financial.
+                                             solvency/economic-solvency? :per-token
+     - invalid liability set / unassessable inputs → callers must classify via
+                                             classify-solvency; the raw KPI makes
+                                             no unassessable claim."
   [world]
-  (let [held      (reduce + 0 (vals (:total-held world {})))
-        claimable (sum-amounts (:claimable world))
-        fees      (reduce + 0 (vals (:total-fees world {})))
-        withdrawn (reduce + 0 (vals (:total-withdrawn world {})))
+  (let [total-assets     (max 0 (reduce + 0 (vals (liab/custody-assets world))))
+        total-liabilities (:total (liab/economic-liability-set world))]
+    (if (zero? total-liabilities)
+      (if (pos? total-assets) ##Inf 1.0)
+      (/ (double total-assets) (double total-liabilities)))))
 
-        ;; Bond assets
-        bond-bal  (sum-amounts (:bond-balances world))
-        bond-fees (reduce + 0 (vals (:bond-fees world {})))
-        bond-dist (reduce + 0 (vals (:bond-distribution world {:insurance 0 :protocol 0 :burned 0})))
-        retained  (:retained-slash-reserves world 0)
+;; Economic solvency predicates (canonical guarantee separation).
+;; These live in resolver-sim.protocols.sew.financial.solvency and consume the
+;; same liability universe. Wrappers here register them into check-all.
 
-        ;; Total assets (Current + Historical Outflows)
-        total-assets (+ held claimable fees withdrawn bond-bal bond-fees bond-dist retained)
+(defn economic-solvency? [world] (fin-solv/economic-solvency? world))
 
-        ;; Total Inflows
-        principal (reduce + 0 (vals (:total-principal-deposited world {})))
-        yield     (reduce + 0 (vals (:total-yield-generated world {})))
-        inflow    (+ principal yield)]
-    (if (zero? inflow) 1.0 (/ (double total-assets) inflow))))
+(defn reserved-coverage-sufficient? [world] (fin-solv/reserved-coverage-sufficient? world))
+
+(defn reserved-coverage-solvency?
+  "DEPRECATED: compatibility alias for reserved-coverage-sufficient?."
+  [world] (reserved-coverage-sufficient? world))
+
+(defn liquidity-sufficient? [world] (fin-solv/liquidity-sufficient? world))
+
+(defn liquidity-solvency?
+  "DEPRECATED: compatibility alias for liquidity-sufficient?."
+  [world] (liquidity-sufficient? world))
 
 ;; ---------------------------------------------------------------------------
 ;; Cross-world: Fee Monotonicity
@@ -2422,8 +2449,10 @@
                                    #{})
          expected-failures (set (map keyword expected-failures-raw))
          ;; Define all canonical checks
-         checks {:solvency                      (solvency-holds? world token-balances)
+         checks {:solvency                      (held-custody-reconciles? world token-balances)
                  :contract-payout-solvency     (contract-payout-solvency? world)
+                 :economic-solvency            (economic-solvency? world)
+                 :reserved-coverage-sufficient (reserved-coverage-sufficient? world)
                  :fees-non-negative             (fees-non-negative? world)
                  :held-non-negative             (held-non-negative? world)
                  :held-partitions-non-negative  (held-partitions-non-negative? world)

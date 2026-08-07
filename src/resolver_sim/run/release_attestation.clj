@@ -1,7 +1,8 @@
 (ns resolver-sim.run.release-attestation
   "Canonical release-attestation payload and fail-closed trust-policy checks."
   (:require [resolver-sim.hash.canonical :as canonical]
-            [buddy.core.codecs :as codecs])
+            [buddy.core.codecs :as codecs]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.security KeyFactory Signature]
            [java.security.spec X509EncodedKeySpec]))
 
@@ -10,9 +11,9 @@
 (def verification-schema "prf-release-verification.v1")
 
 (defn payload-hash [payload]
-  (str "sha256:"
-       (canonical/domain-hash "PRF_RELEASE_ATTESTATION_PAYLOAD_V1"
-                              (dissoc payload :payload/hash))))
+  (hash-ref/sha256-ref
+   (canonical/domain-hash "PRF_RELEASE_ATTESTATION_PAYLOAD_V1"
+                          (dissoc payload :payload/hash))))
 
 (defn build-payload [{:keys [distribution implementation release]}]
   (let [payload {:schema-version payload-schema

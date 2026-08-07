@@ -9,7 +9,8 @@
      - benchmarks/packs/sew/"
   (:require [resolver-sim.hash.canonical :as hash]
             [resolver-sim.assurance.parameter-attribution :as pa]
-            [resolver-sim.accounting.held-ledger-index :as held-index]))
+            [resolver-sim.accounting.held-ledger-index :as held-index]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (defn parameter-attribution-check
   "Validate the optional parameter provenance pair carried by a held adjustment.
@@ -100,10 +101,10 @@
              (keep (fn [artifact]
                      (let [expected (-> artifact
                                         held-custody-artifact-payload
-                                        (#(str "sha256:"
-                                               (hash/hash-with-intent
-                                                {:hash/intent :evidence-record}
-                                                %))))]
+                                        (#(hash-ref/sha256-ref
+                                           (hash/hash-with-intent
+                                            {:hash/intent :evidence-record}
+                                            %))))]
                        (when (not= expected (:artifact/hash artifact))
                          {:held-adjustment/id (:held-adjustment/id artifact)
                           :expected expected
@@ -126,9 +127,9 @@
                       v2? (= held-custody-artifact-v2 (:schema-version artifact))
                       v3? (= held-custody-artifact-v3 (:schema-version artifact))
                       schema-valid? (or v2? v3?)
-                      expected-hash (str "sha256:"
-                                         (hash/hash-with-intent {:hash/intent :evidence-record}
-                                                                (held-custody-artifact-payload artifact)))
+                      expected-hash (hash-ref/sha256-ref
+                                     (hash/hash-with-intent {:hash/intent :evidence-record}
+                                                            (held-custody-artifact-payload artifact)))
                       attribution-valid? (and (:structurally-valid? status)
                                               (not (and v2? (:present? status))))
                       artifact-valid? (and schema-valid?
@@ -424,9 +425,9 @@
                                     :authorization/source])))]
     (assoc body
            :artifact/id (str "held-custody-" (:held-adjustment/id adjustment))
-           :artifact/hash (str "sha256:"
-                               (hash/hash-with-intent {:hash/intent :evidence-record}
-                                                      body)))))
+           :artifact/hash (hash-ref/sha256-ref
+                           (hash/hash-with-intent {:hash/intent :evidence-record}
+                                                  body)))))
 
 (defn rebuild-held-custody-artifacts
   "Derive the materialized held-custody artifact map from the canonical
@@ -590,8 +591,8 @@
 (defn- finalize-artifact
   "Attach the content hash and exact preimage to an artifact body."
   [body]
-  (let [hash (str "sha256:"
-                  (hash/hash-with-intent {:hash/intent :evidence-record} body))]
+  (let [hash (hash-ref/sha256-ref
+              (hash/hash-with-intent {:hash/intent :evidence-record} body))]
     (assoc body
            :artifact/hash hash
            :artifact/preimage (pr-str body))))
@@ -759,8 +760,8 @@
        (string? (:artifact/preimage report))
        (let [body (dissoc report :artifact/hash :artifact/preimage)]
          (= (:artifact/hash report)
-            (str "sha256:"
-                 (hash/hash-with-intent {:hash/intent :evidence-record} body))))))
+            (hash-ref/sha256-ref
+             (hash/hash-with-intent {:hash/intent :evidence-record} body))))))
 
 (defn verify-settlement-evidence-fidelity
   "For every terminal settlement evidence artifact (:escrow-released /

@@ -10,7 +10,8 @@
    hash-verifies itself; caller-supplied values are commitments the authority
    cross-checks, never trusted inputs."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.signed-external-decision :as sed]))
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── Domain separation tags ──────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@
    Both the client and the authority compute this identically so the
    authority can verify the caller's :artifact/declared-hash."
   [content]
-  (str "sha256:" (hc/domain-hash projection-domain content)))
+  (hash-ref/sha256-ref (hc/domain-hash projection-domain content)))
 
 ;; ── Request ─────────────────────────────────────────────────────────────────
 

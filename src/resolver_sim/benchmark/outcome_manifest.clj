@@ -32,7 +32,8 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-theorem-outcome :as theorem]
-            [resolver-sim.benchmark.research-conclusion :as conclusion]))
+            [resolver-sim.benchmark.research-conclusion :as conclusion]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "benchmark-outcome.v1")
 
@@ -230,9 +231,9 @@
                (assoc base :outcome-hashes outcome-hashes)
                base)
         ;; ── Singular outcome-hash (excludes mirrored top-level fields) ──
-        outcome-hash (str "sha256:"
-                          (hc/domain-hash :benchmark-outcome
-                                          (hash-projection base)))]
+        outcome-hash (hash-ref/sha256-ref
+                      (hc/domain-hash :benchmark-outcome
+                                      (hash-projection base)))]
     (assoc base :benchmark-outcome/hash outcome-hash)))
 
 (defn outcome-hash
@@ -246,8 +247,8 @@
    reproduction under the research-benchmark-reproduction.v1 conformance
    profile."
   [manifest]
-  (str "sha256:"
-       (hc/domain-hash :benchmark-outcome (hash-projection manifest))))
+  (hash-ref/sha256-ref
+   (hc/domain-hash :benchmark-outcome (hash-projection manifest))))
 
 (defn manifest-valid?
   "Structural validity check for a benchmark outcome manifest."
@@ -257,7 +258,7 @@
        (some? (:benchmark/model-root manifest))
        (some? (:benchmark-outcome/hash manifest))
        (let [projection (hash-projection manifest)
-             computed (str "sha256:" (hc/domain-hash :benchmark-outcome projection))]
+             computed (hash-ref/sha256-ref (hc/domain-hash :benchmark-outcome projection))]
          (= computed (:benchmark-outcome/hash manifest)))))
 
 ;; ── Comparison predicates (all symmetric) ─────────────────────────────────
@@ -623,7 +624,7 @@
     ;; ── Hash projection integrity ───────────────────────────────────
     (when (some? (:benchmark-outcome/hash manifest))
       (let [projection (hash-projection manifest)
-            computed (str "sha256:" (hc/domain-hash :benchmark-outcome projection))]
+            computed (hash-ref/sha256-ref (hc/domain-hash :benchmark-outcome projection))]
         (when-not (= computed (:benchmark-outcome/hash manifest))
           (swap! errors conj (str "outcome-hash mismatch: declared "
                                   (:benchmark-outcome/hash manifest)

@@ -30,7 +30,8 @@
             [resolver-sim.sensitivity.propagation :as prop]
             [resolver-sim.validation.scenario-id :as sid]
             [resolver-sim.yield.invariant-catalog :as yield-inv-cat]
-            [resolver-sim.config.paths :as paths]))
+            [resolver-sim.config.paths :as paths]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ---------------------------------------------------------------------------
 ;; Structured logging
@@ -1285,13 +1286,13 @@
                               (ev-node/emit-execution-node!
                                {:execution-id :evidence/commitment-root
                                 :policy-id :evidence-policy/computed
-                                :parent-hashes [(str "sha256:" exec-hash)]
+                                :parent-hashes [(hash-ref/sha256-ref  exec-hash)]
                                 :bootstrap-roots [(str "evidence-chain:sha256:" evidence-root)]
                                 :status :pass
-                                :inputs {:execution/node-hash (str "sha256:" exec-hash)
-                                         :evidence/chain-cursor-hash (str "sha256:" evidence-root)}
+                                :inputs {:execution/node-hash (hash-ref/sha256-ref  exec-hash)
+                                         :evidence/chain-cursor-hash (hash-ref/sha256-ref  evidence-root)}
                                 :outputs {:bundle/root-hash (when bundle-root-hash
-                                                              (str "sha256:" bundle-root-hash))
+                                                              (hash-ref/sha256-ref  bundle-root-hash))
                                           :execution/status exec-status}})))
                           (catch Exception e
                             (log-event :warn :commitment-root-node-failed

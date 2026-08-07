@@ -15,11 +15,11 @@
 (defn- sha-ref [file] (hash-ref/sha256-ref (lifecycle/sha256-file file)))
 
 (defn- input-set-root [inputs]
-  (str "sha256:"
-       (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
-                              (vec (sort-by #(get % "path")
-                                            (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
-                                                 inputs))))))
+  (hash-ref/sha256-ref
+   (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
+                          (vec (sort-by #(get % "path")
+                                        (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
+                                             inputs))))))
 
 (defn- validate-input-set [root inputs]
   (let [root-path (.toPath (io/file root))]
@@ -70,7 +70,7 @@
                         "run_id" (get content-registry "run_id")
                         "artifacts" artifacts
                         "excluded_paths" (vec (sort (get content-registry "excluded_paths" [])))}
-            expected-root (str "sha256:" (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))]
+            expected-root (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))]
         (and (= "benchmark-content-registry.v1" (get content-registry "schema_version"))
              (= "prf/benchmark-content-registry/v1" (get content-registry "domain"))
              (= "benchmark-evidence-inner-package" (get content-registry "content_scope"))
@@ -175,7 +175,7 @@
                         "conclusion_sha256" (get finalization "conclusion_sha256")
                         "evidence_content_registry_sha256" (sha-ref content-registry-file)
                         "input_set_root" (get assurance "input_set_root")}
-            expected-final-ref (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
+            expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
             checks {"completion-first-package-index" (and (get-in package-context [:completion-report :valid?])
                                                           (:valid? package-closure))
                     "completion-finalization-hash" (= (get completion "finalization_sha256") (sha-ref finalization-file))

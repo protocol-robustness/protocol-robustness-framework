@@ -264,17 +264,28 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
   {:doc "Test evidence chain integrity under concurrent scenario execution"
    :task (shell "clojure" "-M:test:with-sew" "-i" "scripts/test_parallel_evidence_chain.clj")}
 
-  test:parallel:isolation
-  {:doc "Verify per-namespace artifact isolation in parallel runs"
-   :task (shell "clojure" "-M:test:with-sew" "-i" "scripts/test_artifact_isolation.clj")}
+   test:parallel:isolation
+   {:doc "Verify per-namespace artifact isolation in parallel runs"
+    :task (shell "clojure" "-M:test:with-sew" "-i" "scripts/test_artifact_isolation.clj")}
 
-  audit:parallel
-  {:doc "Static audit of all namespace-parallel test lanes (run-sew-tests
+   test:staging
+   {:doc "Verify PARALLEL_TEST_RUN_ROOT staging + collector consumption"
+    :task (shell "clojure" "-M:test:with-sew" "-i" "scripts/test_run_root_staging.clj")}
+
+   audit:parallel
+   {:doc "Static audit of all namespace-parallel test lanes (run-sew-tests
          unit + scenario, and every namespace run through
          scripts.parallel-test-runner).  Fails if a lane's HARD-hazard
          namespace is missing from its exclusion set, or if a scenario-group
          member runs in the parallel-test-runner pool."
-   :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.audit-parallel-safety" "all")}
+    :task (shell "clojure" "-M:test:with-sew" "-m" "scripts.audit-parallel-safety" "all")}
+
+   audit:artifacts
+   {:doc "Audit the consolidated test-artifact registry (schema, path
+         resolution, config-declared ids, duplicate ids, dangling dependencies)
+         and, when --producer-roots is supplied, producer ownership markers.
+         Usage: bb audit:artifacts [--registry <path>] [--producer-roots <dirs...>]"
+    :task (apply shell "python3" "scripts/evidence/audit_artifacts.py" *command-line-args*)}
 
    test:triage {:doc "Run failure triage grouped by purpose/threat-tag"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}

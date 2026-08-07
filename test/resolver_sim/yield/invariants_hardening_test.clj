@@ -146,6 +146,35 @@
                                                      :deferred-amount 100 :haircut-amount 0}}}}]
       (is (inv/holds? :yield/aggregate-shortfall-cap world)))))
 
+(deftest aggregate-shortfall-cap-fails-closed-on-non-integral-basis
+  (testing "a fractional basis-amount is never silently truncated to long"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal 1 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 1.5}}}}
+          result (inv/check-aggregate-shortfall-cap world)]
+      (is (not (:holds? result)))
+      (is (some #(= :non-integral-amount (:code %)) (:violations result)))
+      (is (not (inv/holds? :yield/aggregate-shortfall-cap world))))))
+
+(deftest aggregate-shortfall-cap-fails-closed-on-malformed-amount
+  (testing "a non-numeric amount is flagged, not coerced"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal "one"}}}
+          result (inv/check-aggregate-shortfall-cap world)]
+      (is (not (:holds? result)))
+      (is (some #(= :non-integral-amount (:code %)) (:violations result))))))
+
+(deftest aggregate-shortfall-alias-stays-in-agreement
+  (testing "the compatibility alias performs the identical check, including
+            the non-integral fail-closed guard"
+    (let [world {:yield/positions {"u1" {:module/id :m :token :t :status :unwinding
+                                         :principal 1 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 1.5}}}}
+          cap (inv/check-aggregate-shortfall-cap world)
+          alias (inv/check-aggregate-shortfall world)]
+      (is (= (:holds? cap) (:holds? alias)))
+      (is (= (:violations cap) (:violations alias))))))
+
 ;; ── aggregate-shortfall ────────────────────────────────────────────────────
 
 (deftest aggregate-shortfall-passes-on-valid

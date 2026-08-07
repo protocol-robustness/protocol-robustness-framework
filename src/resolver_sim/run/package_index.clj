@@ -110,7 +110,7 @@
 
 (defn- bytes-sha-ref [bytes]
   (let [digest (MessageDigest/getInstance "SHA-256")]
-    (str "sha256:" (format "%064x" (BigInteger. 1 (.digest digest bytes))))))
+    (hash-ref/sha256-ref (format "%064x" (BigInteger. 1 (.digest digest bytes))))))
 
 (defn resolve-completion-context
   "Read the terminal completion seal first. A package index becomes trusted only
@@ -920,7 +920,7 @@
                             (map #(reason :package/missing-required-artifact :artifact-id %) missing)
                             (when-not (.isFile completion) [(reason :package/missing-completion)])
                             (when (and (.isFile completion)
-                                       (not= (str "sha256:" (lifecycle/sha256-file (io/file run-root paths/run-package-index)))
+                                       (not= (hash-ref/sha256-ref (lifecycle/sha256-file (io/file run-root paths/run-package-index)))
                                              (get (json/read-str (slurp completion)) "run_package_index_sha256")))
                               [(reason :package/completion-index-mismatch)])
                             (when (and (.isFile completion)

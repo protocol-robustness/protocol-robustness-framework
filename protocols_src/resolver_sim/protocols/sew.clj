@@ -402,7 +402,10 @@
 
 (def replay-sensitive-actions
   "Actions that should be replay-idempotent when a logical event-id is provided.
-   17 canonical actions + 3 backward-compat aliases = 19 entries."
+   21 entries = 18 canonical actions + 3 backward-compat aliases. Aliases are
+   reduced to canonical spelling by compat/canonical-action, so every entry
+   normalizes to one of the 18 canonical identities — identical logical actions
+   produce identical dedupe keys regardless of spelling."
   #{"escalate-dispute"
     "challenge-resolution"
     "execute-resolution"

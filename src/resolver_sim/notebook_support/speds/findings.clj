@@ -15,6 +15,7 @@
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.confidence :as confidence]
             [resolver-sim.scenario.outcome-semantics :as ose]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.notebook-support.speds.config :as config]))
 
 (def findings-path
@@ -351,7 +352,9 @@
 (defn- trace-digest
   [trace]
   (when trace
-    (data/sha256-hex (pr-str (dissoc trace :_filename)))))
+    (let [body (hc/project-committable-content (dissoc trace :_filename))
+          digest (hc/hash-bytes (hc/canonical-bytes body))]
+      (apply str (map #(format "%02x" (bit-and % 0xff)) digest)))))
 
 (defn- find-trace
   [artifacts scenario-id]

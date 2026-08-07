@@ -22,7 +22,8 @@
      {:outcome :rejected :finality :final
       :resubmission-eligibility :eligible :lifecycle-status :active}"
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.signed-external-decision :as sed]))
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def receipt-schema "submission-attempt-receipt.v1")
 (def receipt-domain "prf.submission-attempt-receipt.v1")
@@ -50,7 +51,7 @@
 (defn receipt-hash
   "Content-addressed identity of a receipt (self hash)."
   [receipt]
-  (str "sha256:" (hc/domain-hash receipt-domain (unsigned-receipt-projection receipt))))
+  (hash-ref/sha256-ref (hc/domain-hash receipt-domain (unsigned-receipt-projection receipt))))
 
 (defn sign-receipt
   "Attach the validator signature over the unsigned receipt projection bytes.
@@ -128,15 +129,21 @@
        (= :active (:attempt-receipt/lifecycle-status receipt))))
 
 (defn resubmission-parent-requirement-mismatch
-  "The first dimension that disqualifies a receipt as a direct parent, or nil."
+  "The first dimension that disqualifies a receipt as a direct parent, or nil.
+
+   The disqualifying dimension is distinguished precisely:
+     :parent-not-rejected          — the attempt was never rejected (outcome)
+     :parent-rejection-not-final   — rejection is not final (finality)
+     :parent-not-resubmittable     — rejected but not marked resubmittable-eligible
+     :parent-attempt-withdrawn     — lifecycle status is not :active"
   [receipt]
   (cond
     (not= :rejected (:attempt-receipt/outcome receipt))
-    :parent-rejection-not-resubmittable
+    :parent-not-rejected
     (not= :final (:attempt-receipt/finality receipt))
     :parent-rejection-not-final
     (not= :eligible (:attempt-receipt/resubmission-eligibility receipt))
-    :parent-rejection-not-resubmittable
+    :parent-not-resubmittable
     (not= :active (:attempt-receipt/lifecycle-status receipt))
     :parent-attempt-withdrawn
     :else nil))

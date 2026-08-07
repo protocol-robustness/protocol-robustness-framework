@@ -109,16 +109,30 @@
    the signed sentinel policy."
   #{:force-auth-add-held :force-auth-add-held-summary})
 
+(def remote-authority-required-held-actions
+  "Held-custody mutation actions (:held/action values, keyword or string
+   spelling) that ALWAYS require an out-of-process sentinel authority, even
+   when the artifact kind is not itself in
+   `remote-authority-required-artifact-kinds`. Local in-process authorization
+   is FORBIDDEN for these actions.
+
+   This is the single source of truth for which held-custody actions are
+   remote-authority-required; extending the held-custody action vocabulary
+   must update this set (and the sentinel policy hash, which commits it via
+   `policy-hash`)."
+  #{:add-held "add-held"})
+
 (defn remote-authority-required-artifact?
   "True when an artifact itself requires an out-of-process sentinel decision,
    independent of the sink — local in-process authorization is forbidden.
 
    Applies to force-authorisation add-held evidence artifact kinds
    (:force-auth-add-held / :force-auth-add-held-summary) and to any artifact
-   carrying a held add-held action."
+   carrying a held-custody mutation action from
+   `remote-authority-required-held-actions`."
   [artifact]
   (or (contains? remote-authority-required-artifact-kinds (:artifact/kind artifact))
-      (contains? #{:add-held "add-held"} (:held/action artifact))))
+      (contains? remote-authority-required-held-actions (:held/action artifact))))
 
 ;; ── Reason Codes ────────────────────────────────────────────────────────────
 
@@ -390,6 +404,8 @@
                         :authority-rules "remote authority required for public-sink set"
                         :remote-authority-required-artifact-kinds
                         (vec (sort remote-authority-required-artifact-kinds))
+                        :remote-authority-required-held-actions
+                        (vec (sort (map str remote-authority-required-held-actions)))
                         :scanner "secret-scanner.v2"}))
 
 (def ^{:deprecated "0.1.0" :private true} compute-policy-hash
@@ -408,15 +424,19 @@
                                    :contains-reproducible-exploit-path]
     [:contains-unpublished-evidence]))
 
+(def force-auth-artifact-kind->reason
+  "Map from force-authorisation evidence artifact kind to its sensitivity
+   reason code. Single source of truth for the add-held evidence vocabulary;
+   must stay in sync with `remote-authority-required-artifact-kinds`."
+  {:force-auth-add-held :contains-force-auth-add-held
+   :force-auth-add-held-summary :contains-force-auth-add-held-summary})
+
 (defn force-auth-evidence-reasons
   "Specific reason codes for force-authorisation add-held evidence artifacts."
   [artifact]
-  (cond
-    (= :force-auth-add-held (:artifact/kind artifact))
-    [:contains-force-auth-add-held]
-    (= :force-auth-add-held-summary (:artifact/kind artifact))
-    [:contains-force-auth-add-held-summary]
-    :else []))
+  (if-let [reason (get force-auth-artifact-kind->reason (:artifact/kind artifact))]
+    [reason]
+    []))
 
 (defn effective-override-mode
   "Determine the override mode for a given level and risk metadata.

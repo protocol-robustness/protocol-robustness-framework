@@ -170,16 +170,19 @@
                     :schema-version conservation-report-schema-version
                     :artifact/kind :lineage-conservation-verification
                     :artifact/verifier conservation-report-verifier-id)
-        report-hash (str "sha256:"
-                         (hc/hash-with-intent {:hash/intent :evidence-record}
-                                              (hc/project-committable-content body)))]
+        proj-body (hc/project-committable-content body)
+        commitment (hc/canonical-commitment :evidence-record proj-body)
+        report-hash (:canonical/hash commitment)]
     (assoc body
            :report/hash report-hash
-           :report/preimage (pr-str body))))
+           :report/preimage (pr-str body)
+           :report/canonical-bytes (:canonical/bytes commitment)
+           :report/canonical-hash report-hash)))
 
 (defn valid-conservation-report?
   "Re-verify a lineage conservation report file-artifact: its schema version,
-   artifact kind, verifier id, and content hash must all agree."
+   artifact kind, verifier id, content hash, and optional canonical commitment
+   must all agree."
   [report]
   (and (map? report)
        (= conservation-report-schema-version (:schema-version report))
@@ -187,8 +190,12 @@
        (= conservation-report-verifier-id (:artifact/verifier report))
        (string? (:report/hash report))
        (string? (:report/preimage report))
-       (let [body (dissoc report :report/hash :report/preimage)]
-         (= (:report/hash report)
-            (str "sha256:"
-                 (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      (hc/project-committable-content body)))))))
+       (let [body (dissoc report :report/hash :report/preimage
+                          :report/canonical-bytes :report/canonical-hash)
+             proj (hc/project-committable-content body)
+             recomputed (:canonical/hash (hc/canonical-commitment :evidence-record proj))]
+         (and (= (:report/hash report) recomputed)
+              (hc/canonical-commitment-valid?
+               :evidence-record proj
+               {:canonical/bytes (:report/canonical-bytes report)
+                :canonical/hash (:report/canonical-hash report)})))))

@@ -94,6 +94,12 @@
     '[build-conclusion validate-conclusion conclusion-valid?
       conclusion-overreaches? conclusion-collective-hash
       verify-conclusion-support valid-falsifier?]]
+   [(symbol "resolver-sim.benchmark.review-round")
+    '[build-review-round validate-round round-valid? member-keys]]
+   [(symbol "resolver-sim.benchmark.review-aggregate-check")
+    '[check-aggregate-member-bit-width check-aggregate-member-key-density
+      check-aggregate-three-member-standard
+      check-aggregate-three-member-classifications run-review-aggregate-checks]]
    [(symbol "resolver-sim.hash.canonical")
     '[hash-with-intent domain-hash domain-tags]]
    ;; Protocol-specific adapter — dynamically resolved at runtime
@@ -104,7 +110,11 @@
     '[coprocessor-round-states lifecycle-target-state classify-round-state
       classify-round-cancellation cancellation-assertion]]
    [(symbol "resolver-sim.allocation.certificate")
-    '[schema-version compose-certificate]]])
+    '[schema-version compose-certificate]]
+   [(symbol "resolver-sim.allocation.claim-consumption-receipt")
+    '[schema-version valid-claim-consumption-status?
+      claim-consumption-conflict-key build-claim-consumption-receipt
+      claim-consumption-receipt-valid? validate-claim-consumption-receipt]]])
 
 (deftest all-production-namespaces-load
   (let [results (atom [])]

@@ -11,7 +11,8 @@
    This allows harmless argument ordering or alias variations to retain
    the same identity while still providing full reproducibility metadata."
   (:require [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "research-command.v1")
 
@@ -102,8 +103,8 @@
                 :command/runner-root runner-root
                 :command/input-root input-root
                 :command/output-root output-root}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :research-command base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :research-command base))]
       (when (and (some? hash) (not= hash computed-hash))
         (throw (ex-info "Declared command/hash does not match computed value"
                         {:declared hash :computed computed-hash})))
@@ -156,7 +157,7 @@
                                               (:command/include command))))))
     (when (some? (:command/hash command))
       (let [without-hash (dissoc command :command/hash)
-            computed (str "sha256:" (hc/domain-hash :research-command without-hash))]
+            computed (hash-ref/sha256-ref (hc/domain-hash :research-command without-hash))]
         (when-not (= computed (:command/hash command))
           (swap! errors conj (str "command/hash mismatch: declared "
                                   (:command/hash command)

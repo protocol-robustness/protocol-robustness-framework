@@ -11,7 +11,9 @@
 
    Derivation is a pure function of policy + signals, returning a structured
    record with reasons for auditability."
-  (:require [clojure.set :as set]))
+  (:require [clojure.set :as set]
+            [resolver-sim.hash.canonical :as canon]
+            [resolver-sim.hash.reference :as href]))
 
 ;; ===========================================================================
 ;; Canonical vocabulary
@@ -529,6 +531,38 @@
    (vec (sort-by (juxt :subject-hash :role) components)))
   ([components key-fn]
    (vec (sort-by key-fn components))))
+
+(def confidence-commitment-domain-tag
+  "Domain-separation tag for confidence composition commitments.
+   Prevents cross-domain hash collisions between a confidence commitment and
+   any other evidence record hashed under the Canonical Hash Spec V1."
+  "CONFIDENCE_COMPOSITION_V1")
+
+(defn concatenate-bound
+  "Concatenate the canonical bytes of hash-bound components and
+   commit them as a single domain-separated canonical sha256 reference.
+
+   The full bound sequence is preserved in the commitment — the sequence is
+   the evidence input, not a collapsed aggregate.  Components are bound by
+   :subject-hash so confidence cannot be reordered or reassigned independent
+   of the claims it qualifies.
+
+   ordering:
+     :by-subject (default) — set semantics; canonical-components sorts by
+                              :subject-hash, so permutation does not change
+                              the commitment.
+     :as-given             — preserves caller order (sequence semantics);
+                              use only when position is meaningful.
+
+   Returns a canonical \"sha256:<hex>\" reference."
+  ([components]
+   (concatenate-bound components :by-subject))
+  ([components ordering]
+   (let [components (if (= ordering :as-given)
+                      (vec components)
+                      (canonical-components components))]
+     (href/sha256-ref
+      (canon/domain-hash confidence-commitment-domain-tag components)))))
 
 ;; ===========================================================================
 ;; Utility

@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.conservation :as conservation]
+            [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
@@ -28,6 +29,19 @@
   (:import [java.nio.file Files StandardCopyOption]))
 
 (declare sha-ref)
+(declare claim-registry-input)
+
+(def ^:dynamic ^:private *claim-registry-path*
+  "Bound during a benchmark run to the explicitly selected claim registry path
+   (CLI/env). Nil means use the standard CLI→env→default resolution."
+  nil)
+
+(defmacro with-claim-registry
+  "Run body with the claim registry selection bound, so every phase (including
+   evidence provenance writers) can see which registry governed the run."
+  [claim-registry-path & body]
+  `(binding [*claim-registry-path* ~claim-registry-path]
+     ~@body))
 
 (defn- finalize-registry! [context]
   (inventory/build! context)
@@ -89,7 +103,7 @@
                "hash_algorithm" "sha256"
                "excluded_paths" (vec (sort content-registry-exclusions))
                "artifacts" entries
-               "content_root" (str "sha256:" (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))}
+               "content_root" (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))}
         target (io/file root "benchmark/evidence/content-registry.json")]
     (lifecycle/atomic-json! target value)
     value))
@@ -115,7 +129,7 @@
                "conclusion_sha256" (sha-ref conclusion-file)
                "evidence_content_registry_sha256" (sha-ref content-registry)
                "input_set_root" (get assurance-value "input_set_root")
-               "final_ref" (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))}
+               "final_ref" (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))}
         target (io/file (str root) "benchmark/finalization.json")]
     (lifecycle/atomic-json! target value)
     value))
@@ -273,9 +287,9 @@
         :run_package_index_bytes (.length package-index-file)
         :input_set_root (get finalization "input_set_root")
         :artifact_registry_ref paths/artifacts-registry
-        :artifact_registry_sha256 (str "sha256:" (lifecycle/sha256-file registry))
+        :artifact_registry_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file registry))
         :registry_validation_ref paths/artifacts-validation
-        :registry_validation_sha256 (str "sha256:" (lifecycle/sha256-file validation))}))))
+        :registry_validation_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file validation))}))))
 
 (defn- write-verdict-policy! [context evidence conclusion]
   (let [root (io/file (str (:run/root context)))
@@ -289,6 +303,7 @@
                    :inputs (get assurance "input_set")
                    :registries {"evidence_policy_hash" "benchmark-evidence-policy.v1"
                                 "claim_definition_registry_hash" "benchmark-claim-registry.v1"
+                                "claim_registry_selection" (claim-registry-input context)
                                 "evaluator_registry" "resolver-sim.benchmark.claims/evaluator-registry.v1"}
                    :semantic-environment {"protocol_id" "benchmark"
                                           "runner_id" "runner/local-clojure"
@@ -424,7 +439,7 @@
                                  (str (.relativize root (.toPath (io/file summary-path)))))]
                   {:execution_id execution-id
                    :result_ref relative
-                   :result_sha256 (when summary-path (str "sha256:" (lifecycle/sha256-file summary-path)))
+                   :result_sha256 (when summary-path (hash-ref/sha256-ref (lifecycle/sha256-file summary-path)))
                    :invariant_id "conservation-of-funds"
                    :status (cond
                              (nil? invariant) :incomplete
@@ -442,11 +457,11 @@
   (hash-ref/sha256-ref (lifecycle/sha256-file file)))
 
 (defn- input-set-root [inputs]
-  (str "sha256:"
-       (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
-                              (vec (sort-by #(get % "path")
-                                            (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
-                                                 inputs))))))
+  (hash-ref/sha256-ref
+   (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
+                          (vec (sort-by #(get % "path")
+                                        (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
+                                             inputs))))))
 
 (defn- input-set [context evidence]
   (let [root (.toPath (io/file (str (:run/root context))))
@@ -468,8 +483,27 @@
                   {"logical_id" "benchmark-execution-plan"
                    "source_kind" "execution-plan"
                    "path" "benchmark/execution-plan.edn"
-                   "sha256" (sha-ref (:benchmark/plan-file context))}]
+                   "sha256" (sha-ref (:benchmark/plan-file context))}
+                  (claim-registry-input context)]
                  (map input-entry (:results evidence))))))
+
+(defn claim-registry-input
+  "Commit the actually-selected claim registry as an input-set entry.
+
+   Precedence: explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY → repository
+   default. The committed entry carries the selected file's sha256 plus
+   :source (:cli | :environment | :default) so two audits cannot run against
+   different registries while evidence obscures how the registry was chosen."
+  [context]
+  (let [cli-path (or (:claim-registry/path context) *claim-registry-path*)
+        path (claim-registry/claim-registry-path cli-path)
+        source (claim-registry/claim-registry-source cli-path)
+        hash (or (claim-registry/registry-file-sha256 path) "unavailable")]
+    {"logical_id" "claim-registry"
+     "source_kind" "claim-registry"
+     "path" path
+     "sha256" hash
+     "claim-registry/source" (name source)}))
 
 (defn- write-assurance! [context evidence conclusion]
   (let [root (:run/root context)
@@ -528,10 +562,13 @@
 
 (defn run-with-root!
   "Run a canonical benchmark root. Optional overrides replace phase functions
-   for integration failure testing without bypassing root ownership/locking."
+   for integration failure testing without bypassing root ownership/locking.
+   When a claim-registry-path was selected for the run, bind it via
+   with-claim-registry so evidence commits provenance about the actual file."
   [benchmark-id run-root key sensitivity-profile overrides]
   (let [context (assoc (benchmark-run/build-run-context benchmark-id run-root ".")
-                       :sensitivity/profile sensitivity-profile)
+                       :sensitivity/profile sensitivity-profile
+                       :claim-registry/path *claim-registry-path*)
         lock (lifecycle/acquire-run-lock! (:run/root context) (:run/id context) :benchmark)]
     (try
       (benchmark-run/initialize! context)
@@ -581,11 +618,23 @@
 (defn run
   "Run a benchmark. `--run-root` creates a canonical benchmark-owned bundle;
    `--output` remains the legacy standalone evidence export destination."
-  [{:keys [output key run-root sensitivity-profile] :as opts}]
+  [{:keys [output key run-root sensitivity-profile claim-registry] :as opts}]
   (let [benchmark-id (or (first (:cmd/args opts))
                          (:benchmark-id opts)
-                         (:benchmark opts))]
+                         (:benchmark opts))
+        ;; Fail closed: validate the selected claim registry up front so a run
+        ;; can never proceed (and commit evidence) against an unrunnable or
+        ;; invalid auditor-supplied registry. Applies whether the registry came
+        ;; from --claim-registry, PRF_BENCHMARKS_CLAIM_REGISTRY, or the default.
+        registry-error (try
+                         (claim-registry/load-claim-registry claim-registry)
+                         nil
+                         (catch Exception e
+                           {:exit-code 2 :message (str "Claim registry validation failed: " (.getMessage e))}))]
     (cond
+      registry-error
+      registry-error
+
       (nil? benchmark-id)
       {:exit-code 2 :message "Usage: prf-runner-sew.jar run-benchmark <benchmark-id> --run-root DIR"}
 
@@ -600,7 +649,8 @@
        :message "Filesystem benchmark manifests are not supported for canonical bundles yet; use a registered benchmark ID or bundled classpath: manifest"}
 
       run-root
-      (run-with-root! benchmark-id run-root key (or sensitivity-profile :public) {})
+      (with-claim-registry claim-registry
+        (run-with-root! benchmark-id run-root key (or sensitivity-profile :public) {}))
 
       output
       (let [result (invoke! benchmark-id {:output output :key key})]

@@ -19,17 +19,25 @@
         non-negative integers);
       - the verified leaf set recomputes the committed result root.
 
+   Allocation is strictly per-claim under the all-or-nothing contract: a claim is
+   either fully allocated or not, and a claimant absent from the selected outcome's
+   allocation list is not an error — it maps to zero.  :beneficiary is economic
+   attribution only; it does not change per-claim entitlement.
+
    Reasons:
      :result-total-capacity-mismatch  total allocated != committed capacity
      :result-nonzero-residual         residual capacity != 0
-     :result-award-mismatch           a leaf allocation != selected-outcome
-                                      allocation for that claim
-     :result-entitlement-mismatch     a leaf allocation is neither zero nor the
-                                      committed claim amount
-     :result-rounding-rule-mismatch   unsupported/declared rounding policy, or
-                                      a negative (non-integer-honoring) award
      :result-leaf-set-incomplete      leaves do not cover the claimant set
                                       exactly once
+     :result-leaf-order-mismatch      leaves are not in canonical claimant order
+     :result-award-mismatch           a leaf allocation != selected-outcome
+                                      allocation for that claim
+     :result-negative-award           a leaf allocation is negative
+     :result-entitlement-mismatch     a leaf allocation is neither zero nor the
+                                      committed claim amount
+     :result-status-mismatch          a leaf :result-status contradicts its
+                                      allocation (allocated iff positive)
+     :result-rounding-rule-mismatch   unsupported/declared rounding policy
      :result-root-mismatch            verified leaves recompute a different
                                       result root than committed
 
@@ -78,6 +86,12 @@
                          (when (not= final expected)
                            {:claim/id cid :final-allocation final :expected expected})))
                      leaves))
+        negative-award
+        (first (keep (fn [leaf]
+                       (when (neg? (bigint (:final-allocation leaf)))
+                         {:claim/id (:claim/id leaf)
+                          :final-allocation (:final-allocation leaf)}))
+                     leaves))
         entitlement-mismatch
         (first (keep (fn [leaf]
                        (let [cid (:claim/id leaf)
@@ -86,7 +100,14 @@
                          (when-not (or (zero? final) (= final amount))
                            {:claim/id cid :final-allocation final :amount amount})))
                      leaves))
-        negative-award (some #(neg? (bigint (:final-allocation %))) leaves)]
+        status-mismatch
+        (first (keep (fn [leaf]
+                       (let [final (bigint (:final-allocation leaf))
+                             expected (if (pos? final) "allocated" "not-allocated")
+                             status (:result-status leaf)]
+                         (when (and (some? status) (not= status expected))
+                           {:claim/id (:claim/id leaf) :status status :expected expected})))
+                     leaves))]
     (cond
       (not= (bigint total-allocated) capacity)
       {:ok? false :reason :result-total-capacity-mismatch
@@ -105,14 +126,24 @@
       {:ok? false :reason :result-leaf-set-incomplete
        :detail {:leaves leaf-ids :claimants claimant-ids}}
 
+      (not= leaf-ids claimant-ids)
+      {:ok? false :reason :result-leaf-order-mismatch
+       :detail {:leaf-order leaf-ids :canonical-order claimant-ids}}
+
+      negative-award
+      {:ok? false :reason :result-negative-award
+       :detail {:negative-leaf negative-award}}
+
       award-mismatch
       {:ok? false :reason :result-award-mismatch :detail award-mismatch}
 
       entitlement-mismatch
       {:ok? false :reason :result-entitlement-mismatch :detail entitlement-mismatch}
 
-      (or negative-award
-          (and rounding-policy (not (contains? supported-rounding-policies rounding-policy))))
+      status-mismatch
+      {:ok? false :reason :result-status-mismatch :detail status-mismatch}
+
+      (and rounding-policy (not (contains? supported-rounding-policies rounding-policy)))
       {:ok? false :reason :result-rounding-rule-mismatch
        :detail {:rounding-policy rounding-policy
                 :supported (vec (sort supported-rounding-policies))}}

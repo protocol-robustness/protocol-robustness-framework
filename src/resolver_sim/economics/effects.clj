@@ -22,6 +22,13 @@
 (def effect-schema-domain-tag
   "PRF_EFFECT_CONTRACT_V1")
 
+(def add-held-action
+  "Canonical held-custody action emitted by custody-held-adjustment effects
+   (the Sew add-held primitive action name). Direction-neutral held-custody
+   vocabulary: this is the inbound custody action; outbound releases are
+   emitted as sub-held by the adapter."
+  "add-held")
+
 ;; ── versioned effect contracts ────────────────────────────────────────────
 
 (def balance-credit-schema
@@ -229,7 +236,7 @@
    applies it via add-held. Returns nil for non-custody effects."
   [effect]
   (when (= :custody/held-adjustment (:effect/type effect))
-    (merge {:action "add-held"
+    (merge {:action add-held-action
             :reason (:held/kind effect)}
            (when (contains? effect :parameter/context)
              {:parameter/context (:parameter/context effect)})
@@ -304,7 +311,7 @@
   [effect token opts]
   (held-adjustment (assoc effect :effect/direction :add)
                    token
-                   (assoc opts :held/action "add-held")))
+                   (assoc opts :held/action add-held-action)))
 
 (defn held-adjustment-valid?
   "True when a custody effect can be projected to a canonical held-adjustment

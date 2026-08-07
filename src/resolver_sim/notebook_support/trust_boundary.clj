@@ -6,7 +6,8 @@
             [resolver-sim.assurance.witness-verifier :as wv]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.run.package-index :as pkg]
-            [resolver-sim.config.paths :as paths]))
+            [resolver-sim.config.paths :as paths]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (defn- sha256-hex [f]
   (let [d (java.security.MessageDigest/getInstance "SHA-256")]
@@ -106,7 +107,7 @@
               :canonical-assurance "benchmark/assertions/canonical-integrity.json"}
         entries (reduce-kv (fn [acc k path]
                              (let [f (io/file r path)]
-                               (assoc acc k (if (.isFile f) (str "sha256:" (sha256-hex f)) nil))))
+                               (assoc acc k (if (.isFile f) (hash-ref/sha256-ref (sha256-hex f)) nil))))
                            {} refs)]
     (assoc entries :run-root (str run-root))))
 

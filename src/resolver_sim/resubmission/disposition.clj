@@ -15,7 +15,8 @@
    The unsigned projection excludes ONLY the signature. The signature covers the
    same unsigned projection bytes."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.signed-external-decision :as sed]))
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def disposition-schema "attempt-disposition.v1")
 (def disposition-domain "prf.attempt-disposition.v1")
@@ -30,7 +31,7 @@
 
 (defn disposition-hash
   [disposition]
-  (str "sha256:" (hc/domain-hash disposition-domain (unsigned-disposition-projection disposition))))
+  (hash-ref/sha256-ref (hc/domain-hash disposition-domain (unsigned-disposition-projection disposition))))
 
 (defn sign-disposition
   "Attach the signing authority signature over the unsigned projection bytes."

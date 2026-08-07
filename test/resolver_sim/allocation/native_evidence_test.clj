@@ -108,7 +108,19 @@
         c (cert/compose-certificate result nil evidence)
         class (get-in c [:exact-replication])]
     (is (= :independent-replay (:classification class)))
-    (is (= :other-pinned-implementation (:reason class)))))
+    (is (= :other-pinned-rust-implementation (:reason class)))))
+
+(deftest native-evidence-for-another-pinned-prf-downgraded
+  (let [result (with-reference (fixtures/kernel-result)
+                 {:pinned-prf {:implementation "official-prf-kernel"
+                               :version "prf.v2"}})
+        evidence (native result {:native-evidence/prf-identity
+                                 {:implementation "prf-allocation-kernel"
+                                  :version "prf.v1"}})
+        c (cert/compose-certificate result nil evidence)
+        class (get-in c [:exact-replication])]
+    (is (= :independent-replay (:classification class)))
+    (is (= :other-pinned-prf-implementation (:reason class)))))
 
 (deftest malformed-and-stale-evidence-not-evaluated
   (let [result (with-reference (fixtures/kernel-result))]

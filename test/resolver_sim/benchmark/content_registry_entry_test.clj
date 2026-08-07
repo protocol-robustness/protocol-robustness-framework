@@ -1,7 +1,8 @@
 (ns resolver-sim.benchmark.content-registry-entry-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.content-registry-entry :as cre]))
+            [resolver-sim.benchmark.content-registry-entry :as cre]
+            [resolver-sim.benchmark.research-benchmark-model :as model]))
 
 (deftest build-entry-requires-model-root
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"model-root"
@@ -18,6 +19,21 @@
     (is (= :test/benchmark (:benchmark/id entry)))
     (is (= "sha256:model" (:benchmark/model-root entry)))
     (is (str/starts-with? (cre/content-root entry) "sha256:"))))
+
+(deftest model-schema-default-is-producer-version
+  (testing "the content-registry entry defaults its model-schema to (and validates
+            against) the authoritative research-benchmark-model schema version, so
+            producer and consumer cannot diverge"
+    (let [entry (cre/build-entry
+                 {:benchmark/id :test/benchmark
+                  :benchmark/version 1
+                  :benchmark/research-question "Test?"
+                  :benchmark/model-root "sha256:model"
+                  :benchmark/evaluation-policy-root "sha256:eval"})]
+      (is (= model/schema-version (:benchmark/model-schema entry))
+          "default model-schema is the producer's authoritative version")
+      (is (cre/entry-valid? entry))
+      (is (str/starts-with? (cre/content-root entry) "sha256:")))))
 
 (deftest status-root-not-modelled
   (let [entry (cre/build-entry

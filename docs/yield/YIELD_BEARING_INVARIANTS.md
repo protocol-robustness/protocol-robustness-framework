@@ -36,7 +36,7 @@ Yield-bearing scenarios are classified along four axes:
 |---|---|---|
 | `:principal-preserving` | Yield may accrue; principal always recoverable | All invariants pass |
 | `:liquidity-shortfall` | Temporary liquidity shortage may defer fulfillment | `:conservation-of-funds` passes (deferred is still owed) |
-| `:principal-loss` | Unrecoverable haircut permanently reduces assets | `:conservation-of-funds` passes (loss recognized); `:solvency`/`:capital-preservation` expected-fail |
+| `:principal-loss` | Unrecoverable haircut permanently reduces assets | `:conservation-of-funds` passes (loss recognized); `:solvency` held-custody reconciliation passes post-haircut (loss is a flow, not a remaining liability). The canonical assessment reports `:assessment/status :impaired` with `:assessment/reasons #{:realized-loss}`. |
 | `:historical-index-replay` | External index schedule drives accrual | All invariants pass |
 | `:negative-yield` | Mark-to-market may reduce position value below principal | `:conservation-of-funds` passes; temporary dips allowed |
 | `:quantization-drift` | Floor rounding across accrual + settlement may create small deltas | Expectations widened to accommodate rounding |
@@ -45,7 +45,7 @@ Yield-bearing scenarios are classified along four axes:
 
 | ID | Categories | Risk class | Stress theme | Core invariants | Expected diagnostic |
 |---|---|---|---|---|---|
-| S113 | `#{:yield-bearing :principal-loss}` | `:principal-loss` | Unrecoverable haircut at 50% liquidity | All pass | `:solvency` expected-fail (haircut destroys 2475 of 4950 deposited) |
+| S113 | `#{:yield-bearing :principal-loss}` | `:principal-loss` | Unrecoverable haircut at 50% liquidity | All pass | `:assessment/status :impaired` (haircut destroys 2475 of 4950 deposited; obligations covered post-haircut) |
 | S115 | `#{:yield-bearing :historical-index-replay}` | `:historical-index-replay` | External aave V3 index schedule | All pass | None |
 
 ### Expected invariant results
@@ -54,10 +54,12 @@ Yield-bearing scenarios are classified along four axes:
 
 ```clojure
 {:expected-invariant-results
- {:solvency          {:status :fail :expected? true  :reason :yield/principal-loss}
+ {:solvency          {:status :pass :expected? false}   ; held-custody reconciles post-haircut
   :conservation-of-funds {:status :pass :expected? false}
   :token-tax-reconciliation {:status :pass :expected? false}
   :held-delta-accounted    {:status :pass :expected? false}}}
+;; canonical assessment (see resolver-sim.protocols.sew.financial.solvency):
+;; {:assessment/status :impaired :assessment/reasons #{:realized-loss}}
 ```
 
 **S115:**
@@ -96,7 +98,7 @@ drops `available-ratio` to 0.5 at t=1500. Shortfall model
 | `:conservation-of-funds` | Yes | `inflow = 5000 − 2475 = 2525` = `held(0) + fees(50) + claimable(2475) = 2525` |
 | `:token-tax-reconciliation` | Yes | No unexplained delta — `sub-held` matches `fulfilled + haircut` |
 | `:held-delta-accounted` | Yes | `delta-inflow (−5000 − 0 + 0 − 2475) = −7475` = `delta-held (−4950) − delta-claimable (2475) − 0 − 0 − fees(50) = −7475` |
-| `:solvency` | **Expected fail** | `assets(2475 claimable + 50 fees = 2525)` < `inflows(5000 principal)` — `ratio = 0.505`. Haircut permanently destroyed 2475 units. This is an expected diagnostic failure: the scenario intentionally models unrecoverable principal loss. No invariant-code fix is required when the scenario is classified as `:principal-loss`. |
+| `:solvency` | **Pass** | Held-custody reconciles post-haircut: the 2475 haircut reduced both entitlement and custody, so it is a flow, not a remaining liability. The canonical assessment classifies `:assessment/status :impaired` with `:assessment/reasons #{:realized-loss}` (obligations covered post-haircut). Value destruction is tracked by `:conservation-of-funds`, not by calling the protocol insolvent. |
 
 **Correction to earlier draft:** The numbers `5025 < 5000` were wrong. The
 correct values are `total-assets = 2525` (claimable 2475 + fees 50),
@@ -148,7 +150,7 @@ and `:total-held`. Principal is always fully recoverable.
 | Invariant | Expected | Why |
 |-----------|----------|-----|
 | `:conservation-of-funds` | pass | Loss subtracted from inflow via `sum-recognized-losses` |
-| `:solvency` | **expected-fail** | Haircut destroys value; `assets < original inflows` by design |
+| `:solvency` | pass | Haircut reduced both entitlement and custody; the held-custody ledger still reconciles |
 | `:held-delta-accounted` | pass | Losses term in `delta-inflow` |
 | `:token-tax-reconciliation` | pass | Loss matched by deferred→haircut reclassification |
 
@@ -194,7 +196,7 @@ and `:total-held`. Principal is always fully recoverable.
 
 | Gap | Scenario | Nature |
 |-----|----------|--------|
-| `:solvency` expected-fail | S113 | Principal-loss scenario intentionally violates capital-preservation semantics. Treat as **expected diagnostic failure**, not an unexplained accounting bug. If this output is presented to external researchers, annotate with `{:expected? true :reason :yield/principal-loss}`. |
+| `:assessment/status :impaired` | S113 | Principal-loss scenario records a realized haircut; the canonical assessment classifies `:impaired` (obligations covered post-haircut) rather than `:insolvent`. The underlying scenario currently also trips `:conservation-of-funds` on its own (see `data/fixtures/golden/s113-principal-loss-haircut.report.edn`) — that pre-existing conservation drift should be resolved before treating the scenario as green. |
 
 ## Reference
 

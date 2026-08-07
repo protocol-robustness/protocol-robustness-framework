@@ -23,8 +23,8 @@
 (defn assignment-hash
   "Return the canonical domain-separated hash reference for an assignment."
   [assignment]
-  (str "sha256:" (hc/domain-hash :research-assignment
-                                 (assignment-preimage assignment))))
+  (hash-ref/sha256-ref (hc/domain-hash :research-assignment
+                                       (assignment-preimage assignment))))
 
 (defn- errors-for
   [assignment]

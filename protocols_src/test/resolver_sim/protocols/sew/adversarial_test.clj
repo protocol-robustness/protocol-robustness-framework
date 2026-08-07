@@ -54,6 +54,13 @@
   [window-secs]
   (base-snap {:appeal-window-duration window-secs}))
 
+(defn- stamp-held-completeness
+  "Declare the held-adjustment ledger complete on a world built through the
+   canonical lifecycle path (mirrors the replay path which sets this flag), so
+   the held-adjustments invariants are evaluated rather than :not-evaluated."
+  [world]
+  (assoc-in world [:params :held-adjustments/complete?] true))
+
 (defn- make-escrow
   "Create one escrow. Returns {:world world :wf-id wf-id}."
   ([world] (make-escrow world {}))
@@ -63,7 +70,8 @@
          cr   (lc/create-escrow world alice token bob 10000 settings snap)]
      (when-not (:ok cr) (throw (ex-info "create-escrow failed" cr)))
      (let [wf-id (:workflow-id cr)
-           w     (assoc-in (:world cr) [:escrow-transfers wf-id :dispute-resolver] r0)]
+           w     (assoc-in (stamp-held-completeness (:world cr))
+                           [:escrow-transfers wf-id :dispute-resolver] r0)]
        {:world w :wf-id wf-id}))))
 
 (defn- make-disputed
@@ -105,7 +113,10 @@
   {:ok true :new-resolver (case level 0 r1 1 r2 "0xUnknown")})
 
 (defn- invariants-hold? [world]
-  (:all-hold? (inv/check-all world)))
+  ;; Worlds are built through the canonical lifecycle path (zero-origin,
+  ;; reconstructable held ledger); declaring completeness mirrors the replay
+  ;; path so the held-adjustments invariants are evaluated, not :not-evaluated.
+  (:all-hold? (inv/check-all (stamp-held-completeness world))))
 
 (defn- transition-holds? [before after]
   (:all-hold? (inv/check-transition before after)))

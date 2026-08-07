@@ -36,7 +36,9 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.io.edn :as ppedn]
             [resolver-sim.sensitivity.contract :as sens-contract]
-            [resolver-sim.signed-external-decision :as sed])
+            [resolver-sim.sensitivity.report :as sens-report]
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.security MessageDigest]))
 
 ;; ── Constants ────────────────────────────────────────────────────────────────
@@ -90,7 +92,8 @@
 
 (defn- compute-object-hash
   [obj]
-  (hc/hash-with-intent {:hash/intent :evidence-record} obj))
+  (hc/hash-with-intent {:hash/intent :evidence-record}
+                       (hc/project-committable-content obj)))
 
 ;; ── Claim-result stable hash ─────────────────────────────────────────────────
 ;; A scenario claim result carries run-local fields (`:name`, `:scenario-path`,
@@ -134,7 +137,8 @@
   [c]
   (or (:claim-result-hash c)
       (hc/hash-with-intent {:hash/intent :evidence-record}
-                           (strip-claim-run-local c))))
+                           (hc/project-committable-content
+                            (strip-claim-run-local c)))))
 
 (defn- object-path
   [base-dir kind hash]
@@ -255,7 +259,7 @@
                        :bundle/sensitivity (cond-> {:sentinel/decision (:decision sensitivity-report :blocked)
                                                     :sentinel/report-hash (:report-hash sensitivity-report)
                                                     :sensitivity-report/ref
-                                                    {:schema "sensitivity-report.v2"
+                                                    {:schema sens-report/report-schema-version
                                                      :semantic-hash (:report/semantic-hash sensitivity-report)
                                                      :sha256 (:report-byte-hash sensitivity-report)
                                                      :byte-length (:report-byte-length sensitivity-report)
@@ -428,7 +432,7 @@
                                       (hc/hash-with-intent {:hash/intent :registry}
                                                            (canonical-registry-snapshot trusted-registry)))
               trusted? (or (contains? trusted-hashes computed)
-                           (contains? trusted-hashes (str "sha256:" computed))
+                           (contains? trusted-hashes (hash-ref/sha256-ref  computed))
                            (= computed trusted-registry-hash))]
           (cond
             (not integrity?) {:check/id :attestor-registry-trusted :check/status :fail
@@ -574,7 +578,7 @@
           computed-semantic-hash (hc/hash-with-intent {:hash/intent :evidence-record} hash-input)
           expected-semantic-hash (:semantic-hash ref)]
       (cond
-        (not= schema "sensitivity-report.v2")
+        (not= schema sens-report/report-schema-version)
         {:check/status :fail :reason "Unexpected schema" :schema schema}
         (and expected-semantic-hash (not= computed-semantic-hash expected-semantic-hash))
         {:check/status :fail :reason "Semantic hash mismatch"

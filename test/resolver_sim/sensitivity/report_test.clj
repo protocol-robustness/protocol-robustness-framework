@@ -46,6 +46,14 @@
     (is (nil? (:provenance report)))
     (is (string? (:report-hash report)))))
 
+(deftest report-schema-version-is-producer-consumer-contract
+  (testing "the authoritative schema version is the single value producers emit
+            and consumers (attestation-bundle, bundle-root, scenario-orchestration)
+            now reference; a schema bump must change it here or those consumers
+            silently diverge"
+    (is (= "sensitivity-report.v2" report/report-schema-version))
+    (is (= report/report-schema-version "sensitivity-report.v2"))))
+
 (deftest build-report-with-sensitivity
   (let [report (report/build-sensitivity-report
                 (sample-safety-result)

@@ -193,6 +193,50 @@
               :held/consumed-by (:consumed-by adjustment)}]
     (artifact/finalize-artifact body)))
 
+(defn add-held-action
+  "Build an inward :add-held held-custody mutation — a direction-consistent
+   first-class convenience over build-force-auth-held-mutation.
+
+   The action (:add-held -> :in) increments the held balance, so this fixes
+   both :held/action :add-held and :held/direction :in.  A caller may never
+   accidentally raise an :add-held member with an :out direction; an explicit
+   :out direction fails closed with the same :held-custody/invalid-action-direction
+   error as the generic builder.  All other validation is unchanged.
+
+   Same signature and return shape as the generic builder."
+  [verified-authorisation adjustment options]
+  (when (= :out (:held/direction adjustment))
+    (throw (ex-info "add-held-action requires an inward :held/direction :in"
+                    {:error :held-custody/invalid-action-direction
+                     :held/action :add-held
+                     :held/direction :out})))
+  (build-force-auth-held-mutation
+   verified-authorisation
+   (assoc adjustment :held/action :add-held :held/direction :in)
+   options))
+
+(defn sub-held-action
+  "Build an outward :sub-held held-custody mutation — a direction-consistent
+   first-class convenience over build-force-auth-held-mutation.
+
+   The action (:sub-held -> :out) decrements the held balance, so this fixes
+   both :held/action :sub-held and :held/direction :out.  A caller may never
+   accidentally raise a :sub-held member with an :in direction; an explicit
+   :in direction fails closed with the same :held-custody/invalid-action-direction
+   error as the generic builder.  All other validation is unchanged.
+
+   Same signature and return shape as the generic builder."
+  [verified-authorisation adjustment options]
+  (when (= :in (:held/direction adjustment))
+    (throw (ex-info "sub-held-action requires an outward :held/direction :out"
+                    {:error :held-custody/invalid-action-direction
+                     :held/action :sub-held
+                     :held/direction :in})))
+  (build-force-auth-held-mutation
+   verified-authorisation
+   (assoc adjustment :held/action :sub-held :held/direction :out)
+   options))
+
 ;; ── checker ────────────────────────────────────────────────────────────────
 
 (defn check-force-auth-held-mutation

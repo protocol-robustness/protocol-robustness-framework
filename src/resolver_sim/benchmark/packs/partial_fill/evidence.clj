@@ -6,7 +6,8 @@
    
    Dependency direction: benchmark -> yield/domain artifacts (one-way)."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.yield.partial-fill :as partial-fill]))
+            [resolver-sim.yield.partial-fill :as partial-fill]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── State write-back evidence ─────────────────────────────────────────────
 
@@ -38,8 +39,8 @@
                                             [:yield/positions
                                              participant-id])
                final-world-pos-hash (when final-world-position
-                                      (str "sha256:" (hc/domain-hash :state-projection
-                                                                     final-world-position)))
+                                      (hash-ref/sha256-ref (hc/domain-hash :state-projection
+                                                                           final-world-position)))
                after-hash (:position-after-hash participant)
                deferred (:deferred-position position-after)
                prior-deferred (:deferred-position
@@ -578,9 +579,9 @@
                      :schema-version verification-report-schema-version
                      :artifact/kind :partial-fill-decisions-verification
                      :artifact/verifier verification-report-verifier-id)
-         report-hash (str "sha256:"
-                          (hc/hash-with-intent {:hash/intent :evidence-record}
-                                               body))]
+         report-hash (hash-ref/sha256-ref
+                      (hc/hash-with-intent {:hash/intent :evidence-record}
+                                           body))]
      (assoc body
             :report/hash report-hash
             :report/preimage (pr-str body)))))
@@ -597,8 +598,8 @@
        (string? (:report/preimage report))
        (let [body (dissoc report :report/hash :report/preimage)]
          (= (:report/hash report)
-            (str "sha256:"
-                 (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
+            (hash-ref/sha256-ref
+             (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
 
 ;; ── Partial-fill decisions summary file-artifact ─────────────────────────
 ;;
@@ -618,8 +619,8 @@
 (defn- finalize-artifact
   "Attach the content hash and exact preimage to an artifact body."
   [body]
-  (let [hash (str "sha256:"
-                  (hc/hash-with-intent {:hash/intent :evidence-record} body))]
+  (let [hash (hash-ref/sha256-ref
+              (hc/hash-with-intent {:hash/intent :evidence-record} body))]
     (assoc body
            :artifact/hash hash
            :artifact/preimage (pr-str body))))
@@ -751,8 +752,8 @@
        (string? (:artifact/preimage report))
        (let [body (dissoc report :artifact/hash :artifact/preimage)]
          (= (:artifact/hash report)
-            (str "sha256:"
-                 (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
+            (hash-ref/sha256-ref
+             (hc/hash-with-intent {:hash/intent :evidence-record} body))))))
 
 ;; ── Continuity evidence ───────────────────────────────────────────────────
 
@@ -777,8 +778,8 @@
                   after-hash (:position-after-hash participant)
                   final-pos (get-in final-world [:yield/positions pid])
                   final-pos-hash (when final-pos
-                                   (str "sha256:" (hc/domain-hash :state-projection
-                                                                  final-pos)))
+                                   (hash-ref/sha256-ref (hc/domain-hash :state-projection
+                                                                        final-pos)))
                   current-amount (get-in participant
                                          [:position-after
                                           :deferred-position

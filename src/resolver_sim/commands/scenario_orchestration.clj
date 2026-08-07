@@ -17,6 +17,7 @@
             [resolver-sim.evidence.finalization-signing :as finalization-signing]
             [resolver-sim.sensitivity.sentinel :as sentinel]
             [resolver-sim.sensitivity.propagation :as prop]
+            [resolver-sim.sensitivity.report :as sens-report]
             [resolver-sim.evidence.attestation-bundle :as ab]
             [resolver-sim.evidence.attestation-completeness-profile :as acp]
             [resolver-sim.run.runner-finalization :as runner-finalization]
@@ -28,7 +29,8 @@
             [resolver-sim.logging :as log]
             [resolver-sim.definitions.passive-registries :as passive-registries]
             [resolver-sim.protocols.protocol :as proto]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
 (defn- p [x] (str x))
 (defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
@@ -48,7 +50,7 @@
         result ((requiring-resolve 'resolver-sim.io.scenario-runner/run-and-report)
                 {:scenario (:input/snapshot provenance) :run-id (:run/id c) :run-root (p (:run/root c))
                  :scenario-id scenario-id :execution-id execution-id
-                 :scenario/source-hash (str "sha256:" (:input/sha256 provenance))
+                 :scenario/source-hash (hash-ref/sha256-ref (:input/sha256 provenance))
                  :scenario/input-snapshot-relative (:input/snapshot-relative provenance)
                  :scenario-slug (:scenario/slug c) :scenario-root (p (:scenario/root c)) :execution-dir (p (:execution/dir c)) :artifact-dir (p (:forensic/dir c)) :summary-dir (p (:summaries/dir c)) :manifest-dir (p (:manifest/dir c)) :output-file (p (:replay/file c))} {:report-format (:report-format c)})]
     (assoc result :input/provenance provenance :scenario/id scenario-id :execution/id execution-id)))
@@ -89,7 +91,7 @@
         ;; literally; parsing with `:key-fn keyword` restores :registry/*.
         result (assoc result
                       "registry/ref" registry-ref
-                      "registry/sha256" (str "sha256:" (lifecycle/sha256-file registry-file))
+                      "registry/sha256" (hash-ref/sha256-ref (lifecycle/sha256-file registry-file))
                       "registry/bytes" (.length registry-file))
         report (io/file (.getParentFile registry-file) "artifact-registry-validation.json")]
     (spit report (json/write-str result))
@@ -167,7 +169,7 @@
                                 :aborted-scenario-count aborted-count}
                     :bindings {:runner-finalization
                                {:artifact-id "execution/runner-finalization.json"
-                                :hash (str "sha256:" (:runner-finalization/hash runner-artifact))
+                                :hash (hash-ref/sha256-ref (:runner-finalization/hash runner-artifact))
                                 :runner-id (:runner-id runner-selection)
                                 :runtime-kind :runner-local}}
                     :policy {:profile-id (or (:profile/id (:signing/config c)) "inspection.v1")}})
@@ -361,7 +363,7 @@
                                  (let [prov (:provenance sensitivity-report)
                                        rh (:report-hash sensitivity-report)]
                                    {:report-hash rh
-                                    :source "sensitivity-report.v2"
+                                    :source sens-report/report-schema-version
                                     :provenance prov}))
         ;; Normalize for persistence (hard-fails on unsupported types);
         ;; lazy sequences are realized to vectors so claim results /
@@ -419,12 +421,12 @@
                            :operator_identity false
                            :runtime_isolation false}
                    :run_finalization {:ref "evidence/finalizations/run/evidence-finalization.json"
-                                      :sha256 (str "sha256:" (lifecycle/sha256-file finalization-file))}
+                                      :sha256 (hash-ref/sha256-ref (lifecycle/sha256-file finalization-file))}
                    :evidence_content_registry {:ref "evidence/content-registry.json"
-                                               :sha256 (str "sha256:" (lifecycle/sha256-file content-registry-file))}
+                                               :sha256 (hash-ref/sha256-ref (lifecycle/sha256-file content-registry-file))}
                    :runner_finalization {:ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/runner-finalization.json")
                                          :sha256 (when (.isFile runner-finalization-file)
-                                                   (str "sha256:" (lifecycle/sha256-file runner-finalization-file)))}
+                                                   (hash-ref/sha256-ref (lifecycle/sha256-file runner-finalization-file)))}
                    :outer_registry {:ref paths/artifacts-registry
                                     :verification "verified-by-verify-scenario-after-inventory"}
                    :checks {:run_finalization_verified (= "verified" (get-in finalization [:verification :status]))
@@ -479,7 +481,7 @@
         ref (fn [relative]
               (let [file (io/file root relative)]
                 {:ref relative
-                 :sha256 (when (.isFile file) (str "sha256:" (lifecycle/sha256-file file)))
+                 :sha256 (when (.isFile file) (hash-ref/sha256-ref (lifecycle/sha256-file file)))
                  :bytes (when (.isFile file) (.length file))}))]
     (let [dag-relative (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/execution-dag.json")
           dag-file (io/file root dag-relative)]
@@ -561,17 +563,17 @@
       :manifest_ref "manifest/run.json"
       :runner_finalization_ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/runner-finalization.json")
       :runner_finalization_sha256 (when (.isFile runner-finalization)
-                                    (str "sha256:" (lifecycle/sha256-file runner-finalization)))
+                                    (hash-ref/sha256-ref (lifecycle/sha256-file runner-finalization)))
       :run_package_index_ref paths/run-package-index
       :run_package_index_sha256 (let [package-index (io/file (str root) paths/run-package-index)]
                                   (when (.isFile package-index)
-                                    (str "sha256:" (lifecycle/sha256-file package-index))))
+                                    (hash-ref/sha256-ref (lifecycle/sha256-file package-index))))
       :run_package_index_bytes (let [package-index (io/file (str root) paths/run-package-index)]
                                  (when (.isFile package-index) (.length package-index)))
       :artifact_registry_ref paths/artifacts-registry
-      :artifact_registry_sha256 (when (.isFile registry) (str "sha256:" (lifecycle/sha256-file registry)))
+      :artifact_registry_sha256 (when (.isFile registry) (hash-ref/sha256-ref (lifecycle/sha256-file registry)))
       :registry_validation_ref "manifest/artifact-registry-validation.json"
-      :registry_validation_sha256 (when (.isFile validation) (str "sha256:" (lifecycle/sha256-file validation)))})
+      :registry_validation_sha256 (when (.isFile validation) (hash-ref/sha256-ref (lifecycle/sha256-file validation)))})
     {}))
 (def ^:private defaults {:check-runtime default-check-runtime! :execute default-execute! :write-manifest default-write-manifest! :extract-artifacts default-extract-artifacts! :scan-sensitivity default-scan-sensitivity! :finalize-registry default-finalize-registry! :validate-registry default-validate-registry! :finalize-run-evidence default-finalize-run-evidence! :build-attestation-bundle default-build-attestation-bundle! :write-canonical-assurance default-write-canonical-assurance! :write-verdict-policy default-write-verdict-policy! :write-package-index default-write-package-index! :write-diagnostic default-write-diagnostic! :write-pro-rata-mechanism-index default-write-pro-rata-mechanism-index! :refresh-inventory default-refresh-inventory! :refresh-registry default-refresh-registry! :revalidate-registry default-revalidate-registry! :complete default-complete!})
 (defn run-scenario!

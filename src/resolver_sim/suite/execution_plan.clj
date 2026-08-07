@@ -6,15 +6,16 @@
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as scenarios]
-            [resolver-sim.scenario.suites :as suites]))
+            [resolver-sim.scenario.suites :as suites]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def plan-schema-version "suite-execution-plan.v1")
 
 (defn suite-definition-hash [suite-key suite-definition]
-  (str "sha256:"
-       (canonical/domain-hash "SUITE_DEFINITION_V1"
-                              {:suite/id suite-key
-                               :suite/definition suite-definition})))
+  (hash-ref/sha256-ref
+   (canonical/domain-hash "SUITE_DEFINITION_V1"
+                          {:suite/id suite-key
+                           :suite/definition suite-definition})))
 
 (defn validate-plan!
   "Reject duplicate logical child identities or ambiguous directory prefixes

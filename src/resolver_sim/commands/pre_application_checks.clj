@@ -3,34 +3,35 @@
    Validates that an outcome manifest is ready for benchmark execution."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [resolver-sim.benchmark.outcome-manifest :as om]))
+            [resolver-sim.benchmark.outcome-manifest :as om]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (defn- build-fixture-manifest
   "Build a synthetic manifest with all required fields for pre-application
    validation. Used as the canonical default when no --manifest is given."
   []
   (om/build-manifest
-   {:benchmark/content-root (str "sha256:"
-                                 (apply str (take 64 (cycle "c0de"))))
-    :benchmark/model-root (str "sha256:"
-                               (apply str (take 64 (cycle "a0de"))))
-    :benchmark/evaluation-policy-root (str "sha256:"
-                                           (apply str (take 64 (cycle "e5ca"))))
+   {:benchmark/content-root (hash-ref/sha256-ref
+                             (apply str (take 64 (cycle "c0de"))))
+    :benchmark/model-root (hash-ref/sha256-ref
+                           (apply str (take 64 (cycle "a0de"))))
+    :benchmark/evaluation-policy-root (hash-ref/sha256-ref
+                                       (apply str (take 64 (cycle "e5ca"))))
     :execution/status :completed
-    :execution/parameter-domain-root (str "sha256:"
-                                          (apply str (take 64 (cycle "d0"))))
-    :execution/sampling-policy-root (str "sha256:"
-                                         (apply str (take 64 (cycle "c0"))))
-    :execution/generated-case-set-root (str "sha256:"
-                                            (apply str (take 64 (cycle "c0de"))))
-    :execution/command-root (str "sha256:"
-                                 (apply str (take 64 (cycle "c0d"))))
-    :outcomes/operational-root (str "sha256:"
-                                    (apply str (take 64 (cycle "0ead"))))
-    :outcomes/incentive-root (str "sha256:"
-                                  (apply str (take 64 (cycle "1c"))))
-    :outcomes/incentive-compatibility-root (str "sha256:"
-                                                (apply str (take 64 (cycle "1c1"))))
+    :execution/parameter-domain-root (hash-ref/sha256-ref
+                                      (apply str (take 64 (cycle "d0"))))
+    :execution/sampling-policy-root (hash-ref/sha256-ref
+                                     (apply str (take 64 (cycle "c0"))))
+    :execution/generated-case-set-root (hash-ref/sha256-ref
+                                        (apply str (take 64 (cycle "c0de"))))
+    :execution/command-root (hash-ref/sha256-ref
+                             (apply str (take 64 (cycle "c0d"))))
+    :outcomes/operational-root (hash-ref/sha256-ref
+                                (apply str (take 64 (cycle "0ead"))))
+    :outcomes/incentive-root (hash-ref/sha256-ref
+                              (apply str (take 64 (cycle "1c"))))
+    :outcomes/incentive-compatibility-root (hash-ref/sha256-ref
+                                            (apply str (take 64 (cycle "1c1"))))
     :results/operational {:conservation :pass}}))
 
 (defn checks

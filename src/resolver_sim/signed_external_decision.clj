@@ -20,7 +20,8 @@
    substitution."
   (:require [resolver-sim.hash.canonical :as hc]
             [clojure.walk :as walk]
-            [buddy.core.codecs :as codecs])
+            [buddy.core.codecs :as codecs]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.security KeyFactory Signature]
            [java.security.spec X509EncodedKeySpec]))
 
@@ -89,7 +90,7 @@
    The signature is excluded from the preimage so the hash does not depend on
    itself."
   [domain-tag envelope]
-  (str "sha256:" (hc/domain-hash domain-tag (preimage envelope))))
+  (hash-ref/sha256-ref (hc/domain-hash domain-tag (preimage envelope))))
 
 ;; ── Signing ────────────────────────────────────────────────────────────────
 
@@ -182,7 +183,7 @@
   "Commit to the full content of a request via a dedicated domain tag.
    Excludes :request/hash itself (self-referential exclusion)."
   [request-domain-tag request]
-  (str "sha256:" (hc/domain-hash request-domain-tag (normalize-decision (dissoc request :request/hash)))))
+  (hash-ref/sha256-ref (hc/domain-hash request-domain-tag (normalize-decision (dissoc request :request/hash)))))
 
 (defn attach-request-hash
   "Attach a committed :request/hash to a request map."

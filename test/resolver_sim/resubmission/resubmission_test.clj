@@ -169,9 +169,9 @@
     (testing "direct resubmission eligibility"
       (is (true? (receipt/direct-resubmission-parent? signed)))
       (is (nil? (receipt/resubmission-parent-requirement-mismatch signed)))
-      (doseq [[k v reason] [[:attempt-receipt/outcome :accepted :parent-rejection-not-resubmittable]
+      (doseq [[k v reason] [[:attempt-receipt/outcome :accepted :parent-not-rejected]
                             [:attempt-receipt/finality :provisional :parent-rejection-not-final]
-                            [:attempt-receipt/resubmission-eligibility :ineligible :parent-rejection-not-resubmittable]
+                            [:attempt-receipt/resubmission-eligibility :ineligible :parent-not-resubmittable]
                             [:attempt-receipt/lifecycle-status :withdrawn :parent-attempt-withdrawn]]]
         (let [signed-k (assoc signed k v)]
           (is (= reason (receipt/resubmission-parent-requirement-mismatch signed-k)))
@@ -342,7 +342,10 @@
     (let [c (chain/new-chain "sha256:FAM")
           _ (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
           r (chain/admit! c (admit-request "sha256:R1" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
-      (is (= :cycle-detected (:reason r)))
+      ;; R1 is already committed as the root, so re-admitting it (even as its
+      ;; own parent) is a prior-state integrity violation, reported before the
+      ;; child==parent cycle check.
+      (is (= :receipt-already-committed (:reason r)))
       (is (= :not-admitted (:admission-status r)))))
   (testing "dedup before head check"
     (let [c (chain/new-chain "sha256:FAM")

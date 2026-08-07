@@ -15,7 +15,8 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.invariants :as yield-inv]
-            [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]))
+            [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "pro-rata-application-evidence.v1")
 (def ^:const profile-id :evidence-profile/pro-rata-application)
@@ -141,26 +142,26 @@
                   (hc/domain-hash :evidence-collection aa))
                 :evidence-profile/accounting-evidence-hash
                 (when-let [aes (:accounting-entries application)]
-                  (str "sha256:"
-                       (hc/domain-hash
-                        :evidence-collection
-                        (pf/canonical-accounting-entries aes))))
+                  (hash-ref/sha256-ref
+                   (hc/domain-hash
+                    :evidence-collection
+                    (pf/canonical-accounting-entries aes))))
                 :evidence-profile/state-write-back-evidence-hash
                 (when (seq state-write-back-evidence)
-                  (str "sha256:"
-                       (hc/domain-hash :evidence-collection
-                                       (vec state-write-back-evidence))))
+                  (hash-ref/sha256-ref
+                   (hc/domain-hash :evidence-collection
+                                   (vec state-write-back-evidence))))
                 :evidence-profile/current-amount-evidence-hash
                 "sha256:deferred" ;; placeholder — resolved from ladder
                 :evidence-profile/continuity-evidence-hash
                 (when (seq continuity-evidence)
-                  (str "sha256:"
-                       (hc/domain-hash :evidence-collection
-                                       (vec continuity-evidence))))
+                  (hash-ref/sha256-ref
+                   (hc/domain-hash :evidence-collection
+                                   (vec continuity-evidence))))
                 :evidence-profile/verification verification}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :pro-rata-application-evidence
-                                             base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :pro-rata-application-evidence
+                                         base))]
       (assoc base :evidence-profile/hash computed-hash))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -181,9 +182,9 @@
                               " got " (pr-str (:evidence-profile/id profile)))))
     (when (some? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
-            computed (str "sha256:"
-                          (hc/domain-hash :pro-rata-application-evidence
-                                          without-hash))]
+            computed (hash-ref/sha256-ref
+                      (hc/domain-hash :pro-rata-application-evidence
+                                      without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)

@@ -21,11 +21,18 @@ Simulated time advances only via each event's `:time` field (no separate time-ad
 |----|--------|
 | `yield/position-consistency` | Valid position arithmetic; MTM allows negative unrealized |
 | `yield/exposure` | `:yield/held-balances` ≥ active custody need |
-| `yield/shortfall-splits` | `fulfilled + deferred = basis` on `:shortfall` |
+| `yield/shortfall-splits` | `fulfilled + deferred + haircut + fold = basis` on `:shortfall` (the negative-unrealized fold is recorded on the shortfall as `:basis-negative-unrealized`) |
+| `yield/shortfall-detected` | No over/under-detection of shortfall |
 | `yield/status-fsm` | Status ∈ `#{:active :unwinding :withdrawn}` |
 | `yield/realized-non-negative` | Crystallized realized yield ≥ 0 |
-| `yield/partial-liquidity-principal` | Partial-liquidity unwinding: no principal haircut |
+| `yield/partial-liquidity-principal` | Partial-liquidity unwinding: no principal haircut; splits reconcile with the fold |
 | `yield/deferred-reclaim` | Withdrawn positions: no shortfall; reclaimed ≥ 0 |
+| `yield/token-key-consistency` | No simultaneous string/keyword token keys in accounting maps |
+| `yield/value-conservation` | Deferred + haircut within position residual value |
+| `yield/aggregate-shortfall-cap` / `yield/aggregate-shortfall` / `yield/aggregate` | Per-(module,token) aggregate: splits reconcile to basis, and total basis ≤ total value (using the recorded `:settlement-value`) |
+| `yield/pro-rata-propagation-complete` | Shared-withdrawal decision → propagation → application binding |
+| `yield/pro-rata-accounting-reconciles` | Shared-withdrawal accounting entries and participant chains reconcile |
+| `yield/withdrawal-ledger-conservation` | Every recorded withdrawal is a valid fixed-point certificate bound to its execution world and withdrawal subject: recomputed roots (run, params, state cutpoint, request-set, request-order, allocation-policy, basis) reconcile; per-principal uniqueness and exact bijection; per-row and aggregate economic conservation; FCFS prefix pool bound; `filled ≥ 0`. Catches run/execution/state transplants, same-run withdrawal substitution, row-value substitution, duplicate owners, and fabricated totals |
 
 Implementation: `src/resolver_sim/yield/invariants.clj`  
 Catalog metadata: `src/resolver_sim/yield/invariant_catalog.clj`  

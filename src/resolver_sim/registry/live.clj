@@ -19,6 +19,7 @@
    All write operations go through update-live-registry! which records
    provenance metadata. register-registry! adds new registry types at runtime."
   (:require [clojure.string :as str]
+            [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.logging :as log]
             [resolver-sim.hash.reference :as hash-ref])
@@ -74,7 +75,17 @@
 
 (defn- resolve-claim-registry
   ([] (resolve-claim-registry nil))
-  ([_] (edn-read-path hash-ref/claim-registry-path)))
+  ([opts]
+   (let [registry (resolver-sim.benchmark.claim-registry/load-claim-registry
+                   (:claim-registry/path opts))
+         data (rp/edn-read (:claim-registry/path registry))]
+     ;; Preserve the historical data shape (:claims vector + document fields)
+     ;; while surfacing selection provenance so consumers can tell which file
+     ;; actually governed the run.
+     (merge data
+            {:claims (:claims registry)
+             :claim-registry/path (:claim-registry/path registry)
+             :claim-registry/source (:claim-registry/source registry)}))))
 
 (defn- resolve-protocol-registry
   ([] (resolve-protocol-registry nil))

@@ -6,7 +6,8 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [resolver-sim.evidence.finalization-signature :as envelope]
-            [resolver-sim.evidence.timestamping :as timestamping])
+            [resolver-sim.evidence.timestamping :as timestamping]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [java.nio.file Files StandardCopyOption AtomicMoveNotSupportedException]
            [java.io StringReader]
            [java.security KeyFactory]
@@ -26,7 +27,7 @@
 (defn- sha256-ref [file]
   (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
     (.update digest (Files/readAllBytes (.toPath (io/file file))))
-    (str "sha256:" (format "%064x" (java.math.BigInteger. 1 (.digest digest))))))
+    (hash-ref/sha256-ref (format "%064x" (java.math.BigInteger. 1 (.digest digest))))))
 
 (defn validate-signing-config [config]
   (let [signing (:signing config)

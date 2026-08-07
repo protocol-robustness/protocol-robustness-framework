@@ -5,7 +5,8 @@
    claim made by a previous changelog entry. The original changelog entry
    remains unchanged — resolution is append-only."
   (:require [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "changelog-challenge.v1")
 
@@ -63,12 +64,12 @@
    Uses file path, line range, and a content hash of the targeted
    lines as a stable identity mechanism."
   [file-path start-line end-line]
-  (let [sha256 (str "sha256:"
-                    (hc/domain-hash :changelog-challenge
-                                    {:file file-path
-                                     :start-line start-line
-                                     :end-line end-line
-                                     :target :changelog-entry}))]
+  (let [sha256 (hash-ref/sha256-ref
+                (hc/domain-hash :changelog-challenge
+                                {:file file-path
+                                 :start-line start-line
+                                 :end-line end-line
+                                 :target :changelog-entry}))]
     {:changelog-entry-hash sha256
      :file file-path
      :start-line start-line
@@ -116,9 +117,9 @@
            :challenge/proposed-wording proposed-wording
            :challenge/proposed-by proposed-by
            :challenge/created-at effective-created-at}
-          challenge-hash (str "sha256:"
-                              (hc/domain-hash :changelog-challenge semantic-base))
-          challenge-id (str "challenge:" (subs challenge-hash (count "sha256:")))]
+          challenge-hash (hash-ref/sha256-ref
+                          (hc/domain-hash :changelog-challenge semantic-base))
+          challenge-id (str "challenge:" (hash-ref/parse-sha256-ref challenge-hash))]
       {:schema-version schema-version
        :challenge/id challenge-id
        :challenge/status status
@@ -177,8 +178,8 @@
                :challenge/proposed-wording (:challenge/proposed-wording challenge)
                :challenge/proposed-by (:challenge/proposed-by challenge)
                :challenge/created-at (:challenge/created-at challenge)}
-              computed (str "sha256:"
-                            (hc/domain-hash :changelog-challenge semantic-base))]
+              computed (hash-ref/sha256-ref
+                        (hc/domain-hash :changelog-challenge semantic-base))]
           (when-not (= computed hash-field)
             (swap! errors conj (str "challenge/hash mismatch: declared "
                                     hash-field " computed " computed))))))

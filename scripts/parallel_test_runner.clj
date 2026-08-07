@@ -20,11 +20,18 @@
                            string to disable exclusion.
      PARALLEL_TEST_RUN_ID — run id used for the artifact run root and ownership
                            markers (default: timestamp-uuid)
+     PARALLEL_TEST_RUN_ROOT — stage per-namespace artifact roots under this
+                           directory (instead of /tmp/parallel-run-<run-id>) for
+                           later consolidation by
+                           scripts/evidence/consolidate_test_artifacts.py.  When
+                           set, the run root is left in place (no auto-cleanup)
+                           and is excluded from the leak tripwire's shared
+                           artifact-dir listing.
      PARALLEL_TEST_LEAK_CHECK — set to 1 to snapshot process-global registries and
                            the shared artifact dir before dispatch and verify they
                            are left untouched afterwards (gating on diff; mirrors
                            run-sew-tests SEW_TEST_LEAK_CHECK)
-     KEEP_PARALLEL_TEST_ARTIFACTS — set to any truthy value to preserve the run
+     KEEP_TEST_ARTIFACTS — set to any truthy value to preserve the run
                            root even on success (always kept on failure)
 
    Parallel-safety lane:
@@ -226,11 +233,20 @@
 
 (defn- artifact-file-listing
   [dir]
-  (when (and dir (.exists (io/file dir)))
-    (->> (file-seq (io/file dir))
-         (filter #(.isFile %))
-         (sort-by #(.getName %))
-         (mapv (fn [f] [(str f) (.length f)])))))
+  (if (and dir (.exists (io/file dir)))
+    (let [staged (some-> (System/getenv "PARALLEL_TEST_RUN_ROOT")
+                         io/file .getCanonicalFile .toPath)]
+      (->> (file-seq (io/file dir))
+           (filter #(.isFile %))
+           ;; Roots staged under PARALLEL_TEST_RUN_ROOT are owned by this run
+           ;; for later collection; exclude them so the leak tripwire only
+           ;; gates on the canonical/shared artifact location.
+           (remove (fn [f]
+                     (and staged
+                          (.startsWith (.toPath (.getCanonicalFile f)) staged))))
+           (sort-by #(.getName %))
+           (mapv (fn [f] [(str f) (.length f)]))))
+    []))
 
 (defn- snapshot-default-state
   "Snapshot process-global state before/after the run.
@@ -353,8 +369,11 @@
         _ (doseq [s syms] (require s))
         run-id (or (System/getenv "PARALLEL_TEST_RUN_ID")
                    (str (System/currentTimeMillis) "-" (java.util.UUID/randomUUID)))
-        tmp-root (str (System/getProperty "java.io.tmpdir") "/parallel-run-" run-id)
-        _ (artifact-scope/write-owner-marker! tmp-root {:run-id run-id :namespace :run-root})
+        staged-root (System/getenv "PARALLEL_TEST_RUN_ROOT")
+        tmp-root (or staged-root
+                     (str (System/getProperty "java.io.tmpdir") "/parallel-run-" run-id))
+        _ (when-not staged-root
+            (artifact-scope/write-owner-marker! tmp-root {:run-id run-id :namespace :run-root}))
         leak? (= "1" (System/getenv "PARALLEL_TEST_LEAK_CHECK"))
         pre (when leak? (snapshot-default-state))
         leak-failed-atom (atom false)
@@ -413,7 +432,7 @@
                     @leak-failed-atom)
         all-complete? (every? #(= :complete (:scope-status %)) results)
         keep? (or failed? (not all-complete?)
-                 (some? (System/getenv "KEEP_PARALLEL_TEST_ARTIFACTS")))
+                 (some? (System/getenv "KEEP_TEST_ARTIFACTS")))
         _ (when leak?
             (let [{gating-diffs :gating advisory-diffs :advisory}
                   (leak-diffs pre (snapshot-default-state))]
@@ -464,9 +483,12 @@
                              "artifacts: cleaned (all passed)")])
       (summary/result-line total elapsed)
       (summary/print-failures items))
-    ;; Cleanup — only via ownership-marker-guarded safe-delete!
-    (if keep?
-      (println "Keeping run root:" tmp-root)
+    ;; Cleanup — staged roots are left in place for the collector; otherwise
+    ;; only via ownership-marker-guarded safe-delete!
+    (if (or staged-root keep?)
+      (println (if staged-root
+                 (str "Artifacts staged for collection (PARALLEL_TEST_RUN_ROOT): " tmp-root)
+                 (str "Keeping run root: " tmp-root)))
       (try
         (artifact-scope/safe-delete! tmp-root run-id)
         (println "run root cleaned:" tmp-root)

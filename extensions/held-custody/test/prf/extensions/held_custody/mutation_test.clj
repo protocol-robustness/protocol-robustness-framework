@@ -4,6 +4,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.assurance.force-authorisation :as fa]
             [resolver-sim.evidence.artifact :as artifact]
+            [prf.extensions.held-custody.aggregate :as agg]
             [prf.extensions.held-custody.mutation :as mut]))
 
 (defn- scope [id dir amt]
@@ -136,3 +137,91 @@
       (is (artifact/canonical-preimage-valid? m))
       (is (not (mut/valid-force-auth-held-mutation? (assoc m :artifact/preimage whitespaced) {}))
           "a noncanonical equivalent preimage is rejected under :exact"))))
+
+;; ── add-held-action convenience ─────────────────────────────────────────────
+
+(deftest add-held-action-builds-inward-add-held
+  (let [adj {:mutation/id "m-a"
+             :held/amount 100
+             :held/token "USDC"
+             :held/account :escrow-principal
+             :owner/address "0xrecipient"
+             :held/reason :force-authorised-release
+             :held/workflow-id 0}
+        m  (mut/add-held-action (auth "fa-0" :in 100) adj {})]
+    (is (= :add-held (:held/action m)))
+    (is (= :in (:held/direction m)))
+    (is (= "force-auth-held-custody-mutation.v1" (:schema-version m)))
+    (is (mut/valid-force-auth-held-mutation? m {}))
+    (is (mut/verified-force-auth-held-mutation? m {:authorization (auth "fa-0" :in 100)}))
+    (testing "the member is counted in add-held accounting"
+      (let [s (agg/held-mutation-sequence-body [m])]
+        (is (= 1 (:add-held/count s)))
+        (is (= 100 (:add-held/amount s)))))))
+
+(deftest add-held-action-ignores-passthrough-direction
+  (testing "a nil direction is normalized to :in"
+    (let [adj {:name "m-b" :held/amount 10 :held/token "USDC"
+               :held/account :escrow-principal :owner/address "0xr"
+               :held/reason :inbound :held/workflow-id 0}
+          m (mut/add-held-action (auth "fa-0" :in 10) adj {})]
+      (is (= :add-held (:held/action m)))
+      (is (= :in (:held/direction m))))))
+
+(deftest add-held-action-rejects-outward-direction
+  (testing "an explicit :out direction fails closed instead of being forced to :in"
+    (let [ex (try (let [adj {:name "m-c" :held/direction :out :held/amount 50
+                             :held/token "USDC" :held/account :escrow-principal
+                             :owner/address "0xr" :held/reason :release :held/workflow-id 0}]
+                     (mut/add-held-action (auth "fa-0" :out 50) adj {}))
+                  (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? ex))
+      (is (= :held-custody/invalid-action-direction (:error (ex-data ex)))))))
+
+;; ── sub-held-action convenience ─────────────────────────────────────────────
+
+(deftest sub-held-action-builds-outward-sub-held
+  (let [adj {:mutation/id "m-sub"
+             :held/amount 40
+             :held/token "USDC"
+             :held/account :escrow-principal
+             :owner/address "0xrecipient"
+             :held/reason :force-authorised-release
+             :held/workflow-id 0}
+        m  (mut/sub-held-action (auth "fa-0" :out 40) adj {})]
+    (is (= :sub-held (:held/action m)))
+    (is (= :out (:held/direction m)))
+    (is (= "force-auth-held-custody-mutation.v1" (:schema-version m)))
+    (is (mut/valid-force-auth-held-mutation? m {}))
+    (is (mut/verified-force-auth-held-mutation? m {:authorization (auth "fa-0" :out 40)}))
+    (testing "the member is counted in sub-held accounting (amount-by-action)"
+      (let [s (agg/held-mutation-sequence-body [m])]
+        (is (= {:sub-held 40} (:amount-by-action s)))
+        (is (= 0 (:add-held/amount s)))))))
+
+(deftest sub-held-action-rejects-inward-direction
+  (testing "an explicit :in direction fails closed instead of being forced to :out"
+    (let [ex (try (let [adj {:mutation/id "m-sub-i" :held/direction :in :held/amount 40
+                             :held/token "USDC" :held/account :escrow-principal
+                             :owner/address "0xr" :held/reason :release :held/workflow-id 0}]
+                     (mut/sub-held-action (auth "fa-0" :in 40) adj {}))
+                  (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? ex))
+      (is (= :held-custody/invalid-action-direction (:error (ex-data ex)))))))
+
+(deftest add-and-sub-actions-are-symmetric
+  (testing "add-held and sub-held conveniences produce opposite directions of the same action pair"
+    (let [add-adj {:name "m-a" :held/amount 100 :held/token "USDC"
+                   :held/account :escrow-principal :owner/address "0xr"
+                   :held/reason :force-authorised-release :held/workflow-id 0}
+          sub-adj {:name "m-s" :held/amount 40 :held/token "USDC"
+                   :held/account :escrow-principal :owner/address "0xr"
+                   :held/reason :force-authorised-release :held/workflow-id 0}
+          add (mut/add-held-action (auth "fa-0" :in 100) add-adj {})
+          sub (mut/sub-held-action (auth "fa-0" :out 40) sub-adj {})
+          s   (agg/held-mutation-sequence-body [add sub])]
+      (is (= :in (:held/direction add)))
+      (is (= :out (:held/direction sub)))
+      (is (= {:add-held 100 :sub-held 40} (:amount-by-action s)))
+      (is (= 1 (:add-held/count s)))
+      (is (= 100 (:add-held/amount s))))))

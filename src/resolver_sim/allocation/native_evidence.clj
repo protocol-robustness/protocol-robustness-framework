@@ -14,10 +14,14 @@
      :native-exact-match         proof-backed (native executed + compared + bound)
      :pending-independent-replay no native evidence yet (default)
      :independent-replay         native evidence present but not proof-backed
-                                 (other result / other implementation /
-                                 comparison mismatch)
+                                 (other result / other pinned rust / other
+                                 pinned prf / other input / comparison mismatch)
      :not-yet-evaluated          malformed or stale evidence
      :mock-native                explicit mock; never proof-backed
+
+   Downgrade reasons distinguish the pinned-implementation identity source:
+   :other-pinned-rust-implementation (rust identity mismatch) vs
+   :other-pinned-prf-implementation (prf identity mismatch).
 
    The evidence is bound to at least: results artifact hash, input/request root,
    pinned PRF identity, pinned Rust implementation identity, conformance
@@ -85,12 +89,12 @@
       (and (some? (:pinned-rust ref))
            (not= (:pinned-rust ref)
                  (:native-evidence/rust-identity native-evidence)))
-      (attach :other-pinned-implementation :downgrade)
+      (attach :other-pinned-rust-implementation :downgrade)
 
       (and (some? (:pinned-prf ref))
            (not= (:pinned-prf ref)
                  (:native-evidence/prf-identity native-evidence)))
-      (attach :other-pinned-implementation :downgrade)
+      (attach :other-pinned-prf-implementation :downgrade)
 
       (and (some? (:input-root ref))
            (not= (:input-root ref)

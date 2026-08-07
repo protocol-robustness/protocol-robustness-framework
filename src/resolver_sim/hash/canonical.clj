@@ -17,7 +17,9 @@
            [java.io ByteArrayOutputStream]
            [java.math BigInteger BigDecimal])
   (:require [clojure.edn :as edn]
-            [resolver-sim.config.defaults :as defaults]))
+            [resolver-sim.hash.reference :as hash-ref]))
+
+(declare domain-hash)
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Type Tags (per Binary Encoding ABI)
@@ -122,6 +124,7 @@
    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
    :force-authorisation-consumption-v2 "FORCE_AUTHORISATION_CONSUMPTION_V2"
+   :claim-consumption-receipt "CLAIM_CONSUMPTION_RECEIPT_V1"
    :force-authorised-execution-evidence "FORCE_AUTHORISED_EXECUTION_EVIDENCE_V1"
    :force-authorised-execution-evidence-v2 "FORCE_AUTHORISED_EXECUTION_EVIDENCE_V2"
    :authorised-effect-correlation "AUTHORISED_EFFECT_CORRELATION_V1"
@@ -171,7 +174,9 @@
    :selected-outcome           "SELECTED_OUTCOME_V1"
    :result-root                "RESULT_ROOT_V1"
    :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"
-   :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"})
+   :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"
+   :lab-parameter-root      "LAB_PARAMETER_ROOT_V1"
+   :lab-withdrawal-fcfs     "LAB_WITHDRAWAL_FCFS_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -313,13 +318,12 @@
    silent coercion.  Always throws; never returns.  When a path is supplied it
    is reported so recursive rejections name the exact nested location."
   [x host-type guidance & [path]]
-  (let [st (->> (.getStackTrace (Thread/currentThread)) (take 25) (mapv str))]
-    (spit "/tmp/opencode/ood.log" (pr-str {:host-type host-type
-                                           :value-class (some-> x class .getName)
-                                           :value (try (pr-str x) (catch Exception _ (str (some-> x class .getName))))
-                                           :stack st})
-          :append true))
-  (byte-array 0))
+  (throw (ex-info "Value is outside the canonical type domain; project it to a canonical-safe representation before hashing"
+                  {:type :canonical/out-of-domain
+                   :host-type host-type
+                   :value-class (some-> x class .getName)
+                   :guidance guidance
+                   :path (vec path)})))
 
 (defn validate-canonical-value!
   "Walk a value tree and validate that all values are supported
@@ -389,18 +393,16 @@
     nested structures (per spec §8.4 concatenation stress) do not overflow
     the JVM stack. Output is byte-identical to a direct recursive walk."
   [v]
-  (let [max-collection-depth (defaults/default [:framing :max-collection-depth] 64)]
-    (loop [work [[:encode v 0]]
-           done []]
-      (if (empty? work)
-        (peek done)
-        (let [task (peek work)
-              work (pop work)]
-          (case (nth task 0)
-            :encode
-            (let [x (nth task 1)
-                  depth (nth task 2)]
-              (cond
+  (loop [work [[:encode v]]
+         done []]
+    (if (empty? work)
+      (peek done)
+      (let [task (peek work)
+            work (pop work)]
+        (case (nth task 0)
+          :encode
+          (let [x (nth task 1)]
+            (cond
               (nil? x)
               (recur work (conj done (ba-of tag-null)))
 
@@ -464,15 +466,9 @@
 
               (instance? clojure.lang.IPersistentVector x)
               (let [n (count x)]
-                (if (> depth max-collection-depth)
-                  (throw (ex-info "canonical encoder resource limit exceeded"
-                                  {:code :limit-exceeded
-                                   :limit max-collection-depth
-                                   :role :collection
-                                   :path []}))
-                  (recur (into (conj work [:array n])
-                               (map (fn [e] [:encode e (inc depth)]) (reverse x)))
-                         done)))
+                (recur (into (conj work [:array n])
+                             (map (fn [e] [:encode e]) (reverse x)))
+                       done))
 
               (instance? clojure.lang.IPersistentMap x)
               (let [n (count x)
@@ -486,15 +482,9 @@
                                     pairs)
                     key-bytes (mapv :key-bytes sorted)
                     vals (mapv :val sorted)]
-                (if (> depth max-collection-depth)
-                  (throw (ex-info "canonical encoder resource limit exceeded"
-                                  {:code :limit-exceeded
-                                   :limit max-collection-depth
-                                   :role :collection
-                                   :path []}))
-                  (recur (into (conj work [:map n key-bytes])
-                               (map (fn [val] [:encode val (inc depth)]) (reverse vals)))
-                         done)))
+                (recur (into (conj work [:map n key-bytes])
+                             (map (fn [val] [:encode val]) (reverse vals)))
+                       done))
 
               :else
               (out-of-domain! x (some-> x class .getName)
@@ -516,12 +506,42 @@
                 rest-done (subvec done 0 split)
                 elements (mapcat (fn [kb vb] [kb vb]) key-bytes val-bytes)
                 combined (apply ba-concat (ba-of tag-map) (encode-varuint n) elements)]
-            (recur work (conj rest-done combined)))))))))
+            (recur work (conj rest-done combined))))))))
 
-(defn- canonical-bytes-hex
-  "Lowercase hex of a value's canonical encoding (deterministic sort key)."
+(defn canonical-bytes-hex
+  "Lowercase hex of a value's canonical encoding (deterministic sort key and
+   portable canonical-bytes commitment)."
   [v]
   (apply str (map #(format "%02x" (bit-and % 0xff)) (canonical-bytes v))))
+
+(defn canonical-commitment
+  "Build the portable canonical commitment fields for a content-addressed body
+   that is hashed as sha256(domain-tag || canonical-bytes(body)):
+
+     {:canonical/bytes <hex of canonical-bytes(body)>
+      :canonical/hash <sha256:<hex> domain-separated hash>}
+
+   A cross-language verifier recomputes
+   sha256(domain-tag || hex-decode(:canonical/bytes)) == :canonical/hash and
+   then checks that against the committed artifact hash — no Clojure-specific
+   preimage (pr-str) is required."
+  [domain-tag body]
+  {:canonical/bytes (canonical-bytes-hex body)
+   :canonical/hash (hash-ref/sha256-ref (domain-hash domain-tag body))})
+
+(defn canonical-commitment-valid?
+  "Verify a canonical commitment against the body it claims to commit: the
+   committed :canonical/bytes must be canonical-bytes(body) and the committed
+   :canonical/hash must equal sha256(domain-tag || canonical-bytes(body)).
+   A commitment with neither field (legacy artifact) validates as true."
+  [domain-tag body commitment]
+  (let [cb (:canonical/bytes commitment)
+        ch (:canonical/hash commitment)]
+    (or (and (nil? cb) (nil? ch))
+        (and (string? cb)
+             (string? ch)
+             (= cb (canonical-bytes-hex body))
+             (= ch (hash-ref/sha256-ref (domain-hash domain-tag body)))))))
 
 (defn project-committable-content
   "Project a value into canonical-safe form for content-addressing, byte-identical
@@ -1776,6 +1796,25 @@
     :intent/includes    #{:claim/roots}
     :intent/excludes    #{:metadata}
     :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :lab-parameter-root
+   {:intent/name        :lab-parameter-root
+    :intent/domain-tag  "LAB_PARAMETER_ROOT_V1"
+    :intent/description "Canonical parameter-root of validated Assurance Lab inputs for a run"
+    :intent/includes    #{:inputs :parameters}
+    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :lab-withdrawal-fcfs
+   {:intent/name        :lab-withdrawal-fcfs
+    :intent/domain-tag  "LAB_WITHDRAWAL_FCFS_V1"
+    :intent/description "Canonical witness binding of the Assurance Lab FCFS sequential-withdrawal outcome"
+    :intent/includes    #{:mechanism :available :requested-total :filled-total
+                          :deferred-total :rows}
+    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/projection-fn project-identity
     :intent/version     1}})
 
 (defn resolve-intent
@@ -2031,10 +2070,10 @@
         projected (if (or (= projection-fn project-world-to-structure-view)
                           (= projection-fn project-for-content-hash))
                     (projection-fn value intent flattened-fields)
-                    (projection-fn value intent))]
+                    (projection-fn value intent))
+        hash-value (if (= projection-fn project-world-to-structure-view)
+                     (dissoc projected :projection/flattened-fields)
+                     projected)]
     (when *validate-intent-constraints*
       (validate-intent-constraints! intent value))
-    (domain-hash domain-tag
-                 (if (= projection-fn project-world-to-structure-view)
-                   (dissoc projected :projection/flattened-fields)
-                   projected))))
+    (domain-hash domain-tag hash-value)))

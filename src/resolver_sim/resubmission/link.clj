@@ -26,7 +26,8 @@
                            researcher-authorisation-id})"
   (:require [resolver-sim.evidence.artifact :as artifact]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.signed-external-decision :as sed]))
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def link-schema "resubmission-link.artifact.v1")
 (def link-kind :resubmission-link)
@@ -57,22 +58,22 @@
 (defn resubmission-hash
   "Content-derived identity of the parent->child resubmission relationship."
   [link]
-  (str "sha256:" (hc/domain-hash link-domain (unsigned-link-projection link))))
+  (hash-ref/sha256-ref (hc/domain-hash link-domain (unsigned-link-projection link))))
 
 (defn family-id
   "Stable identity of the research subject / acceptance question."
   [research-subject-root]
-  (str "sha256:" (hc/domain-hash family-domain research-subject-root)))
+  (hash-ref/sha256-ref (hc/domain-hash family-domain research-subject-root)))
 
 (defn idempotency-key
   "Identity of the submission operation."
   [{:keys [parent-attempt-receipt-hash current-submission-basis-root
            researcher-authorisation-id]}]
-  (str "sha256:"
-       (hc/domain-hash idempotency-domain
-                       {:parent-attempt-receipt-hash parent-attempt-receipt-hash
-                        :current-submission-basis-root current-submission-basis-root
-                        :researcher-authorisation-id researcher-authorisation-id})))
+  (hash-ref/sha256-ref
+   (hc/domain-hash idempotency-domain
+                   {:parent-attempt-receipt-hash parent-attempt-receipt-hash
+                    :current-submission-basis-root current-submission-basis-root
+                    :researcher-authorisation-id researcher-authorisation-id})))
 
 (defn sign-link
   "Attach the researcher signature over the unsigned link projection bytes."

@@ -26,10 +26,16 @@
 
 (defn bundle-root
   "Content root of a bundle's committed fields (excluding :bundle/root and
-   :bundle/index)."
+   :bundle/index).
+
+   The committed value is projected to canonical-safe form (sets → sorted
+   vectors, ratios → exact form) before hashing: a bundle carries set-valued
+   fields (e.g. subject-identities, coverage, exclusions), which the strict
+   canonical encoder rejects. Projection is deterministic."
   [bundle]
   (hc/domain-hash "conformance.bundle.v1"
-                  (dissoc bundle :bundle/root :bundle/index)))
+                  (hc/project-committable-content
+                   (dissoc bundle :bundle/root :bundle/index))))
 
 (defn build-bundle
   "Assemble a conformance bundle.  Does NOT verify."

@@ -22,7 +22,10 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.benchmark.outcome-manifest :as om]
-            [resolver-sim.assurance.authorised-effect-correlation :as correlation]))
+            [resolver-sim.benchmark.review-aggregate-check :as rac]
+            [resolver-sim.assurance.three-member-authority :as tma]
+            [resolver-sim.assurance.authorised-effect-correlation :as correlation]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "force-authorised-execution-evidence.v1")
 
@@ -94,13 +97,46 @@
                                                       reservation
                                                       outcome-manifest)
           receipt-status (:consumption/status consumption-receipt)
+          ;; ── Thread the three-member authority report + aggregate checks ──
+          ;; The evidence profile is a production consumer of the three-member
+          ;; authority report: it recomputes the authority report from the
+          ;; committed positions (signature authenticity via the resolver,
+          ;; decision-hash integrity recomputed by the report) and runs the
+          ;; review-aggregate checks, so the three classifications are
+          ;; preserved and recorded here — never caller-supplied.
+          signature-valid?
+          (fn [p]
+            (let [path (try (public-key-resolver (:researcher/id p))
+                            (catch Exception _ nil))]
+              (when path
+                (let [r (if (= "researcher-decision.v2" (:schema-version p))
+                          (rfa/verify-signed-decision-v2 p path)
+                          (rfa/verify-signed-decision
+                           p (:authorisation/id authorisation) path))]
+                  (:valid? r)))))
+          authority-report
+          (try
+            (tma/evaluate-three-member-authority
+             :authorisation authorisation
+             :review-round review-round
+             :signature-valid? signature-valid?)
+            (catch Exception e
+              {:authority-status :not-authorised
+               :outcome-source :target-outcome-unavailable
+               :authority/error (.getMessage e)}))
+          three-member-aggregate
+          (rac/run-review-aggregate-checks review-round nil authority-report)
           ;; ── Derive verification map (never caller-supplied) ──────────
           verification {:authorisation-valid? (:valid? auth-val)
                         :decision-signatures-valid? (:valid? sig-result)
                         :policy-binding-valid? (:valid? policy-val)
                         :review-round-binding-valid? (:valid? round-val)
                         :manifest-binding-valid? (:consistent? binding-val)
-                        :receipt-binding-valid? (:consistent? receipt-val)}
+                        :receipt-binding-valid? (:consistent? receipt-val)
+                        :three-member-aggregate-holds?
+                        (:holds? three-member-aggregate)
+                        :three-member-aggregate
+                        (:checks three-member-aggregate)}
           ;; ── Derive execution result ───────────────────────────────────
           execution-result
           (case receipt-status
@@ -141,9 +177,9 @@
                     (:benchmark/content-root outcome-manifest))
                 :evidence-profile/execution-result execution-result
                 :evidence-profile/verification verification}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :force-authorised-execution-evidence
-                                             base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :force-authorised-execution-evidence
+                                         base))]
       ;; If any verification failed, the profile is still built so that
       ;; the failing evidence chain is recorded.  The independent verifier
       ;; must recompute and compare these values.
@@ -183,7 +219,7 @@
                  requires-correlation?
                  (assoc :execution/effect-correlation-hash (:correlation/hash correlation)))]
       (assoc base :evidence-profile/hash
-             (str "sha256:" (hc/domain-hash :force-authorised-execution-evidence-v2 base))))))
+             (hash-ref/sha256-ref (hc/domain-hash :force-authorised-execution-evidence-v2 base))))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Standalone validator
@@ -221,9 +257,9 @@
           (swap! errors conj (str "missing verification key " (name k))))))
     (when (some? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
-            computed (str "sha256:"
-                          (hc/domain-hash :force-authorised-execution-evidence
-                                          without-hash))]
+            computed (hash-ref/sha256-ref
+                      (hc/domain-hash :force-authorised-execution-evidence
+                                      without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)
@@ -242,8 +278,8 @@
                  (and correlation-hash (not (re-matches #"sha256:[0-9a-f]{64}" correlation-hash)))
                  (conj :invalid-effect-correlation-reference)
                  (not= (:evidence-profile/hash profile)
-                       (str "sha256:" (hc/domain-hash :force-authorised-execution-evidence-v2
-                                                      (dissoc profile :evidence-profile/hash))))
+                       (hash-ref/sha256-ref (hc/domain-hash :force-authorised-execution-evidence-v2
+                                                            (dissoc profile :evidence-profile/hash))))
                  (conj :evidence-hash-mismatch))]
     {:valid? (empty? errors) :errors errors}))
 

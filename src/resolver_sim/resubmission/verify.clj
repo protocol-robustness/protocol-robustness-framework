@@ -165,13 +165,13 @@
            :details {:effective-lifecycle effective}}
 
           (not= :rejected (:attempt-receipt/outcome parent-receipt))
-          {:valid? false :reason :parent-rejection-not-resubmittable :details {}}
+          {:valid? false :reason :parent-not-rejected :details {}}
 
           (not= :final (:attempt-receipt/finality parent-receipt))
           {:valid? false :reason :parent-rejection-not-final :details {}}
 
           (not= :eligible (:attempt-receipt/resubmission-eligibility parent-receipt))
-          {:valid? false :reason :parent-rejection-not-resubmittable :details {}}
+          {:valid? false :reason :parent-not-resubmittable :details {}}
 
           :else
           {:valid? true :reason :ok :details {:receipt-hash (:attempt-receipt/id parent-receipt)}})))))

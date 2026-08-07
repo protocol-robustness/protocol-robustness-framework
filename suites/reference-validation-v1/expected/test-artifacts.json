@@ -1,8 +1,8 @@
 {
   "schema_version": "test-artifacts.v1.2",
   "contract_version": "evidence-contract.v1",
-  "run_id": "20260728-023429",
-  "generated_at": "2026-07-28T02:34:29.457052+00:00",
+  "run_id": "20260806-214713",
+  "generated_at": "2026-08-06T21:47:13.934966+00:00",
   "generator": {
     "name": "artifact-registry-emitter",
     "version": "v1.2"
@@ -22,9 +22,9 @@
         "projection.v1"
       ],
       "dependencies": [],
-      "sha256": "99a788b7a3bd22df6c4a3ea0810f9dca53147bfce5271406246710f676ba6fba",
-      "bytes": 309,
-      "mtime_utc": "2026-07-27T22:58:06.774914+00:00"
+      "sha256": "cd097d3f65ce3999b814ac593142e2099ef1168b38fce1d4fba551ce9ea2d8fb",
+      "bytes": 304,
+      "mtime_utc": "2026-08-06T21:36:37.295798+00:00"
     },
     {
       "id": "theory-eval",
@@ -40,12 +40,12 @@
       "dependencies": [
         {
           "id": "test-summary",
-          "sha256": "99a788b7a3bd22df6c4a3ea0810f9dca53147bfce5271406246710f676ba6fba"
+          "sha256": "cd097d3f65ce3999b814ac593142e2099ef1168b38fce1d4fba551ce9ea2d8fb"
         }
       ],
       "sha256": "9fe69141262a6004d7c726de04ab0be05f69fddde76eb20d1e43560dc81565ac",
       "bytes": 331,
-      "mtime_utc": "2026-07-28T02:31:23.644965+00:00"
+      "mtime_utc": "2026-08-06T21:46:08.920927+00:00"
     },
     {
       "id": "evidence-registry",
@@ -59,9 +59,9 @@
         "test-run.v1"
       ],
       "dependencies": [],
-      "sha256": "26bea5675c572a762e658a97b567c9e8bebee102c919c42456499ff20a04d7e3",
+      "sha256": "72226966713defb6b6fbc325708c189e064b665391e2e7aa5679035c4b9cd936",
       "bytes": 11674,
-      "mtime_utc": "2026-07-28T02:31:23.647965+00:00"
+      "mtime_utc": "2026-08-06T21:46:08.923927+00:00"
     }
   ]
 }

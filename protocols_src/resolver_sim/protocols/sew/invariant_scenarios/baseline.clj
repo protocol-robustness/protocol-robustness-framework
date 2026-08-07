@@ -662,7 +662,7 @@
 ;;   wf2: slashes 2000 → stake 0→0        (zero: nothing left to slash)
 ;;
 ;; Exercises:
-;;   - solvency-holds? at each step (strict = on total-held vs live-sum)
+;;   - held-custody-reconciles? at each step (strict = on total-held vs live-sum)
 ;;   - conservation-of-funds? after all three auto-cancels
 ;;     (0 held + 0 released + 6000 refunded = 6000 deposited)
 ;;   - held-non-negative? / sub-held assert survives all three finalizations

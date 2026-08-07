@@ -134,8 +134,8 @@
                         :conclusion/supporting-theorem-hashes (vec (or supporting-theorem-hashes []))}
                  (seq falsifiers)
                  (assoc :conclusion/falsifiers (vec falsifiers)))
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :research-conclusion base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :research-conclusion base))]
       (when (and (some? hash) (not= hash computed-hash))
         (throw (ex-info "Declared conclusion/hash does not match computed value"
                         {:declared hash :computed computed-hash})))
@@ -197,7 +197,7 @@
       (swap! errors conj "conclusion overreaches: :established with no qualifications and no scope"))
     (when (some? (:conclusion/hash conclusion))
       (let [without-hash (dissoc conclusion :conclusion/hash)
-            computed (str "sha256:" (hc/domain-hash :research-conclusion without-hash))]
+            computed (hash-ref/sha256-ref (hc/domain-hash :research-conclusion without-hash))]
         (when-not (= computed (:conclusion/hash conclusion))
           (swap! errors conj (str "conclusion/hash mismatch: declared "
                                   (:conclusion/hash conclusion)
@@ -221,10 +221,10 @@
    byte-identical to the unfiltered hash (the filter is a no-op)."
   [conclusions]
   (let [hashes (sort (map :conclusion/hash (remove withdrawn? conclusions)))]
-    (str "sha256:"
-         (hc/domain-hash :evidence-collection
-                         {:type :conclusion-collection
-                          :conclusion-hashes (vec hashes)}))))
+    (hash-ref/sha256-ref
+     (hc/domain-hash :evidence-collection
+                     {:type :conclusion-collection
+                      :conclusion-hashes (vec hashes)}))))
 
 (defn verify-conclusion-support
   "Verify every :conclusion/supporting-theorem-hash against a theorem resolver,

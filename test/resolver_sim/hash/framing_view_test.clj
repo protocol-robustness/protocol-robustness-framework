@@ -218,6 +218,92 @@
     (is (= :limit-exceeded (:status r)))
     (is (= :max-collection-depth (:reason r)))))
 
+(deftest canonical-vs-admissible-depth-boundary
+  (testing "canonical representation and untrusted-input admission are distinct
+            contracts: the encoder admits deeper nesting than the defensive
+            decoder, and the decoder's rejection is a RESOURCE-POLICY rejection,
+            never a malformed/non-canonical finding"
+    (let [nested (fn [n] (loop [i 0 v 1] (if (< i n) (recur (inc i) [v]) v)))
+          ;; deepest collection sits at depth 64 == :max-collection-depth
+          at-limit (nested 65)
+          ;; deepest collection sits at depth 65 > :max-collection-depth
+          over-limit (nested 66)]
+      (testing "at the admission limit: encode succeeds AND decode admits"
+        (let [ba (hc/canonical-bytes at-limit)
+              v (fv/verify-single ba)]
+          (is (:canonical? v) "depth-64 value is an admitted canonical single")
+          (is (:single? v))))
+      (testing "one level deeper: encode still succeeds (canonical representation
+                contract), but the defensive decoder rejects"
+        (let [ba (hc/canonical-bytes over-limit)
+              v (fv/verify-single ba)]
+          (is (not (:canonical? v)) "depth-65 value is not admitted")
+          (is (some #(and (= :limit-exceeded (:code %))
+                          (= :max-collection-depth (:reason %)))
+                    (:issues v))
+              "rejection is classified as resource-policy (:limit-exceeded / :max-collection-depth)")
+          (is (not-any? #(contains? #{:truncated-tag :unknown-tag :length-exceeds-bytes
+                                      :truncated-length :truncated-count}
+                                    (:code %))
+                        (:issues v))
+              "NOT a malformed/structural rejection")
+          (is (not-any? #(contains? #{:non-minimal-varint :noncanonical-map-order
+                                      :duplicate-map-key :noncanonical-map-key-type}
+                                    (:code %))
+                        (:issues v))
+              "NOT a non-canonical encoding finding"))))))
+
+;; ── Negative corpus: every known historical framing failure mode ────────────
+;; Named vectors derived from every framing-level defect the fixed-point work
+;; has surfaced.  Each is rejected, and each is classified into exactly one
+;; admission class: :malformed (structural), :noncanonical (encoding), or
+;; :resource-limit (defensive admission profile).  This corpus is the negative
+;; counterpart to the positive round-trip property tests.
+
+(deftest framing-negative-corpus
+  (let [malformed-codes #{:truncated-tag :unknown-tag :length-exceeds-bytes
+                          :truncated-length :truncated-count}
+        noncanonical-codes #{:non-minimal-varint :noncanonical-map-order
+                             :duplicate-map-key :noncanonical-map-key-type}
+        vectors
+        [{:name :unknown-tag
+          :ba (byte-array [0x03])
+          :expect :malformed}
+         {:name :nonminimal-varint
+          :ba (byte-array [0x10 0x81 0x00])
+          :expect :noncanonical}
+         {:name :duplicate-map-keys
+          :ba (byte-array [0x31 0x02 0x22 0x01 0x61 0x10 0x02 0x22 0x01 0x61 0x10 0x04])
+          :expect :noncanonical}
+         {:name :noncanonical-map-order
+          :ba (byte-array [0x31 0x02 0x22 0x01 0x62 0x10 0x02 0x22 0x01 0x61 0x10 0x02])
+          :expect :noncanonical}]]
+    (doseq [{:keys [name ba expect]} vectors]
+      (testing (str "negative vector: " name)
+        (let [v (fv/verify-single ba)]
+          (is (not (:canonical? v)) (str name " must not be reported canonical"))
+          (case expect
+            :malformed
+            (do (is (some #(contains? malformed-codes (:code %)) (:issues v))
+                    (str name " must carry a malformed/structural code"))
+                (is (not-any? #(contains? noncanonical-codes (:code %)) (:issues v))
+                    (str name " must not be misclassified as non-canonical")))
+            :noncanonical
+            (do (is (some #(contains? noncanonical-codes (:code %)) (:issues v))
+                    (str name " must carry a non-canonical encoding code"))
+                (is (not-any? #(contains? malformed-codes (:code %)) (:issues v))
+                    (str name " must not be misclassified as malformed")))))))))
+
+(deftest framing-negative-corpus-resource-rejection
+  (testing "decoder depth/resource rejection is its own admission class"
+    (let [deep (loop [i 0 v 1] (if (< i 66) (recur (inc i) [v]) v))
+          v (fv/verify-single (hc/canonical-bytes deep))]
+      (is (not (:canonical? v)))
+      (is (some #(and (= :limit-exceeded (:code %))
+                      (= :max-collection-depth (:reason %)))
+                (:issues v))
+          "classified as :resource-limit / :max-collection-depth, not malformed/non-canonical"))))
+
 (deftest frame-stream-respects-max-collection-members
   (let [ba (hc/canonical-bytes (vec (range 100)))
         r (fv/frame-stream ba {:limits {:max-collection-members 10}})]

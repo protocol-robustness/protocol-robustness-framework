@@ -23,6 +23,12 @@
 
 (def ^:private propagation-content-hash-field :propagation/content-hash)
 (def ^:private preconditions-hash-field :application/preconditions-hash)
+(def ^:private withdrawal-ledger-domain "withdrawal-ledger.v1")
+(def ^:private withdrawal-conservation-tolerance
+  "Rounding-conservation tolerance (in base units) committed into the withdrawal
+   allocation policy. A shared, named numerical contract so single and batch
+   withdrawals cannot drift apart on this value."
+  2)
 
 (defn- normalize-token [token]
   (tok/normalize token))
@@ -63,23 +69,65 @@
    canonical hash of the record and :ledger/preimage is its canonical pr-str
    fixed-point serialization. This makes the batch allocation bound
    (`filled ≤ available`) independently re-verifiable against the fixed-point
-   canonical form instead of being a self-authored, un-hashed map."
+   canonical form instead of being a self-authored, un-hashed map.  A portable
+   canonical-bytes commitment is attached alongside so a cross-language
+   verifier recomputes the hash without the Clojure printer preimage."
   [record]
-  (let [base (dissoc record :ledger/hash :ledger/preimage)
-        hash (hc/hash-with-intent {:hash/intent :evidence-record} base)]
-    (assoc record
+  (let [with-basis
+        (assoc record
+               :ledger/basis-root
+               (partial-fill/ledger-basis-root
+                {:state-cutpoint-root (:ledger/state-cutpoint-root record)
+                 :request-set-root (:ledger/request-set-root record)
+                 :request-order-root (:ledger/request-order-root record)
+                 :capacity-root (canonical-hash
+                                 {:available (long (:ledger/available record 0))})
+                 :allocation-policy-root (:ledger/allocation-policy-root record)
+                 :params-root (:ledger/params-root record)}))
+        base (dissoc with-basis :ledger/hash :ledger/preimage
+                     :ledger/canonical-bytes :ledger/canonical-hash)
+        proj (hc/project-committable-content base)
+        commitment (hc/canonical-commitment :evidence-record proj)
+        hash (:canonical/hash commitment)]
+    (assoc with-basis
            :ledger/preimage (pr-str base)
-           :ledger/hash (str "sha256:" hash))))
+           :ledger/hash hash
+           :ledger/canonical-bytes (:canonical/bytes commitment)
+           :ledger/canonical-hash hash)))
 
 (defn ledger-hash-valid?
   "Verify a withdrawal ledger record's fixed-point certificate: its :ledger/hash
-   must equal the canonical hash of its non-hash fields (the :ledger/preimage
-   fixed point). Returns false when the record carries no hash (legacy)."
+   must equal the canonical hash of its non-certificate fields, its optional
+   canonical commitment must agree, and its derived :ledger/basis-root must be
+   consistent with the committed roots it summarizes.  Every value is
+   recomputed from semantic ledger content — stored certificate material is
+   never trusted.  Returns false when the record carries no hash (legacy)."
   [record]
   (when-let [h (:ledger/hash record)]
-    (= h (str "sha256:"
-              (hc/hash-with-intent {:hash/intent :evidence-record}
-                                   (dissoc record :ledger/hash :ledger/preimage))))))
+    (let [body (dissoc record :ledger/hash :ledger/preimage
+                       :ledger/canonical-bytes :ledger/canonical-hash)
+          proj (hc/project-committable-content body)
+          recomputed (:canonical/hash (hc/canonical-commitment :evidence-record proj))
+          preimage-ok? (or (nil? (:ledger/preimage record))
+                           (= (:ledger/preimage record) (pr-str body)))
+          basis-consistent?
+          (or (nil? (:ledger/basis-root record))
+              (= (:ledger/basis-root record)
+                 (partial-fill/ledger-basis-root
+                  {:state-cutpoint-root (:ledger/state-cutpoint-root record)
+                   :request-set-root (:ledger/request-set-root record)
+                   :request-order-root (:ledger/request-order-root record)
+                   :capacity-root (canonical-hash
+                                   {:available (long (:ledger/available record 0))})
+                   :allocation-policy-root (:ledger/allocation-policy-root record)
+                   :params-root (:ledger/params-root record)})))]
+      (and preimage-ok?
+           basis-consistent?
+           (= h recomputed)
+           (hc/canonical-commitment-valid?
+            :evidence-record proj
+            {:canonical/bytes (:ledger/canonical-bytes record)
+             :canonical/hash (:ledger/canonical-hash record)})))))
 
 (defn- fail!
   ([message reason]
@@ -493,6 +541,11 @@
                           (- fulfilled-total
                              (:principal position-after-accrue 0))))
                 unrealized)
+              allocation-policy
+              {:mode :single-position
+               :rounding-policy :floor-and-carry
+               :conservation {:mode :absolute-smallest-unit
+                              :tolerance withdrawal-conservation-tolerance}}
               updated-position
               (-> position-after-accrue
                   (assoc :partial-fill-affected? (boolean shortfall))
@@ -514,18 +567,29 @@
                                   {:ledger/kind :yield/withdrawal-single
                                    :ledger/id [:withdrawal-single module-id token
                                                owner-id (resolve-now world-after-accrue)]
-                                   :ledger/domain "withdrawal-ledger.v1"
+                                   :ledger/domain withdrawal-ledger-domain
                                    :ledger/module-id module-id
                                    :ledger/token token
                                    :ledger/owner-ids [owner-id]
-                                   :ledger/run-id (:run/id world-after-accrue)
-                                   :ledger/execution-id (:execution/id world-after-accrue)
-                                   :ledger/run-root (partial-fill/ledger-run-root world-after-accrue)
+                                   :ledger/run-id (:run/id world-with-position)
+                                   :ledger/execution-id (:execution/id world-with-position)
+                                   :ledger/run-root (partial-fill/ledger-run-root world-with-position)
+                                   :ledger/params-root
+                                   (partial-fill/ledger-params-root world-with-position)
+                                   :ledger/state-cutpoint-root
+                                   (partial-fill/ledger-state-cutpoint-root world-with-position)
                                    :ledger/request-set-root
                                    (partial-fill/ledger-request-set-root
                                     [owner-id]
                                     [{:owner-id owner-id
                                       :requested basis-total}])
+                                   :ledger/request-order-root
+                                   (partial-fill/ledger-request-order-root [owner-id])
+                                   :ledger/allocation-policy
+                                   allocation-policy
+                                   :ledger/allocation-policy-root
+                                   (partial-fill/ledger-allocation-policy-root
+                                    allocation-policy)
                                    :ledger/available (max 0 (long recoverable))
                                    :ledger/requested basis-total
                                    :ledger/filled fulfilled-total
@@ -2025,7 +2089,12 @@
                                :haircut (:haircut-total result)})}))))
          {:w world :remaining batch-available
           :filled 0 :requested 0 :deferred 0 :haircut 0 :rows []}
-         ops)]
+         ops)
+        allocation-policy
+        {:mode :fcfs-sequential
+         :rounding-policy :floor-and-carry
+         :conservation {:mode :absolute-smallest-unit
+                        :tolerance withdrawal-conservation-tolerance}}]
     (when (> filled batch-available)
       (fail! "Batch withdrawal filled exceeds the shared liquidity pool"
              :batch-withdrawal-pool-overcommit
@@ -2035,7 +2104,7 @@
                (content-address-ledger
                 {:ledger/kind :yield/withdrawal-batch
                  :ledger/id ledger-id
-                 :ledger/domain "withdrawal-ledger.v1"
+                 :ledger/domain withdrawal-ledger-domain
                  :ledger/module-id module-id
                  :ledger/token token
                  :ledger/owner-ids owner-ids
@@ -2045,11 +2114,20 @@
                  ;; the certificate says "these withdrawals occurred in this
                  ;; exact execution world" and cannot be substituted with a
                  ;; different withdrawal in the same run.
-                 :ledger/run-id (:run/id world)
-                 :ledger/execution-id (:execution/id world)
-                 :ledger/run-root (partial-fill/ledger-run-root world)
+                 :ledger/run-id (:run/id w)
+                 :ledger/execution-id (:execution/id w)
+                 :ledger/run-root (partial-fill/ledger-run-root w)
+                 :ledger/params-root (partial-fill/ledger-params-root w)
+                 :ledger/state-cutpoint-root
+                 (partial-fill/ledger-state-cutpoint-root w)
                  :ledger/request-set-root
                  (partial-fill/ledger-request-set-root owner-ids rows)
+                 :ledger/request-order-root
+                 (partial-fill/ledger-request-order-root owner-ids)
+                 :ledger/allocation-policy
+                 allocation-policy
+                 :ledger/allocation-policy-root
+                 (partial-fill/ledger-allocation-policy-root allocation-policy)
                  :ledger/available batch-available
                  :ledger/requested requested
                  :ledger/filled filled

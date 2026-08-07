@@ -20,7 +20,8 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.conformance.plan :as plan]
             [resolver-sim.conformance.reconciliation :as rec]
-            [resolver-sim.conformance.profile :as profile]))
+            [resolver-sim.conformance.profile :as profile]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (defn sha256-hex [path]
   (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
@@ -78,7 +79,7 @@
                {:step/id step
                 :subject/id sid
                 :subject/root (if cr (:subject/root cr)
-                                  (str "sha256:" sid))
+                                  (hash-ref/sha256-ref  sid))
                 :subject-set/root subject-set-root
                 :status :pass})]
     (cond-> []

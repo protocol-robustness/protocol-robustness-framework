@@ -151,6 +151,7 @@
    [nil "--save-output DIR" "Legacy scenario output-copy option"]
    [nil "--sensitivity-profile PROFILE" "Bundle sensitivity profile: public or internal"
     :parse-fn keyword]
+   [nil "--claim-registry FILE" "Path to an external benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."]
    [nil "--report-format FORMAT" "Scenario report format"]
    ["-v" "--verbose" "Scenario report format: verbose"]
    ["-f" "--failures" "Scenario report format: failures"]

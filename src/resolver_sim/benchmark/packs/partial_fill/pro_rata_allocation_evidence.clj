@@ -14,7 +14,8 @@
      resolver-sim.pro-rata.claims       — mechanism-level claim evaluators"
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.allocation :as alloc]
-            [resolver-sim.pro-rata.invariants :as invariants]))
+            [resolver-sim.pro-rata.invariants :as invariants]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "pro-rata-allocation-evidence.v1")
 (def ^:const profile-id :evidence-profile/pro-rata-allocation)
@@ -117,8 +118,8 @@
                 :evidence-profile/permutation-invariance
                 {:status :not-evaluated
                  :reason-code :permuted-input-not-available}}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :pro-rata-allocation-evidence base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :pro-rata-allocation-evidence base))]
       (assoc base :evidence-profile/hash computed-hash))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
@@ -150,9 +151,9 @@
         (swap! errors conj (str "missing " (name f)))))
     (when (some? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
-            computed (str "sha256:"
-                          (hc/domain-hash :pro-rata-allocation-evidence
-                                          without-hash))]
+            computed (hash-ref/sha256-ref
+                      (hc/domain-hash :pro-rata-allocation-evidence
+                                      without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)

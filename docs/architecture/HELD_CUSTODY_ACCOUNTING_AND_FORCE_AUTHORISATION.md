@@ -263,7 +263,16 @@ For each token, the current conservative liability total is:
 total-held + all canonical claimable-v2 entries + total-fees + bond-fees
 ```
 
-Legacy `:claimable` is excluded because settlement principal and yield are dual-written there. The invariant reports `:coverage :unverified` when no snapshot is present, and reports either a missing contract balance or a payout shortfall when evidence is incomplete or insufficient. This is the model-side verifier; collecting `IERC20.balanceOf` values and binding them to a chain block, vault address, and ABI/deployment provenance remains the responsibility of an EVM/RPC adapter.
+Legacy `:claimable` is excluded because settlement principal and yield are dual-written there. The invariant reports coverage states rather than a binary pass/fail:
+
+- `:coverage :verified` — a balance snapshot was supplied and every observed custody balance covers the modeled obligation total.
+- `:coverage :insufficient` — a snapshot was supplied but some custody balance is below the modeled obligation total (`:contract-payout-shortfall`).
+- `:coverage :invalid-evidence` — a snapshot was supplied but is malformed or incomplete (`:missing-contract-balance` for an observed token).
+- `:coverage :unavailable` — no snapshot was supplied. This is reported as `:status :not-evaluated` (surfaced, never a silent pass): absence of evidence is NOT evidence of solvency.
+
+The assessment layer (`classify-solvency`) exposes this as `:evidence/status` and — when external coverage is required (`:require-external-coverage? true`) — downgrades the assessment to `:unassessable` when evidence is unavailable or stale.
+
+Collecting `IERC20.balanceOf` values and binding them to a chain block, vault address, and ABI/deployment provenance remains the responsibility of an EVM/RPC adapter; the replay/classifier consumes a committed snapshot artifact rather than performing live RPC.
 
 ## Key implementation and validation locations
 

@@ -68,6 +68,6 @@
         backend (backend)
         persisted (staged/prepare-capture! first-session backend store/put-if-absent!)]
     (is (not= (:staged-evidence/root first-capture) (:staged-evidence/root second-capture)))
-    (is (= :stored (:status persisted)))
+    (is (= :created (:status persisted)))
     (is (= first-capture
            (store/resolve-artifact backend (:staged-evidence/root first-capture))))))

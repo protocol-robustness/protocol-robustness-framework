@@ -409,6 +409,37 @@
       (is (= 2 (count (:supporting-members th))))
       (is (= 1 (count (:absent-members th)))))))
 
+(deftest not-evaluable-target-is-a-non-assessment
+  (testing "a researcher who marks a theorem :not-evaluable has NOT formed an
+            assessment; the cell must not treat it as an assessed opinion"
+    (let [all-ne (tmc/per-item-consensus
+                  :theorem/x :theorem
+                  [{:researcher/id "a" :status :not-evaluable}
+                   {:researcher/id "b" :status :not-evaluable}
+                   {:researcher/id "c" :status :not-evaluable}]
+                  ["a" "b" "c"])
+          mixed (tmc/per-item-consensus
+                 :theorem/x :theorem
+                 [{:researcher/id "a" :status :not-evaluable}
+                  {:researcher/id "b" :status :not-evaluable}
+                  {:researcher/id "c" :status :reproduced}]
+                 ["a" "b" "c"])]
+      (testing "all :not-evaluable is not a unanimous assessment"
+        (is (= :not-evaluable (:status all-ne)))
+        (is (empty? (:assessed-members all-ne)))
+        (is (empty? (:supporting-members all-ne)))
+        (is (= ["a" "b" "c"] (:not-evaluable-members all-ne)))
+        (is (empty? (:insufficient-information-members all-ne)))
+        (is (= 0 (:assessed-count all-ne)))
+        (is (= 3 (:member-count all-ne))))
+      (testing ":not-evaluable members never become a majority; one assessor is
+                :single-assessment, not the misleading :unanimous"
+        (is (= :single-assessment (:status mixed)))
+        (is (= ["c"] (:supporting-members mixed)))
+        (is (= ["a" "b"] (:not-evaluable-members mixed)))
+        (is (= 1 (:assessed-count mixed)))
+        (is (= 3 (:member-count mixed)))))))
+
 (deftest per-item-majority-with-dissent-reports-assessed-and-dissenting
   (let [consensus (tmc/per-item-consensus
                    :theorem/x :theorem
@@ -703,6 +734,36 @@
                  :reports reports-exact
                  :positions [(make-pos "a") (make-pos "b") (make-pos "c")]
                  :supersedes-certificate-root "not-a-hash"}))))
+
+(deftest certificate-hash-is-canonical-over-member-order
+  (testing "the certificate is a pure function of the member SET: the same
+            three members in any input order commit to the same root, with
+            consensus member lists in canonical :researcher/id order"
+    (let [make-pos-order (fn [order]
+                           (mapv make-pos order))
+          make-reports-order (fn [order]
+                               (mapv (fn [id] (first (filter #(= id (:researcher/id %)) reports-exact))) order))
+          c1 (tmc/build-certificate
+              {:review-round default-round
+               :canonical-indices (ci/build-canonical-indices default-round)
+               :reports (make-reports-order ["a" "b" "c"])
+               :positions (make-pos-order ["a" "b" "c"])})
+          c2 (tmc/build-certificate
+              {:review-round default-round
+               :canonical-indices (ci/build-canonical-indices default-round)
+               :reports (make-reports-order ["c" "a" "b"])
+               :positions (make-pos-order ["c" "a" "b"])})
+          f1 (tmc/finalise-certificate! c1)
+          f2 (tmc/finalise-certificate! c2)]
+      (is (= ["a" "b" "c"]
+             (get-in f1 [:model-consensus :model-state :supporting-members]))
+          "consensus member lists are in canonical member order")
+      (is (= (get-in f1 [:model-consensus :model-state :supporting-members])
+             (get-in f2 [:model-consensus :model-state :supporting-members])))
+      (is (= (:certificate/hash f1) (:certificate/hash f2))
+          "input order does not affect the certificate root")
+      (is (= ["a" "b" "c"] (mapv :researcher/id (:member-positions f1)))
+          "member-positions are canonicalized to member-id order"))))
 
 (deftest fixture-version-transition-recomputes
   (testing "the committed v2→v3 fixture recomputes from current code — if the

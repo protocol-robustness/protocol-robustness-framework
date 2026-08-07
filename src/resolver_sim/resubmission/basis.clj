@@ -21,7 +21,8 @@
    All roots are domain-separated canonical hashes over the typed binary
    encoding (CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI)."
   (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def basis-schema "submission-basis-projection.v1")
 (def bundle-schema "submission-bundle-projection.v1")
@@ -76,7 +77,7 @@
   "The submission-basis-root committed by the pre-link material under the
    cutpoint. This value is placed IN the resubmission link."
   [basis]
-  (str "sha256:" (hc/domain-hash basis-domain (submission-basis-projection basis))))
+  (hash-ref/sha256-ref (hc/domain-hash basis-domain (submission-basis-projection basis))))
 
 (defn final-bundle-projection
   "Canonical value tree committing the COMPLETE submitted bundle.
@@ -97,4 +98,4 @@
   "The final submitted-bundle root committed by the validator-issued attempt
    receipt. Never placed in the resubmission link."
   [projection]
-  (str "sha256:" (hc/domain-hash final-bundle-domain projection)))
+  (hash-ref/sha256-ref (hc/domain-hash final-bundle-domain projection)))

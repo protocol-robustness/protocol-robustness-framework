@@ -37,7 +37,8 @@
    own report, the other two reports, divergences and model coverage.
    It is NOT required to complete a run."
   (:require [clojure.set]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "researcher-position.v1")
 
@@ -172,7 +173,7 @@
                       (when normalised-targets
                         {:position/targets normalised-targets}))
           position-hash (hc/domain-hash :researcher-position base)]
-      (assoc base :position/hash (str "sha256:" position-hash)))))
+      (assoc base :position/hash (hash-ref/sha256-ref  position-hash)))))
 
 (defn position-hash
   "Return the content-addressed hash of the position."
@@ -199,8 +200,8 @@
        (some? (:position/outcome-hash position))
        (string? (:position/hash position))
        (= (:position/hash position)
-          (str "sha256:" (hc/domain-hash :researcher-position
-                                         (dissoc position :position/hash))))
+          (hash-ref/sha256-ref (hc/domain-hash :researcher-position
+                                               (dissoc position :position/hash))))
        (every? (fn [target]
                  (and (contains? target-kinds (:kind target))
                       (keyword? (:id target))

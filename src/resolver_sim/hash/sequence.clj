@@ -207,5 +207,12 @@
                                 "byte array")))
       {:valid? (empty? @errors) :value (when (empty? @errors) value) :errors @errors})
     (catch Exception e
-      {:valid? false :value nil
-       :errors [(str "commitment decode failed: " (.getMessage e))]})))
+      (let [data (ex-data e)
+            resource-limit? (or (= :limit-exceeded (:type data))
+                                (= :limit-exceeded (:code data)))]
+        {:valid? false :value nil
+         :errors [(if resource-limit?
+                    (str "commitment inadmissible under the admission profile: "
+                         (:code data) (when (:reason data) (str " / " (:reason data)))
+                         (when (:limit data) (str " (limit " (:limit data) ")")))
+                    (str "commitment decode failed: " (.getMessage e)))]}))))

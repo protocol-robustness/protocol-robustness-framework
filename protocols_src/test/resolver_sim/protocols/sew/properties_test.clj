@@ -69,6 +69,14 @@
 ;; World builders
 ;; ---------------------------------------------------------------------------
 
+(defn- stamp-held-completeness
+  "Declare the held-adjustment ledger complete on a world built through the
+   canonical lifecycle path (create-escrow produces a zero-origin, reconstructable
+   ledger), so the held-adjustments invariants are evaluated rather than
+   :not-evaluated. Mirrors the replay path (sew.clj) which sets this flag."
+  [world]
+  (assoc-in world [:params :held-adjustments/complete?] true))
+
 (defn make-base-world-with-escrow
   "Create a world with one :pending escrow. No custom resolver."
   [amount fee-bps block-time from to]
@@ -76,7 +84,7 @@
         w0   (t/empty-world block-time)
         r    (lc/create-escrow w0 from "0xUSDC" to amount
                                (t/make-escrow-settings {}) snap)]
-    (when (:ok r) {:world (:world r) :snap snap})))
+    (when (:ok r) {:world (stamp-held-completeness (:world r)) :snap snap})))
 
 (defn make-disputed-world
   "Create a world with one :disputed escrow using a custom-resolver.
@@ -88,7 +96,7 @@
                                (t/make-escrow-settings {:custom-resolver resolver-addr}) snap)
         dr   (when (:ok cr) (lc/raise-dispute (:world cr) 0 "0xAlice"))]
     (when (and (:ok cr) (:ok dr))
-      {:world (:world dr) :snap snap})))
+      {:world (stamp-held-completeness (:world dr)) :snap snap})))
 
 (defn make-disputed-world-for-escalation
   "Create a :disputed world where resolver authority tracks et.dispute-resolver
@@ -111,7 +119,7 @@
                (assoc-in (:world cr) [:escrow-transfers 0 :dispute-resolver] initial-resolver))
         dr   (when w0 (lc/raise-dispute w0 0 "0xAlice"))]
     (when (and (:ok cr) (:ok dr))
-      {:world (:world dr) :snap snap})))
+      {:world (stamp-held-completeness (:world dr)) :snap snap})))
 
 ;; ---------------------------------------------------------------------------
 ;; Sequence runner (used by multi-step properties)
@@ -210,7 +218,7 @@
                                 (t/make-escrow-settings {}) snap)]
      (if-not (:ok r1)
        true
-       (let [w1  (:world r1)
+       (let [w1  (stamp-held-completeness (:world r1))
              r2  (lc/create-escrow w1 "0xCarol" "0xUSDC" "0xDave" amount2
                                    (t/make-escrow-settings {}) snap)]
          (if-not (:ok r2)
@@ -231,12 +239,12 @@
     other-addr  gen-addr]
    (if (= custom-addr other-addr)
      true
-     (let [sett (t/make-escrow-settings {:custom-resolver custom-addr})
-           snap (snap-fix/escrow-snapshot {:escrow-fee-bps 0 :max-dispute-duration 3600})
-           cr   (lc/create-escrow (t/empty-world 1000) "0xAlice" "0xUSDC" "0xBob"
-                                  1000 sett snap)
-           dr   (when (:ok cr) (lc/raise-dispute (:world cr) 0 "0xAlice"))
-           w    (when (:ok dr) (:world dr))]
+      (let [sett (t/make-escrow-settings {:custom-resolver custom-addr})
+            snap (snap-fix/escrow-snapshot {:escrow-fee-bps 0 :max-dispute-duration 3600})
+            cr   (lc/create-escrow (t/empty-world 1000) "0xAlice" "0xUSDC" "0xBob"
+                                   1000 sett snap)
+            dr   (when (:ok cr) (lc/raise-dispute (:world cr) 0 "0xAlice"))
+            w    (when (:ok dr) (stamp-held-completeness (:world dr)))]
        (when w
          (and (:all-hold? (inv/check-all w))
               (auth/authorized-resolver? w 0 custom-addr nil)
@@ -257,7 +265,7 @@
          cr       (lc/create-escrow (t/empty-world 1000) "0xAlice" "0xUSDC" "0xBob" 1000
                                     (t/make-escrow-settings {:custom-resolver "0xRes"}) snap)
          dr       (when (:ok cr) (lc/raise-dispute (:world cr) 0 "0xAlice"))
-         w1       (when (:ok dr) (:world dr))
+         w1       (when (:ok dr) (stamp-held-completeness (:world dr)))
          rr       (when w1 (res/execute-resolution w1 0 "0xRes" true "0xhash" nil))
          w2       (when (:ok rr) (:world rr))
          deadline (when w2 (get-in w2 [:pending-settlements 0 :appeal-deadline]))
@@ -488,8 +496,8 @@
          dr   (when (:ok cr) (lc/raise-dispute (:world cr) 0 "0xAlice"))]
      (if-not (and (:ok cr) (:ok dr))
        false
-       (let [w-disp      (:world dr)
-              w-timed-out (time-ctx/advance-time w-disp {:to (+ 1000 max-dur 1)})
+        (let [w-disp      (stamp-held-completeness (:world dr))
+               w-timed-out (time-ctx/advance-time w-disp {:to (+ 1000 max-dur 1)})
              ac          (lc/auto-cancel-disputed-escrow w-timed-out 0)
              w-cancelled (when (:ok ac) (:world ac))
              late-rr     (when w-cancelled
@@ -520,9 +528,9 @@
          cr   (lc/create-escrow (t/empty-world 1000) "0xAlice" "0xUSDC" "0xBob" amount
                                 (t/make-escrow-settings {:custom-resolver "0xResolver"}) snap)
          dr   (when (:ok cr) (lc/raise-dispute (:world cr) 0 "0xAlice"))]
-     (when (and (:ok cr) (:ok dr))
-       (let [w-disp   (:world dr)
-             rr       (res/execute-resolution w-disp 0 "0xResolver" true "0xhash" nil)
+      (when (and (:ok cr) (:ok dr))
+        (let [w-disp   (stamp-held-completeness (:world dr))
+              rr       (res/execute-resolution w-disp 0 "0xResolver" true "0xhash" nil)
              w-pend   (when (:ok rr) (:world rr))
              deadline (when w-pend (get-in w-pend [:pending-settlements 0 :appeal-deadline]))
               w-exp    (when deadline (time-ctx/advance-time w-pend {:to (inc deadline)}))

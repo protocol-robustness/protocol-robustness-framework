@@ -3,7 +3,10 @@
 Reference for the actions subject to replay-boundary deduplication when
 `event-id` is present.
 
-Current count: **19 entries** — 17 canonical actions + 3 backward-compatibility aliases.
+Current count: **21 entries** — 18 canonical actions + 3 backward-compatibility
+aliases. Aliases are reduced to canonical spelling by `compat/canonical-action`,
+so all 21 entries collapse to one of **18 canonical identities** — identical
+logical actions produce identical dedupe keys regardless of spelling.
 
 ## Dedupe op-key shape
 
@@ -47,7 +50,10 @@ order, or derived non-authoritative values.
 
 ### Normalization rules
 
-- **Action names:** converted from `snake_case` to `kebab-case` by `compat/canonical-action`.
+- **Action names:** converted from `snake_case` to `kebab-case` by `compat/canonical-action`;
+  backward-compat US/UK spelling aliases are reduced to the canonical (Commonwealth)
+  spelling (e.g. `grant-force-authorization` → `grant-force-authorisation`), so alias
+  and canonical spellings of the same action share one identity and one dedupe key.
 - **Identifiers (event-id, hop-id):** `compat/normalize-id` converts keywords to strings;
   strings pass through unchanged.  Integers and nil pass through.
 - **workflow-id / slash-id:** passed through as-is (strings, numbers, or keywords
@@ -127,8 +133,8 @@ differentiate solely by `event-id` (and `agent`, `action`). If two
 
 ### Backward-compatibility aliases
 
-These aliases normalise to the same canonical action name and produce identical
-dedupe keys:
+These aliases are reduced to the canonical action name by `compat/canonical-action`
+and therefore produce identical dedupe keys to their canonical counterparts:
 
 | Alias | Canonical |
 |-------|-----------|

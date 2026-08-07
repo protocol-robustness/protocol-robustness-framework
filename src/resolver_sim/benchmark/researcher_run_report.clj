@@ -11,7 +11,8 @@
    equality between embedded execution fields and outcome-manifest fields."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.signing :as signing]
-            [resolver-sim.benchmark.outcome-manifest :as outcome-manifest]))
+            [resolver-sim.benchmark.outcome-manifest :as outcome-manifest]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "researcher-run-report.v1")
 
@@ -136,7 +137,7 @@
               signature (signing/sign-hash report-hash private-key-path password)]
           {:ok true
            :report (assoc report
-                          :researcher-run-report/hash (str "sha256:" report-hash)
+                          :researcher-run-report/hash (hash-ref/sha256-ref  report-hash)
                           :researcher/signature
                           {:algorithm :ed25519
                            :value signature
@@ -176,7 +177,7 @@
       (swap! errors conj "missing :benchmark/content-root"))
     (when (:researcher-run-report/hash report)
       (let [preimage (signature-preimage report)
-            expected (str "sha256:" (hc/domain-hash :researcher-run-report preimage))]
+            expected (hash-ref/sha256-ref (hc/domain-hash :researcher-run-report preimage))]
         (when-not (= expected (:researcher-run-report/hash report))
           (swap! errors conj (str "report-hash mismatch: declared "
                                   (:researcher-run-report/hash report)
@@ -232,7 +233,7 @@
       (let [preimage (signature-preimage report)
             expected-hash (hc/domain-hash :researcher-run-report preimage)
             actual-hash (:researcher-run-report/hash report)]
-        (if-not (= (str "sha256:" expected-hash) actual-hash)
+        (if-not (= (hash-ref/sha256-ref  expected-hash) actual-hash)
           {:valid? false :reason "report hash mismatch"}
           (try
             (let [stripped (clojure.string/replace actual-hash #"^sha256:" "")

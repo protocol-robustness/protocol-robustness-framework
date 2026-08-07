@@ -159,3 +159,35 @@
 (deftest scope-intersection-rejects-unknown
   (is (nil? (c/scope-intersection :unbounded :not-a-scope)))
   (is (nil? (c/scope-union :trace-bounded :bogus))))
+
+;; ─────────────────────────────────────────────────────────────────────────────
+;; concatenate-bound: hash-bound concatenation of the full component sequence
+;; ─────────────────────────────────────────────────────────────────────────────
+
+(deftest concatenate-bound-returns-canonical-sha256-ref
+  (let [ref (c/concatenate-bound [(req "a" :high) (req "b" :medium)])]
+    (is (string? ref))
+    (is (re-matches #"sha256:[0-9a-f]{64}" ref))))
+
+(deftest concatenate-bound-set-semantics-permutation-stable
+  (testing "default :by-subject ordering is permutation-invariant (set semantics)"
+    (let [a [(req "a" :high) (req "b" :medium) (req "c" :low)]
+          b [(req "c" :low) (req "a" :high) (req "b" :medium)]]
+      (is (= (c/concatenate-bound a) (c/concatenate-bound b))))))
+
+(deftest concatenate-bound-as-given-order-sensitive
+  (testing ":as-given preserves order, so permutation changes the commitment"
+    (let [a [(req "a" :high) (req "b" :medium)]
+          b [(req "b" :medium) (req "a" :high)]]
+      (is (not= (c/concatenate-bound a :as-given)
+                (c/concatenate-bound b :as-given))))))
+
+(deftest concatenate-bound-deterministic
+  (let [components [(req "x" :high :trace-bounded) (req "y" :low) (sup :medium)]]
+    (is (= (c/concatenate-bound components)
+           (c/concatenate-bound components)))))
+
+(deftest concatenate-bound-preserves-full-sequence
+  (testing "commitment binds all components, not a collapsed minimum"
+    (is (not= (c/concatenate-bound [(req "a" :high) (req "b" :low)])
+              (c/concatenate-bound [(req "a" :high)])))))

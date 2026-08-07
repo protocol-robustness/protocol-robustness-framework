@@ -34,9 +34,14 @@
                 :plan/verification]))
 
 (defn plan-root
-  "Content-addressed root of a compiled plan."
+  "Content-addressed root of a compiled plan.
+
+   The plan projection may embed normalized contracts (set-valued roles/modes),
+   so the committed value is projected to canonical-safe form (sets → sorted
+   vectors) before hashing."
   [plan]
-  (hc/domain-hash plan-domain-tag (plan-projection plan)))
+  (hc/domain-hash plan-domain-tag
+                  (hc/project-committable-content (plan-projection plan))))
 
 (defn build-plan
   "Assemble a compiled plan from its committed fields and attach :plan/root."

@@ -271,6 +271,16 @@
     (is (some? (resolver (:benchmark-outcome/hash fa-manifest))) "manifest in package")
     (is (some? (resolver (:consumption/hash receipt))) "receipt in package")
     (is (some? (resolver (:evidence-profile/hash evidence-profile))) "profile in package")
+    ;; The evidence profile threads the three-member aggregate classification
+    ;; checks (never caller-supplied).
+    (let [v (:evidence-profile/verification evidence-profile)]
+      (is (contains? v :three-member-aggregate-holds?))
+      (is (map? (:three-member-aggregate v)))
+      (is (contains? (set (keys (:three-member-aggregate v)))
+                     :three-member-classifications))
+      (is (false? (:three-member-aggregate-holds? v))
+          "the 2-member fixture round fails the threaded three-member-standard
+           check, and the profile records it honestly"))
     ;; Package completion check
     (is (:valid? (rfa/verify-package-completion-force-authorised
                   resolver fa-manifest evidence-profile))

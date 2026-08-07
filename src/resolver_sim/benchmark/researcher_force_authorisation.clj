@@ -119,7 +119,7 @@
 (defn- compute-decision-hash
   "Compute the content-addressed hash of a decision preimage."
   [preimage]
-  (str "sha256:" (hc/domain-hash :researcher-decision preimage)))
+  (hash-ref/sha256-ref (hc/domain-hash :researcher-decision preimage)))
 
 (defn build-signed-decision
   "Build a signed researcher decision artifact.
@@ -248,7 +248,7 @@
   "Compute the content-addressed hash of a v2 decision preimage using the
    RESEARCHER_DECISION_V2 domain separator."
   [preimage]
-  (str "sha256:" (hc/domain-hash :researcher-decision-v2 preimage)))
+  (hash-ref/sha256-ref (hc/domain-hash :researcher-decision-v2 preimage)))
 
 (defn build-signed-decision-v2
   "Build a researcher-decision.v2 signed position.
@@ -645,11 +645,11 @@
                          :approved approved
                          :dissented dissented}
           consumption-key
-          (str "sha256:"
-               (hc/domain-hash :evidence-collection
-                               {:auth/id id
-                                :auth/policy-hash (:policy/hash policy)
-                                :auth/target target}))
+          (hash-ref/sha256-ref
+           (hc/domain-hash :evidence-collection
+                           {:auth/id id
+                            :auth/policy-hash (:policy/hash policy)
+                            :auth/target target}))
           base {:schema-version schema-version
                 :authorisation/id id
                 :authorisation/policy policy
@@ -666,8 +666,8 @@
                 :authorisation/expires-at expires-at
                 :authorisation/command-root command-root
                 :authorisation/evidence-root evidence-root}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :research-force-authorisation base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :research-force-authorisation base))]
       (when (and (some? hash) (not= hash computed-hash))
         (throw (ex-info "Declared authorisation/hash does not match computed value"
                         {:declared hash :computed computed-hash})))
@@ -734,8 +734,8 @@
           (swap! errors conj "threshold :dissented must be an integer"))))
     (when (some? (:authorisation/hash instance))
       (let [without-hash (dissoc instance :authorisation/hash)
-            computed (str "sha256:"
-                          (hc/domain-hash :research-force-authorisation without-hash))]
+            computed (hash-ref/sha256-ref
+                      (hc/domain-hash :research-force-authorisation without-hash))]
         (when-not (= computed (:authorisation/hash instance))
           (swap! errors conj (str "authorisation/hash mismatch: declared "
                                   (:authorisation/hash instance)
@@ -1031,8 +1031,8 @@
                 :reservation/execution-attempt-id execution-attempt-id
                 :reservation/command-root command-root
                 :reservation/plan-root plan-root}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :force-authorisation-reservation base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :force-authorisation-reservation base))]
       (when (and (some? hash) (not= hash computed-hash))
         (throw (ex-info "Declared reservation/hash does not match computed value"
                         {:declared hash :computed computed-hash})))
@@ -1155,8 +1155,8 @@
                        :consumption/status status}
                       (when terminal-evidence-hash
                         {:consumption/terminal-evidence-hash terminal-evidence-hash}))
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :force-authorisation-consumption base))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :force-authorisation-consumption base))]
       (when (and (some? hash) (not= hash computed-hash))
         (throw (ex-info "Declared consumption/hash does not match computed value"
                         {:declared hash :computed computed-hash})))
@@ -1166,8 +1166,8 @@
 (def ^:const effect-outcomes #{:not-produced :produced :reversed})
 
 (defn- receipt-v2-hash [receipt]
-  (str "sha256:" (hc/domain-hash :force-authorisation-consumption-v2
-                                 (dissoc receipt :consumption/hash))))
+  (hash-ref/sha256-ref (hc/domain-hash :force-authorisation-consumption-v2
+                                       (dissoc receipt :consumption/hash))))
 
 (defn build-consumption-receipt-v2
   "Build a status-aware v2 receipt. Correlation is accepted only as a validated

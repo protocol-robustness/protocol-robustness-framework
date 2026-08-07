@@ -17,7 +17,8 @@
       :then
       {:claim :successor-current-amount-equals-deferred-residual}}"
   (:require [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "research-theorem-outcome.v1")
 
@@ -114,9 +115,9 @@
                 :theorem/falsifiers (vec (or falsifiers []))
                 :theorem/limitations (vec (or limitations []))
                 :theorem/rationale rationale}
-          computed-hash (str "sha256:"
-                             (hc/domain-hash :research-theorem-outcome
-                                             (dissoc base :theorem/rationale)))]
+          computed-hash (hash-ref/sha256-ref
+                         (hc/domain-hash :research-theorem-outcome
+                                         (dissoc base :theorem/rationale)))]
       (when (and (some? hash) (not= hash computed-hash))
         (throw (ex-info "Declared theorem/hash does not match computed value"
                         {:declared hash :computed computed-hash})))
@@ -155,7 +156,7 @@
       (swap! errors conj (str "invalid :theorem/type: " (:theorem/type theorem-outcome))))
     (when (some? (:theorem/hash theorem-outcome))
       (let [without-hash (dissoc theorem-outcome :theorem/hash :theorem/rationale)
-            computed (str "sha256:" (hc/domain-hash :research-theorem-outcome without-hash))]
+            computed (hash-ref/sha256-ref (hc/domain-hash :research-theorem-outcome without-hash))]
         (when-not (= computed (:theorem/hash theorem-outcome))
           (swap! errors conj (str "theorem/hash mismatch: declared "
                                   (:theorem/hash theorem-outcome)
@@ -178,7 +179,7 @@
    ordering is deterministic and independent of submission order."
   [theorem-outcomes]
   (let [hashes (sort (map :theorem/hash theorem-outcomes))]
-    (str "sha256:"
-         (hc/domain-hash :evidence-collection
-                         {:type :theorem-outcome-collection
-                          :theorem-hashes (vec hashes)}))))
+    (hash-ref/sha256-ref
+     (hc/domain-hash :evidence-collection
+                     {:type :theorem-outcome-collection
+                      :theorem-hashes (vec hashes)}))))

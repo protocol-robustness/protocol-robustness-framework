@@ -422,9 +422,9 @@
                                :predecessor-policy-hash prev-hash
                                :proposed-policy-hash successor-policy-hash
                                :change-classes computed-classes}
-                    instance-hash (str "sha256:" (canonical/domain-hash
-                                                  "PRF_AUTHORISATION_INSTANCE_V1"
-                                                  (dissoc instance :authorisation/approvals :authorisation/dissents)))
+                    instance-hash (hash-ref/sha256-ref (canonical/domain-hash
+                                                        "PRF_AUTHORISATION_INSTANCE_V1"
+                                                        (dissoc instance :authorisation/approvals :authorisation/dissents)))
                     updated (assoc pre-hash
                                    "version_id" new-version
                                    "supersedes_policy_sha256" prev-hash
@@ -433,9 +433,9 @@
                                    {"predecessor_policy_sha256" prev-hash
                                     "change_classes" computed-classes
                                     "authorization_instance_hash" instance-hash
-                                    "authorization_provenance_hash" (str "sha256:" (canonical/domain-hash
-                                                                                    "PRF_AUTHORISATION_PROVENANCE_V1"
-                                                                                    (or (:provenance auth) {})))
+                                    "authorization_provenance_hash" (hash-ref/sha256-ref (canonical/domain-hash
+                                                                                          "PRF_AUTHORISATION_PROVENANCE_V1"
+                                                                                          (or (:provenance auth) {})))
                                     "force_authorisation_policy_hash" fa-policy-hash})
                     artifact (build-artifact updated)]
                 (write! output-path artifact)

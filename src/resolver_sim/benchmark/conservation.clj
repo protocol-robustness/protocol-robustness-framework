@@ -1,7 +1,8 @@
 (ns resolver-sim.benchmark.conservation
   "Pure projection of canonical execution-level conservation invariant results."
   (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as canonical]))
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def invariant-id :conservation-of-funds)
 (def schema-version "benchmark-conservation.v1")
@@ -43,4 +44,4 @@
      :reconciliation nil}))
 
 (defn final-ref [artifact]
-  (str "sha256:" (canonical/domain-hash "BENCHMARK_CONSERVATION_V1" artifact)))
+  (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_CONSERVATION_V1" artifact)))

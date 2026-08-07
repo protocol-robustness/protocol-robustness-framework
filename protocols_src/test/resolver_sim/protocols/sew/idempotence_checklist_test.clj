@@ -410,9 +410,64 @@
           "canonical form is a direct member of the set")
       (is (contains? sew/replay-sensitive-actions (compat/canonical-action ev-alias))
           "alias form is also a direct member of the set (backward-compat entry)")
-      (is (not= (compat/canonical-action ev-alias)
-                (compat/canonical-action ev-canon))
-          "alias and canonical are different strings (US/UK spelling); both must be in the set"))))
+      (is (= (compat/canonical-action ev-alias)
+             (compat/canonical-action ev-canon))
+          "alias normalizes to canonical spelling — identical logical actions are identically identifiable"))))
+
+(deftest checklist-replay-sensitive-action-count
+  (testing "set size and canonical identity count stay consistent"
+    (let [aliases #{"grant-force-authorization"
+                    "revoke-force-authorization"
+                    "execute-force-authorized-action"}
+          canonical (set (remove aliases sew/replay-sensitive-actions))
+          identities (into #{}
+                           (map (fn [a] (compat/canonical-action {:action a})))
+                           sew/replay-sensitive-actions)]
+      (is (= 21 (count sew/replay-sensitive-actions))
+          "18 canonical + 3 backward-compat aliases")
+      (is (= 18 (count canonical))
+          "canonical entries (aliases excluded)")
+      (is (= 18 (count identities))
+          "all 21 set entries collapse to 18 canonical identities"))))
+
+(deftest checklist-alias-identical-dedupe-keys
+  (testing "US/UK spelling aliases produce identical dedupe keys"
+    (let [w0 (t/empty-world 1000)
+          us (sew/dedupe-op-key
+              w0
+              {:action "grant-force-authorization" :agent "gov"
+               :params {:workflow-id 1 :slash-id "slash-fa-1" :event-id "evt-fa-1"}})
+          uk (sew/dedupe-op-key
+              w0
+              {:action "grant-force-authorisation" :agent "gov"
+               :params {:workflow-id 1 :slash-id "slash-fa-1" :event-id "evt-fa-1"}})]
+      (is (= us uk)
+          "identical logical action under both spellings maps to one dedupe key")
+      (is (= "grant-force-authorisation" (nth us 2))
+          "key carries the canonical action name"))))
+
+(deftest checklist-alias-cross-spelling-replay-dedup
+  (testing "US-spelled duplicate of a canonical event shares the same dedupe identity"
+    (let [calls (atom 0)
+          context {}
+          world {:counter 0}
+          fake-apply (fn [_ctx w _event]
+                       (swap! calls inc)
+                       {:ok true :world (update w :counter inc)})]
+      (with-redefs [sew/apply-action fake-apply]
+        (let [uk-ev {:seq 0 :time 1000 :agent "gov" :action "grant-force-authorisation"
+                     :params {:workflow-id 1 :slash-id "slash-fa-1" :event-id "evt-fa-1"}}
+              us-ev {:seq 1 :time 1010 :agent "gov" :action "grant-force-authorization"
+                     :params {:workflow-id 1 :slash-id "slash-fa-1" :event-id "evt-fa-1"}}
+              r1 (proto/dispatch-action sew/protocol context world uk-ev)
+              r2 (proto/dispatch-action sew/protocol context (:world r1) us-ev)]
+          (is (:ok r1))
+          (is (= :applied-once (get-in r1 [:extra :idempotency])))
+          (is (:ok r2))
+          (is (= :no-op-duplicate (get-in r2 [:extra :idempotency]))
+              "US-spelled alias duplicate is identified as the same logical operation")
+          (is (= 1 @calls)
+              "apply-action ran exactly once across spellings"))))))
 
 (deftest checklist-key-shape-nil-hop-scope
   (testing "fixed key shape: non-hop actions contain nil in hop-scope; hop-scoped actions differ by hop"

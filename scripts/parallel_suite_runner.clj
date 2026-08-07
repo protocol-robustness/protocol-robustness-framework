@@ -10,8 +10,15 @@
      PARALLEL_TEST_JOBS  — max concurrent suites (default: min (dec n-cpus, heap-budget), min 1)
      PARALLEL_TEST_MEM_BUDGET_MB — heap budget per concurrent suite (default 1024)
      PARALLEL_TEST_SUITE_TIMEOUT_MS — per-suite timeout (default 3_600_000 = 60 min)
-     KEEP_PARALLEL_TEST_ARTIFACTS — set to any truthy value to preserve temp dirs
-                                   even on success (they are always kept on failure)
+     KEEP_TEST_ARTIFACTS — set to any truthy value to preserve temp dirs
+                           even on success (they are always kept on failure)
+     PARALLEL_TEST_RUN_ROOT — stage per-suite artifact roots under this
+                           directory (instead of /tmp/parallel-suite-artifacts-*)
+                           for later consolidation by
+                           scripts/evidence/consolidate_test_artifacts.py.  When
+                           set, suite result JSONs are still copied to the shared
+                           artifact dir but the per-suite roots (including
+                           evidence) are left in place for collection.
 
    Load-time side-effect invariant:
      Namespace loading (require) happens before per-suite registry/artifact isolation.
@@ -100,14 +107,23 @@
         start (System/currentTimeMillis)
         shared-dir (evcfg/artifact-dir)
         run-id (str (System/currentTimeMillis) "-" (java.util.UUID/randomUUID))
-        tmp-root (str (System/getProperty "java.io.tmpdir")
-                      "/parallel-suite-artifacts-" (java.util.UUID/randomUUID))
-        _ (artifact-scope/write-owner-marker! tmp-root {:run-id run-id :namespace :run-root})
+        staged-root (System/getenv "PARALLEL_TEST_RUN_ROOT")
+        tmp-root (or staged-root
+                     (str (System/getProperty "java.io.tmpdir")
+                          "/parallel-suite-artifacts-" (java.util.UUID/randomUUID)))
+        ;; Skipped when staging under PARALLEL_TEST_RUN_ROOT so the collector
+        ;; sees the per-suite roots (not the run root) as producers.
+        _ (when-not staged-root
+            (artifact-scope/write-owner-marker! tmp-root {:run-id run-id :namespace :run-root}))
         jobs (parse-job-limit)
         sem (java.util.concurrent.Semaphore. jobs)
         futures (mapv (fn [i sk]
                         (let [suite-dir (str tmp-root "/" (format "%03d" i) "-" (name sk))]
                           (.mkdirs (io/file suite-dir))
+                          ;; Per-suite ownership markers make each suite dir a
+                          ;; discoverable producer root for the collector.
+                          (artifact-scope/write-owner-marker! suite-dir
+                                                              {:run-id run-id :namespace sk})
                           (future
                             (.acquire sem)
                             (try
@@ -128,7 +144,7 @@
         elapsed (- (System/currentTimeMillis) start)
         failed (remove :ok? results)
         failed? (pos? (count failed))
-        keep? (or failed? (some? (System/getenv "KEEP_PARALLEL_TEST_ARTIFACTS")))]
+        keep? (or failed? (some? (System/getenv "KEEP_TEST_ARTIFACTS")))]
     ;; Copy suite result JSONs back to shared artifact dir
     (let [sk->idx (into {} (map-indexed (fn [i sk] [sk i]) suite-keys))]
       (doseq [{:keys [suite-key]} results]
@@ -161,9 +177,12 @@
                            (format "elapsed: %.2fs  jobs: %d" (/ elapsed 1000.0) jobs)])
       (summary/result-line totals elapsed)
       (summary/print-failures items))
-    ;; Cleanup — ownership-marker-guarded, keep on failure, delete on success
-    (if keep?
-      (println "Keeping suite artifact dirs:" tmp-root)
+    ;; Cleanup — staged roots are left in place for the collector; otherwise
+    ;; ownership-marker-guarded, keep on failure, delete on success
+    (if (or staged-root keep?)
+      (println (if staged-root
+                 (str "Suite artifacts staged for collection (PARALLEL_TEST_RUN_ROOT): " tmp-root)
+                 (str "Keeping suite artifact dirs: " tmp-root)))
       (try
         (artifact-scope/safe-delete! tmp-root run-id)
         (println "Suite artifact dirs cleaned:" tmp-root)

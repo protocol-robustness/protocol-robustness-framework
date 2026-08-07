@@ -183,6 +183,18 @@
     (is (not (:valid? r)))
     (is (some #(re-find #"canonical fixed point" %) (:errors r)))))
 
+(deftest verify-sequence-commitment-classifies-resource-rejection
+  (testing "a commitment that exceeds the decoder's collection-depth is
+            classified as inadmissible (resource policy), not malformed"
+    (let [deep (loop [i 0 v 1] (if (< i 66) (recur (inc i) [v]) v))
+          ba (seq/canonical-sequence-bytes {:purpose :a} [deep])
+          r (seq/verify-sequence-commitment ba)]
+      (is (not (:valid? r)))
+      (is (some #(re-find #"inadmissible under the admission profile" %) (:errors r)))
+      (is (some #(re-find #"limit-exceeded" %) (:errors r)))
+      (is (not-any? #(re-find #"decode failed" %) (:errors r))
+          "resource rejection must not be misreported as a decode failure"))))
+
 (deftest verify-sequence-commitment-round-trips-hash
   (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1 "x" :k])
         r (seq/verify-sequence-commitment ba)]

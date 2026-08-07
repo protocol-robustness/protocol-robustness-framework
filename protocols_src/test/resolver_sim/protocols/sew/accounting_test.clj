@@ -1993,10 +1993,11 @@
     ;; live sum = 995 (one pending escrow), held = -1 → violation
     (is (not (:holds? (inv/solvency-holds? bad nil))))))
 
-(deftest contract-payout-solvency-is-unverified-without-chain-balance-evidence
+(deftest contract-payout-solvency-is-not-a-silent-pass-without-chain-balance-evidence
   (let [result (inv/contract-payout-solvency? (base-world))]
-    (is (:holds? result))
-    (is (= :unverified (:coverage result)))))
+    (is (:holds? result) "vacuous — nothing evaluated")
+    (is (= :not-evaluated (:status result)) "explicitly not evaluated")
+    (is (= :unavailable (:coverage result)) "coverage unavailable, never verified")))
 
 (deftest contract-payout-solvency-includes-held-claims-and-fees
   (let [world (-> (t/empty-world)
@@ -2008,7 +2009,7 @@
         result (inv/contract-payout-solvency? world)
         violation (first (:violations result))]
     (is (false? (:holds? result)))
-    (is (= :external-balance-snapshot (:coverage result)))
+    (is (= :insufficient (:coverage result)))
     (is (= :contract-payout-shortfall (:type violation)))
     (is (= 150 (:liabilities violation)))
     (is (= 1 (:shortfall violation)))))

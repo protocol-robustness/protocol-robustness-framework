@@ -16,7 +16,8 @@
      :deferred {:max-lineage-round N}
        The highest lineage-round value that may appear on a deferred position.
        Creation rejects when attempted-next-round > max-lineage-round."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ---------------------------------------------------------------------------
 ;; Supported shortfall reasons and their deferred-class mapping
@@ -104,8 +105,8 @@
     :else v))
 
 (defn policy-hash [policy]
-  (str "sha256:" (hc/hash-with-intent {:hash/intent :evidence-record}
-                                      (project-sets (dissoc policy :policy/hash)))))
+  (hash-ref/sha256-ref (hc/hash-with-intent {:hash/intent :evidence-record}
+                                            (project-sets (dissoc policy :policy/hash)))))
 
 (defn- ensure-fields! [policy section]
   (let [actual (get policy section)

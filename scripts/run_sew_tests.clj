@@ -47,6 +47,15 @@
      SEW_TEST_RESULTS_FILE     path to write machine-readable results EDN
      SEW_TEST_LEAK_CHECK=1     verify root registries/artifact dir unchanged
      SEW_TEST_HASH_ARTIFACTS=1 include content hashes in artifact manifests
+     KEEP_TEST_ARTIFACTS=1     preserve the run root even on success (it is
+                               always retained on failure or when any scope
+                               is incomplete)
+     PARALLEL_TEST_RUN_ROOT    stage per-namespace artifact roots under this
+                               directory (instead of <tmp>/sew-run-<run-id>)
+                               for later consolidation.  When set, the run
+                               root is left in place (no auto-cleanup) and is
+                               excluded from the leak tripwire's shared
+                               artifact-dir listing.
 
    Invariants (see scripts/soak_sew_parallel.sh and the audit scripts):
      - Namespace discovery and sequential loading happen before any execution;
@@ -172,6 +181,8 @@
   '#{resolver-sim.protocols.sew.accounting-test
      resolver-sim.protocols.sew.force-authorisation-test
      resolver-sim.protocols.sew.authorised-effect-correlation-test
+     resolver-sim.protocols.sew.idempotence-checklist-test
+     resolver-sim.io.content-addressed-store-test
      resolver-sim.benchmark.game-theory-validation-test
      resolver-sim.benchmark.force-authorised-execution-evidence-v2-test
      resolver-sim.benchmark.sew-pre-application-test})
@@ -210,7 +221,17 @@
     {:reason "fixed /tmp/prf-benchmark-test path (mkdir only)"
      :kind :fixed-path-writes
      :evidence "removal experiment failed the 8-run soak"
-     :remediation "scope paths via artifact root before removal"}})
+     :remediation "scope paths via artifact root before removal"}
+    resolver-sim.protocols.sew.idempotence-checklist-test
+    {:reason "with-redefs on sew/apply-action (static fn); process-global during parallel overlap"
+     :kind :with-redefs-static
+     :evidence "static audit hard hazard (with-redefs) in an isolated-parallel lane"
+     :remediation "make var dynamic + use binding before removal"}
+    resolver-sim.io.content-addressed-store-test
+    {:reason "with-redefs on store/atomic-create! and store/resolve-artifact (static fns)"
+     :kind :with-redefs-static
+     :evidence "static audit hard hazard (with-redefs) in an isolated-parallel lane"
+     :remediation "make vars dynamic + use binding before removal"}})
 
 (defn excluded-set
   "Effective set of namespaces excluded from the parallel lane.  Defaults to
@@ -294,12 +315,22 @@
   (or (System/getenv "PRF_TEST_TMP_ROOT")
       (System/getProperty "java.io.tmpdir")))
 
+(defn- run-root-dir
+  "Root under which per-namespace artifact dirs are created.  When
+   PARALLEL_TEST_RUN_ROOT is set, artifacts are staged directly under it for
+   later consolidation by scripts/evidence/consolidate_test_artifacts.py (no
+   intermediate sew-run-<run-id> dir, no auto-cleanup); otherwise the legacy
+   <tmp>/sew-run-<run-id> root is used."
+  [run-id]
+  (or (System/getenv "PARALLEL_TEST_RUN_ROOT")
+      (str (temp-root) "/sew-run-" run-id)))
+
 (defn make-artifact-dir
-  "Create an isolated artifact dir under the temp root, scoped by run id and
+  "Create an isolated artifact dir under the run root, scoped by run id and
    namespace index to avoid collisions between concurrent processes.  Carries
    an ownership marker so cleanup never deletes an unowned path."
   [run-id idx sym]
-  (let [dir (str (temp-root) "/sew-run-" run-id "/" (format "%03d" idx) "-" (munge (str sym)))]
+  (let [dir (str (run-root-dir run-id) "/" (format "%03d" idx) "-" (munge (str sym)))]
     (artifact-scope/write-owner-marker! dir {:run-id run-id :namespace sym})
     dir))
 
@@ -320,11 +351,20 @@
 
 (defn- artifact-file-listing
   [dir]
-  (when (and dir (.exists (io/file dir)))
-    (->> (file-seq (io/file dir))
-         (filter #(.isFile %))
-         (sort-by #(.getName %))
-         (mapv (fn [f] [(str f) (.length f)])))))
+  (if (and dir (.exists (io/file dir)))
+    (let [staged (some-> (System/getenv "PARALLEL_TEST_RUN_ROOT")
+                         io/file .getCanonicalFile .toPath)]
+      (->> (file-seq (io/file dir))
+           (filter #(.isFile %))
+           ;; Roots staged under PARALLEL_TEST_RUN_ROOT are owned by this run
+           ;; for later collection; exclude them so the leak tripwire only
+           ;; gates on the canonical/shared artifact location.
+           (remove (fn [f]
+                     (and staged
+                          (.startsWith (.toPath (.getCanonicalFile f)) staged))))
+           (sort-by #(.getName %))
+           (mapv (fn [f] [(str f) (.length f)]))))
+    []))
 
 (defn snapshot-default-state
   "Snapshot process-global state before/after an isolated run.
@@ -735,6 +775,7 @@
                  :else
                  (do (println "Unknown group:" group ". Use: unit, scenario, or all")
                      (System/exit 1)))
+        staged-root (System/getenv "PARALLEL_TEST_RUN_ROOT")
         jobs (parse-jobs (apply + (map (comp count second) groups)))]
     (println (str "SEW test mode: " (name mode)
                   "  group: " group
@@ -742,8 +783,11 @@
                   "  jobs: " jobs
                   (when seed (str "  seed: " seed))))
     ;; Ownership marker for the run root (namespace roots carry their own).
-    (artifact-scope/write-owner-marker! (str (temp-root) "/sew-run-" run-id)
-                                        {:run-id run-id :namespace :run-root})
+    ;; Skipped when staging under PARALLEL_TEST_RUN_ROOT so the collector sees
+    ;; the per-namespace roots (not the run root) as producers.
+    (when-not staged-root
+      (artifact-scope/write-owner-marker! (run-root-dir run-id)
+                                          {:run-id run-id :namespace :run-root}))
     ;; Load namespaces sequentially first (root-level side effects are
     ;; legitimate here), THEN snapshot default state so the leak tripwire only
     ;; sees test-execution-time changes to root registries/artifact locations.
@@ -754,20 +798,35 @@
           group-results (mapv (fn [[label syms g]]
                                 (run-group label syms g mode run-id jobs timeout-ms seed))
                               groups)
-          _ (when (= "1" (System/getenv "SEW_TEST_CLEANUP_RUN"))
-              ;; Guarded cleanup: delete the run root only if every scope is
-              ;; complete and the ownership marker matches this run id.
-              (let [all-complete? (every? (fn [gr]
-                                            (every? #(= :complete (:scope-status %))
-                                                    (:per-ns gr)))
-                                          group-results)]
-                (if all-complete?
-                  (try
-                    (artifact-scope/safe-delete! (str (temp-root) "/sew-run-" run-id) run-id)
-                    (println "\nrun root cleaned (all scopes complete):"
-                             (str (temp-root) "/sew-run-" run-id))
-                    (catch Throwable e
-                      (println "WARN: run-root cleanup skipped:" (.getMessage e))))
-                  (println "\nrun root retained (incomplete scopes):"
-                           (str (temp-root) "/sew-run-" run-id)))))]
+          run-root (run-root-dir run-id)
+          all-complete? (every? (fn [gr]
+                                  (every? #(= :complete (:scope-status %))
+                                          (:per-ns gr)))
+                                group-results)
+          run-failed? (pos? (apply + (map (fn [gr]
+                                            (apply + (map #(+ (:failures %) (:errors %))
+                                                          (:per-ns gr))))
+                                          group-results)))
+          keep-flag? (some? (System/getenv "KEEP_TEST_ARTIFACTS"))
+          ;; Unified cleanup convention (KEEP_TEST_ARTIFACTS, mirroring
+          ;; parallel-test-runner / parallel-suite-runner): delete the run root
+          ;; on success unless the keep flag is set; always retain it on failure
+          ;; or when any scope is incomplete.  Staged roots (PARALLEL_TEST_RUN_ROOT)
+          ;; are always left in place for the collector.  Deletion is guarded by
+          ;; the ownership marker (safe-delete! verifies it matches this run id).
+          keep? (or staged-root keep-flag? run-failed? (not all-complete?))
+          _ (if keep?
+              (println (str "\nrun root "
+                            (if staged-root
+                              (str "staged for collection (PARALLEL_TEST_RUN_ROOT): " run-root)
+                              (str "retained ("
+                                   (cond keep-flag? "KEEP_TEST_ARTIFACTS set"
+                                         run-failed? "test failures/errors"
+                                         :else "incomplete scopes")
+                                   "): " run-root))))
+              (try
+                (artifact-scope/safe-delete! run-root run-id)
+                (println "\nrun root cleaned (all scopes complete):" run-root)
+                (catch Throwable e
+                  (println "WARN: run-root cleanup skipped:" (.getMessage e)))))]
       (finalize group-results mode run-id seed jobs leak? pre leak-failed-atom))))

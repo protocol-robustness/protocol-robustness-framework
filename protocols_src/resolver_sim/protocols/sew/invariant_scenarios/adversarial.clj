@@ -637,7 +637,7 @@
 ;;
 ;; Invariants exercised:
 ;;   escalation-level-monotonic?   — wf0 level 0→1; wf1 level never changes
-;;   solvency-holds?               — two escrows tracked independently at each step
+;;   held-custody-reconciles?               — two escrows tracked independently at each step
 ;;   conservation-of-funds?        — (wf0 AFA refunded) + (wf1 AFA released) = total deposited AFA
 ;;   fee-cap-holds?                — separate fee-cap checks for each escrow
 ;;   terminal-states-unchanged?    — both escrows stay in their terminal state
@@ -932,7 +932,7 @@
 ;;
 ;; Invariants exercised:
 ;;   slash-status-consistent?    — wf0: pending→appealed→reversed; wf1: pending→executed
-;;   solvency-holds?             — two escrows tracked independently
+;;   held-custody-reconciles?             — two escrows tracked independently
 ;;   conservation-of-funds?      — (wf0 AFA + wf1 AFA) released = total deposited AFA
 ;;   appeal-bond-conserved?      — wf0 bond intact after reversal; wf1 has no bond
 ;;   terminal-states-unchanged?  — both escrows stay :released
@@ -1009,7 +1009,7 @@
 ;;
 ;; Invariants exercised:
 ;;   resolver-bond-mix-valid?  — 8000 stable + 2000 Sew = exactly 80/20
-;;   solvency-holds?           — full dispute with appeal window
+;;   held-custody-reconciles?           — full dispute with appeal window
 ;;   conservation-of-funds?   — AFA released; resolver stake intact
 ;; ---------------------------------------------------------------------------
 
@@ -1127,7 +1127,7 @@
 ;; Invariants exercised:
 ;;   reversal-slash-disabled?    — no reversal slash entry has amount > 0
 ;;   escalation-level-monotonic? — level grows 0 → 1 after challenge
-;;   solvency-holds?             — full lifecycle through L1 decision + settlement
+;;   held-custody-reconciles?             — full lifecycle through L1 decision + settlement
 ;; ---------------------------------------------------------------------------
 
 (def s41
@@ -1236,7 +1236,7 @@
 ;;
 ;; Expected: PASS (demonstrates the vulnerability).
 ;; Invariants exercised:
-;;   solvency-holds?           — total-held tracks the withdrawal correctly.
+;;   held-custody-reconciles?           — total-held tracks the withdrawal correctly.
 ;;   conservation-of-funds?    — funds accounted for after the simulation.
 ;; ---------------------------------------------------------------------------
 

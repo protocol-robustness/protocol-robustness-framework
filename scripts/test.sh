@@ -23,6 +23,12 @@
 # artifact subdir. PARALLEL_TARGET_JOBS (default 4) caps concurrent targets.
 #   PARALLEL_TARGETS=1 PARALLEL_TARGET_JOBS=8 ./scripts/test.sh ci
 #
+# Artifact consolidation: after targets and the summary step complete, a
+# unified results/test-artifacts/test-artifacts.json registry + test-run.json
+# are emitted by scripts/evidence/consolidate_test_artifacts.py (non-blocking).
+# In PARALLEL_TARGETS mode each target dir is staged via PARALLEL_TEST_RUN_ROOT
+# so per-namespace/per-suite roots are merged into the canonical registry.
+#
 # The parallel namespace runner (scripts/parallel-test-runner.clj) keeps
 # audit-flagged namespaces in a sequential safety lane by default (and runs
 # them strictly before the pool). Override via PARALLEL_TEST_EXCLUDE_NS (e.g.
@@ -117,7 +123,7 @@ parse_progress() {
   # Determine total tests dynamically if known
   local total=""
   case "$target" in
-    unit) total=313 ;;
+    unit) total=315 ;;
     suites) total=94 ;;
     dr3-coverage) total=15 ;;
     reference-validation) total=8 ;;
@@ -249,6 +255,9 @@ run_targets_parallel() {
     (
       ARTIFACT_DIR="$tdir"
       PRF_ARTIFACT_DIR="$tdir"
+      # Stage per-namespace/per-suite artifact roots under the target dir so the
+      # consolidation step can merge them (see collect_artifacts).
+      PARALLEL_TEST_RUN_ROOT="$tdir"
       run_target "$target" "$func" >"${ARTIFACT_DIR}/.parallel-${target}.log" 2>&1
       echo "$?" >> "$resfile"
     ) &
@@ -313,6 +322,8 @@ run_unit() {
     resolver-sim.benchmark.packs.partial-fill.evidence-test \
     resolver-sim.benchmark.researcher-decision-v2-test \
     resolver-sim.benchmark.decision-subject-test \
+    resolver-sim.benchmark.review-aggregate-check-test \
+    resolver-sim.allocation.claim-consumption-receipt-test \
     resolver-sim.assurance.custody-summary-test \
     resolver-sim.assurance.three-member-authority-test \
     resolver-sim.assurance.cancellation-gates-test \
@@ -335,6 +346,26 @@ run_unit() {
     resolver-sim.evidence.commitment-root-test \
     resolver-sim.evidence.finalization-test \
     resolver-sim.evidence.qol-test
+  return $?
+}
+
+run_lab() {
+  require_clojure || return $?
+  echo "Running Assurance Lab tests (registry, validation, security, execution)..."
+  clojure -M:test:with-sew -e "
+(require '[clojure.test]
+         'resolver-sim.lab.registry-test
+         'resolver-sim.lab.validation-test
+         'resolver-sim.lab.security-test
+         'resolver-sim.lab.runner-test
+         'resolver-sim.lab.isolation-test)
+(let [r (clojure.test/run-tests
+         'resolver-sim.lab.registry-test
+         'resolver-sim.lab.validation-test
+         'resolver-sim.lab.security-test
+         'resolver-sim.lab.runner-test
+         'resolver-sim.lab.isolation-test)]
+  (System/exit (if (and (zero? (:fail r)) (zero? (:error r))) 0 1)))"
   return $?
 }
 
@@ -900,6 +931,45 @@ run_outcome_classification_report() {
   return $?
 }
 
+# Consolidate test artifacts into a unified test-artifacts.json registry after
+# the summary step (which writes test-summary.json + test-run.json).
+#
+#   - PARALLEL_TARGETS mode: each target dir under $ARTIFACT_DIR/targets/ is a
+#     producer container (staged per-namespace/per-suite roots are discovered).
+#   - otherwise: only the canonical artifact dir's own config files are
+#     registered (the summary files plus any target outputs written there).
+#
+# Best-effort and non-blocking: a consolidation failure is reported but does
+# not change the test.sh exit code (mirrors bb validation:artifact-registry).
+collect_artifacts() {
+  [ -f "scripts/evidence/consolidate_test_artifacts.py" ] || return 0
+  local -a producers=()
+  if [ "$PARALLEL_TARGETS" = "1" ] && compgen -G "$ARTIFACT_DIR/targets/*/" >/dev/null 2>&1; then
+    local t
+    for t in "$ARTIFACT_DIR"/targets/*/; do
+      producers+=("$t")
+    done
+  fi
+  echo ""
+  echo "  [$(date +%H:%M:%S)] Consolidating test artifacts → $ARTIFACT_REGISTRY_FILE"
+  local -a args=(--run-root "$ARTIFACT_DIR" --run-id "$RUN_ID")
+  if [ ${#producers[@]} -gt 0 ]; then
+    # --allow-loose: target dirs that write top-level config files without
+    # staging marked subdirs (invariants, coverage, ...) are treated as loose
+    # producers; dirs with marked subdirs (unit, generators, suites) are
+    # treated as containers.
+    args+=(--producer-roots "${producers[@]}" --allow-loose)
+  fi
+  if ! python3 scripts/evidence/consolidate_test_artifacts.py "${args[@]}"; then
+    echo "  WARN: artifact consolidation failed (non-blocking); test-artifacts.json may be absent or partial." >&2
+    return 0
+  fi
+  echo "  [$(date +%H:%M:%S)] ✓ $ARTIFACT_REGISTRY_FILE"
+  # Touch notebooks/report.clj so Clerk re-evaluates on the new registry.
+  touch -m "notebooks/report.clj" 2>/dev/null || true
+  return 0
+}
+
 print_target_summary() {
   local elapsed_seconds=$(( $(date +%s) - RUN_STARTED_AT ))
   echo "  Elapsed: ${elapsed_seconds}s"
@@ -916,6 +986,9 @@ print_target_summary() {
 case "$MODE" in
   unit)
     run_unit || FAILURES=$((FAILURES + 1))
+    ;;
+  lab)
+    run_target lab run_lab || FAILURES=$((FAILURES + 1))
     ;;
   framework)
     run_framework || FAILURES=$((FAILURES + 1))
@@ -991,6 +1064,7 @@ case "$MODE" in
           "monte-carlo:run_monte_carlo" \
           "suites:run_suites" \
           "unit:run_unit" \
+          "lab:run_lab" \
           "generators:run_generators" \
           "invariants:run_invariants" \
           "contracts:run_contracts" \
@@ -1001,6 +1075,8 @@ case "$MODE" in
         run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
       else
         run_target unit run_unit || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target lab run_lab || FAILURES=$((FAILURES + 1))
         echo ""
         run_target generators run_generators || FAILURES=$((FAILURES + 1))
         echo ""
@@ -1075,6 +1151,7 @@ case "$MODE" in
           "monte-carlo:run_monte_carlo" \
           "suites:run_suites" \
           "unit:run_unit" \
+          "lab:run_lab" \
           "generators:run_generators" \
           "invariants:run_invariants" \
           "contracts:run_contracts"
@@ -1083,6 +1160,8 @@ case "$MODE" in
         run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
       else
         run_target unit run_unit || FAILURES=$((FAILURES + 1))
+        echo ""
+        run_target lab run_lab || FAILURES=$((FAILURES + 1))
         echo ""
         run_target generators run_generators || FAILURES=$((FAILURES + 1))
         echo ""
@@ -1106,10 +1185,8 @@ case "$MODE" in
       echo "  Duration: < 2 minutes (target)"
       if [ $FAILURES -gt 0 ]; then
         echo "  Exit code: 1 (failures detected)"
-        exit 1
       else
         echo "  Exit code: 0 (all passed)"
-        exit 0
       fi
       ;;
 
@@ -1130,10 +1207,8 @@ case "$MODE" in
       echo "  Duration: > 60 seconds each (expected)"
       if [ $FAILURES -gt 0 ]; then
         echo "  Exit code: 1 (failures detected)"
-        exit 1
       else
         echo "  Exit code: 0 (all passed)"
-        exit 0
       fi
       ;;
   *)
@@ -1154,6 +1229,9 @@ if [ -f scripts/evidence/generate_test_summary.py ]; then
     "$ARTIFACT_REGISTRY_FILE" \
     "$CLAIMABLE_CLASSIFICATION_FILE"
 fi
+
+# Build the unified test-artifacts.json registry (non-blocking).
+collect_artifacts
 
 # The outcome classification report reads test-summary.json, so it must run
 # after generate_test_summary.py has written it (not inside the case block).

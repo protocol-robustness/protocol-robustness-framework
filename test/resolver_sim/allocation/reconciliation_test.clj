@@ -54,11 +54,13 @@
       (is (false? (:ok? r)))
       (is (= :result-award-mismatch (:reason r)) (pr-str r))
       (is (= "A" (get-in r [:detail :claim/id])))))
-  (testing "swapped leaves (A<->B) fail the per-award correspondence"
+  (testing "swapped allocations (A<->B) fail the per-award correspondence"
     (let [parts (happy-parts)
           by-id (into {} (map (juxt :claim/id identity)) (:leaves parts))
-          swapped [(assoc (get by-id "A") :claim/id "B")
-                   (assoc (get by-id "B") :claim/id "A")
+          ;; Re-label A<->B but keep canonical order so the per-award check,
+          ;; not the order check, is what rejects.
+          swapped [(assoc (get by-id "B") :claim/id "A")
+                   (assoc (get by-id "A") :claim/id "B")
                    (get by-id "C")]
           r (reconciliation/reconcile (reconcile-opts parts :leaves swapped))]
       (is (false? (:ok? r)))
@@ -105,6 +107,44 @@
     (let [parts (happy-parts)
           r (reconciliation/reconcile (reconcile-opts parts :rounding-policy "bogus.v9"))]
       (is (= :result-rounding-rule-mismatch (:reason r))))))
+
+(deftest leaf-order-negative-and-status-reasons
+  (testing "reordered leaves (ids intact) is :result-leaf-order-mismatch"
+    (let [parts (happy-parts)
+          reordered (vec (reverse (:leaves parts)))
+          r (reconciliation/reconcile (reconcile-opts parts :leaves reordered))]
+      (is (false? (:ok? r)))
+      (is (= :result-leaf-order-mismatch (:reason r)) (pr-str r))
+      (is (= (mapv :claim/id reordered)
+             (get-in r [:detail :leaf-order])))))
+  (testing "a negative leaf allocation is :result-negative-award"
+    (let [parts (happy-parts)
+          leaves (mapv (fn [leaf]
+                         (if (= "A" (:claim/id leaf))
+                           (assoc leaf :final-allocation -5)
+                           leaf))
+                       (:leaves parts))
+          r (reconciliation/reconcile (reconcile-opts parts :leaves leaves))]
+      (is (false? (:ok? r)))
+      (is (= :result-negative-award (:reason r)) (pr-str r))
+      (is (= "A" (get-in r [:detail :negative-leaf :claim/id])))))
+  (testing "status contradicting allocation is :result-status-mismatch"
+    (let [parts (happy-parts)
+          selected (assoc (:selected-outcome parts)
+                          :allocations [{:claim/id "A" :allocated 50}
+                                        {:claim/id "B" :allocated 0}
+                                        {:claim/id "C" :allocated 0}])
+          leaves (kernel/result-leaves (:context parts) selected
+                                       (:allocation-context-hash (:result parts)))
+          leaves (mapv (fn [leaf]
+                         (if (= "A" (:claim/id leaf))
+                           (assoc leaf :result-status "not-allocated")
+                           leaf))
+                       leaves)
+          r (reconciliation/reconcile (reconcile-opts parts :selected-outcome selected :leaves leaves))]
+      (is (false? (:ok? r)))
+      (is (= :result-status-mismatch (:reason r)) (pr-str r))
+      (is (= "A" (get-in r [:detail :claim/id]))))))
 
 (deftest kernel-surface-fails-specific-reason
   (testing "an unsupported rounding policy makes the public claim fail end-to-end"

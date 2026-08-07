@@ -13,7 +13,8 @@
    layer). Input ordering never changes the classification."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
-            [resolver-sim.assurance.canonical-force-authorisation :as cfa]))
+            [resolver-sim.assurance.canonical-force-authorisation :as cfa]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Decision scope and equivocation key
@@ -29,12 +30,12 @@
    legacy positions embed no authorisation/id, so their derived scope is weaker
    (:outcome-binding-unavailable)."
   [position authorisation-id]
-  (str "sha256:"
-       (hc/domain-hash :researcher-decision-scope
-                       {:authorisation/id (or (:authorisation/id position)
-                                              authorisation-id)
-                        :review-round/hash (:review-round/hash position)
-                        :authorisation/request-root (:authorisation/request-root position)})))
+  (hash-ref/sha256-ref
+   (hc/domain-hash :researcher-decision-scope
+                   {:authorisation/id (or (:authorisation/id position)
+                                          authorisation-id)
+                    :review-round/hash (:review-round/hash position)
+                    :authorisation/request-root (:authorisation/request-root position)})))
 
 (defn equivocation-key
   "The semantic equivocation key:
@@ -356,8 +357,8 @@
    the classification into a consumer artifact so it can be recomputed and
    compared, rather than trusted from storage."
   [report]
-  (str "sha256:" (hc/domain-hash :three-member-authority-report
-                                 (dissoc report :authority/report-root))))
+  (hash-ref/sha256-ref (hc/domain-hash :three-member-authority-report
+                                       (dissoc report :authority/report-root))))
 
 (defn recompute-authority-report
   "The trusted recomputation path for a consumer: re-evaluate the authority

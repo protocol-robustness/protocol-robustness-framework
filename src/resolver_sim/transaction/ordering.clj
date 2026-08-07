@@ -22,7 +22,8 @@
    hash itself). The transaction ordering therefore commits the chain-state
    transition; a signed attempt receipt commits the resulting ordering hash;
    the ordering never commits the receipt artifact."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ordering-schema "transaction-ordering.v1")
 (def ordering-domain "prf.transaction-ordering.v1")
@@ -35,7 +36,7 @@
 (defn ordering-hash
   "Content-derived identity of a transaction-ordering record."
   [ordering]
-  (str "sha256:" (hc/domain-hash ordering-domain (unsigned-ordering-projection ordering))))
+  (hash-ref/sha256-ref (hc/domain-hash ordering-domain (unsigned-ordering-projection ordering))))
 
 (defn transaction-ordering
   "Build a transaction-ordering record from authoritative inputs and attach its

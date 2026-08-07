@@ -21,7 +21,8 @@
      - ownership markers: run roots and namespace roots carry an _owner.edn
        marker; cleanup refuses to delete anything that does not carry a valid
        marker for the expected run id."
-  (:require [clojure.edn :as edn]
+  (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :as t]))
@@ -178,6 +179,55 @@
       (let [result (f)]
         [result scope]))))
 
+(defn- manifest-key-str
+  "Stringify a keyword/symbol/string for JSON manifest keys.  Drops the
+   leading colon of keywords; keeps namespaced ids (:ns/id -> \"ns/id\")."
+  [x]
+  (cond
+    (keyword? x) (subs (str x) 1)
+    (symbol? x)  (str x)
+    (string? x)  x
+    :else        (str x)))
+
+(defn write-manifest-json!
+  "Write the scope manifest as ``<namespace-root>/_manifest.json`` in JSON.
+
+   This is the machine-readable per-producer manifest consumed by
+   ``scripts/evidence/consolidate_test_artifacts.py``.  It records the run id,
+   namespace, scope id, scope status, and every artifact published through
+   ``write!`` (logical id, relative path, kind, content hash, size).
+
+   Written atomically (temp sibling + rename) so a concurrent collector never
+   observes a partial file.  Best-effort: a failed write is reported to *out*
+   but never fails the run.  ``_manifest.json`` is excluded from the finalize
+   undeclared/temporary file findings."
+  [scope manifest]
+  (let [s @scope
+        root (:namespace-root s)
+        tmp (io/file root "._manifest.json.tmp")
+        dst (io/file root "_manifest.json")]
+    (try
+      (.mkdirs (io/file root))
+      (let [payload {:run-id (:run-id s)
+                     :namespace (manifest-key-str (:namespace s))
+                     :scope-id (:scope-id s)
+                     :scope-status (manifest-key-str (:scope-status manifest))
+                     :artifacts (mapv (fn [a]
+                                        {:logical-id (manifest-key-str (:logical-id a))
+                                         :relative-path (:relative-path a)
+                                         :kind (when (:kind a)
+                                                 (manifest-key-str (:kind a)))
+                                         :content-hash (:content-hash a)
+                                         :size (:size a)})
+                                      (:artifacts manifest []))}]
+        (spit tmp (json/write-str payload {:indent 2}))
+        (java.nio.file.Files/move (.toPath tmp) (.toPath dst)
+                                  (into-array java.nio.file.CopyOption
+                                              [java.nio.file.StandardCopyOption/REPLACE_EXISTING])))
+      (catch Throwable t
+        (.delete tmp)
+        (println "WARN: write-manifest-json! failed:" (.getMessage t))))))
+
 (defn- file-relatives
   "Relative paths (normalised to / separators, no leading slash) of every file
    beneath root."
@@ -213,9 +263,10 @@
          declared (mapv :relative-path (:artifacts s))
          declared-set (set declared)
          observed (file-relatives root)
-          undeclared (vec (sort (remove #(or (declared-set %)
-                                             (= % "_owner.edn"))
-                                        observed)))
+         undeclared (vec (sort (remove #(or (declared-set %)
+                                             (= % "_owner.edn")
+                                             (= % "_manifest.json"))
+                                       observed)))
          declared-but-missing (vec (sort (remove (set observed) declared)))
          tmp-files (vec (filter #(str/starts-with? (.getName (io/file (str root "/" %)))
                                                    ".tmp-") undeclared))
@@ -258,7 +309,8 @@
                     :duplicate-logical-ids dup-ids
                     :temporary-files tmp-files
                     :undeclared-files undeclared
-                    :problems hard-problems}]
+                    :problems hard-problems}
+          _ (write-manifest-json! scope manifest)]
       (if (seq hard-problems)
         (do (swap! scope assoc :status :incomplete)
             (throw (ex-info "artifact scope verification failed"
@@ -278,6 +330,7 @@
                   :artifacts (vec (:artifacts s))
                   :problems [{:type :scope-incomplete}]}]
     (swap! scope assoc :status :incomplete)
+    (write-manifest-json! scope manifest)
     manifest))
 
 (defn write-owner-marker!

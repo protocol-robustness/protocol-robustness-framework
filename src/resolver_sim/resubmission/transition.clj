@@ -31,9 +31,11 @@
      2. same idempotency key + different content   -> :rejected :idempotency-content-mismatch
      3. already-observed identical content         -> :rejected :duplicate-content-submission
      4. transplant detection                       -> :rejected :idempotency-key-rebound
-     5. parent / disposition eligibility           -> :rejected :previous-not-found /
-                                                        :parent-rejection-not-final /
-                                                        :parent-rejection-not-resubmittable
+      5. parent / disposition eligibility           -> :rejected :previous-not-found /
+                                                         :parent-rejection-not-final /
+                                                         :parent-not-rejected /
+                                                         :parent-not-resubmittable /
+                                                         :parent-attempt-withdrawn
      6. current-head check                         -> :rejected :parent-not-current-head
       7. successor existence                        -> :rejected :parent-already-has-successor
       8. sequence validation                        -> :rejected :sequence-gap / :sequence-regression
@@ -42,7 +44,8 @@
       9b. cycle validation                          -> :rejected :cycle-detected
       10. commit contention (expected chain version)-> :rejected :commit-contention"
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.resubmission.receipt :as receipt]))
+            [resolver-sim.resubmission.receipt :as receipt]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (declare commit-admit)
 
@@ -87,12 +90,12 @@
 (defn state-root
   "Domain-separated state root (stable across :transaction/last-hash)."
   [state]
-  (str "sha256:" (hc/domain-hash state-domain (chain-state-projection state))))
+  (hash-ref/sha256-ref (hc/domain-hash state-domain (chain-state-projection state))))
 
 (defn effects-root
   "Domain-separated root over the emitted effects vector."
   [effects]
-  (str "sha256:" (hc/domain-hash effects-domain (vec effects))))
+  (hash-ref/sha256-ref (hc/domain-hash effects-domain (vec effects))))
 
 (defn effective-disposition
   "Effective lifecycle status of a receipt from the disposition index (default
@@ -194,7 +197,11 @@
       {:status :rejected :reason :parent-rejection-not-final}
 
       (not (receipt-eligible-parent? parent-entry))
-      {:status :rejected :reason :parent-rejection-not-resubmittable}
+      (let [parent-receipt (:attempt-receipt parent-entry)
+            mismatch (receipt/resubmission-parent-requirement-mismatch parent-receipt)]
+        {:status :rejected
+         :reason (or mismatch :parent-rejection-not-resubmittable)
+         :public-result {:parent-mismatch mismatch}})
 
       ;; 6. current-head
       (not= parent-receipt-hash (:chain/head state))

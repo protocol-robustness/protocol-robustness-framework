@@ -10,6 +10,11 @@
         (map (fn [t] (if (keyword? t) (name t) (str t)))
              (concat (:threat-tags scenario) (:threat_tags scenario)))))
 
+(def ^:private negative-yield-spellings
+  "Failure-mode vocabulary for negative-yield stress, keyword and string
+   spellings. A mode is a negative-yield mode when its spelling is in this set."
+  #{:negative-yield "negative-yield"})
+
 (defn negative-yield-tagged?
   [scenario]
   (contains? (threat-tags scenario) "negative-yield"))
@@ -17,7 +22,7 @@
 (defn- failure-modes-include-negative-yield?
   [modes]
   (when (seq modes)
-    (some #{:negative-yield "negative-yield"} modes)))
+    (some negative-yield-spellings modes)))
 
 (defn- token-config-has-negative-yield? [token-cfg]
   (failure-modes-include-negative-yield?

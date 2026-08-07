@@ -105,8 +105,8 @@
       (let [decision-valid?
             (every? (fn [decision]
                       (let [base (dissoc decision :decision/id :decision/hash)
-                            expected-hash (str "sha256:"
-                                               (canonical/hash-with-intent {:hash/intent :evidence-record} base))
+                            expected-hash (hash-ref/sha256-ref
+                                           (canonical/hash-with-intent {:hash/intent :evidence-record} base))
                             projection (get by-id (:decision/id decision))
                             closed-form (try
                                           (partial-fill/partial-fill-closed-form-checks decision)

@@ -71,7 +71,19 @@
                "MARGINAL: Weak incentive"
 
                :else
-               "STRONG_PARTICIPATION: Good incentive")}))
+               "STRONG_PARTICIPATION: Good incentive")
+     :liveness/risk (cond
+                      (< net-surplus (- 0 (* dispute-reward 0.5)))
+                      :liveness/strong-exit
+
+                      (< net-surplus 0)
+                      :liveness/marginal
+
+                      (< net-surplus (* dispute-reward 0.2))
+                      :liveness/marginal-incentive
+
+                      :else
+                      :liveness/strong-participation)}))
 
 (defn boredom-threshold
   "Model juror dropout when cases are boring/trivial.
@@ -117,7 +129,12 @@
                  (> dropout-risk 0.8) "CRITICAL: Likely exit"
                  (> dropout-risk 0.5) "SERIOUS: Significant exit risk"
                  (> dropout-risk 0.2) "CAUTION: Some dropout expected"
-                 :else "STABLE: Low dropout")})))
+                 :else "STABLE: Low dropout")
+      :liveness/risk (cond
+                       (> dropout-risk 0.8) :liveness/critical-exit-risk
+                       (> dropout-risk 0.5) :liveness/serious-exit-risk
+                       (> dropout-risk 0.2) :liveness/caution-dropout
+                       :else :liveness/low-dropout)})))
 
 (defn adverse-selection-effect
   "Model adverse selection: Only risk-seeking resolvers remain.
@@ -182,7 +199,20 @@
                      (< remaining-total 3) "CRITICAL: Pool too small"
                      (> new-seeking-fraction 0.7) "HIGH: Biased toward aggressive"
                      (> new-seeking-fraction 0.5) "MODERATE: Some bias"
-                     :else "STABLE: Balanced pool")}))
+                     :else "STABLE: Balanced pool")
+     :liveness/risk (cond
+                      (< remaining-total 3) :liveness/critical-pool-too-small
+                      (> new-seeking-fraction 0.7) :liveness/high-aggressive-bias
+                      (> new-seeking-fraction 0.5) :liveness/moderate-bias
+                      :else :liveness/stable-balanced-pool)}))
+
+(def ^:const saturation-queue-days
+  "Model boundary at which the M/M/c queue approximation is considered
+   saturated.  This is a MODEL/policy boundary (the :else branch of the wait
+   ladder), not an implementation safety cap.  queue-wait-days is clamped here
+   for the bounded display/model value; the uncapped :utilization is retained
+   alongside so severity above the boundary is not lost from evidence."
+  30)
 
 (defn latency-sensitivity
   "Model user dropout due to slow decision-making.
@@ -198,24 +228,33 @@
    - time-per-dispute: Hours per resolution
    - user-patience-threshold: Max days acceptable
    
-   Returns: User retention and volume impact"
+   Returns: User retention and volume impact.
+
+   Structured fields for machine-readable evidence:
+     :liveness/risk        — namespaced severity keyword (see check fns).
+     :liveness/wait-capped?— true when queue-wait-days hit saturation-queue-days
+                              (the saturation boundary), i.e. utilization >= 1.0.
+     :utilization          — the UNCAPPED continuous signal; retained so wait
+                              clamping never destroys severity information."
   [dispute-volume resolvers-available time-per-dispute user-patience-threshold]
 
   (let [; Queue model: Average wait time
         resolving-capacity (* resolvers-available 40 7)  ; 40 hours/week per resolver
         resolving-hours-per-week (* dispute-volume time-per-dispute)
 
-        ; Utilization
+        ; Utilization (uncapped — this is the evidence-grade signal)
         utilization (/ resolving-hours-per-week resolving-capacity)
 
-        ; Average wait time (M/M/c queue approximation)
-        ; When ρ > 0.8, queues explode
+        ; Average wait time (M/M/c queue approximation), clamped at the
+        ; saturation boundary.  When ρ >= 1.0 the queue is saturated.
         queue-wait-days (cond
                           (< utilization 0.5) 1.0
                           (< utilization 0.7) 3.0
                           (< utilization 0.9) 7.0
                           (< utilization 1.0) 14.0
-                          :else 30.0)  ; System saturated
+                          :else saturation-queue-days)
+
+        wait-capped? (>= utilization 1.0)
 
         ; User patience: Will they accept this wait?
         user-acceptable-wait user-patience-threshold
@@ -244,10 +283,17 @@
      :user-retention-rate user-retention-rate
      :retained-volume retained-volume
      :spiral-effect spiral-effect
+     :liveness/wait-capped? wait-capped?
+     :liveness/risk (cond
+                      (>= queue-wait-days saturation-queue-days) :liveness/system-saturated
+                      (>= queue-wait-days 14) :liveness/severe-users-leaving
+                      (>= queue-wait-days 7) :liveness/serious-latency
+                      :else :liveness/within-tolerance)
+     :liveness/spiral-risk? (= "SPIRAL_RISK: May accelerate" spiral-effect)
      :verdict (cond
-                (> queue-wait-days 30) "CRITICAL: System broken"
-                (> queue-wait-days 14) "SEVERE: Users leaving"
-                (> queue-wait-days 7) "SERIOUS: Latency problem"
+                (>= queue-wait-days saturation-queue-days) "CRITICAL: System broken"
+                (>= queue-wait-days 14) "SEVERE: Users leaving"
+                (>= queue-wait-days 7) "SERIOUS: Latency problem"
                 :else "OK: Within tolerance")}))
 
 (defn participation-spiral
@@ -319,7 +365,12 @@
                                  (< new-resolvers 3) "CRITICAL: Pool too small"
                                  (> utilization 1.0) "SATURATED"
                                  (< new-volume (/ initial-volume 2)) "DECLINING"
-                                 :else "NORMAL")}]
+                                 :else "NORMAL")
+                       :liveness/risk (cond
+                                        (< new-resolvers 3) :liveness/critical-pool-too-small
+                                        (> utilization 1.0) :liveness/saturated
+                                        (< new-volume (/ initial-volume 2)) :liveness/declining
+                                        :else :liveness/normal)}]
 
         (recur (inc week)
                new-resolvers
@@ -370,6 +421,18 @@
      :safety-fraction safety-fraction
      :can-lose-resolvers can-lose
      :attrition-tolerance attrition-tolerance
+     :liveness/risk (cond
+                      (< current-resolvers min-resolvers-needed)
+                      :liveness/below-minimum-viable
+
+                      (< safety-fraction 0.2)
+                      :liveness/danger-low-safety-margin
+
+                      (< safety-fraction 0.5)
+                      :liveness/caution-moderate-margin
+
+                      :else
+                      :liveness/safe-healthy-margin)
      :status (cond
                (< current-resolvers min-resolvers-needed)
                "CRITICAL: Below minimum viable"
@@ -382,3 +445,167 @@
 
                :else
                "SAFE: Healthy margin")}))
+
+;; ===========================================================================
+;; Liveness aggregate checks ("revealing" discipline)
+;;
+;; Follow the review-aggregate-check pattern: each check returns a structured
+;; {:holds? bool :violations [{:kind ns-keyword :<detail> ...} ...]} so every
+;; liveness risk is machine-readable, namespaced, and test-covered.  The string
+;; verdicts above remain for humans; these checks are what consumers (and
+;; reveal-* tests) should rely on.
+;; ===========================================================================
+
+(defn check-latency-sensitivity
+  "Reveal liveness violations from a latency-sensitivity result.
+
+   Violations (namespaced :kind):
+     ::spiral-risk        — user retention below 70%; the reflexive spiral
+                             is flagged as may-accelerate.
+     ::system-saturated   — the queue hit the saturation boundary
+                             (:liveness/wait-capped?, i.e. utilization >= 1.0).
+                             Driven off the model's own flag, never a
+                             re-hardcoded constant.
+     ::severe-user-exits  — queue wait at or above 14 days.
+     ::serious-latency    — queue wait at or above 7 days.
+
+   Returns {:holds? bool :violations [...]}."
+  [r]
+  (let [violations (cond-> []
+                     (:liveness/spiral-risk? r)
+                     (conj {:kind ::spiral-risk
+                            :user-retention-rate (:user-retention-rate r)
+                            :queue-wait-days (:queue-wait-days r)})
+                     (:liveness/wait-capped? r)
+                     (conj {:kind ::system-saturated
+                            :queue-wait-days (:queue-wait-days r)
+                            :utilization (:utilization r)})
+                     (>= (:queue-wait-days r) 14)
+                     (conj {:kind ::severe-user-exits
+                            :queue-wait-days (:queue-wait-days r)})
+                     (>= (:queue-wait-days r) 7)
+                     (conj {:kind ::serious-latency
+                            :queue-wait-days (:queue-wait-days r)}))]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
+
+(defn check-participation-spiral
+  "Reveal liveness violations from a participation-spiral trajectory (history).
+
+   Any week in which the resolver pool drops below 3, the system saturates, or
+   volume halves is surfaced as a violation:
+     ::critical-pool-too-small
+     ::saturated-week
+     ::declining-volume
+
+   Returns {:holds? bool :violations [...]}."
+  [history]
+  (let [violations
+        (into []
+              (keep (fn [entry]
+                      (cond
+                        (< (:new-resolvers entry) 3)
+                        {:kind ::critical-pool-too-small
+                         :week (:week entry)
+                         :resolvers (:new-resolvers entry)}
+
+                        (> (:utilization entry) 1.0)
+                        {:kind ::saturated-week
+                         :week (:week entry)
+                         :utilization (:utilization entry)}
+
+                        (< (:new-volume entry) (:volume entry))
+                        {:kind ::declining-volume
+                         :week (:week entry)
+                         :volume (:new-volume entry)})))
+              history)]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
+
+(defn check-critical-mass
+  "Reveal critical-mass violations from a critical-mass-threshold result.
+
+     ::below-minimum-viable  — current resolvers below the minimum.
+     ::danger-low-margin     — safety fraction below 20%.
+     ::caution-moderate      — safety fraction below 50%.
+
+   Returns {:holds? bool :violations [...]}."
+  [r]
+  (let [violations (cond-> []
+                     (= :liveness/below-minimum-viable (:liveness/risk r))
+                     (conj {:kind ::below-minimum-viable
+                            :current (:current-resolvers r)
+                            :minimum (:min-resolvers-needed r)})
+                     (= :liveness/danger-low-safety-margin (:liveness/risk r))
+                     (conj {:kind ::danger-low-margin
+                            :safety-fraction (:safety-fraction r)})
+                     (= :liveness/caution-moderate-margin (:liveness/risk r))
+                     (conj {:kind ::caution-moderate
+                            :safety-fraction (:safety-fraction r)}))]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
+
+(defn check-juror-participation
+  "Reveal juror-participation violations from a juror-opportunity-cost result.
+
+     ::strong-exit        — severe opportunity cost (net surplus < -50% reward).
+     ::marginal           — net surplus negative or weakly incentivised.
+
+   Returns {:holds? bool :violations [...]}."
+  [r]
+  (let [violations (cond-> []
+                     (= :liveness/strong-exit (:liveness/risk r))
+                     (conj {:kind ::strong-exit
+                            :net-surplus (:net-surplus r)})
+                     (or (= :liveness/marginal (:liveness/risk r))
+                         (= :liveness/marginal-incentive (:liveness/risk r)))
+                     (conj {:kind ::marginal
+                            :net-surplus (:net-surplus r)
+                            :risk (:liveness/risk r)}))]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
+
+(defn check-boredom-exit
+  "Reveal boredom-driven dropout from a boredom-threshold result.
+
+     ::critical-exit-risk  — dropout risk > 80%.
+     ::serious-exit-risk   — dropout risk > 50%.
+     ::caution-dropout     — dropout risk > 20%.
+
+   Returns {:holds? bool :violations [...]}."
+  [r]
+  (let [violations (cond-> []
+                     (= :liveness/critical-exit-risk (:liveness/risk r))
+                     (conj {:kind ::critical-exit-risk
+                            :dropout-risk (:dropout-risk r)})
+                     (= :liveness/serious-exit-risk (:liveness/risk r))
+                     (conj {:kind ::serious-exit-risk
+                            :dropout-risk (:dropout-risk r)})
+                     (= :liveness/caution-dropout (:liveness/risk r))
+                     (conj {:kind ::caution-dropout
+                            :dropout-risk (:dropout-risk r)}))]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
+
+(defn check-adverse-selection
+  "Reveal adverse-selection violations from an adverse-selection-effect result.
+
+     ::pool-too-small         — remaining pool below 3 resolvers.
+     ::high-aggressive-bias   — new seeking fraction above 70%.
+     ::moderate-bias          — new seeking fraction above 50%.
+
+   Returns {:holds? bool :violations [...]}."
+  [r]
+  (let [violations (cond-> []
+                     (= :liveness/critical-pool-too-small (:liveness/risk r))
+                     (conj {:kind ::pool-too-small
+                            :remaining-total (:remaining-total r)})
+                     (= :liveness/high-aggressive-bias (:liveness/risk r))
+                     (conj {:kind ::high-aggressive-bias
+                            :new-seeking-fraction (:new-seeking-fraction r)
+                            :accuracy-degradation (:accuracy-degradation r)})
+                     (= :liveness/moderate-bias (:liveness/risk r))
+                     (conj {:kind ::moderate-bias
+                            :new-seeking-fraction (:new-seeking-fraction r)}))]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))

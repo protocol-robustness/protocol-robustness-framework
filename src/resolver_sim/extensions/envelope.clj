@@ -22,7 +22,8 @@
    This complements the extension-map registry (resolver-sim.extensions.registry,
    which maps extension identifiers to implementations): the envelope is the
    open, per-record slot where extension-owned structure lives."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def envelope-key
   "Designated envelope key on a framework record."
@@ -178,7 +179,7 @@
    their payload values differ."
   ([record] (envelope-shape-hash record envelope-key))
   ([record key]
-   (str "sha256:" (hc/domain-hash envelope-shape-domain-tag (envelope-shape record key)))))
+   (hash-ref/sha256-ref (hc/domain-hash envelope-shape-domain-tag (envelope-shape record key)))))
 
 (defn build-envelope-shape-artifact
   "Shareable, content-addressed envelope-shape artifact.
@@ -194,4 +195,4 @@
                :shape/domain :extension-envelope
                :shape/extensions shape}
          root (hc/domain-hash envelope-shape-domain-tag base)]
-     (assoc base :shape/hash (str "sha256:" root)))))
+     (assoc base :shape/hash (hash-ref/sha256-ref  root)))))

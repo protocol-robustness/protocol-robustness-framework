@@ -77,28 +77,53 @@ in the scenario (the yield module has a fixed 5 % rate).
 Open `src/resolver_sim/yield/accounting.clj`:
 
 ```
-line 122  apply-liquidity-stress     — split amount into fulfilled / deferred / haircut
-line 168  apply-liquidity-stress-for-withdraw  — for partial-liquidity,
-                                                 only the yield leg is stressed
-line 158  partial-yield-shortfall?   — true when basis-amount < principal
+apply-liquidity-stress     — split amount into fulfilled / deferred / haircut
+apply-liquidity-stress-for-withdraw  — for partial-liquidity,
+                                       only the yield leg is stressed
+partial-yield-shortfall?   — true when basis-amount < principal
 ```
 
 Then `src/resolver_sim/yield/modules/liquid_lending.clj`:
 
 ```
-line 128  withdraw                   — entry point, calls liquidity stress
-line 176  (partial-liquidity path)   — stress applied to yield leg
-line 186  shortfall result enrichment — position status set to :unwinding
+withdraw                   — entry point; recoverable is scoped to the escrow's
+                             own held custody (Sew) rather than the aggregate
+                             token pool, so an under-funded escrow defers
+                             instead of over-filling against other escrows
+withdraw-many              — batch of independent single withdrawals settled
+                             first-come, first-served against ONE coordinated
+                             pool (per-position fulfilment against the full
+                             pool double-spent it); records a content-addressed
+                             ledger with per-principal rows
+withdraw-shared            — pro-rata shared-pool allocation (unchanged)
+shortfall result enrichment — position status set to :unwinding; the negative
+                             unrealized fold and the exact :settlement-value
+                             are recorded on the shortfall
 ```
 
 ### The invariant that checks correctness
 
 ```
-src/resolver_sim/yield/invariants.clj:41    :yield/shortfall-splits
+src/resolver_sim/yield/invariants.clj    :yield/shortfall-splits
 ```
 
-This verifies that `fulfilled-amount + deferred-amount == gross-amount`
-(mod shortfall-haircut).
+This verifies that `fulfilled-amount + deferred-amount + haircut-amount +
+basis-negative-unrealized == basis-amount` (the fold is recorded on the
+shortfall; the single-withdraw path folds negative unrealized into basis, the
+shared path now folds it identically).
+
+The aggregate checks (`:yield/aggregate`, `:yield/aggregate-shortfall-cap`)
+additionally verify that total basis never exceeds total value using each
+shortfall's recorded `:settlement-value` (which fixed a vacuous over-count
+check that previously added `shortfall.deferred-amount` on top of `:principal`,
+double-counting deferred principal).
+
+Every single and batch withdrawal also writes a content-addressed
+`:yield/withdrawal-ledger` certificate (run/params/state-cutpoint/request-set/
+request-order/allocation-policy/basis roots + per-principal rows + totals +
+committed conservation contract), validated by
+`:yield/withdrawal-ledger-conservation`. See
+`docs/architecture/ADR-0008-prf-allocation-evidence-grammar.md`.
 
 ---
 

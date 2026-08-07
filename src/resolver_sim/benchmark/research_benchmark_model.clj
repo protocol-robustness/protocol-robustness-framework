@@ -15,7 +15,8 @@
    Use build-model to construct and validate-model for standalone
    verification of loaded artifacts."
   (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "research-benchmark-model.v1")
 
@@ -177,7 +178,7 @@
          :model/transitions (vec (or transitions []))
          :model/invariants (vec (or invariants []))}
         preimage (canonicalise-model canonical-input)
-        model-hash (str "sha256:" (hc/domain-hash :research-benchmark-model preimage))]
+        model-hash (hash-ref/sha256-ref (hc/domain-hash :research-benchmark-model preimage))]
     (assoc preimage :model/hash model-hash)))
 
 ;; ── Golden test vectors ───────────────────────────────────────────────────
@@ -487,7 +488,7 @@
     ;; Hash recomputation
     (let [declared (:model/hash model)
           preimage (canonicalise-model model)
-          computed (str "sha256:" (hc/domain-hash :research-benchmark-model preimage))]
+          computed (hash-ref/sha256-ref (hc/domain-hash :research-benchmark-model preimage))]
       (when (and declared (not= declared computed))
         (swap! errors conj (str ":model/hash mismatch: declared " declared
                                 " computed " computed))))
@@ -543,7 +544,7 @@
    Use this to inspect hashes without modifying the source definition."
   [{:keys [model] :as vector}]
   (let [preimage (canonicalise-model model)
-        hash (str "sha256:" (hc/domain-hash :research-benchmark-model preimage))]
+        hash (hash-ref/sha256-ref (hc/domain-hash :research-benchmark-model preimage))]
     (assoc vector :expected-hash hash)))
 
 (defn regenerate-golden-hash!
@@ -558,7 +559,7 @@
    Returns the updated vector with :expected-hash recomputed."
   [{:keys [description expected-hash model] :as vector}]
   (let [preimage (canonicalise-model model)
-        new-hash (str "sha256:" (hc/domain-hash :research-benchmark-model preimage))]
+        new-hash (hash-ref/sha256-ref (hc/domain-hash :research-benchmark-model preimage))]
     (println "Golden vector:" description)
     (println "  Old hash: " (or expected-hash "<nil>"))
     (println "  New hash: " new-hash)

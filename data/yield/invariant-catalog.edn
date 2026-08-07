@@ -51,6 +51,10 @@
   {:description "Withdrawn: no open shortfall; reclaimed ≥ 0."
    :prf-tags [:recovery :shortfall-affected]}
 
+  :yield/withdrawal-ledger-conservation
+  {:description "Every recorded withdrawal (single or batch) is a valid fixed-point certificate bound to its exact execution world and withdrawal subject: recomputed roots (run, params, state cutpoint, request-set, request-order, allocation-policy, basis) reconcile; declared principals are unique and biject to rows; per-row and aggregate economic conservation holds; the FCFS prefix pool bound holds; filled ≥ 0."
+   :prf-tags [:liquidity :solvency :conservation :aggregate :withdrawal :provenance]}
+
   :yield/index-monotone
   {:description "Liquidity index non-decreasing on accrue (non-increasing under :negative-yield)."
    :prf-tags [:yield-accounting :accrual :index-precision]}

@@ -23,6 +23,7 @@
             [resolver-sim.yield.risk :as yrisk]
             [resolver-sim.protocols.sew.financial.finality :as ff]
             [resolver-sim.protocols.sew.financial.loss :as fl]
+            [resolver-sim.protocols.sew.financial.solvency :as fsolv]
             [resolver-sim.time.context :as time-ctx]))
 
 ;; ---------------------------------------------------------------------------
@@ -493,7 +494,12 @@
                   escrows))
 
           :financial-loss
-          (fl/classify-loss world :USDC {:resolve-financial-finality? true})})))))
+          (fl/classify-loss world :USDC {:resolve-financial-finality? true})
+
+          ;; ── Canonical solvency assessment (economic + evidence + verification) ──
+          :solvency-assessment
+          (when (seq (keys escrows))
+            (fsolv/classify-solvency world))})))))
 
 ;; ---------------------------------------------------------------------------
 ;; Read-only use-of-funds projection

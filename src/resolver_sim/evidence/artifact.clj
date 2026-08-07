@@ -14,7 +14,8 @@
      - any form under protocols_src/
      - any extension namespace (prf.extensions.*)"
   (:require [clojure.edn :as edn]
-            [resolver-sim.hash.canonical :as hash]))
+            [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (def artifact-envelope-keys
   "Envelope keys that are stripped from the artifact body before hashing or
@@ -117,7 +118,7 @@
   [artifact]
   (and (string? (:artifact/hash artifact))
        (= (:artifact/hash artifact)
-          (str "sha256:" (hash/domain-hash :evidence-record (artifact-body artifact))))))
+          (hash-ref/sha256-ref (hash/domain-hash :evidence-record (artifact-body artifact))))))
 
 (def supported-preimage-policies
   "Accepted preimage policies."
@@ -189,8 +190,8 @@
 (defn finalize-artifact
   "Attach the content hash and exact preimage to an artifact body."
   [body]
-  (let [hash (str "sha256:"
-                  (hash/domain-hash :evidence-record body))]
+  (let [hash (hash-ref/sha256-ref
+              (hash/domain-hash :evidence-record body))]
     (assoc body
            :artifact/hash hash
            :artifact/preimage (pr-str body))))

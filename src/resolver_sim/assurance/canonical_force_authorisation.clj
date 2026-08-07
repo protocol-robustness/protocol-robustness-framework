@@ -24,7 +24,8 @@
   classification only; it does not re-implement either world."
   (:require [clojure.set]
             [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Canonical profile (D1 / D4)
@@ -629,9 +630,9 @@
   (when-not (cancellation-binding-complete? binding)
     (throw (ex-info "cannot content-hash an incomplete cancellation binding"
                     {:missing (missing-cancellation-binding-fields binding)})))
-  (str "sha256:" (hc/domain-hash :cancellation-binding
-                                 (project-cancellation-binding
-                                  (select-keys binding cancellation-binding-fields)))))
+  (hash-ref/sha256-ref (hc/domain-hash :cancellation-binding
+                                       (project-cancellation-binding
+                                        (select-keys binding cancellation-binding-fields)))))
 
 (defn cancellation-binding-hash-valid?
   "True when the committed :cancellation/binding-hash recomputes from the

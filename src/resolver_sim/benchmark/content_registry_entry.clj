@@ -27,7 +27,9 @@
    components or ordering must create a new policy version."
   (:require [clojure.set]
             [clojure.string :as str]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.benchmark.research-benchmark-model :as model]))
 
 (def ^:const schema-version "benchmark-content-registry-entry.v1")
 
@@ -183,7 +185,7 @@
          :benchmark/falsifier-root falsifier-root
          :benchmark/evaluation-policy-root evaluation-policy-root
          :benchmark/evidence-contract-root evidence-contract-root}
-        computed-root (str "sha256:" (compute-content-root semantic-components))]
+        computed-root (hash-ref/sha256-ref (compute-content-root semantic-components))]
     (when (and content-root (not= content-root computed-root))
       (throw (ex-info "Declared content-root does not match computed value"
                       {:declared content-root
@@ -204,7 +206,7 @@
            :benchmark/version (or version 1)
            :benchmark/research-question research-question
            :benchmark/model-root model-root
-           :benchmark/model-schema (or model-schema "research-benchmark-model.v1")
+           :benchmark/model-schema (or model-schema model/schema-version)
            :benchmark/content-root computed-root
            :benchmark/incentive-model-root (normalise-and-validate incentive-model-root "incentive-model-root")
            :benchmark/adversary-model-root (normalise-and-validate adversary-model-root "adversary-model-root")
@@ -221,7 +223,7 @@
            :benchmark/supersedes supersedes}
           registry-hash (hc/domain-hash :benchmark-registry-entry registry-record)]
       (assoc registry-record
-             :benchmark/registry-entry-hash (str "sha256:" registry-hash)))))
+             :benchmark/registry-entry-hash (hash-ref/sha256-ref  registry-hash)))))
 
 (defn content-root
   "Return the semantic content root hash.
@@ -280,8 +282,8 @@
       (when (and (some? mr) (not (re-matches #"sha256:[0-9a-f]{64}" mr)))
         (swap! errors conj (str ":benchmark/model-root is not a valid sha256: hash: " mr))))
     (let [ms (:benchmark/model-schema entry)]
-      (when (and (some? ms) (not= ms "research-benchmark-model.v1"))
-        (swap! errors conj (str ":benchmark/model-schema \"" ms "\" — expected \"research-benchmark-model.v1\""))))
+      (when (and (some? ms) (not= ms model/schema-version))
+        (swap! errors conj (str ":benchmark/model-schema \"" ms "\" — expected \"" model/schema-version "\""))))
     ;; Validate each component
     (doseq [component-key [:benchmark/model-root
                            :benchmark/incentive-model-root
@@ -314,7 +316,7 @@
            :benchmark/falsifier-root (:benchmark/falsifier-root entry)
            :benchmark/evaluation-policy-root (:benchmark/evaluation-policy-root entry)
            :benchmark/evidence-contract-root (:benchmark/evidence-contract-root entry)}
-          computed-root (str "sha256:" (compute-content-root computed-components))]
+          computed-root (hash-ref/sha256-ref (compute-content-root computed-components))]
       (when-not (= computed-root (:benchmark/content-root entry))
         (swap! errors conj (str "content-root mismatch: declared "
                                 (:benchmark/content-root entry)
@@ -324,7 +326,7 @@
         (when (nil? (:benchmark/content-root entry))
           (swap! warnings conj "registry-entry-hash present without content-root"))
         (let [registry-record (dissoc entry :benchmark/registry-entry-hash)
-              computed (str "sha256:" (hc/domain-hash :benchmark-registry-entry registry-record))]
+              computed (hash-ref/sha256-ref (hc/domain-hash :benchmark-registry-entry registry-record))]
           (when-not (= computed reg-hash)
             (swap! errors conj (str "registry-entry-hash mismatch: declared "
                                     reg-hash " computed " computed))))))
