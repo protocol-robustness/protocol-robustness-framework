@@ -6,8 +6,7 @@
   (:require [clojure.set]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.framing-view :as fv]))
+            [resolver-sim.hash.round-trip :as rt]))
 
 (declare check-aggregate-member-key-density)
 
@@ -161,94 +160,108 @@
    round  — review-round artifact carrying :review-round/members.
    report — an evaluate-three-member-authority result.
 
+   A degenerate error-fallback report (carrying :authority/error and lacking
+   the classification fields) is surfaced as ::authority-evaluation-failed
+   rather than emitting phantom field-level mismatches — such a report is not
+   internally inconsistent, it was simply not produced because authority
+   evaluation errored.
+
    Returns {:holds? bool :violations [...]}."
   [round report]
-  (let [status (:authority-status report)
-        outcome-source (:outcome-source report)
-        members (:review-round/members round)
-        round-count (count members)
-        round-distinct? (= round-count
-                           (count (distinct (map :researcher/id members))))
-        cats (category-hash-map report)
-        member-cats (member-category-map report)
-        overlaps (overlapping-category-pairs cats)
-        member-overlaps (overlapping-category-pairs member-cats)
-        constituted-ids (set (map :researcher/id members))
-        accounted-ids (apply clojure.set/union
-                             (vals (dissoc member-cats :unknown)))
-        unaccounted (vec (sort (remove accounted-ids constituted-ids)))
-        violations (atom [])
-        add! (fn [kind data] (swap! violations conj (assoc data :kind kind)))]
+  (if-let [error (:authority/error report)]
+    ;; Authority evaluation failed before a classification was produced.  The
+    ;; report carries only :authority-status / :outcome-source / :authority/error
+    ;; and none of the classification fields, so no field-level comparison is
+    ;; meaningful.  Surface the evaluation failure explicitly and stop.
+    {:holds? false
+     :violations [{:kind ::authority-evaluation-failed
+                   :error error}]}
+    (let [status (:authority-status report)
+          outcome-source (:outcome-source report)
+          members (:review-round/members round)
+          round-count (count members)
+          round-distinct? (= round-count
+                             (count (distinct (map :researcher/id members))))
+          cats (category-hash-map report)
+          member-cats (member-category-map report)
+          overlaps (overlapping-category-pairs cats)
+          member-overlaps (overlapping-category-pairs member-cats)
+          constituted-ids (set (map :researcher/id members))
+          accounted-ids (apply clojure.set/union
+                               (vals (dissoc member-cats :unknown)))
+          unaccounted (vec (sort (remove accounted-ids constituted-ids)))
+          violations (atom [])
+          add! (fn [kind data] (swap! violations conj (assoc data :kind kind)))]
     ;; 1/2. classification dimensions present and well-typed
-    (when-not (contains? #{:authorised :not-authorised} status)
-      (add! ::invalid-authority-status {:status status}))
-    (when-not (contains? #{:authoritative-target :target-outcome-unavailable}
-                         outcome-source)
-      (add! ::invalid-outcome-source {:outcome-source outcome-source}))
+      (when-not (contains? #{:authorised :not-authorised} status)
+        (add! ::invalid-authority-status {:status status}))
+      (when-not (contains? #{:authoritative-target :target-outcome-unavailable}
+                           outcome-source)
+        (add! ::invalid-outcome-source {:outcome-source outcome-source}))
 
-    (when (= :authorised status)
-      (when-not (= :authoritative-target outcome-source)
-        (add! ::authorised-without-authoritative-outcome {:outcome-source outcome-source}))
-      (when-not (>= (:counted-support report) (:required-threshold report))
-        (add! ::authorised-below-threshold
-              {:counted-support (:counted-support report)
-               :required (:required-threshold report)}))
-      (when-not (true? (:policy-conforming? report))
-        (add! ::authorised-policy-not-conforming {}))
-      (when-not (true? (:identity-separate? report))
-        (add! ::authorised-not-identity-separate {}))
-      (when-not (= 3 (:constituted-member-count report))
-        (add! ::authorised-not-three-members
-              {:count (:constituted-member-count report)})))
+      (when (= :authorised status)
+        (when-not (= :authoritative-target outcome-source)
+          (add! ::authorised-without-authoritative-outcome {:outcome-source outcome-source}))
+        (when-not (>= (:counted-support report) (:required-threshold report))
+          (add! ::authorised-below-threshold
+                {:counted-support (:counted-support report)
+                 :required (:required-threshold report)}))
+        (when-not (true? (:policy-conforming? report))
+          (add! ::authorised-policy-not-conforming {}))
+        (when-not (true? (:identity-separate? report))
+          (add! ::authorised-not-identity-separate {}))
+        (when-not (= 3 (:constituted-member-count report))
+          (add! ::authorised-not-three-members
+                {:count (:constituted-member-count report)})))
 
-    (when (and (= :target-outcome-unavailable outcome-source)
-               (= :authorised status))
-      (add! ::authorised-with-unavailable-outcome {}))
+      (when (and (= :target-outcome-unavailable outcome-source)
+                 (= :authorised status))
+        (add! ::authorised-with-unavailable-outcome {}))
 
     ;; 3. counted-support equals valid-supporting count
-    (when-not (= (:counted-support report)
-                 (count (:valid-supporting-positions report)))
-      (add! ::counted-support-mismatch
-            {:counted-support (:counted-support report)
-             :supporting (count (:valid-supporting-positions report))}))
+      (when-not (= (:counted-support report)
+                   (count (:valid-supporting-positions report)))
+        (add! ::counted-support-mismatch
+              {:counted-support (:counted-support report)
+               :supporting (count (:valid-supporting-positions report))}))
 
     ;; 4. position categories are disjoint
-    (doseq [{:keys [categories hashes]} overlaps]
-      (add! ::position-category-overlap {:categories categories :hashes hashes}))
+      (doseq [{:keys [categories hashes]} overlaps]
+        (add! ::position-category-overlap {:categories categories :hashes hashes}))
 
     ;; 4b. member classifications are preserved: each constituted member is in
     ;; at most one member-level category (no double-classification), and every
     ;; constituted member is accounted for in at least one (none silently
     ;; dropped).
-    (doseq [{:keys [categories hashes]} member-overlaps]
-      (add! ::member-category-overlap {:categories categories :members hashes}))
-    (when (seq unaccounted)
-      (add! ::member-unaccounted {:members unaccounted}))
+      (doseq [{:keys [categories hashes]} member-overlaps]
+        (add! ::member-category-overlap {:categories categories :members hashes}))
+      (when (seq unaccounted)
+        (add! ::member-unaccounted {:members unaccounted}))
 
     ;; 5. equivocating members never support or dissent
-    (when (seq (clojure.set/intersection (:equivocating cats) (:supporting cats)))
-      (add! ::equivocator-counted-as-supporter {}))
-    (when (seq (clojure.set/intersection (:equivocating cats) (:dissenting cats)))
-      (add! ::equivocator-counted-as-dissenter {}))
+      (when (seq (clojure.set/intersection (:equivocating cats) (:supporting cats)))
+        (add! ::equivocator-counted-as-supporter {}))
+      (when (seq (clojure.set/intersection (:equivocating cats) (:dissenting cats)))
+        (add! ::equivocator-counted-as-dissenter {}))
 
     ;; 6. excluded-but-preserved: never counted, still present
-    (doseq [[label hs] [[:invalid (:invalid cats)]
-                        [:re-scoped (:re-scoped cats)]
-                        [:duplicate (:duplicate cats)]]]
-      (when (seq (clojure.set/intersection hs (:supporting cats)))
-        (add! ::excluded-position-counted {:category label})))
+      (doseq [[label hs] [[:invalid (:invalid cats)]
+                          [:re-scoped (:re-scoped cats)]
+                          [:duplicate (:duplicate cats)]]]
+        (when (seq (clojure.set/intersection hs (:supporting cats)))
+          (add! ::excluded-position-counted {:category label})))
 
     ;; 7. report/round consistency
-    (when-not (= round-count (:constituted-member-count report))
-      (add! ::member-count-mismatch
-            {:round round-count :report (:constituted-member-count report)}))
-    (when-not (= round-distinct? (true? (:identity-separate? report)))
-      (add! ::identity-separation-mismatch
-            {:round-distinct? round-distinct?
-             :report (:identity-separate? report)}))
+      (when-not (= round-count (:constituted-member-count report))
+        (add! ::member-count-mismatch
+              {:round round-count :report (:constituted-member-count report)}))
+      (when-not (= round-distinct? (true? (:identity-separate? report)))
+        (add! ::identity-separation-mismatch
+              {:round-distinct? round-distinct?
+               :report (:identity-separate? report)}))
 
-    {:holds? (empty? @violations)
-     :violations (vec @violations)}))
+      {:holds? (empty? @violations)
+       :violations (vec @violations)})))
 
 ;; ── Three-classifications fixed-point (threaded through canonical bytes) ────
 
@@ -275,35 +288,34 @@
   "Canonical fixed-point stage for an authority report's three classification
    dimensions.
 
-   Serializes `report` to canonical bytes, decodes it back, and returns BOTH
-   the verification verdict and the actual decoded report:
+   Composes the purpose-neutral canonical round-trip (resolver-sim.hash.round-trip)
+   with the three-member classification projection comparison:
 
-     {:valid? bool
-      :violations [...]
-      :report <decoded-report-map>}   ; the decoded report (nil on decode failure)
+     {:holds? bool                  — the decoded report's classification
+                                      dimensions equal the original's AND the
+                                      canonical round-trip is valid
+      :violations [...]             — canonicality and/or projection mismatches
+      :report <decoded-or-nil>      — the actual decoded report (nil when the
+                                      canonical round-trip is invalid)}
 
    The decoded report is first-class output so a downstream semantic check can
    consume the real fixed-point artifact (the value a verifier would recompute)
-   instead of re-decoding or re-deriving an equivalent value.  :valid? is true
-   when the decoded report's three classification dimensions equal the
-   original's — the classification survived the canonical round-trip."
+   instead of re-decoding or re-deriving an equivalent value."
   [report]
-  (try
-    (let [ba (hc/canonical-bytes report)
-          decoded (:value (fv/decode-one ba 0))
-          orig (classification-projection report)
-          dec  (classification-projection decoded)]
-      (if (= orig dec)
-        {:valid? true :violations [] :report decoded}
-        {:valid? false
-         :violations [{:kind ::classifications-not-fixed-point
-                       :original orig :decoded dec}]
-         :report decoded}))
-    (catch Exception e
-      {:valid? false
-       :violations [{:kind ::classifications-fixed-point-decode-failed
-                     :error (.getMessage e)}]
-       :report nil})))
+  (let [{:keys [valid? value issues]} (rt/canonical-round-trip report)
+        orig (classification-projection report)
+        dec  (when valid? (classification-projection value))
+        projection-ok? (= orig dec)
+        violations (cond-> []
+                     (not valid?)
+                     (conj {:kind ::classifications-fixed-point-invalid
+                            :issues issues})
+                     (and valid? (not projection-ok?))
+                     (conj {:kind ::classifications-not-fixed-point
+                            :original orig :decoded dec}))]
+    {:holds? (and valid? projection-ok?)
+     :violations violations
+     :report (when valid? value)}))
 
 (defn check-classifications-fixed-point
   "Verify the three classification dimensions of an authority report survive
@@ -316,8 +328,8 @@
 
    Returns {:holds? bool :violations [...]}."
   [report]
-  (let [{:keys [valid? violations]} (classifications-fixed-point report)]
-    {:holds? valid? :violations violations}))
+  (let [{:keys [holds? violations]} (classifications-fixed-point report)]
+    {:holds? holds? :violations violations}))
 
 ;; ── Aggregate runner (threaded) ─────────────────────────────────────────────
 ;;
@@ -368,15 +380,22 @@
                           round report))
                   report
                   (assoc :classifications-fixed-point
-                         {:holds? (:valid? fixed-point)
+                         {:holds? (:holds? fixed-point)
                           :violations (:violations fixed-point)})
                   ;; The semantic check on the decoded report consumes the actual
                   ;; fixed-point artifact (decoded-report) — a real data
                   ;; dependency, not a duplicate check of the stored report.
-                  decoded-report
+                  ;; A decode failure is LOUD: the check is always present and
+                  ;; fails with ::fixed-point-unavailable rather than being
+                  ;; silently omitted (which would be indistinguishable from
+                  ;; "no report supplied").
+                  report
                   (assoc :three-member-classifications-on-fixed-point
-                         (check-aggregate-three-member-classifications
-                          round decoded-report)))]
+                         (if decoded-report
+                           (check-aggregate-three-member-classifications
+                            round decoded-report)
+                           {:holds? false
+                            :violations [{:kind ::fixed-point-unavailable}]})))]
      {:holds? (every? :holds? (vals checks))
       :checks checks})))
 

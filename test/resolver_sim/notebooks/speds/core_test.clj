@@ -397,3 +397,52 @@
   (testing "generate-story with nil artifacts returns hiccup"
     (let [result (story/generate-story nil {:mode :run-overview :input {}})]
       (is (vector? result)))))
+
+;; ──────────────────────────────────────────────────────────────────────────
+;; P0 — Truth boundary: narrative may simplify evidence, never strengthen it.
+;; An invariant with no recorded result must NOT become :ok.
+;; ──────────────────────────────────────────────────────────────────────────
+
+(deftest truth-boundary-normalize-invariant-status
+  (testing "passing result values map to :ok"
+    (is (= :ok (story/normalize-invariant-status :ok)))
+    (is (= :ok (story/normalize-invariant-status :pass)))
+    (is (= :ok (story/normalize-invariant-status :passed)))
+    (is (= :ok (story/normalize-invariant-status :true)))
+    (is (= :ok (story/normalize-invariant-status "pass"))))
+  (testing "failing result values map to :failed"
+    (is (= :failed (story/normalize-invariant-status :fail)))
+    (is (= :failed (story/normalize-invariant-status :failed)))
+    (is (= :failed (story/normalize-invariant-status :false)))
+    (is (= :failed (story/normalize-invariant-status "FAIL"))))
+  (testing "present-but-unrecognized values map to :unknown, never :ok"
+    (is (= :unknown (story/normalize-invariant-status :bogus)))
+    (is (= :unknown (story/normalize-invariant-status "maybe")))
+    (is (= :unknown (story/normalize-invariant-status nil)))))
+
+(deftest truth-boundary-inv-status-never-promotes-absent-to-ok
+  (testing "missing invariant result is reported :not-measured, not :ok"
+    (is (= :not-measured (story/inv-status {} :solvency)))
+    (is (= :not-measured (story/inv-status {:invariant-results {}} :solvency)))
+    (is (= :not-measured (story/inv-status {:invariant-results {:invariant/yield :ok}} :solvency))))
+  (testing "recorded results are honored"
+    (is (= :ok (story/inv-status {:invariant-results {:invariant/solvency :pass}} :solvency)))
+    (is (= :ok (story/inv-status {:invariant-results {:solvency :ok}} :solvency)))
+    (is (= :failed (story/inv-status {:invariant-results {:invariant/solvency :fail}} :solvency)))
+    (is (= :failed (story/inv-status {:invariant-results {:invariant/solvency "failed"}} :solvency)))
+    (is (= :unknown (story/inv-status {:invariant-results {:invariant/solvency :bogus}} :solvency)))))
+
+(deftest truth-boundary-v-inv-never-renders-ok-for-unmeasured
+  (testing "v-inv renders the exact status label, and never claims OK when not measured"
+    (let [render-label (fn [status]
+                         (-> (core/v-inv :solvency status)
+                             flatten
+                             (->> (map str))
+                             (->> (apply str))))]
+      (is (re-find #"NOT MEASURED" (render-label :not-measured)))
+      (is (re-find #"UNKNOWN" (render-label :unknown)))
+      (is (re-find #"OK" (render-label :ok)))
+      (is (re-find #"FAIL" (render-label :failed)))
+      (is (re-find #"N/A" (render-label :not-applicable)))
+      (is (not (re-find #"OK" (render-label :not-measured))))
+      (is (not (re-find #"OK" (render-label :bogus)))))))

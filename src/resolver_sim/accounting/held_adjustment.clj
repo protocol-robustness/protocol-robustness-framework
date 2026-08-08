@@ -2,7 +2,8 @@
   "Protocol-independent value projections for held custody adjustments.
    World mutation, artifact hashing, and authorization consumption remain
    protocol adapter responsibilities."
-  (:require [resolver-sim.assurance.parameter-attribution :as pa]))
+  (:require [resolver-sim.assurance.parameter-attribution :as pa]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const scope-keys
   [:authorization/id :authorization/type
@@ -59,3 +60,47 @@
                      :reason reason
                      :adjustment fields})))
   (merge fields (pa/project-parameter-attribution fields)))
+
+;; ---------------------------------------------------------------------------
+;; Settlement-scoped custody attribution (P2 / L4b)
+;;
+;; A withdrawal settlement moves custody through one or more held adjustments.
+;; Every adjustment attributable to a settlement carries the settlement's
+;; canonical identity (:held-adjustment/settlement-root); the settlement commits
+;; :settlement/held-adjustment-set-root over its attributed adjustment set.  A
+;; verifier then proves the attribution is a bijection: the claimed set exists,
+;; binds exactly this settlement, and is complete (no attributable adjustment
+;; lies outside it), with the net custody delta equal to the settled amount.
+;; ---------------------------------------------------------------------------
+
+(defn settlement-identity
+  "Canonical settlement identity for custody-adjustment attribution.  Binds
+   workflow, token, direction, settled amount, and recipient, so every
+   held-adjustment attributable to one settlement shares one root and cannot be
+   confused with another settlement's adjustments.  Emitted as
+   :held-adjustment/settlement-root on attributable adjustments and as
+   :settlement/root on the settlement artifact."
+  [{:keys [workflow-id token direction filled recipient]}]
+  (hc/hash-with-intent {:hash/intent :projection-artifact}
+                       {:kind :sew/settlement
+                        :workflow-id workflow-id
+                        :token token
+                        :direction direction
+                        :filled (long filled)
+                        :recipient recipient}))
+
+(defn settlement-held-adjustment-set-root
+  "Content-addressed root over the set of held-adjustments attributed to one
+   settlement, ordered by :held-adjustment/id.  The verifier recomputes this
+   from the observed attributable adjustments and compares it to the committed
+   :settlement/held-adjustment-set-root, which proves the claimed set is exactly
+   the observed set (existence + completeness, i.e. a bijection)."
+  [adjustments]
+  (hc/hash-with-intent {:hash/intent :projection-artifact}
+                       {:kind :sew/settlement-attribution
+                        :adjustments
+                        (mapv (fn [a]
+                                {:id (:held-adjustment/id a)
+                                 :amount (long (:amount a))
+                                 :direction (:held/direction a)})
+                              (sort-by :held-adjustment/id adjustments))}))

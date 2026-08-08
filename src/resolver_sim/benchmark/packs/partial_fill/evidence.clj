@@ -5,7 +5,8 @@
    without modifying protocol transition code.
    
    Dependency direction: benchmark -> yield/domain artifacts (one-way)."
-  (:require [resolver-sim.hash.canonical :as hc]
+  (:require [resolver-sim.allocation.realized-statement :as rs]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.hash.reference :as hash-ref]))
 
@@ -405,6 +406,38 @@
                        (if scope
                          {:scope scope :decision-hashes (vec (sort hashes))}
                          (vec (sort hashes))))))))
+
+(defn realized-allocation-statements
+  "Produce a `realized-allocation-statement.v1` per partial-fill decision in a
+   world, committed under REALIZED_ALLOCATION_STATEMENT_V1.
+
+   Fail-closed: a statement is produced only when BOTH an allocation context
+   and a round-lifecycle are present in the world alongside partial-fill
+   decisions. A missing context returns nil — the producer never emits a
+   statement it cannot fully bind, so a consumer can never mistake absence for
+   a proven statement.
+
+   World keys:
+     :yield/partial-fill-decisions  — decision-id -> partial-fill decision
+     :allocation/context            — allocation context (build-context output)
+     :allocation/round-lifecycle    — round-state/round-lifecycle projection
+
+   Returns {:statements [...] :statements-root sha256|nil}."
+  [final-world]
+  (let [context (get-in final-world [:allocation/context])
+        round-lifecycle (get-in final-world [:allocation/round-lifecycle])
+        decisions (vals (get-in final-world [:yield/partial-fill-decisions] {}))]
+    (when (and context round-lifecycle (seq decisions))
+      (let [statements (mapv (fn [decision]
+                               (rs/build-statement
+                                {:ctx context
+                                 :decision decision
+                                 :round-lifecycle round-lifecycle}))
+                             (sort-by :decision/id decisions))
+            roots (mapv :statement/root statements)]
+        {:statements statements
+         :statements-root (hc/domain-hash :evidence-collection
+                                          (vec (sort roots)))}))))
 
 (defn- membership-violations
   "Bind membership, not only contents: the present claim set matches

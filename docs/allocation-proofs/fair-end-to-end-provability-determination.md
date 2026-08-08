@@ -113,14 +113,18 @@ fail-action theorem requires an explicit object chain:
 ```
 allocation proof
       ↓
-activation decision / receipt
+allocation-activation.v1 receipt
       ↓
 economic effect
 ```
 
-The activation receipt binds at least:
+### `allocation-activation.v1` (implemented — producer + fail-closed verifier)
+
+The activation receipt is versioned as **`allocation-activation.v1`** and binds
+at least:
 
 ```clojure
+:activation/schema-version  "allocation-activation.v1"
 :proof-root
 :result-root
 :rejection/classification
@@ -128,11 +132,42 @@ The activation receipt binds at least:
 :activation-policy-root
 ```
 
-and enforces **`rejected proof ⇒ activation prohibited`**. This mirrors the
-existing distinction enforced elsewhere in the codebase between a *decision
-being computed* and a *decision authorizing an irreversible effect*. The
-Solidity coordinator (`contracts/allocation/AllocationCoordinator.sol`) remains
-the activation gate and is out of scope until this receipt exists.
+and enforces **`rejected proof ⇒ activation prohibited`**.
+
+**All-active no-churn property.** Mirroring `conclusion-collective-hash`
+(all-active input ⇒ root byte-identical to the unfiltered hash, filter is a
+no-op): when the allocation is **all-active** — no rejection, and no deferred/
+haircut fail action — the committed `:result-root` in the receipt is
+**byte-identical to the unfiltered result-root**. The rejection/fail-action
+filter is a no-op, so activating an all-active allocation introduces no hash
+churn.
+
+**Status: implemented with producer and fail-closed verifier.** The schema is
+now registered (domain tags `ALLOCATION_ACTIVATION_V1` +
+`ALLOCATION_ACTIVATION_POLICY_V1`) together with its producer and verifier:
+
+- **`src/resolver_sim/allocation/activation.clj`** — `build-receipt` produces
+  `:activated` receipts for passing proofs and `:prohibited` receipts (binding
+  the rejection classification) for rejected proofs;
+  `valid-activated-receipt?` is the authorization boundary: a receipt is valid
+  only when activated, the proof was passing, and the root recomputes.
+- **Acceptance test** (`test/resolver_sim/allocation/activation_test.clj`):
+  mutates a genuinely produced kernel proof so verification rejects it, then
+  demonstrates the activation path cannot emit/accept a valid receipt — and a
+  forged `:activated` status on a rejected proof's receipt is still invalid
+  because the rejection classification is bound.
+
+This follows the `realised-parameter-set-root` lesson in reverse: the receipt
+entered the production contract *with* its producer and verifier, not before.
+The Solidity coordinator (`contracts/allocation/AllocationCoordinator.sol`)
+remains the on-chain activation gate; wiring it to this receipt is out of scope
+until proof verification is green.
+
+This mirrors the existing distinction enforced elsewhere in the codebase
+between a *decision being computed* and a *decision authorizing an
+irreversible effect*. The Solidity coordinator
+(`contracts/allocation/AllocationCoordinator.sol`) remains the activation gate
+and is out of scope until this receipt exists.
 
 ---
 
@@ -166,6 +201,58 @@ agent-c separately binds that statement root into its richer
 to understand the simulator's full evidence model. This keeps the proof system
 usable by any future client besides agent-c.
 
+### Implementation status (partial)
+
+The statement is **implemented and reachable on the producer side**:
+
+- `src/resolver_sim/allocation/realized_statement.clj` — the
+  `realized-allocation-statement.v1` builder: computes the six roots
+  (allocation-context, request-set, allocation-policy, realized-results,
+  fail-action-policy, round-lifecycle), commits the statement root under
+  `REALIZED_ALLOCATION_STATEMENT_V1`, exposes the all-active no-churn
+  property, and binds the statement into scenario evidence via
+  `SCENARIO_EVIDENCE_BINDING_V1`.
+- **`realized-results-root` is an explicit per-participant disposition
+  vector.** It commits one sorted row per participant over the union of
+  requested/filled/deferred/haircut keys:
+
+  ```
+  {:claim/id k :requested r :filled f :deferred d :haircut h :unrealized u
+   :disposition :full-fill | :partial-fill | :deferred | :haircut
+                | :zero-filled | :deferred-and-haircut}
+  ```
+
+  This is the participant/request → realized-disposition model: no participant
+  is silently dropped. `:zero-filled` (row present) is distinguishable from
+  "producer omitted" (row absent), which changes the root.
+- **Mutation-locality tests pin the six-root decomposition.** Each mutation is
+  asserted to change only its dimension (plus the statement root) and leave the
+  other five roots unchanged: fail-action policy mutation → only
+  `fail-action-policy-root`; realized-fill mutation → only
+  `realized-results-root`; lifecycle mutation → only `round-lifecycle-root`;
+  context mutation → only `allocation-context-root`; request membership
+  mutation → `request-set-root` + `realized-results-root` (the new participant
+  gains an explicit disposition), other four unchanged.
+- Domain tags added to `hash/canonical.clj`:
+  `REALIZED_ALLOCATION_STATEMENT_V1`, `REALIZED_REQUEST_SET_V1`,
+  `ALLOCATION_POLICY_V1`, `REALIZED_RESULTS_V1`, `ROUND_LIFECYCLE_V1`,
+  `SCENARIO_EVIDENCE_BINDING_V1`.
+- Producer wired into the benchmark runner
+  (`runner.clj::realized-allocation-statements`): when a scenario's world
+  carries both an allocation context/round-lifecycle and partial-fill
+  decisions, the statement root is bound into the scenario evidence-root and
+  exposed on the result as
+  `:scenario/realized-allocation-statements-root`.
+- **Fail-closed producer** (`packs/partial_fill/evidence.clj`): a statement is
+  produced only when context + lifecycle + decisions coexist; a missing context
+  returns nil, so absence can never be mistaken for a proven statement.
+
+Still **not implemented**: the Rust mirror of the statement, the SP1 proof of
+it, and the Rust core realizing partial-fill (Change 5). The Rust kernel
+currently reproduces the all-or-nothing outcome-lottery model only; the
+statement's realized partial-fill path becomes provable once the Rust core
+implements realized fill (step 4 in the next-increment list).
+
 ---
 
 ## 6. Change 5 — Realized partial-fill lives in Rust core (contract)
@@ -193,6 +280,131 @@ SP1-specific). The current kernel (`coprocessor/core`) already covers the
 all-or-nothing outcome-lottery model byte-for-byte; realized partial-fill
 (`calculate-fulfillment*`, rounding policies, residual handling, fail-action
 policy) is the next implementation increment, in Rust core.
+
+### Step-4 acceptance conditions
+
+**A. Rust must reconstruct all six roots.** Rust must not accept five roots as
+inputs and merely hash the envelope. The valuable independent-verification
+path is:
+
+```
+raw/canonical inputs
+        ↓
+Rust semantics
+        ↓
+allocation-context-root
+request-set-root
+allocation-policy-root
+realized-results-root
+fail-action-policy-root
+round-lifecycle-root
+        ↓
+REALIZED_ALLOCATION_STATEMENT_V1
+        ↓
+statement-root
+```
+
+Rust may consume an already-canonical protocol artifact only when that artifact
+is explicitly outside the computation being proved. The acceptance test must
+document exactly which roots are recomputed versus merely bound.
+
+**B. Define "realized partial-fill" independently of the statement encoder.**
+Keep separate Rust layers so semantic errors are testable independently from
+serialization errors, and the Rust implementation does not drift into "code
+written specifically to reproduce Clojure hashes":
+
+```
+partial_fill(...)              → RealizedAllocation (semantics)
+statement_projection(...)      → RealizedAllocationStatement (projection)
+canonical_encode(...)          → statement root (serialization)
+```
+
+**C. Golden vectors include semantic mutations.** The conformance corpus must
+include: all-active/no shortfall; all-active/partial-fill shortfall; a
+participant becoming inactive; fail-action change; fail-action policy change
+with identical allocation; request order/membership mutation; lifecycle
+mutation; allocation-context mutation; rounding/dust case; zero-filled
+participant; residual/unallocated amount. Each mutation must change the
+expected semantic dimension, not merely "some hash changed". Locality is
+asserted per root (see the Clojure mutation-locality tests, which are the
+template).
+
+**D. Clojure/Rust equality is conformance, not correctness.** The independent
+Rust implementation derives its realization algorithm from the written
+contract and canonical primitives; Clojure vectors are the oracle for
+conformance, not a translation source. Assurance claim:
+
+```
+contract
+ ├── Clojure implementation
+ └── Rust implementation
+then: Clojure output == Rust output
+```
+
+**Step-4 acceptance bar.** The Rust/SP1 part is complete only when:
+
+> Given identical canonical allocation context, requests, allocation policy,
+> fail-action policy, lifecycle state, and partial-fill decision inputs, the
+> independent Rust core derives the same realized allocation and byte-identical
+> realized-allocation-statement.v1 commitment as the Clojure producer.
+
+proving: (1) semantic result equality; (2) each of the six component roots
+equal; (3) final statement root equal; (4) all-active no-churn equality;
+(5) negative/mutation vectors fail or diverge in the expected dimension;
+(6) malformed/non-canonical input fails closed. SP1 then proves/reveals the
+canonical statement root (and whatever minimal public inputs are intentionally
+exposed), not the simulator evidence binding.
+
+### Step-4 implementation status (core done)
+
+The independent Rust realization and statement projection are implemented and
+conformance-green against the Clojure producer:
+
+- **`coprocessor/core/src/realized_fill.rs`** — semantics layer: `partial_fill`
+  (largest-remainder pro-rata) → `RealizedAllocation` with explicit per-
+  participant dispositions (`disposition_of`); malformed input fails closed.
+- **`coprocessor/core/src/realized_statement.rs`** — projection + canonical-
+  encode layer: all six roots recomputed from raw inputs (condition A; the
+  context root is derived via `kernel::context_preimage`, not bound), statement
+  root committed under `REALIZED_ALLOCATION_STATEMENT_V1`, `reveal` helper for
+  the minimal public-input exposure SP1 should prove.
+- **`coprocessor/core/src/realized_statement_io.rs`** — canonical input document
+  → statement JSON projection (single shared path for the native CLI and the
+  SP1 guest).
+- **`coprocessor/core/tests/realized_statement_conformance.rs`** — golden
+  conformance (condition D): six roots + statement root byte-equal to Clojure
+  oracle values for the all-active, shortfall, and mutation-locality cases;
+  negative vectors (malformed input) fail closed; a participant becoming
+  inactive remains distinguishable.
+- `cargo fmt` / `cargo clippy -D warnings` / `cargo test` all clean.
+
+### Step-6 implementation status (SP1 thin wrapper done; on-chain proof pending)
+
+The SP1 guest is now a thin wrapper over the realized-fill core, per acceptance
+condition B:
+
+- **`coprocessor/realized-statement-sp1-program/`** — the SP1 guest: reads the
+  canonical realized-statement input, delegates all semantics + encoding to
+  `realized_statement_io`, and commits the statement JSON projection as public
+  values. The guest does not reimplement realization or encoding.
+- **`coprocessor/sp1-script/src/bin/realized_statement_prove.rs`** — the host
+  script: executes/proves the realized guest and asserts
+  `guest public values == native public values` byte-for-byte.
+- **`coprocessor/core/src/bin/realized_statement_kernel.rs`** — native CLI for
+  the statement; `scripts/conformance/realized-statement-conformance.sh` runs
+  it on the canonical fixture and asserts the six roots + statement root match
+  the Clojure oracle, plus a malformed-input fail-closed check.
+- `make allocation-realized-conformance` passes.
+
+Still **not implemented**: on-chain/SP1 proof verification of the realized
+statement (the generated EVM verifier + coordinator acceptance). The
+`allocation-activation.v1` receipt (Change 3) is now **implemented** on the
+producer + fail-closed-verifier side (see Change 3); its on-chain enforcement
+in the Solidity coordinator awaits proof verification. The statement conformance
+gate enforces `Clojure == Rust` today; `== SP1 guest` is wired at the host
+level and becomes a CI-enforced equality once proof generation is green in the
+environment (the gnark/Go `NAME_MAX` workaround is documented in
+`sp1-script/README.md`).
 
 ---
 
@@ -276,13 +488,25 @@ additional assurance.
 1. ✅ Move Rust core + SP1 + contracts/conformance into this repo.
 2. Freeze the current 14-assertion conformance gate (23 vectors) as the
    baseline.
-3. Introduce `realized-allocation-statement.v1` (Change 4) as the canonical
-   cross-runtime statement.
-4. Implement realized partial-fill in the independent Rust core (Change 5).
+3. ✅ Introduce `realized-allocation-statement.v1` (Change 4) as the canonical
+   cross-runtime statement — Clojure builder + fail-closed producer wired into
+   the benchmark runner; explicit per-participant dispositions; Rust mirror
+   complete.
+4. ✅ Implement realized partial-fill in the independent Rust core (Change 5) —
+   semantics layer (`realized_fill.rs`) + projection/encode
+   (`realized_statement.rs`) + golden conformance vs the Clojure producer
+   (all six roots + statement root byte-equal; mutation locality; fail-closed).
 5. Add rounding/fail-action policy assertions (Changes 1–2) to the Rust core.
-6. Make the SP1 guest execute that core as a thin wrapper.
-7. Bind proof → activation receipt (Change 3), enforcing
-   `rejected proof ⇒ activation prohibited`.
+6. ✅ Make the SP1 guest execute that core as a thin wrapper —
+   `realized-statement-sp1-program` delegates to `realized_statement_io`; host
+   script asserts guest public values == native; conformance gate enforces
+   `Clojure == Rust` on the statement (SP1 equality wired at host, CI-enforced
+   once proof generation is environment-green).
+7. ✅ Bind proof → `allocation-activation.v1` receipt (Change 3), enforcing
+   `rejected proof ⇒ activation prohibited` — producer + fail-closed verifier
+   implemented (`activation.clj`), acceptance test proves a mutated rejected
+   proof can never emit/accept a valid receipt; on-chain coordinator
+   enforcement pending proof verification.
 8. Only then graduate `:claim/pro-rata-fairness-end-to-end` from evidence
    validation to cryptographic provability.
 

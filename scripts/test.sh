@@ -359,6 +359,9 @@ run_unit() {
     resolver-sim.protocols.sew.with-bounty-test \
     resolver-sim.hash.canonical-test \
     resolver-sim.hash.concat-properties-test \
+    resolver-sim.hash.framing-view-test \
+    resolver-sim.hash.sequence-test \
+    resolver-sim.hash.admission-profile-test \
     resolver-sim.hash.attestor-hash-test \
     resolver-sim.ordering.priority-test \
     resolver-sim.ordering.priority-composition-test \

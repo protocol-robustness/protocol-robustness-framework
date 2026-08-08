@@ -233,6 +233,39 @@
    :threats        [:resolver-cartelization :governance-capture]
    :tags           ["demo" "cartel" "multi-epoch" "reputation"]}
 
+  {:id             :demo-short-circuit
+   :path           "notebooks/demo_short_circuit.clj"
+   :title          "Demo — Short-Circuit Execution"
+   :summary        "Composition engine demo: the same three-node plan run twice — once normal, once where node 2 returns :short-circuit?. Shows the pipeline halting before node 3 (no amount, effects, or evidence)."
+   :categories     [:demos :replay-determinism]
+   :audience       [:grant-reviewer :researcher :developer]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:composition :execution]
+   :tags           ["demo" "short-circuit" "composition" "pipeline" "execution"]}
+
+  {:id             :demo-not-admitted
+   :path           "notebooks/demo_not_admitted.clj"
+   :title          "Demo — Can a Verified Result Be Changed?"
+   :summary        "One question, one change, one consequence: an escrow result is verified, the recorded amount is edited, and the exact same check rejects it. Backed by the real custody verifier and a deterministic assertion."
+   :categories     [:demos :evidence-artifacts]
+   :audience       [:grant-reviewer :researcher :reviewer]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:custody :evidence]
+   :tags           ["demo" "admission" "evidence" "tamper" "verification"]}
+
+  {:id             :demo-reorder-chain
+   :path           "notebooks/demo_reorder_chain.clj"
+   :title          "Demo — Does Order Matter?"
+   :summary        "One question, one change, one consequence: the same three evidence items are verified in one order, then reordered, and the exact same chain verifier rejects them. Backed by the real chain verifier and a deterministic assertion."
+   :categories     [:demos :evidence-artifacts]
+   :audience       [:grant-reviewer :researcher :reviewer]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:evidence :chain]
+   :tags           ["demo" "admission" "evidence" "order" "chain"]}
+
   {:id             :security-validation-notebook
    :path           "notebooks/security_validation.clj"
    :title          "Security Validation Notebook"

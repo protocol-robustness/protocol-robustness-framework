@@ -8,8 +8,17 @@
             [resolver-sim.hash.reference :as hash-ref]))
 
 (defn- compile-it
-  [emap combination & [evidence-contracts]]
-  (comp/compile-combination emap combination evidence-contracts))
+  ([emap combination]
+   (comp/compile-combination {:extensions emap} combination))
+  ([emap combination evidence-contracts]
+   (comp/compile-combination {:extensions emap
+                              :evidence-contracts evidence-contracts}
+                             combination))
+  ([emap combination evidence-contracts obligation-definitions]
+   (comp/compile-combination {:extensions emap
+                              :evidence-contracts evidence-contracts
+                              :obligations obligation-definitions}
+                             combination)))
 
 (defn- hex64 [c] (apply str (repeat 64 c)))
 
@@ -517,6 +526,151 @@
           compilation through the combination-level resolver")
       (is (nil? (:evidence-contract (:plan/verification plan)))
           "no combination-level evidence obligation is committed"))))
+
+;; ── typed assurance obligations (obligation.v1) ────────────────────────────
+
+(def obligation-definitions
+  "Explicit kind-aware definitions registry resolved by the compiler."
+  {:custody/held-action
+   {:obligation/id :custody/held-action
+    :obligation/kind :effect
+    :obligation/root (hash-ref/sha256-ref (hex64 \a))
+    :obligation/input-contract-root (hash-ref/sha256-ref (hex64 \b))
+    :obligation/satisfaction-contract-root (hash-ref/sha256-ref (hex64 \c))
+    :obligation/scope-contract {:subjects #{:combination/effects :node/output}
+                                :phases #{:post-execution}
+                                :node-id-required? false}
+    :obligation/constraint-contract {:fields #{:action} :required #{:action}}}
+   :yield.invariant/ledger-balanced
+   {:obligation/id :yield.invariant/ledger-balanced
+    :obligation/kind :invariant
+    :obligation/root (hash-ref/sha256-ref (hex64 \d))
+    :obligation/input-contract-root (hash-ref/sha256-ref (hex64 \e))
+    :obligation/satisfaction-contract-root (hash-ref/sha256-ref (hex64 \f))
+    :obligation/scope-contract {:subjects #{:combination/output :combination/state :node/output}
+                                :phases #{:post-execution}
+                                :node-id-required? false}}
+   :evidence/valid-artifact
+   {:obligation/id :evidence/valid-artifact
+    :obligation/kind :evidence
+    :obligation/root (hash-ref/sha256-ref (hex64 \1))
+    :obligation/input-contract-root (hash-ref/sha256-ref (hex64 \2))
+    :obligation/satisfaction-contract-root (hash-ref/sha256-ref (hex64 \3))
+    :obligation/scope-contract {:subjects #{:combination/evidence}
+                                :phases #{}
+                                :node-id-required? false}}})
+
+(def custody-safe-obligations
+  "Phase-2 acceptance fixture: custody-safe execution = required sub-held +
+   ledger-balanced + valid evidence."
+  [{:obligation/kind :effect
+    :obligation/ref :custody/held-action
+    :obligation/scope {:subject :combination/effects :phase :post-execution}
+    :obligation/constraint {:action "sub-held"}}
+   {:obligation/kind :invariant
+    :obligation/ref :yield.invariant/ledger-balanced
+    :obligation/scope {:subject :combination/output :phase :post-execution}}
+   {:obligation/kind :evidence
+    :obligation/ref :evidence/valid-artifact
+    :obligation/scope {:subject :combination/evidence}}])
+
+(defn- custody-safe-combo
+  ([] (custody-safe-combo custody-safe-obligations))
+  ([obligations]
+   (assoc (two-stage (fx/ext-map-with))
+          :combination/verification {:intermediate-output-committed? true
+                                     :obligations obligations})))
+
+(defn- compile-obligations
+  [combo]
+  (compile-it (fx/ext-map-with) combo nil obligation-definitions))
+
+(deftest obligations-resolved-and-committed
+  (testing "each declared obligation resolves to its committed identity in the plan"
+    (let [{:keys [status plan]} (compile-obligations (custody-safe-combo))]
+      (is (= :valid status))
+      (let [obligations (:obligations (:plan/verification plan))]
+        (is (= 3 (count obligations)))
+        (is (= [{:obligation/kind :effect
+                 :obligation/id :custody/held-action
+                 :obligation/root (hash-ref/sha256-ref (hex64 \a))
+                 :obligation/input-contract-root (hash-ref/sha256-ref (hex64 \b))
+                 :obligation/satisfaction-contract-root (hash-ref/sha256-ref (hex64 \c))
+                 :obligation/scope {:subject :combination/effects :phase :post-execution}
+                 :obligation/constraint {:action "sub-held"}}]
+               (filter #(= :effect (:obligation/kind %)) obligations)))
+        (is (= :yield.invariant/ledger-balanced
+               (:obligation/id (first (filter #(= :invariant (:obligation/kind %)) obligations)))))
+        (is (= :evidence/valid-artifact
+               (:obligation/id (first (filter #(= :evidence (:obligation/kind %)) obligations)))))))))
+
+(deftest obligation-fail-closed-compilation
+  (testing "unknown ref"
+    (let [{:keys [status violations]}
+          (compile-obligations
+           (custody-safe-combo
+            (assoc-in custody-safe-obligations [0 :obligation/ref] :custody/nope)))]
+      (is (= :invalid status))
+      (is (some #(= :violation/unresolved-obligation (:violation/id %)) violations))))
+  (testing "wrong kind for ref"
+    (let [{:keys [status violations]}
+          (compile-obligations
+           (custody-safe-combo
+            (assoc-in custody-safe-obligations [0 :obligation/kind] :invariant)))]
+      (is (= :invalid status))
+      (is (some #(= :violation/obligation-wrong-kind (:violation/id %)) violations))))
+  (testing "invalid scope for definition"
+    (let [{:keys [status violations]}
+          (compile-obligations
+           (custody-safe-combo
+            (assoc-in custody-safe-obligations [1 :obligation/scope :subject]
+                      :combination/effects)))]
+      (is (= :invalid status))
+      (is (some #(= :violation/invalid-obligation-scope-or-constraint (:violation/id %))
+                violations))))
+  (testing "invalid constraint for definition"
+    (let [{:keys [status violations]}
+          (compile-obligations
+           (custody-safe-combo
+            (assoc-in custody-safe-obligations [0 :obligation/constraint]
+                      {:amount 100})))]
+      (is (= :invalid status))
+      (is (some #(= :violation/invalid-obligation-scope-or-constraint (:violation/id %))
+                violations)))))
+
+(deftest each-obligation-is-independently-necessary
+  (testing "removing any one obligation changes the plan (each is committed,
+            none is decorative); changing a ref or constraint changes the plan"
+    (let [base (-> (compile-obligations (custody-safe-combo)) :plan :plan/root)
+          without-effect (-> (compile-obligations
+                              (custody-safe-combo (subvec custody-safe-obligations 1)))
+                             :plan :plan/root)
+          without-invariant (-> (compile-obligations
+                                 (custody-safe-combo (vec (concat (subvec custody-safe-obligations 0 1)
+                                                                  (subvec custody-safe-obligations 2)))))
+                                :plan :plan/root)
+          without-evidence (-> (compile-obligations
+                                (custody-safe-combo (subvec custody-safe-obligations 0 2)))
+                               :plan :plan/root)
+          other-action (-> (compile-obligations
+                            (custody-safe-combo
+                             (assoc-in custody-safe-obligations [0 :obligation/constraint :action]
+                                       "refund-held")))
+                           :plan :plan/root)]
+      (is (not= base without-effect) "the :effect obligation is committed")
+      (is (not= base without-invariant) "the :invariant obligation is committed")
+      (is (not= base without-evidence) "the :evidence obligation is committed")
+      (is (not= base other-action) "a changed constraint changes the plan"))))
+
+(deftest obligation-scope-is-first-class
+  (testing "scope is required on every obligation; the plan commits it"
+    (let [{:keys [status violations]}
+          (compile-obligations
+           (custody-safe-combo
+            (assoc-in custody-safe-obligations [2 :obligation/scope] nil)))
+          nested (mapcat :violations (map :details violations))]
+      (is (= :invalid status))
+      (is (some #(= :violation/missing-obligation-scope (:violation/id %)) nested)))))
 
 ;; ── graph helpers ─────────────────────────────────────────────────────────
 

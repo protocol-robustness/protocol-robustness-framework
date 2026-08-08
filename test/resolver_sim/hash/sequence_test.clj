@@ -128,47 +128,66 @@
     (is (= :evidence-content (:purpose (:value r))))
     (is (= 3 (:component-count (:value r))))
     (is (= [1 "a" :b] (:components (:value r))))
-    (is (empty? (:errors r)))))
+    (is (empty? (:issues r)))))
 
 (deftest verify-sequence-commitment-rejects-inconsistent-count
   (let [m {:encoding-contract seq/sequence-contract
            :purpose :a :component-count 2 :components [1]}
         r (seq/verify-sequence-commitment (hc/canonical-bytes m))]
     (is (not (:valid? r)))
-    (is (some #(re-find #"does not match" %) (:errors r)))))
+    (is (some #(= :sequence/component-count-mismatch (:code %)) (:issues r)))))
 
 (deftest verify-sequence-commitment-rejects-non-keyword-purpose
   (let [m {:encoding-contract seq/sequence-contract
            :purpose "a" :component-count 1 :components [1]}
         r (seq/verify-sequence-commitment (hc/canonical-bytes m))]
     (is (not (:valid? r)))
-    (is (some #(re-find #"purpose must be a keyword" %) (:errors r)))))
+    (is (some #(= :sequence/purpose-not-keyword (:code %)) (:issues r)))))
 
 (deftest verify-sequence-commitment-rejects-wrong-contract
   (let [m {:encoding-contract "some-other-contract"
            :purpose :a :component-count 1 :components [1]}
         r (seq/verify-sequence-commitment (hc/canonical-bytes m))]
     (is (not (:valid? r)))
-    (is (some #(re-find #"encoding-contract" %) (:errors r)))))
+    (is (some #(= :sequence/wrong-contract (:code %)) (:issues r)))))
 
 (deftest verify-sequence-commitment-rejects-non-map
   (let [r (seq/verify-sequence-commitment (hc/canonical-bytes [1 2 3]))]
     (is (not (:valid? r)))
-    (is (some #(re-find #"not a map" %) (:errors r)))))
+    (is (some #(= :sequence/not-a-map (:code %)) (:issues r)))))
 
 (deftest verify-sequence-commitment-rejects-extra-key
   (let [m {:encoding-contract seq/sequence-contract
            :purpose :a :component-count 1 :components [1] :evil :x}
         r (seq/verify-sequence-commitment (hc/canonical-bytes m))]
     (is (not (:valid? r)))
-    (is (some #(re-find #"not a fixed point" %) (:errors r)))))
+    (is (some #(= :sequence/unexpected-keys (:code %)) (:issues r)))
+    (is (= [:evil] (:keys (first (filter #(= :sequence/unexpected-keys (:code %))
+                                         (:issues r))))))))
 
 (deftest verify-sequence-commitment-rejects-trailing-bytes
   (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1 2])
         trailing (byte-array (conj (vec ba) 0x00))
         r (seq/verify-sequence-commitment trailing)]
     (is (not (:valid? r)))
-    (is (some #(re-find #"trailing byte" %) (:errors r)))))
+    (is (some #(= :sequence/trailing-bytes (:code %)) (:issues r)))))
+
+(deftest verify-sequence-commitment-classifies-structural-error-not-trailing-bytes
+  (testing "a truncated/malformed stream is a structural failure, never labeled
+            :sequence/trailing-bytes (that code is reserved for a well-framed
+            stream that decodes to extra components)"
+    (let [good (hc/canonical-bytes {:a 1})
+          truncated (java.util.Arrays/copyOfRange ^bytes good 0 (quot (count good) 2))
+          r (seq/verify-sequence-commitment truncated)]
+      (is (not (:valid? r)))
+      (is (some #(= :truncated-length (:code %)) (:issues r))
+          "the real structural defect is reported")
+      (is (not-any? #(= :sequence/trailing-bytes (:code %)) (:issues r))
+          "no spurious trailing-bytes classification")))
+  (testing "a well-framed two-component stream IS trailing bytes / extra components"
+    (let [r (seq/verify-sequence-commitment (seq/encode-sequence [1 2]))]
+      (is (not (:valid? r)))
+      (is (some #(= :sequence/trailing-bytes (:code %)) (:issues r))))))
 
 (deftest verify-sequence-commitment-rejects-non-canonical-encoding
   (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1])
@@ -181,7 +200,7 @@
                                          (drop (+ idx 2) ba)))
         r (seq/verify-sequence-commitment noncanonical)]
     (is (not (:valid? r)))
-    (is (some #(re-find #"canonical fixed point" %) (:errors r)))))
+    (is (some #(= :non-minimal-varint (:code %)) (:issues r)))))
 
 (deftest verify-sequence-commitment-classifies-resource-rejection
   (testing "a commitment that exceeds the decoder's collection-depth is
@@ -190,26 +209,31 @@
           ba (seq/canonical-sequence-bytes {:purpose :a} [deep])
           r (seq/verify-sequence-commitment ba)]
       (is (not (:valid? r)))
-      (is (some #(re-find #"inadmissible under the admission profile" %) (:errors r)))
-      (is (some #(re-find #"limit-exceeded" %) (:errors r)))
-      (is (not-any? #(re-find #"decode failed" %) (:errors r))
-          "resource rejection must not be misreported as a decode failure"))))
+      (is (:resource-limit? r))
+      (is (= :max-collection-depth (:resource-reason r)))
+      (is (not-any? #(contains? #{:sequence/trailing-bytes :sequence/not-a-map
+                                  :sequence/wrong-contract} (:code %))
+                    (:issues r))
+          "resource rejection must not be misreported as a contract violation"))))
 
 (deftest verify-sequence-commitment-rejects-over-stream-limit
   (testing "a genuine commitment whose bytes exceed :max-stream-bytes is
             inadmissible (resource policy), exactly as verify-stream rejects
-            it — decode-one and verify-stream share one admission profile"
+            it — the round-trip primitive and verify-stream share one
+            admission profile"
     (let [ba (seq/canonical-sequence-bytes {:purpose :a}
-               [{:a (apply str (repeat 700000 \a))}
-                {:b (apply str (repeat 700000 \b))}])
+                                           [{:a (apply str (repeat 700000 \a))}
+                                            {:b (apply str (repeat 700000 \b))}])
           r (seq/verify-sequence-commitment ba)]
       (is (> (count ba) (:max-stream-bytes fv/default-limits))
           "the commitment is genuinely over the stream bound")
       (is (not (:valid? r)))
-      (is (some #(re-find #"inadmissible under the admission profile" %) (:errors r)))
-      (is (some #(re-find #"max-stream-bytes" %) (:errors r)))
-      (is (not-any? #(re-find #"decode failed" %) (:errors r))
-          "resource rejection must not be misreported as a decode failure"))))
+      (is (:resource-limit? r))
+      (is (= :max-stream-bytes (:resource-reason r)))
+      (is (not-any? #(contains? #{:sequence/trailing-bytes :sequence/not-a-map
+                                  :sequence/wrong-contract} (:code %))
+                    (:issues r))
+          "resource rejection must not be misreported as a contract violation"))))
 
 (deftest verify-sequence-commitment-round-trips-hash
   (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1 "x" :k])

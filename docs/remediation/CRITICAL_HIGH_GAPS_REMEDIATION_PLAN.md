@@ -347,8 +347,13 @@ from referenced inputs.
 2. A target identity is at least `[kind id hash]`. If product semantics require
    only one current hash per ID, reject multiple hashes for the same
    `[kind id]` within a review cell instead of silently splitting them.
-3. Exact replication must compare all documented roots, including
-   `:execution/realised-parameter-set-root`.
+3. Exact replication must compare all documented roots. The former
+   `:execution/realised-parameter-set-root` field was removed from the active
+   production contract (declared-and-consumed-but-never-produced); it should be
+   reintroduced only together with a producer, per the
+   allocation-proofs determination. Exact replication compares content-root,
+   model-root, model-instance-root, plan-root, parameter-domain-root,
+   sampling-policy-root, generated-case-set-root, and evaluation-policy-root.
 4. Standalone validation needs resolvable, content-addressed report and
    position bodies. Storing only their hash strings is insufficient for the
    advertised independently recomputable validation.

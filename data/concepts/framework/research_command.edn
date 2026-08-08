@@ -123,4 +123,16 @@
   {:description "Number of research command declarations passing validation under the same trace snapshot. Combinations do not change this count; a declaration requesting an unsupported domain, or one without a committed :command/hash or keyword :command/id, counts as discovered but not valid."
    :source :derived-from-validation
    :producer "resolver-sim.benchmark.research-command/command-trace-metrics"
-   :bound-to :trace/root}}}
+   :bound-to :trace/root}
+  :command-trace-v2-root
+  {:description "Canonical-value-sequence.v1 commitment over the ordered sequence of command hashes (research-command-trace.v2). It commits purpose, component count, and ordered components, and is independently verifiable. Metrics describe the trace but never become part of trace identity."
+   :source :derived-from-trace
+   :producer "resolver-sim.benchmark.research-command/command-trace-metrics-v2"
+   :bound-to :trace/v2-root}}
+
+ :concept/architecture-notes
+ ["Research scope (command includes), command traces (ordered provenance), dimension-support (evidence→classification provenance), and researcher consensus (certificate) are distinct composition forms. All use canonical commitments, but that does not make them the same abstraction."
+  "research-command.v2 replaces the two-value include set with typed scope-refs: :research-scope/analysis, :research-scope/dimension, :research-scope/artifact, :research-scope/model. Legacy :incentive / :incentive-compatibility migrate to :research-scope/analysis refs without being reinterpreted as consensus dimensions."
+  "research-command-trace.v2 binds the ordered sequence of command identities under canonical-value-sequence.v1; it is independent of typed scope migration."
+  "dimension-support.v1 binds evidence roots to consensus dimensions and (for execution sources) commits the outcome-manifest root, making the manifest identity an explicit intermediate provenance object."
+  "Researchers may agree on a dimension while citing distinct independent evidence; support divergence is surfaced at certificate time but is not a blocking validity failure."]}

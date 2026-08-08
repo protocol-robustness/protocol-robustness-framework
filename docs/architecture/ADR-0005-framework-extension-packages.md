@@ -1037,8 +1037,9 @@ missing/invalid composition contract, unsupported composition mode,
 nondeterministic capability forbidden, input/output semantic mismatch, graph
 input/output not satisfied, illegal terminal placement, undeclared dependency,
 effect conflict, unsupported adapters, verification contract not preserved,
-unresolved or wrong-kind evidence contract, cycle detected, and unreachable
-node.
+unresolved or wrong-kind evidence contract, unresolved/wrong-kind/malformed
+obligation, inadmissible obligation scope or constraint, cycle detected, and
+unreachable node.
 
 A declared `:combination/verification :evidence-contract-ref` is resolved
 against an explicit evidence-contract registry at compile time. A ref that
@@ -1063,6 +1064,39 @@ legacy/unresolved symbolic vocabulary pending the contract-obligation patch;
 they receive none of the resolution guarantees above. A regression test locks
 this boundary so accidental partial resolution is visible during the
 transition.
+
+### Typed assurance obligations (obligation.v1)
+
+`:combination/verification` may carry `:obligations`, a vector of **typed
+assurance obligations** — what must be true of an executed combination, not
+merely that it executed:
+
+- `:effect` — inspect what actually happened (realized effects must satisfy a
+  constraint, e.g. a required held action);
+- `:invariant` — prove a property over state/evidence (e.g. ledger-balanced);
+- `:evidence` — prove that a required artifact/proof exists and verifies.
+
+Each obligation is first-class **`scope`**d (which subject — combination
+effects/output/evidence/state, or a specific node's output — at which phase)
+and is resolved against an explicit kind-aware definitions registry into a
+committed identity: `:obligation/id`, `:obligation/root`,
+`:obligation/input-contract-root`, `:obligation/satisfaction-contract-root`,
+plus the instance data (scope, constraint). That resolved identity is
+committed into `:plan/verification :obligations`, so the plan binds the exact
+obligation semantics resolved at compile time. Resolution fails closed on an
+unknown ref, a wrong-kind ref, a definition lacking its committed identity, an
+inadmissible scope, or an invalid constraint.
+
+Obligations stay an *assurance* layer. Admission policy (may this plan exist /
+run — e.g. forbidden production use) is a compile-time gate, not an
+obligation; execution (what capabilities/workflow run) and assurance (what
+must be proven about execution) remain distinct layers.
+
+The canonical acceptance fixture is **custody-safe execution**: required
+`sub-held` (`:effect` over realized effects) + `ledger-balanced`
+(`:invariant` over the combination output) + `valid-artifact`
+(`:evidence` over produced evidence). Mutation tests prove each obligation is
+independently committed.
 
 ### Compiled plan
 

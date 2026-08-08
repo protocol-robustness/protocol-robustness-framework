@@ -23,8 +23,9 @@
 
 (def combination-verification-fields
   "Permitted keys of a :combination/verification map. Unknown keys are rejected
-   so typos do not disappear silently."
-  #{:intermediate-output-committed? :evidence-contract-ref})
+   so typos do not disappear silently. :obligations is a vector of typed
+   assurance obligations resolved and committed by the compiler."
+  #{:intermediate-output-committed? :evidence-contract-ref :obligations})
 
 (defn- valid-addresses?
   [addresses]
@@ -131,7 +132,8 @@
     :else
     (let [unknown (vec (remove combination-verification-fields (keys verification)))
           intermediate (:intermediate-output-committed? verification)
-          evidence-ref (:evidence-contract-ref verification)]
+          evidence-ref (:evidence-contract-ref verification)
+          obligations (:obligations verification)]
       (cond-> []
         (seq unknown)
         (conj {:violation/id :violation/unknown-combination-verification-key
@@ -146,7 +148,17 @@
         (and (contains? verification :evidence-contract-ref)
              (not (or (nil? evidence-ref) (keyword? evidence-ref))))
         (conj {:violation/id :violation/invalid-combination-verification-evidence-ref
-               :details {:evidence-contract-ref evidence-ref}})))))
+               :details {:evidence-contract-ref evidence-ref}})
+
+        (and (contains? verification :obligations)
+             (not (vector? obligations)))
+        (conj {:violation/id :violation/invalid-combination-obligations
+               :details {:obligations obligations}})
+
+        (and (vector? obligations)
+             (not (every? map? obligations)))
+        (conj {:violation/id :violation/invalid-combination-obligation-entry
+               :details {:obligations obligations}})))))
 
 (defn validate-combination
   "Validate a requested combination structurally.

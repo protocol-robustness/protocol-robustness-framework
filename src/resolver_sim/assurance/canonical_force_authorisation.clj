@@ -608,7 +608,7 @@
 (defn missing-cancellation-binding-fields
   "The binding keys absent from a committed cancellation decision map."
   [binding]
-  (vec (clojure.set/difference cancellation-binding-fields (set (keys binding)))))
+  (vec (sort (clojure.set/difference cancellation-binding-fields (set (keys binding))))))
 
 (defn- project-cancellation-binding
   "Project a committed cancellation binding into canonical-safe form.  Sets
@@ -696,11 +696,12 @@
      :conflict-key           — the contention key (contract 6);
      :conflict-key-result    — the transition race result;
      :certificate/hash       — the certified decision being executed;
-     :rule/id                — the deterministic rule identifier;
-     :operation/provenance   — who/what performed the operation and when.
-   :lifecycle/profile may be supplied for post-cutpoint operations; when it is,
-   the declared :lifecycle/state must classify :closed (never :open) relative to
-   it."
+   :rule/id                — the deterministic rule identifier;
+      :operation/provenance   — who/what performed the operation and when.
+   :lifecycle/profile is REQUIRED for the post-cutpoint operations (rejection and
+   certified execution): the declared :lifecycle/state must classify :closed
+   (never :open) relative to it. Without the profile the open-window
+   contradiction cannot be checked, so those operations fail closed."
   {:expire-at-deadline
    {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
                 :lifecycle/state :cutpoint :applicable-time
@@ -715,13 +716,13 @@
 
    :reject-post-cutpoint-cancellation
    {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
-                :lifecycle/state :cutpoint :target/id :target/hash
+                :lifecycle/profile :lifecycle/state :cutpoint :target/id :target/hash
                 :domain-projection :rule/id :operation/provenance}
     :reason "post-cutpoint rejection"}
 
    :execute-certified-cancellation
    {:evidence #{:lifecycle/profile-id :lifecycle/profile-version
-                :lifecycle/state :cutpoint :target/id :target/hash
+                :lifecycle/profile :lifecycle/state :cutpoint :target/id :target/hash
                 :certificate/hash :conflict-key :conflict-key-result
                 :operation/provenance}
     :reason "execution of a certified decision"}
@@ -741,8 +742,9 @@
   "Cross-field consistency for deterministic-operation evidence. A post-cutpoint
    operation (rejection or certified execution) whose declared :lifecycle/state
    is still :open under the supplied :lifecycle/profile contradicts the
-   declared cutpoint and is inconsistent. Profile-free evidence is presence
-   checked only."
+   declared cutpoint and is inconsistent. The :lifecycle/profile is a REQUIRED
+   evidence category for those two operations, so the open-window contradiction
+   is always checked rather than silently passing."
   [operation evidence]
   (let [profile (:lifecycle/profile evidence)
         state (:lifecycle/state evidence)]

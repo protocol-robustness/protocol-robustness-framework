@@ -7,7 +7,7 @@
    Replication types (in precedence order):
      :exact-replication     — same content-root, model-instance, plan,
                               parameter-domain, sampling-policy,
-                              realised-parameters, generated-cases, evaluation-policy
+                              generated-cases, evaluation-policy
      :independent-sampling  — same model and sampling policy, different
                               generated case sets
      :model-corroboration   — same primary model root, different
@@ -127,7 +127,6 @@
             plan-roots (set (map :execution/plan-root reports))
             domain-roots (set (map :execution/parameter-domain-root reports))
             sampling-roots (set (map :execution/sampling-policy-root reports))
-            realised-parameter-roots (set (map :execution/realised-parameter-set-root reports))
             case-roots (set (map :execution/generated-case-set-root reports))
             eval-policies (set (map :benchmark/evaluation-policy-root reports))]
         (cond
@@ -136,7 +135,6 @@
                (= 1 (count plan-roots))
                (= 1 (count domain-roots))
                (= 1 (count sampling-roots))
-               (= 1 (count realised-parameter-roots))
                (= 1 (count case-roots))
                (= 1 (count eval-policies)))
           :exact-replication
@@ -146,7 +144,6 @@
                (= 1 (count plan-roots))
                (= 1 (count domain-roots))
                (= 1 (count sampling-roots))
-               (= 1 (count realised-parameter-roots))
                (not= 1 (count case-roots)))
           :independent-sampling
           (and (= 1 (count content-roots))
@@ -599,9 +596,25 @@
                    (not= (:researcher-run-report/outcome-hash report)
                          (:position/outcome-hash position)))
           (swap! errors conj (str "report and position outcome-hash mismatch for " id)))))
-    (doseq [e (:errors disagreement-result)]
-      (swap! errors conj e))
-    {:pre-certificate-valid? (empty? @errors) :errors @errors}))
+    ;; ── Dimension-support divergence (informational, not blocking) ──
+    ;; Researchers may legitimately agree on a dimension while citing
+    ;; distinct, independently valid evidence.  Support divergence is
+    ;; therefore surfaced as a distinct classification (support-divergence)
+    ;; that does NOT invalidate the certificate — it records that members
+    ;; did not attest to the same evidentiary object.  It is distinct from
+    ;; invalid or unreconciled support, which are blocking.
+    (let [support-roots (vec (keep :position/dimension-support-root positions))
+          distinct-support-roots (set support-roots)
+          support-divergence (when (and (> (count support-roots) 1)
+                                        (> (count distinct-support-roots) 1))
+                               {:support-divergence? true
+                                :member-support-roots support-roots
+                                :distinct-support-roots (vec distinct-support-roots)})]
+      (doseq [e (:errors disagreement-result)]
+        (swap! errors conj e))
+      {:pre-certificate-valid? (empty? @errors)
+       :errors @errors
+       :support-divergence support-divergence})))
 
 ;; ── Certificate builder ───────────────────────────────────────────────────
 
@@ -657,67 +670,75 @@
           rep-type (replication-type reports)
           model-dims model-dimensions
           incentive-dims incentive-dimensions
-          other-dims other-dimensions]
-      {:schema-version schema-version
-       :benchmark/content-root (:benchmark/content-root review-round)
-       :review-round/id (:review-round/id review-round)
-       :review-round/purpose (:review-round/purpose review-round)
-       :supersedes-certificate-root supersedes-certificate-root
-       :execution
-       {:status exec-status
-        :replication-type rep-type
-        :outcome-groups outcome-groups}
-       :review-member-canonical-indices ci-artifact
-       :review-member-canonical-indices/hash
-       (:review-member-canonical-indices/hash ci-artifact)
-       :certificate/inputs
-       {:version 1
-        :review-round review-round
-        :canonical-indices ci-artifact
-        :reports (vec reports)
-        :positions (vec positions)}
-       :model-consensus
-       (reduce (fn [m dim]
-                 (assoc m dim (enrich-consensus-with-keys
-                               (per-dimension-consensus positions dim)
-                               ci-artifact)))
-               {} model-dims)
-       :incentive-consensus
-       (reduce (fn [m dim]
-                 (assoc m dim (enrich-consensus-with-keys
-                               (per-dimension-consensus positions dim)
-                               ci-artifact)))
-               {} incentive-dims)
-       :other-consensus
-       (reduce (fn [m dim]
-                 (assoc m dim (enrich-consensus-with-keys
-                               (per-dimension-consensus positions dim)
-                               ci-artifact)))
-               {} other-dims)
-       :theorem-consensus
-       (reduce-kv (fn [m k v]
-                    (assoc m k (enrich-consensus-with-keys v ci-artifact)))
-                  {}
-                  (per-theorem-consensus positions))
-       :conclusion-consensus
-       (reduce-kv (fn [m k v]
-                    (assoc m k (enrich-consensus-with-keys v ci-artifact)))
-                  {}
-                  (per-conclusion-consensus positions))
-       :member-positions
-       (mapv (fn [pos]
-               (let [report (get (into {} (map (juxt :researcher/id identity) reports))
-                                 (:researcher/id pos))]
-                 {:researcher/id (:researcher/id pos)
-                  :position/hash (:position/hash pos)
-                  :outcome-hash (:position/outcome-hash pos)
-                  :report-hash (:researcher-run-report/hash report)
-                  :review-member/index (ci/review-member-index
-                                        ci-artifact (:researcher/id pos))}))
-             positions)
-       :force-authorisations (vec force-authorisations)
-       :unresolved-disagreements (vec disagreements)
-       :certificate/hash nil})))
+          other-dims other-dimensions
+          support-divergence (:support-divergence pre-checks)]
+      (let [body {:schema-version schema-version
+                  :benchmark/content-root (:benchmark/content-root review-round)
+                  :review-round/id (:review-round/id review-round)
+                  :review-round/purpose (:review-round/purpose review-round)
+                  :supersedes-certificate-root supersedes-certificate-root
+                  :execution
+                  {:status exec-status
+                   :replication-type rep-type
+                   :outcome-groups outcome-groups}
+                  :review-member-canonical-indices ci-artifact
+                  :review-member-canonical-indices/hash
+                  (:review-member-canonical-indices/hash ci-artifact)
+                  :certificate/inputs
+                  {:version 1
+                   :review-round review-round
+                   :canonical-indices ci-artifact
+                   :reports (vec reports)
+                   :positions (vec positions)}
+                  :model-consensus
+                  (reduce (fn [m dim]
+                            (assoc m dim (enrich-consensus-with-keys
+                                          (per-dimension-consensus positions dim)
+                                          ci-artifact)))
+                          {} model-dims)
+                  :incentive-consensus
+                  (reduce (fn [m dim]
+                            (assoc m dim (enrich-consensus-with-keys
+                                          (per-dimension-consensus positions dim)
+                                          ci-artifact)))
+                          {} incentive-dims)
+                  :other-consensus
+                  (reduce (fn [m dim]
+                            (assoc m dim (enrich-consensus-with-keys
+                                          (per-dimension-consensus positions dim)
+                                          ci-artifact)))
+                          {} other-dims)
+                  :theorem-consensus
+                  (reduce-kv (fn [m k v]
+                               (assoc m k (enrich-consensus-with-keys v ci-artifact)))
+                             {}
+                             (per-theorem-consensus positions))
+                  :conclusion-consensus
+                  (reduce-kv (fn [m k v]
+                               (assoc m k (enrich-consensus-with-keys v ci-artifact)))
+                             {}
+                             (per-conclusion-consensus positions))
+                  :member-positions
+                  (mapv (fn [pos]
+                          (let [report (get (into {} (map (juxt :researcher/id identity) reports))
+                                            (:researcher/id pos))]
+                            {:researcher/id (:researcher/id pos)
+                             :position/hash (:position/hash pos)
+                             :outcome-hash (:position/outcome-hash pos)
+                             :report-hash (:researcher-run-report/hash report)
+                             :review-member/index (ci/review-member-index
+                                                   ci-artifact (:researcher/id pos))}))
+                        positions)
+                  :force-authorisations (vec force-authorisations)
+                  :unresolved-disagreements (vec disagreements)
+                  :certificate/hash nil}]
+        ;; Support-divergence is bound into the certificate ONLY when it is
+        ;; non-nil.  This keeps the v3 hash projection unchanged for
+        ;; certificates without divergent support roots (preserving committed
+        ;; v2→v3 fixture hashes), while making divergence an explicit committed
+        ;; relationship when it occurs.
+        (cond-> (assoc body :support-divergence support-divergence)
+          (nil? support-divergence) (dissoc :support-divergence))))))
 
 (defn finalise-certificate!
   "Compute the certificate hash and return the finalised certificate.

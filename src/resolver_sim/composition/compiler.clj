@@ -11,6 +11,7 @@
             [resolver-sim.composition.combination :as combo]
             [resolver-sim.composition.contract :as contract]
             [resolver-sim.composition.evidence-contract :as evidence-contract]
+            [resolver-sim.composition.obligation :as obligation]
             [resolver-sim.composition.plan :as plan]))
 
 (def compiler-id
@@ -173,19 +174,33 @@
 ;; ── compiler ──────────────────────────────────────────────────────────────
 
 (defn compile-combination
-  "Compile a requested combination against an extension-map.
+  "Compile a requested combination against an explicit compilation context.
 
-   evidence-contracts — an explicit evidence-contract registry (see
-   resolver-sim.composition.evidence-contract) used to resolve the
-   COMBINATION-LEVEL :combination/verification :evidence-contract-ref. A
-   declared combination-level ref that cannot be resolved (missing,
-   wrong-kind, or malformed entry) fails compilation; the resolved identity is
-   committed into the plan as
-   :plan/verification :evidence-contract {:id <ref> :root <committed-root>},
-   so a later registry mutation cannot silently change what the plan meant.
+   context — {:extensions <extension-map>
+              :evidence-contracts <evidence-contract registry>
+              :obligations <obligation definitions registry>}
+
+   :extensions is the capability registry that resolves nodes. The
+   :evidence-contracts registry resolves the COMBINATION-LEVEL
+   :combination/verification :evidence-contract-ref; a declared ref that
+   cannot be resolved (missing, wrong-kind, or malformed entry) fails
+   compilation, and the resolved identity is committed into the plan as
+   :plan/verification :evidence-contract {:id <ref> :root <committed-root>}.
    Per-node :composition/verification :evidence-contract-ref values are NOT
    resolved by this mechanism — they remain legacy/unresolved capability
    vocabulary pending the contract-obligation patch.
+
+   The :obligations registry resolves each entry of
+   :combination/verification :obligations (see resolver-sim.composition.
+   obligation) into a committed identity (id, definition root, input-contract
+   root, satisfaction-contract root, scope, constraint) committed into the
+   plan; a declaration that cannot be resolved (unknown ref, wrong kind,
+   malformed definition, inadmissible scope or constraint) fails compilation.
+
+   The registries participate in compilation but are not ambient dependencies
+   of execution or verification: the plan commits the exact resolved
+   identities, so a later registry mutation cannot change what an
+   already-compiled plan meant.
 
    Returns {:status :valid, :plan <compiled-plan>}
         or {:status :invalid, :violations [<structured rejections>]}.
@@ -193,11 +208,12 @@
    The compiled plan binds exact descriptor roots, exact composition-contract
    roots, canonical node order, canonical edges, graph input/output contracts,
    effect merge semantics, resolved verification (including the committed
-   evidence contract), and compiler identity/version."
-  ([extension-map combination]
-   (compile-combination extension-map combination nil))
-  ([extension-map combination evidence-contracts]
-  (let [shape (combo/validate-combination combination)]
+   evidence contract and resolved obligations), and compiler identity/version."
+  [context combination]
+  (let [extension-map (:extensions context)
+        evidence-contracts (:evidence-contracts context)
+        obligations-registry (:obligations context)
+        shape (combo/validate-combination combination)]
     (if-not (:valid? shape)
       {:status :invalid :violations (:violations shape)}
       (let [nodes (:combination/nodes combination [])
@@ -326,6 +342,20 @@
                                         :details {:evidence-contract-ref evidence-ref
                                                   :kind (:kind evidence-resolution)
                                                   :violations (:violations evidence-resolution)}}])
+                ;; typed obligations: every declared obligation must resolve
+                ;; against the obligation definitions registry, or the
+                ;; combination fails to compile (never silently dropped)
+                source-obligations (:obligations declared-verification [])
+                obligation-resolutions (mapv #(obligation/resolve-obligation obligations-registry %)
+                                             source-obligations)
+                obligation-violations (into []
+                                            (keep (fn [r]
+                                                    (when-not (:resolved? r)
+                                                      {:violation/id (:violation/id r)
+                                                       :details {:obligation/ref (:ref r)
+                                                                 :kind (:kind r)
+                                                                 :violations (:violations r)}})))
+                                            obligation-resolutions)
                 ;; graph-wide structural checks (defensive; valid chains pass)
                 cycle-violations (when (graph-has-cycle? node-ids edges)
                                    [{:violation/id :violation/cycle-detected
@@ -347,6 +377,7 @@
                                              adapter-violations
                                              verification-conflicts
                                              evidence-violations
+                                             obligation-violations
                                              cycle-violations
                                              unreachable-violations))]
             (if (seq all-violations)
@@ -357,11 +388,14 @@
                     plan-verification (cond-> {:intermediate-output-committed?
                                                (boolean (or requires-intermediate?
                                                             (:intermediate-output-committed? declared-verification)))}
-                                       (some? evidence-ref)
-                                       (assoc :evidence-contract
-                                              (evidence-contract/committed-identity
-                                               evidence-ref
-                                               (:entry evidence-resolution))))
+                                        (some? evidence-ref)
+                                        (assoc :evidence-contract
+                                               (evidence-contract/committed-identity
+                                                evidence-ref
+                                                (:entry evidence-resolution)))
+                                        (seq source-obligations)
+                                        (assoc :obligations
+                                               (mapv :obligation obligation-resolutions)))
                     compiled-plan (plan/build-plan
                                    {:combination-root (combo/combination-root combination)
                                     :compiler-id compiler-id
@@ -373,4 +407,4 @@
                                     :output-contract (:combination/expected-output combination)
                                     :effect-merge-strategy effect-merge-strategy
                                     :verification plan-verification})]
-                {:status :valid :plan compiled-plan})))))))))
+                {:status :valid :plan compiled-plan}))))))))

@@ -1540,12 +1540,12 @@
                       :right-cross (* filled-j claim-i)})))
                (remove nil?)
                vec)
-           [])
+          [])
         total-unfilled (long (+ total-deferred total-haircut))
         unfilled (into {}
-                        (merge-with +
-                                    (or deferred {})
-                                    (or haircut {})))
+                       (merge-with +
+                                   (or deferred {})
+                                   (or haircut {})))
         ;; The fail-action theorem is policy-bound: the execution must conform
         ;; to its declared pro-rata fail-action policy, not to an unconditional
         ;; definition of fairness. Each bucket declares how its shortfall is
@@ -1559,8 +1559,8 @@
         fail-action-policy-root (hc/hash-with-intent {:hash/intent :fail-action-policy}
                                                      fail-action-policy)
         bucket-policy (fn [bucket] (get fail-action-policy
-                                       (if (= :deferred bucket) :deferred-policy :haircut-policy)
-                                       :same-ratio))
+                                        (if (= :deferred bucket) :deferred-policy :haircut-policy)
+                                        :same-ratio))
         same-ratio-bucket? (fn [bucket] (= :same-ratio (bucket-policy bucket)))
         fail-action-max-error (case rounding-policy
                                 :largest-remainder 1

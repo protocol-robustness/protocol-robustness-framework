@@ -17,6 +17,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [buddy.core.keys :as keys]
             [resolver-sim.allocation.certificate :as cert]
             [resolver-sim.allocation.context :as context]
             [resolver-sim.allocation.kernel :as kernel]
@@ -159,13 +160,21 @@
         {:exit-code 0 :message (str (count all) " vectors generated")}))))
 
 (defn issue-certificate
-  "allocation issue-certificate [--input FILE|-]
-   Run the reference kernel and compose allocation-assurance-certificate.v1."
-  [opts]
+  "allocation issue-certificate [--input FILE|-] [--key KEY --key-id ID]
+   Run the reference kernel and compose allocation-assurance-certificate.v1.
+
+   The certificate always carries its content-addressed :certificate/hash.
+   When --key and --key-id are supplied, the certificate is additionally
+   signed as an attestation by that issuer key (see
+   resolver-sim.allocation.certificate/sign-certificate)."
+  [{:keys [key key-id] :as opts}]
   (let [{:keys [input error]} (parse-args opts)]
     (cond
       error (do (stderr (str "allocation issue-certificate: " error))
                 {:exit-code 2 :message error})
+
+      (and key (nil? key-id))
+      {:exit-code 2 :message "issue-certificate: --key-id is required when --key is supplied"}
 
       :else
       (let [input-doc (input-result input)]
@@ -174,7 +183,11 @@
               (print-json input-doc)
               {:exit-code 1 :message (:rejection/reason input-doc)})
           (let [result (kernel/run-kernel input-doc)
-                certificate (cert/compose-certificate result)]
+                certificate (cert/compose-certificate result)
+                certificate (if (and key key-id)
+                              (let [private-key (keys/private-key key)]
+                                (cert/sign-certificate certificate private-key key-id))
+                              certificate)]
             (print-json certificate)
             {:exit-code (run-result->exit result)
              :message (if (= :passing (:result/status result))

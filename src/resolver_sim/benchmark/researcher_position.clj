@@ -95,26 +95,30 @@
 (defn build-position
   "Build a researcher position map with model-component-level assessment.
 
-   benchmark/content-root  — the benchmark content root that was evaluated
-   researcher/id           — identifying the researcher
-   outcome-hash            — the outcome hash from the researcher's run report
-   dimensions              — map of dimension keyword to:
-                             {:status keyword
-                              :targets (optional) [{:kind keyword :id keyword
-                                                     :component-hash sha256}]
-                              :rationale string
-                              :qualifications [string]}
+    benchmark/content-root  — the benchmark content root that was evaluated
+    researcher/id           — identifying the researcher
+    outcome-hash            — the outcome hash from the researcher's run report
+    dimensions              — map of dimension keyword to:
+                               {:status keyword
+                                :targets (optional) [{:kind keyword :id keyword
+                                                       :component-hash sha256}]
+                                :rationale string
+                                :qualifications [string]}
 
-   Optional:
-   position/targets        — vector of theorem/conclusion targets:
-                             [{:kind :theorem|:conclusion
-                               :id keyword
-                               :hash sha256
-                               :status keyword
-                               :rationale string}]
+    Optional:
+    position/targets        — vector of theorem/conclusion targets:
+                               [{:kind :theorem|:conclusion
+                                 :id keyword
+                                 :hash sha256
+                                 :status keyword
+                                 :rationale string}]
+    position/dimension-support-root — sha256 ref to a dimension-support.v1
+                                      artifact, binding evidence roots to the
+                                      consensus dimensions assessed in this position
 
-   Returns the position map."
-  [{:keys [benchmark/content-root researcher/id outcome-hash dimensions position/targets]}]
+    Returns the position map."
+  [{:keys [benchmark/content-root researcher/id outcome-hash dimensions
+           position/targets position/dimension-support-root]}]
   (let [known-dimensions (set (keys dimension-statuses))
         provided (set (keys dimensions))
         extra (clojure.set/difference provided known-dimensions)]
@@ -171,7 +175,9 @@
                        :position/outcome-hash outcome-hash
                        :position/dimensions normalised-dims}
                       (when normalised-targets
-                        {:position/targets normalised-targets}))
+                        {:position/targets normalised-targets})
+                      (when dimension-support-root
+                        {:position/dimension-support-root dimension-support-root}))
           position-hash (hc/domain-hash :researcher-position base)]
       (assoc base :position/hash (hash-ref/sha256-ref  position-hash)))))
 

@@ -252,7 +252,8 @@
 
 (defn- scenario-check-results
   [claim-spec mechanism-level result]
-  (let [base-checks [{:check/id :scenario-passed
+  (let [stmt-root (:scenario/realized-allocation-statements-root result)
+        base-checks [{:check/id :scenario-passed
                       :status (if (= :pass (:outcome result)) :pass :fail)
                       :details {:outcome (:outcome result)
                                 :halt-reason (:halt-reason result)}}
@@ -261,7 +262,19 @@
                       :details {:scenario/evidence-root (:scenario/evidence-root result)}}
                      {:check/id :no-invariant-errors
                       :status (if (empty? (invariant-failures result)) :pass :fail)
-                      :details {:failed-invariants (invariant-failures result)}}]
+                      :details {:failed-invariants (invariant-failures result)}}
+                     ;; Graduation check: the canonical realized-allocation
+                     ;; statement root is committed and binds the scenario
+                     ;; evidence. Additive and non-breaking: absence of a
+                     ;; statement (no allocation context in the world) is :pass
+                     ;; — the claim is still validated by the simulator closed-
+                     ;; form checks. When a statement root IS produced, it must
+                     ;; be a valid hash.
+                     {:check/id :realized-statement-root-valid
+                      :status (if (some? stmt-root)
+                                (if (sha-256-hex? stmt-root) :pass :fail)
+                                :pass)
+                      :details {:realized-allocation-statements-root stmt-root}}]
         cf-checks (when (= :allocation/partial-fill mechanism-level)
                     (closed-form-check-results result (:closed-form-check-ids claim-spec)))
         ;; Extract exercise witnesses from closed-form check results

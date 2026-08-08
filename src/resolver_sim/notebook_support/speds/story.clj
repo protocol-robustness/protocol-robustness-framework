@@ -48,14 +48,33 @@
      cta (conj [:div {:style {:marginTop "24px" :padding "12px" :background "#03DAC6" :color "#020617" :textAlign "center" :fontWeight 900 :fontSize "14px"}}
                 cta]))})
 
-(defn- inv-status
-  "Returns the invariant status from context data, defaulting to :ok."
+(def ^:private passing-statuses
+  #{:ok :pass :passed :true})
+(def ^:private failing-statuses
+  #{:fail :failed :false})
+
+(defn normalize-invariant-status
+  "Maps a raw invariant result value to one of :ok | :failed | :unknown.
+   Handles keyword and string forms (artifact JSON yields strings)."
+  [v]
+  (let [s (some-> v name str/lower-case)]
+    (cond
+      (contains? passing-statuses (keyword s)) :ok
+      (contains? failing-statuses (keyword s)) :failed
+      :else :unknown)))
+
+(defn inv-status
+  "Returns the evidence status for an invariant from context data.
+   Architectural rule: narrative rendering may SIMPLIFY evidence but must
+   NEVER STRENGTHEN it. An invariant with no recorded result is reported as
+   :not-measured — it is never promoted to :ok."
   [ctx simple-id]
   (let [results (or (:invariant-results ctx) {})
-        full-key (keyword "invariant" (name simple-id))]
-    (or (get results full-key)
-        (get results simple-id)
-        :ok)))
+        full-key (keyword "invariant" (name simple-id))
+        raw      (or (get results full-key) (get results simple-id))]
+    (if (nil? raw)
+      :not-measured
+      (normalize-invariant-status raw))))
 
 ;; ---
 ;; Internal Narrative Helpers
@@ -293,7 +312,7 @@
 (defn generate-run-overview
   "Overview panel designed for reviewer/public status context."
   [artifacts]
-  (let [{:keys [summary coverage]} artifacts
+  (let [{:keys [summary]} artifacts
         {:keys [replay-match-label scenario-count determinism-text coverage-text]} (data/narrative-metrics artifacts)]
     [:div {:style {:padding "24px" :border "1px solid #004D59" :background "#020617"}}
      [:h2 {:style {:marginTop 0 :color "#fff"}} "Validation Run Overview"]
@@ -307,17 +326,11 @@
      [:p {:style {:fontSize "11px" :color "#94a3b8" :marginTop "12px"}}
       "This summarizes run status; it does not by itself prove system safety."]]))
 
-(defn- family->scenario-id
-  [issues family fallback]
-  (or (:scenario/id (first (filter #(= family (:story/family %)) issues)))
-      (:scenario/id (first issues))
-      fallback))
-
 (defn generate-issue-gallery
   "Primary issue-driven story mode.
    opts: {:issues-path string :limit n}"
   ([artifacts] (generate-issue-gallery artifacts {}))
-  ([artifacts {:keys [issues-path limit] :or {limit 3}}]
+  ([artifacts {:keys [limit] :or {limit 3}}]
    (let [findings-bundle (or (findings/load-findings)
                              (findings/generate-findings-bundle artifacts))
          finding-list (take limit (sort-by (juxt (comp - :priority :story) :scenario_id)
@@ -371,7 +384,7 @@
 (defn generate-atlas-view
   "Generates a generalized Protocol Atlas from simulation coverage artifacts."
   [artifacts]
-  (let [{:keys [coverage summary]} artifacts
+  (let [{:keys [coverage]} artifacts
         scenarios (sort-by :id (:scenarios coverage))
         threat-tags (sort-by val > (:threat-tag-freq coverage))
         {:keys [determinism-text coverage-text]} (data/narrative-metrics artifacts)]

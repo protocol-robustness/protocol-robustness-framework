@@ -104,6 +104,7 @@
     :migration-parity
     :held-adjustments-reconstruct-total-held
     :held-artifacts-derived-from-adjustments
+    :settlement-custody-attribution
     :single-resolution-payout-consistent
     :fraud-slash-executions-accounted
     :slash-amount-valid
@@ -1041,6 +1042,96 @@
              :violations [{:type :held-adjustments-invalid
                            :message (.getMessage e)
                            :data (ex-data e)}]}))))))
+
+(defn check-settlement-custody-attribution?
+  "L4b — settlement-scoped custody attribution (a bijection, not a list).
+
+   Every withdrawal settlement emits one or more held-adjustments, each carrying
+   the settlement's canonical identity (:held-adjustment/settlement-root); the
+   settlement artifact (:sew/settlements) commits :settlement/held-adjustment-set-root
+   over its attributed adjustment set.  This verifier proves, for each
+   settlement:
+
+     1. existence        — every claimed adjustment id exists in :held-adjustments;
+     2. binding          — every claimed adjustment carries this settlement root;
+     3. no cross-binding — no claimed adjustment carries a different settlement root
+                           (and no adjustment id is claimed by two settlements);
+     4. economic delta   — Σ(amount × direction) over the claimed adjustments equals
+                           :settlement/filled (provenance of the realization, not
+                           merely that final totals reconcile);
+     5. completeness     — the recomputed set-root over all adjustments carrying this
+                           settlement root equals the committed set-root, i.e. no
+                           attributable adjustment lies outside the claimed set.
+
+   The set-root equality (points 1/2/5) makes the claimed set and the observed set
+   the same set in both directions — the attribution is exactly the committed set.
+
+   This is an attribution/provenance proof only; the global held-ledger
+   completeness is covered separately by :held-adjustments-reconstruct-total-held
+   and :held-adjustments-cover-total-held-delta (L4a).
+
+   Returns {:holds? bool :violations [...]}."
+  [world]
+  (let [settlements (vals (:sew/settlements world {}))
+        adjustments (:held-adjustments world [])
+        adj-by-id (into {} (map (juxt :held-adjustment/id identity)) adjustments)
+        by-root (group-by :held-adjustment/settlement-root adjustments)
+        claimed-by-settlement
+        (map (fn [s]
+               (let [root (:settlement/root s)
+                     claimed-ids (vec (:settlement/adjustment-ids s))
+                     claimed (keep adj-by-id claimed-ids)
+                     observed (get by-root root [])
+                     observed-ids (set (map :held-adjustment/id observed))
+                     recomputed-set-root
+                     (held-adjustment/settlement-held-adjustment-set-root claimed)
+                     expected-delta
+                     (reduce + 0 (map (fn [a]
+                                        (* (long (:amount a))
+                                           (if (= :out (:held/direction a)) -1 1)))
+                                      claimed))
+                     expected-identity
+                     (held-adjustment/settlement-identity
+                      {:workflow-id (:settlement/workflow-id s)
+                       :token (:settlement/token s)
+                       :direction (:settlement/direction s)
+                       :filled (:settlement/filled s)
+                       :recipient (:settlement/recipient s)})]
+                 (cond-> []
+                   (not= root expected-identity)
+                   (conj {:kind ::settlement-identity-mismatch
+                          :settlement root :expected expected-identity})
+                   (some (comp nil? adj-by-id) claimed-ids)
+                   (conj {:kind ::attributed-adjustment-missing
+                          :settlement root :claimed-ids claimed-ids})
+                   (some #(not= root (:held-adjustment/settlement-root (adj-by-id %)))
+                         claimed-ids)
+                   (conj {:kind ::adjustment-misattributed
+                          :settlement root :claimed-ids claimed-ids})
+                   (not= (long (:settlement/filled s)) (long (abs expected-delta)))
+                   (conj {:kind ::custody-delta-mismatch
+                          :settlement root
+                          :expected-filled (long (:settlement/filled s))
+                          :observed-delta (long (abs expected-delta))
+                          :claimed-ids claimed-ids})
+                   (not= (set claimed-ids) observed-ids)
+                   (conj {:kind ::attribution-incomplete
+                          :settlement root
+                          :claimed-ids claimed-ids
+                          :observed-ids (vec (sort observed-ids))})
+                   (not= (:settlement/held-adjustment-set-root s) recomputed-set-root)
+                   (conj {:kind ::attribution-set-root-mismatch
+                          :settlement root}))))
+             settlements)
+        double-claimed
+        (keep (fn [[id n]] (when (> n 1) id))
+              (frequencies (mapcat :settlement/adjustment-ids settlements)))
+        violations
+        (vec (concat (mapcat identity claimed-by-settlement)
+                     (map (fn [id] {:kind ::adjustment-double-attributed :adjustment-id id})
+                          double-claimed)))]
+    {:holds? (empty? violations)
+     :violations violations}))
 
 (defn held-artifacts-derived-from-adjustments?
   "Verify artifact derivation only for a declared-complete held history.
@@ -2475,6 +2566,7 @@
                  :appeal-bond-custody-consistent (appeal-bond-custody-consistent? world)
                  :held-adjustments-reconstruct-total-held (held-adjustments-reconstruct-total-held? world)
                  :held-artifacts-derived-from-adjustments (held-artifacts-derived-from-adjustments? world)
+                 :settlement-custody-attribution (check-settlement-custody-attribution? world)
                  :no-auto-fraud-execute         (no-auto-fraud-execute? world)
                  :bond-liquidity                (bond-liquidity-holds? world)
                  :bond-slash-bounded            (bond-slash-bounded? world)

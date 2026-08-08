@@ -12,7 +12,7 @@
         combo (fx/seq-combination
                (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
                (fx/node :n2 [:economics/award-amount :fixture/b] :spec {:rate 500}))
-        {:keys [plan]} (comp/compile-combination emap combo)
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         result (exec/execute-compiled-plan plan emap {} 1000)]
     (is (= :completed (:execution/status result)))
     (is (= (:plan/root plan) (:execution/plan-root result)))
@@ -31,7 +31,7 @@
                         :spec {:amount 10 :effects [{:effect/contract :prf.effect/x.v1}]})
                (fx/node :n2 [:economics/award-amount :fixture/e]
                         :spec {:amount 5 :effects [{:effect/contract :prf.effect/y.v1}]}))
-        {:keys [plan]} (comp/compile-combination emap combo)
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         result (exec/execute-compiled-plan plan emap {} 1000)]
     (is (= :completed (:execution/status result)))
     (is (= 2 (count (:execution/effects result))))
@@ -43,7 +43,7 @@
         combo (fx/seq-combination
                (fx/node :n1 [:economics/award-amount :fixture/s] :spec {:amount 10})
                (fx/node :n2 [:economics/award-amount :fixture/s] :spec {:amount 10}))
-        {:keys [plan]} (comp/compile-combination emap combo)
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         result (exec/execute-compiled-plan plan emap {} 1000)]
     (is (= :short-circuited (:execution/status result)))
     (is (= 1 (count (:execution/nodes result)))
@@ -59,7 +59,7 @@
                       (fx/node :n2 [:economics/award-amount :fixture/a]
                                :spec {:amount 5 :add-held-kind :reward}))
                      :combination/addresses addresses)
-        {:keys [plan]} (comp/compile-combination emap combo)
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         result (exec/execute-compiled-plan plan emap {} 1000)
         effects (:execution/effects result)]
     (is (= addresses (:plan/addresses plan)))
@@ -84,7 +84,7 @@
                       (fx/node :n2 [:economics/award-amount :fixture/a]
                                :spec {:amount 5}))
                      :combination/addresses combination-addresses)
-        {:keys [plan]} (comp/compile-combination emap combo)
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         result (exec/execute-compiled-plan plan emap {} 1000)]
     (is (= "0xnode1" (get-in result [:execution/effects 0 :owner/address]))
         "node 1 uses its own addresses")
@@ -115,7 +115,7 @@
                                       :parameter/context context
                                       :parameter/address {:parameter/id :sew.params/reward-rate}}))
                      :combination/addresses addresses)
-        {:keys [plan]} (comp/compile-combination emap combo)
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         result (exec/execute-compiled-plan plan emap {} 1000)
         effect (first (:execution/effects result))
         record (effects/add-held-adjustment effect :usdc
@@ -142,7 +142,7 @@
         combo (fx/seq-combination
                (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
                (fx/node :n1b [:economics/award-amount :fixture/a] :spec {:rate 500}))
-        {:keys [plan]} (comp/compile-combination emap combo)
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
         ;; a different registry whose descriptor roots no longer match
         other-map (fx/ext-map-with (fx/cap :fixture/a :output-semantic :gross))
         result (exec/execute-compiled-plan plan other-map {} 1000)]
@@ -155,7 +155,7 @@
         combo (fx/seq-combination
                (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
                (fx/node :n2 [:economics/award-amount :fixture/a] :spec {:rate 500}))
-        result (exec/execute-combination emap combo {} 1000)]
+        result (exec/execute-combination {:extensions emap} combo {} 1000)]
     (is (= :completed (:execution/status result)))
     (is (some? (:execution/compiled-plan result))
         "execution proves an equivalent plan was compiled"))
@@ -164,6 +164,6 @@
           combo (fx/seq-combination
                  (fx/node :n1 [:economics/award-amount :fixture/nope])
                  (fx/node :n2 [:economics/award-amount :fixture/nope]))
-          result (exec/execute-combination emap combo {} 0)]
+          result (exec/execute-combination {:extensions emap} combo {} 0)]
       (is (= :rejected (:execution/status result)))
       (is (nil? (:execution/compiled-plan result))))))

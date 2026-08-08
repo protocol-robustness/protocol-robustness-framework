@@ -95,18 +95,22 @@
            :execution/nodes (vec nodes)})))))
 
 (defn execute-combination
-  "Compile a combination, then execute the compiled plan. This is the only
-   path that runs a raw combination and it proves an equivalent plan was
-   compiled first.
+  "Compile a combination against a compilation context, then execute the
+   compiled plan. This is the only path that runs a raw combination and it
+   proves an equivalent plan was compiled first.
+
+   context — {:extensions <extension-map>
+              :evidence-contracts <optional evidence-contract registry>
+              :obligations <optional obligation definitions registry>}
 
    Returns {:execution/status :rejected ...}
         or {:execution/status :completed|:short-circuited ...}
    and also attaches :execution/compiled-plan on success."
-  [extension-map combination params input-value]
+  [context combination params input-value]
   (let [{:keys [status plan violations]}
-        (compiler/compile-combination extension-map combination)]
+        (compiler/compile-combination context combination)]
     (if (= :invalid status)
       {:execution/status :rejected
        :execution/violations violations}
-      (assoc (execute-compiled-plan plan extension-map params input-value)
+      (assoc (execute-compiled-plan plan (:extensions context) params input-value)
              :execution/compiled-plan plan))))

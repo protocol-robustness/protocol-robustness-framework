@@ -41,7 +41,6 @@
      :execution/plan-root (:execution/plan-root outcome-manifest)
      :execution/parameter-domain-root (:execution/parameter-domain-root outcome-manifest)
      :execution/sampling-policy-root (:execution/sampling-policy-root outcome-manifest)
-     :execution/realised-parameter-set-root (:execution/realised-parameter-set-root outcome-manifest)
      :execution/generated-case-set-root (:execution/generated-case-set-root outcome-manifest)
      :researcher-run-report/outcome-hash o-hash
      :researcher-run-report/outcome-manifest-hash (:benchmark-outcome/hash outcome-manifest)
@@ -101,7 +100,7 @@
     (doseq [field [:execution/content-root :execution/model-root
                    :execution/model-instance-root :execution/plan-root
                    :execution/parameter-domain-root :execution/sampling-policy-root
-                   :execution/realised-parameter-set-root :execution/generated-case-set-root]]
+                   :execution/generated-case-set-root]]
       (when-not (some? (get report field))
         (swap! errors conj (str "missing " field " (required for replication key)"))))
     (let [runner (:runner report)]
@@ -198,7 +197,6 @@
                [:execution/plan-root :execution/plan-root]
                [:execution/parameter-domain-root :execution/parameter-domain-root]
                [:execution/sampling-policy-root :execution/sampling-policy-root]
-               [:execution/realised-parameter-set-root :execution/realised-parameter-set-root]
                [:execution/generated-case-set-root :execution/generated-case-set-root]]]
     (vec (keep (fn [[report-key manifest-key]]
                  (let [rv (get report report-key)

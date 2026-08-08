@@ -176,6 +176,9 @@
     resolver-sim.hash.attestor-hash-test
     resolver-sim.hash.canonical-test
     resolver-sim.hash.concat-properties-test
+    resolver-sim.hash.framing-view-test
+    resolver-sim.hash.sequence-test
+    resolver-sim.hash.admission-profile-test
     resolver-sim.io.scenario-fixture-parity-test
     resolver-sim.ordering.priority-composition-test
     resolver-sim.ordering.priority-test

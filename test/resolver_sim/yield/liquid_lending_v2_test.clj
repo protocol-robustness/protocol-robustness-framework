@@ -327,6 +327,39 @@
       (is (:holds? (inv/check-withdrawal-ledger-conservation w1))
           "alice's single-withdrawal ledger is valid at its own world step"))))
 
+(deftest shared-withdrawal-declared-capacity-cross-checked
+  (testing "per-row caps are cross-checked against the DECLARED :allocation/effective-caps"
+    (doseq [opts [{}
+                  {:effective-caps {"alice" 20 "bob" 100}}
+                  {:effective-caps {"alice" 0}}]]
+      (let [decision (shared-decision ["alice" "bob"] 150 opts)
+            result (inv/check-shared-withdrawal-conservation decision)]
+        (is (:holds? result) (str "honest " opts " must hold: " (:violations result)))))
+    (testing "a self-consistent decision whose rows exceed the declared capacity is rejected"
+      (let [settlement (partial-fill/calculate-fulfillment-pro-rata
+                        150 {}
+                        {:mode :pro-rata :rounding-policy :largest-remainder}
+                        {:rows [{:key "alice" :owed 100 :weight 100 :cap nil}
+                                {:key "bob" :owed 100 :weight 100 :cap 100}]})
+            ;; declared alice capacity is 20, but the settlement fills alice 75
+            art (partial-fill/decision-artifact
+                 {:owner/id "shared-pool" :position/id "shared-pool"
+                  :module/id :test-mod :token :USDC}
+                 settlement
+                 {:decision-source :yield-withdraw-shared :position-id "shared-pool"
+                  :extra {:participants ["alice" "bob"]
+                          :allocation/effective-caps {"alice" 20 "bob" 100}
+                          :allocation/effective-cap-source :scenario-fixture
+                          :allocation/scope :shared-liquidity-pool}})
+            result (inv/check-shared-withdrawal-conservation art)]
+        (is (= 75 (get-in art [:filled "alice"])) "alice was over-allocated past her declared cap")
+        (is (partial-fill/decision-hash-valid? art) "the malicious decision is self-consistent")
+        (is (not (:holds? result)))
+        (is (some #(= :resolver-sim.yield.invariants/declared-capacity-violated (:kind %))
+                  (:violations result)))
+        (is (some #(= :resolver-sim.yield.invariants/declared-capacity-exceeded (:kind %))
+                  (:violations result)))))))
+
 (deftest shared-withdrawal-v2-propagation-binds-decision-and-allocation
   (let [world (shared-withdrawal-world ["alice" "bob"] 100)
         result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]
@@ -759,6 +792,54 @@
                              (:filled t2) (:deferred t2) (:haircut t2)))
                        (<= (:ledger/filled ledger) (:ledger/available ledger))
                        (inv/holds? :yield/withdrawal-ledger-conservation w)))))
+
+(defspec single-position-over-allocation-model-property 40
+  (prop/for-all [available (gen/choose 10 200)
+                 deposit   (gen/choose 1 100)]
+                (let [w (-> test-world
+                            (assoc-in [:total-held :USDC] available)
+                            (ll/deposit test-mod {:owner/id "alice" :amount deposit :token "USDC"}))
+                      w2 (ll/withdraw w test-mod {:owner/id "alice"})
+                      r  (last (:yield/withdrawal-ledger w2))]
+                  (and (= :single-position (get-in r [:ledger/allocation-policy :mode]))
+                       (<= (long (:ledger/filled r 0)) (long (:ledger/available r 0)))
+                       (inv/holds? :yield/withdrawal-budget-provenance w2)
+                       (:holds? (inv/check-withdrawal-allocation-conservation w2))))))
+
+(defspec fcfs-sequential-prefix-model-property 40
+  (prop/for-all [n (gen/choose 1 4)
+                 available (gen/choose 10 400)]
+                (let [owners (mapv #(str "u" %) (range n))
+                      w (reduce (fn [w o] (ll/deposit w test-mod {:owner/id o :amount 100 :token "USDC"}))
+                                (assoc-in test-world [:total-held :USDC] available)
+                                owners)
+                      w2 (ll/withdraw-many w test-mod (mapv (fn [o] {:owner/id o :token "USDC"}) owners))
+                      r (last (:yield/withdrawal-ledger w2))
+                      rows (:ledger/rows r [])
+                      prefixes (mapv #(reduce + 0 (map (fn [row] (long (:filled row 0))) (take (inc %) rows)))
+                                     (range (count rows)))]
+                  (and (= :fcfs-sequential (get-in r [:ledger/allocation-policy :mode]))
+                       (:holds? (inv/check-withdrawal-allocation-conservation w2))
+                       (every? #(<= % (long (:ledger/available r 0))) prefixes)))))
+
+(defspec pro-rata-declared-capacity-model-property 40
+  (prop/for-all [n (gen/choose 1 4)
+                 available (gen/choose 10 400)
+                 cap-values (gen/vector (gen/choose 0 120) 4)]
+                (let [owners (mapv #(str "p" %) (range n))
+                      caps (into {} (map (fn [o c] [o c]) owners (take n cap-values)))
+                      w (shared-withdrawal-world owners available)
+                      w2 (ll/withdraw-shared w test-mod {:owner-ids owners :token "USDC"
+                                                         :allocation-mode :pro-rata
+                                                         :effective-caps caps})
+                      d (-> w2 :yield/partial-fill-decisions vals first)]
+                  (and (= :pro-rata (get-in d [:policy :mode]))
+                       (:holds? (inv/check-shared-withdrawal-conservation d))
+                       (:holds? (inv/check-withdrawal-allocation-conservation w2))
+                       (<= (reduce + 0 (vals (:filled d)))
+                           (long (get-in d [:evidence :available-liquidity] 0)))
+                       (every? (fn [[owner filled]] (<= (long filled) (long (get caps owner 0))))
+                               (:filled d))))))
 
 ;; ---------------------------------------------------------------------------
 ;; check-aggregate / shortfall-splits reconciliation under negative yield

@@ -13,7 +13,6 @@
    :execution/status :completed
    :execution/parameter-domain-root "sha256:domain"
    :execution/sampling-policy-root "sha256:sampling"
-   :execution/realised-parameter-set-root "sha256:realised"
    :execution/generated-case-set-root "sha256:cases"
    :outcomes/conclusions
    [(rc/build-conclusion {:conclusion/id :benchmark.conclusion/stable

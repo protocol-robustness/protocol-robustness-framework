@@ -52,6 +52,7 @@
         (case (:lifecycle/state world) ...)."
   (:require [clojure.set :as set]
             [clojure.string :as cstr]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.financial.liabilities :as liab]))
 
 (def episode-event-version "insolvency-lifecycle-event.v1")
@@ -716,10 +717,11 @@
        :action/params params
        :action/effects completed-effects
        :action/attributes attributes
-       :action/root (sha-256-of [(str "action/type:" (name type))
-                                 (str "params:" (pr-str (sort-by pr-str (seq (or params {})))))
-                                 (str "effects:" (pr-str (sort (vec completed-effects))))
-                                 (str "attributes:" (pr-str (sort-by pr-str (seq (or attributes {})))))])})))
+       :action/root (hc/domain-hash :sew-action-root
+                                    {:action/type type
+                                     :action/params params
+                                     :action/effects (vec (sort completed-effects))
+                                     :action/attributes attributes})})))
 
 (defn action-root
   "Content-addressed root of an EXACT action request (economic identity:

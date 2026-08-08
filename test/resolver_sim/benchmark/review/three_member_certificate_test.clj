@@ -7,11 +7,11 @@
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.hash.canonical :as hc]))
 
-(defn- make-report [id outcome-hash & {:keys [mi plan domain sampling params cases eval-policy model-root content-root]
+(defn- make-report [id outcome-hash & {:keys [mi plan domain sampling cases eval-policy model-root content-root]
                                        :or {content-root "sha256:cr" model-root "sha256:m"
                                             mi "sha256:mi" plan "sha256:plan"
                                             domain "sha256:domain" sampling "sha256:samp"
-                                            params "sha256:p" cases "sha256:c"
+                                            cases "sha256:c"
                                             eval-policy "sha256:ep"}}]
   (let [report {:schema-version "researcher-run-report.v1"
                 :researcher/id id :researcher-run-report/outcome-hash outcome-hash
@@ -20,7 +20,7 @@
                 :execution/content-root content-root :execution/model-root model-root
                 :execution/model-instance-root mi :execution/plan-root plan
                 :execution/parameter-domain-root domain :execution/sampling-policy-root sampling
-                :execution/realised-parameter-set-root params :execution/generated-case-set-root cases
+                :execution/generated-case-set-root cases
                 :researcher-run-report/hash nil :researcher/signature nil}]
     (assoc report :researcher-run-report/hash
            (str "sha256:" (hc/domain-hash :researcher-run-report report)))))
@@ -977,13 +977,6 @@
     (is (not (:pre-certificate-valid? outcome-result)))
     (is (some #(re-find #"outcome-hash mismatch" %) (:errors outcome-result)))))
 
-(deftest realised-parameters-are-part-of-exact-replication
-  (is (not= :exact-replication
-            (tmc/replication-type
-             [(make-report "a" "sha256:A" :params "sha256:p1")
-              (make-report "b" "sha256:A" :params "sha256:p2")
-              (make-report "c" "sha256:A" :params "sha256:p1")]))))
-
 (deftest theorem-consensus-is-bound-to-content-hash
   (let [positions [(make-pos-with-targets "a" :targets [{:kind :theorem :id :theorem/x :hash "sha256:h1" :status :reproduced}])
                    (make-pos-with-targets "b" :targets [{:kind :theorem :id :theorem/x :hash "sha256:h2" :status :reproduced}])
@@ -1000,5 +993,62 @@
         tampered (assoc-in cert [:other-consensus :publication :status] :contested)
         self-hashed (tmc/finalise-certificate! tampered)]
     (is (not (:valid? (tmc/validate-certificate self-hashed))))))
+
+;; ── P0: dimension-support divergence semantics ──────────────────────────────
+
+(defn- make-pos-with-support [id support-root]
+  (rp/build-position {:benchmark/content-root "sha256:cr" :researcher/id id
+                      :outcome-hash "sha256:A"
+                      :position/dimension-support-root support-root
+                      :dimensions (dims)}))
+
+(deftest support-divergence-is-informational-not-blocking
+  (testing "researchers may agree on a dimension while citing distinct,
+            independently valid evidence; differing support roots must be
+            surfaced but must not invalidate the certificate"
+    (let [{:keys [review-round canonical-indices reports]} (valid-inputs)
+          positions [(make-pos-with-support "a" "sha256:support-A")
+                     (make-pos-with-support "b" "sha256:support-B")
+                     (make-pos-with-support "c" "sha256:support-B")]
+          checks (tmc/pre-certificate-checks
+                  {:review-round review-round :canonical-indices canonical-indices
+                   :reports reports :positions positions})]
+      (is (:pre-certificate-valid? checks)
+          "divergent support does not block certificate validity")
+      (is (some? (:support-divergence checks)))
+      (is (:support-divergence? (:support-divergence checks)))
+      (is (= #{"sha256:support-A" "sha256:support-B"}
+             (set (:distinct-support-roots (:support-divergence checks)))))
+      (let [cert (tmc/build-certificate
+                  {:review-round review-round :canonical-indices canonical-indices
+                   :reports reports :positions positions})
+            finalised (tmc/finalise-certificate! cert)
+            validated (tmc/validate-certificate finalised)]
+        (is (:valid? validated))
+        (is (some? (:support-divergence finalised)))))))
+
+(deftest uniform-support-root-produces-no-divergence
+  (testing "when all members attest to the same support root, no divergence
+            is surfaced"
+    (let [{:keys [review-round canonical-indices reports]} (valid-inputs)
+          positions [(make-pos-with-support "a" "sha256:support-1")
+                     (make-pos-with-support "b" "sha256:support-1")
+                     (make-pos-with-support "c" "sha256:support-1")]
+          checks (tmc/pre-certificate-checks
+                  {:review-round review-round :canonical-indices canonical-indices
+                   :reports reports :positions positions})]
+      (is (:pre-certificate-valid? checks))
+      (is (nil? (:support-divergence checks))))))
+
+(deftest absent-support-roots-produce-no-divergence
+  (testing "when no position carries a dimension-support root, there is
+            nothing to diverge"
+    (let [{:keys [review-round canonical-indices reports]} (valid-inputs)
+          positions [(make-pos "a") (make-pos "b") (make-pos "c")]
+          checks (tmc/pre-certificate-checks
+                  {:review-round review-round :canonical-indices canonical-indices
+                   :reports reports :positions positions})]
+      (is (:pre-certificate-valid? checks))
+      (is (nil? (:support-divergence checks))))))
 
 

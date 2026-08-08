@@ -65,11 +65,24 @@
 ;; P5: Invariant Status Marker (V-INV)
 
 (defn v-inv
-  "Renders a heartbeat badge verifying protocol health.
-   Status: :ok (Teal), :fail (Red)."
+  "Renders a heartbeat badge reporting protocol health.
+   Status vocabulary:
+     :ok            (Teal)  — result recorded and passing
+     :failed        (Red)   — result recorded and failing
+     :not-measured  (Amber) — no result recorded (must NOT read as passing)
+     :unknown       (Amber) — a result exists but is unrecognized
+     :not-applicable (Dim)  — invariant does not apply here
+   Conservative default: any unrecognized status renders as :unknown, never
+   :ok. This encodes the rule that narrative may simplify evidence but may
+   not strengthen it."
   [id status]
-  (let [pass? (= status :ok)
-        color (if pass? (get-color :sys/success) (get-color :sys/error))]
+  (let [{:keys [color icon label]}
+        (case status
+          :ok            {:color (get-color :sys/success)  :icon "✔" :label "OK"}
+          :failed        {:color (get-color :sys/error)    :icon "✘" :label "FAIL"}
+          :not-applicable {:color (get-color :sys/structural) :icon "–" :label "N/A"}
+          :not-measured  {:color (get-color :sys/alert)    :icon "–" :label "NOT MEASURED"}
+          {:color (get-color :sys/alert) :icon "?" :label "UNKNOWN"})]
     [:div {:style {:display "inline-flex"
                    :alignItems "center"
                    :gap "8px"
@@ -80,7 +93,7 @@
                    :fontSize "11px"
                    :fontWeight "800"
                    :color color}}
-     (if pass? "✔" "✘") " " (str/upper-case (str id)) ": " (if pass? "OK" "FAIL")]))
+     icon " " (str/upper-case (str id)) ": " label]))
 
 ;; ---
 ;; P7: Protocol Response Marker (V-RES)

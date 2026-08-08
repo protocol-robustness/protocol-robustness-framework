@@ -170,17 +170,26 @@ Example: bb cli scenario list --search yield"
   test:speds {:doc "Run SPEDS visual narrative tests"
               :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-e"
                            "(require (quote resolver-sim.notebooks.speds.findings-comparator-test)
-                                     (quote resolver-sim.notebooks.speds.issues-shadow-report-test)
-                                     (quote resolver-sim.notebooks.speds.core-test))
+                                      (quote resolver-sim.notebooks.speds.issues-shadow-report-test)
+                                      (quote resolver-sim.notebooks.speds.core-test)
+                                      (quote resolver-sim.notebooks.speds.risk-test)
+                                      (quote resolver-sim.notebooks.speds.var-test))
                             (clojure.test/run-tests
                               (quote resolver-sim.notebooks.speds.findings-comparator-test)
                               (quote resolver-sim.notebooks.speds.issues-shadow-report-test)
-                              (quote resolver-sim.notebooks.speds.core-test))")}
+                              (quote resolver-sim.notebooks.speds.core-test)
+                              (quote resolver-sim.notebooks.speds.risk-test)
+                              (quote resolver-sim.notebooks.speds.var-test))")}
 
   scenario-registry:validate
    {:doc "Validate the invariant scenario registry and file-backed scenario suite registry"
     :task (clojure {:dir "." :extra-deps {}}
                    "-M" "-m" "resolver-sim.validation.scenario-registry")}
+
+  risk:projection
+  {:doc "Generate risk-projection.v1 artifact + risk card over the latest event-evidence bundle"
+   :task (clojure {:dir "." :extra-deps {}}
+                  "-M:test" "-m" "scripts.scenarios.generate-risk-projection")}
 
   shadow:check
   {:doc "Check simulation namespaces for Solidity shadow registry coverage. Flags unregistered namespaces."
@@ -292,6 +301,25 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
 
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
                     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:with-sew" "-m" "scripts.test-notebooks")}
+
+   demo:not-admitted
+   {:doc "Run the 'not admitted' demonstration (tamper with the amount):
+         a plain-language walkthrough of question -> original -> change ->
+         same check again -> why, backed by the real verifier.
+         --json prints the machine-readable demo model;
+         --check exits non-zero if any committed expectation fails."
+    :task (apply clojure "-M" "-m" "resolver-sim.demos.not-admitted.cli" *command-line-args*)}
+
+   demo:reorder-chain
+   {:doc "Run the 'reorder the evidence' demonstration: does the same evidence
+         in a different order mean the same thing?
+         --json prints the machine-readable demo model;
+         --check exits non-zero if any committed expectation fails."
+    :task (apply clojure "-M" "-m" "resolver-sim.demos.reorder-chain.cli" *command-line-args*)}
+
+   demo:test
+   {:doc "Run the demo assertion suites (Demo A: not admitted; Demo B: reorder chain)."
+    :task (shell "clojure" "-M:test" "-e" "(require 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test) (clojure.test/run-tests 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test)")}
 
    test:quick-sew
    {:doc "Fast Sew confidence check in a single JVM with noop capture.

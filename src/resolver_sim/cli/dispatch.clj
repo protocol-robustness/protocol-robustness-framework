@@ -172,6 +172,7 @@
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
    [nil "--key PATH" "Path to private key"]
+   [nil "--key-id ID" "Issuer key-id for the certificate signature"]
    [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]
    [nil "--input PATH" "Allocation: input JSON file; use '-' for stdin"]])
 

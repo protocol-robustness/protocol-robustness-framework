@@ -73,17 +73,27 @@
 
 (defn decide
   "Pure decision core for receipt issuance. Returns the response map. Throws
-   ex-info (with :reason) on any failure so the caller fails closed."
-  [{:keys [private-key] :as _auth} request]
-  (when-not (= (:request/hash request)
-               (sed/request-hash request-domain request))
-    (throw (ex-info "request hash mismatch" {:reason :request-hash-mismatch})))
-  (let [transition (get request :transition)
+   ex-info (with :reason) on any failure so the caller fails closed.
+
+   auth: {:private-key <ed25519> :validator/key-id <kw|string>}. The signing
+   authority must know its own key identity; a candidate receipt claiming a
+   different :key/id is rejected so a signed receipt can never claim another
+   validator key."
+  [{:keys [private-key] :as auth} request]
+  (let [validator-key-id (:validator/key-id auth)
+        transition (get request :transition)
         ordering (get request :ordering)
         candidate-receipt (get request :candidate-receipt)
         state-before (:state-before transition)
         command (:command transition)
         result (transition/apply-action state-before command)]
+    (when-not (and validator-key-id (some? (get-in request [:candidate-receipt
+                                                            :attempt-receipt/validator
+                                                            :key/id])))
+      (throw (ex-info "signing key-id not configured" {:reason :signing-key-id-missing})))
+    (when-not (= (:request/hash request)
+                 (sed/request-hash request-domain request))
+      (throw (ex-info "request hash mismatch" {:reason :request-hash-mismatch})))
     ;; 1. the presented transition must actually commit
     (when-not (= :committed (:status result))
       (throw (ex-info "transition was not committed"
@@ -108,6 +118,13 @@
     (when-not (receipt/valid-receipt-shape? candidate-receipt)
       (throw (ex-info "invalid candidate receipt"
                       {:reason :invalid-candidate-receipt})))
+    (let [claimed-key-id (get-in candidate-receipt
+                                 [:attempt-receipt/validator :key/id])]
+      (when-not (= validator-key-id claimed-key-id)
+        (throw (ex-info "receipt key-id inconsistent with signing key"
+                        {:reason :key-id-inconsistent
+                         :signing-key-id validator-key-id
+                         :claimed-key-id claimed-key-id}))))
     (let [chain (get-in candidate-receipt [:attempt-receipt/chain])]
       (when-not (issuance/receipt-binds-ordering? candidate-receipt ordering)
         (throw (ex-info "candidate receipt does not bind the ordering"
@@ -125,7 +142,13 @@
       (when-not (= (:parent-receipt-hash (:transaction/input command))
                    (:parent-receipt-hash chain))
         (throw (ex-info "receipt parent inconsistent with command"
-                        {:reason :parent-inconsistent}))))
+                        {:reason :parent-inconsistent})))
+      (let [ordering-family (second (:transaction/conflict-key ordering))]
+        (when-not (= ordering-family (:family-id chain))
+          (throw (ex-info "receipt family inconsistent with ordering"
+                          {:reason :family-inconsistent
+                           :ordering-family ordering-family
+                           :receipt-family (:family-id chain)})))))
     ;; 5. issue (attestation after commit)
     (let [signed (receipt/sign-receipt candidate-receipt private-key)]
       {:response/kind response-kind
@@ -174,7 +197,7 @@
 (defn run-from-reader
   "Execute the authority reading a request from `r`. Prints the response to
    stdout. Returns an exit code (0 on success, 1 on failure)."
-  [r private-key]
+  [r private-key validator-key-id]
   (let [request-id (atom nil)]
     (try
       (let [raw (read-limited r max-request-bytes)
@@ -184,7 +207,9 @@
                 (throw (ex-info "invalid request"
                                 {:reason :invalid-request
                                  :errors (request-errors request)})))
-            response (decide {:private-key private-key} request)]
+            response (decide {:private-key private-key
+                              :validator/key-id validator-key-id}
+                             request)]
         (println (pr-str response))
         0)
       (catch Exception e
@@ -217,6 +242,9 @@
    avoids exposing it in the process table."
   [{:keys [validator-key key-id] :as _opts}]
   (let [key (or validator-key (get-env "PRF_VALIDATOR_KEY"))
-        _ (or key-id (get-env "PRF_VALIDATOR_KEY_ID"))
+        validator-key-id (or key-id (get-env "PRF_VALIDATOR_KEY_ID"))
+        _ (when-not validator-key-id
+            (throw (ex-info "no validator key-id configured"
+                            {:reason :missing-key-id})))
         private-key (load-private-key key)]
-    (run-from-reader *in* private-key)))
+    (run-from-reader *in* private-key validator-key-id)))

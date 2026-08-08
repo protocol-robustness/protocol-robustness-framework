@@ -1,5 +1,6 @@
 (ns resolver-sim.benchmark.runner
-  (:require [resolver-sim.benchmark.repo :as repo]
+  (:require [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-evidence]
+            [resolver-sim.benchmark.repo :as repo]
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.claims :as benchmark-claims]
             [resolver-sim.benchmark.coverage :as benchmark-coverage]
@@ -233,11 +234,15 @@
                                                                 (scenario-runner/runner-opts-for-scenario scenario))})
         execution-package (write-execution-package! output-dir scenario-source scenario replay-result)
         public-id (benchmark-public-scenario-id suite-kw path)
+        final-world (:world replay-result)
+        realized-statements (pf-evidence/realized-allocation-statements final-world)
         scenario-evidence (hc/hash-with-intent
                            {:hash/intent :evidence-content}
-                           (select-keys replay-result
-                                        [:events-processed :outcome :halt-reason]))
-        final-world (:world replay-result)
+                           (cond-> (select-keys replay-result
+                                                [:events-processed :outcome :halt-reason])
+                             realized-statements
+                             (assoc :realized-allocation-statements-root
+                                    (:statements-root realized-statements))))
         step-failures (get-in replay-result [:metrics :invariant-results] {})
         post-invariant-result (when final-world
                                 (if output-dir
@@ -276,6 +281,12 @@
                                          vec)
             :invariant-results inv-results
             :scenario/evidence-root scenario-evidence
+            :scenario/realized-allocation-statements
+            (when realized-statements
+              (mapv :statement/root (:statements realized-statements)))
+            :scenario/realized-allocation-statements-root
+            (when realized-statements
+              (:statements-root realized-statements))
             :scenario/artifacts execution-package})))
 
 (defrecord SewAdapter [scenario-output-dir]

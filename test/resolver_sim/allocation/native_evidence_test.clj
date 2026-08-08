@@ -48,7 +48,7 @@
     (is (false? (:proof-backed? class)))
     (is (= :no-native-evidence (:reason class)))
     (is (= :not-yet-evaluated (get-in c [:proof :status])))
-    (is (= :mock-native (get-in c [:proof :proof-mode])))))
+    (is (= :none (get-in c [:proof :proof-mode])))))
 
 (deftest matching-native-execution-is-proof-backed
   (let [result (with-reference (fixtures/kernel-result))
@@ -75,7 +75,10 @@
     (is (= :independent-replay (:classification class)))
     (is (false? (:proof-backed? class)))
     (is (= :comparison-mismatch (:reason class)))
-    (is (= :not-yet-evaluated (get-in c [:proof :status])))))
+    (is (= :not-yet-evaluated (get-in c [:proof :status])))
+    (is (= :native-rust (get-in c [:proof :proof-mode]))
+        "real (non-mock) native evidence is never labeled :mock-native, even when
+         the comparison mismatches")))
 
 (deftest mock-native-never-proof-backed
   (let [result (with-reference (fixtures/kernel-result))

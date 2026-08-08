@@ -304,6 +304,10 @@ allocation-rust-clippy:
 allocation-guest:
 	cd coprocessor && cargo build --release -p allocation-sp1-program
 
+.PHONY: allocation-realized-guest
+allocation-realized-guest:
+	cd coprocessor && cargo build --release -p realized-statement-sp1-program
+
 .PHONY: allocation-contracts
 allocation-contracts:
 	cd contracts/allocation && forge build --quiet && forge test
@@ -312,5 +316,10 @@ allocation-contracts:
 allocation-conformance:
 	./scripts/conformance/conformance.sh
 
+.PHONY: allocation-realized-conformance
+allocation-realized-conformance:
+	cd coprocessor && cargo build --release -p allocation-kernel --bin realized-statement-kernel
+	./scripts/conformance/realized-statement-conformance.sh
+
 .PHONY: allocation-test
-allocation-test: allocation-rust-test allocation-rust-clippy allocation-guest allocation-contracts allocation-conformance
+allocation-test: allocation-rust-test allocation-rust-clippy allocation-guest allocation-realized-guest allocation-contracts allocation-conformance allocation-realized-conformance

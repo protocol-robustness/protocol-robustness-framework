@@ -32,7 +32,7 @@
 
      canonical-bytes [a b] ≠ encode-sequence [a b]"
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.framing-view :as fv]))
+            [resolver-sim.hash.round-trip :as rt]))
 
 (def ^:const sequence-contract
   "Encoding-contract identifier for the named sequence framing."
@@ -141,11 +141,13 @@
 (defn verify-sequence-commitment
   "Decode and verify a canonical-value-sequence commitment.
 
-   The framing layer only guarantees the byte stream is well-framed canonical
-   bytes; it does not understand the sequence contract.  This re-validates the
-   contract so a loaded commitment is a genuine fixed point of `bound-sequence`
-   — i.e. `decode(canonical-bytes(commitment))` reproduces a sequence whose
-   contract fields agree:
+   Composes the purpose-neutral canonical round-trip primitive
+   (resolver-sim.hash.round-trip/verify-canonical-single-bytes) for the generic
+   decode/framing/resource verdict, then applies the sequence-contract shape
+   checks on top.  The framing layer only guarantees the byte stream is
+   well-framed canonical bytes; this re-validates the contract so a loaded
+   commitment is a genuine fixed point of `bound-sequence` — i.e. the decoded
+   value's contract fields agree:
 
      :encoding-contract equals the canonical version
      :purpose          is a keyword
@@ -153,66 +155,73 @@
      :components       is a vector
      the map has exactly the four contract keys (bound-sequence emits no other
      fields, so any extra key means the commitment is not a fixed point)
-     the byte array decodes to exactly one commitment (no trailing bytes)
-     the byte stream is canonical (no decoder :issues such as non-minimal
-     varints or out-of-order map keys), so re-encoding reproduces the bytes
 
-   A hand-crafted or corrupted map that disagrees with the contract (for
-   example :component-count 2 with :components [1], an extra key, trailing
-   bytes after the value, or a non-minimal/non-canonical encoding) frames as
-   canonical bytes but is rejected here.
+   Returns {:valid? bool :value (decoded map | nil) :issues [<structured>]}.
 
-   Returns {:valid? bool :value (decoded map | nil) :errors [string]}.
-   Decoder resource limits (depth/payload) are inherited from framing-view."
+   :issues entries are structured maps with a :code and, where relevant,
+   offending values — never human-parsed strings.  The generic framing issues
+   (non-canonical encodings, resource limits) come from the round-trip
+   primitive; the sequence-contract shape violations use
+   :sequence/not-a-map, :sequence/wrong-contract, :sequence/purpose-not-keyword,
+   :sequence/component-count-invalid, :sequence/components-not-vector,
+   :sequence/component-count-mismatch, :sequence/unexpected-keys, and
+   :sequence/trailing-bytes.  Resource-limit rejection is surfaced as
+   :resource-limit? true (with :resource-reason), never misreported as a decode
+   failure."
   [^bytes ba]
-  (try
-    (let [decoded (fv/decode-one ba 0)
-          value (:value decoded)
-          errors (atom [])]
-      (when (seq (:issues decoded))
-        (swap! errors conj (str "commitment is not a canonical fixed point: decoder "
-                                "reported " (count (:issues decoded)) " issue(s): "
-                                (pr-str (mapv :code (:issues decoded))))))
-      (when-not (map? value)
-        (swap! errors conj (str "decoded commitment is not a map: " (type value))))
-      (when (map? value)
-        (when-not (= sequence-contract (:encoding-contract value))
-          (swap! errors conj (str "unexpected :encoding-contract: "
-                                  (pr-str (:encoding-contract value)))))
-        (when-not (keyword? (:purpose value))
-          (swap! errors conj (str ":purpose must be a keyword, got "
-                                  (pr-str (:purpose value)))))
-        (let [n (:component-count value)
-              cs (:components value)]
-          (when-not (and (integer? n) (not (neg? n)))
-            (swap! errors conj (str ":component-count must be a non-negative integer, got "
-                                    (pr-str n))))
-          (when-not (vector? cs)
-            (swap! errors conj (str ":components must be a vector, got " (type cs))))
-          (when (and (integer? n) (vector? cs) (not= n (count cs)))
-            (swap! errors conj (str ":component-count " n " does not match component count "
-                                    (count cs)))))
-        (when-not (= #{:encoding-contract :purpose :component-count :components}
-                     (set (keys value)))
-          (swap! errors conj (str "commitment is not a fixed point of bound-sequence: "
-                                  "unexpected keys "
-                                  (pr-str (vec (sort-by pr-str (remove #{:encoding-contract
-                                                                         :purpose
-                                                                         :component-count
-                                                                         :components}
-                                                                       (keys value)))))))))
-      (when-not (= (count ba) (:next decoded))
-        (swap! errors conj (str "commitment carries " (- (count ba) (:next decoded))
-                                " trailing byte(s); the value must decode to the entire "
-                                "byte array")))
-      {:valid? (empty? @errors) :value (when (empty? @errors) value) :errors @errors})
-    (catch Exception e
-      (let [data (ex-data e)
-            resource-limit? (or (= :limit-exceeded (:type data))
-                                (= :limit-exceeded (:code data)))]
-        {:valid? false :value nil
-         :errors [(if resource-limit?
-                    (str "commitment inadmissible under the admission profile: "
-                         (:code data) (when (:reason data) (str " / " (:reason data)))
-                         (when (:limit data) (str " (limit " (:limit data) ")")))
-                    (str "commitment decode failed: " (.getMessage e)))]}))))
+  (let [{:keys [valid? value issues resource-limit? resource-reason
+                single? fully-consumed?]}
+        (rt/verify-canonical-single-bytes ba)
+        contract-issues (atom [])]
+    (when-not valid?
+      (when (and (not resource-limit?) fully-consumed? (not single?))
+        (swap! contract-issues conj
+               {:code :sequence/trailing-bytes
+                :detail "the commitment does not decode to exactly one value (trailing bytes or extra components)"}))
+      (when (and (not resource-limit?) single? (not fully-consumed?))
+        (swap! contract-issues conj
+               {:code :sequence/trailing-bytes
+                :detail "the commitment does not decode to the entire byte array"})))
+    (when valid?
+      (let [value value]
+        (when-not (map? value)
+          (swap! contract-issues conj
+                 {:code :sequence/not-a-map :value-type (type value)}))
+        (when (map? value)
+          (when-not (= sequence-contract (:encoding-contract value))
+            (swap! contract-issues conj
+                   {:code :sequence/wrong-contract
+                    :actual (:encoding-contract value)
+                    :expected sequence-contract}))
+          (when-not (keyword? (:purpose value))
+            (swap! contract-issues conj
+                   {:code :sequence/purpose-not-keyword
+                    :purpose (:purpose value)}))
+          (let [n (:component-count value)
+                cs (:components value)]
+            (when-not (and (integer? n) (not (neg? n)))
+              (swap! contract-issues conj
+                     {:code :sequence/component-count-invalid
+                      :component-count n}))
+            (when-not (vector? cs)
+              (swap! contract-issues conj
+                     {:code :sequence/components-not-vector
+                      :components-type (type cs)}))
+            (when (and (integer? n) (vector? cs) (not= n (count cs)))
+              (swap! contract-issues conj
+                     {:code :sequence/component-count-mismatch
+                      :expected n :actual (count cs)})))
+          (let [extra (remove #{:encoding-contract :purpose :component-count :components}
+                              (keys value))]
+            (when (seq extra)
+              (swap! contract-issues conj
+                     {:code :sequence/unexpected-keys
+                      :keys (vec (sort-by pr-str extra))}))))))
+    (let [all-issues (vec (concat issues @contract-issues))
+          contract-ok? (empty? @contract-issues)
+          ok? (and valid? contract-ok?)]
+      {:valid? ok?
+       :value (when ok? value)
+       :issues all-issues
+       :resource-limit? resource-limit?
+       :resource-reason resource-reason})))

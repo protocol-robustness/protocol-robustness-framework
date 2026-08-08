@@ -39,7 +39,6 @@
                 :execution/plan-root "sha256:plan"
                 :execution/parameter-domain-root "sha256:domain"
                 :execution/sampling-policy-root "sha256:samp"
-                :execution/realised-parameter-set-root "sha256:p"
                 :execution/generated-case-set-root "sha256:c"
                 :researcher-run-report/hash nil
                 :researcher/signature nil}]

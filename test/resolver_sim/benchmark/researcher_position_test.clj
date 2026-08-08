@@ -197,3 +197,33 @@
               :outcome-hash "sha256:outcome"
               :dimensions {:publication {:status :publish}}})]
     (is (empty? (rp/position-targets pos)))))
+
+(deftest dimension-support-root-is-inside-position-identity
+  (testing "the dimension-support root is part of the committed position preimage,
+            so a position cannot be re-bound to a different support artifact"
+    (let [base {:benchmark/content-root "sha256:content"
+                :researcher/id "researcher-a"
+                :outcome-hash "sha256:outcome"
+                :dimensions {:reproduction {:status :reproduced}}}
+          pos-a (rp/build-position
+                 (assoc base :position/dimension-support-root "sha256:support-1"))
+          pos-b (rp/build-position
+                 (assoc base :position/dimension-support-root "sha256:support-2"))]
+      (is (some? (:position/dimension-support-root pos-a)))
+      (is (not= (:position/hash pos-a) (:position/hash pos-b))
+          "different support roots produce different position identities")
+      (is (rp/position-valid? pos-a))
+      (is (rp/position-valid? pos-b))))
+  (testing "presence vs absence of the support root also changes identity"
+    (let [with-root (rp/build-position
+                     {:benchmark/content-root "sha256:content"
+                      :researcher/id "researcher-a"
+                      :outcome-hash "sha256:outcome"
+                      :position/dimension-support-root "sha256:support-1"
+                      :dimensions {:reproduction {:status :reproduced}}})
+          without-root (rp/build-position
+                        {:benchmark/content-root "sha256:content"
+                         :researcher/id "researcher-a"
+                         :outcome-hash "sha256:outcome"
+                         :dimensions {:reproduction {:status :reproduced}}})]
+      (is (not= (:position/hash with-root) (:position/hash without-root))))))

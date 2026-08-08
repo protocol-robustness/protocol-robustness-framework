@@ -4,4 +4,5 @@ members = [
     "core",
     "sp1-program",
     "sp1-script",
+    "realized-statement-sp1-program",
 ]

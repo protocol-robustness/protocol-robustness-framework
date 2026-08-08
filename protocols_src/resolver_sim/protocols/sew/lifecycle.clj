@@ -18,6 +18,7 @@
             [resolver-sim.protocols.sew.accounting    :as acct]
             [resolver-sim.protocols.sew.registry      :as reg]
             [resolver-sim.protocols.sew.economics     :as sew-econ]
+            [resolver-sim.accounting.held-adjustment  :as held-adj]
             [resolver-sim.yield.ops                    :as yield-ops]
             [resolver-sim.yield.partial-fill            :as partial-fill]
             [resolver-sim.yield.module                 :as yield-module]
@@ -229,6 +230,14 @@
                             :else fulfilled))
                         (min raw-settle-amt held-after-policy))
         settled-amt sub-held-amt
+        ;; Settlement-scoped custody attribution identity (P2 / L4b): every
+        ;; held-adjustment this settlement emits carries this root, and the
+        ;; settlement commits :settlement/held-adjustment-set-root over its
+        ;; attributed adjustments so the attribution is a verifiable bijection.
+        settlement-root (held-adj/settlement-identity
+                         {:workflow-id workflow-id :token token
+                          :direction direction :filled settled-amt
+                          :recipient recipient})
         shortfall-started (:started-at pos-shortfall)
         ;; Settlement write-down = the portion of the owed principal (raw-settle-amt)
         ;; that is not settled to claimable (sub-held-amt) because it was already
@@ -269,9 +278,10 @@
                                                        :owner/address recipient
                                                        :held/recipient recipient
                                                        :held/settlement-direction direction
-                                                       :held/settled-amount settled-amt}
-                                                 shortfall-started
-                                                 (assoc :shortfall/started-at shortfall-started))}))
+                                                       :held/settled-amount settled-amt
+                                                       :held-adjustment/settlement-root settlement-root}
+                                                  shortfall-started
+                                                  (assoc :shortfall/started-at shortfall-started))}))
                        (record-fn token settled-amt)
                        (cond-> (pos? (long (or (:deferred-amount pos-shortfall) 0)))
                          (reserve-deferred-yield-custody token workflow-id
@@ -285,7 +295,30 @@
                        ;; Reset dispute/cancel statuses
                        (update-in [:escrow-transfers workflow-id] assoc :sender-status :none :recipient-status :none)
                        ;; Clean up dispute timestamp on terminal state
-                       (update :dispute-timestamps dissoc workflow-id))]
+                       (update :dispute-timestamps dissoc workflow-id))
+            ;; The settlement's own custody debit adjustment, identified by
+            ;; workflow + finalize action (record-fn and conditional deferred
+            ;; custody movements do not share this action).
+            settlement-adjustment
+            (some #(when (and (= (:held/workflow-id %) workflow-id)
+                              (= (:held/action %) (str "finalize-" (name direction))))
+                     %)
+                  (:held-adjustments result))
+            result
+            (cond-> result
+              settlement-adjustment
+              (assoc-in [:sew/settlements settlement-root]
+                        {:settlement/root settlement-root
+                         :settlement/workflow-id workflow-id
+                         :settlement/token token
+                         :settlement/direction direction
+                         :settlement/recipient recipient
+                         :settlement/filled settled-amt
+                         :settlement/adjustment-ids
+                         [(:held-adjustment/id settlement-adjustment)]
+                         :settlement/held-adjustment-set-root
+                         (held-adj/settlement-held-adjustment-set-root
+                          [settlement-adjustment])}))]
         (attr/with-attribution {:subject/type :escrow
                                 :subject/id workflow-id
                                 :action/type (keyword "escrow" (name direction))
@@ -368,7 +401,14 @@
                        :reason :unsupported-filled-bucket
                        :filled filled})))
     (partial-fill/validate-partial-fill-application! current-position decision)
-    (let [world' (partial-fill/apply-partial-fill world current-position decision)
+    (let [settlement-filled (partial-fill/filled-total decision)
+          ;; Settlement-scoped custody attribution identity (P2 / L4b).
+          settlement-root (held-adj/settlement-identity
+                           {:workflow-id workflow-id :token token
+                            :direction (if (pos? principal) :released :refunded)
+                            :filled settlement-filled
+                            :recipient recipient})
+          world' (partial-fill/apply-partial-fill world current-position decision)
           settled (cond-> world'
                     (pos? principal)
                     (acct/sub-held token principal
@@ -377,7 +417,8 @@
                                     :extra {:held/workflow-id workflow-id
                                             :owner/address recipient
                                             :held/recipient recipient
-                                            :held/partial-fill-owner-id owner-id}})
+                                            :held/partial-fill-owner-id owner-id
+                                            :held-adjustment/settlement-root settlement-root}})
                     (pos? yield-amount)
                     (acct/sub-held token yield-amount
                                    {:action action
@@ -385,7 +426,27 @@
                                     :extra {:held/workflow-id workflow-id
                                             :owner/address recipient
                                             :held/recipient recipient
-                                            :held/partial-fill-owner-id owner-id}}))]
+                                            :held/partial-fill-owner-id owner-id
+                                            :held-adjustment/settlement-root settlement-root}}))
+          settlement-adjustments
+          (filterv #(and (= (:held/workflow-id %) workflow-id)
+                         (= (:held/action %) action))
+                   (:held-adjustments settled))
+          settled
+          (if (seq settlement-adjustments)
+            (assoc-in settled [:sew/settlements settlement-root]
+                      {:settlement/root settlement-root
+                       :settlement/workflow-id workflow-id
+                       :settlement/token token
+                       :settlement/direction (if (pos? principal) :released :refunded)
+                       :settlement/recipient recipient
+                       :settlement/filled settlement-filled
+                       :settlement/adjustment-ids
+                       (mapv :held-adjustment/id settlement-adjustments)
+                       :settlement/held-adjustment-set-root
+                       (held-adj/settlement-held-adjustment-set-root
+                        settlement-adjustments)})
+            settled)]
       (attr/with-attribution {:subject/type :escrow
                               :subject/id workflow-id
                               :action/type :yield/partial-fill-settlement
@@ -443,7 +504,11 @@
                        :workflow-id workflow-id
                        :workflow-token token
                        :position-token (:token position)})))
-    (let [settled (-> world
+    (let [settlement-root (held-adj/settlement-identity
+                           {:workflow-id workflow-id :token token
+                            :direction :released :filled reclaimed
+                            :recipient recipient})
+          settled (-> world
                       (acct/sub-held token reclaimed
                                      {:action "claim-deferred-yield"
                                       :reason :deferred-yield-claimed
@@ -451,8 +516,29 @@
                                               :held/workflow-id workflow-id
                                               :held/owner-id owner-id
                                               :owner/address recipient
-                                              :held/recipient recipient}})
-                      (acct/record-claimable-v2 workflow-id :settlement/yield recipient reclaimed))]
+                                              :held/recipient recipient
+                                              :held-adjustment/settlement-root settlement-root}})
+                      (acct/record-claimable-v2 workflow-id :settlement/yield recipient reclaimed))
+          settlement-adjustment
+          (some #(when (and (= (:held/workflow-id %) workflow-id)
+                            (= (:held/action %) "claim-deferred-yield"))
+                   %)
+                (:held-adjustments settled))
+          settled
+          (if settlement-adjustment
+            (assoc-in settled [:sew/settlements settlement-root]
+                      {:settlement/root settlement-root
+                       :settlement/workflow-id workflow-id
+                       :settlement/token token
+                       :settlement/direction :released
+                       :settlement/recipient recipient
+                       :settlement/filled reclaimed
+                       :settlement/adjustment-ids
+                       [(:held-adjustment/id settlement-adjustment)]
+                       :settlement/held-adjustment-set-root
+                       (held-adj/settlement-held-adjustment-set-root
+                        [settlement-adjustment])})
+            settled)]
       (attr/with-attribution {:subject/type :escrow
                               :subject/id workflow-id
                               :action/type :yield/deferred-claim-settlement

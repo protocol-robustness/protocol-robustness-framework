@@ -21,9 +21,9 @@
                                        :source-artifact "script"
                                        :source-path [:sample :path]}]}]
                     :files ["src/resolver_sim/notebook_support/speds/story.clj"
-                           "notebooks/golden_artifact.clj"
-                           "notebooks/dispute_artifact.clj"
-                           "notebooks/atlas_artifact.clj"]
+                           "notebooks/dispute_resolution.clj"
+                           "notebooks/report.clj"
+                           "notebooks/workbench_v2.clj"]
                    :artifacts artifacts
                    :findings (:findings findings-bundle)
                    :issues (:issues issues-bundle)

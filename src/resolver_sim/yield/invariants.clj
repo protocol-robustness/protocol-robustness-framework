@@ -545,13 +545,20 @@
   (= :yield-withdraw-shared (:decision/source artifact)))
 
 (defn- shared-withdrawal-row-violations
-  "Per-row evidence checks for a :yield-withdraw-shared decision artifact."
+  "Per-row evidence checks for a :yield-withdraw-shared decision artifact.
+
+   In addition to the row's own cap arithmetic, each row is cross-checked
+   against the DECLARED :allocation/effective-caps: a producer that commits a
+   self-consistent decision whose per-row caps exceed the declared per-owner
+   capacity is over-allocating past the declared capability, and must be
+   rejected (::declared-capacity-violated)."
   [artifact]
   (let [rows (vec (or (get-in artifact [:evidence :allocation-rows]) []))
         requested-map (or (:requested artifact) {})
         filled-map (or (:filled artifact) {})
         deferred-map (or (:deferred artifact) {})
         haircut-map (or (:haircut artifact) {})
+        declared-caps (or (:allocation/effective-caps artifact) {})
         row-set (set (map :key rows))]
     (into
      []
@@ -568,7 +575,12 @@
         (not= row-set (set (keys deferred-map)))
         (conj {:kind ::row-deferred-set-mismatch
                :rows (vec (sort row-set))
-               :deferred (vec (sort (keys deferred-map)))}))
+               :deferred (vec (sort (keys deferred-map)))})
+        ;; Declared caps for owners absent from the rows are a capacity-scope
+        ;; mismatch (the declaration does not govern any allocation).
+        (not (clojure.set/subset? (set (keys declared-caps)) row-set))
+        (conj {:kind ::declared-capacity-unknown-owner
+               :declared (vec (sort (remove row-set (keys declared-caps))))}))
       (mapcat
        (fn [row]
          (let [k (:key row)
@@ -578,6 +590,16 @@
                expected-eff-cap (long (if (some? raw-cap)
                                         (min owed (long raw-cap))
                                         owed))
+               ;; Declared per-owner capacity (nil = uncapped).  The row's :cap
+               ;; field carries the DECLARED value (unclamped; e.g. a declared
+               ;; cap above the request appears as-is), while :effective-cap is
+               ;; the clamped min(owed, declared).
+               declared-cap (get declared-caps k)
+               expected-declared-eff-cap (long (if (some? declared-cap)
+                                                 (min owed (long declared-cap))
+                                                 owed))
+               expected-raw-cap (when (some? declared-cap)
+                                  (long declared-cap))
                filled (long (or (:filled row) -1))
                deferred (long (or (:deferred row) -1))
                f-map (long (get filled-map k 0))
@@ -589,6 +611,19 @@
              (not= eff-cap expected-eff-cap)
              (conj {:kind ::effective-cap-mismatch :key k
                     :expected expected-eff-cap :observed eff-cap})
+             (not= eff-cap expected-declared-eff-cap)
+             (conj {:kind ::declared-capacity-violated :key k
+                    :declared-cap declared-cap
+                    :expected-effective-cap expected-declared-eff-cap
+                    :observed-effective-cap eff-cap})
+             (not= raw-cap expected-raw-cap)
+             (conj {:kind ::declared-capacity-violated :key k
+                    :declared-cap declared-cap
+                    :expected-row-cap expected-raw-cap
+                    :observed-row-cap raw-cap})
+             (and (some? declared-cap) (> filled (long declared-cap)))
+             (conj {:kind ::declared-capacity-exceeded :key k
+                    :declared-cap (long declared-cap) :filled filled})
              (neg? filled)
              (conj {:kind ::negative-filled :key k :filled filled})
              (> filled eff-cap)
@@ -635,9 +670,14 @@
      ::invalid-available            — :evidence :available-liquidity missing or not a non-negative integer.
      ::request-total-mismatch       — Σ requested != :evidence :total-requested.
      ::shortage-mismatch            — :evidence :shortage != max(0, total-requested - available).
-     ::row-*-set-mismatch           — :requested/:filled/:deferred key sets disagree with allocation-rows.
-     ::effective-cap-mismatch       — row effective-cap != min(owed, cap).
-     ::negative-filled / ::negative-deferred — negative amounts.
+    ::row-*-set-mismatch           — :requested/:filled/:deferred key sets disagree with allocation-rows.
+    ::effective-cap-mismatch       — row effective-cap != min(owed, cap).
+    ::declared-capacity-violated   — row effective-cap/cap disagrees with the DECLARED
+                                     :allocation/effective-caps (over-allocation past the
+                                     declared per-owner capability capacity).
+    ::declared-capacity-exceeded   — filled > declared effective-cap.
+    ::declared-capacity-unknown-owner — a declared cap governs no allocation row.
+    ::negative-filled / ::negative-deferred — negative amounts.
      ::filled-exceeds-effective-cap / ::filled-exceeds-request — per-row upper bounds.
      ::filled-map-mismatch / ::deferred-map-mismatch — row vs artifact map disagreement.
      ::deferred-mismatch            — deferred != max(0, owed - filled).
@@ -744,8 +784,9 @@
           (conj {:kind ::mechanism-aggregate-mismatch
                  :available (long A)
                  :mechanism-available (:available mechanism-result)}))]
-    {:holds? (empty? violations)
-     :violations (vec (concat violations (shared-withdrawal-row-violations artifact)))}))
+    (let [all-violations (vec (concat violations (shared-withdrawal-row-violations artifact)))]
+      {:holds? (empty? all-violations)
+       :violations all-violations})))
 
 (defn check-shared-withdrawal-conservation-world
   "Run check-shared-withdrawal-conservation over every persisted
@@ -929,23 +970,131 @@
   {:holds? (every? :holds? results)
    :violations (vec (mapcat :violations results))})
 
+(defn withdrawal-artifact-mode
+  "Committed withdrawal-ALLOCATION mode of an artifact.  Only artifacts that
+   govern an allocation carry one:
+     - a withdrawal-ledger record  → :ledger/allocation-policy :mode
+                                    (:single-position | :fcfs-sequential);
+     - a :yield-withdraw-shared decision → :policy :mode (:pro-rata).
+   Other partial-fill decisions (e.g. a single withdraw's fill decision with a
+   :mode :waterfall FILL policy) are not allocation artifacts and return nil —
+   they are not model-verified here.  An allocation artifact missing its tag
+   returns ::unknown-mode so it cannot escape model verification."
+  [artifact]
+  (cond
+    (:ledger/kind artifact)
+    (or (get-in artifact [:ledger/allocation-policy :mode]) ::unknown-mode)
+
+    (= :yield-withdraw-shared (:decision/source artifact))
+    (or (get-in artifact [:policy :mode]) ::unknown-mode)
+
+    :else
+    nil))
+
+(defn mode-over-allocation-violations
+  "Over-allocation violations for one withdrawal artifact under ITS committed
+   mode model.  Each mode's capacity is explicit and verified separately:
+
+     :single-position  — the position's slice: filled ≤ :ledger/available (the
+                          committed recoverable slice) and each row's filled ≤
+                          requested.
+     :fcfs-sequential  — the sequential remaining-pool model: every PREFIX of
+                          rows never exceeds the committed pool, and each row's
+                          filled ≤ requested.
+     :pro-rata         — the proportional + declared-caps model: Σ filled ≤
+                          committed available and per-row filled ≤ the declared
+                          :allocation/effective-caps.
+
+   Unknown or missing mode tags on a withdrawal-allocation artifact are
+   themselves a violation (the artifact cannot be model-verified).  Returns a
+   vector of {:kind ::mode-over-allocated ...}."
+  [artifact]
+  (let [mode (withdrawal-artifact-mode artifact)]
+    (case mode
+      nil []
+      :single-position
+      (let [available (long (:ledger/available artifact 0))
+            filled (long (:ledger/filled artifact 0))
+            rows (vec (:ledger/rows artifact []))]
+        (cond-> []
+          (> filled available)
+          (conj {:kind ::mode-over-allocated :mode :single-position
+                 :filled filled :capacity available})
+          (some #(> (long (:filled % 0)) (long (:requested % 0))) rows)
+          (conj {:kind ::mode-over-allocated :mode :single-position
+                 :reason :row-exceeds-requested})))
+      :fcfs-sequential
+      (let [available (long (:ledger/available artifact 0))
+            rows (vec (:ledger/rows artifact []))
+            prefix-over? (boolean (:over? (reduce (fn [{:keys [remaining over?]} row]
+                                                    (let [row-filled (long (:filled row 0))
+                                                          remaining' (- remaining row-filled)]
+                                                      {:remaining remaining'
+                                                       :over? (or over? (neg? remaining'))}))
+                                                  {:remaining available :over? false}
+                                                  rows)))]
+        (cond-> []
+          prefix-over?
+          (conj {:kind ::mode-over-allocated :mode :fcfs-sequential
+                 :reason :prefix-exceeds-pool :available available})
+          (some #(> (long (:filled % 0)) (long (:requested % 0))) rows)
+          (conj {:kind ::mode-over-allocated :mode :fcfs-sequential
+                 :reason :row-exceeds-requested})))
+      :pro-rata
+      (let [rows (vec (get-in artifact [:evidence :allocation-rows] []))
+            filled-map (or (:filled artifact) {})
+            declared-caps (or (:allocation/effective-caps artifact) {})
+            available (long (get-in artifact [:evidence :available-liquidity] 0))]
+        (cond-> []
+          (> (reduce + 0 (vals filled-map)) available)
+          (conj {:kind ::mode-over-allocated :mode :pro-rata
+                 :reason :sum-exceeds-available})
+          (some (fn [row]
+                  (let [k (:key row)
+                        cap (get declared-caps k (:effective-cap row))
+                        cap (if (some? cap) (long cap) (long (:effective-cap row 0)))]
+                    (> (long (:filled row 0)) cap)))
+                rows)
+          (conj {:kind ::mode-over-allocated :mode :pro-rata
+                 :reason :row-exceeds-declared-cap})))
+      ::unknown-mode
+      [{:kind ::mode-over-allocated :mode ::unknown-mode
+        :reason :missing-mode-tag}])))
+
 (defn check-withdrawal-allocation-conservation
-  "L2 allocation conservation: allocators stay within their committed budget.
-   Mode-specific by construction — :fcfs-sequential / :single-position via the
-   withdrawal-ledger certificate, :pro-rata via the shared decision artifact —
-   so the modes' allocation mechanics are not conflated."
+  "L2 allocation conservation, dispatched by each artifact's committed mode model
+   (withdrawal-artifact-mode / mode-over-allocation-violations).  A record tagged
+   :fcfs-sequential is verified by the sequential remaining-pool model, a
+   :single-position record by the slice model, a :pro-rata decision by the
+   proportional + declared-caps model.  The deep arithmetic/certificate layer
+   (ledger certificate, shared decision artifact) remains, and every artifact is
+   additionally checked against its tagged mode's explicit over-allocation model
+   so a missing/mismatched mode tag cannot escape model verification."
   [world]
-  (merge-withdrawal-layers
-   [(check-withdrawal-ledger-conservation world)
-    (check-shared-withdrawal-conservation-world world)]))
+  (let [artifacts (concat (vals (:yield/partial-fill-decisions world {}))
+                          (:yield/withdrawal-ledger world []))
+        mode-violations (vec (mapcat mode-over-allocation-violations artifacts))
+        baseline (merge-withdrawal-layers
+                  [(check-withdrawal-ledger-conservation world)
+                   (check-shared-withdrawal-conservation-world world)])]
+    {:holds? (and (:holds? baseline) (empty? mode-violations))
+     :violations (vec (concat (:violations baseline) mode-violations))}))
 
 (defn check-withdrawal-custody-realization
   "L4 custody execution: the applied shared-withdrawal propagation's source
    debit, participant credits, and balanced ledger realize the committed
-   allocation.  Single/batch custody realization is the Sew held-adjustment
-   attribution (P2 — settlement-scoped, identity-bound attribution is designed
-   but not yet implemented; the Sew :held-adjustments-* invariants cover the
-   aggregate held↔total-held binding)."
+   allocation.  This is the yield-layer L4 component.
+
+   The full L4 stack composes at the Sew boundary (a protocol layer that
+   depends on yield, not vice versa):
+     L4a — global custody correctness: :held-adjustments-reconstruct-total-held
+           and :held-adjustments-cover-total-held-delta (Sew world/transition
+           invariants).
+     L4b — settlement → custody attribution: :settlement-custody-attribution
+           (Sew world invariant) proves each withdrawal settlement's held
+           adjustments are a committed bijection (existence, binding, no
+           double-attribution, exact debit, completeness).
+   The Sew check-all runs L4a ∧ L4b alongside this yield-layer component."
   [world]
   (check-pro-rata-accounting-reconciles world))
 
@@ -955,7 +1104,8 @@
      L1 check-withdrawal-budget-provenance
      L2 check-withdrawal-allocation-conservation
      L3 check-withdrawal-residual-disposition
-     L4 check-withdrawal-custody-realization
+     L4 check-withdrawal-custody-realization (yield custody) ∧ Sew L4a (global
+        held-ledger) ∧ Sew L4b (:settlement-custody-attribution)
 
    Returns {:holds? bool :violations [...]} with violations tagged by the
    contributing layer's :kind."

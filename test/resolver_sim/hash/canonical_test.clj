@@ -1836,7 +1836,8 @@
                          :rate-derived-summary
                          :selected-outcome
                          :result-root
-                         :certificate-assertions]]
+                         :certificate-assertions
+                         :allocation-assurance-certificate]]
     (doseq [tag allocation-tags]
       (is (contains? hc/domain-tags tag)
           (str "Domain tag " tag " must be registered")))

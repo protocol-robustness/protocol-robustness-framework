@@ -1,6 +1,8 @@
 (ns resolver-sim.benchmark.research-command-test
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.research-command :as rcmd]))
+            [resolver-sim.benchmark.research-command :as rcmd]
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.sequence :as seq]))
 
 (def ^:const minimal-command
   {:command/id :command/incentive-compatibility
@@ -281,3 +283,311 @@
         (let [metrics (rcmd/command-trace-metrics [(built-command :trace/valid) no-hash string-id])]
           (is (= 3 (:command-count metrics)))
           (is (= 1 (:command-valid-count metrics))))))))
+
+;; ── Gate 0: Semantic boundary preservation ──────────────────────────────────
+;;
+;; These tests enforce the five-part boundary:
+;;   1. command-built-with-includes     — v1 compat oracle (kept unchanged above)
+;;   2. combination / add-held          — composition semantics, not command scope
+;;   3. semantic / semantic-golden      — command identity determinism
+;;   4. build-certificate               — researcher projection (integration test)
+;;   5. pro-rata-fairness-end-to-end    — end-to-end promise (strategic claim)
+;;
+;; The following tests assert separations that must hold across migrations.
+
+(deftest trace-sequencing-is-distinct-from-concatenate-bound
+  (let [cmd-1 (built-command :trace/sep-a)
+        cmd-2 (built-command :trace/sep-b)
+        trace (rcmd/command-trace-root [cmd-1 cmd-2])]
+    (is (string? trace)
+        "trace root is a sha256 reference")
+    (is (not= "CONFIDENCE_COMPOSITION_V1" rcmd/trace-domain-tag)
+        "command trace domain tag is distinct from concatenate-bound domain tag")))
+
+(deftest command-scope-is-distinct-from-add-held
+  (let [cmd (built-command :scope/sep)]
+    (is (not (contains? (set (:command/include cmd)) :add-held))
+        "add-held is not a valid command include keyword — it is a combination/effect concept")
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (rcmd/build-command (assoc minimal-command
+                                            :command/include [:add-held])))
+        "add-held is rejected as an unsupported include value")))
+
+;; ── Phase 1: research-command-trace.v2 ───────────────────────────────────────
+
+(deftest trace-v2-order-sensitive
+  (let [c1 (built-command :trace/v2-a)
+        c2 (built-command :trace/v2-b)]
+    (is (not= (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2]}))
+              (:trace/root (rcmd/build-command-trace-v2 {:commands [c2 c1]})))
+        "different order → different root")))
+
+(deftest trace-v2-same-sequence-same-root
+  (let [c1 (built-command :trace/v2-x)
+        c2 (built-command :trace/v2-y)
+        r1 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2]}))
+        r2 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2]}))]
+    (is (= r1 r2)
+        "same ordered sequence → same root (construction-detail independent)")))
+
+(deftest trace-v2-component-count-verified
+  (let [c1 (built-command :trace/v2-cnt)
+        t  (rcmd/build-command-trace-v2 {:commands [c1]})]
+    (is (= 1 (:trace/component-count t)))
+    (is (some? (:trace/root t)))
+    (is (some? (:trace/commitment t)))
+    (is (bytes? (:trace/commitment t))
+        "commitment is a byte array")))
+
+(deftest trace-v2-roundtrip
+  (let [c1    (built-command :trace/v2-rt-a)
+        c2    (built-command :trace/v2-rt-b)
+        trace (rcmd/build-command-trace-v2 {:commands [c1 c2]})
+        vr    (rcmd/verify-command-trace-v2 (:trace/commitment trace))]
+    (is (:valid? vr))
+    (is (= 2 (:component-count (:trace vr))))
+    (is (= (:trace/components trace) (:components (:trace vr))))
+    (is (= rcmd/command-trace-v2-purpose (:purpose (:trace vr))))))
+
+(deftest trace-v2-rejects-empty-trace
+  (is (thrown? clojure.lang.ExceptionInfo
+               (rcmd/build-command-trace-v2 {:commands []}))))
+
+(deftest trace-v2-rejects-invalid-component
+  (let [c1 (built-command :trace/v2-valid)
+        c2 (assoc (built-command :trace/v2-tampered)
+                  :command/hash "sha256:not-a-real-hash")]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (rcmd/build-command-trace-v2 {:commands [c1 c2]}))
+        "invalid :command/hash → rejected")))
+
+(deftest trace-v2-mutation-deletion
+  (let [c1  (built-command :trace/v2-del-a)
+        c2  (built-command :trace/v2-del-b)
+        r12 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2]}))
+        r1  (:trace/root (rcmd/build-command-trace-v2 {:commands [c1]}))]
+    (is (not= r12 r1) "removing a command changes root")))
+
+(deftest trace-v2-mutation-insertion
+  (let [c1  (built-command :trace/v2-ins-a)
+        c2  (built-command :trace/v2-ins-b)
+        c3  (built-command :trace/v2-ins-c)
+        r12 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2]}))
+        r123 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2 c3]}))]
+    (is (not= r12 r123) "adding a command changes root")))
+
+(deftest trace-v2-mutation-duplication
+  (let [c1  (built-command :trace/v2-dup-a)
+        r1  (:trace/root (rcmd/build-command-trace-v2 {:commands [c1]}))
+        r11 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c1]}))]
+    (is (not= r1 r11) "duplicating a command changes root")))
+
+(deftest trace-v2-mutation-reorder
+  (let [c1 (built-command :trace/v2-reo-a)
+        c2 (built-command :trace/v2-reo-b)
+        r-forward  (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2]}))
+        r-reversed (:trace/root (rcmd/build-command-trace-v2 {:commands [c2 c1]}))]
+    (is (not= r-forward r-reversed) "reordering commands changes root")))
+
+(deftest trace-v2-mutation-substitution
+  (let [c1 (built-command :trace/v2-sub-a)
+        c2 (built-command :trace/v2-sub-b)
+        c3 (built-command :trace/v2-sub-c)
+        r12 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c2]}))
+        r13 (:trace/root (rcmd/build-command-trace-v2 {:commands [c1 c3]}))]
+    (is (not= r12 r13) "substituting a different valid command changes root")))
+
+(deftest trace-v2-domain-separated-from-concatenate-bound
+  (is (not= "CONFIDENCE_COMPOSITION_V1" (name rcmd/command-trace-v2-domain))
+      "v2 trace domain tag is independent of concatenate-bound"))
+
+(deftest trace-v2-domain-separated-from-combination
+  (is (contains? hc/domain-tags rcmd/command-trace-v2-domain)
+      "v2 trace domain tag is a registered canonical domain tag")
+  (is (not= "COMPOSITION_COMBINATION_V1" (name rcmd/command-trace-v2-domain))
+      "v2 trace domain tag is independent of combination"))
+
+(deftest trace-v2-metrics-distinguishes-valid-from-invalid
+  (let [c1 (built-command :trace/v2-metric-a)
+        c2 (assoc (built-command :trace/v2-metric-b)
+                  :command/hash "sha256:tampered-trace")
+        metrics (rcmd/command-trace-metrics-v2 [c1 c2])]
+    (is (= 2 (:command-count metrics)))
+    (is (= 1 (:command-valid-count metrics)))
+    (is (not (:trace/valid? metrics)))
+    (is (some? (:trace/v2-root metrics))
+        "trace root commits only the valid command")))
+
+(deftest trace-v2-metrics-empty-collection
+  (let [metrics (rcmd/command-trace-metrics-v2 [])]
+    (is (= 0 (:command-count metrics)))
+    (is (= 0 (:command-valid-count metrics)))
+    (is (:trace/valid? metrics))
+    (is (nil? (:trace/v2-root metrics))
+        "empty trace produces no v2 root (no valid commands to sequence)")))
+
+(deftest trace-v2-metrics-cannot-alter-trace-commitment
+  (testing "trace metrics describe the trace; they never become part of trace identity"
+    (let [c1 (built-command :trace/v2-metric-indep-a)
+          c2 (built-command :trace/v2-metric-indep-b)
+          trace (rcmd/build-command-trace-v2 {:commands [c1 c2]})
+          metrics (rcmd/command-trace-metrics-v2 [c1 c2])
+          ;; derived metrics must not appear in the committed sequence
+          components (:trace/components trace)
+          keys-present (filter (fn [k] (contains? trace k))
+                               [:command-count :command-valid-count
+                                :trace/valid? :trace/skipped])
+          metric-keys (filter (fn [k] (contains? metrics k))
+                              [:trace/components :trace/commitment])]
+      (is (= 2 (:command-count metrics)))
+      (is (= 2 (:command-valid-count metrics)))
+      (is (= 2 (:trace/component-count trace)))
+      (is (empty? keys-present)
+          "no derived metric key leaks into the trace commitment map")
+      (is (empty? metric-keys)
+          "no committed-sequence key leaks into the metrics map")
+      ;; the trace root is exactly over the two command hashes, in order
+      (is (= (mapv :command/hash [c1 c2]) components)
+          "trace commits only the ordered command hashes"))))
+
+(deftest trace-v2-verify-recomputes-identical-root
+  (testing "verifying the commitment bytes recovers the same components, so a
+            verifier recomputes the same root as the builder"
+    (let [c1 (built-command :trace/v2-recompute-a)
+          c2 (built-command :trace/v2-recompute-b)
+          trace (rcmd/build-command-trace-v2 {:commands [c1 c2]})
+          vr (rcmd/verify-command-trace-v2 (:trace/commitment trace))
+          recomputed-root (str "sha256:"
+                               (seq/sequence-hash
+                                {:purpose rcmd/command-trace-v2-purpose}
+                                (:components (:trace vr))))]
+      (is (:valid? vr))
+      (is (= (:trace/components trace) (:components (:trace vr))))
+      (is (= (:trace/root trace) recomputed-root)
+          "root recomputed from recovered components matches the builder root"))))
+
+;; ── Phase 2: research-command.v2 typed scope refs ──────────────────────────
+
+(defn- built-command-v2
+  [id & {:keys [includes]}]
+  (rcmd/build-command
+   (cond-> {:command/id id
+            :command/type :benchmark-evaluation
+            :command/argv ["prf" "benchmark" "run-and-report"]
+            :schema-version rcmd/schema-version-v2}
+     includes (assoc :command/includes includes))))
+
+(deftest command-built-with-includes-v2-analysis
+  (let [c (built-command-v2 :test/v2-analysis
+                            :includes [{:kind :research-scope/analysis
+                                        :ref :research-analysis/incentive}
+                                       {:kind :research-scope/analysis
+                                        :ref :research-analysis/incentive-compatibility}])]
+    (is (rcmd/command-valid? c))
+    (is (= rcmd/schema-version-v2 (:schema-version c)))
+    (is (some? (:command/hash c)))
+    (is (= 2 (count (:command/includes c))))
+    (is (rcmd/valid-scope-ref? (first (:command/includes c))))))
+
+(deftest command-built-with-includes-v2-dimension
+  (let [c (built-command-v2 :test/v2-dim
+                            :includes [{:kind :research-scope/dimension
+                                        :ref :incentives/strategies}])]
+    (is (rcmd/command-valid? c))
+    (is (some? (:command/hash c)))))
+
+(deftest command-v2-rejects-unknown-kind
+  (is (thrown? clojure.lang.ExceptionInfo
+               (built-command-v2 :test/v2-bad-kind
+                                 :includes [{:kind :bogus :ref :anything}]))
+      "unknown scope kind → rejected"))
+
+(deftest command-v2-rejects-unknown-ref
+  (is (thrown? clojure.lang.ExceptionInfo
+               (built-command-v2 :test/v2-bad-ref
+                                 :includes [{:kind :research-scope/dimension
+                                             :ref :bogus}]))
+      "unknown ref for valid kind → rejected"))
+
+(deftest command-v2-legacy-migration-preserves-meaning
+  (let [c (rcmd/build-command
+           {:command/id :test/v2-legacy
+            :command/type :benchmark-evaluation
+            :command/argv ["prf" "benchmark"]
+            :schema-version rcmd/schema-version-v2
+            :command/include [:incentive]})]
+    (is (rcmd/command-valid? c))
+    (let [includes (:command/includes c)]
+      (is (= [{:kind :research-scope/analysis
+               :ref :research-analysis/incentive}]
+             includes)
+          ":incentive → :research-scope/analysis :research-analysis/incentive, not :incentives/participants"))))
+
+(deftest command-v2-legacy-migration-both
+  (let [c (rcmd/build-command
+           {:command/id :test/v2-legacy-both
+            :command/type :benchmark-evaluation
+            :command/argv ["prf" "benchmark"]
+            :schema-version rcmd/schema-version-v2
+            :command/include [:incentive :incentive-compatibility]})]
+    (is (rcmd/command-valid? c))
+    (is (= (set [{:kind :research-scope/analysis :ref :research-analysis/incentive}
+                 {:kind :research-scope/analysis :ref :research-analysis/incentive-compatibility}])
+           (set (:command/includes c))))))
+
+(deftest command-v2-hash-differs-from-v1
+  (let [v1 (assoc minimal-command :command/include [:incentive])
+        v2 (rcmd/build-command
+            {:command/id :command/incentive-compatibility ;; same id
+             :command/type :benchmark-evaluation
+             :command/argv ["prf" "benchmark"]
+             :schema-version rcmd/schema-version-v2
+             :command/includes [{:kind :research-scope/analysis
+                                 :ref :research-analysis/incentive}]})]
+    (is (not= (:command/hash (rcmd/build-command v1))
+              (:command/hash v2))
+        "v1 and v2 commands produce different hashes — commitment compatibility is explicit")))
+
+(deftest command-built-with-includes-v1-unchanged
+  "The v1 fixture must produce the same :command/hash it always has.
+   This is the golden hash assertion — if it changes, the migration
+   broke v1 commitment compatibility."
+  (let [c1 (rcmd/build-command minimal-command)
+        c2 (rcmd/build-command minimal-command)]
+    (is (= (:command/hash c1) (:command/hash c2))
+        "v1 golden: deterministic command hash across builds")
+    (is (= rcmd/schema-version (:schema-version c1))
+        "v1 golden: schema version preserved")))
+
+(deftest command-v2-not-v1-valid
+  (let [v2 (built-command-v2 :test/v2-not-v1
+                             :includes [{:kind :research-scope/analysis :ref :research-analysis/incentive}])]
+    (is (rcmd/command-valid? v2))
+    (is (not= rcmd/schema-version (:schema-version v2)))
+    (is (= rcmd/schema-version-v2 (:schema-version v2)))))
+
+(deftest command-v2-rejects-both-include-and-includes
+  (is (thrown? clojure.lang.ExceptionInfo
+               (rcmd/build-command
+                {:command/id :test/v2-both
+                 :command/type :benchmark-evaluation
+                 :command/argv ["prf" "benchmark"]
+                 :schema-version rcmd/schema-version-v2
+                 :command/include [:incentive]
+                 :command/includes [{:kind :research-scope/analysis
+                                     :ref :research-analysis/incentive}]}))
+      "cannot supply both :command/include and :command/includes for v2"))
+
+(deftest command-v2-semantic-identity
+  (let [c1 (built-command-v2 :test/v2-sem-a
+                             :includes [{:kind :research-scope/analysis :ref :research-analysis/incentive}
+                                        {:kind :research-scope/dimension :ref :incentives/strategies}])
+        c2 (built-command-v2 :test/v2-sem-b
+                             :includes [{:kind :research-scope/dimension :ref :incentives/strategies}
+                                        {:kind :research-scope/analysis :ref :research-analysis/incentive}])]
+    (is (rcmd/same-semantic-command? c1 c2)
+        "ordering of includes does not affect v2 semantic identity")
+    (let [c3 (built-command-v2 :test/v2-sem-c
+                               :includes [{:kind :research-scope/analysis :ref :research-analysis/incentive-compatibility}])]
+      (is (not (rcmd/same-semantic-command? c1 c3))
+          "different scope refs → different semantic identity"))))

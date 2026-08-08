@@ -31,13 +31,11 @@
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")))]
     (is (om/exact-replication-scope? a b))))
 
@@ -73,7 +71,6 @@
    (cond-> (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")
                   :execution/command-root (:command/hash research-command)
                   :outcomes/operational-root operational-root)
@@ -153,13 +150,11 @@
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")))]
     (is (= :exact-replication (om/classify-outcome-compatibility a b)))))
 
@@ -181,13 +176,11 @@
            (assoc base-manifest
                   :benchmark/model-root (h "a")
                   :execution/parameter-domain-root (h "d1")
-                  :execution/realised-parameter-set-root (h "f1")
                   :execution/generated-case-set-root (h "c1")))
         b (om/build-manifest
            (assoc base-manifest
                   :benchmark/model-root (h "a")
                   :execution/parameter-domain-root (h "d2")
-                  :execution/realised-parameter-set-root (h "f2")
                   :execution/generated-case-set-root (h "c2")))]
     (is (= :model-corroboration (om/classify-outcome-compatibility a b)))))
 
@@ -220,13 +213,11 @@
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")))
         b (om/build-manifest
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")))]
     (is (= (om/classify-outcome-compatibility a b) (om/classify-outcome-compatibility b a)))))
 
@@ -319,7 +310,6 @@
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")
                   :outcomes/theorems
                   [{:theorem/id :theorem/quota-bounded
@@ -329,7 +319,6 @@
            (assoc base-manifest
                   :execution/parameter-domain-root (h "d")
                   :execution/sampling-policy-root (h "c0")
-                  :execution/realised-parameter-set-root (h "f")
                   :execution/generated-case-set-root (h "c")
                   :outcomes/theorems
                   [{:theorem/id :theorem/quota-bounded
@@ -449,7 +438,6 @@
                   (assoc base-manifest
                          :execution/parameter-domain-root (h "d")
                          :execution/sampling-policy-root (h "c0")
-                         :execution/realised-parameter-set-root (h "f")
                          :execution/generated-case-set-root (h "c")
                          :execution/command-root (h "c0d")
                          :outcomes/operational-root (h "0ead")
@@ -606,3 +594,47 @@
         result (om/pre-application-checks tampered)]
     (is (not (:pre-application-valid? result)))
     (is (some #(re-find #"invalid :conclusion/hash" %) (:errors result)))))
+
+;; ── P1: scope/output registry exhaustiveness ─────────────────────────────────
+
+(deftest scope-registry-covers-every-admitted-scope-ref
+  (testing "every scope-ref admitted by the research-command validator has
+            exactly one declared output-resolution semantic in the outcome
+            manifest registry"
+    (is (om/scope-registry-complete?))
+    (doseq [[kind refs] command/valid-command-scope-refs
+            ref refs]
+      (testing (str "scope ref " kind " " ref)
+        (let [sr (command/build-command
+                  {:command/id (keyword "test.scope" (str "ref-" (name ref)))
+                   :command/type :benchmark-evaluation
+                   :command/argv ["prf" "benchmark"]
+                   :schema-version command/schema-version-v2
+                   :command/includes [{:kind kind :ref ref}]})]
+          (is (command/command-valid? sr)))))))
+
+(deftest scope-registry-contextual-refs-have-no-direct-output
+  (testing "artifact and model scope-refs are purely contextual: they must be
+            admitted but resolve to :no-direct-output, never an unsupported error"
+    (let [contextual-roots
+          (for [kind [:research-scope/artifact :research-scope/model]
+                ref (get command/valid-command-scope-refs kind)]
+            {:kind kind :ref ref})]
+      (doseq [{:keys [kind ref]} contextual-roots]
+        (let [cmd (command/build-command
+                   {:command/id :test/contextual
+                    :command/type :benchmark-evaluation
+                    :command/argv ["prf" "benchmark"]
+                    :schema-version command/schema-version-v2
+                    :command/includes [{:kind kind :ref ref}]})
+              result (om/outcome-complete-for-command?
+                      cmd (assoc base-manifest
+                                 :execution/status :completed
+                                 :execution/parameter-domain-root (h "d")
+                                 :execution/sampling-policy-root (h "c")
+                                 :execution/generated-case-set-root (h "g")
+                                 :execution/command-root (:command/hash cmd)
+                                 :outcomes/operational-root (h "0ead")))]
+          (is (:complete? result)
+              (str "contextual " kind " " ref " requires no direct output root"))
+          (is (not-any? #(re-find #"unsupported command include domain" %) (:errors result))))))))

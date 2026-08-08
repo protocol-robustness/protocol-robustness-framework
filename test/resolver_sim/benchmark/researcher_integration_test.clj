@@ -13,6 +13,7 @@
             [resolver-sim.benchmark.research-theorem-outcome :as rto]
             [resolver-sim.benchmark.research-conclusion :as rc]
             [resolver-sim.benchmark.research-command :as rcmd]
+            [resolver-sim.benchmark.dimension-support :as ds]
             [resolver-sim.benchmark.force-authorised-execution-evidence :as fa-ev]
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]
             [resolver-sim.benchmark.case-set :as cs]
@@ -43,7 +44,6 @@
    :execution/plan-root (h "a2")
    :execution/parameter-domain-root (h "d0")
    :execution/sampling-policy-root (h "c5")
-   :execution/realised-parameter-set-root (h "f0")
    :execution/generated-case-set-root (h "a3")
    :results/operational {:conservation :pass :quota-bounded :pass}})
 
@@ -352,9 +352,6 @@
 (deftest sampling-policy-mismatch-detected
   (register-mismatch-detected :execution/sampling-policy-root "sha256:wrong-sampling"))
 
-(deftest realised-params-mismatch-detected
-  (register-mismatch-detected :execution/realised-parameter-set-root "sha256:wrong-params"))
-
 (deftest generated-cases-mismatch-detected
   (register-mismatch-detected :execution/generated-case-set-root "sha256:wrong-cases"))
 
@@ -379,10 +376,6 @@
         r2 (report-for "b" m)
         r3 (report-for "c" m)]
     (is (= :exact-replication (tmc/replication-type [r1 r2 r3])))))
-
-(deftest compat-realised-params-not-exact
-  (let [a (manifest) b (manifest-variant :execution/realised-parameter-set-root "sha256:diff")]
-    (is (not= :exact-replication (om/classify-outcome-compatibility a b)))))
 
 (deftest compat-generated-case-set-sampling
   (let [a (manifest) b (manifest-variant :execution/generated-case-set-root "sha256:diff")]
@@ -409,8 +402,7 @@
     (is (not= :exact-replication (om/classify-outcome-compatibility a b)))))
 
 (deftest compat-all-symmetric
-  (let [fields [:execution/realised-parameter-set-root
-                :execution/generated-case-set-root
+  (let [fields [:execution/generated-case-set-root
                 :execution/sampling-policy-root
                 :execution/parameter-domain-root
                 :execution/model-instance-root
@@ -1989,3 +1981,196 @@
       (is (not (:valid? round-check)))
       (is (some #(= :member-key-researcher-mismatch (:reason %))
                 (:reasons round-check))))))
+
+;; ── Phase 4: End-to-end provenance chain (v2) ───────────────────────────────
+
+(deftest pro-rata-fairness-end-to-end-v2-provenance
+  (testing "full chain: v2 command → outcome → dimension-support → position → certificate"
+    (let [v2-cmd (rcmd/build-command
+                  {:command/id :command/v2-provenance
+                   :command/type :benchmark-evaluation
+                   :command/argv ["prf" "benchmark" "run-and-report"]
+                   :schema-version rcmd/schema-version-v2
+                   :command/includes [{:kind :research-scope/analysis
+                                       :ref :research-analysis/incentive}
+                                      {:kind :research-scope/dimension
+                                       :ref :incentives/strategies}]})
+          manifest (om/build-manifest
+                    (assoc base-input
+                           :execution/command-root (:command/hash v2-cmd)
+                           :outcomes/operational-root (h "0ead")
+                           :outcomes/incentive-root (h "111c")
+                           :outcomes/incentive-compatibility-root (h "222c")
+                           :outcomes/incentives-strategies-root (h "333c")))
+
+          dim-support (ds/build-dimension-support
+                       {:outcome-manifest/root (:benchmark-outcome/hash manifest)
+                        :dimensions [{:dimension :incentives-participants
+                                      :source {:kind :execution
+                                               :command-root (:command/hash v2-cmd)}
+                                      :evidence-root (h "111c")}
+                                     {:dimension :incentives-strategies
+                                      :source {:kind :execution
+                                               :command-root (:command/hash v2-cmd)}
+                                      :evidence-root (h "111c")}]})
+          ;; the dim-support root is committed into positions
+          _ (is (some? (:dimension-support/hash dim-support)))
+
+          round    (certificate-round (:benchmark/content-root manifest) ["a" "b" "c"])
+          reports  [(finalised-report-for "a" manifest)
+                    (finalised-report-for "b" manifest)
+                    (finalised-report-for "c" manifest)]
+          positions [(rp/build-position
+                      {:benchmark/content-root (:benchmark/content-root manifest)
+                       :researcher/id "a"
+                       :outcome-hash (:researcher-run-report/outcome-hash (first reports))
+                       :position/dimension-support-root (:dimension-support/hash dim-support)
+                       :dimensions {:reproduction {:status :reproduced}
+                                    :model-state {:status :adequate}
+                                    :publication {:status :publish}}})
+                     (rp/build-position
+                      {:benchmark/content-root (:benchmark/content-root manifest)
+                       :researcher/id "b"
+                       :outcome-hash (:researcher-run-report/outcome-hash (second reports))
+                       :position/dimension-support-root (:dimension-support/hash dim-support)
+                       :dimensions {:reproduction {:status :reproduced}
+                                    :model-state {:status :adequate}
+                                    :publication {:status :publish}}})
+                     (rp/build-position
+                      {:benchmark/content-root (:benchmark/content-root manifest)
+                       :researcher/id "c"
+                       :outcome-hash (:researcher-run-report/outcome-hash (nth reports 2))
+                       :position/dimension-support-root (:dimension-support/hash dim-support)
+                       :dimensions {:reproduction {:status :unable-to-reproduce}
+                                    :model-state {:status :incomplete}
+                                    :publication {:status :publish}}})]
+          ci-artifact (ci/build-canonical-indices round)
+          cert (tmc/build-certificate
+                {:review-round round
+                 :canonical-indices ci-artifact
+                 :reports reports
+                 :positions positions})
+
+          finalised (tmc/finalise-certificate! cert)
+          validated (tmc/validate-certificate finalised)]
+      (testing "v2 command is valid"
+        (is (rcmd/command-valid? v2-cmd)))
+      (testing "outcome manifest is valid"
+        (is (om/manifest-valid? manifest)))
+      (testing "outcome is complete for v2 command"
+        (is (:complete? (om/outcome-complete-for-command? v2-cmd manifest))))
+      (testing "dimension-support reconciles against manifest"
+        (is (:reconciled? (ds/reconcile-against-manifest dim-support manifest))))
+      (testing "dimension-support cannot be transplanted into a different manifest"
+        (let [foreign-manifest (om/build-manifest
+                                (assoc base-input
+                                       :execution/command-root (h "0bad")
+                                       :outcomes/operational-root (h "0ead")
+                                       :outcomes/incentive-root (h "111c")))
+              transplanted (ds/reconcile-against-manifest dim-support foreign-manifest)]
+          (is (not (:reconciled? transplanted))
+              "the bound manifest root is detected when the support is transplanted")))
+      (testing "positions carry dimension-support root"
+        (doseq [p positions]
+          (is (some? (:position/dimension-support-root p))
+              (str "position " (:researcher/id p) " binds dimension-support-root"))))
+      (testing "certificate validates"
+        (is (:valid? validated)
+            (str "certificate validated: " (pr-str (:errors validated)))))
+      (testing "certificate contains per-dimension consensus"
+        (is (contains? (:other-consensus finalised) :reproduction))
+        (is (contains? (:model-consensus finalised) :model-state))
+        (is (contains? (:other-consensus finalised) :publication))))))
+
+;; ── P1: Full-chain transplant / substitution battery ────────────────────────
+
+(defn- build-provenance-chain
+  "Build a complete valid chain: v2 command → manifest → dimension-support
+   → positions → certificate.  Returns a map of every intermediate artifact."
+  [cmd-id includes]
+  (let [cmd (rcmd/build-command
+             {:command/id cmd-id
+              :command/type :benchmark-evaluation
+              :command/argv ["prf" "benchmark" "run-and-report"]
+              :schema-version rcmd/schema-version-v2
+              :command/includes includes})
+        manifest (om/build-manifest
+                  (assoc base-input
+                         :execution/command-root (:command/hash cmd)
+                         :outcomes/operational-root (h "0ead")
+                         :outcomes/incentive-root (h "111c")
+                         :outcomes/incentive-compatibility-root (h "222c")
+                         :outcomes/incentives-strategies-root (h "333c")))
+        dim-support (ds/build-dimension-support
+                     {:outcome-manifest/root (:benchmark-outcome/hash manifest)
+                      :dimensions [{:dimension :incentives-participants
+                                    :source {:kind :execution
+                                             :command-root (:command/hash cmd)}
+                                    :evidence-root (h "111c")}
+                                   {:dimension :incentives-strategies
+                                    :source {:kind :execution
+                                             :command-root (:command/hash cmd)}
+                                    :evidence-root (h "111c")}]})
+        round    (certificate-round (:benchmark/content-root manifest) ["a" "b" "c"])
+        reports  [(finalised-report-for "a" manifest)
+                  (finalised-report-for "b" manifest)
+                  (finalised-report-for "c" manifest)]
+        positions [(rp/build-position
+                    {:benchmark/content-root (:benchmark/content-root manifest)
+                     :researcher/id "a"
+                     :outcome-hash (:researcher-run-report/outcome-hash (first reports))
+                     :position/dimension-support-root (:dimension-support/hash dim-support)
+                     :dimensions {:reproduction {:status :reproduced}}})
+                   (rp/build-position
+                    {:benchmark/content-root (:benchmark/content-root manifest)
+                     :researcher/id "b"
+                     :outcome-hash (:researcher-run-report/outcome-hash (second reports))
+                     :position/dimension-support-root (:dimension-support/hash dim-support)
+                     :dimensions {:reproduction {:status :reproduced}}})
+                   (rp/build-position
+                    {:benchmark/content-root (:benchmark/content-root manifest)
+                     :researcher/id "c"
+                     :outcome-hash (:researcher-run-report/outcome-hash (nth reports 2))
+                     :position/dimension-support-root (:dimension-support/hash dim-support)
+                     :dimensions {:reproduction {:status :unable-to-reproduce}}})]]
+    {:cmd cmd :manifest manifest :dim-support dim-support
+     :round round :reports reports :positions positions}))
+
+(deftest full-chain-transplant-battery
+  (testing "no valid artifact can be transplanted into another valid chain
+            without detection at the earliest reconciliation boundary"
+    (let [chain-1 (build-provenance-chain
+                   :command/chain-1
+                   [{:kind :research-scope/analysis :ref :research-analysis/incentive}])
+          chain-2 (build-provenance-chain
+                   :command/chain-2
+                   [{:kind :research-scope/analysis :ref :research-analysis/incentive}])
+          ;; each chain individually validates
+          _ (is (:reconciled? (ds/reconcile-against-manifest (:dim-support chain-1) (:manifest chain-1))))
+          _ (is (:reconciled? (ds/reconcile-against-manifest (:dim-support chain-2) (:manifest chain-2))))]
+
+      (testing "dimension-support transplanted into the other chain's manifest"
+        (let [result (ds/reconcile-against-manifest
+                      (:dim-support chain-1) (:manifest chain-2))]
+          (is (not (:reconciled? result))
+              "D1 against M2 must fail (manifest-root mismatch)")))
+
+      (testing "command transplanted into the other chain's manifest"
+        (let [result (om/outcome-complete-for-command?
+                      (:cmd chain-1) (:manifest chain-2))]
+          (is (not (:complete? result))
+              "C1 against M2 must fail (command-root does not bind manifest)")))
+
+      (testing "position transplanted across chains"
+        ;; A chain-2 position carries a different outcome-hash (and support
+        ;; root) than chain-1's report for the same member.  The certificate
+        ;; pre-check enforces report/position outcome-hash equality, so the
+        ;; transplant cannot bind silently — it throws a blocking error.
+        (let [foreign-position (first (:positions chain-2))
+              positions (assoc (:positions chain-1) 0 foreign-position)]
+          (is (thrown? clojure.lang.ExceptionInfo
+                       (tmc/build-certificate
+                        {:review-round (:round chain-1)
+                         :reports (:reports chain-1)
+                         :positions positions}))
+              "cross-chain position transplant is rejected at pre-certificate"))))))

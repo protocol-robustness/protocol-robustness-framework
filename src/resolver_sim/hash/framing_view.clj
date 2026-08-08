@@ -219,148 +219,148 @@
           _ (when-not type
               (throw-stream-issue :unknown-tag tag-pos :tag {:tag tag}))]
       (case tag
-      0x00 {:tag tag :tag-name type :value nil :next pos :prefix-end pos
-            :roles (when roles? {tag-pos (entry path :tag type slot)})
-            :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
-      0x01 {:tag tag :tag-name type :value false :next pos :prefix-end pos
-            :roles (when roles? {tag-pos (entry path :tag type slot)})
-            :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
-      0x02 {:tag tag :tag-name type :value true :next pos :prefix-end pos
-            :roles (when roles? {tag-pos (entry path :tag type slot)})
-            :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
-      0x10 (let [vu (read-varuint* ba pos total)
-                 _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
-                 end (:end vu)]
-             {:tag tag :tag-name type :value (zigzag-decode (:value vu))
-              :next end :prefix-end pos
-              :roles (when roles?
-                       (merge {tag-pos (entry path :tag type slot)}
-                              (range-entries pos end path :len type slot)))
-              :issues (minimality-issues vu pos :len path)
-              :map-keys nil :map-key-bytes nil
-              :payload-hash (when payload-hash? (sha256-hex (slice ba pos end)))})
-      0x20 (let [vu (read-varuint* ba pos total)
-                 _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
-                 len (long (:value vu))
-                 end (:end vu)
-                 payload-end (+ end len)]
-             (when (> len (:max-payload-bytes limits))
-               (throw-limit :max-payload-bytes limits pos :payload))
-             (when (> payload-end total)
-               (throw-stream-issue :length-exceeds-bytes end :payload
-                                   {:declared len :available (- total end)}))
-             (let [s (String. ba (int end) (int len) "UTF-8")]
-               {:tag tag :tag-name type :value s :next payload-end
-                :prefix-end end
+        0x00 {:tag tag :tag-name type :value nil :next pos :prefix-end pos
+              :roles (when roles? {tag-pos (entry path :tag type slot)})
+              :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
+        0x01 {:tag tag :tag-name type :value false :next pos :prefix-end pos
+              :roles (when roles? {tag-pos (entry path :tag type slot)})
+              :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
+        0x02 {:tag tag :tag-name type :value true :next pos :prefix-end pos
+              :roles (when roles? {tag-pos (entry path :tag type slot)})
+              :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
+        0x10 (let [vu (read-varuint* ba pos total)
+                   _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
+                   end (:end vu)]
+               {:tag tag :tag-name type :value (zigzag-decode (:value vu))
+                :next end :prefix-end pos
                 :roles (when roles?
                          (merge {tag-pos (entry path :tag type slot)}
-                                (range-entries pos end path :len type slot)
-                                (range-entries end payload-end path :payload type slot)))
+                                (range-entries pos end path :len type slot)))
                 :issues (minimality-issues vu pos :len path)
                 :map-keys nil :map-key-bytes nil
-                :payload-hash (when payload-hash? (sha256-hex (slice ba end payload-end)))}))
-      0x22 (let [vu (read-varuint* ba pos total)
-                 _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
-                 len (long (:value vu))
-                 end (:end vu)
-                 payload-end (+ end len)]
-             (when (> len (:max-payload-bytes limits))
-               (throw-limit :max-payload-bytes limits pos :payload))
-             (when (> payload-end total)
-               (throw-stream-issue :length-exceeds-bytes end :payload
-                                   {:declared len :available (- total end)}))
-             (let [s (String. ba (int end) (int len) "UTF-8")]
-               {:tag tag :tag-name type :value (keyword s) :next payload-end
-                :prefix-end end
-                :roles (when roles?
-                         (merge {tag-pos (entry path :tag type slot)}
-                                (range-entries pos end path :len type slot)
-                                (range-entries end payload-end path :payload type slot)))
-                :issues (minimality-issues vu pos :len path)
-                :map-keys nil :map-key-bytes nil
-                :payload-hash (when payload-hash? (sha256-hex (slice ba end payload-end)))}))
-      0x30 (let [vu (read-varuint* ba pos total)
-                 _ (when-not vu (throw-stream-issue :truncated-count pos :count {}))
-                 n (long (:value vu))
-                 count-end (:end vu)
-                 tag-role (when roles? (entry path :tag type slot))
-                 count-entries (when roles?
-                                 (range-entries pos count-end path :count type slot))]
-             (when (> n (:max-collection-members limits))
-               (throw-limit :max-collection-members limits pos :count))
-             (when (> depth (:max-collection-depth limits))
-               (throw-limit :max-collection-depth limits pos :collection))
-             (let [{vals :value next :next child-roles :roles child-issues :issues}
-                   (loop [i 0 pos count-end acc []
-                          roles (merge (when roles? {tag-pos tag-role}) count-entries)
-                          issues (minimality-issues vu pos :count path)]
-                     (if (= i n)
-                       {:value (vec acc) :next pos :roles roles :issues issues}
-                       (let [{v :value next :next r :roles rs :issues}
-                             (decode-one* ba pos total (inc depth) limits
-                                          (conj path i) :element opts)]
-                         (recur (inc i) next (conj acc v)
-                                (merge roles r) (into issues rs)))))]
-               {:tag tag :tag-name type :value vals :next next
-                :prefix-end count-end :roles child-roles :issues child-issues
-                :map-keys nil :map-key-bytes nil
-                :payload-hash (when payload-hash? (sha256-hex (slice ba count-end next)))}))
-      0x31 (let [vu (read-varuint* ba pos total)
-                 _ (when-not vu (throw-stream-issue :truncated-count pos :count {}))
-                 n (long (:value vu))
-                 count-end (:end vu)
-                 tag-role (when roles? (entry path :tag type slot))
-                 count-entries (when roles?
-                                 (range-entries pos count-end path :count type slot))]
-             (when (> n (:max-collection-members limits))
-               (throw-limit :max-collection-members limits pos :count))
-             (when (> depth (:max-collection-depth limits))
-               (throw-limit :max-collection-depth limits pos :collection))
-             (let [{m :value next :next child-roles :roles child-issues :issues
-                    korder :keys kbytes :key-bytes}
-                   (loop [i 0 pos count-end acc {}
-                          roles (merge (when roles? {tag-pos tag-role}) count-entries)
-                          issues (minimality-issues vu pos :count path)
-                          prev nil keys [] key-bytes []]
-                     (if (= i n)
-                       {:value acc :next pos :roles roles :issues issues
-                        :keys keys :key-bytes key-bytes}
-                       (let [{k :value next1 :next k-roles :roles k-issues :issues}
-                             (decode-one* ba pos total (inc depth) limits
-                                          (conj path (* 2 i)) :map-key opts)
-                             key-ok? (or (string? k) (keyword? k))
-                             kb (hc/canonical-bytes k)
-                             kb-hex (apply str (map #(format "%02x"
-                                                             (bit-and % 0xff))
-                                                    kb))
-                             order-issue (cond
-                                           (not key-ok?)
-                                           [{:code :noncanonical-map-key-type
-                                             :offset pos :role :map-key
-                                             :path (conj path (* 2 i)) :key k}]
-                                           (nil? prev)
-                                           []
-                                           (zero? (byte-compare prev kb))
-                                           [{:code :duplicate-map-key
-                                             :offset pos :role :map-key
-                                             :path (conj path (* 2 i)) :key k}]
-                                           (pos? (byte-compare prev kb))
-                                           [{:code :noncanonical-map-order
-                                             :offset pos :role :map-key
-                                             :path (conj path (* 2 i)) :key k}]
-                                           :else [])
-                             {v :value next2 :next v-roles :roles v-issues :issues}
-                             (decode-one* ba next1 total (inc depth) limits
-                                          (conj path (inc (* 2 i))) :map-value opts)]
-                         (recur (inc i) next2 (assoc acc k v)
-                                (merge roles k-roles v-roles)
-                                (into (into (into issues k-issues) order-issue) v-issues)
-                                kb (conj keys k)
-                                (conj key-bytes kb-hex)))))]
-               {:tag tag :tag-name type :value m :next next
-                :prefix-end count-end :roles child-roles :issues child-issues
-                :map-keys korder :map-key-bytes kbytes
-                :payload-hash (when payload-hash? (sha256-hex (slice ba count-end next)))}))))))
+                :payload-hash (when payload-hash? (sha256-hex (slice ba pos end)))})
+        0x20 (let [vu (read-varuint* ba pos total)
+                   _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
+                   len (long (:value vu))
+                   end (:end vu)
+                   payload-end (+ end len)]
+               (when (> len (:max-payload-bytes limits))
+                 (throw-limit :max-payload-bytes limits pos :payload))
+               (when (> payload-end total)
+                 (throw-stream-issue :length-exceeds-bytes end :payload
+                                     {:declared len :available (- total end)}))
+               (let [s (String. ba (int end) (int len) "UTF-8")]
+                 {:tag tag :tag-name type :value s :next payload-end
+                  :prefix-end end
+                  :roles (when roles?
+                           (merge {tag-pos (entry path :tag type slot)}
+                                  (range-entries pos end path :len type slot)
+                                  (range-entries end payload-end path :payload type slot)))
+                  :issues (minimality-issues vu pos :len path)
+                  :map-keys nil :map-key-bytes nil
+                  :payload-hash (when payload-hash? (sha256-hex (slice ba end payload-end)))}))
+        0x22 (let [vu (read-varuint* ba pos total)
+                   _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
+                   len (long (:value vu))
+                   end (:end vu)
+                   payload-end (+ end len)]
+               (when (> len (:max-payload-bytes limits))
+                 (throw-limit :max-payload-bytes limits pos :payload))
+               (when (> payload-end total)
+                 (throw-stream-issue :length-exceeds-bytes end :payload
+                                     {:declared len :available (- total end)}))
+               (let [s (String. ba (int end) (int len) "UTF-8")]
+                 {:tag tag :tag-name type :value (keyword s) :next payload-end
+                  :prefix-end end
+                  :roles (when roles?
+                           (merge {tag-pos (entry path :tag type slot)}
+                                  (range-entries pos end path :len type slot)
+                                  (range-entries end payload-end path :payload type slot)))
+                  :issues (minimality-issues vu pos :len path)
+                  :map-keys nil :map-key-bytes nil
+                  :payload-hash (when payload-hash? (sha256-hex (slice ba end payload-end)))}))
+        0x30 (let [vu (read-varuint* ba pos total)
+                   _ (when-not vu (throw-stream-issue :truncated-count pos :count {}))
+                   n (long (:value vu))
+                   count-end (:end vu)
+                   tag-role (when roles? (entry path :tag type slot))
+                   count-entries (when roles?
+                                   (range-entries pos count-end path :count type slot))]
+               (when (> n (:max-collection-members limits))
+                 (throw-limit :max-collection-members limits pos :count))
+               (when (> depth (:max-collection-depth limits))
+                 (throw-limit :max-collection-depth limits pos :collection))
+               (let [{vals :value next :next child-roles :roles child-issues :issues}
+                     (loop [i 0 pos count-end acc []
+                            roles (merge (when roles? {tag-pos tag-role}) count-entries)
+                            issues (minimality-issues vu pos :count path)]
+                       (if (= i n)
+                         {:value (vec acc) :next pos :roles roles :issues issues}
+                         (let [{v :value next :next r :roles rs :issues}
+                               (decode-one* ba pos total (inc depth) limits
+                                            (conj path i) :element opts)]
+                           (recur (inc i) next (conj acc v)
+                                  (merge roles r) (into issues rs)))))]
+                 {:tag tag :tag-name type :value vals :next next
+                  :prefix-end count-end :roles child-roles :issues child-issues
+                  :map-keys nil :map-key-bytes nil
+                  :payload-hash (when payload-hash? (sha256-hex (slice ba count-end next)))}))
+        0x31 (let [vu (read-varuint* ba pos total)
+                   _ (when-not vu (throw-stream-issue :truncated-count pos :count {}))
+                   n (long (:value vu))
+                   count-end (:end vu)
+                   tag-role (when roles? (entry path :tag type slot))
+                   count-entries (when roles?
+                                   (range-entries pos count-end path :count type slot))]
+               (when (> n (:max-collection-members limits))
+                 (throw-limit :max-collection-members limits pos :count))
+               (when (> depth (:max-collection-depth limits))
+                 (throw-limit :max-collection-depth limits pos :collection))
+               (let [{m :value next :next child-roles :roles child-issues :issues
+                      korder :keys kbytes :key-bytes}
+                     (loop [i 0 pos count-end acc {}
+                            roles (merge (when roles? {tag-pos tag-role}) count-entries)
+                            issues (minimality-issues vu pos :count path)
+                            prev nil keys [] key-bytes []]
+                       (if (= i n)
+                         {:value acc :next pos :roles roles :issues issues
+                          :keys keys :key-bytes key-bytes}
+                         (let [{k :value next1 :next k-roles :roles k-issues :issues}
+                               (decode-one* ba pos total (inc depth) limits
+                                            (conj path (* 2 i)) :map-key opts)
+                               key-ok? (or (string? k) (keyword? k))
+                               kb (hc/canonical-bytes k)
+                               kb-hex (apply str (map #(format "%02x"
+                                                               (bit-and % 0xff))
+                                                      kb))
+                               order-issue (cond
+                                             (not key-ok?)
+                                             [{:code :noncanonical-map-key-type
+                                               :offset pos :role :map-key
+                                               :path (conj path (* 2 i)) :key k}]
+                                             (nil? prev)
+                                             []
+                                             (zero? (byte-compare prev kb))
+                                             [{:code :duplicate-map-key
+                                               :offset pos :role :map-key
+                                               :path (conj path (* 2 i)) :key k}]
+                                             (pos? (byte-compare prev kb))
+                                             [{:code :noncanonical-map-order
+                                               :offset pos :role :map-key
+                                               :path (conj path (* 2 i)) :key k}]
+                                             :else [])
+                               {v :value next2 :next v-roles :roles v-issues :issues}
+                               (decode-one* ba next1 total (inc depth) limits
+                                            (conj path (inc (* 2 i))) :map-value opts)]
+                           (recur (inc i) next2 (assoc acc k v)
+                                  (merge roles k-roles v-roles)
+                                  (into (into (into issues k-issues) order-issue) v-issues)
+                                  kb (conj keys k)
+                                  (conj key-bytes kb-hex)))))]
+                 {:tag tag :tag-name type :value m :next next
+                  :prefix-end count-end :roles child-roles :issues child-issues
+                  :map-keys korder :map-key-bytes kbytes
+                  :payload-hash (when payload-hash? (sha256-hex (slice ba count-end next)))}))))))
 
 (defn decode-one
   "Decode one canonical component starting at byte offset pos (public wrapper).

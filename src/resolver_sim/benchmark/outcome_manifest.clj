@@ -23,7 +23,6 @@
    Execution fields:
      parameter-domain-root         — declared parameter bounds/domain
      sampling-policy-root          — generator, selection policy, seed schedule
-     realised-parameter-set-root   — exact parameter values used per case
      generated-case-set-root       — the generated case identifiers
      command-root                  — structured execution provenance
 
@@ -50,6 +49,8 @@
    :benchmark-outcome/hash is self-excluded."
   [:execution/command-root :outcomes/operational-root
    :outcomes/incentive-root :outcomes/incentive-compatibility-root
+   :outcomes/incentives-strategies-root
+   :outcomes/incentives-coalitions-root
    :outcomes/theorems :outcomes/conclusions
    :benchmark-outcome/hash])
 
@@ -62,14 +63,15 @@
     :execution/status
     :execution/model-instance-root :execution/plan-root
     :execution/parameter-domain-root :execution/sampling-policy-root
-    :execution/realised-parameter-set-root
     :execution/generated-case-set-root
     :execution/command-root :execution/force-authorisation
     :results/operational :results/incentives :results/claims
     :results/model-coverage-root
-    :evidence/semantic-commitments
+    :evidence/semantic-commitments :evidence/dimension-support-root
     :outcomes/operational-root :outcomes/incentive-root
     :outcomes/incentive-compatibility-root
+    :outcomes/incentives-strategies-root
+    :outcomes/incentives-coalitions-root
     :outcomes/theorems :outcomes/conclusions
     :outcome-hashes :benchmark-outcome/hash})
 
@@ -108,6 +110,18 @@
                   (assoc :incentive-compatibility-root
                          (:outcomes/incentive-compatibility-root manifest))
 
+                  (:outcomes/incentives-strategies-root manifest)
+                  (assoc :incentives/strategies-root
+                         (:outcomes/incentives-strategies-root manifest))
+
+                  (:outcomes/incentives-coalitions-root manifest)
+                  (assoc :incentives/coalitions-root
+                         (:outcomes/incentives-coalitions-root manifest))
+
+                  (:evidence/dimension-support-root manifest)
+                  (assoc :dimension-support-root
+                         (:evidence/dimension-support-root manifest))
+
                   (:outcomes/theorems manifest)
                   (assoc :theorem-root
                          (theorem/theorem-outcome-collective-hash
@@ -131,7 +145,6 @@
      benchmark/evaluation-policy-root
      execution/parameter-domain-root
      execution/sampling-policy-root
-     execution/realised-parameter-set-root
      execution/generated-case-set-root
      results/operational, results/incentives, results/claims
      evidence/semantic-commitments
@@ -169,7 +182,6 @@
            execution/plan-root
            execution/parameter-domain-root
            execution/sampling-policy-root
-           execution/realised-parameter-set-root
            execution/generated-case-set-root
            execution/command-root
            results/operational
@@ -182,7 +194,8 @@
            outcomes/incentive-compatibility-root
            outcomes/theorems
            outcomes/conclusions
-           execution/force-authorisation]}]
+           execution/force-authorisation]
+    :as options}]
   (let [base {:schema-version schema-version
               :benchmark/content-root content-root
               :benchmark/model-root model-root
@@ -192,7 +205,6 @@
               :execution/plan-root plan-root
               :execution/parameter-domain-root parameter-domain-root
               :execution/sampling-policy-root sampling-policy-root
-              :execution/realised-parameter-set-root realised-parameter-set-root
               :execution/generated-case-set-root generated-case-set-root
               :results/operational (or operational {})
               :results/incentives (or incentives {})
@@ -217,6 +229,17 @@
         base (if (some? incentive-compatibility-root)
                (assoc base :outcomes/incentive-compatibility-root
                       incentive-compatibility-root)
+               base)
+        ;; ── Extended outcome roots (typed scope dimensions) ─────────
+        base (if-let [sr (:outcomes/incentives-strategies-root options)]
+               (assoc base :outcomes/incentives-strategies-root sr)
+               base)
+        base (if-let [cr (:outcomes/incentives-coalitions-root options)]
+               (assoc base :outcomes/incentives-coalitions-root cr)
+               base)
+        ;; ── Evidence dimension support (provenance) ──────────────────
+        base (if-let [dsr (:evidence/dimension-support-root options)]
+               (assoc base :evidence/dimension-support-root dsr)
                base)
         ;; ── Theorem and conclusion references (optional) ───────────
         base (if (seq theorems)
@@ -280,7 +303,6 @@
    :execution/plan-root
    :execution/parameter-domain-root
    :execution/sampling-policy-root
-   :execution/realised-parameter-set-root
    :execution/generated-case-set-root
    :benchmark/evaluation-policy-root
    :schema-version])
@@ -375,21 +397,114 @@
   [v]
   (and (string? v) (re-matches #"sha256:[0-9a-f]{64}" v)))
 
+(def ^:private scope-ref-output-semantics
+  "AUTHORITATIVE output-resolution registry for typed research scope refs.
+
+   This is the single source of truth that maps every admitted v2 scope-ref
+   to exactly one output-resolution semantic.  It must be kept in step with
+   command/valid-command-scope-refs; `scope-registry-complete?` asserts
+   exhaustiveness so the two cannot silently diverge.
+
+   Each value is one of:
+     {:output? true  :root-key <manifest-key>}  — produces one manifest root
+     {:output? false :reason :contextual}        — purely contextual, no direct
+                                                   manifest output
+
+   Every ref in every admitted kind is classified here:
+     :research-scope/analysis  — incentive analyses each produce an outcome root
+     :research-scope/dimension — consensus dimensions expand to their own root
+                                  (or share the incentive root for participants)
+     :research-scope/artifact  — artifact selection is contextual; no direct root
+     :research-scope/model     — model selection is contextual; no direct root"
+  (let [analysis {:research-analysis/incentive
+                  {:output? true :root-key :outcomes/incentive-root}
+                  :research-analysis/incentive-compatibility
+                  {:output? true :root-key :outcomes/incentive-compatibility-root}}
+        dimension {:incentives/participants
+                   {:output? true :root-key :outcomes/incentive-root}
+                   :incentives/strategies
+                   {:output? true :root-key :outcomes/incentives-strategies-root}
+                   :incentives/coalitions
+                   {:output? true :root-key :outcomes/incentives-coalitions-root}}
+        contextual {:output? false :reason :contextual}]
+    {:research-scope/analysis  (into {} (map (fn [[k v]] [k v])) analysis)
+     :research-scope/dimension (into {} (map (fn [[k v]] [k v])) dimension)
+     :research-scope/artifact  (into {} (map (fn [ref] [ref contextual])
+                                             (get command/valid-command-scope-refs
+                                                  :research-scope/artifact #{})))
+     :research-scope/model     (into {} (map (fn [ref] [ref contextual])
+                                             (get command/valid-command-scope-refs
+                                                  :research-scope/model #{})))}))
+
+(defn- scope-ref-semantic
+  "Return the output-resolution semantic for a typed scope-ref
+   {:kind kw :ref kw}, or nil when it is not a recognised scope-ref."
+  [scope-ref]
+  (get-in scope-ref-output-semantics
+          [(:kind scope-ref) (:ref scope-ref)]))
+
+(defn scope-registry-complete?
+  "True when every scope-ref admitted by command/valid-command-scope-refs
+   has exactly one declared output-resolution semantic in this registry.
+
+   This is the exhaustiveness invariant: the scope validator (research
+   command) and the output resolver (outcome manifest) must not each know
+   a separate, drifting subset of the vocabulary."
+  []
+  (every?
+   (fn [[kind refs]]
+     (every? (fn [ref]
+               (and (contains? scope-ref-output-semantics kind)
+                    (contains? (get scope-ref-output-semantics kind) ref)))
+             refs))
+   command/valid-command-scope-refs))
+
 (def ^:private command-output-roots
+  "Maps output domain identifiers (legacy keywords for v1) to manifest
+   root keys.  :operational is the baseline always-required domain.
+   v2 typed scope-refs are resolved via scope-ref-output-semantics."
   {:operational :outcomes/operational-root
    :incentive :outcomes/incentive-root
    :incentive-compatibility :outcomes/incentive-compatibility-root})
 
 (defn- requested-output-domains
-  "Return the baseline and include-selected output domains for command."
+  "Return the baseline (:operational) and include-selected output
+   domains for a command.  Handles both v1 (:command/include) and
+   v2 (:command/includes) formats."
   [research-command]
-  (into #{:operational} (:command/include research-command)))
+  (let [sv (:schema-version research-command)]
+    (if (= command/schema-version-v2 sv)
+      (into #{:operational}
+            (map (fn [sr] [(:kind sr) (:ref sr)])
+                 (:command/includes research-command)))
+      (into #{:operational} (:command/include research-command)))))
+
+(defn- resolve-output-root-key
+  "Resolve a domain identifier (legacy keyword or [kind ref] vector)
+   to a manifest root key via the appropriate mapping.
+   A contextual scope-ref (no direct output) resolves to :no-direct-output."
+  [domain]
+  (cond
+    (keyword? domain)
+    (get command-output-roots domain)
+
+    (vector? domain)
+    (let [{:keys [output? root-key]} (scope-ref-semantic
+                                      {:kind (first domain) :ref (second domain)})]
+      (cond
+        output? root-key
+        :contextual :no-direct-output
+        :else nil))
+
+    :else nil))
 
 (defn outcome-complete-for-command?
   "Validate that manifest contains every valid output root requested by a
    validated research command. The command root must bind the manifest to that
    exact command artifact; include domains require their corresponding output
    roots, while unrequested domains remain optional.
+
+   Handles both research-command.v1 and research-command.v2.
 
    Returns {:complete? bool :errors [string] :requested-domains #{...}}."
   [research-command manifest]
@@ -403,12 +518,19 @@
                  (:execution/command-root manifest))
       (swap! errors conj "manifest :execution/command-root does not bind the research command"))
     (doseq [domain requested-domains]
-      (if-let [root-key (get command-output-roots domain)]
-        (let [root (get manifest root-key)]
-          (when-not (hash-prefix-valid? root)
-            (swap! errors conj (str "missing or invalid " root-key
-                                    " required by command domain " domain))))
-        (swap! errors conj (str "unsupported command include domain " domain))))
+      (let [resolution (resolve-output-root-key domain)]
+        (cond
+          (= resolution :no-direct-output)
+          nil ;; contextual scope-ref: no direct manifest output required
+
+          (some? resolution)
+          (let [root (get manifest resolution)]
+            (when-not (hash-prefix-valid? root)
+              (swap! errors conj (str "missing or invalid " resolution
+                                      " required by command domain " domain))))
+
+          :else
+          (swap! errors conj (str "unsupported command include domain " domain)))))
     {:complete? (empty? @errors)
      :errors @errors
      :requested-domains requested-domains}))
@@ -439,8 +561,17 @@
          (= domains (:requested-domains complete-b))
          (exact-claim-scope? manifest-a command-a manifest-b command-b)
          (every? (fn [domain]
-                   (= (get manifest-a (get command-output-roots domain))
-                      (get manifest-b (get command-output-roots domain))))
+                   (let [resolution (resolve-output-root-key domain)]
+                     (cond
+                       (= resolution :no-direct-output)
+                       true ;; contextual scope-ref: no direct root to compare
+
+                       (some? resolution)
+                       (= (get manifest-a resolution)
+                          (get manifest-b resolution))
+
+                       :else
+                       false)))
                  domains))))
 
 (def ^:const hash-bearing-root-keys
@@ -454,12 +585,14 @@
    :execution/plan-root
    :execution/parameter-domain-root
    :execution/sampling-policy-root
-   :execution/realised-parameter-set-root
    :execution/generated-case-set-root
    :execution/command-root
+   :evidence/dimension-support-root
    :outcomes/operational-root
    :outcomes/incentive-root
-   :outcomes/incentive-compatibility-root])
+   :outcomes/incentive-compatibility-root
+   :outcomes/incentives-strategies-root
+   :outcomes/incentives-coalitions-root])
 
 (def ^:const force-authorisation-hash-keys
   "Hash-bearing fields inside :execution/force-authorisation."

@@ -438,7 +438,7 @@
                               {:member/id "researcher-a"
                                :incompatible-positions [support-hash]})
           result (with-redefs [rac/classifications-fixed-point
-                               (constantly {:valid? true :violations []
+                               (constantly {:holds? true :violations []
                                             :report decoded-bad})]
                    (rac/run-review-aggregate-checks round nil report))]
       ;; the stored report itself passes — the failure must come from the
@@ -470,7 +470,7 @@
           ;; artifact carries
           decoded-bad (assoc report :outcome-source :target-outcome-unavailable)
           result (with-redefs [rac/classifications-fixed-point
-                               (constantly {:valid? true :violations []
+                               (constantly {:holds? true :violations []
                                             :report decoded-bad})]
                    (rac/run-review-aggregate-checks round nil report))]
       (is (:holds? (get-in result [:checks :three-member-classifications]))
@@ -488,8 +488,89 @@
                               (v2-pos "researcher-b" :approve outcome-a)
                               (v2-pos "researcher-c" :dissent outcome-a)])
           fp (rac/classifications-fixed-point report)]
-      (is (true? (:valid? fp)))
+      (is (true? (:holds? fp)))
       (is (map? (:report fp)))
       (is (= :authorised (:authority-status (:report fp))))
       (is (= (count (:valid-supporting-positions report))
              (count (:valid-supporting-positions (:report fp))))))))
+
+(deftest fixed-point-threading-decode-failure-is-loud
+  (testing "when the fixed-point stage cannot decode, :three-member-classifications-on-fixed-point
+            is present and FAILING with ::fixed-point-unavailable — never silently omitted"
+    (let [round (make-legacy-round)
+          report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          result (with-redefs [rac/classifications-fixed-point
+                               (constantly {:holds? false
+                                            :report nil
+                                            :violations [{:kind ::rac/classifications-fixed-point-invalid
+                                                          :issues []}]})]
+                   (rac/run-review-aggregate-checks round nil report))
+          on-fixed-point (get-in result [:checks :three-member-classifications-on-fixed-point])]
+      (is (contains? (:checks result) :three-member-classifications-on-fixed-point)
+          "the on-fixed-point check must be present even when decode fails")
+      (is (not (:holds? on-fixed-point)))
+      (is (some #(= ::rac/fixed-point-unavailable (:kind %)) (:violations on-fixed-point))
+          "the failure must carry ::fixed-point-unavailable")
+      (is (not (:holds? result))
+          "the aggregate must fail when the fixed-point artifact is unavailable"))))
+
+(deftest check-classifications-fixed-point-keeps-thin-wrapper-shape
+  (testing "the wrapper still returns the standard {:holds? :violations} shape"
+    (let [report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          result (rac/check-classifications-fixed-point report)]
+      (is (true? (:holds? result)))
+      (is (empty? (:violations result))))))
+
+;; ── Degenerate error-fallback report handling ───────────────────────────────
+;;
+;; When evaluate-three-member-authority throws, the consumer records a
+;; degenerate report carrying only :authority-status / :outcome-source /
+;; :authority/error — it has none of the classification fields.  The aggregate
+;; classification check must surface the authority-evaluation failure clearly,
+;; NOT emit phantom field-level mismatches (counted-support, member-count,
+;; identity-separation) that falsely imply a real inconsistency.
+
+(deftest degenerate-error-report-surfaces-evaluation-failure-not-phantom-mismatches
+  (let [round (make-legacy-round)
+        fallback {:authority-status :not-authorised
+                  :outcome-source :target-outcome-unavailable
+                  :authority/error "boom"}
+        result (rac/check-aggregate-three-member-classifications round fallback)]
+    (is (not (:holds? result))
+        "authority evaluation failed, so the aggregate does not hold")
+    (is (some #(= ::rac/authority-evaluation-failed (:kind %)) (:violations result))
+        "the failure is surfaced as an explicit authority-evaluation failure")
+    (is (some #(= "boom" (:error %)) (:violations result))
+        "the underlying error message is preserved")
+    (is (not-any? #(contains? #{::rac/counted-support-mismatch
+                                ::rac/member-count-mismatch
+                                ::rac/identity-separation-mismatch
+                                ::rac/member-unaccounted}
+                              (:kind %))
+                  (:violations result))
+        "no phantom field-level mismatches are reported for a degenerate report")))
+
+(deftest aggregate-runner-threads-error-report-not-phantom-mismatches
+  (let [round (make-legacy-round)
+        fallback {:authority-status :not-authorised
+                  :outcome-source :target-outcome-unavailable
+                  :authority/error "boom"}
+        result (rac/run-review-aggregate-checks round nil fallback)
+        cls (get-in result [:checks :three-member-classifications])]
+    (is (not (:holds? result)))
+    (is (contains? (:checks result) :three-member-classifications))
+    (is (some #(= ::rac/authority-evaluation-failed (:kind %)) (:violations cls))
+        "the error report fails the classification check with the clear signal")
+    (is (not-any? #(contains? #{::rac/counted-support-mismatch
+                                ::rac/member-count-mismatch
+                                ::rac/identity-separation-mismatch
+                                ::rac/member-unaccounted}
+                              (:kind %))
+                  (:violations cls))
+        "no phantom field-level mismatches reach the aggregate result")))

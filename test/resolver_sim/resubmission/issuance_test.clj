@@ -143,7 +143,8 @@
         {:keys [state-before cmd2 ordering]} (committed-fixture)
         candidate (with-chain (candidate-receipt-base) ordering)
         request (issue-request state-before cmd2 ordering candidate)
-        response (cmd/decide {:private-key (:private-key validator-key)} request)]
+        response (cmd/decide {:private-key (:private-key validator-key)
+                              :validator/key-id "vk-1"} request)]
     (testing "a signed receipt is returned"
       (is (= :resubmission-issue-response (:response/kind response)))
       (is (= "req-1" (:request/id response)))
@@ -159,10 +160,11 @@
 (defn- decide-reason
   "Run the authority; return the thrown :reason, or the response when it
    succeeds (nil reason)."
-  [private-key request]
-  (try
-    (cmd/decide {:private-key private-key} request)
-    (catch Exception e (:reason (ex-data e)))))
+  ([private-key request] (decide-reason private-key request "vk-1"))
+  ([private-key request key-id]
+   (try
+     (cmd/decide {:private-key private-key :validator/key-id key-id} request)
+     (catch Exception e (:reason (ex-data e))))))
 
 (deftest issuance-authority-adversarial
   (let [validator-key (ed/keypair :validator-key)
@@ -173,6 +175,10 @@
       (is (= :request-hash-mismatch
              (decide-reason (:private-key validator-key)
                             (assoc valid :request/hash "sha256:WRONG")))))
+    (testing "receipt claiming a different validator key is rejected"
+      (let [bad-candidate (assoc-in candidate [:attempt-receipt/validator :key/id] "vk-2")
+            req (issue-request state-before cmd2 ordering bad-candidate)]
+        (is (= :key-id-inconsistent (decide-reason (:private-key validator-key) req)))))
     (testing "transition that was not committed is rejected"
       (let [rejected-cmd (admit-cmd :child "sha256:R9" :seq 9 :parent "sha256:R1"
                                     :basis "sha256:B9" :link "sha256:L9" :idem "sha256:I9")
@@ -203,6 +209,10 @@
       (let [bad-candidate (assoc-in candidate [:attempt-receipt/chain :transaction-ordering-hash] "sha256:WRONG")
             req (issue-request state-before cmd2 ordering bad-candidate)]
         (is (= :receipt-ordering-binding-mismatch (decide-reason (:private-key validator-key) req)))))
+    (testing "family inconsistent with the ordering is rejected"
+      (let [bad-candidate (assoc-in candidate [:attempt-receipt/chain :family-id] "sha256:OTHER-FAMILY")
+            req (issue-request state-before cmd2 ordering bad-candidate)]
+        (is (= :family-inconsistent (decide-reason (:private-key validator-key) req)))))
     (testing "sequence inconsistent with the command is rejected"
       (let [bad-candidate (assoc-in candidate [:attempt-receipt/chain :sequence] 99)
             req (issue-request state-before cmd2 ordering bad-candidate)]
@@ -226,7 +236,8 @@
       (let [exit (binding [*out* out]
                    (cmd/run-from-reader
                     (java.io.StringReader. (pr-str request))
-                    (:private-key validator-key)))
+                    (:private-key validator-key)
+                    "vk-1"))
             response (read-string (str out))]
         (is (= 0 exit))
         (is (= :resubmission-issue-response (:response/kind response)))
@@ -237,7 +248,8 @@
             exit (binding [*out* out2]
                    (cmd/run-from-reader
                     (java.io.StringReader. (pr-str (assoc request :request/hash "sha256:WRONG")))
-                    (:private-key validator-key)))
+                    (:private-key validator-key)
+                    "vk-1"))
             response (read-string (str out2))]
         (is (= 1 exit))
         (is (= :resubmission-issue-error (:response/kind response)))
@@ -249,7 +261,8 @@
           {:keys [state-before cmd2 ordering]} (committed-fixture)
           candidate (with-chain (candidate-receipt-base) ordering)
           request (issue-request state-before cmd2 ordering candidate)
-          response (cmd/decide {:private-key (:private-key validator-key)} request)
+          response (cmd/decide {:private-key (:private-key validator-key)
+                                :validator/key-id "vk-1"} request)
           id (:attempt-receipt/id (:receipt response))]
       ;; The receipt id is the hash of the UNSIGNED projection (signature
       ;; excluded), so it is deterministic across validator keys.

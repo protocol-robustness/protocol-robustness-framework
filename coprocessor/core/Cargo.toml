@@ -13,5 +13,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 hex = "0.4"
 
+[[bin]]
+name = "realized-statement-kernel"
+path = "src/bin/realized_statement_kernel.rs"
+
 [profile.release]
 opt-level = 3

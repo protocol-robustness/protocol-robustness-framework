@@ -110,6 +110,8 @@
    :research-theorem-outcome "RESEARCH_THEOREM_OUTCOME_V1"
    :research-conclusion "RESEARCH_CONCLUSION_V1"
    :research-command "RESEARCH_COMMAND_V1"
+   :research-command-trace-v2 "RESEARCH_COMMAND_TRACE_V2"
+   :dimension-support-v1 "DIMENSION_SUPPORT_V1"
    :research-assignment "RESEARCH_ASSIGNMENT_V1"
    :trust-sequence-definition "TRUST_SEQUENCE_DEFINITION_V1"
    :procedure-execution-witness "PROCEDURE_EXECUTION_WITNESS_V1"
@@ -121,6 +123,8 @@
    :cancellation-binding "CANCELLATION_BINDING_V1"
    :three-member-authority-report "THREE_MEMBER_AUTHORITY_REPORT_V1"
    :canonical-value-sequence "CANONICAL_VALUE_SEQUENCE_V1"
+   :sew-action-root "SEW_ACTION_ROOT_V1"
+   :allocation-assurance-certificate "ALLOCATION_ASSURANCE_CERTIFICATE_V1"
    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
    :force-authorisation-consumption-v2 "FORCE_AUTHORISATION_CONSUMPTION_V2"
@@ -177,7 +181,15 @@
    :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"
    :lab-parameter-root      "LAB_PARAMETER_ROOT_V1"
    :lab-withdrawal-fcfs     "LAB_WITHDRAWAL_FCFS_V1"
-   :fail-action-policy      "FAIL_ACTION_POLICY_V1"})
+   :fail-action-policy      "FAIL_ACTION_POLICY_V1"
+   :realized-allocation-statement "REALIZED_ALLOCATION_STATEMENT_V1"
+   :realized-request-set    "REALIZED_REQUEST_SET_V1"
+   :allocation-policy       "ALLOCATION_POLICY_V1"
+   :realized-results        "REALIZED_RESULTS_V1"
+   :round-lifecycle         "ROUND_LIFECYCLE_V1"
+   :scenario-evidence-binding "SCENARIO_EVIDENCE_BINDING_V1"
+   :allocation-activation   "ALLOCATION_ACTIVATION_V1"
+   :allocation-activation-policy "ALLOCATION_ACTIVATION_POLICY_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

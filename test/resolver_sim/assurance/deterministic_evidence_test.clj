@@ -64,7 +64,24 @@
     (is (true? (:valid?
                 (cfa/deterministic-operation-evidence-valid?
                  :reject-post-cutpoint-cancellation
-                 (complete-evidence :reject-post-cutpoint-cancellation)))))))
+                 (complete-evidence :reject-post-cutpoint-cancellation))))))
+  (testing "certified execution refuses an open window too"
+    (let [r (cfa/deterministic-operation-evidence-valid?
+             :execute-certified-cancellation
+             (assoc (complete-evidence :execute-certified-cancellation)
+                    :lifecycle/state :proposed))]
+      (is (false? (:valid? r)))
+      (is (false? (:consistent? r)))))
+  (testing "the :lifecycle/profile is a required category for post-cutpoint
+            operations, so the open-window contradiction can never silently pass"
+    (doseq [op [:reject-post-cutpoint-cancellation :execute-certified-cancellation]]
+      (let [full (complete-evidence op)]
+        (is (contains? (set (:evidence (get cfa/deterministic-operation-evidence op)))
+                       :lifecycle/profile))
+        (is (false? (:valid?
+                     (cfa/deterministic-operation-evidence-valid?
+                      op (dissoc full :lifecycle/profile))))
+            (str op " without :lifecycle/profile must fail closed"))))))
 
 (deftest unknown-operation-invalid
   (let [r (cfa/deterministic-operation-evidence-valid?

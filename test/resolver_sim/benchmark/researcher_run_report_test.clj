@@ -10,7 +10,6 @@
     :benchmark/evaluation-policy-root "sha256:eval"
     :execution/parameter-domain-root "sha256:domain"
     :execution/sampling-policy-root "sha256:samp"
-    :execution/realised-parameter-set-root "sha256:params"
     :execution/generated-case-set-root "sha256:cases"
     :results/operational {:conservation :pass}}))
 
