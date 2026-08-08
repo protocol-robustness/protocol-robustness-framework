@@ -203,7 +203,7 @@
     (is (= :bounty-payable (:obligation/type effect)))
     (is (string? (:obligation/id effect)))
     (is (= 2 (count effects)))
-    (is (= #{:prf.effect/obligation-create.v2 :prf.effect/custody-held-adjustment.v1}
+    (is (= #{:prf.effect/obligation-create.v2 :prf.effect/custody-held-adjustment.v2}
            (set (map :effect/contract effects))))))
 
 ;; ── boundary assertions: no Sew, no custody, no attestation ───────────────

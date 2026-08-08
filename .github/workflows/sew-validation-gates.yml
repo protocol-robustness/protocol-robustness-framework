@@ -299,3 +299,53 @@ jobs:
         with:
           name: comparison-lint-artifacts
           path: results/test-artifacts/
+
+  # Consolidates every job's artifact bundle into a single unified
+  # test-artifacts.json + test-run.json for the run, then gates it with the
+  # strengthened artifact audit (scripts/evidence/audit_artifacts.py).
+  # Content conflicts between bundles (the same artifact path claimed with
+  # different bytes) fail this job with a specific report rather than being
+  # silently clobbered.
+  consolidate-artifacts:
+    runs-on: ubuntu-latest
+    needs:
+      - core-validation
+      - extended-validation
+      - coverage-gates
+      - equivalence-comparison-gates
+      - comparison-schema-gates
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: pip install jsonschema
+
+      - name: Download artifact bundles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*artifact*'
+          path: unified/
+          if-no-files-found: warn
+
+      - name: Consolidate into unified registry and audit
+        run: |
+          ls -la unified/ || true
+          ./scripts/evidence/consolidate_ci.sh \
+            unified \
+            results/unified \
+            "${{ github.run_id }}-${{ github.run_attempt }}"
+
+      - name: Upload unified artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts-unified
+          path: results/unified/
+          if-no-files-found: ignore

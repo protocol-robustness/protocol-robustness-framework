@@ -324,6 +324,26 @@ run_unit() {
     resolver-sim.benchmark.decision-subject-test \
     resolver-sim.benchmark.review-aggregate-check-test \
     resolver-sim.allocation.claim-consumption-receipt-test \
+    resolver-sim.allocation.certificate-test \
+    resolver-sim.allocation.cli-test \
+    resolver-sim.allocation.context-test \
+    resolver-sim.allocation.kernel-test \
+    resolver-sim.allocation.selection-test \
+    resolver-sim.allocation.native-evidence-test \
+    resolver-sim.allocation.proposal-test \
+    resolver-sim.allocation.reconciliation-test \
+    resolver-sim.allocation.roots-test \
+    resolver-sim.allocation.round-state-test \
+    resolver-sim.allocation.vectors-test \
+    resolver-sim.pro-rata.allocation-test \
+    resolver-sim.pro-rata.dependency-boundary-test \
+    resolver-sim.test-vectors.pro-rata-test \
+    resolver-sim.benchmark.packs.partial-fill.pro-rata-evidence-test \
+    resolver-sim.yield.pro-rata-claims-test \
+    resolver-sim.yield.strategic-partial-fill-test \
+    resolver-sim.yield.pro-rata-accounting-test \
+    resolver-sim.yield.pro-rata-propagation-properties-test \
+    resolver-sim.yield.partial-fill-test \
     resolver-sim.assurance.custody-summary-test \
     resolver-sim.assurance.three-member-authority-test \
     resolver-sim.assurance.cancellation-gates-test \

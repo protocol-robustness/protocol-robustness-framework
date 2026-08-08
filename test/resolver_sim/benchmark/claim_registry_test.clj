@@ -148,3 +148,25 @@
         non-fatal (cr/validate-claim-registry data nil false)]
     (is (some #(= :unknown-evaluator (:kind %)) fatal))
     (is (empty? non-fatal))))
+
+;; ── Source is preserved through read failures (not re-derived from the path) ─
+
+(deftest unreadable-registry-reports-selected-source
+  (testing "an external registry that cannot be parsed fails closed with
+            :cli source (never mislabeled via the resolved path)"
+    (let [f (temp-file "this is } not edn")
+          ex (try (cr/load-claim-registry (.getPath f)) nil
+                  (catch clojure.lang.ExceptionInfo e e))]
+      (is (some? ex))
+      (is (= :cli (:claim-registry/source (ex-data ex)))))))
+
+(deftest loaded-registry-exposes-raw-document
+  (testing "load-claim-registry returns the raw document for single-read consumers"
+    (let [f (temp-file (valid-registry))
+          loaded (cr/load-claim-registry (.getPath f))]
+      (is (= :cli (:claim-registry/source loaded)))
+      (is (map? (:claim-registry/data loaded)))
+      (is (= (count (:claims loaded))
+             (count (:claims (:claim-registry/data loaded)))))
+      (is (= (:claim-registry/version loaded)
+             (:claim-registry/version (:claim-registry/data loaded)))))))

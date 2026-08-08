@@ -1,0 +1,16 @@
+# act (via `gh act`) configuration — read automatically from the repo root.
+#
+# GitHub's `ubuntu-latest` is a fairly complete VM, but act's default Docker
+# images intentionally omit much of that tooling (and default to an old Node
+# that breaks setup-java@v4). Map `ubuntu-latest` to a fuller image so local
+# runs match CI.
+#
+#   catthehacker/ubuntu:act-latest   — middle size
+#   catthehacker/ubuntu:full-latest  — closest to the GitHub runner, much larger
+#
+# NOTE: some `gh act` builds do NOT auto-read this file. `bin/ci` always passes
+# the mapping explicitly (-P), so prefer `./bin/ci` over bare `gh act`. A CLI
+# -P overrides this for one-off runs, e.g.:
+#   gh act -P ubuntu-latest=catthehacker/ubuntu:full-latest
+-P
+ubuntu-latest=catthehacker/ubuntu:full-latest

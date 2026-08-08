@@ -95,20 +95,49 @@
 
 (deftest real-registry-matches-documented-availability-matrix
   (let [cmds (real-registry-commands)
+        ids (map :command/id cmds)
         distribution (frequencies
                       (map (fn [c] [(:command/surface c) (:command/jar-availability c)])
                            cmds))
+        fixed-combos #{[:prf :native :jvm]
+                       [:dev :native :jvm]
+                       [:community :native :jvm]
+                       [:bb :external :bb]
+                       [:bb :none :bb]}
         ;; Must stay in lockstep with the Fixed-case availability matrix in
-        ;; docs/specs/PRF_CLI_ARCHITECTURE_V1.md and validate-registry's
-        ;; fixed-jar-availability-cases.
-        expected {[:prf :native] 44
+        ;; docs/specs/PRF_CLI_ARCHITECTURE_V1.md (the checked-in documentation
+        ;; artifact) and validate-registry's fixed-jar-availability-cases.
+        expected {[:prf :native] 46
                   [:dev :native] 1
                   [:community :native] 9
                   [:bb :external] 9
                   [:bb :none] 12}]
-    (is (= 75 (count cmds)))
-    (is (= expected distribution))
-    (is (= 75 (apply + (vals distribution))))))
+    (testing "every declared command appears exactly once"
+      (is (= 77 (count (set ids))))
+      (is (= (count ids) (count (set ids)))))
+    (testing "every (surface, jar-availability, runtime) combination is a
+              recognized availability case"
+      (is (every? #(contains? fixed-combos %)
+                  (map (juxt :command/surface :command/jar-availability :command/runtime)
+                       cmds))))
+    (testing "generated matrix equals the checked-in documentation artifact"
+      (is (= expected distribution))
+      (is (= 77 (apply + (vals distribution)))))))
+
+(deftest registry-internally-consistent
+  (testing "every command passes registry validation (structure, paths,
+            availability combos, bb tasks) and every native command resolves a
+            dispatch handler"
+    (let [{valid? :ok? errors :errors} (registry/validate-registry)
+          path-ok? (:ok? (registry/validate-paths))]
+      (is valid?)
+      (is (empty? errors))
+      (is path-ok?))
+    (let [commands (registry/list-commands)
+          handlers (dispatch/get-command-handlers)
+          native (filter #(= :native (:jar-avail %)) commands)]
+      (is (every? #(get handlers (:id %)) native)
+          "every :native command must have a dispatch handler"))))
 
 (deftest sew-artifact-gated-commands-are-coherent
   (let [cmds (real-registry-commands)

@@ -66,7 +66,7 @@
     (is (= 2 (count effects)))
     (is (every? #(= "0xowner" (:owner/address %)) effects))
     (is (every? #(= "0xparameter" (:parameter/address %)) effects))
-    (is (every? #(= :prf.effect/custody-held-adjustment.v1 (:effect/contract %)) effects))
+    (is (every? #(= :prf.effect/custody-held-adjustment.v2 (:effect/contract %)) effects))
     (is (every? #(= :reward (:held/kind %)) effects))
     (is (every? #(= {:action "add-held" :reason :reward}
                     (select-keys (effects/custody-effect->add-held-opts %)

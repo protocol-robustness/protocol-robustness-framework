@@ -67,11 +67,13 @@
 (def adapter-support
   "Fixture adapter-support committed into the application plan so the plan is
    bound to the adapter declaration it was validated against (ADR-0006 D3).
-   The Sew adapter commits the same-shaped declaration for its own plans."
+   The Sew adapter commits the same-shaped declaration for its own plans. This
+   fixture emits only the canonical add-held custody action (v2 contract)."
   {:adapter/id :fixture/with-bounty-adapter
    :adapter/supported-effects
    #{:prf.effect/obligation-create.v2
-     :prf.effect/custody-held-adjustment.v1}})
+     :prf.effect/custody-held-adjustment.v2}
+   :adapter/held-actions #{"add-held"}})
 
 (defn evaluate-bounty
   "Evaluate the reference policy against a committed base result and event

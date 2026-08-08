@@ -45,8 +45,6 @@
     "partial-fill-decisions-verification": "partial-fill-decisions-verification.v1",
     "lineage-conservation-verification": "lineage-conservation-verification.v1",
     "force-auth-add-held": "force-auth-add-held.v1",
-    "force-auth-lifecycle": "force-auth-lifecycle.v1",
-    "force-auth-lifecycle-summary": "force-auth-lifecycle-summary.v2",
     "force-auth-add-held-summary": "force-auth-add-held-summary.v2",
     "held-custody-summary": "held-custody-summary.v1",
     "partial-fill-decisions-summary": "partial-fill-decisions-summary.v1"
@@ -71,8 +69,6 @@
     "partial-fill-decisions-verifier": "partial-fill-decisions-verifier.v1",
     "lineage-conservation-verifier": "lineage-conservation-verifier.v1",
     "force-auth-add-held-verifier": "force-auth-add-held-verifier.v1",
-    "force-auth-lifecycle-verifier": "force-auth-lifecycle-verifier.v1",
-    "force-auth-lifecycle-summary-verifier": "force-auth-lifecycle-summary-verifier.v1",
     "force-auth-add-held-summary-verifier": "force-auth-add-held-summary-verifier.v1",
     "held-custody-summary-verifier": "held-custody-summary-verifier.v1",
     "partial-fill-decisions-summary-verifier": "partial-fill-decisions-summary-verifier.v1"
@@ -184,34 +180,6 @@
       "kind": "evidence",
       "schema_key": "force-auth-add-held-summary",
       "producer_key": "force-auth-add-held-summary-verifier",
-      "importance": "CORE",
-      "verifies_against": [
-        "force-authorisation.v1"
-      ],
-      "input_dependencies": [
-        "test-run"
-      ]
-    },
-    {
-      "id": "force-auth-lifecycle",
-      "file": "force-auth-lifecycle.json",
-      "kind": "evidence",
-      "schema_key": "force-auth-lifecycle",
-      "producer_key": "force-auth-lifecycle-verifier",
-      "importance": "CORE",
-      "verifies_against": [
-        "force-authorisation.v1"
-      ],
-      "input_dependencies": [
-        "test-run"
-      ]
-    },
-    {
-      "id": "force-auth-lifecycle-summary",
-      "file": "force-auth-lifecycle-summary.json",
-      "kind": "evidence",
-      "schema_key": "force-auth-lifecycle-summary",
-      "producer_key": "force-auth-lifecycle-summary-verifier",
       "importance": "CORE",
       "verifies_against": [
         "force-authorisation.v1"

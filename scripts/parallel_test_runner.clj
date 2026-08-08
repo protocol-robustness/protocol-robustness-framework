@@ -92,7 +92,11 @@
       resolver-sim.contract-model.replay-batch-sew-test
       resolver-sim.validation.scenario-registry-test
      resolver-sim.benchmark.game-theory-validation-test
-     resolver-sim.community.result-test})
+     resolver-sim.community.result-test
+     ;; with-redefs on selection/candidate-digest-hex (shared static var); both
+     ;; redef the same var so they must never overlap the pool.
+     resolver-sim.allocation.kernel-test
+     resolver-sim.allocation.selection-test})
 
 (def parallel-runner-namespaces
   "Union of every namespace handed to scripts.parallel-test-runner by the
@@ -104,11 +108,30 @@
    this set carrying an audit hard hazard, or any scenario-group member here,
    must be in parallel-excluded-namespaces or the audit gate fails.
    Keep in sync with those invocation lists."
-  '[resolver-sim.assurance.cancellation-gates-test
+  '[    resolver-sim.assurance.cancellation-gates-test
     resolver-sim.assurance.consumer-enforcement-test
     resolver-sim.assurance.custody-summary-test
     resolver-sim.assurance.deterministic-evidence-test
     resolver-sim.assurance.three-member-authority-test
+    resolver-sim.allocation.certificate-test
+    resolver-sim.allocation.claim-consumption-receipt-test
+    resolver-sim.allocation.cli-test
+    resolver-sim.allocation.context-test
+    resolver-sim.allocation.native-evidence-test
+    resolver-sim.allocation.proposal-test
+    resolver-sim.allocation.reconciliation-test
+    resolver-sim.allocation.roots-test
+    resolver-sim.allocation.round-state-test
+    resolver-sim.allocation.vectors-test
+    resolver-sim.pro-rata.allocation-test
+    resolver-sim.pro-rata.dependency-boundary-test
+    resolver-sim.test-vectors.pro-rata-test
+    resolver-sim.benchmark.packs.partial-fill.pro-rata-evidence-test
+    resolver-sim.yield.partial-fill-test
+    resolver-sim.yield.pro-rata-accounting-test
+    resolver-sim.yield.pro-rata-claims-test
+    resolver-sim.yield.pro-rata-propagation-properties-test
+    resolver-sim.yield.strategic-partial-fill-test
     resolver-sim.benchmark.decision-subject-test
     resolver-sim.benchmark.game-theory-validation-test
     resolver-sim.benchmark.packs.partial-fill.evidence-test

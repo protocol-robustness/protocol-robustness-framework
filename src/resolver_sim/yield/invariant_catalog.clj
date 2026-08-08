@@ -50,6 +50,10 @@
    {:description "Aggregate yield position values and shortfall balances are consistent across positions per (module-id, token) pair: shortfall splits reconcile to basis and shortfall does not exceed available value."
     :prf-tags [:liquidity-shortfall :conservation :aggregate]}
 
+   :yield/token-key-consistency
+   {:description "Rejects simultaneous string and keyword keys for one normalized token in accounting maps; mixed representations would split balances across independent map entries and make custody reconciliation ambiguous."
+    :prf-tags [:accounting :consistency]}
+
    :yield/pro-rata-propagation-complete
    {:description "The committed allocation decision was bound to the propagation; entitlement and capacity constraints held; each committed amount was applied exactly once to a policy-authorised account class; and the accounting entries and resulting state changes reconciled."
     :prf-tags [:pro-rata :propagation :accounting :conservation]}
@@ -57,6 +61,10 @@
    :yield/pro-rata-accounting-reconciles
    {:description "The application record binds to its propagation and allocation decision; accounting entries cover all propagated movements; source, participant, and deferred-position state changes reconcile and form a continuous chain; and no active deferred position is past its policy deadline."
     :prf-tags [:pro-rata :accounting :conservation :deadline]}
+
+   :yield/shared-withdrawal-conservation
+   {:description "Every :yield-withdraw-shared decision artifact is replay-verifiable: the decision hash reconciles; the committed allocation scope/mode/rounding policy match the shared pro-rata contract; the participant/request set is bijective to the allocation rows; per-row filled ≤ effective-cap ≤ requested, deferred = requested - filled, no haircut; Σ filled ≤ committed available (the shared-liquidity non-overallocation bound); and the locked equality Σ filled = min(available, Σ effective-demand) holds, so caps binding below both requests and liquidity are honoured."
+    :prf-tags [:pro-rata :liquidity :solvency :conservation :aggregate :withdrawal]},
 
    :yield/withdrawal-ledger-conservation
    {:description "Every recorded withdrawal (single or batch) settles at most the liquidity pool available to it, bound to its exact execution world and withdrawal subject. Per record: the fixed-point certificate is valid; the committed run-root matches the recomputed execution context (run/execution/scenario/params); the request-set root matches the ledger's own rows; declared principals are unique and biject to row owners; filled ≤ available; per-row and aggregate economic conservation (filled + deferred + haircut = requested, totals reconcile to rows); FCFS prefix pool bound holds."
@@ -79,6 +87,7 @@
    :yield/aggregate
    :yield/pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles
+   :yield/shared-withdrawal-conservation
    :yield/withdrawal-ledger-conservation])
 
 (def default-transition-invariant-ids

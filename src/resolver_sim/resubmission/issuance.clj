@@ -59,7 +59,11 @@
 
    The binding is only trustworthy if the ordering itself is sound, so this
    additionally requires the ordering's self-hash to recompute (ordering/
-   verify-ordering) and the action to be the admit-child admission it claims."
+   verify-ordering) and the action to be the admit-child admission it claims.
+
+   NOTE: the admit-child action gate is a whitelist of exactly one ordering
+   action. If new ordering actions are introduced, this predicate must be
+   extended to admit them."
   [receipt ordering]
   (and (map? ordering)
        (map? receipt)

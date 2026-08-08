@@ -42,8 +42,6 @@
       incompatible-positions? detect-equivocation
       classify-equivocating-seat evaluate-three-member-authority
       position-valid? authority-report-root recompute-authority-report]]
-   [(symbol "resolver-sim.evidence.force-authorisation")
-    '[valid-scope? valid-envelope? grant-before-execution?]]
    [(symbol "resolver-sim.commands.witness-build")
     '[build-and-write! canonical-witness-verification
       witness-requirement configured-root load-adapter]]

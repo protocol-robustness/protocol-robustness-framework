@@ -26,9 +26,15 @@
 (defn profile-root
   "Content root of a profile descriptor, excluding its own :profile/root.
    Committed so profile activation is observable: a receipt binds this root
-   and enumerates the rules actually applied."
+   and enumerates the rules actually applied.
+
+   The descriptor may embed set-valued fields (e.g. :profile/fixture-contracts,
+   :supported-fixture-specs), so the committed value is projected to
+   canonical-safe form (sets → sorted vectors) before hashing — otherwise the
+   strict canonical encoder rejects the descriptor it is supposed to commit."
   [profile]
-  (hc/domain-hash "conformance.profile.v1" (dissoc profile :profile/root)))
+  (hc/domain-hash "conformance.profile.v1"
+                  (hc/project-committable-content (dissoc profile :profile/root))))
 
 (defn required-component-ids
   "Ordered component ids the profile requires to be present in the

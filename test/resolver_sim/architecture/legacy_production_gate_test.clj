@@ -1,234 +1,123 @@
 (ns resolver-sim.architecture.legacy-production-gate-test
-  "Phase 3A entry gate: no NEW production construction of legacy held-custody
-   artifacts.
+  "Phase 3B TOMBSTONE / absence gate — successor to the Phase 3A production
+   gate.
 
-   Reads and WRITES are distinguished. Legacy validators, classifiers and
-   migration readers (:permitted/legacy-read-vars) remain permitted during
-   Phase 3A and are reported as :legacy-read-reference. Legacy constructors /
-   emitters (:forbidden/legacy-production-vars) may only be referenced inside
-   exact approved locations (:approved/legacy-production-locations); any other
-   production reference is a :legacy-write-reference and blocks Phase 3A.
+   Phase 3A asked: are the legacy held-custody producers still present but
+   forbidden? Phase 3B asks the permanent question: does legacy held-custody
+   production still exist anywhere, and can it be reintroduced?
 
-   Detection covers fully-qualified direct calls, alias-qualified calls (via the
-   namespace :require), requiring-resolve/resolve/ns-resolve with literal
-   symbols, literal (symbol \"ns\" \"var\") construction, and apply/higher-order
-   references (the referenced symbol appears in the form). Expression-built
-   dynamic resolution is surfaced as an unresolved warning, not claimed statically
-   absent."
+   This gate fails if any of the following reappear:
+     - the deleted legacy core namespace (resolver-sim.evidence.force-authorisation);
+     - the legacy builder / producer vars (build-force-auth-add-held,
+       build-force-auth-add-held-v2, build-force-auth-add-held-summary,
+       build-force-auth-add-held-summary-v1, build-force-auth-add-held-summary-permissive,
+       and the legacy lifecycle builders);
+     - any :status :legacy held-custody approval in protocol-boundaries.edn;
+     - any reference to the deleted namespace from production source or policy.
+
+   Historical READ support is permanent and extension-owned: it exists only
+   through prf.extensions.held-custody.legacy-validate and the package
+   manifest's :extension/historical-read contract, cross-checked by the
+   conformance test (extensions/held-custody)."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
-            [resolver-sim.evidence.force-authorisation]))
+            [clojure.test :refer [deftest is testing]]))
+
+(def deleted-ns
+  "The legacy core namespace removed in Phase 3B."
+  "resolver-sim.evidence.force-authorisation")
+
+(def deleted-ns-file
+  "The legacy namespace's source file."
+  "src/resolver_sim/evidence/force_authorisation.clj")
+
+(def legacy-producer-vars
+  "Legacy held-custody PRODUCER / builder var names. None may reappear."
+  #{"build-force-auth-add-held"
+    "build-force-auth-add-held-v2"
+    "build-force-auth-add-held-summary"
+    "build-force-auth-add-held-summary-v1"
+    "build-force-auth-add-held-summary-permissive"
+    "build-force-auth-lifecycle"
+    "build-force-auth-lifecycle-summary"
+    "build-force-auth-lifecycle-summary-v1"})
 
 (def boundary-policy
   (edn/read-string (slurp "config/architecture/protocol-boundaries.edn")))
 
-(def legacy-ns
-  "The legacy held-custody namespace, derived from the forbidden-vars policy
-   (never hardcoded)."
-  (some-> (first (:forbidden/legacy-production-vars boundary-policy))
-          :var
-          namespace))
-
-(def approved-legacy-location
-  "Exact approved legacy-production location path, derived from the policy."
-  (some-> (first (:approved/legacy-production-locations boundary-policy))
-          :file))
-
-(def ^:private eof (Object.))
-
-(defn- read-forms [file]
-  (with-open [reader (clojure.lang.LineNumberingPushbackReader. (io/reader file))]
-    (binding [*read-eval* false]
-      (loop [forms []]
-        (let [form (read {:eof eof :read-cond :allow} reader)]
-          (if (identical? eof form)
-            forms
-            (recur (conj forms form))))))))
-
-(defn- production-zone?
-  "A production zone is one whose source roots are not under the extensions/
-   layout — derived from the layout convention, not a hardcoded zone id."
-  [zone]
-  (every? #(not (str/starts-with? % "extensions/")) (:source-roots zone)))
-
 (defn- production-source-files []
-  (let [zones (filter production-zone? (:architecture/zones boundary-policy))
-        roots (mapcat :source-roots zones)]
-    (for [root roots
+  (let [zones (filter #(every? (fn [r] (not (str/starts-with? r "extensions/")))
+                               (:source-roots %))
+                      (:architecture/zones boundary-policy))]
+    (for [zone zones
+          root (:source-roots zone)
           file (file-seq (io/file root))
           :when (and (.isFile file) (str/ends-with? (.getName file) ".clj"))]
       file)))
 
-(defn- require-alias-map
-  "Map of require alias -> namespace for the :require clause of a ns form."
-  [form]
-  (letfn [(spec->alias [spec]
-            (cond
-              (symbol? spec) [nil (str spec)]
-              (sequential? spec)
-              (let [ns (first spec)
-                    as (second (drop-while #(not= :as %) spec))]
-                [(when (symbol? as) (str as)) (str ns)])
-              :else nil))]
-    (if (and (seq? form) (= 'ns (first form)))
-      (into {}
-            (keep spec->alias)
-            (tree-seq coll? seq (rest form)))
-      {})))
+(defn- file-text [file]
+  (str/join "\n" (line-seq (io/reader file))))
 
-(defn- var-of-symbol
-  "Resolve a (possibly alias-qualified) symbol to ns/var, or nil."
-  [alias-map sym]
-  (let [ns-part (namespace sym)]
-    (when ns-part
-      (let [ns-full (or (get alias-map ns-part) ns-part)]
-        (when (= ns-full legacy-ns)
-          (symbol ns-full (name sym)))))))
+(defn- policy-text []
+  (slurp "config/architecture/protocol-boundaries.edn"))
 
-(defn- dynamic-var-of-form
-  "Detect (symbol \"ns\" \"var\") literal construction referencing the legacy ns."
-  [form]
-  (when (and (seq? form) (= 'symbol (first form)))
-    (let [[ns name] (rest form)]
-      (when (and (string? ns) (= ns legacy-ns) (string? name))
-        (symbol legacy-ns name)))))
+(deftest deleted-namespace-is-absent
+  (testing "the legacy core namespace source file no longer exists"
+    (is (not (.exists (io/file deleted-ns-file)))))
+  (testing "no production source file references the deleted namespace"
+    (let [hits (keep (fn [f]
+                       (when (str/includes? (file-text f) deleted-ns)
+                         (.getPath f)))
+                     (production-source-files))]
+      (is (empty? hits) (str "deleted namespace referenced in: " hits))))
+  (testing "the policy no longer references the deleted namespace"
+    (is (not (str/includes? (policy-text) deleted-ns)))))
 
-(defn- reference-var
-  "The legacy var a form element references, or nil."
-  [alias-map x]
-  (cond
-    (symbol? x) (var-of-symbol alias-map x)
-    (seq? x) (dynamic-var-of-form x)
-    :else nil))
+(deftest legacy-producers-are-absent
+  (testing "no legacy producer/builder var name appears in production source"
+    (let [hits (keep (fn [f]
+                       (let [text (file-text f)]
+                         (seq (filter #(str/includes? text %) legacy-producer-vars))))
+                     (production-source-files))]
+      (is (empty? hits) (str "legacy producer names found in: " hits))))
+  (testing "no legacy producer var name appears in policy/registration config"
+    (is (not (some #(str/includes? (policy-text) %) legacy-producer-vars)))))
 
-(defn- file-references
-  "Scan a file for references to legacy vars.
-   Returns {:write [var...] :read [var...] :unresolved [reason...]}."
-  [file]
-  (let [forms (try (read-forms file) (catch Exception _ []))
-        alias-map (reduce merge (map require-alias-map forms))
-        forbidden (set (map :var (:forbidden/legacy-production-vars boundary-policy)))
-        permitted (:permitted/legacy-read-vars boundary-policy)
-        refs (for [form forms
-                   node (tree-seq coll? seq form)
-                   :let [v (reference-var alias-map node)]
-                   :when v]
-               v)]
-    {:write (vec (sort (filter forbidden refs)))
-     :read (vec (sort (filter permitted refs)))}))
+(deftest no-legacy-status-approvals-remain
+  (testing "no held-custody approval in the policy carries :status :legacy"
+    (let [legacy (into []
+                       (for [key [:approved/core-domain-literals
+                                  :approved/core-operation-literals
+                                  :approved/core-status-literals]
+                             approval (get boundary-policy key [])
+                             :when (= :legacy (:status approval))]
+                         {:key key :file (:file approval) :status (:status approval)}))]
+      (is (empty? legacy) (str "legacy-status approvals remain: " legacy))))
+  (testing "the legacy gate policy blocks are gone"
+    (is (not (contains? boundary-policy :forbidden/legacy-production-vars)))
+    (is (not (contains? boundary-policy :permitted/legacy-read-vars)))
+    (is (not (contains? boundary-policy :approved/legacy-production-locations)))))
 
-(defn- approved-location?
-  "True when file is an exact approved legacy-production location."
-  [file]
-  (some #(= (.getPath file) (:file %))
-        (:approved/legacy-production-locations boundary-policy)))
-
-(defn- forbidden-config-vars []
-  (set (map :var (:forbidden/legacy-production-vars boundary-policy))))
-
-(defn- discovered-builder-vars
-  "The actual public held-custody builder set discovered from the repository,
-   fully qualified to the legacy namespace."
-  []
-  (->> (ns-publics 'resolver-sim.evidence.force-authorisation)
-       keys
-       (filter #(str/starts-with? (name %) "build-force-auth-add-held"))
-       (map #(symbol legacy-ns (name %)))
-       set))
-
-(defn- public-var-names
-  "Set of unqualified public var names in the legacy namespace."
-  []
-  (set (map name (keys (ns-publics 'resolver-sim.evidence.force-authorisation)))))
-
-(deftest forbidden-list-covers-discovered-builders
-  (testing "the forbidden policy is exhaustive: it must equal the actual public
-            builder set discovered from the repository"
-    (is (= (discovered-builder-vars) (forbidden-config-vars))
-        (str "forbidden config " (pr-str (forbidden-config-vars))
-             " != discovered builders " (pr-str (discovered-builder-vars))))))
-
-(deftest forbidden-vars-exist-and-have-replacements
-  (let [public-names (public-var-names)]
-    (doseq [{:keys [var replacement]} (:forbidden/legacy-production-vars boundary-policy)]
-      (is (contains? public-names (name var))
-          (str "forbidden var does not exist in core: " var))
-      (is (some? replacement) (str "forbidden var without replacement: " var)))))
-
-(deftest no-production-write-references-to-legacy-builders
-  (testing "no production source file may construct a legacy held-custody artifact
-            outside the exact approved implementation file"
-    (let [offenders (into (sorted-map)
-                          (keep (fn [file]
-                                  (let [refs (file-references file)]
-                                    (when (and (seq (:write refs))
-                                               (not (approved-location? file)))
-                                      [(.getPath file) (:write refs)]))))
-                          (production-source-files))]
-      (is (empty? offenders)
-          (str "Legacy held-custody builder references in production: " (pr-str offenders))))))
-
-(deftest current-production-has-no-legacy-builder-callers
-  (testing "today no production caller invokes a legacy held-custody builder
-            (the gate is green before Phase 3A begins)"
-    (let [writes (into []
-                       (mapcat (comp :write file-references))
-                       (production-source-files))]
-      (is (empty? writes)))))
-
-;; ── scanner adversarial tests ───────────────────────────────────────────────
-
-(defn- scan-source
-  "Scan a Clojure source string as if it were a production file."
-  [source]
-  (let [file (doto (java.io.File/createTempFile "legacy-gate" ".clj") .deleteOnExit)]
-    (spit file source)
-    (try
-      (file-references file)
-      (finally (.delete file)))))
-
-(deftest gate-detects-direct-and-aliased-write-references
-  (testing "a fully-qualified direct builder call is detected"
-    (let [{:keys [write]} (scan-source
-                           "(ns prod.a (:require [resolver-sim.evidence.force-authorisation :as fa])) (fa/build-force-auth-add-held {} {} {})")]
-      (is (some #{'resolver-sim.evidence.force-authorisation/build-force-auth-add-held} write))))
-  (testing "an alias-qualified builder call is detected through the ns :require"
-    (let [{:keys [write]} (scan-source
-                           "(ns prod.b (:require [resolver-sim.evidence.force-authorisation :as fa])) (def x (fa/build-force-auth-add-held-v2 {}))")]
-      (is (some #{'resolver-sim.evidence.force-authorisation/build-force-auth-add-held-v2} write))))
-  (testing "a literal requiring-resolve call is detected"
-    (let [{:keys [write]} (scan-source
-                           "(ns prod.c) (requiring-resolve 'resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary)")]
-      (is (some #{'resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary} write))))
-  (testing "literal (symbol \"ns\" \"var\") construction is detected"
-    (let [{:keys [write]} (scan-source
-                           "(ns prod.d) (symbol \"resolver-sim.evidence.force-authorisation\" \"build-force-auth-add-held\")")]
-      (is (some #{'resolver-sim.evidence.force-authorisation/build-force-auth-add-held} write))))
-  (testing "an apply/higher-order reference is detected"
-    (let [{:keys [write]} (scan-source
-                           "(ns prod.g (:require [resolver-sim.evidence.force-authorisation :as fa])) (apply fa/build-force-auth-add-held-summary members opts)")]
-      (is (some #{'resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary} write)))))
-
-(deftest gate-allows-legacy-read-references
-  (testing "a legacy validator/read call is reported as a read reference, not a violation"
-    (let [refs (scan-source
-                "(ns prod.e (:require [resolver-sim.evidence.force-authorisation :as fa])) (fa/valid-force-auth-add-held? x)")]
-      (is (empty? (:write refs)))
-      (is (some #{'resolver-sim.evidence.force-authorisation/valid-force-auth-add-held?} (:read refs))))))
-
-(deftest gate-honors-exact-approved-locations
-  (testing "the approved location check is exact and derived from the policy"
-    (is (approved-location? (io/file approved-legacy-location)))
-    (is (not (approved-location? (io/file "src/resolver_sim/evidence/other.clj"))))
-    (is (not (approved-location? (io/file (str approved-legacy-location ".bak")))))))
-
-(deftest gate-surfaces-unresolved-dynamic-construction
-  (testing "expression-built dynamic resolution is surfaced, not claimed absent"
-    (let [refs (scan-source
-                "(ns prod.f) (requiring-resolve (symbol (str \"resolver-sim.evidence.force-authorisation\") (str \"build-force-auth-add-held\")))")]
-      ;; the string parts are not a literal (symbol ns var) form; the scan
-      ;; cannot prove the reference statically and must not claim it absent.
-      (is (empty? (:write refs)))
-      (is (empty? (:read refs)) "unresolvable expression-built reference is not reported as absent-proof"))))
+(deftest historical-support-is-not-core-owned
+  (testing "core retains no legacy held-custody validator/reader vars (they are
+            extension-owned)"
+    (let [core-read-names
+          ["valid-force-auth-add-held?"
+           "valid-force-auth-add-held-v2?"
+           "force-auth-add-held-scope-verifies?"
+           "exact-force-auth-add-held?"
+           "valid-force-auth-add-held-summary?"
+           "valid-force-auth-add-held-summary-v1?"
+           "valid-force-auth-add-held-summary-v1-migration?"
+           "recompute-force-auth-add-held-summary"]
+          definition-re
+          (re-pattern (str "(?m)^\\s*\\(defn?\\s+("
+                           (str/join "|" (map #(java.util.regex.Pattern/quote %) core-read-names))
+                           ")\\b"))
+          hits (keep (fn [f]
+                       (let [m (re-find definition-re (file-text f))]
+                         (when m (str (.getPath f) " defines " (second m)))))
+                     (production-source-files))]
+      (is (empty? hits)
+          (str "historical validator/reader vars must not be defined in core: " hits)))))

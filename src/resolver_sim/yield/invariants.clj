@@ -5,6 +5,7 @@
             [resolver-sim.yield.invariant-catalog :as cat]
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
+            [resolver-sim.pro-rata.allocation :as pro-rata-allocation]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.time.deadlines :as dl]
@@ -311,6 +312,16 @@
    vacuously (pre-ledger worlds are unaffected); records without a hash (legacy)
    skip the certificate check but keep the arithmetic bounds.
 
+   RECORD-LOCAL BOUNDARY: this check re-derives each record's committed
+   state-cutpoint-root against the world it is called with, so a record is
+   validated only against the world at which it was the most recent withdrawal
+   for that module/token.  It does NOT by itself prove that two individually
+   valid records did not consume the same source state; that cross-invocation
+   guarantee rests on monotonic source-state consumption between invocations
+   and/or on the custody-scoped (disjoint-slice) recoverable bases enforced by
+   the single-withdraw path (see `withdraw` docstring) and on the
+   :yield/exposure slice-conservation invariant.
+
    Returns {:holds? bool
             :violations [{:ledger/id [...] :issues [kw ...]
                           :available n :requested n :filled n :deferred n :haircut n} ...]}."
@@ -510,6 +521,246 @@
     {:holds? (empty? violations)
      :violations (vec violations)
      :checks {:withdrawal-ledger-conserved (if (seq violations) :fail :pass)}}))
+
+;; ---------------------------------------------------------------------------
+;; Shared (pro-rata) withdrawal decision-artifact conservation
+;; ---------------------------------------------------------------------------
+;;
+;; The universal withdrawal-domain contract the three modes share:
+;;   every withdrawal allocation commits exactly one liquidity budget B; for the
+;;   complete allocation scope governed by B,  Σ allocated-filled <= B.
+;;   :single-position  →  B = the position's committed recoverable slice
+;;   :fcfs-sequential  →  B = the batch's committed available pool
+;;   :pro-rata         →  B = the shared pool's committed available liquidity
+;;
+;; This checker makes the :pro-rata mode independently replay-verifiable from
+;; its committed decision artifact alone (the analog of the batch path's
+;; :yield/withdrawal-ledger-conservation), so pro-rata's aggregate safety does
+;; not rest on trusting the producer implementation.
+
+(defn- shared-withdrawal-artifact?
+  [artifact]
+  (= :yield-withdraw-shared (:decision/source artifact)))
+
+(defn- shared-withdrawal-row-violations
+  "Per-row evidence checks for a :yield-withdraw-shared decision artifact."
+  [artifact]
+  (let [rows (vec (or (get-in artifact [:evidence :allocation-rows]) []))
+        requested-map (or (:requested artifact) {})
+        filled-map (or (:filled artifact) {})
+        deferred-map (or (:deferred artifact) {})
+        haircut-map (or (:haircut artifact) {})
+        row-set (set (map :key rows))]
+    (into
+     []
+     (concat
+      (cond-> []
+        (not= row-set (set (keys requested-map)))
+        (conj {:kind ::row-request-set-mismatch
+               :rows (vec (sort row-set))
+               :requested (vec (sort (keys requested-map)))})
+        (not= row-set (set (keys filled-map)))
+        (conj {:kind ::row-filled-set-mismatch
+               :rows (vec (sort row-set))
+               :filled (vec (sort (keys filled-map)))})
+        (not= row-set (set (keys deferred-map)))
+        (conj {:kind ::row-deferred-set-mismatch
+               :rows (vec (sort row-set))
+               :deferred (vec (sort (keys deferred-map)))}))
+      (mapcat
+       (fn [row]
+         (let [k (:key row)
+               owed (long (or (:owed row) 0))
+               raw-cap (:cap row)
+               eff-cap (long (or (:effective-cap row) -1))
+               expected-eff-cap (long (if (some? raw-cap)
+                                        (min owed (long raw-cap))
+                                        owed))
+               filled (long (or (:filled row) -1))
+               deferred (long (or (:deferred row) -1))
+               f-map (long (get filled-map k 0))
+               d-map (long (get deferred-map k 0))
+               h-map (long (get haircut-map k 0))
+               requested (long (get requested-map k 0))
+               expected-deferred (max 0 (- owed filled))]
+           (cond-> []
+             (not= eff-cap expected-eff-cap)
+             (conj {:kind ::effective-cap-mismatch :key k
+                    :expected expected-eff-cap :observed eff-cap})
+             (neg? filled)
+             (conj {:kind ::negative-filled :key k :filled filled})
+             (> filled eff-cap)
+             (conj {:kind ::filled-exceeds-effective-cap :key k
+                    :filled filled :effective-cap eff-cap})
+             (> filled owed)
+             (conj {:kind ::filled-exceeds-request :key k
+                    :filled filled :owed owed})
+             (not= f-map filled)
+             (conj {:kind ::filled-map-mismatch :key k :expected filled :observed f-map})
+             (neg? deferred)
+             (conj {:kind ::negative-deferred :key k :deferred deferred})
+             (not= deferred expected-deferred)
+             (conj {:kind ::deferred-mismatch :key k
+                    :expected expected-deferred :observed deferred})
+             (not= d-map deferred)
+             (conj {:kind ::deferred-map-mismatch :key k :expected deferred :observed d-map})
+             (pos? h-map)
+             (conj {:kind ::unexpected-haircut :key k :haircut h-map})
+             (not= owed requested)
+             (conj {:kind ::request-amount-mismatch :key k :expected owed :observed requested}))))
+       rows)))))
+
+(defn check-shared-withdrawal-conservation
+  "Independently re-prove the shared-liquidity non-overallocation guarantee for a
+   `:yield-withdraw-shared` decision artifact, from the committed evidence alone
+   (no producer state or code path trusted beyond the artifact).
+
+   The universal withdrawal-domain contract applied to the shared mode:
+     B = :evidence :available-liquidity, and  Σ allocated-filled <= B.
+
+   The capped pro-rata equality (locked theorem):
+     Σ filled = min(B, Σ effective-demand_i)
+     effective-demand_i = min(requested_i, effective-cap_i)
+   i.e. when per-participant effective caps bind below both the requests and the
+   pool, the filled total is demand-capped — it is NOT min(B, Σ requested).
+   The safety bound Σ filled <= B holds regardless of that distinction.
+
+   Violations (namespaced :kind):
+     ::artifact-hash-invalid        — decision/hash does not reconcile.
+     ::scope-mismatch               — :allocation/scope != :shared-liquidity-pool.
+     ::mode-mismatch                — policy/fill-mode != :pro-rata.
+     ::rounding-policy-mismatch     — policy rounding-policy != :largest-remainder.
+     ::invalid-available            — :evidence :available-liquidity missing or not a non-negative integer.
+     ::request-total-mismatch       — Σ requested != :evidence :total-requested.
+     ::shortage-mismatch            — :evidence :shortage != max(0, total-requested - available).
+     ::row-*-set-mismatch           — :requested/:filled/:deferred key sets disagree with allocation-rows.
+     ::effective-cap-mismatch       — row effective-cap != min(owed, cap).
+     ::negative-filled / ::negative-deferred — negative amounts.
+     ::filled-exceeds-effective-cap / ::filled-exceeds-request — per-row upper bounds.
+     ::filled-map-mismatch / ::deferred-map-mismatch — row vs artifact map disagreement.
+     ::deferred-mismatch            — deferred != max(0, owed - filled).
+     ::unexpected-haircut           — non-zero haircut under shared pro-rata.
+     ::budget-exceeded              — Σ filled > available (the over-allocation bound).
+     ::demand-exceeded              — Σ filled > Σ effective-cap.
+     ::equality-violated            — Σ filled != min(available, Σ effective-cap) (locked theorem).
+     ::deferred-total-mismatch      — Σ filled + Σ deferred != Σ requested.
+     ::allocation-detail-mismatch   — Σ filled != :allocation-detail :total-allocated.
+     ::residual-reconciliation-failed — Σ filled + :unallocated-residual != available
+                                         (overflow not conserved at decision level).
+     ::negative-residual            — :unallocated-residual < 0.
+     ::mechanism-hash-invalid       — embedded :mechanism/result hash does not reconcile.
+     ::mechanism-aggregate-mismatch — mechanism result aggregate disagrees with decision rows.
+
+   Returns {:holds? bool :violations [...]}."
+  [artifact]
+  (let [rows (vec (or (get-in artifact [:evidence :allocation-rows]) []))
+        requested-map (or (:requested artifact) {})
+        A (get-in artifact [:evidence :available-liquidity])
+        total-requested (get-in artifact [:evidence :total-requested])
+        shortage (get-in artifact [:evidence :shortage])
+        scope (:allocation/scope artifact)
+        policy (:policy artifact)
+        allocation-detail (get-in artifact [:evidence :allocation-detail])
+        mechanism-evidence (get-in artifact [:evidence :allocation-mechanism-evidence])
+        mechanism-result (:mechanism/result mechanism-evidence)
+        residual (get-in artifact [:evidence :unallocated-residual])
+        sum-requested (reduce + 0 (map #(long (:owed %)) rows))
+        sum-effective-cap (reduce + 0 (map #(long (:effective-cap %)) rows))
+        sum-filled (reduce + 0 (map #(long (:filled %)) rows))
+        sum-deferred (reduce + 0 (map #(long (:deferred %)) rows))
+        A-valid? (and (integer? A) (not (neg? A)))
+        violations
+        (cond-> []
+          (not (partial-fill/decision-hash-valid? artifact))
+          (conj {:kind ::artifact-hash-invalid})
+
+          (not= :shared-liquidity-pool scope)
+          (conj {:kind ::scope-mismatch :observed scope})
+
+          (not= :pro-rata (:mode policy))
+          (conj {:kind ::mode-mismatch :observed (:mode policy)})
+          (not= :pro-rata (get-in artifact [:evidence :fill-mode]))
+          (conj {:kind ::mode-mismatch :observed (get-in artifact [:evidence :fill-mode])})
+
+          (not= :largest-remainder (:rounding-policy policy))
+          (conj {:kind ::rounding-policy-mismatch :observed (:rounding-policy policy)})
+
+          (not A-valid?)
+          (conj {:kind ::invalid-available :observed A})
+
+          (and A-valid?
+               (not= sum-requested (long (or total-requested -1))))
+          (conj {:kind ::request-total-mismatch
+                 :expected sum-requested :observed total-requested})
+
+          (and A-valid?
+               (not= (long (or shortage -1)) (max 0 (- sum-requested (long A)))))
+          (conj {:kind ::shortage-mismatch
+                 :expected (max 0 (- sum-requested (long A))) :observed shortage})
+
+          (and A-valid? (> sum-filled (long A)))
+          (conj {:kind ::budget-exceeded :filled sum-filled :available (long A)})
+
+          (> sum-filled sum-effective-cap)
+          (conj {:kind ::demand-exceeded :filled sum-filled :effective-cap-total sum-effective-cap})
+
+          (and A-valid? (not= sum-filled (min (long A) sum-effective-cap)))
+          (conj {:kind ::equality-violated
+                 :filled sum-filled
+                 :available (long A)
+                 :effective-cap-total sum-effective-cap
+                 :expected-min (min (long A) sum-effective-cap)})
+
+          (not= sum-requested (+ sum-filled sum-deferred))
+          (conj {:kind ::deferred-total-mismatch
+                 :requested sum-requested :filled sum-filled :deferred sum-deferred})
+
+          (not= sum-filled (long (or (:total-allocated allocation-detail) -1)))
+          (conj {:kind ::allocation-detail-mismatch
+                 :filled sum-filled :allocation-detail allocation-detail})
+
+          (and A-valid? (some? residual)
+               (not= (long A) (+ sum-filled (long residual))))
+          (conj {:kind ::residual-reconciliation-failed
+                 :available (long A) :filled sum-filled :residual (long residual)})
+
+          (and (some? residual) (neg? (long residual)))
+          (conj {:kind ::negative-residual :residual (long residual)})
+
+          (and mechanism-result
+               (not (pro-rata-allocation/allocation-hash-valid? mechanism-result)))
+          (conj {:kind ::mechanism-hash-invalid})
+
+          (and mechanism-result
+               (not= sum-filled (long (or (:allocated-total mechanism-result) -1))))
+          (conj {:kind ::mechanism-aggregate-mismatch
+                 :filled sum-filled
+                 :mechanism-allocated-total (:allocated-total mechanism-result)})
+
+          (and A-valid? mechanism-result
+               (not= (long A) (long (or (:available mechanism-result) -1))))
+          (conj {:kind ::mechanism-aggregate-mismatch
+                 :available (long A)
+                 :mechanism-available (:available mechanism-result)}))]
+    {:holds? (empty? violations)
+     :violations (vec (concat violations (shared-withdrawal-row-violations artifact)))}))
+
+(defn check-shared-withdrawal-conservation-world
+  "Run check-shared-withdrawal-conservation over every persisted
+   :yield-withdraw-shared decision artifact in `:yield/partial-fill-decisions`.
+
+   Returns {:holds? bool :violations [{:decision/id ... :kind ...}]}."
+  [world]
+  (let [shared (filter shared-withdrawal-artifact?
+                       (vals (:yield/partial-fill-decisions world {})))
+        violations
+        (vec
+         (mapcat (fn [artifact]
+                   (map #(assoc % :decision/id (:decision/id artifact))
+                        (:violations (check-shared-withdrawal-conservation artifact))))
+                 shared))]
+    {:holds? (empty? violations)
+     :violations violations}))
 
 (defn check-deferred-reclaim
   "Withdrawn positions: no shortfall; reclaimed ≥ 0."
@@ -1602,6 +1853,7 @@
    :yield/aggregate               check-aggregate
    :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles check-pro-rata-accounting-reconciles
+   :yield/shared-withdrawal-conservation check-shared-withdrawal-conservation-world
    :yield/withdrawal-ledger-conservation check-withdrawal-ledger-conservation})
 
 (defn registered-ids []

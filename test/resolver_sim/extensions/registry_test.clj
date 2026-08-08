@@ -2,7 +2,8 @@
   "Phase 1: extension-map registration semantics — idempotency on identical
    descriptor roots, hard collisions, built-in protection, freeze, and
    provider tracking."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.extensions.core :as core]
             [resolver-sim.extensions.fixtures :as fx]
             [resolver-sim.extensions.registry :as reg]))
 
@@ -69,7 +70,28 @@
   (let [bad (assoc fx/scaled-share-pack :extension/manifest-version 2)]
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo #"invalid package"
-         (reg/register-package (reg/empty-extension-map) bad)))))
+         (reg/register-package (reg/empty-extension-map) bad)))
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"invalid package"
+         (reg/register-capability (reg/empty-extension-map) bad fx/scaled-share-cap))
+        "register-capability must not accept a package identity that register-package rejects")
+    (let [e (try (reg/register-capability (reg/empty-extension-map) bad fx/scaled-share-cap)
+                 (catch clojure.lang.ExceptionInfo e e))]
+      (is (= :extensions/error-invalid-package (:error (ex-data e)))))))
+
+(deftest live-register-capability-rejects-invalid-package
+  (testing "register-capability! must not bypass package validation"
+    (reg/clear-extensions!)
+    (try
+      (let [bad (assoc fx/scaled-share-pack :extension/manifest-version 2)]
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo #"invalid package"
+             (reg/register-capability! bad fx/scaled-share-cap)))
+        (is (nil? (reg/lookup-capability (reg/extension-map)
+                                         :arithmetic/profile :prf/scaled-share-v1))
+            "a malformed package must not leave a partial registry state"))
+      (finally
+        (reg/clear-extensions!)))))
 
 ;; ── atom-backed registry lifecycle ────────────────────────────────────────
 
@@ -96,6 +118,40 @@
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo #"built-in"
          (reg/unregister-capability! :economics/award-amount :prf/rate-of-gross)))
+    (finally
+      (reg/clear-extensions!))))
+
+(deftest unregister-package-removes-only-owned-capabilities
+  (testing "pure: a shared capability keeps its remaining providers"
+    (let [emap (-> (reg/empty-extension-map)
+                   (reg/register-package fx/scaled-share-pack)
+                   (reg/register-package fx/alt-scaled-share-pack))
+          after (reg/unregister-package emap fx/scaled-share-pack)]
+      (is (contains? after [:arithmetic/profile :prf/scaled-share-v1])
+          "the other package's provider remains")
+      (is (= [:fixture/alt-scaled-share-pack]
+             (map :package/id (:providers (get after [:arithmetic/profile :prf/scaled-share-v1])))))
+      (let [after-all (reg/unregister-package after fx/alt-scaled-share-pack)]
+        (is (not (contains? after-all [:arithmetic/profile :prf/scaled-share-v1]))
+            "an entry whose providers become empty is removed entirely")))))
+
+(deftest unregister-package-cannot-remove-builtins
+  (let [emap (reg/extension-map)
+        core-pkg core/core-economics-package]
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"built-in"
+         (reg/unregister-package emap core-pkg)))))
+
+(deftest live-unregister-package
+  (reg/clear-extensions!)
+  (try
+    (reg/register-package! fx/scaled-share-pack)
+    (reg/register-package! fx/alt-scaled-share-pack)
+    (is (= :fixture/scaled-share-pack (reg/unregister-package! fx/scaled-share-pack)))
+    (is (some? (reg/lookup-capability (reg/extension-map) :arithmetic/profile :prf/scaled-share-v1))
+        "the other package's provider remains after removing one owner")
+    (is (= :fixture/alt-scaled-share-pack (reg/unregister-package! fx/alt-scaled-share-pack)))
+    (is (nil? (reg/lookup-capability (reg/extension-map) :arithmetic/profile :prf/scaled-share-v1)))
     (finally
       (reg/clear-extensions!))))
 

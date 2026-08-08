@@ -20,6 +20,7 @@
             [resolver-sim.assurance.custody :as custody-core]
             [resolver-sim.accounting.held-ledger-index :as held-index]
             [resolver-sim.accounting.held-adjustment :as held-adjustment]
+            [resolver-sim.accounting.held-position-policy :as held-policy]
             [resolver-sim.economics.slash-distribution :as sd]))
 
 (declare sub-held record-fee record-claimable)
@@ -27,70 +28,11 @@
 ;; ---------------------------------------------------------------------------
 ;; total-held tracking
 ;; ---------------------------------------------------------------------------
-
-(def ^:private exceptional-held-reasons
-  #{:governance-authorised-correction
-    :replay-fixture-setup
-    :replay-migration
-    :force-authorised-release
-    :force-authorised-refund
-    :partial-fill-principal-loss})
-
-(def ^:private address-scoped-held-reasons
-  "Reasons for which :owner/address MUST be explicitly provided.
-   Fallback-derived ownership (actor, from, resolver, recipient) is not
-   permitted — forensic ownership must be unambiguous."
-  #{:escrow-principal-deposited
-    :escrow-settlement-released
-    :escrow-settlement-refunded
-    :force-authorised-release
-    :force-authorised-refund
-    :partial-fill-principal-loss
-    :yield-distributed
-    :resolver-slash-custody-debited
-    :governance-authorised-correction})
-
-(def ^:private held-position-policy
-  {:escrow-principal-deposited {:held/account :escrow-principal
-                                :scope-keys [:held/workflow-id]}
-   :escrow-settlement-released {:held/account :escrow-principal
-                                :scope-keys [:held/workflow-id]}
-   :escrow-settlement-refunded {:held/account :escrow-principal
-                                :scope-keys [:held/workflow-id]}
-   :force-authorised-release {:held/account :escrow-principal
-                              :scope-keys [:held/workflow-id]}
-   :force-authorised-refund {:held/account :escrow-principal
-                             :scope-keys [:held/workflow-id]}
-   :deferred-yield-reclassified-out {:held/account :escrow-principal
-                                     :scope-keys [:held/workflow-id]}
-   :deferred-yield-reserved {:held/account :yield-custody
-                             :scope-keys [:held/workflow-id]}
-   :appeal-bond-posted {:held/account :appeal-bond
-                        :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
-   :appeal-bond-returned {:held/account :appeal-bond
-                          :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
-   :appeal-bond-slashed {:held/account :appeal-bond
-                         :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
-   :appeal-bond-forfeited {:held/account :appeal-bond
-                           :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
-   :yield-accrued {:held/account :yield-custody
-                   :scope-keys [:held/workflow-id]}
-   :yield-distributed {:held/account :yield-custody
-                       :scope-keys [:held/workflow-id]}
-   :deferred-yield-claimed {:held/account :yield-custody
-                            :scope-keys [:held/workflow-id]}
-    :resolver-yield-accrued {:held/account :resolver-yield
-                             :scope-keys [:held/owner-id :held/resolver]}
-    :resolver-yield-loss {:held/account :resolver-yield
-                          :scope-keys [:held/owner-id :held/resolver]}
-    :resolver-yield-withdrawn {:held/account :resolver-yield
-                               :scope-keys [:held/owner-id :held/resolver]}
-   :resolver-slash-custody-debited {:held/account :resolver-slash-custody
-                                     :scope-keys [:held/resolver :held/workflow-id]}
-   :partial-fill-principal-loss {:held/account :escrow-principal
-                                 :scope-keys [:held/workflow-id]}
-   :yield-negative-excess {:held/account :escrow-principal
-                           :scope-keys [:held/workflow-id]}})
+;; The reason -> custody-position classification (held-position-policy,
+;; address-scoped-held-reasons, exceptional-held-reasons) and the position
+;; derivation live in the protocol-independent
+;; resolver-sim.accounting.held-position-policy so the closed-form verifier can
+;; re-derive the same positions independently.
 
 (defn- validate-held-inputs!
   [token amount]
@@ -374,49 +316,6 @@
   [world]
   (str "held-adjustment-" (count (:held-adjustments world []))))
 
-(defn- preferred-held-value
-  [m preferred-key fallback-key]
-  (or (get m preferred-key)
-      (get m fallback-key)))
-
-(defn- held-position-components
-  [token reason extra]
-  (let [scope (merge {:held/workflow-id (preferred-held-value extra :held/workflow-id :workflow-id)
-                      :held/bond-id (preferred-held-value extra :held/bond-id :bond-id)
-                      :held/slash-id (preferred-held-value extra :held/slash-id :slash-id)
-                      :held/actor (preferred-held-value extra :held/actor :actor)
-                      :held/resolver (preferred-held-value extra :held/resolver :resolver)
-                      :held/owner-id (preferred-held-value extra :held/owner-id :owner-id)
-                      :held/from (preferred-held-value extra :held/from :from)
-                      :held/to (preferred-held-value extra :held/to :to)
-                      :held/recipient (preferred-held-value extra :held/recipient :recipient)
-                      :owner/address (preferred-held-value extra :owner/address :address)}
-                     extra)
-        account-override (:held/account scope)
-        position-override (:held/position-id scope)
-        owner-address-override (:owner/address scope)
-        policy (get held-position-policy reason)
-        account (or account-override (:held/account policy))
-        scope-values (cond
-                       position-override nil
-                       (seq (:scope-keys policy))
-                       (->> (:scope-keys policy)
-                            (keep #(get scope %))
-                            vec)
-                       :else nil)
-        position-id (or position-override
-                        (when (and account (seq scope-values))
-                          (into [:held/position token account] scope-values)))
-        owner-address (or owner-address-override
-                          (:held/actor scope)
-                          (:held/from scope)
-                          (:held/resolver scope)
-                          (:held/recipient scope))]
-    (cond-> {:held/account account
-             :held/position-id position-id}
-      owner-address
-      (assoc :owner/address owner-address))))
-
 (defn- update-ledger-index
   ;; Live Sew world-state mutation corresponding to the pure custody
   ;; reconstruction in resolver-sim.assurance.custody.
@@ -496,7 +395,7 @@
         after  (case direction
                  :in  (+ before amount)
                  :out (- before amount))
-        position-fields (held-position-components token reason extra)]
+        position-fields (held-policy/position-components token reason extra)]
     (held-adjustment/build-held-adjustment
      (merge {:held-adjustment/id (next-held-adjustment-id world)
             :held/direction direction
@@ -526,9 +425,9 @@
   "Enforce reason-derived custody partitioning before a ledger mutation."
   [world token amount direction reason extra]
   (let [extra (or extra {})
-        policy (get held-position-policy reason)
-        derived-components (held-position-components token reason (dissoc extra :held/account :held/position-id))
-        components (held-position-components token reason extra)
+        policy (held-policy/policy-for reason)
+        derived-components (held-policy/position-components token reason (dissoc extra :held/account :held/position-id))
+        components (held-policy/position-components token reason extra)
         expected-account (:held/account policy)
         position-id (:held/position-id components)
         derived-position-id (:held/position-id derived-components)
@@ -555,7 +454,7 @@
                        :reason reason
                        :scope-keys (:scope-keys policy)
                        :extra extra})))
-    (when (and (contains? address-scoped-held-reasons reason)
+    (when (and (held-policy/required-owner-attribution? reason)
                (nil? owner-address))
       (throw (ex-info "held adjustment requires explicit owner address"
                       {:type :invalid-held-adjustment
@@ -584,7 +483,7 @@
                      :reason :reserved-parameter-attribution-in-extra
                      :keys reserved})))
   (parameter-attribution-error! context address)
-  (when (and (contains? exceptional-held-reasons reason)
+  (when (and (held-policy/exceptional-held-reasons reason)
              (nil? authorization-provenance))
     (throw (ex-info "exceptional held adjustment requires authorization provenance"
                     {:type :invalid-held-adjustment
@@ -592,7 +491,7 @@
                      :held/reason reason})))
   (let [is-force-auth? (= :force-authorisation (:authorization/type authorization-provenance))]
     (when is-force-auth?
-      (let [components (held-position-components token reason (or extra {}))
+      (let [components (held-policy/position-components token reason (or extra {}))
             record (get-in world [:force-authorisations (:authorization/id authorization-provenance)])
             scope-fields (merge {:authorization/id (:authorization/id authorization-provenance)
                                  :authorization/type :force-authorisation

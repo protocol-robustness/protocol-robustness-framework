@@ -4,7 +4,9 @@
    paths. Covers preflight fail-before-mutation, idempotency (no duplicate
    economic state under retry), reserve conservation, and bound transition
    evidence (design note §19 Sew parity)."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.set :as set]
+            [clojure.test :refer [deftest is testing]]
+            [resolver-sim.economics.effects :as effects]
             [resolver-sim.economics.with-bounty.application-plan :as wb-plan]
             [resolver-sim.economics.with-bounty.evaluation :as evaluation]
             [resolver-sim.economics.with-bounty.fixtures :as fixtures]
@@ -231,3 +233,39 @@
     (is (not (:valid? (verification/verify-application-world
                        (update world :with-bounty/backings
                                dissoc (str "backing-" (:plan/obligation-id plan)))))))))
+
+(deftest adapter-held-actions-are-a-subset-of-protocol-vocabulary
+  (testing "the adapter's allowed actions are a subset of the global protocol
+            vocabulary, so global support never implies adapter capability"
+    (is (set/subset? sew-wb/adapter-held-actions
+                     effects/supported-held-actions))
+    (is (contains? sew-wb/adapter-held-actions "add-held"))
+    (is (contains? sew-wb/adapter-held-actions "sub-held"))
+    (is (not (contains? sew-wb/adapter-held-actions "refund-held")))))
+
+(deftest preflight-rejects-globally-valid-but-locally-unsupported-custody-action
+  (testing "a crafted v2 custody effect carrying a globally valid held action
+            the adapter cannot execute (refund-held) fails preflight BEFORE any
+            mutation — it cannot acquire capability merely because the action
+            exists in the custody protocol"
+    (let [plan (evaluated-plan)
+          effects (mapv (fn [e]
+                          (if (= :custody/held-adjustment (:effect/type e))
+                            (assoc e :effect/action "refund-held")
+                            e))
+                        (:plan/effects plan))
+          tampered (assoc plan
+                          :plan/effects effects
+                          :plan/hash (wb-plan/plan-hash
+                                      (assoc plan :plan/effects effects)))
+          world-before {}
+          result (sew-wb/preflight tampered)]
+      (is (not (:valid? result)))
+      (is (some #(= :violation/unsupported-custody-action-for-adapter (:violation/id %))
+                (:violations result)))
+      (is (thrown-with-msg?
+           clojure.lang.ExceptionInfo
+           #"preflight failed"
+           (sew-wb/apply-with-bounty-plan tampered world-before)))
+      (is (= world-before (try (sew-wb/apply-with-bounty-plan tampered world-before)
+                               (catch clojure.lang.ExceptionInfo _ world-before)))))))

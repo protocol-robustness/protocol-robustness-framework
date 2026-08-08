@@ -120,6 +120,8 @@ def dangling_dependencies(reg: dict) -> tuple[set[str], set[str]]:
 def manifest_for(entries: list[dict]) -> dict:
     return {
         "schema_version": "test-artifacts.v1.2",
+        "run-id": "t",
+        "namespace": "t",
         "scope-status": "complete",
         "artifacts": [
             {
@@ -756,6 +758,275 @@ def test_audit_artifacts_gate():
               missing.stdout)
 
 
+# ── CON-17/18/19/20: audit adversarial checks ─────────────────────────────────
+
+
+def _mutate_artifact(reg: dict, aid: str, **kw) -> dict:
+    reg = json.loads(json.dumps(reg))
+    art = next(a for a in reg["artifacts"] if a["id"] == aid)
+    art.update(kw)
+    return reg
+
+
+def _write_reg(root: pathlib.Path, name: str, reg: dict) -> pathlib.Path:
+    p = root / name
+    p.write_text(json.dumps(reg), encoding="utf-8")
+    return p
+
+
+def test_audit_path_containment_adversarial():
+    with tempfile.TemporaryDirectory() as td:
+        td_path = pathlib.Path(td)
+        run_root = _audit_fixture(td_path)
+        reg = json.loads((run_root / "test-artifacts.json").read_text(encoding="utf-8"))
+
+        # 1) lexical .. escape (file exists outside the root)
+        (td_path / "outside.json").write_text("{}", encoding="utf-8")
+        r = _mutate_artifact(reg, "test-summary", path="../outside.json")
+        p = _write_reg(td_path, "lexical-escape.json", r)
+        res = run_audit(p)
+        check("CON-17a: rejects ../ escape", res.returncode != 0
+              and "AUD-3" in res.stdout, res.stdout)
+
+        # 2) absolute path
+        r = _mutate_artifact(reg, "test-summary",
+                             path=str(td_path / "outside.json"))
+        p = _write_reg(td_path, "abs.json", r)
+        res = run_audit(p)
+        check("CON-17b: rejects absolute path", res.returncode != 0
+              and "AUD-3" in res.stdout, res.stdout)
+
+        # 3) symlinked directory escape (link -> sibling outside root)
+        evil = td_path / "evil-parent"
+        evil.mkdir()
+        (evil / "outside.json").write_text("{}", encoding="utf-8")
+        (run_root / "evil").symlink_to(evil, target_is_directory=True)
+        r = _mutate_artifact(reg, "test-summary", path="evil/outside.json")
+        p = _write_reg(td_path, "symlink-dir.json", r)
+        res = run_audit(p)
+        check("CON-17c: rejects symlink-dir escape", res.returncode != 0
+              and "AUD-3" in res.stdout, res.stdout)
+
+        # 4) symlinked artifact FILE
+        (run_root / "fake-summary.json").symlink_to(td_path / "outside.json")
+        r = _mutate_artifact(reg, "test-summary", path="fake-summary.json")
+        p = _write_reg(td_path, "symlink-file.json", r)
+        res = run_audit(p)
+        check("CON-17d: rejects symlinked artifact file", res.returncode != 0
+              and "AUD-3" in res.stdout, res.stdout)
+
+        # 5) prefix attack: sibling dir whose name starts with the root name
+        (pathlib.Path(str(run_root) + "-evil") / "x.json").mkdir(parents=True)
+        (pathlib.Path(str(run_root) + "-evil") / "x.json").joinpath(
+            "x.json").write_text("{}", encoding="utf-8")
+        r = _mutate_artifact(reg, "test-summary",
+                             path="../" + (str(run_root) + "-evil").rsplit("/", 1)[-1] + "/x.json")
+        p = _write_reg(td_path, "prefix.json", r)
+        res = run_audit(p)
+        check("CON-17e: rejects prefix-attack escape", res.returncode != 0
+              and "AUD-3" in res.stdout, res.stdout)
+
+
+def test_audit_event_evidence_structural_rule():
+    with tempfile.TemporaryDirectory() as td:
+        td_path = pathlib.Path(td)
+        run_root = _audit_fixture(td_path)
+        reg = json.loads((run_root / "test-artifacts.json").read_text(encoding="utf-8"))
+
+        # event-evidence id with a disallowed character (not a closed vocabulary)
+        r = json.loads(json.dumps(reg))
+        r["artifacts"][0]["id"] = "event-evidence-../../evil"
+        p = _write_reg(td_path, "ev-bad-id.json", r)
+        res = run_audit(p)
+        check("CON-18a: rejects malformed event-evidence id", res.returncode != 0
+              and "AUD-4" in res.stdout, res.stdout)
+
+        # event-evidence entry whose path is outside the event-evidence dir
+        r = json.loads(json.dumps(reg))
+        r["artifacts"][0]["path"] = "test-summary.json"
+        p = _write_reg(td_path, "ev-bad-path.json", r)
+        res = run_audit(p)
+        check("CON-18b: rejects event-evidence outside its dir", res.returncode != 0
+              and "AUD-4" in res.stdout, res.stdout)
+
+        # event-evidence entry with a mismatched schema
+        r = json.loads(json.dumps(reg))
+        r["artifacts"][0]["schema_version"] = "wrong.v1"
+        p = _write_reg(td_path, "ev-bad-schema.json", r)
+        res = run_audit(p)
+        check("CON-18c: rejects event-evidence schema mismatch", res.returncode != 0
+              and "AUD-4" in res.stdout, res.stdout)
+
+
+def test_audit_uniqueness_collisions():
+    with tempfile.TemporaryDirectory() as td:
+        td_path = pathlib.Path(td)
+        run_root = _audit_fixture(td_path)
+        reg = json.loads((run_root / "test-artifacts.json").read_text(encoding="utf-8"))
+
+        # path collision: two distinct ids claiming the same resolved file
+        r = json.loads(json.dumps(reg))
+        r["artifacts"].append({
+            "id": "coverage", "kind": "coverage",
+            "path": "test-summary.json", "schema_version": "coverage.v1",
+            "sha256": next(a["sha256"] for a in r["artifacts"]
+                           if a["id"] == "test-summary"),
+            "importance": "DIAGNOSTIC",
+        })
+        p = _write_reg(td_path, "path-collision.json", r)
+        res = run_audit(p)
+        check("CON-19a: rejects shared resolved path across ids",
+              res.returncode != 0 and "AUD-5c" in res.stdout, res.stdout)
+
+        # NFC-normalization collision
+        r = json.loads(json.dumps(reg))
+        r["artifacts"][0]["id"] = "caf\u00e9-x"
+        r["artifacts"].append(dict(r["artifacts"][0], id="cafe\u0301-x"))
+        p = _write_reg(td_path, "nfc.json", r)
+        res = run_audit(p)
+        check("CON-19b: rejects NFC-normalization id collision",
+              res.returncode != 0 and "AUD-5b" in res.stdout, res.stdout)
+
+
+def test_audit_dependency_cycles():
+    with tempfile.TemporaryDirectory() as td:
+        td_path = pathlib.Path(td)
+        run_root = _audit_fixture(td_path)
+        reg = json.loads((run_root / "test-artifacts.json").read_text(encoding="utf-8"))
+        by_id = {a["id"]: a for a in reg["artifacts"]}
+
+        # mutual cycle: test-run <-> test-summary
+        r = json.loads(json.dumps(reg))
+        tr = next(a for a in r["artifacts"] if a["id"] == "test-run")
+        tr["dependencies"] = [{"id": "test-summary",
+                               "sha256": by_id["test-summary"]["sha256"]}]
+        p = _write_reg(td_path, "cycle.json", r)
+        res = run_audit(p)
+        check("CON-20a: rejects dependency cycle", res.returncode != 0
+              and "AUD-6c" in res.stdout, res.stdout)
+
+        # self-loop
+        r = json.loads(json.dumps(reg))
+        self_art = next(a for a in r["artifacts"] if a["id"] == "test-run")
+        self_art["dependencies"] = [{"id": "test-run",
+                                     "sha256": self_art["sha256"]}]
+        p = _write_reg(td_path, "self-loop.json", r)
+        res = run_audit(p)
+        check("CON-20b: rejects self-loop dependency", res.returncode != 0
+              and "AUD-6c" in res.stdout, res.stdout)
+
+
+def test_audit_producer_manifest_binding():
+    with tempfile.TemporaryDirectory() as td:
+        td_path = pathlib.Path(td)
+        run_root = td_path / "run"
+        p = td_path / "prod"
+        write_producer(
+            p,
+            {"test-run.json": '{"schema_version": "test-run.v1", "run_id": "r1"}',
+             "test-summary.json": '{"schema_version": "test-summary.v2", "run_id": "r1"}'},
+            manifest=manifest_for([
+                {"id": "test-run", "path": "test-run.json",
+                 "content": '{"schema_version": "test-run.v1", "run_id": "r1"}'},
+                {"id": "test-summary", "path": "test-summary.json",
+                 "content": '{"schema_version": "test-summary.v2", "run_id": "r1"}'},
+            ]),
+        )
+        ok = run_collector(run_root, [str(p)])
+        check("CON-21a: collector builds registry", ok.returncode == 0, ok.stderr)
+        reg_file = run_root / "test-artifacts.json"
+
+        # valid producer passes the binding audit
+        base = run_audit(reg_file, producer_roots=[str(p)])
+        check("CON-21b: bound producer passes audit", base.returncode == 0,
+              base.stdout)
+
+        # relative producer path must not false-positive the symlink check
+        rel = os.path.relpath(p, _PROJECT_ROOT)
+        rel_res = run_audit(reg_file, producer_roots=[rel])
+        check("CON-21b2: relative producer path passes audit",
+              rel_res.returncode == 0, rel_res.stdout)
+
+        # wrong run-id in manifest vs _owner.edn
+        m = json.loads((p / "_manifest.json").read_text(encoding="utf-8"))
+        m["run-id"] = "WRONG"
+        (p / "_manifest.json").write_text(json.dumps(m), encoding="utf-8")
+        res = run_audit(reg_file, producer_roots=[str(p)])
+        check("CON-21c: flags manifest run-id mismatch", res.returncode != 0
+              and "AUD-7" in res.stdout, res.stdout)
+
+        # incomplete scope-status
+        m = json.loads((p / "_manifest.json").read_text(encoding="utf-8"))
+        m["run-id"] = "t"
+        m["scope-status"] = "incomplete"
+        (p / "_manifest.json").write_text(json.dumps(m), encoding="utf-8")
+        res = run_audit(reg_file, producer_roots=[str(p)])
+        check("CON-21d: flags incomplete scope-status", res.returncode != 0
+              and "AUD-7" in res.stdout, res.stdout)
+
+        # manifest artifact hash mismatch vs disk
+        m = json.loads((p / "_manifest.json").read_text(encoding="utf-8"))
+        m["scope-status"] = "complete"
+        m["artifacts"][0]["content-hash"] = "0" * 64
+        (p / "_manifest.json").write_text(json.dumps(m), encoding="utf-8")
+        res = run_audit(reg_file, producer_roots=[str(p)])
+        check("CON-21e: flags manifest hash mismatch", res.returncode != 0
+              and "AUD-7" in res.stdout, res.stdout)
+
+        # manifest artifact not represented in the registry
+        m = json.loads((p / "_manifest.json").read_text(encoding="utf-8"))
+        (p / "theory-eval.json").write_text('{"schema_version": "theory-eval.v1"}',
+                                            encoding="utf-8")
+        m["artifacts"][0]["content-hash"] = sha256_text(
+            '{"schema_version": "test-run.v1", "run_id": "r1"}')
+        m["artifacts"].append({
+            "logical-id": "theory-eval", "relative-path": "theory-eval.json",
+            "content-hash": sha256_text('{"schema_version": "theory-eval.v1"}'),
+            "size": 34, "kind": "theory-eval",
+        })
+        (p / "_manifest.json").write_text(json.dumps(m), encoding="utf-8")
+        res = run_audit(reg_file, producer_roots=[str(p)])
+        check("CON-21f: flags manifest artifact not in registry",
+              res.returncode != 0 and "represented in registry" in res.stdout,
+              res.stdout)
+
+
+def test_audit_completeness():
+    with tempfile.TemporaryDirectory() as td:
+        td_path = pathlib.Path(td)
+        run_root = td_path / "run"
+        p = td_path / "prod"
+        write_producer(
+            p,
+            {"test-run.json": '{"schema_version": "test-run.v1", "run_id": "r1"}',
+             "test-summary.json": '{"schema_version": "test-summary.v2", "run_id": "r1"}'},
+            manifest=manifest_for([
+                {"id": "test-run", "path": "test-run.json",
+                 "content": '{"schema_version": "test-run.v1", "run_id": "r1"}'},
+                {"id": "test-summary", "path": "test-summary.json",
+                 "content": '{"schema_version": "test-summary.v2", "run_id": "r1"}'},
+            ]),
+        )
+        run_collector(run_root, [str(p)])
+        reg_file = run_root / "test-artifacts.json"
+
+        # producer emits an extra config-relevant file that was never registered
+        (p / "evidence-registry.json").write_text(
+            '{"schema_version": "evidence-registry.v1"}', encoding="utf-8")
+        res = run_audit(reg_file, producer_roots=[str(p)])
+        check("CON-22a: flags unrepresented producer output", res.returncode != 0
+              and "AUD-8" in res.stdout, res.stdout)
+
+        # symlinked producer file is rejected
+        (p / "evidence-registry.json").unlink()
+        (td_path / "outside.json").write_text("{}", encoding="utf-8")
+        (p / "test-run.json").unlink()
+        (p / "test-run.json").symlink_to(td_path / "outside.json")
+        res = run_audit(reg_file, producer_roots=[str(p)])
+        check("CON-22b: flags symlinked producer file", res.returncode != 0
+              and "AUD-8" in res.stdout and "symlink" in res.stdout, res.stdout)
+
+
 # ── run ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -791,6 +1062,13 @@ def main():
     test_generate_test_summary_emits_run_manifest()
     print("\n--- audit gate ---")
     test_audit_artifacts_gate()
+    print("\n--- audit adversarial (paths, ids, cycles, provenance, completeness) ---")
+    test_audit_path_containment_adversarial()
+    test_audit_event_evidence_structural_rule()
+    test_audit_uniqueness_collisions()
+    test_audit_dependency_cycles()
+    test_audit_producer_manifest_binding()
+    test_audit_completeness()
 
     print(f"\n=== {_PASS} passed, {_FAIL} failed ===")
     return 1 if _FAIL else 0

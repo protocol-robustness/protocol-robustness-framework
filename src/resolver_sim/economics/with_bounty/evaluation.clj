@@ -90,8 +90,8 @@
    :parameter/path address."
   [{:keys [recipient token amount funding parameter-context-root]}]
   {:effect/type :custody/held-adjustment
-   :effect/contract :prf.effect/custody-held-adjustment.v1
-   :effect/direction :add
+   :effect/contract :prf.effect/custody-held-adjustment.v2
+   :effect/action "add-held"
    :effect/account (or (:account funding) :bounty-reserve)
    :effect/amount amount
    :effect/token token

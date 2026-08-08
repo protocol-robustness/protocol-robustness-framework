@@ -12,13 +12,16 @@
       decision statuses, consumption receipts, and a frozen review-round binding.
 
     :legacy-evidence
-      resolver-sim.evidence.force-authorisation and
-      resolver-sim.assurance.force-authorisation: protocol-independent
-      scope-hash authorization records (force-auth-add-held.v1/.v2,
+      resolver-sim.assurance.force-authorisation base helpers plus the frozen
+      historical held-custody evidence artifacts (force-auth-add-held.v1/.v2,
       force-auth-lifecycle.v1, force-auth-lifecycle-summary.v1/.v2,
-      force-auth-add-held-summary.v1/.v2), single-identity grant/consume
+      force-auth-add-held-summary.v1/.v2): single-identity grant/consume
       lifecycle, authorization/status in
       #{:active :consumed :revoked :expired :failed-after-consumption :rolled-back}.
+      Historical verification of these artifacts is extension-owned
+      (prf.extensions.held-custody legacy-validate); the former core legacy
+      evidence namespace was removed in Phase 3B. This namespace classifies
+      schema-version strings only — it re-implements neither world.
 
   This namespace is protocol-independent (no Sew import) and provides pure data
   classification only; it does not re-implement either world."
@@ -319,7 +322,7 @@
   {:reconciliation/schema canonical-schema-version
    :canonical-model "resolver-sim.benchmark.researcher-force-authorisation"
    :canonical-policy "resolver-sim.run.force-authorisation-policy"
-   :legacy-representation "resolver-sim.evidence.force-authorisation"
+   :legacy-representation "prf.extensions.held-custody.legacy-validate"
    :one-canonical-model? true
    :new-decisions-emitted-from-legacy? false})
 
@@ -842,7 +845,13 @@
      :randomness-fulfilled :randomness-fulfilled
      :result-proposed :result-proposed
      :result-accepted :result-accepted
-     :claim-consumption-started :claim-consumption-started}}))
+     :claim-consumption-started :claim-consumption-started}
+    :transitions {:allocation-committed      #{:randomness-requested}
+                  :randomness-requested      #{:randomness-fulfilled}
+                  :randomness-fulfilled      #{:result-proposed}
+                  :result-proposed           #{:result-accepted}
+                  :result-accepted           #{:claim-consumption-started}
+                  :claim-consumption-started #{}}}))
 
 ;; Compatibility helpers (force-authorisation profile).
 

@@ -98,24 +98,38 @@
                           {:concept-id (:concept/id concept-entry)
                            :path rel-path})))))))
 
-(defn- validate-concept
-  "Validate a single concept definition."
+(defn- missing-keys-violations
+  "Schema-integrity violations for a concept definition: missing required
+   members are errors (an invalid concept must not enter the usable registry),
+   while mapping-reference shape/status remain warnings."
   [concept]
   (let [id (:concept/id concept)
         ctype (:concept/type concept)
         is-standard (contains? standard-concept-types ctype)]
-    (when is-standard
-      (let [missing (set/difference required-concept-keys
-                                    (set (keys concept)))]
-        (when (seq missing)
-          (log/warn! "concept/missing-keys" {:concept-id id :missing missing}))))
-    (when (= :use-case ctype)
-      (let [missing-use-case (set/difference use-case-required-keys
-                                             (set (keys concept)))]
-        (when (seq missing-use-case)
-          (log/warn! "concept/missing-use-case-contract"
-                     {:concept-id id :missing missing-use-case}))))
-    ;; Validate mapping references and any explicitly declared status.
+    (cond-> []
+      (and is-standard
+           (seq (set/difference required-concept-keys (set (keys concept)))))
+      (conj {:concept/id id
+             :violation/id :violation/missing-required-concept-keys
+             :missing (vec (sort (set/difference required-concept-keys (set (keys concept)))))})
+
+      (and (= :use-case ctype)
+           (seq (set/difference use-case-required-keys (set (keys concept)))))
+      (conj {:concept/id id
+             :violation/id :violation/missing-required-use-case-keys
+             :missing (vec (sort (set/difference use-case-required-keys (set (keys concept)))))}))))
+
+(defn- validate-concept
+  "Validate a single concept definition. Returns
+   {:concept <normalized-or-raw> :errors [<integrity-violations>]}
+   plus :warnings for non-blocking quality checks. Required-member violations
+   are errors; mapping-reference shape/status remain warnings."
+  [concept]
+  (let [id (:concept/id concept)
+        ctype (:concept/type concept)
+        is-standard (contains? standard-concept-types ctype)
+        errors (missing-keys-violations concept)]
+    ;; Mapping references and any explicitly declared status (warnings only).
     (when is-standard
       (doseq [category [:concept/roles :concept/entities :concept/actions :concept/outcomes]
               [mapping-key mapping] (get concept category)]
@@ -128,34 +142,75 @@
           (log/warn! "concept/invalid-mapping-status"
                      {:concept-id id :category category :mapping mapping-key
                       :mapping/status (:mapping/status mapping)}))))
-    (if is-standard
-      (normalize-concept concept)
-      concept)))
+    {:concept (if is-standard (normalize-concept concept) concept)
+     :errors errors}))
+
+(defn- duplicate-concept-violations
+  "Duplicate :concept/id violations across the registry entries. Duplicate ids
+   are schema-integrity failures: file load order must not become hidden
+   semantic state. Sources are the :concept/file of the conflicting entries."
+  [entries]
+  (let [by-id (reduce (fn [acc {:keys [concept/id concept/file]}]
+                        (if id (update acc id (fnil conj []) file) acc))
+                      {}
+                      entries)]
+    (into []
+          (keep (fn [[id sources]]
+                  (when (< 1 (count sources))
+                    {:concept/id id
+                     :violation/id :violation/duplicate-concept-id
+                     :sources (vec (sort sources))})))
+          by-id)))
+
+(defn registry-integrity-violations
+  "Schema-integrity violations for a registry index and its loaded concepts:
+   duplicate :concept/id across entries and missing required keys on each
+   concept. Returns [<violation-maps>]. Pure and directly testable."
+  [entries loaded-concepts]
+  (into []
+        (concat (mapcat missing-keys-violations loaded-concepts)
+                (duplicate-concept-violations entries))))
 
 ;; ── Public API ───────────────────────────────────────────────────────────────
 
-(def load-registry
+(defonce ^:private registry-cache
+  (atom nil))
+
+(defn clear-registry-cache!
+  "Reset the concept registry cache. Intended for test isolation."
+  []
+  (reset! registry-cache nil)
+  nil)
+
+(defn load-registry
   "Load the concept registry and all referenced concept definitions.
+   Fails closed on schema-integrity violations: missing required concept keys
+   or duplicate concept ids produce an exception and the registry is NOT
+   published. All violations are reported in one run.
    Returns {:registry <registry-map> :concepts <vec-of-concept-maps>}.
    Cached after first load — disk is read once per process."
-  (let [cache (atom nil)]
-    (fn load-registry*
-      ([] (load-registry* concept-registry-path))
-      ([registry-path]
-       (if-let [cached @cache]
-         cached
-         (let [result (let [registry (load-edn registry-path)
-                            concepts (mapv (fn [entry]
-                                             (let [path (resolve-concept-file entry)
-                                                   concept (load-edn path)]
-                                               (validate-concept concept)))
-                                           (:concepts registry))]
-                        (log/info! "concepts/loaded" {:count (count concepts)
-                                                      :ids (mapv :concept/id concepts)})
-                        {:registry registry
-                         :concepts concepts})]
-           (reset! cache result)
-           result))))))
+  ([]
+   (load-registry concept-registry-path))
+  ([registry-path]
+   (or @registry-cache
+       (let [registry (load-edn registry-path)
+             entries (:concepts registry)
+             loaded (mapv (fn [entry]
+                            (let [path (resolve-concept-file entry)
+                                  concept (load-edn path)]
+                              (validate-concept concept)))
+                          entries)
+             integrity (registry-integrity-violations entries (map :concept loaded))]
+         (when (seq integrity)
+           (throw (ex-info "concept registry validation failed"
+                           {:error :concepts/validation-failed
+                            :violations integrity})))
+         (log/info! "concepts/loaded" {:count (count entries)
+                                       :ids (mapv :concept/id (map :concept loaded))})
+         (let [result {:registry registry
+                       :concepts (mapv :concept loaded)}]
+           (reset! registry-cache result)
+           result)))))
 
 (defn lookup-concept
   "Find a concept definition by qualified keyword."

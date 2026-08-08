@@ -21,6 +21,11 @@
    composition must carry (mirroring the held-adjustment attribution model)."
   [:owner/address :parameter/address :parameter/context])
 
+(def combination-verification-fields
+  "Permitted keys of a :combination/verification map. Unknown keys are rejected
+   so typos do not disappear silently."
+  #{:intermediate-output-committed? :evidence-contract-ref})
+
 (defn- valid-addresses?
   [addresses]
   (and (map? addresses)
@@ -79,9 +84,11 @@
 (defn combination-projection
   "Committed fields of a combination. Node order is preserved (semantically
    significant); map key ordering inside nodes is canonicalised by hashing.
-   Edges are normalised to the canonical chain (explicit ≡ derived). The
-   combination-level :combination/adapters and :combination/verification are
-   semantic compiler inputs and are committed."
+   Edges are normalised to the canonical chain (explicit ≡ derived). v1 does
+   NOT commit :combination/adapters: adapters are categorically unsupported in
+   v1 (the compiler rejects any adapter-bearing combination), so the field is
+   not part of the v1 combination root. The combination-level
+   :combination/verification is a semantic compiler input and is committed."
   [combination]
   (-> (select-keys combination
                    [:combination/id
@@ -90,7 +97,6 @@
                     :combination/input
                     :combination/expected-output
                     :combination/effect-merge-strategy
-                    :combination/adapters
                     :combination/verification
                     :combination/addresses])
       (assoc :combination/edges (effective-edges combination))
@@ -107,6 +113,41 @@
        (keyword? (:schema-ref value))
        (keyword? (:semantic-type value))))
 
+(defn- verification-violations
+  "Structural validation for a :combination/verification value before it is
+   interpreted by the compiler. nil is allowed (verification obligations are
+   optional at the combination level); a map is validated for permitted keys
+   and value types; anything else is rejected so an absent flag can never be
+   conflated with a nonsensical value."
+  [verification]
+  (cond
+    (nil? verification)
+    []
+
+    (not (map? verification))
+    [{:violation/id :violation/invalid-combination-verification
+      :details {:verification verification}}]
+
+    :else
+    (let [unknown (vec (remove combination-verification-fields (keys verification)))
+          intermediate (:intermediate-output-committed? verification)
+          evidence-ref (:evidence-contract-ref verification)]
+      (cond-> []
+        (seq unknown)
+        (conj {:violation/id :violation/unknown-combination-verification-key
+               :details {:unknown unknown
+                         :supported (vec (sort combination-verification-fields))}})
+
+        (and (contains? verification :intermediate-output-committed?)
+             (not (boolean? intermediate)))
+        (conj {:violation/id :violation/invalid-combination-verification-flag
+               :details {:intermediate-output-committed? intermediate}})
+
+        (and (contains? verification :evidence-contract-ref)
+             (not (or (nil? evidence-ref) (keyword? evidence-ref))))
+        (conj {:violation/id :violation/invalid-combination-verification-evidence-ref
+               :details {:evidence-contract-ref evidence-ref}})))))
+
 (defn validate-combination
   "Validate a requested combination structurally.
    Returns {:valid? bool, :violations [violation-maps]}."
@@ -119,6 +160,7 @@
         input (:combination/input combination)
         expected-output (:combination/expected-output combination)
         addresses (:combination/addresses combination)
+        verification (:combination/verification combination)
         chain (consecutive-edges node-ids)
         v (cond-> []
             (not (map? combination))
@@ -177,6 +219,7 @@
         v (if (some? addresses)
             (into v (address-violations addresses))
             v)
+        v (into v (verification-violations verification))
         v (into v (mapcat (fn [n]
                             (if-let [na (:node/addresses n)]
                               (address-violations na)

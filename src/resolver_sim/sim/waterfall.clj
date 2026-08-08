@@ -24,13 +24,13 @@
 (declare aggregate-waterfall-metrics)
 
 (def ^:private junior-per-slash-cap-ratio
-  "Maximum fraction of a junior's bond that can be taken in a single slash.
-   Corresponds to the protocol's 50% per-slash limit."
+  "Maximum fraction of a junior's current bond that can be taken in a single
+   slash.  Corresponds to the protocol's 50% per-slash limit."
   0.50)
 
 (def ^:private junior-per-epoch-cap-ratio
-  "Maximum fraction of a junior's bond that can be taken per epoch.
-   Corresponds to the protocol's 20% per-epoch cap."
+  "Maximum fraction of a junior's initial bond that can be taken cumulatively
+   in a single epoch.  Corresponds to the protocol's 20% per-epoch cap."
   0.20)
 
 (def ^:private senior-per-epoch-cap-ratio
@@ -185,13 +185,14 @@
         senior (when senior-id (get seniors senior-id))]
 
     (if (nil? resolver)
-      ;; Resolver not found - shouldn't happen
-      {:resolvers resolvers
-       :seniors seniors
-       :event-result {:junior-paid 0
-                      :senior-paid 0
-                      :unmet-obligation (:slash-amount event)
-                      :error :resolver-not-found}}
+      ;; Fail closed: a slash event must never be recorded as a success without
+      ;; a corresponding state transition.  An unknown resolver is a caller
+      ;; error (pool/params mismatch) and is surfaced loudly rather than being
+      ;; silently absorbed into corrupt aggregate metrics.
+      (throw (ex-info (str "Waterfall slash event references unknown resolver: "
+                           resolver-id)
+                      {:resolver-id resolver-id :senior-id senior-id
+                       :slash-amount (:slash-amount event)}))
 
       ;; Process waterfall slash
       (let [result (apply-waterfall-slash
@@ -217,9 +218,6 @@
 ;; Per-epoch cap enforcement
 ;; ---
 
-(def junior-epoch-cap-pct 0.20)
-(def senior-epoch-cap-pct 0.10)
-
 (defn- total-slashed-in-epoch
   "Sum of all slashes applied to a resolver in a given epoch."
   [resolver epoch]
@@ -237,9 +235,73 @@
         remaining (- max-allowed already)]
     (max 0.0 (min (double slash-amount) (double remaining)))))
 
+(defn cap-junior-slash
+  "Apply both junior bond caps to a requested slash amount, in order:
+
+     1. Per-epoch cap — cumulative slashes on this junior within `epoch` may
+        not exceed `junior-per-epoch-cap-ratio` (20%) of its `initial-bond`.
+     2. Per-slash cap — a single slash may not exceed
+        `junior-per-slash-cap-ratio` (50%) of the junior's current bond.
+
+   These are two DISTINCT protocol constraints: the epoch cap bounds cumulative
+   loss across an epoch, the per-slash cap bounds the loss of any one event.
+   The returned amount is `min(requested, epoch-remaining, 50% of current)` and
+   is safe to feed to `apply-junior-slash`, which re-enforces the per-slash cap
+   idempotently."
+  [resolver slash-amount epoch initial-bond]
+  (let [epoch-capped (apply-per-epoch-cap resolver slash-amount epoch
+                                          junior-per-epoch-cap-ratio initial-bond)
+        per-slash-max (* (:bond-remaining resolver 0) junior-per-slash-cap-ratio)]
+    (max 0.0 (min (double epoch-capped) (double per-slash-max)))))
+
 ;; ---
 ;; Probabilistic waterfall — Monte Carlo powered
 ;; ---
+
+(defn pool-topology
+  "Derive the senior/junior topology actually present in a pool
+   ({:seniors {...} :juniors {...}} from `initialize-waterfall-pool`).
+
+   Returns {:n-seniors n :n-juniors n :n-per-senior n}.  juniors-per-senior is
+   the floor of juniors/seniors; it is only meaningful when the pool is evenly
+   divided (guaranteed by `initialize-waterfall-pool` and enforced by
+   `validate-pool-params`)."
+  [pool]
+  (let [n-seniors (count (:seniors pool))
+        n-juniors (count (:juniors pool))]
+    {:n-seniors n-seniors
+     :n-juniors n-juniors
+     :n-per-senior (if (pos? n-seniors) (long (/ n-juniors n-seniors)) 0)}))
+
+(defn validate-pool-params
+  "Fail fast if the pool topology disagrees with the params that supposedly
+   produced it, or if the junior→senior mapping is uneven.
+
+   The probabilistic runner derives junior/senior assignment from the pool's
+   ACTUAL topology (so resolver-ids always resolve to a pool member); this
+   check guarantees that a stale or inconsistent param file is caught BEFORE
+   any slash event is processed, rather than corrupting aggregate metrics
+   halfway through a run.
+
+   Throws ex-info on any mismatch.  Returns the pool unchanged on success."
+  [pool params]
+  (let [{:keys [n-seniors n-juniors n-per-senior]} (pool-topology pool)
+        p-n-seniors (:n-seniors params)
+        p-per-senior (:n-juniors-per-senior params)]
+    (when (and p-n-seniors (not= n-seniors p-n-seniors))
+      (throw (ex-info "Waterfall pool senior count inconsistent with params"
+                      {:pool-n-seniors n-seniors
+                       :params-n-seniors p-n-seniors})))
+    (when (and p-per-senior (not= n-per-senior p-per-senior))
+      (throw (ex-info "Waterfall pool juniors-per-senior inconsistent with params"
+                      {:pool-n-juniors n-juniors
+                       :pool-n-seniors n-seniors
+                       :pool-n-per-senior n-per-senior
+                       :params-n-per-senior p-per-senior})))
+    (when (and (pos? n-seniors) (not= n-juniors (* n-seniors n-per-senior)))
+      (throw (ex-info "Waterfall pool topology is uneven (juniors not evenly divided across seniors)"
+                      {:n-juniors n-juniors :n-seniors n-seniors :n-per-senior n-per-senior})))
+    pool))
 
 (defn draw-lognormal
   "Sample from a lognormal distribution using Box-Muller transform."
@@ -304,8 +366,9 @@
      {:resolvers {...} :seniors {...} :events [event-result ...]}
      plus :metrics and :dispute-summary"
   [rng-inst pool params n-trials]
-  (let [n-juniors (count (:juniors pool))
-        n-per-senior (/ n-juniors (max 1 (:n-seniors params 5)))
+  (let [;; Fail closed on a stale/inconsistent pool+params before any slash.
+        _ (validate-pool-params pool params)
+        {:keys [n-juniors n-per-senior]} (pool-topology pool)
         mc-kwargs (merge
                     ;; base: all common-kwargs params (includes new-evidence-probability)
                    (apply hash-map (ck/common-kwargs params))
@@ -355,11 +418,9 @@
                         oracle-warnings   (or (:oracle-fixture/warnings outcome) [])]
 
                     (if (and (:slashed? outcome) (pos? bond-loss))
-                      (let [;; Per-epoch cap on senior side
-                            senior (get (:seniors state) senior-id)
-                            senior-bond (get-in senior [:initial-bond] (get-in senior [:bond-amount] 0))
-                            capped-loss (apply-per-epoch-cap resolver bond-loss epoch
-                                                             junior-epoch-cap-pct initial-bond)
+                      (let [;; Both junior caps (epoch budget + per-slash max),
+                            ;; documented in cap-junior-slash.
+                            capped-loss (cap-junior-slash resolver bond-loss epoch initial-bond)
                             {:keys [resolvers seniors event-result]}
                             (process-slash-event
                              {:resolver-id resolver-id
@@ -412,12 +473,14 @@
       :avg-junior-bond-remaining double
       :seniors-coverage-used-avg-pct double
       :seniors-at-capacity-count int
-      :total-slashes int
-      :total-slashed-by-junior double
-      :total-slashed-by-senior double
-      :total-unmet-obligation double
-      :waterfall-saturation-pct double
-      :coverage-adequacy-score double}"
+       :total-slashes int
+       :total-slashed-by-junior double
+       :total-slashed-by-senior double
+       :total-unmet-obligation double
+       :senior-slash-share-pct double
+       :coverage-exhaustion-pct double
+       :coverage-adequacy-pct double
+       :coverage-adequacy-score double}"
   [resolvers seniors events]
 
   (let [junior-resolvers (filter #(not (:is-senior? (val %))) resolvers)
@@ -453,10 +516,58 @@
         total-unmet (reduce + (map #(:unmet-obligation %) events))
 
         ;; Derived metrics
+        ;; total-slashed counts ONLY what the waterfall actually took (junior +
+        ;; senior).  It EXCLUDES unmet obligation, so it is the covered share of
+        ;; loss pressure, not the total the model was asked to absorb.
         total-slashed (+ slashed-by-junior slashed-by-senior)
-        waterfall-saturation (if (zero? total-slashed)
-                               0.0
-                               (double (* 100.0 (/ slashed-by-senior total-slashed))))
+
+        ;; Every amount the waterfall was asked to absorb, whether covered or
+        ;; not.  This is the denominator for the exhaustion metric below.
+        total-loss-pressure (+ slashed-by-junior slashed-by-senior total-unmet)
+
+        ;; SLASH-ALLOCATION (mix) metric: the fraction of the covered loss that
+        ;; was absorbed by the senior coverage pool.  This is NOT a saturation
+        ;; signal — it can be high (seniors absorbing) while the system is far
+        ;; from exhaustion, and it can fall/plateau as seniors exhaust and unmet
+        ;; accumulates.
+        senior-slash-share (if (zero? total-slashed)
+                             0.0
+                             (double (* 100.0 (/ slashed-by-senior total-slashed))))
+
+        ;; OVERFLOW-pressure metric: the fraction of TOTAL loss pressure
+        ;; (covered + unmet) that overflowed junior and senior capacity into
+        ;; unmet obligation.  0% = fully covered.  This is an overflow FRACTION,
+        ;; not a promise of unconditional temporal monotonicity: it is monotone
+        ;; in unmet while covered loss is held constant, and the exact waterfall
+        ;; dynamics keep it non-decreasing as loss moves past junior, through
+        ;; senior, into unmet (see waterfall_test coverage-exhaustion-monotonicity).
+        ;; In arbitrary runs where covered loss also changes simultaneously it
+        ;; can in principle move either way — read it as \"share of pressure the
+        ;; pool could not cover\".
+        coverage-exhaustion (if (zero? total-loss-pressure)
+                              0.0
+                              (double (* 100.0 (/ total-unmet total-loss-pressure))))
+
+        ;; BOUNDED fraction-covered metric (the complement of exhaustion):
+        ;; 100 * covered / (covered + unmet).  Always in [0, 100] for positive
+        ;; loss pressure, and satisfies
+        ;;   :coverage-adequacy-pct + :coverage-exhaustion-pct = 100
+        ;; whenever total loss pressure is positive.  This is the metric the
+        ;; phase pass/fail gates SHOULD consume (\"≥80% coverage\").  It is
+        ;; deliberately a separate field from :coverage-adequacy-score below,
+        ;; which is preserved with its historical formula for compatibility.
+        adequacy-pct (cond
+                       (zero? total-events) 100.0   ; no disputes — nothing to cover
+                       (zero? total-loss-pressure) 0.0  ; activity but zero amounts — conservative
+                       :else (double (* 100.0 (/ total-slashed total-loss-pressure))))
+
+        ;; HISTORICAL metric, preserved unchanged: 100 * (covered - unmet) /
+        ;; covered.  This is a deficit-margin proxy, NOT a bounded percentage:
+        ;; it is 100 when fully covered, 0 when unmet == covered, and goes
+        ;; NEGATIVE once unmet exceeds covered.  Downstream consumers (phases.clj)
+        ;; historically gated on ≥80; that gate is being migrated to
+        ;; :coverage-adequacy-pct.  Kept here so historical outputs keep their
+        ;; meaning and nothing downstream that reads it breaks.
         adequacy (cond
                    (zero? total-events) 100.0
                    (zero? total-slashed) 0.0  ; No payout despite events = 0% adequacy
@@ -473,7 +584,9 @@
      :total-slashed-by-junior slashed-by-junior
      :total-slashed-by-senior slashed-by-senior
      :total-unmet-obligation total-unmet
-     :waterfall-saturation-pct waterfall-saturation
+     :senior-slash-share-pct senior-slash-share
+     :coverage-exhaustion-pct coverage-exhaustion
+     :coverage-adequacy-pct adequacy-pct
      :coverage-adequacy-score adequacy}))
 
 (defn initialize-waterfall-pool

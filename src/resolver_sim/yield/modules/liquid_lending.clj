@@ -436,7 +436,24 @@
 ;; ---------------------------------------------------------------------------
 
 (defn withdraw
-  "Withdraw one active yield position after crystallizing its final yield."
+  "Withdraw one active yield position after crystallizing its final yield.
+
+   Cross-invocation boundary (single mode): a single withdrawal cannot
+   over-allocate its COMMITTED recoverable budget — `filled <= :ledger/available
+   = recoverable` is enforced by construction and re-proven record-locally by
+   `check-withdrawal-ledger-conservation`.  That guarantee is per-invocation
+   only; what makes REPEATED single withdrawals globally non-overlapping is:
+     (A) the enclosing world consumes source liquidity monotonically between
+         invocations (each withdrawal settles against the post-predecessor
+         state), and/or
+     (B) each position draws an economically disjoint slice — in Sew worlds the
+         recoverable base is the escrow's OWN held custody, and the
+         :yield/exposure invariant (check-provider-exposure) is the
+         slice-conservation statement that Σ position value <= held custody.
+   When no custody ledger is present `withdraw` falls back to the aggregate
+   token pool, in which case the guarantee reduces to (A): sequential world
+   mutation must serialize consumption, and each ledger record is validated
+   against the world at which it was the most recent operation."
   [world module op]
   (let [owner-id (:owner/id op)
         position-path [:yield/positions owner-id]

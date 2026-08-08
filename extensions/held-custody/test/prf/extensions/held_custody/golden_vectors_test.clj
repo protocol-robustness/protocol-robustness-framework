@@ -89,6 +89,6 @@
   (is (= "f2823c53426f0040a72acb7d27bf917b33285132a0157c41cf5bcd457f1fba17"
          (em/capability-descriptor-root manifest/capability))
       "capability descriptor root is pinned; manifest contract changes are reviewed")
-  (is (= "5ae2303f72b7b507c9a33f31d0c65fb60de3ddcee00c98969d6b28680cf2aa4c"
+  (is (= "209c9b1af4e6f9e17f32d9acb9bdfaafd6243ae532cda0dc846c595a94cf43fa"
          (em/package-root manifest/package))
       "package root is pinned; manifest contract changes are reviewed"))

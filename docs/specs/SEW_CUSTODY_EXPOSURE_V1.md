@@ -16,6 +16,14 @@ and core's replay reconstruction (`replay-held-adjustment-state`) is documented 
 on the Sew function. The existing test `held-custody-closed-form-checks-pass-on-valid-artifacts`
 characterises the current equivalence guarantee.
 
+`held-custody-closed-form-checks` has two arities: the one-arity form verifies the
+artifact surface alone (hash, schema, delta, non-negative, predecessor, sequence);
+the two-arity form `held-custody-closed-form-checks(adjustments, artifacts)`
+additionally verifies ledger↔artifact completeness (`ledger-artifact-bijection`,
+`ledger-artifact-order`), replayed reason/position policy, and attribution
+shape/requirement. This packet uses the two-arity form so that custody assurance
+covers ledger completeness, not only artifact-chain integrity.
+
 ## Evidence contract
 
 The following values are resolved from existing benchmark or scenario outputs.
@@ -32,7 +40,7 @@ No new artifact fields are introduced.
 | Final held summary | `final-held-summary(adjustments, index, total-held)` | Core function call |
 | Terminal Sew projection | `trace-end-projection(world)` → `:money-movement-summary` | Sew projection call |
 | Force-authorisation reference | `:force-authorisations` / `:force-authorisations/consumed` | Direct world lookup |
-| Closed-form check results | `held-custody-closed-form-checks(artifacts)` | Core function call |
+| Closed-form check results | `held-custody-closed-form-checks(adjustments, artifacts)` | Core function call |
 | Source artifact hashes | `:artifact/hash` from each `:held-artifacts` entry | Direct artifact lookup |
 
 ## Custody-validation classification

@@ -416,10 +416,11 @@
    :command/jar-availability :native
    :command/runtime :jvm
    :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
-                     {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
-                     {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
-                     {:name "--key" :type :string :doc "Path to private key for signing"}
-                     {:name "--json" :type :flag :doc "Output as JSON"}]
+                      {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
+                      {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
+                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
+                      {:name "--key" :type :string :doc "Path to private key for signing"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
    :command/positional-args {:min 1 :max 1}
    :command/description "Run a registered or bundled benchmark as a canonical --run-root package, or use --output for a separate legacy export."}

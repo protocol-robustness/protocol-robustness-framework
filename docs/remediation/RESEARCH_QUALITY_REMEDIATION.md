@@ -50,7 +50,7 @@ These phases produce pass/fail banners but do not exercise `resolve-dispute` or 
   - Phase E: 6 sub-phases with mixed gates (67%-100%).
   - Phase M: 4 sub-phases with mixed gates (70%-95%).
   - Phase F: 5 sub-phases with 0.75-0.80 gates.
-  - Waterfall: coverage-adequacy >= 80.0.
+  - Waterfall: coverage-adequacy-pct (bounded fraction-covered) >= 80.0.
   - Phase O: spike-ratio >= 0.70.
   - Phase Y: min-accuracy >= 0.75.
   - Phase AA: win-rate < 0.20.

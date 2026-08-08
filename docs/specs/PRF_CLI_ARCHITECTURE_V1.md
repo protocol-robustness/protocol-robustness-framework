@@ -261,11 +261,12 @@ Every command falls into exactly one (surface × jar-availability) case:
 
 | Surface | Jar availability | Runtime | Count | Meaning |
 |---|---|---|---|---|
-| `:prf` | `:native` | `:jvm` | 39 | Standard PRF JAR (`prf.jar`) CLI commands |
+| `:prf` | `:native` | `:jvm` | 46 | Standard PRF JAR (`prf.jar`) CLI commands |
 | `:dev` | `:native` | `:jvm` | 1 | Developer-only JAR command (`run-invariants`) |
 | `:community` | `:native` | `:jvm` | 9 | Community task commands shipped in the JAR |
 | `:bb` | `:external` | `:bb` | 9 | `bb` task requiring an external JAR artifact |
 | `:bb` | `:none` | `:bb` | 12 | Pure `bb` task; not a JAR command |
+| **Total** | | | **77** | All registered commands |
 
 `jar-availability` describes **registry/implementation availability**, not
 inclusion in every build artifact. `:native` means the command is implemented

@@ -17,7 +17,8 @@
 
 (defn plan-projection
   "Committed fields of a compiled plan (excludes the self-referential
-   :plan/root)."
+   :plan/root). v1 plans carry no adapters — adapters are categorically
+   unsupported in v1, so :plan/adapters is not part of the v1 plan root."
   [plan]
   (select-keys plan
                [:plan/schema-version
@@ -26,7 +27,6 @@
                 :plan/compiler-version
                 :plan/nodes
                 :plan/edges
-                :plan/adapters
                 :plan/addresses
                 :plan/input-contract
                 :plan/output-contract
@@ -46,7 +46,7 @@
 (defn build-plan
   "Assemble a compiled plan from its committed fields and attach :plan/root."
   [{:keys [combination-root compiler-id compiler-version
-           nodes edges adapters addresses input-contract output-contract
+           nodes edges addresses input-contract output-contract
            effect-merge-strategy verification]}]
   (let [base {:plan/schema-version plan-schema-version
               :plan/combination-root combination-root
@@ -54,7 +54,6 @@
               :plan/compiler-version compiler-version
               :plan/nodes (vec nodes)
               :plan/edges (vec edges)
-              :plan/adapters (vec adapters)
               :plan/addresses (or addresses {})
               :plan/input-contract input-contract
               :plan/output-contract output-contract

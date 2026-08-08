@@ -334,7 +334,6 @@
                                     :compiler-version compiler-version
                                     :nodes plan-nodes
                                     :edges edges
-                                    :adapters []
                                     :addresses (:combination/addresses combination)
                                     :input-contract (:combination/input combination)
                                     :output-contract (:combination/expected-output combination)

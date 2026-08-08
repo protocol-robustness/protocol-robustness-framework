@@ -188,7 +188,8 @@ lost:
 - **Sub-held / position underflow guards** — you cannot debit more than is held.
 - **Reason-policy position integrity** — every `:held/reason` maps to a fixed
   custody account and scope; an entry cannot place funds in a policy-violating
-  bucket. *(Currently enforced at write time only — see §7.)*
+  bucket. Enforced at write time and **re-verified by replay**
+  (`:held-custody/reason-position-policy`, see §7).
 - **Yield lineage conservation** (`src/resolver_sim/yield/conservation.clj`) — a
   deferred-yield position's committed origin obligation must equal the sum of its
   disposition buckets:
@@ -211,73 +212,77 @@ artifacts** so they can be independently re-verified:
   the ledger entry it came from are connected by that id.
 - **Artifact chain** — each artifact records `:held/previous-artifact-hash`, forming
   an ordered hash chain (`:predecessor-continuity`).
-- **Held-custody summary** (`build-held-custody-summary`) — a versioned,
-  content-addressed auditor-facing report. It aggregates the ledger, index,
-  artifacts, attribution posture, completeness, reconciliation, and closed-form
-  failure counts with triage. It records `:adjustment-count`, `:artifact-count`,
-  `:adjustment-sequence-range`, and `:artifact-chain-head` (the last artifact hash),
-  and a token-level `:reconciliation-valid?` comparing replayed closing to the
-  observed closing balance.
+- **Held-custody summary** (`build-held-custody-summary`, schema
+  `held-custody-summary.v2`) — a versioned, content-addressed auditor-facing report.
+  It aggregates the ledger, index, artifacts, attribution posture, completeness,
+  reconciliation, and closed-form failure counts with triage. It records
+  `:adjustment-count`, `:artifact-count`, `:adjustment-sequence-range`,
+  `:artifact-chain-head` (the last artifact hash), a **`:ledger-root`** and an
+  **`:artifact-sequence-root`** committing the exact ledger and emitted artifact
+  sequence it reports on, and a token-level `:reconciliation-valid?` comparing
+  replayed closing to the observed closing balance.
 
 All artifacts use intent-tagged, canonical hashing so verification is deterministic.
 
 ---
 
-## 7. Closed-form verification — and the assurance boundary
+## 7. Closed-form verification
 
 `held-custody-closed-form-checks` in `src/resolver_sim/assurance/custody.clj` runs a
-deterministic battery over the **artifact surface** (it does not re-run the
-protocol):
+deterministic battery. The one-arity form operates over the **artifact surface**
+(no ledger dependency); the two-arity form (`adjustments` + `artifacts`) adds the
+ledger-completeness and policy-parity checks. Fail-closed: any failing check throws
+with the full check results in ex-data.
+
+**Artifact-surface battery** (one-arity):
 
 | Check | What it verifies |
 |-------|------------------|
 | `:held-custody/hash-integrity` | artifact hash matches recomputation over its payload |
 | `:held-custody/artifact-schema` | artifact schema version is supported |
-| `:held-custody/parameter-attribution` | **shape** of attribution is structurally valid |
+| `:held-custody/parameter-attribution` | **shape** of the parameter pair is structurally valid |
 | `:held-custody/local-delta` | `after == before ± amount` per entry |
 | `:held-custody/non-negative-after` | no balance goes negative |
 | `:held-custody/predecessor-continuity` | artifact hash chain is unbroken |
 | `:held-custody/sequence-replay` | replay over the chain reproduces every before/after |
 
-### What the closed-form battery does **not** independently prove
+**Ledger-completeness and policy-parity battery** (two-arity, added on top):
 
-The document must not imply a stronger proof boundary than the checks establish.
-The following are **verification gaps** — properties that are enforced on the
-trusted write path (or not at all) but are **not** re-established by the independent
-closed-form verifier:
+| Check | What it verifies |
+|-------|------------------|
+| `:held-custody/ledger-artifact-bijection` | artifacts are an **exact, one-to-one image of the canonical ledger**: same count, same `:held-adjustment/id` set (no missing/extra/duplicate), and every artifact recomputes from the ledger adjustment with the same id |
+| `:held-custody/ledger-artifact-order` | the artifact sequence equals the ledger's canonical sequence and is presented in that order |
+| `:held-custody/reason-position-policy` | every `:held/reason` is classified by the shared policy: position-bearing reasons match the derived account/position-id, policy-exempt reasons carry no position-id, and an **unknown reason is a violation** unless committed in `policy-exempt-reasons` |
+| `:held-custody/attribution-shape` | owner/address and parameter-pair shape are structurally valid when present |
+| `:held-custody/required-attribution` | a reason that demands explicit ownership has actually committed a non-blank `:owner/address` |
 
-1. **Ledger ↔ artifact bijection and ordering (P0).**
-   `:predecessor-continuity` proves the artifacts chain together; `:sequence-replay`
-   proves that chain is internally coherent. Neither proves that the artifacts are
-   an **exact, ordered, one-to-one image of the canonical ledger**. A valid artifact
-   chain could, in principle, omit a ledger entry, include an extra artifact, or
-   contain the right count but with one artifact bound to a different adjustment.
-   The summary records counts but does not commit a shared ledger root against which
-   artifact count/order is reconciled. **Gap:** an explicit
-   `:held-custody/ledger-artifact-bijection` and `:held-custody/ledger-artifact-order`
-   check, ideally with each artifact committing an immutable adjustment identity and
-   the summary committing both a ledger root and an artifact-sequence root.
+The reason→position policy and the committed `policy-exempt-reasons` extension set
+live in the protocol-independent `src/resolver_sim/accounting/held_position_policy.clj`
+so the verifier recomputes obligations independently of the write path's `:account`
+selection (BOUNDARY GUARD: the verifier never imports `protocols_src/`).
 
-2. **Reason/account policy parity (P1).**
-   The write path enforces reason-derived position policy, but the closed-form
-   battery has no `:held-custody/reason-position-policy` check that recomputes the
-   allowed account/position shape from `:held/reason`. As written, the architecture
-   proves "the trusted write path prevents an invalid reason/account combination,"
-   **not** "an independent verifier can prove no invalid combination exists."
+### Summary commitment boundary
 
-3. **Required-attribution vs. attribution-shape (P1).**
-   The verifier's `:held-custody/parameter-attribution` check establishes that
-   attribution **shape** is valid. It does not establish that the movement
-   **required** attribution (per reason policy) and that the **required owner was
-   actually committed**. These are distinct assertions. **Gap:** distinguish
-   `:held-custody/attribution-shape` (valid shape when present) from
-   `:held-custody/required-attribution` (economically meaningful: the movement
-   demanded attribution, and it was committed), plus optional semantic binding where
-   the owner is derivable from the position/workflow.
+`build-held-custody-summary` (schema `held-custody-summary.v2`) additionally commits
+a **`ledger-root`** (intent-tagged hash of the adjustments in canonical sequence)
+and an **`artifact-sequence-root`** (order-sensitive hash chain over the artifact
+hashes), plus the two-arity check statuses and triage vectors for bijection, order,
+reason-policy, attribution-shape, and required-attribution violations. An auditor
+can therefore see exactly which ledger and which artifact sequence a summary
+reports on, and whether they correspond.
 
-Until items 1–3 are implemented, the closed-form battery verifies **artifact-chain
-integrity**, not **ledger completeness**. This should be treated as the primary
-reason the accounting is not yet audit-ready on its own.
+### Remaining boundaries
+
+Two properties are deliberately out of scope of the closed-form battery and remain
+separate next-stage assurance problems rather than holes in this accounting proof:
+
+1. **Semantic owner binding** — deriving the *required* owner from the position /
+   workflow (the position-id does not encode an owner today). The battery proves the
+   owner was committed when required and is well-formed; it does not prove the owner
+   is the economically correct party.
+2. **Checkpoint / state replay** — replay from a committed non-zero opening (the
+   ledger is currently genesis-replay only, see §4). A truncated or imported ledger
+   needs an explicit committed opening state before "replay verified" has force.
 
 ---
 
@@ -289,14 +294,12 @@ Each adjustment receives an id derived from the running ledger length
 
 Be explicit about what these ids prove and do **not** prove:
 
-- They are **not** an independent integrity mechanism. Continuity/order come from
-  the **artifact predecessor chain** and the replay reduction, not from the numeric
-  id itself.
-- The document does **not** currently claim independent verification of: unique
-  adjustment ids, contiguity, artifact uniqueness, adjustment-id ↔ artifact
-  identity, or the absence of duplicate replay. If the id is intended as part of the
-  accounting identity (rather than display metadata), those properties should be
-  checked independently; if not, they should be described as display metadata only.
+- They are **not** an independent integrity mechanism by themselves. Continuity/order
+  come from the **artifact predecessor chain**, the replay reduction, and — since
+  the ledger/artifact bijection landed — the exact id-set and identity
+  correspondence between the ledger and the artifact package (see §7). The
+  two-arity battery independently verifies unique adjustment ids, artifact
+  uniqueness, and adjustment-id ↔ artifact identity.
 
 ---
 
@@ -331,7 +334,8 @@ held-custody architecture into the yield section.
 | Core held-custody accounting & ledger primitives | `protocols_src/resolver_sim/protocols/sew/accounting.clj` |
 | Shared held-ledger index schema | `src/resolver_sim/accounting/held_ledger_index.clj` |
 | Held-adjustment value projection | `src/resolver_sim/accounting/held_adjustment.clj` |
+| Held-position policy (reason → account/scope + committed policy-exempt reasons) | `src/resolver_sim/accounting/held_position_policy.clj` |
 | Replay, artifacts, closed-form checks, summaries | `src/resolver_sim/assurance/custody.clj` |
 | Position-level yield accounting | `src/resolver_sim/yield/accounting.clj` |
 | Yield lineage conservation | `src/resolver_sim/yield/conservation.clj` |
-| Accounting tests | `protocols_src/test/.../sew/accounting_test.clj`, `test/resolver_sim/accounting/held_ledger_index_test.clj`, `test/resolver_sim/assurance/custody_summary_test.clj` |
+| Accounting tests | `protocols_src/test/.../sew/accounting_test.clj`, `test/resolver_sim/accounting/held_ledger_index_test.clj`, `test/resolver_sim/accounting/held_position_policy_test.clj`, `test/resolver_sim/assurance/custody_summary_test.clj` |

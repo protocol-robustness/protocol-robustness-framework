@@ -12,7 +12,15 @@
    5. Participation spiral → Reflexive death spiral
    
    Key insight: Economic incentives alone don't guarantee liveness.
-   You need active participation ecosystem design."
+   You need active participation ecosystem design.
+
+   ARCHITECTURAL BOUNDARY: Phase R is an EXPLORATORY phase — its output is
+   display-only (console) and is not persisted, certified, hashed, or included
+   in any attestation/bundle-root pipeline.  The saturation fields propagated by
+   test-latency-sensitivity (:saturation-queue-days / :saturation-queue /
+   :saturation-satisfied / :liveness/wait-capped?) are DIAGNOSTIC: their
+   consistency is verified at test time (check-saturation-invariant) and they
+   make no evidence-time claim."
   (:require [resolver-sim.stochastic.liveness-failures :as liveness]
             [resolver-sim.stochastic.rng :as rng]
             [resolver-sim.sim.engine      :as proto]))
@@ -179,8 +187,9 @@
 
         results (for [volume dispute-volumes]
 
-                  (let [{:keys [queue-wait-days user-retention-rate retained-volume verdict spiral-effect]}
-                        (liveness/latency-sensitivity volume resolvers 5 patience-threshold)
+                  (let [result (liveness/latency-sensitivity volume resolvers 5 patience-threshold)
+                        {:keys [queue-wait-days user-retention-rate retained-volume verdict spiral-effect
+                                saturation-queue-days saturation-queue saturation-satisfied]} result
 
                         class (cond
                                 (> queue-wait-days 14) "C"
@@ -192,6 +201,10 @@
                      :retention-rate user-retention-rate
                      :retained-volume retained-volume
                      :spiral spiral-effect
+                     :saturation-queue-days saturation-queue-days
+                     :saturation-queue saturation-queue
+                     :saturation-satisfied saturation-satisfied
+                     :liveness/wait-capped? (:liveness/wait-capped? result)
                      :verdict verdict
                      :class class}))]
 

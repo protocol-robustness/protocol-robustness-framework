@@ -94,6 +94,32 @@ and the ordering never commits the attempt receipt artifact. For an admitted
 child the transaction persists, atomically, the successor/head/version/
 idempotency/content/receipt writes plus the ordering record — all or none.
 
+Ordering verification is split into two pure checks:
+
+- `verify-ordering` — recomputes a single ordering's self-hash over its unsigned
+  projection and compares it to the committed `:transaction-ordering/hash`.
+- `verify-ordering-chain` — verifies **internal continuity** across a sequence of
+  consecutive orderings (ordered by commit): each ordering self-verifies, the
+  first ordering carries a nil `:transaction/previous-transaction-hash`, each
+  successor's `:transaction/previous-transaction-hash` equals the prior ordering's
+  hash, and each successor's `:transaction/state-before-root` equals the prior
+  ordering's `:transaction/state-after-root` (prior-state fixed point).
+
+Two properties of chain verification are deliberate and documented in the code:
+
+1. **Chain origin bootstrap.** The first ordering's `:transaction/state-before-root`
+   has no prior to validate against — it is the trusted origin state. Chain
+   verification therefore proves *internal continuity*, not *origin correctness*.
+2. **Fail-closed skip.** When an ordering fails its self-hash, previous-hash
+   linkage and state-root continuity checks *against* it are skipped (the chain is
+   already known invalid; further checks add no safety). The forensic consequence:
+   you cannot distinguish "prior was tampered AND current state-root is mismatched"
+   from "prior was tampered alone".
+
+The implementation is functionally pure (`loop`/`recur` accumulating an immutable
+errors vector) so the same check can be replayed or run in parallel without shared
+state.
+
 ## 1. Authority model: the submission-attempt receipt
 
 Every submission attempt (accepted, rejected, or failed) produces a signed,

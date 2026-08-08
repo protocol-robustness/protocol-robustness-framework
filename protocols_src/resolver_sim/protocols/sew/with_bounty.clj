@@ -4,8 +4,10 @@
 
    Applies a validated with-bounty application plan to a Sew world through the
    canonical paths only:
-   - :prf.effect/custody-held-adjustment.v1 → accounting/add-held (canonical
-     held-custody mutation; the generic compositor never mutates custody);
+   - :prf.effect/custody-held-adjustment.v1 / .v2 → accounting/add-held or
+     sub-held (canonical held-custody mutation, direction-bound by the
+     effect's canonical held action; the generic compositor never mutates
+     custody);
    - :prf.effect/obligation-create.v2        → bounty-payable, bounty-payable-
      backing, and claimable records.
 
@@ -32,13 +34,26 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.accounting :as act]))
 
+(def adapter-held-actions
+  "The held-custody ACTIONS this adapter is entitled to execute (its producer
+   capability). Global protocol vocabulary support
+   (effects/supported-held-action?) does NOT entitle an adapter to every action:
+   with-bounty reserves and releases custody through the accounting primitives,
+   so it may only execute add-held / sub-held. A crafted effect carrying a
+   globally valid but locally unsupported action (e.g. \"refund-held\" or
+   \"finalize-released\") is rejected — it cannot acquire a capability merely
+   because the action exists elsewhere in the custody protocol."
+  #{"add-held" "sub-held"})
+
 (def adapter-support
   "The adapter-support declaration the with-bounty plans for this adapter are
    validated against and committed under (:plan/adapter)."
   {:adapter/id :sew/v1
    :adapter/supported-effects
    #{:prf.effect/obligation-create.v2
-     :prf.effect/custody-held-adjustment.v1}})
+     :prf.effect/custody-held-adjustment.v1
+     :prf.effect/custody-held-adjustment.v2}
+   :adapter/held-actions adapter-held-actions})
 
 (def claimable-domain
   "Domain under which a with-bounty payable becomes claimable."
@@ -58,8 +73,28 @@
 
 (defn- custody-effects
   [plan]
-  (filterv #(= :prf.effect/custody-held-adjustment.v1 (:effect/contract %))
+  (filterv #(contains? #{:prf.effect/custody-held-adjustment.v1
+                         :prf.effect/custody-held-adjustment.v2}
+                       (:effect/contract %))
            (:plan/effects plan [])))
+
+(defn- custody-action-violations
+  "Fail-before-mutation check: every custody effect's held action must be in
+   this adapter's allowed-action subset (adapter-held-actions). A globally
+   valid held action the adapter cannot execute is a violation, so a crafted
+   v2 effect cannot acquire adapter capability merely because the action exists
+   in the custody protocol."
+  [effects]
+  (into []
+        (keep (fn [effect]
+                (when (= :custody/held-adjustment (:effect/type effect))
+                  (let [action (effects/effect-action effect)]
+                    (when-not (contains? adapter-held-actions action)
+                      {:violation/id :violation/unsupported-custody-action-for-adapter
+                       :details {:action action
+                                 :effect/contract (:effect/contract effect)
+                                 :adapter/held-actions (vec (sort adapter-held-actions))}})))))
+        effects))
 
 ;; ── preflight (fail-before-mutation) ─────────────────────────────────────
 
@@ -93,6 +128,9 @@
                  (not (:valid? effect-check))
                  (into (:violations effect-check))
 
+                 (seq (custody-action-violations (:plan/effects plan [])))
+                 (into (custody-action-violations (:plan/effects plan [])))
+
                  (false? (get-in plan [:plan/preconditions :funding/available?]))
                  (conj {:violation/id :violation/insufficient-bounty-funding
                         :details {:precondition :funding/available?}}))]
@@ -104,25 +142,29 @@
 
 (defn- apply-custody-effect
   "Reserve (or release) bounty custody through the canonical add-held/sub-held
-   paths. Returns the updated world; the appended held-adjustment record and its
-   content-addressed artifact carry the evidence."
+   paths. The action is the effect's CANONICAL held action (explicit on v2,
+   interpreted under the legacy rule on v1) — the adapter never invents or
+   overrides the action. Only actions in this adapter's allowed subset
+   (adapter-held-actions) are applied; a globally valid but locally unsupported
+   action fails closed before any mutation."
   [world effect]
-  (let [token (:effect/token effect)
-        amount (:effect/amount effect)
-        opts (-> (effects/custody-effect->add-held-opts effect)
-                 (assoc :action (if (= :sub (:effect/direction effect))
-                                  "sub-held"
-                                  "add-held"))
-                 (update :extra merge
-                         {:held/account (:effect/account effect)}
-                         (when (:owner/address effect)
-                           {:owner/address (:owner/address effect)})))]
-    (case (:effect/direction effect)
-      :add (act/add-held world token amount opts)
-      :sub (act/sub-held world token amount opts)
-      (throw (ex-info "with-bounty: unsupported custody direction"
-                      {:violation/id :violation/unsupported-custody-direction
-                       :direction (:effect/direction effect)})))))
+  (let [action (effects/effect-action effect)
+        token (:effect/token effect)
+        amount (:effect/amount effect)]
+    (when-not (contains? adapter-held-actions action)
+      (throw (ex-info "with-bounty: custody action not in adapter's allowed subset"
+                      {:violation/id :violation/unsupported-custody-action-for-adapter
+                       :action action
+                       :effect/contract (:effect/contract effect)
+                       :adapter/held-actions (vec (sort adapter-held-actions))})))
+    (let [opts (-> (effects/custody-effect->add-held-opts effect)
+                   (update :extra merge
+                           {:held/account (:effect/account effect)}
+                           (when (:owner/address effect)
+                             {:owner/address (:owner/address effect)})))]
+      (case action
+        "add-held" (act/add-held world token amount opts)
+        "sub-held" (act/sub-held world token amount opts)))))
 
 (defn- custody-artifact-binding
   "Exact held-adjustment binding for transition evidence: the adjustment id and

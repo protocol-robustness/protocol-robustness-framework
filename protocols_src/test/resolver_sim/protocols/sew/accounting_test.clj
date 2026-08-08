@@ -253,6 +253,72 @@
            (mapv :check/id checks)))
     (is (every? #(= :pass (:status %)) checks))))
 
+(deftest held-custody-closed-form-checks-2-arity-full-battery
+  (let [world (-> (t/empty-world)
+                  (ac/add-held usdc 100 {:action "create-escrow"
+                                         :reason :escrow-principal-deposited
+                                         :extra {:held/workflow-id 0
+                                                 :owner/address alice}})
+                  (ac/sub-held usdc 40 {:action "release"
+                                        :reason :escrow-settlement-released
+                                        :extra {:held/workflow-id 0
+                                                :owner/address bob}}))
+        checks (custody/held-custody-closed-form-checks
+                (:held-adjustments world)
+                (vals (:held-artifacts world)))]
+    (is (= [:held-custody/hash-integrity
+            :held-custody/artifact-schema
+            :held-custody/parameter-attribution
+            :held-custody/local-delta
+            :held-custody/non-negative-after
+            :held-custody/predecessor-continuity
+            :held-custody/sequence-replay
+            :held-custody/ledger-artifact-bijection
+            :held-custody/ledger-artifact-order
+            :held-custody/reason-position-policy
+            :held-custody/attribution-shape
+            :held-custody/required-attribution]
+           (mapv :check/id checks)))
+    (is (every? #(= :pass (:status %)) checks)))
+  (testing "a dropped artifact fails the bijection/order checks"
+    (let [world (-> (t/empty-world)
+                    (ac/add-held usdc 100 {:action "create-escrow"
+                                           :reason :escrow-principal-deposited
+                                           :extra {:held/workflow-id 0
+                                                   :owner/address alice}}))
+          artifacts (vals (:held-artifacts world))]
+      (let [result (try {:ok (custody/held-custody-closed-form-checks
+                              (:held-adjustments world)
+                              (rest artifacts))}
+                        (catch clojure.lang.ExceptionInfo e
+                          {:failed-checks (set (map :check/id (:failed-checks (ex-data e))))}))]
+        (is (contains? (:failed-checks result) :held-custody/ledger-artifact-bijection))
+        (is (contains? (:failed-checks result) :held-custody/ledger-artifact-order))
+        (is (not (contains? (:failed-checks result) :held-custody/reason-position-policy))))))
+  (testing "an unknown reason fails reason-position-policy"
+    (let [world (ac/add-held (t/empty-world) usdc 5
+                             {:action "x"
+                              :reason :totally-unknown-reason
+                              :extra {:held/workflow-id 0 :owner/address alice}})
+          checks (custody/held-custody-reason-attribution-checks (:held-adjustments world))
+          policy (some #(when (= :held-custody/reason-position-policy (:check/id %)) %) checks)]
+      (is (= :fail (:status policy)))
+      (is (= :unknown-reason-outside-policy
+             (get-in policy [:details :violations 0 :error])))))
+  (testing "a committed policy-exempt reason (effect projection) passes"
+    (let [world (-> (t/empty-world)
+                    (ac/add-held usdc 5 {:action "add-held"
+                                         :reason :bounty-reserve-reservation
+                                         :extra {:held/workflow-id 0
+                                                 :held/account :bounty-reserve
+                                                 :owner/address alice}}))
+          checks (custody/held-custody-closed-form-checks
+                  (:held-adjustments world)
+                  (vals (:held-artifacts world)))
+          by-id (into {} (map (juxt :check/id identity)) checks)]
+      (is (= :pass (get-in by-id [:held-custody/reason-position-policy :status])))
+      (is (every? #(= :pass (:status %)) (vals by-id))))))
+
 (deftest complete-held-ledger-allows-create-and-release
   (let [world0 (assoc-in (t/empty-world 1000) [:params :held-adjustments/complete?] true)
         created (lc/create-escrow world0 alice usdc bob 1000

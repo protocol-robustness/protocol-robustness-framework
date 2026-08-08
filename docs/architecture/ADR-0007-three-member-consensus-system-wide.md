@@ -356,8 +356,8 @@ The standard is established when:
   certificate input `{:assertion/id :cancellation/window-respected
   :cancellation/window :closed :cancellation/possible? false
   :blocking-reasons [:authoritative-randomness-requested]}`; the
-  `:assurance` label is `:independent-replay` only when recomputed from
-  committed evidence (see contracts, below).
+   `:assurance` label is `:independent-replay` only when recomputed from
+   the observed round-state input token (see contracts, below).
 - Tests extended to 11 tests / 242 assertions; clean `clj-kondo` (0/0).
 
 ### P1 Phase C.2 — lifecycle-window contracts 1–8 (landed)
@@ -384,7 +384,9 @@ The standard is established when:
 - **Contract 5 — monotonic window.** `validate-lifecycle-monotonicity` rejects
   any permitted transition from a closed state back to open. Failure, timeout,
   restart, recovery, fallback, and partial rollback must continue on the same
-  committed basis.
+  committed basis. The `probabilistic-allocation-window` profile carries an
+  explicit `:transitions` map (the forward-only state graph), so the check is
+  asserted against the real profile, not vacuous.
 - **Contract 6 — atomic guard.** `cancellation-conflict-key` defines the single
   key cancellation and the irreversible transition contend on; enforcement is
   `(compare-and-transition! ...)`, not classification.
@@ -393,9 +395,10 @@ The standard is established when:
   lifecycle profile id+version, state-evidence root, action/effects, reason,
   decision/declaration, policy instance, validity window, and conflict key.
 - **Contract 8 — assurance labelling.** `cancellation-window-assertion` gives
-  `:independent-replay` ONLY by recomputing from committed evidence
-  (`:target-evidence`, `:lifecycle-profile`, `:domain-projection`,
-  `:decision-opts`); a supplied classification is labelled `:structural-check`.
+  `:independent-replay` ONLY by recomputing the classification from the
+  observed round-state input token (`:target-evidence`, `:lifecycle-profile`,
+  `:domain-projection`, `:decision-opts`); a supplied classification is
+  labelled `:structural-check`.
 - Tests extended to 12 tests / 163 assertions in the canonical namespace
   (13 / 282 with namespace-load); clean `clj-kondo` (0/0).
 

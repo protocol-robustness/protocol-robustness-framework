@@ -161,8 +161,9 @@ overbroad. Correct model:
   (which authorised decision wins a conflicting transition).
 
 The code already models the last two points: `cancellation-window-assertion`
-distinguishes `:assurance :independent-replay` (recomputed from committed
-evidence) from `:assurance :structural-check`
+distinguishes `:assurance :independent-replay` (classification recomputed from
+the observed round-state input token, deterministic given the same input) from
+`:assurance :structural-check`
 (`canonical_force_authorisation.clj:790+`).
 
 ## 4. decision-hash-valid is necessary, not sufficient
@@ -197,8 +198,11 @@ Rehash semantics (correcting the earlier "rehashed fails hash-validity" claim):
 Conflating these five process properties was the core error in the earlier
 "out-of-process vs independent replay" section. They are independent:
 
-1. **recomputable replay** — classification recomputable from committed
-   evidence (contract 8 gives this; `:assurance :independent-replay`);
+1. **recomputable replay** — classification recomputable from the observed
+   round-state input token (contract 8 gives this; `:assurance
+   :independent-replay` means deterministic given the same input, with both the
+   observed state and the derived classification committed into the certificate
+   assertions);
 2. **process separation** — replay runs in a separate process (contract 8 MAY
    support this; not guaranteed by the return value);
 3. **implementation independence** — replay uses a different implementation

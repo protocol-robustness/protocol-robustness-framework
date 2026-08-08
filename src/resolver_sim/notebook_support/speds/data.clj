@@ -6,8 +6,7 @@
             [clojure.string :as str]
             [resolver-sim.logging :as log]
             [resolver-sim.notebook-support.common :as common]
-            [resolver-sim.notebook-support.speds.config :as config]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.notebook-support.speds.config :as config]))
 
 (defn sha256-hex
   [v]
@@ -203,7 +202,7 @@
     {:trace-id    (or (:ipfs-cid manifest) "LOCALLY_SIGNED")
      :git-sha     git7
      :run-id      (or (:run_id summary) (:run-id config/protocol-defaults))
-     :hash        (hash-ref/sha256-ref (subs (sha256-hex (str scenario-id)) 0 8))
+     :hash        (subs (sha256-hex (str scenario-id)) 0 8)
      :title       (or (:title scenario)
                       (-> scenario-id
                           (str/replace #"^scenarios/" "")

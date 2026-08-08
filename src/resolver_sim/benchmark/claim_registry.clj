@@ -17,11 +17,7 @@
    External registries may select any claim whose evaluator is compiled into
    the running jar (resolver-sim.benchmark.claims/evaluator-registry); they
    cannot invent evaluator code (e.g. :claim/evaluator :auditor/my-code)."
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.set :as set]
-            [resolver-sim.config.paths :as paths]
-            [resolver-sim.hash.reference :as hash-ref]
+  (:require [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.resource-path :as rp]))
 
 ;; ── Path constants ───────────────────────────────────────────────────────────
@@ -93,13 +89,13 @@
 ;; ── Loading ─────────────────────────────────────────────────────────────────
 
 (defn- read-registry-edn
-  [path]
+  [path source]
   (try
     (rp/edn-read path)
     (catch Exception e
       (throw (ex-info "Claim registry unreadable"
                       {:claim-registry/path path
-                       :claim-registry/source (claim-registry-source path)
+                       :claim-registry/source source
                        :error (.getMessage e)})))))
 
 (defn- schema-version
@@ -185,6 +181,7 @@
    Returns {:claim-registry/path str
             :claim-registry/source :cli|:environment|:default
             :claim-registry/version int
+            :claim-registry/data <raw-document-map>
             :claims [entry ...]
             :claim-map {claim-id entry}}.
 
@@ -202,7 +199,7 @@
                        {:kind :missing-file
                         :claim-registry/path path
                         :claim-registry/source source})))
-     (let [data (read-registry-edn path)]
+     (let [data (read-registry-edn path source)]
        (when-let [errors (seq (validate-claim-registry data nil external?))]
          (throw (ex-info "Claim registry validation failed"
                          {:kind :claim-registry-invalid
@@ -213,5 +210,6 @@
        {:claim-registry/path path
         :claim-registry/source source
         :claim-registry/version (schema-version data)
+        :claim-registry/data data
         :claims (claim-entries data)
         :claim-map (into {} (map (fn [c] [(:claim/id c) c])) (claim-entries data))}))))

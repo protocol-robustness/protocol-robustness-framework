@@ -287,7 +287,11 @@
                 rng-inst pool params n-trials)
 
         metrics (:metrics result)
-        adequacy (:coverage-adequacy-score metrics)
+        ;; Bounded fraction-covered metric (see waterfall/aggregate-waterfall-metrics).
+        ;; The historical :coverage-adequacy-score is preserved in the metrics map
+        ;; but is a deficit-margin proxy that goes negative past exhaustion and is
+        ;; no longer the pass/fail gate.
+        adequacy (:coverage-adequacy-pct metrics)
 
         ;; Fixture-health: flag oracle exhaustion so stale calibrations
         ;; don't produce misleading results.  Exhaustion means the fixed
@@ -391,7 +395,7 @@
                                               :senior-bond-amount :junior-bond-amount])
                  :results metrics}]
 
-    (let [adequacy (:coverage-adequacy-score metrics)
+    (let [adequacy (:coverage-adequacy-pct metrics)
           pass?    (>= adequacy 80.0)]
       (println (format "   Juniors exhausted: %.1f%%" (:juniors-exhausted-pct metrics)))
       (println (format "   Coverage used: %.1f%%" (:seniors-coverage-used-avg-pct metrics)))

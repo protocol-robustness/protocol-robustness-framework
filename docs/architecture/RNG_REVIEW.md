@@ -78,7 +78,8 @@ The split is intentional: `next-double` is strict for core MC paths (fails fast 
 - **A9**: The per-trial RNG fork decouples escrow/strategy draws from dispute resolution rolls. Adding trial 51 does not shift the results of trials 0–50. This is the key difference from a single shared advancing RNG stream.
 - **A10**: `draw-strategy` validates that `(sum weights) ≈ 1.0` with ±0.001 tolerance. Mismatched weights throw `ex-info` at the call site, catching stale param files early.
 - **A11**: `draw-lognormal` guards against `log(0)` by clamping `u1 ≥ 1e-10` before the Box-Muller transform.
-- **A12**: Per-epoch caps (20% junior / 10% senior) are enforced in the probabilistic path via `apply-per-epoch-cap`. The deterministic path (`process-slash-event`) does not enforce per-epoch caps (it tests worst-case capacity, not protocol-compliant robustness).
+- **A12**: Per-epoch caps (20% junior / 10% senior) are enforced in the probabilistic path via `cap-junior-slash`, which composes the two DISTINCT junior constraints — the per-epoch budget (20% of initial bond) and the per-slash max (50% of current bond). The deterministic path (`process-slash-event`) does not enforce per-epoch caps (it tests worst-case capacity, not protocol-compliant robustness). Cap constants are single-source (`junior-per-epoch-cap-ratio` / `senior-per-epoch-cap-ratio`); no public/private duplicates.
+- **A18**: `probabilistic-process-slash-pool` validates pool topology before processing (`validate-pool-params`: `:n-seniors`, juniors-per-senior, even division) and derives junior→senior assignment from the pool's actual topology, so a slash can never target a non-existent resolver. `process-slash-event` additionally throws on an unknown resolver — fail-closed, no phantom slash event.
 
 ### 2.4 Adversaries (adversaries/strategy.clj)
 
@@ -121,7 +122,7 @@ The split is intentional: `next-double` is strict for core MC paths (fails fast 
 
 **AS5 — Lognormal escrow distribution**: Escrow sizes are drawn from a lognormal distribution using Box-Muller. The distribution assumes `:mean > 0` and `:std > 0`. Mean values below 10 wei are clamped to 1.
 
-**AS6 — Per-epoch caps apply to probabilistic only**: The deterministic waterfall path intentionally omits per-epoch caps to test worst-case pool capacity. The probabilistic path enforces per-epoch caps to model protocol-compliant behavior.
+**AS6 — Per-epoch caps apply to probabilistic only**: The deterministic waterfall path intentionally omits per-epoch caps to test worst-case pool capacity. The probabilistic path enforces per-epoch caps (and the per-slash cap) via `cap-junior-slash` to model protocol-compliant behavior.
 
 ### Numerical Assumptions
 
@@ -214,6 +215,9 @@ Added `& {:keys [rng]}` to `budget-with-recycling`. When provided, uses `(.nextD
 | `waterfall_test.clj:test-probabilistic-vs-deterministic-semantics` | Probabilistic slashes fewer than deterministic worst-case |
 | `waterfall_test.clj:test-probabilistic-waterfall-per-epoch-cap` | Per-epoch cap limits total slash in single epoch |
 | `waterfall_test.clj:test-probabilistic-process-slash-pool-returns-metrics` | Result structure is correct (contains resolvers, seniors, events, metrics) |
+| `waterfall_test.clj:validate-pool-params-*` / `process-slash-event-unknown-resolver-throws` | Fail-closed on topology mismatch and unknown resolvers |
+| `waterfall_test.clj:cap-junior-slash-*` | Both distinct junior caps (per-epoch + per-slash) and epoch-remaining shrink |
+| `waterfall_test.clj:coverage-exhaustion-monotonicity` / `adequacy-pct-and-exhaustion-pct-complement` | Overflow-pressure metric rises past junior→senior→unmet; bounded adequacy complements exhaustion (=100) |
 | `waterfall_test.clj:test-draw-escrow-size-positive` | Lognormal draws are positive and vary |
 | `waterfall_test.clj:test-draw-strategy-in-range` | Strategy distribution respects weights, honest is majority |
 | `core_tests.clj:reproducibility suite` | Same seed → same result across runs |

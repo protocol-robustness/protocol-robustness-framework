@@ -111,7 +111,8 @@
      compliance, and complete allocation reporting."
     :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
-    :closed-form-check-ids #{:partial-fill/pro-rata-cross-product}
+    :closed-form-check-ids #{:partial-fill/pro-rata-cross-product
+                             :partial-fill/fail-action-pro-rata-fairness}
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/partial-fill}}})
 

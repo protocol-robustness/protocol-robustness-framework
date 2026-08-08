@@ -31,6 +31,19 @@
   []
   {})
 
+(defn- validate-package!
+  "Throw :extensions/error-invalid-package unless the package manifest passes
+   the same validation required by register-package. Shared by every
+   registration entry point so no capability can enter a registry under a
+   package identity that the canonical package path would reject."
+  [package]
+  (let [validation (em/validate-package package)]
+    (when-not (:valid? validation)
+      (throw (ex-info "extension: invalid package manifest"
+                      {:error :extensions/error-invalid-package
+                       :violations (:violations validation)}))))
+  package)
+
 (defn- provider
   [package]
   {:package/id (:extension/id package)
@@ -49,9 +62,11 @@
   "Pure: register a capability (from a package manifest) into an
    extension-map. Throws on collision or built-in replacement; idempotent when
    the descriptor root is identical (adding a provider if the package differs).
-   Validates the descriptor first and stores the canonical (normalised) form,
-   so the content-addressed root commits only the canonical vocabulary."
+   Validates the package manifest and the capability descriptor first and
+   stores the canonical (normalised) form, so the content-addressed root
+   commits only the canonical vocabulary."
   [extension-map package capability]
+  (validate-package! package)
   (let [validation (em/validate-capability capability)]
     (when-not (:valid? validation)
       (throw (ex-info "extension: invalid capability descriptor"
@@ -83,11 +98,7 @@
    extension-map. Validates the package manifest first. Returns the updated
    extension-map."
   [extension-map package]
-  (let [validation (em/validate-package package)]
-    (when-not (:valid? validation)
-      (throw (ex-info "extension: invalid package manifest"
-                      {:error :extensions/error-invalid-package
-                       :violations (:violations validation)}))))
+  (validate-package! package)
   (reduce (fn [emap capability]
             (register-capability emap package capability))
           extension-map
@@ -173,6 +184,46 @@
                      (assoc s :entries (dissoc entries key))))
                s)))
     @removed))
+
+(defn unregister-package
+  "Pure: remove exactly the capabilities owned by the package from an
+   extension-map. A capability shared with another package keeps its remaining
+   providers; an entry whose providers become empty is removed entirely.
+   Built-in capabilities cannot be removed. Returns the updated extension-map."
+  [extension-map package]
+  (let [pid (:extension/id package)]
+    (reduce (fn [acc [key entry]]
+              (let [providers (:providers entry)
+                    remaining (vec (remove #(= pid (:package/id %)) providers))]
+                (if (= (count providers) (count remaining))
+                  acc
+                  (if (:builtin? entry)
+                    (throw (ex-info "extension: cannot remove built-in capability"
+                                    {:error :extensions/error-replace-builtin
+                                     :capability key
+                                     :package pid}))
+                    (if (seq remaining)
+                      (assoc acc key (assoc entry :providers remaining))
+                      (dissoc acc key))))))
+            extension-map
+            extension-map)))
+
+(defn unregister-package!
+  "Remove every capability owned by the package from the live registry.
+   Exactly the providers carrying this package identity are removed: a
+   capability shared with another package keeps its remaining providers, and a
+   capability whose providers become empty is removed entirely. Built-in
+   capabilities cannot be removed. Atomic (single swap). Returns the package
+   id."
+  [package]
+  (let [pid (:extension/id package)]
+    (swap! state
+           (fn [{:keys [frozen? entries] :as s}]
+             (when frozen?
+               (throw (ex-info "extension: registry is frozen"
+                               {:error :extensions/error-registry-frozen})))
+             (assoc s :entries (unregister-package entries package))))
+    pid))
 
 (defn freeze!
   "Freeze the registry and return the immutable extension-map snapshot.

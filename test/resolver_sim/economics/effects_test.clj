@@ -1,7 +1,7 @@
 (ns resolver-sim.economics.effects-test
   "Phase 5: typed, versioned effect intents, adapter support validation, and
    the effects application plan (v2)."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.effects :as fx]
             [resolver-sim.economics.slash-distribution :as sd]
             [resolver-sim.economics.slash-distribution-application-plan :as plan]))
@@ -63,6 +63,16 @@
                  :effect/amount 100
                  :held/kind :escrow
                  :owner/address "0xowner"
+                 :parameter/address "0xparameter"})))
+  (is (:valid? (fx/validate-effect
+                {:effect/type :custody/held-adjustment
+                 :effect/contract :prf.effect/custody-held-adjustment.v2
+                 :effect/action "add-held"
+                 :effect/account :escrow
+                 :effect/amount 100
+                 :effect/token :usdc
+                 :held/kind :escrow
+                 :owner/address "0xowner"
                  :parameter/address "0xparameter"}))))
 
 (deftest validate-custody-effect-requires-kind
@@ -76,34 +86,116 @@
     (is (not valid?))
     (is (some #(= :violation/missing-schema-key (:violation/id %)) violations))))
 
-(deftest custody-effect-projects-to-add-held-opts
-  (let [effect {:effect/type :custody/held-adjustment
+(deftest validate-custody-v2-fails-closed
+  (testing "v2 direction is DERIVED, never independently supplied"
+    (let [{:keys [valid? violations]}
+          (fx/validate-effect
+           {:effect/type :custody/held-adjustment
+            :effect/contract :prf.effect/custody-held-adjustment.v2
+            :effect/action "add-held"
+            :effect/direction :add
+            :effect/account :escrow
+            :effect/amount 100
+            :effect/token :usdc
+            :held/kind :escrow})]
+      (is (not valid?))
+      (is (some #(= :violation/custody-v2-derived-direction (:violation/id %)) violations))))
+  (testing "an unknown held action fails closed"
+    (let [{:keys [valid? violations]}
+          (fx/validate-effect
+           {:effect/type :custody/held-adjustment
+            :effect/contract :prf.effect/custody-held-adjustment.v2
+            :effect/action "withdraw"
+            :effect/account :escrow
+            :effect/amount 100
+            :effect/token :usdc
+            :held/kind :escrow})]
+      (is (not valid?))
+      (is (some #(= :violation/unsupported-held-action (:violation/id %)) violations))))
+  (testing "a v1 effect with an explicit action is bound to the contract"
+    (is (nil? (fx/effect-held-direction
+               {:effect/type :custody/held-adjustment
                 :effect/contract :prf.effect/custody-held-adjustment.v1
-                :effect/direction :add
-                :effect/account :escrow
-                :effect/amount 100
-                :held/kind :reward
-                :parameter/context "sew:governance-snapshot"
-                :parameter/address "sew:params/reward-rate"}]
-    (is (= {:action "add-held"
-            :reason :reward
-            :parameter/context "sew:governance-snapshot"
-            :parameter/address "sew:params/reward-rate"
-            :extra {:held/account :escrow}}
-           (fx/custody-effect->add-held-opts effect))))
+                :effect/action "not-a-real-action"})))))
+
+(deftest custody-effect-projects-to-add-held-opts
+  (testing "v2 direction-bound projection: the action is the effect's canonical
+            held action, never hardcoded"
+    (let [effect {:effect/type :custody/held-adjustment
+                  :effect/contract :prf.effect/custody-held-adjustment.v2
+                  :effect/action "add-held"
+                  :effect/account :escrow
+                  :effect/amount 100
+                  :held/kind :reward
+                  :parameter/context "sew:governance-snapshot"
+                  :parameter/address "sew:params/reward-rate"}]
+      (is (= {:action "add-held"
+              :reason :reward
+              :parameter/context "sew:governance-snapshot"
+              :parameter/address "sew:params/reward-rate"
+              :extra {:held/account :escrow}}
+             (fx/custody-effect->add-held-opts effect)))))
+  (testing "an outbound (sub-held) v2 effect projects to the sub-held action"
+    (is (= "sub-held"
+           (:action (fx/custody-effect->add-held-opts
+                     {:effect/type :custody/held-adjustment
+                      :effect/contract :prf.effect/custody-held-adjustment.v2
+                      :effect/action "sub-held"
+                      :effect/account :escrow
+                      :effect/amount 40
+                      :held/kind :release})))))
+  (testing "a v1 effect derives its action from :effect/direction"
+    (is (= "sub-held"
+           (:action (fx/custody-effect->add-held-opts
+                     {:effect/type :custody/held-adjustment
+                      :effect/contract :prf.effect/custody-held-adjustment.v1
+                      :effect/direction :sub
+                      :effect/account :escrow
+                      :effect/amount 40
+                      :held/kind :release})))))
   (is (nil? (fx/custody-effect->add-held-opts
              {:effect/type :balance/credit
               :effect/contract :prf.effect/balance-credit.v1
               :effect/account :x :effect/amount 1}))))
 
+(deftest v1-direction-to-action-is-a-legacy-interpretation-rule
+  (testing "the held-action vocabulary is many-to-one onto direction
+            (add-held->:in; sub-held/finalize-released/refund-held->:out), so
+            v1 :out cannot be inverted to a precise action"
+    (is (= {"add-held" :in "sub-held" :out "finalize-released" :out "refund-held" :out}
+           fx/held-action->direction)))
+  (testing "v1 never distinguished refund, release finalization, and subtraction:
+            v1 :out is interpreted as sub-held (the accounting outbound action),
+            never as refund-held or finalize-released"
+    (let [v1-out {:effect/type :custody/held-adjustment
+                  :effect/contract :prf.effect/custody-held-adjustment.v1
+                  :effect/direction :out
+                  :effect/account :escrow
+                  :effect/amount 40
+                  :held/kind :release}
+          v1-sub {:effect/type :custody/held-adjustment
+                  :effect/contract :prf.effect/custody-held-adjustment.v1
+                  :effect/direction :sub
+                  :effect/account :escrow
+                  :effect/amount 40
+                  :held/kind :release}]
+      (is (= "sub-held" (fx/effect-action v1-out)))
+      (is (= "sub-held" (fx/effect-action v1-sub)))
+      (is (not= "refund-held" (fx/effect-action v1-out)))
+      (is (not= "finalize-released" (fx/effect-action v1-out)))))
+  (testing "the legacy interpretation is explicit and read-only: it is declared
+            as a rule, not presented as generic derivation"
+    (is (= {:in "add-held" :out "sub-held"} fx/v1-legacy-direction->action))))
+
 ;; ── canonical held-adjustment records ─────────────────────────────────────
 
 (def custody-effect
   {:effect/type :custody/held-adjustment
-   :effect/contract :prf.effect/custody-held-adjustment.v1
-   :effect/direction :add
+   :effect/contract :prf.effect/custody-held-adjustment.v2
+   :effect/action "add-held"
    :effect/account :escrow
    :effect/amount 100
+   :effect/token :usdc
    :held/kind :reward
    :owner/address "0xowner"
    :parameter/context {:parameter-context/type :protocol-parameters
@@ -129,10 +221,14 @@
     (is (= (:parameter/address custody-effect) (:parameter/address record)))
     (is (= "held-adjustment-1" (:held-adjustment/id record)))))
 
-(deftest held-adjustment-uses-effect-direction
-  (is (= :out (:held/direction
-               (fx/held-adjustment (assoc custody-effect :effect/direction :sub)
-                                   :usdc {:held/before 600 :held/after 500})))))
+(deftest held-adjustment-uses-effect-action
+  (testing "v2 direction derives from the canonical action contract"
+    (is (= :in (:held/direction
+                (fx/held-adjustment custody-effect
+                                    :usdc {:held/before 500 :held/after 600}))))
+    (is (= :out (:held/direction
+                 (fx/held-adjustment (assoc custody-effect :effect/action "sub-held")
+                                     :usdc {:held/before 600 :held/after 500}))))))
 
 (deftest held-adjustment-validity
   (is (fx/held-adjustment-valid? custody-effect))
@@ -156,12 +252,12 @@
 
 (deftest custody-effect-conflicts-detected
   (let [base {:effect/type :custody/held-adjustment
-              :effect/contract :prf.effect/custody-held-adjustment.v1
+              :effect/contract :prf.effect/custody-held-adjustment.v2
               :effect/account :escrow
               :effect/amount 10
               :held/kind :reward}
-        add (assoc base :effect/direction :add)
-        sub (assoc base :effect/direction :sub)
+        add (assoc base :effect/action "add-held")
+        sub (assoc base :effect/action "sub-held")
         other-account (assoc sub :effect/account :appeal-bond)]
     (is (empty? (fx/custody-effect-conflicts [])))
     (is (= 1 (count (fx/custody-effect-conflicts [add sub]))))
@@ -189,7 +285,7 @@
 (deftest effect-schema-roots-deterministic
   (is (= (fx/effect-schema-root (get fx/effect-schema-maps :prf.effect/balance-credit.v1))
          (fx/effect-schema-root (get fx/effect-schema-maps :prf.effect/balance-credit.v1))))
-  (is (= 4 (count fx/effect-schema-roots)))
+  (is (= 5 (count fx/effect-schema-roots)))
   (is (every? #(= 64 (count %)) (vals fx/effect-schema-roots))))
 
 (deftest obligation-create-v2-validates
@@ -282,14 +378,15 @@
   (let [custody-transition
         (fx/effect->transition
          {:effect/type :custody/held-adjustment
-          :effect/contract :prf.effect/custody-held-adjustment.v1
-          :effect/direction :add
+          :effect/contract :prf.effect/custody-held-adjustment.v2
+          :effect/action "add-held"
           :effect/account :appeal-bond
           :effect/amount 100
           :held/kind :appeal-bond})]
-    (is (= :custody-credit (:transition/type custody-transition)))
-    (is (= :appeal-bond (:held/kind custody-transition)))
-    (is (= :add (:held/direction custody-transition)))))
+    (is (= :custody (:transition/type custody-transition)))
+    (is (= "add-held" (:held/action custody-transition)))
+    (is (= :in (:held/direction custody-transition)))
+    (is (= :appeal-bond (:held/kind custody-transition)))))
 
 ;; ── application plan v2 ───────────────────────────────────────────────────
 
@@ -305,7 +402,7 @@
     (is (= plan/schema-version-v2 (:schema-version plan)))
     (is (= 2 (count (:plan/effects plan))))
     (is (contains? (:plan/effect-schema-roots plan) :prf.effect/balance-credit.v1))
-    (is (= 4 (count (:plan/effect-schema-roots plan))))
+    (is (= 5 (count (:plan/effect-schema-roots plan))))
     (is (= 64 (count (:plan/hash plan))))
     (is (:valid? (plan/validate-application-plan plan)))
     (is (:valid? (plan/verify-application-plan plan)))))

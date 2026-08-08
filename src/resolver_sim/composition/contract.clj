@@ -110,6 +110,11 @@
   {:intermediate-output-committed? true
    :evidence-contract-ref nil})
 
+(def verification-fields
+  "Permitted keys of a :composition/verification map. Unknown keys are
+   rejected so typos do not disappear silently."
+  #{:intermediate-output-committed? :evidence-contract-ref})
+
 (defn normalize-contract
   "Fill defaults to the canonical contract form."
   [{:keys [composition-contract/version :composition/roles :composition/modes]
@@ -157,6 +162,40 @@
         (conj {:violation/id :violation/unsupported-composition-cardinality
                :details {:field field :cardinality cardinality
                          :supported (vec supported-cardinalities)}})))))
+
+(defn- check-verification
+  "Structural validation for a :composition/verification value before it is
+   interpreted. nil is allowed (verification obligations are optional); a map
+   is validated for permitted keys and value types; anything else is rejected
+   so an absent flag can never be conflated with a nonsensical value."
+  [violations field verification]
+  (cond
+    (nil? verification)
+    violations
+
+    (not (map? verification))
+    (conj violations {:violation/id :violation/invalid-composition-verification
+                      :details {:field field :verification verification}})
+
+    :else
+    (let [unknown (vec (remove verification-fields (keys verification)))
+          intermediate (:intermediate-output-committed? verification)
+          evidence-ref (:evidence-contract-ref verification)]
+      (cond-> violations
+        (seq unknown)
+        (conj {:violation/id :violation/unknown-composition-verification-key
+               :details {:field field :unknown unknown
+                         :supported (vec (sort verification-fields))}})
+
+        (and (contains? verification :intermediate-output-committed?)
+             (not (boolean? intermediate)))
+        (conj {:violation/id :violation/invalid-verification-intermediate-flag
+               :details {:field field :intermediate-output-committed? intermediate}})
+
+        (and (contains? verification :evidence-contract-ref)
+             (not (or (nil? evidence-ref) (keyword? evidence-ref))))
+        (conj {:violation/id :violation/invalid-verification-evidence-contract-ref
+               :details {:field field :evidence-contract-ref evidence-ref}})))))
 
 (defn validate-composition-contract
   "Validate a composition contract structurally.
@@ -234,6 +273,7 @@
                      (not (set? (:exclusive-accounts custody #{}))))
               (conj v {:violation/id :violation/invalid-custody-exclusive-accounts
                        :details {:exclusive-accounts (:exclusive-accounts custody)}})
-              v)]
+              v)
+          v (check-verification v :composition/verification (:composition/verification contract))]
       {:valid? (empty? v)
        :violations (vec v)})))

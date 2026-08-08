@@ -22,11 +22,85 @@
 (def effect-schema-domain-tag
   "PRF_EFFECT_CONTRACT_V1")
 
+(def held-action->direction
+  "Canonical held-custody action vocabulary with direction binding — the
+   SINGLE source of truth for held actions in the economics layer. The string
+   action names match the Sew accounting primitives (add-held / sub-held) and
+   the held-custody mutation action names by spelling. A held action is
+   direction-bound BY CONSTRUCTION: the direction is always derived from this
+   closed map, never supplied independently, so an effect can never be
+   direction-inconsistent. Unknown actions fail closed."
+  {"add-held" :in
+   "sub-held" :out
+   "finalize-released" :out
+   "refund-held" :out})
+
+(def supported-held-actions
+  "Closed set of supported held-custody actions."
+  (set (keys held-action->direction)))
+
+(defn held-action-direction
+  "Direction of a held action under the canonical contract, or nil for an
+   unknown action (callers must fail closed)."
+  [action]
+  (get held-action->direction action))
+
+(defn supported-held-action?
+  "True when a held action is in the canonical closed vocabulary."
+  [action]
+  (contains? supported-held-actions action))
+
+(def v1-legacy-direction->action
+  "LEGACY INTERPRETATION RULE for v1 custody effects (read only — never emit).
+
+   v1 custody effects carry an independent :effect/direction (:add / :sub /
+   :in / :out) with no action, so a v1 direction cannot be inverted back to a
+   precise action: the held-action vocabulary is many-to-one onto direction
+   (add-held -> :in; sub-held, finalize-released, refund-held -> :out). The
+   historical v1 contract NEVER distinguished refund, release finalization,
+   and subtraction — its outbound release was always the accounting sub-held
+   primitive. Therefore this mapping is a documented legacy interpretation:
+
+     v1 :in  -> \"add-held\"
+     v1 :out -> \"sub-held\"
+
+   This is NOT a generic direction->action function and MUST NOT be used to
+   claim a v1 effect was refund-held or finalize-released. v2 effects carry an
+   explicit :effect/action and never go through this rule."
+  {:in "add-held"
+   :out "sub-held"})
+
+(declare normalize-direction)
+
+(defn effect-action
+  "Canonical held action of a custody-held-adjustment effect: the explicit
+   :effect/action when present (v2 contract), else INTERPRETED from the v1
+   :effect/direction under the legacy rule (v1-legacy-direction->action) — v1
+   never encoded refund / finalize / subtraction distinctions. Returns nil for
+   non-custody or malformed effects."
+  [effect]
+  (when (= :custody/held-adjustment (:effect/type effect))
+    (or (:effect/action effect)
+        (some-> (:effect/direction effect)
+                normalize-direction
+                v1-legacy-direction->action))))
+
+(defn effect-held-direction
+  "Ledger direction (:in / :out) of a custody-held-adjustment effect, always
+   DERIVED from the canonical action contract when the effect carries an action
+   (v2), else from the v1 :effect/direction. Never reads a stored direction as
+   the source of truth for a v2 action effect."
+  [effect]
+  (when (= :custody/held-adjustment (:effect/type effect))
+    (if (some? (:effect/action effect))
+      (held-action-direction (:effect/action effect))
+      (normalize-direction (:effect/direction effect)))))
+
 (def add-held-action
   "Canonical held-custody action emitted by custody-held-adjustment effects
-   (the Sew add-held primitive action name). Direction-neutral held-custody
-   vocabulary: this is the inbound custody action; outbound releases are
-   emitted as sub-held by the adapter."
+    (the Sew add-held primitive action name). Outbound releases are emitted as
+   sub-held by the adapter. This is the inbound action of the canonical
+   held-action contract; see held-action->direction for the full vocabulary."
   "add-held")
 
 ;; ── versioned effect contracts ────────────────────────────────────────────
@@ -63,7 +137,12 @@
   "A custody-held-adjustment effect models an add-held / sub-held custody
    mutation: the :held/kind is the economic custody reason (mapped to the
    add-held :reason), :effect/account the custody account, and the effect may
-   carry :owner/address and :parameter/address attribution."
+   carry :owner/address and :parameter/address attribution.
+
+   v1 carries an independent :effect/direction (:add / :sub / :in / :out).
+   v2 (:prf.effect/custody-held-adjustment.v2) replaces it with an explicit
+   :effect/action from the canonical held-action contract; the direction is
+   DERIVED from the action and is no longer independently supplied."
   {:effect/type :keyword
    :effect/contract :keyword
    :effect/direction :keyword
@@ -71,12 +150,27 @@
    :effect/amount :integer
    :held/kind :keyword})
 
+(def custody-held-adjustment-v2-schema
+  "v2 custody-held-adjustment effect: direction-bound via an explicit
+   :effect/action from the canonical held-action contract (held-action->direction).
+   :effect/direction is never carried on v2 — the direction is derived from the
+   action, so a v2 effect cannot be direction-inconsistent. :effect/token is a
+   declared field (the accounting primitive needs the token)."
+  {:effect/type :keyword
+   :effect/contract :keyword
+   :effect/action :string
+   :effect/account :keyword
+   :effect/amount :integer
+   :effect/token :keyword
+   :held/kind :keyword})
+
 (def effect-schema-maps
   "Effect contract id -> schema map."
   {:prf.effect/balance-credit.v1 balance-credit-schema
    :prf.effect/obligation-create.v1 obligation-create-schema
    :prf.effect/obligation-create.v2 obligation-create-v2-schema
-   :prf.effect/custody-held-adjustment.v1 custody-held-adjustment-schema})
+   :prf.effect/custody-held-adjustment.v1 custody-held-adjustment-schema
+   :prf.effect/custody-held-adjustment.v2 custody-held-adjustment-v2-schema})
 
 (defn effect-schema-root
   "Content-addressed root of an effect contract schema."
@@ -91,26 +185,69 @@
 
 ;; ── validation ────────────────────────────────────────────────────────────
 
-(defn validate-effect
-  "Structurally validate an effect against its versioned contract.
-   Returns {:valid? bool, :violations [...]}. Fails when the contract
-   reference is missing or unknown, or when the payload fails its schema."
+(defn- normalize-direction
+  "Normalize a v1 custody effect direction (:add / :sub / :in / :out) to the
+   ledger direction (:in / :out)."
+  [d]
+  (case d
+    :add :in
+    :sub :out
+    :in :in
+    :out :out
+    nil))
+
+(defn- validate-custody-effect-semantics
+  "Fail-closed semantic checks for custody-held-adjustment effects, beyond the
+   structural schema:
+
+   - v2 must not carry an independent :effect/direction (the direction is
+     derived from :effect/action; an extra stored direction would imply an
+     independent control that cannot exist);
+   - :effect/action must be a member of the canonical held-action contract
+     (unknown actions fail closed)."
   [effect]
-  (let [contract-id (:effect/contract effect)]
-    (cond
-      (nil? contract-id)
-      {:valid? false
-       :violations [{:violation/id :violation/effect-missing-contract
-                     :details {:effect effect}}]}
+  (cond-> []
+    (and (= :prf.effect/custody-held-adjustment.v2 (:effect/contract effect))
+         (contains? effect :effect/direction))
+    (conj {:violation/id :violation/custody-v2-derived-direction
+           :details {:effect/contract (:effect/contract effect)
+                     :effect/action (:effect/action effect)
+                     :effect/direction (:effect/direction effect)}})
 
-      (not (contains? effect-schema-maps contract-id))
-      {:valid? false
-       :violations [{:violation/id :violation/unknown-effect-contract
-                     :details {:effect/contract contract-id}}]}
+    (and (some? (:effect/action effect))
+         (not (supported-held-action? (:effect/action effect))))
+    (conj {:violation/id :violation/unsupported-held-action
+           :details {:effect/action (:effect/action effect)
+                     :supported (vec (sort supported-held-actions))}})))
 
-      :else
-      (schemas/validate-against-schema (get effect-schema-maps contract-id)
-                                       effect))))
+(defn validate-effect
+  "Structurally validate an effect against its versioned contract, then apply
+   the fail-closed held-custody semantic checks.
+   Returns {:valid? bool, :violations [...]}. Fails when the contract
+   reference is missing or unknown, when the payload fails its schema, or when
+   a custody effect violates the held-action contract."
+  [effect]
+  (let [contract-id (:effect/contract effect)
+        structural
+        (cond
+          (nil? contract-id)
+          {:valid? false
+           :violations [{:violation/id :violation/effect-missing-contract
+                         :details {:effect effect}}]}
+
+          (not (contains? effect-schema-maps contract-id))
+          {:valid? false
+           :violations [{:violation/id :violation/unknown-effect-contract
+                         :details {:effect/contract contract-id}}]}
+
+          :else
+          (schemas/validate-against-schema (get effect-schema-maps contract-id)
+                                           effect))
+        semantic (if (= :custody/held-adjustment (:effect/type effect))
+                   (validate-custody-effect-semantics effect)
+                   [])]
+    {:valid? (and (:valid? structural) (empty? semantic))
+     :violations (vec (concat (:violations structural) semantic))}))
 
 (defn validate-effects
   "Validate a vector of effects; returns {:valid? bool :violations [...]}."
@@ -217,8 +354,9 @@
      :obligation/owner (:obligation/owner effect)}
 
     :custody/held-adjustment
-    {:transition/type :custody-credit
-     :held/direction (:effect/direction effect)
+    {:transition/type :custody
+     :held/action (effect-action effect)
+     :held/direction (effect-held-direction effect)
      :held/account (:effect/account effect)
      :held/kind (:held/kind effect)
      :held/amount (:effect/amount effect)}
@@ -227,16 +365,19 @@
 
 (defn custody-effect->add-held-opts
   "Pure projection of a custody-held-adjustment effect into the opts consumed
-   by the Sew add-held primitive:
-     {:action add-held
+   by the Sew add-held / sub-held primitives:
+     {:action <canonical held action>   direction-bound, from the contract
       :reason <:held/kind>
       :parameter/context ... :parameter/address ...}
 
-   This is a projection only; it never mutates custody. A protocol adapter
-   applies it via add-held. Returns nil for non-custody effects."
+   The :action is the canonical held action of the effect (explicit
+   :effect/action for v2, derived from :effect/direction for v1), so the
+   projection itself is direction-bound — a caller never supplies or overrides
+   the action. This is a projection only; it never mutates custody. Returns nil
+   for non-custody effects."
   [effect]
   (when (= :custody/held-adjustment (:effect/type effect))
-    (merge {:action add-held-action
+    (merge {:action (effect-action effect)
             :reason (:held/kind effect)}
            (when (contains? effect :parameter/context)
              {:parameter/context (:parameter/context effect)})
@@ -251,14 +392,13 @@
   "HELD_ADJUSTMENT_V1")
 
 (defn- held-direction
-  "Map an effect direction to the ledger's held direction (:in/:out)."
+  "Map an effect to the ledger's held direction (:in/:out). The direction is
+   always DERIVED from the canonical action contract when the effect carries an
+   action (v2); v1 effects derive from their independent :effect/direction."
   [effect]
-  (case (:effect/direction effect)
-    :add :in
-    :sub :out
-    :in :in
-    :out :out
-    nil))
+  (if (some? (:effect/action effect))
+    (held-action-direction (:effect/action effect))
+    (normalize-direction (:effect/direction effect))))
 
 (defn held-adjustment
   "Build a canonical held-adjustment record from a validated
@@ -291,7 +431,8 @@
              :amount (:effect/amount effect)
              :held/account (:effect/account effect)
              :held/reason (or (:held/kind effect) :held/unspecified)
-             :held/action (:held/action opts "held-adjustment")
+             :held/action (:held/action opts (or (effect-action effect)
+                                                 add-held-action))
              :held/before before
              :held/after after}
             (when (contains? effect :owner/address)
@@ -305,13 +446,13 @@
 
 (defn add-held-adjustment
   "Build the canonical add-held held-adjustment record from a validated
-   custody-held-adjustment effect: direction :add (ledger :in), action
-   add-held, token, amount, account, reason from :held/kind, and
-   owner/parameter attribution."
+   custody-held-adjustment effect: action add-held (ledger direction :in),
+   token, amount, account, reason from :held/kind, and owner/parameter
+   attribution."
   [effect token opts]
-  (held-adjustment (assoc effect :effect/direction :add)
+  (held-adjustment (assoc effect :effect/action add-held-action)
                    token
-                   (assoc opts :held/action add-held-action)))
+                   opts))
 
 (defn held-adjustment-valid?
   "True when a custody effect can be projected to a canonical held-adjustment
@@ -336,8 +477,10 @@
 (defn custody-effect-conflicts
   "Detect custody-affecting conflicts among a seq of emitted effects: two
    custody-held-adjustment effects targeting the same :effect/account with
-   different directions are order-sensitive (non-commutative). Returns a
-   vector of conflict descriptions (empty when none).
+   different directions are order-sensitive (non-commutative). Directions are
+   the DERIVED ledger directions (v2 action contract or v1 :effect/direction),
+   so a v1/v2 mix compares consistently. Returns a vector of conflict
+   descriptions (empty when none).
 
    This complements the compiler's compile-time :composition/custody conflict
    rejection; a protocol adapter may surface these at the evidence layer."
@@ -348,7 +491,10 @@
                 j (range (inc i) (count custody))
                 :let [a (nth custody i) b (nth custody j)]
                 :when (and (= (:effect/account a) (:effect/account b))
-                           (not= (:effect/direction a) (:effect/direction b)))]
+                           (some? (effect-held-direction a))
+                           (some? (effect-held-direction b))
+                           (not= (effect-held-direction a) (effect-held-direction b)))]
             {:conflict-kind :custody-direction
              :effect/account (:effect/account a)
-             :directions [(:effect/direction a) (:effect/direction b)]}))))
+             :actions [(effect-action a) (effect-action b)]
+             :directions [(effect-held-direction a) (effect-held-direction b)]}))))

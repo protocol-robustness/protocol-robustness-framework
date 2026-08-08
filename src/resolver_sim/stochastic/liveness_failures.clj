@@ -207,12 +207,87 @@
                       :else :liveness/stable-balanced-pool)}))
 
 (def ^:const saturation-queue-days
-  "Model boundary at which the M/M/c queue approximation is considered
-   saturated.  This is a MODEL/policy boundary (the :else branch of the wait
+  "Canonical boundary at which the M/M/c queue approximation is considered
+   saturated.  This is a MODEL/policy boundary (the terminal of the wait
    ladder), not an implementation safety cap.  queue-wait-days is clamped here
    for the bounded display/model value; the uncapped :utilization is retained
    alongside so severity above the boundary is not lost from evidence."
   30)
+
+(defn queue-saturated?
+  "Canonical queue-saturation predicate — the single source of truth for
+   \"queue saturation\".  The queue is saturated once utilization ρ reaches
+   1.0.  A system with no resolving capacity is unserviceable and therefore
+   treated as saturated, so its utilization is POSITIVE_INFINITY."
+  [utilization]
+  (>= utilization 1.0))
+
+(defn queue-wait-days-for
+  "Map utilization ρ to the model's average queue-wait-days (M/M/c
+   approximation).  The saturation terminal is `saturation-queue-days`; the
+   ladder is shared by the latency-sensitivity and participation-spiral
+   models so they cannot drift apart.  Any utilization at/above 1.0 lands on
+   the terminal."
+  [utilization]
+  (cond
+    (< utilization 0.5) 1.0
+    (< utilization 0.7) 3.0
+    (< utilization 0.9) 7.0
+    (< utilization 1.0) 14.0
+    :else saturation-queue-days))
+
+(defn saturation-queue-status
+  "Canonical namespaced classification of queue-saturation state, derived from
+   `queue-saturated?` (never a separate calculation):
+     :liveness/queue-saturated    — utilization ρ >= 1.0 (including zero
+                                    resolving capacity, which is unserviceable)
+     :liveness/queue-unsaturated  — otherwise
+   Emitted as :saturation-queue in model results.  The raw boolean state lives
+   in :liveness/wait-capped?; this is the machine-readable status that the
+   broader vocabulary (cf. :liveness/risk) uses for classifications."
+  [utilization]
+  (if (queue-saturated? utilization)
+    :liveness/queue-saturated
+    :liveness/queue-unsaturated))
+
+(defn- saturation-classified?
+  "True when the emitted :saturation-queue classification agrees with
+   :liveness/wait-capped?.  A nil classification (artifact field absent) is not
+   assertable and is treated as consistent."
+  [wait-capped? saturation-queue]
+  (or (nil? saturation-queue)
+      (= saturation-queue (if wait-capped?
+                            :liveness/queue-saturated
+                            :liveness/queue-unsaturated))))
+
+(defn- saturation-wait-consistent?
+  "True when :queue-wait-days sits on the canonical side of
+   :saturation-queue-days for the saturation state:
+     saturated   → queue-wait-days == saturation-queue-days
+     unsaturated → queue-wait-days <  saturation-queue-days"
+  [wait-capped? queue-wait-days saturation-queue-days]
+  (and (some? wait-capped?)
+       (number? queue-wait-days)
+       (number? saturation-queue-days)
+       (if wait-capped?
+         (== queue-wait-days saturation-queue-days)
+         (< queue-wait-days saturation-queue-days))))
+
+(defn saturation-relationship-holds?
+  "Canonical assertion tying the emitted saturation fields together:
+
+     :liveness/wait-capped? true  ⟺ :saturation-queue = :liveness/queue-saturated
+                                    ⟺ :queue-wait-days = :saturation-queue-days
+     :liveness/wait-capped? false ⟺ :saturation-queue = :liveness/queue-unsaturated
+                                    ⟺ :queue-wait-days <  :saturation-queue-days
+
+   Single definition consumed by the models (as the emitted :saturation-satisfied)
+   and by check-saturation-invariant, so the artifact and the verifier cannot
+   drift apart."
+  [wait-capped? saturation-queue queue-wait-days saturation-queue-days]
+  (and (some? wait-capped?)
+       (saturation-classified? wait-capped? saturation-queue)
+       (saturation-wait-consistent? wait-capped? queue-wait-days saturation-queue-days)))
 
 (defn latency-sensitivity
   "Model user dropout due to slow decision-making.
@@ -234,27 +309,49 @@
      :liveness/risk        — namespaced severity keyword (see check fns).
      :liveness/wait-capped?— true when queue-wait-days hit saturation-queue-days
                               (the saturation boundary), i.e. utilization >= 1.0.
+     :saturation-queue-days— the canonical configured saturation wait value,
+                              emitted from the saturation-queue-days constant.
+     :saturation-queue     — namespaced classification derived from queue-saturated?:
+                              :liveness/queue-saturated | :liveness/queue-unsaturated.
+     :saturation-satisfied — boolean assertion that the emitted saturation fields
+                              satisfy the canonical saturation relationship
+                              (see saturation-relationship-holds?).
      :utilization          — the UNCAPPED continuous signal; retained so wait
-                              clamping never destroys severity information."
+                              clamping never destroys severity information.
+
+   Architectural boundary: :saturation-queue-days / :saturation-queue /
+   :saturation-satisfied / :liveness/wait-capped? are DISPLAY/DIAGNOSTIC fields.
+   Their consistency is verified at TEST time by check-saturation-invariant; they
+   are NOT certificate-, proof-, or commitment-backed, carry no attestation, and
+   make no evidence-time mutation-detection or historical-integrity claim."
   [dispute-volume resolvers-available time-per-dispute user-patience-threshold]
 
   (let [; Queue model: Average wait time
         resolving-capacity (* resolvers-available 40 7)  ; 40 hours/week per resolver
         resolving-hours-per-week (* dispute-volume time-per-dispute)
 
-        ; Utilization (uncapped — this is the evidence-grade signal)
-        utilization (/ resolving-hours-per-week resolving-capacity)
+        ; Zero resolving capacity is unserviceable/saturated — never a NaN
+        ; utilization.  POSITIVE_INFINITY flows through queue-wait-days-for to
+        ; the terminal ladder value and through queue-saturated? to a true
+        ; wait-capped?.
+        no-capacity? (zero? resolving-capacity)
+        utilization (if no-capacity?
+                      Double/POSITIVE_INFINITY
+                      (/ resolving-hours-per-week resolving-capacity))
 
         ; Average wait time (M/M/c queue approximation), clamped at the
         ; saturation boundary.  When ρ >= 1.0 the queue is saturated.
-        queue-wait-days (cond
-                          (< utilization 0.5) 1.0
-                          (< utilization 0.7) 3.0
-                          (< utilization 0.9) 7.0
-                          (< utilization 1.0) 14.0
-                          :else saturation-queue-days)
+        queue-wait-days (queue-wait-days-for utilization)
 
-        wait-capped? (>= utilization 1.0)
+        wait-capped? (queue-saturated? utilization)
+
+        ; Canonical saturation classification + committed threshold + assertion.
+        ; All derived from the semantic sources (queue-saturated?, the ladder,
+        ; the constant); nothing re-hardcoded at this emission site.
+        saturation-queue (saturation-queue-status utilization)
+        saturation-satisfied (saturation-relationship-holds?
+                              wait-capped? saturation-queue
+                              queue-wait-days saturation-queue-days)
 
         ; User patience: Will they accept this wait?
         user-acceptable-wait user-patience-threshold
@@ -279,19 +376,22 @@
      :resolving-capacity resolving-capacity
      :utilization utilization
      :queue-wait-days queue-wait-days
+     :saturation-queue-days saturation-queue-days
+     :saturation-queue saturation-queue
+     :saturation-satisfied saturation-satisfied
      :acceptable? acceptable?
      :user-retention-rate user-retention-rate
      :retained-volume retained-volume
      :spiral-effect spiral-effect
      :liveness/wait-capped? wait-capped?
      :liveness/risk (cond
-                      (>= queue-wait-days saturation-queue-days) :liveness/system-saturated
+                      wait-capped? :liveness/system-saturated
                       (>= queue-wait-days 14) :liveness/severe-users-leaving
                       (>= queue-wait-days 7) :liveness/serious-latency
                       :else :liveness/within-tolerance)
      :liveness/spiral-risk? (= "SPIRAL_RISK: May accelerate" spiral-effect)
      :verdict (cond
-                (>= queue-wait-days saturation-queue-days) "CRITICAL: System broken"
+                wait-capped? "CRITICAL: System broken"
                 (>= queue-wait-days 14) "SEVERE: Users leaving"
                 (>= queue-wait-days 7) "SERIOUS: Latency problem"
                 :else "OK: Within tolerance")}))
@@ -341,12 +441,16 @@
             new-resolvers (int (* resolvers (- 1.0 resolver-dropout-rate)))
             new-resolvers (max 1 new-resolvers)  ; At least 1
 
-            ; Queue wait time
-            wait-days (cond
-                        (< utilization 0.7) 3
-                        (< utilization 0.9) 7
-                        (< utilization 1.0) 14
-                        :else 30)
+            ; Queue wait time (shared M/M/c ladder; terminal = saturation-queue-days)
+            wait-days (queue-wait-days-for utilization)
+
+            ; Canonical saturation classification + committed threshold + assertion
+            ; (same sources as latency-sensitivity so both output paths agree).
+            saturated? (queue-saturated? utilization)
+            saturation-queue (saturation-queue-status utilization)
+            saturation-satisfied (saturation-relationship-holds?
+                                  saturated? saturation-queue
+                                  wait-days saturation-queue-days)
 
             ; User dropout if slow
             user-retention (max 0.3 (- 1.0 (* user-sensitivity (/ wait-days 7.0))))
@@ -358,17 +462,21 @@
                        :resolvers resolvers
                        :volume volume
                        :utilization utilization
-                       :wait-days wait-days
+                       :queue-wait-days wait-days
+                       :saturation-queue-days saturation-queue-days
+                       :saturation-queue saturation-queue
+                       :saturation-satisfied saturation-satisfied
+                       :liveness/wait-capped? saturated?
                        :new-resolvers new-resolvers
                        :new-volume new-volume
                        :status (cond
                                  (< new-resolvers 3) "CRITICAL: Pool too small"
-                                 (> utilization 1.0) "SATURATED"
+                                 saturated? "SATURATED"
                                  (< new-volume (/ initial-volume 2)) "DECLINING"
                                  :else "NORMAL")
                        :liveness/risk (cond
                                         (< new-resolvers 3) :liveness/critical-pool-too-small
-                                        (> utilization 1.0) :liveness/saturated
+                                        saturated? :liveness/saturated
                                         (< new-volume (/ initial-volume 2)) :liveness/declining
                                         :else :liveness/normal)}]
 
@@ -456,6 +564,68 @@
 ;; reveal-* tests) should rely on.
 ;; ===========================================================================
 
+(defn check-saturation-invariant
+  "Verify a queue-saturation artifact (any model result emitting
+   :saturation-queue-days / :saturation-queue / :queue-wait-days /
+   :liveness/wait-capped? / :saturation-satisfied) is consistent with the
+   canonical saturation policy.  When :utilization is also present, the emitted
+   state is additionally cross-checked against queue-saturated? and
+   queue-wait-days-for (the semantic sources of truth) so that even a fully
+   self-consistent tampering of the emitted fields is detectable.
+
+   Violations (namespaced :kind):
+     ::saturation-misclassified        — :saturation-queue disagrees with
+                                         :liveness/wait-capped?.
+     ::saturation-wait-mismatch        — :queue-wait-days is on the wrong side of
+                                         :saturation-queue-days for the state.
+     ::saturation-utilization-mismatch — :liveness/wait-capped? / :queue-wait-days
+                                         disagree with queue-saturated? /
+                                         queue-wait-days-for on :utilization.
+     ::saturation-assertion-false      — the artifact itself declares
+                                         :saturation-satisfied false.
+
+   Returns {:holds? bool :violations [...]}.
+
+   TEST-TIME MECHANISM ONLY: this verifier underpins the reveal-/mutation tests.
+   It is not wired into any persistence, hashing, attestation, or bundle-root
+   pipeline, and must not be described as a certificate or commitment over the
+   emitted fields."
+  [r]
+  (let [wait-capped? (:liveness/wait-capped? r)
+        saturation-queue (:saturation-queue r)
+        queue-wait-days (:queue-wait-days r)
+        saturation-queue-days (:saturation-queue-days r)
+        utilization (:utilization r)
+        expected-wait (when (some? utilization) (queue-wait-days-for utilization))
+        expected-capped? (when (some? utilization) (queue-saturated? utilization))
+        violations (cond-> []
+                     (and (some? wait-capped?)
+                          (not (saturation-classified? wait-capped? saturation-queue)))
+                     (conj {:kind ::saturation-misclassified
+                            :saturation-queue saturation-queue
+                            :wait-capped? wait-capped?})
+                     (and (some? wait-capped?)
+                          (not (saturation-wait-consistent? wait-capped? queue-wait-days saturation-queue-days)))
+                     (conj {:kind ::saturation-wait-mismatch
+                            :queue-wait-days queue-wait-days
+                            :saturation-queue-days saturation-queue-days
+                            :wait-capped? wait-capped?})
+                     (and (some? utilization)
+                          (or (not= wait-capped? expected-capped?)
+                              (and (some? queue-wait-days)
+                                   (not (== queue-wait-days expected-wait)))))
+                     (conj {:kind ::saturation-utilization-mismatch
+                            :utilization utilization
+                            :queue-wait-days queue-wait-days
+                            :expected-queue-wait-days expected-wait
+                            :wait-capped? wait-capped?
+                            :expected-wait-capped? expected-capped?})
+                     (false? (:saturation-satisfied r))
+                     (conj {:kind ::saturation-assertion-false
+                            :saturation-satisfied (:saturation-satisfied r)}))]
+    {:holds? (empty? violations)
+     :violations (vec violations)}))
+
 (defn check-latency-sensitivity
   "Reveal liveness violations from a latency-sensitivity result.
 
@@ -469,9 +639,14 @@
      ::severe-user-exits  — queue wait at or above 14 days.
      ::serious-latency    — queue wait at or above 7 days.
 
+   Additionally verifies the queue-saturation artifact itself: any
+   check-saturation-invariant violation is surfaced so tampered/emitted-saturation
+   evidence is flagged, not silently accepted.
+
    Returns {:holds? bool :violations [...]}."
   [r]
-  (let [violations (cond-> []
+  (let [saturation-violations (:violations (check-saturation-invariant r))
+        violations (cond-> (vec saturation-violations)
                      (:liveness/spiral-risk? r)
                      (conj {:kind ::spiral-risk
                             :user-retention-rate (:user-retention-rate r)
@@ -509,11 +684,10 @@
                          :week (:week entry)
                          :resolvers (:new-resolvers entry)}
 
-                        (> (:utilization entry) 1.0)
+                        (queue-saturated? (:utilization entry))
                         {:kind ::saturated-week
                          :week (:week entry)
                          :utilization (:utilization entry)}
-
                         (< (:new-volume entry) (:volume entry))
                         {:kind ::declining-volume
                          :week (:week entry)

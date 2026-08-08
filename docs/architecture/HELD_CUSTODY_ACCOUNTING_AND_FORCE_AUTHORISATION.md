@@ -214,7 +214,7 @@ After execution, the custody state is verifiable through existing PRF-core primi
 | Replay | `assurance/custody/replay-held-adjustment-state` | Reconstructed ledger from adjustments |
 | Summary | `assurance/custody/final-held-summary` | Token/workflow totals |
 | Artifacts | `assurance/custody/rebuild-held-custody-artifacts` | Content-addressed artifact map |
-| Verification | `assurance/custody/held-custody-closed-form-checks` | Hash, delta, non-negative, predecessor, sequence checks |
+| Verification | `assurance/custody/held-custody-closed-form-checks` | Two-arity: hash, delta, non-negative, predecessor, sequence + ledger↔artifact bijection/order, reason-position policy, attribution shape/requirement |
 
 When the settlement uses force-authorisation, `assurance/force_authorisation/verify-authorisation-usable` validates the authorisation scope against the resulting custody movement, and `evidence/force_authorisation/valid-envelope?` verifies evidence ordering.
 

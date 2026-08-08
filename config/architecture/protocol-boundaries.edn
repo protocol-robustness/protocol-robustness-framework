@@ -131,93 +131,71 @@
    :kind :legacy-dynamic-bridge
    :reason "Sew claimable-classification namespace is constructed for an optional command."}]
 
- ;; ── core domain vocabulary approvals (parsed-form, policy-driven) ─────────
- ;; Relevant vocabulary is force-auth held-custody ARTIFACT identifiers
- ;; (artifact kinds, schema/verifier strings) matching
- ;; ^force-auth-(add-held|held-custody). Only the frozen legacy implementation
- ;; may carry them in core during the extraction; every entry must be :legacy
- ;; with a :replacement. Phase 3 acceptance: this list is empty for
- ;; held-custody vocabulary.
- :approved/core-domain-literals
- [{:file "src/resolver_sim/evidence/force_authorisation.clj"
-   :literals #{:force-auth-add-held
-               :force-auth-add-held-summary
-               :force-auth-held-custody-mutation
-               :force-auth-held-custody-mutation-summary
-               force-auth-add-held-scope-verifies?
-               force-auth-add-held-summary-fields
-               "force-auth-add-held.v1"
-               "force-auth-add-held.v2"
-               "force-auth-add-held-verifier.v1"
-               "force-auth-add-held-verifier.v2"
-               "force-auth-add-held-summary.v1"
-               "force-auth-add-held-summary.v2"
-               "force-auth-add-held-summary-verifier.v1"
-               "force-auth-add-held."
-               "force-auth-add-held-summary"}
-   :reason "Frozen legacy force-auth-add-held reader and validator pending held-custody extension extraction"
-   :status :legacy
-   :replacement :force-auth-held-custody-mutation}
-  {:file "src/resolver_sim/assurance/canonical_force_authorisation.clj"
-   :literals #{"force-auth-add-held"
-               "force-auth-add-held-summary"}
-   :reason "Protocol-independent reconciliation classifies the frozen legacy-evidence world by its artifact schema vocabulary; updated when the legacy world moves to the extension"
-   :status :legacy
-   :replacement :force-auth-held-custody-mutation}
-  {:file "src/resolver_sim/sensitivity/sentinel.clj"
-   :literals #{:force-auth-add-held
-               :force-auth-add-held-summary}
-   :reason "Sensitivity sentinel classifies frozen legacy force-auth add-held evidence as remote-authority-required; updated when the legacy world moves to the extension"
-   :status :legacy
-   :replacement :force-auth-held-custody-mutation}
-  {:file "src/resolver_sim/evidence/artifact.clj"
-   :literals #{"force-auth-add-held.v1"
-               "force-auth-add-held-summary.v1"}
-   :reason "Neutral artifact namespace lists frozen legacy add-held schema versions as unsupported-frozen-legacy modes pending held-custody extension extraction"
-   :status :legacy
-   :replacement :force-auth-held-custody-mutation}]
+  ;; ── core domain vocabulary approvals (parsed-form, policy-driven) ─────────
+  ;; Relevant vocabulary is force-auth held-custody ARTIFACT identifiers
+  ;; (artifact kinds, schema/verifier strings) matching
+  ;; ^force-auth-(add-held|held-custody). The frozen legacy implementation was
+  ;; removed in Phase 3B; the remaining :protocol-neutral approvals are the
+  ;; MINIMAL historical-recognition vocabulary that core must keep so it can
+  ;; classify/verify the extension-owned historical read contract (sensitivity
+  ;; sentinel, canonical reconciliation, and the neutral artifact hashing
+  ;; layer the extension's legacy validators call into). Semantic ownership of
+  ;; held-custody vocabulary lives in the extension manifest
+  ;; (:extension/historical-read), cross-checked by a conformance test; this
+  ;; file is NOT the semantic source of truth.
+  :approved/core-domain-literals
+  [{:file "src/resolver_sim/assurance/canonical_force_authorisation.clj"
+    :literals #{"force-auth-add-held"
+                "force-auth-add-held-summary"}
+    :reason "Protocol-independent reconciliation classifies historical held-custody artifact schema prefixes; extension-owned historical read, cross-checked by conformance test"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/sensitivity/sentinel.clj"
+    :literals #{:force-auth-add-held
+                :force-auth-add-held-summary}
+    :reason "Sensitivity sentinel classifies historical force-auth add-held evidence kinds as remote-authority-required; extension-owned historical read, cross-checked by conformance test"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/evidence/artifact.clj"
+    :literals #{"force-auth-add-held.v1"
+                "force-auth-add-held-summary.v1"}
+    :reason "Neutral artifact namespace allows the frozen legacy schema versions under the decoded-agreement preimage policy; required by the extension's historical validators, not production vocabulary"
+    :status :protocol-neutral}]
 
- ;; ── core operation vocabulary approvals ────────────────────────────────────
- ;; Exact held-custody operation literals (:add-held / :sub-held /
- ;; :finalize-released / :refund-held and their string spellings). Only the
- ;; frozen legacy implementation may carry them in core. Phase 6 acceptance:
- ;; this list is empty for held-custody operations.
- :approved/core-operation-literals
- [{:file "src/resolver_sim/evidence/force_authorisation.clj"
-   :literals #{"add-held" "sub-held"}
-   :reason "Frozen legacy v2 builder derives :held/action strings; pending held-custody extension extraction"
-   :status :legacy
-   :replacement :force-auth-held-custody-mutation}
-  {:file "src/resolver_sim/economics/effects.clj"
-   :literals #{"add-held"}
-   :reason "General protocol-neutral custody-held-adjustment effect vocabulary (emits :held/action \"add-held\"); not force-auth-add-held artifact vocabulary"
-   :status :protocol-neutral}
-  {:file "src/resolver_sim/sensitivity/sentinel.clj"
-   :literals #{:add-held "add-held"}
-   :reason "Sensitivity sentinel treats a held add-held action as remote-authority-required (forbidden from local in-process authorization)"
-   :status :legacy
-   :replacement :force-auth-held-custody-mutation}]
+  ;; ── core operation vocabulary approvals ────────────────────────────────────
+  ;; Exact held-custody operation literals (:add-held / :sub-held /
+  ;; :finalize-released / :refund-held and their string spellings). All
+  ;; remaining approvals are :protocol-neutral: core emits or classifies the
+  ;; operation vocabulary that the held-custody extension contract also owns.
+  :approved/core-operation-literals
+  [{:file "src/resolver_sim/economics/effects.clj"
+    :literals #{"add-held" "sub-held" "finalize-released" "refund-held"}
+    :reason "Canonical held-action vocabulary (held-action->direction) and the direction-bound custody-held-adjustment projections; matches the held-custody mutation action names by spelling, not force-auth-add-held artifact vocabulary"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/economics/with_bounty/evaluation.clj"
+    :literals #{"add-held"}
+    :reason "with-bounty custody reservation effect emits the canonical add-held action (v2 contract)"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/sensitivity/sentinel.clj"
+    :literals #{:add-held "add-held"}
+    :reason "Sensitivity sentinel treats a held add-held action as remote-authority-required (forbidden from local in-process authorization); applies to the current held-custody mutation contract"
+    :status :protocol-neutral}]
 
   ;; ── core status vocabulary approvals ───────────────────────────────────────
   ;; Status vocabulary (name-matched, like the artifact family): the exact
   ;; status terms in :architecture/status-vocabulary that appear in core
-  ;; source. Entries mirror the operation-family convention — legacy
-  ;; held-custody statuses (:add-held / add-held-kind) require a :replacement;
-  ;; domain-neutral statuses (:state-after-root) are :protocol-neutral.
+  ;; source. Remaining approvals are :protocol-neutral (domain-neutral statuses
+  ;; and the held add-held action classification).
   :approved/core-status-literals
-  [{:file "src/resolver_sim/evidence/force_authorisation.clj"
-    :literals #{"add-held" add-held-kind}
-    :reason "Frozen legacy force-auth add-held status vocabulary (held action and held kind) pending held-custody extension extraction"
-    :status :legacy
-    :replacement :force-auth-held-custody-mutation}
-   {:file "src/resolver_sim/sensitivity/sentinel.clj"
+  [{:file "src/resolver_sim/sensitivity/sentinel.clj"
     :literals #{:add-held "add-held"}
     :reason "Sensitivity sentinel classifies the held add-held action as remote-authority-required"
-    :status :legacy
-    :replacement :force-auth-held-custody-mutation}
+    :status :protocol-neutral}
    {:file "src/resolver_sim/economics/effects.clj"
     :literals #{"add-held"}
     :reason "Protocol-neutral custody-held-adjustment effect emits the add-held held action"
+    :status :protocol-neutral}
+   {:file "src/resolver_sim/economics/with_bounty/evaluation.clj"
+    :literals #{"add-held"}
+    :reason "with-bounty custody reservation effect emits the add-held held action"
     :status :protocol-neutral}
    {:file "src/resolver_sim/resubmission/store.clj"
     :literals #{:transaction/state-after-root state-after-root}
@@ -232,41 +210,17 @@
     :reason "Domain-neutral state-after-root field in the trust-boundary projection"
     :status :protocol-neutral}]
 
-  ;; ── no-new-legacy-production gate ──────────────────────────────────────────
- ;; Phase 3A entry gate. Forbidden vars are legacy held-custody CONSTRUCTORS /
- ;; emitters (builders and summary builders). References to them from
- ;; production source roots (src, protocols_src) outside exact approved
- ;; locations block Phase 3A. Legacy readers/validators/migration readers are
- ;; permitted during Phase 3A and reported as :legacy-read-reference only.
- :forbidden/legacy-production-vars
- [{:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held
-   :replacement prf.extensions.held-custody.mutation/build-force-auth-held-mutation}
-  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-v2
-   :replacement prf.extensions.held-custody.mutation/build-force-auth-held-mutation}
-  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary
-   :replacement prf.extensions.held-custody.aggregate/build-held-mutation-summary}
-  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary-v1
-   :replacement prf.extensions.held-custody.aggregate/build-held-mutation-summary}
-  {:var resolver-sim.evidence.force-authorisation/build-force-auth-add-held-summary-permissive
-   :replacement prf.extensions.held-custody.aggregate/recompute-held-mutation-summary}]
+  ;; ── legacy production gate (Phase 3B tombstone) ───────────────────────────
+  ;; Phase 3B removed the legacy held-custody producers and the former core
+  ;; legacy evidence namespace. The :forbidden/legacy-production-vars,
+  ;; :permitted/legacy-read-vars, and :approved/legacy-production-locations
+  ;; policy blocks were deleted with it: no legacy builder remains reachable
+  ;; and no legacy producer registration is permitted. Reintroduction is
+  ;; prevented by the tombstone gate test
+  ;; (test/resolver_sim/architecture/legacy_production_gate_test.clj), not by
+  ;; a config block.
 
- :permitted/legacy-read-vars
- #{resolver-sim.evidence.force-authorisation/valid-force-auth-add-held?
-   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-v2?
-   resolver-sim.evidence.force-authorisation/force-auth-add-held-scope-verifies?
-   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-summary?
-   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-summary-v1?
-   resolver-sim.evidence.force-authorisation/valid-force-auth-add-held-summary-v1-migration?
-   resolver-sim.evidence.force-authorisation/downgrade-add-held-summary-v2->v1
-   resolver-sim.evidence.force-authorisation/exact-force-auth-add-held?
-   resolver-sim.evidence.force-authorisation/recompute-force-auth-add-held-summary
-   resolver-sim.evidence.force-authorisation/check-aggregate}
-
- :approved/legacy-production-locations
- [{:file "src/resolver_sim/evidence/force_authorisation.clj"
-   :reason "Legacy implementation definitions and internal wiring; pending Phase 3B atomic removal"}]
-
- ;; ── architecture vocabulary ────────────────────────────────────────────────
+  ;; ── architecture vocabulary ────────────────────────────────────────────────
  ;; The exact held-custody operation vocabulary (keywords) and the artifact
  ;; vocabulary prefixes. The vocabulary test derives its matchers from these
  ;; policies rather than hardcoding them.

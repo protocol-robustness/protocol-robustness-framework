@@ -278,3 +278,9 @@ test-dr:
 	  (require 'resolver-sim.protocols.sew.dispute-resolution-coverage-test) \
 	  (tu/with-temp-evidence \
 	    (fn [] (clojure.test/run-tests 'resolver-sim.protocols.sew.dispute-resolution-coverage-test)))"
+
+# Run the GitHub Actions workflows locally with act (`gh act`) before pushing.
+# Add -j <job> or -W <workflow.yml> to run a subset. See bin/ci --help.
+.PHONY: ci
+ci:
+	./bin/ci

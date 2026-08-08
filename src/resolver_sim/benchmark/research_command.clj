@@ -116,10 +116,12 @@
   (:command/hash command))
 
 (defn command-valid?
-  "Structural validity check for a research command."
+  "Structural validity check for a research command. Consistent with
+   validate-command: a declaration is invalid without a present, keyword
+   :command/id or a committed :command/hash."
   [command]
   (and (= schema-version (:schema-version command))
-       (some? (:command/id command))
+       (keyword? (:command/id command))
        (some? (:command/type command))
        (some? (:command/hash command))
        (sequential? (:command/argv command))
@@ -131,14 +133,20 @@
   "Standalone validator for a loaded research command.
    Recomputes the command hash and checks structural integrity.
 
+   A declaration is valid only when it carries a committed :command/hash and a
+   present keyword :command/id (mirroring build-command). A malformed
+   command-looking map therefore cannot pass validation merely by resembling a
+   command.
+
    Returns {:valid? bool :errors [string]}."
   [command]
   (let [errors (atom [])]
     (when-not (= schema-version (:schema-version command))
       (swap! errors conj (str "expected schema-version " schema-version
                               " got " (:schema-version command))))
-    (when-not (some? (:command/id command))
-      (swap! errors conj "missing :command/id"))
+    (when-not (and (some? (:command/id command))
+                   (keyword? (:command/id command)))
+      (swap! errors conj ":command/id must be a present keyword"))
     (when-not (some? (:command/type command))
       (swap! errors conj "missing :command/type"))
     (when (and (some? (:command/type command))
@@ -155,6 +163,8 @@
       (swap! errors conj (str "unsupported :command/include value(s): "
                               (pr-str (remove valid-command-include?
                                               (:command/include command))))))
+    (when (nil? (:command/hash command))
+      (swap! errors conj ":command/hash is required"))
     (when (some? (:command/hash command))
       (let [without-hash (dissoc command :command/hash)
             computed (hash-ref/sha256-ref (hc/domain-hash :research-command without-hash))]
@@ -177,3 +187,67 @@
   "True when two commands share the same semantic include set."
   [a b]
   (= (command-semantic-identity a) (command-semantic-identity b)))
+
+;; ── trace metrics (command-count / command-valid-count) ────────────────────
+
+(def ^:const trace-domain-tag
+  "Domain tag of a research-command trace root."
+  "RESEARCH_COMMAND_TRACE_V1")
+
+(defn command-trace-root
+  "Content root of a collection (trace) of research command declarations.
+   Committed so the derived metrics are reproducible: the same declarations
+   produce the same root and the same numbers. Declarations are ordered by a
+   type-safe rendering of :command/id (a malformed declaration may carry a
+   keyword, string, or nil id), and set-valued fields are projected to
+   canonical-safe form before hashing."
+  [commands]
+  (hash-ref/sha256-ref
+   (hc/domain-hash trace-domain-tag
+                   (hc/project-committable-content
+                    (vec (sort-by (comp pr-str :command/id) commands))))))
+
+(defn command-trace-metrics
+  "Derive the research-command trace metrics from ONE canonical snapshot of
+   command declarations:
+
+     :command-count        — number of discovered command declarations (entries
+                             carrying the :command/id key)
+     :command-valid-count  — number passing validate-command under the same
+                             snapshot
+     :trace/root           — canonical root binding the exact declarations
+     :trace/valid?         — true when every declaration passes validation
+     :trace/skipped        — number of entries in the input that do NOT carry
+                             the :command/id discriminator (combinations,
+                             evidence maps, …) — never counted as commands
+
+   Declaration-recognition contract:
+     - an entry is a declaration iff it carries the :command/id key (presence,
+       not truthiness); a malformed or command-looking entry that carries the
+       key is therefore DISCOVERED but invalid, never silently skipped;
+     - duplicate :command/id values are a malformed trace and FAIL CLOSED
+       (:command-trace/duplicate-command-id) — the metric never silently
+       deduplicates and never counts a duplicated declaration as two distinct
+       ones;
+     - combinations of a command with derived artifacts (add-held custody
+       evidence, incentive roots, …) bind to the same command-root and are
+       relations over already-identified roots — they are never inspected to
+       infer additional commands and never change these counts."
+  [commands]
+  (let [commands (vec commands)
+        declarations (filterv #(contains? % :command/id) commands)
+        duplicates (->> (frequencies (map :command/id declarations))
+                        (filter (fn [[_ n]] (> n 1)))
+                        (map key)
+                        vec)]
+    (when (seq duplicates)
+      (throw (ex-info "command trace: duplicate :command/id declarations"
+                      {:error :command-trace/duplicate-command-id
+                       :duplicates duplicates
+                       :declaration-count (count declarations)})))
+    (let [valid-count (count (filter :valid? (map validate-command declarations)))]
+      {:command-count (count declarations)
+       :command-valid-count valid-count
+       :trace/root (command-trace-root declarations)
+       :trace/valid? (= (count declarations) valid-count)
+       :trace/skipped (- (count commands) (count declarations))})))

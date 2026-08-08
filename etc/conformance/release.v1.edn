@@ -4,15 +4,15 @@
   "profiles\/root": "0425330a515129f0f4f569ac5c32a0c4f7b1f7f6b0128dd80d9c3ab97b9baaf7",
   "release\/id": "conformance-core-1.0.0",
   "schemas\/root": "34595353a02b6a1c6bb86223ccb2941ba9afc95670b7d3a0eb883f4915d0379c",
-  "source\/revision": "476f272268c2cf37b3bc7d9c5d9d655226f62ca620c989af940dbbb7eea1275e",
+  "source\/revision": "d9e4f43dd44aab8c6995d7acbae8ff7cd6f92d7f5f53927c87c4b62700203dbc",
   "verifiers": {
-    "clojure": "00368c63f0b40b3a6f3b6fd732c16b992e05a80cb7e22f7515b3f1fb997645b9",
+    "clojure": "84720a2d174eddfedf2a819da08e54d843fc5b38180402c3dbb17f94113d11bd",
     "python": "sha256:64f67b24290ceff6ff845c08dd51d20cc307bd4d402279158fe8c4c4d4e228d4",
     "js": "sha256:b6e2d4d2e9479f2f4ecdc0156090c46e3d9fc26bbb9317ce0c1ce824de0f2bd0"
   },
   "issues\/root": "c1dbf71c7b36d1c381f987f071adb316d227f25f460a9a1167a58341af337c22",
   "registry\/root": "569918738a7a48439d17c73ffdb505d437ea8e4769438c560d7408694f2d09ac",
   "conformance\/core-version": 1,
-  "release\/root": "a93d1e1200c04934136caa0d358c50a4c749a4590806f1527a773eb279fb24cf",
+  "release\/root": "f6646682b4c87e83023fb65317a91b1889805bf44a0c9e52450e3a9dab9253dd",
   "corpus\/root": "0e2ea68fd1ca86df66efde25922862bb3c7a5e7fa80a6bf019c0c07e74fe18a6"
 }

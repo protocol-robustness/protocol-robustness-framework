@@ -87,12 +87,13 @@
 
 (defn cancellation-assertion
   "Produce the certificate-ready cancellation-window assertion for a
-   coprocessor round at `token`, recomputing the classification from committed
-   evidence so the assertion may claim `:assurance :independent-replay`
-   (contract 8).
+   coprocessor round at `token`. The classification is recomputed from the
+   observed round-state input token, so the assertion may claim
+   `:assurance :independent-replay` (contract 8): deterministic given the same
+   input.
 
-   Consumes `cancellation-window-assertion`'s committed-evidence path: the
-   domain projection here is `lifecycle-target-state`, the lifecycle profile is
+   Consumes `cancellation-window-assertion`'s derived-state path: the domain
+   projection here is `lifecycle-target-state`, the lifecycle profile is
    the canonical probabilistic-allocation window, and `decision-opts` carries
    the canonical decision profile. Pass opts through for the decision profile
    (:profile-id :member-count :threshold :named-policy?)."
@@ -116,16 +117,18 @@
    token. Always present in the kernel public values; every field is committed
    into CERTIFICATE_ASSERTIONS_V2.
 
-   The projection is derived from committed evidence (the observed round-state)
-   and therefore claims `:assurance :independent-replay` with
-   `:evidence-status :evidence/derived-state` on every path (contract 8). The
-   lifecycle assertion status is :passing when the window classifies :open or
-   :closed (the window was respected) and :failing when it is :invalid.
+   The classification is derived from the observed round-state input token.
+   Both the observed state and the derived classification are committed into
+   CERTIFICATE_ASSERTIONS_V2, so an independent verifier can re-run the kernel
+   and compare. The `:assurance` is `:independent-replay`: deterministic given
+   the same input token.
+   The lifecycle assertion status is :passing when the window classifies :open
+   or :closed (the window was respected) and :failing when it is :invalid.
 
-   opts carry the cancellation decision profile (:profile-id :member-count
-   :threshold :named-policy?) exactly as for `cancellation-assertion`; they do
-   not affect the window classification, only the decision-conformance half of
-   `classify-cancellation`."
+   `_opts` is reserved for future decision-profile evaluation. Present for
+   interface consistency with `cancellation-assertion` (which passes its
+   decision opts through to `classify-cancellation`); currently unused by
+   `round-lifecycle`."
 
   [_opts token]
   (let [target (lifecycle-target-state token)

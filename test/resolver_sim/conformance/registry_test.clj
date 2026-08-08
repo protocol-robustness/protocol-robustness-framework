@@ -58,6 +58,42 @@
     (testing "idempotent re-registration is allowed"
       (is (= :test.validator-a (registry/register! (impl :test.validator-a)))))))
 
+(deftest run-is-non-committed-runtime-state
+  (let [id :test.run-rebind
+        base (assoc (impl id) :implementation/run (fn [_] :first))
+        rebind (assoc base :implementation/run (fn [_] :second))]
+    (registry/register! base)
+    (let [root-before (registry/registry-root)]
+      (testing "re-registering the same committed identity with a different
+                :run is a runtime rebind, not a registry change"
+        (registry/register! rebind)
+        (is (= root-before (registry/registry-root))
+            "the committed registry root must not change when only :run changes")
+        (is (= :second ((:implementation/run (registry/resolve-implementation id)) nil))
+            "the runtime realization is rebound")
+        (is (some? (registry/resolve-implementation id)))))))
+
+(deftest committed-identity-fails-closed-on-change
+  (let [id :test.committed-identity
+        base (impl id)
+        with-identity (assoc base
+                             :implementation/artifact-root "sha256:artifact"
+                             :implementation/entrypoint 'fixture.impl/run)]
+    (registry/register! base)
+    (testing "artifact-root and entrypoint are committed identity: adding them
+              to an already-registered id is rejected, never silently absorbed"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (registry/register! with-identity))))
+    (testing "a different committed field with the same id is rejected"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (registry/register! (assoc base :implementation/status :deprecated)))))
+    (testing "artifact-root and entrypoint are committed into the registry root"
+      (let [root-before (registry/registry-root)
+            other-id :test.identity-rooted
+            _ (registry/register! (assoc (impl other-id) :implementation/artifact-root "sha256:a"))]
+        (is (not= root-before (registry/registry-root))
+            "committing an artifact-root changes the deterministic root")))))
+
 (deftest required-implementations-resolve-with-kind
   (let [r (registry/required-implementations-ok?
            [{:implementation/id :test.validator-a :implementation/kind :validator}

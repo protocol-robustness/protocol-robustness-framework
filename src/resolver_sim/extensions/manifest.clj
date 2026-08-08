@@ -269,7 +269,8 @@
    :extension/source
    :extension/artifact
    :extension/dependencies
-   :extension/runtime])
+   :extension/runtime
+   :extension/historical-read])
 
 (defn package-projection
   "Project a package manifest to its committed identity fields, including
@@ -302,6 +303,85 @@
           (when (seq dups)
             [{:violation/id :violation/duplicate-capability-key
               :details {:duplicate-keys dups}}]))))
+
+(defn validate-historical-read
+  "Validate a package's :extension/historical-read declaration (when present).
+   Fail closed on malformed or unknown historical versions.
+
+   The declaration distinguishes:
+     :current-production   — the live capability and its schema version
+     :historical-read      — frozen artifact classes the package is committed
+                             to verifying (each entry read-only, schema-version
+                             string, artifact-kind keyword)
+     :historical-production — must be :forbidden (the package owns no legacy
+                             producers)
+
+   Returns {:valid? bool :violations [violation-maps]}."
+  [decl]
+  (let [v (cond-> []
+            (not (map? decl))
+            (conj {:violation/id :violation/non-map-historical-read
+                   :details {:historical-read decl}})
+
+            (and (map? decl) (nil? (:current-production decl)))
+            (conj {:violation/id :violation/missing-historical-current-production
+                   :details {}})
+
+            (and (map? decl)
+                 (not (map? (:current-production decl))))
+            (conj {:violation/id :violation/non-map-historical-current-production
+                   :details {:current-production (:current-production decl)}})
+
+            (and (map? (:current-production decl))
+                 (not (keyword? (:capability/id (:current-production decl)))))
+            (conj {:violation/id :violation/invalid-historical-current-capability-id
+                   :details {:current-production (:current-production decl)}})
+
+            (and (map? (:current-production decl))
+                 (not (string? (:schema-version (:current-production decl)))))
+            (conj {:violation/id :violation/invalid-historical-current-schema-version
+                   :details {:current-production (:current-production decl)}})
+
+            (and (map? decl)
+                 (nil? (:historical-read decl)))
+            (conj {:violation/id :violation/missing-historical-read-list
+                   :details {}})
+
+            (and (map? decl)
+                 (not (sequential? (:historical-read decl))))
+            (conj {:violation/id :violation/non-sequential-historical-read
+                   :details {:historical-read (:historical-read decl)}})
+
+            (and (map? decl)
+                 (not= :forbidden (:historical-production decl)))
+            (conj {:violation/id :violation/historical-production-not-forbidden
+                   :details {:historical-production (:historical-production decl)}}))
+        v (if (and (map? decl) (sequential? (:historical-read decl)))
+            (reduce (fn [vs entry]
+                      (cond-> vs
+                        (not (map? entry))
+                        (conj {:violation/id :violation/non-map-historical-read-entry
+                               :details {:entry entry}})
+
+                        (and (map? entry)
+                             (not (string? (:schema-version entry))))
+                        (conj {:violation/id :violation/invalid-historical-read-schema-version
+                               :details {:entry entry}})
+
+                        (and (map? entry)
+                             (not (keyword? (:artifact/kind entry))))
+                        (conj {:violation/id :violation/invalid-historical-read-artifact-kind
+                               :details {:entry entry}})
+
+                        (and (map? entry)
+                             (not (true? (:read-only entry))))
+                        (conj {:violation/id :violation/historical-read-not-read-only
+                               :details {:entry entry}})))
+                    v
+                    (:historical-read decl))
+            v)]
+    {:valid? (empty? v)
+     :violations (vec v)}))
 
 (defn validate-package
   "Validate a package manifest structurally.
@@ -347,6 +427,9 @@
                              :capabilities (:extension/capabilities pkg)}}))
         v (if (vector? (:extension/capabilities pkg []))
             (into v (validate-package-capabilities pkg))
+            v)
+        v (if-let [hr (:extension/historical-read pkg)]
+            (into v (:violations (validate-historical-read hr)))
             v)]
     {:valid? (empty? v)
      :violations (vec v)}))

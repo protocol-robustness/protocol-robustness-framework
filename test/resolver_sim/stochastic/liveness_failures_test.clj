@@ -33,6 +33,142 @@
           result (liveness/check-latency-sensitivity r)]
       (is (some #(= ::liveness/system-saturated (:kind %)) (:violations result))))))
 
+(deftest zero-resolvers-nonzero-volume-is-saturated
+  (testing "zero resolving capacity with incoming volume is unserviceable/saturated"
+    (let [r (liveness/latency-sensitivity 100 0 5 30)
+          result (liveness/check-latency-sensitivity r)]
+      (is (true? (:liveness/wait-capped? r)))
+      (is (= liveness/saturation-queue-days (:queue-wait-days r)))
+      (is (= :liveness/system-saturated (:liveness/risk r)))
+      (is (some #(= ::liveness/system-saturated (:kind %)) (:violations result)))
+      (is (not (:holds? result))))))
+
+(deftest zero-resolvers-zero-volume-is-saturated
+  (testing "zero resolving capacity with zero volume is still unserviceable/saturated"
+    (let [r (liveness/latency-sensitivity 0 0 5 30)]
+      (is (true? (:liveness/wait-capped? r)))
+      (is (= liveness/saturation-queue-days (:queue-wait-days r)))
+      (is (= :liveness/system-saturated (:liveness/risk r))))))
+
+(deftest saturation-invariant-wait-capped-implies-terminal
+  (testing "when :liveness/wait-capped? is true, :queue-wait-days is the canonical terminal"
+    (doseq [args [[100 0 5 1]     ; zero capacity
+                  [336 1 1 30]    ; ρ = 1.2 → saturated
+                  [280 1 1 30]]]  ; ρ = 1.0 → saturated (boundary)
+      (let [r (apply liveness/latency-sensitivity args)]
+        (is (true? (:liveness/wait-capped? r)))
+        (is (= liveness/saturation-queue-days (:queue-wait-days r))
+            (str "wait-capped? true but queue-wait-days != saturation-queue-days for " args))
+        (is (= :liveness/system-saturated (:liveness/risk r)))))))
+
+(deftest utilization-100-boundary-is-saturated
+  (testing "utilization exactly 1.0 hits the saturation terminal"
+    (let [r (liveness/latency-sensitivity 280 1 1 30)] ; 280 h/wk needed, 280 h/wk capacity
+      (is (== 1.0 (:utilization r)))
+      (is (= liveness/saturation-queue-days (:queue-wait-days r)))
+      (is (true? (:liveness/wait-capped? r)))
+      (is (= :liveness/system-saturated (:liveness/risk r))))))
+
+(deftest utilization-099-is-not-yet-saturated
+  (testing "utilization just under 1.0 stays at the 14-day bucket (not saturated)"
+    (let [r (liveness/latency-sensitivity 277 1 1 30)] ; 277/280 ≈ 0.989
+      (is (= 14.0 (:queue-wait-days r)))
+      (is (false? (:liveness/wait-capped? r)))
+      (is (= :liveness/severe-users-leaving (:liveness/risk r))))))
+
+;; ─────────────────────────────────────────────────────────────────────────────
+;; Emitted saturation fields + the canonical saturation-relationship verifier
+;; ─────────────────────────────────────────────────────────────────────────────
+
+(deftest saturation-fields-emitted-and-sourced-from-constant
+  (testing "the committed threshold is emitted from the canonical constant, not re-hardcoded"
+    (let [r (liveness/latency-sensitivity 336 1 1 30)]
+      (is (= liveness/saturation-queue-days (:saturation-queue-days r)))
+      (is (= 30 (:saturation-queue-days r)) "terminal value matches the constant"))))
+
+(deftest saturation-below-100-utilization
+  (testing "utilization < 1.0: unsaturated, uncapped, wait below threshold, satisfied"
+    (let [r (liveness/latency-sensitivity 100 100 1 30)] ; ρ = 1/280
+      (is (< (:utilization r) 1.0))
+      (is (= :liveness/queue-unsaturated (:saturation-queue r)))
+      (is (false? (:liveness/wait-capped? r)))
+      (is (< (:queue-wait-days r) (:saturation-queue-days r)))
+      (is (true? (:saturation-satisfied r)))
+      (is (:holds? (liveness/check-saturation-invariant r)))
+      (is (:holds? (liveness/check-latency-sensitivity r))))))
+
+(deftest saturation-at-100-utilization
+  (testing "utilization == 1.0: saturated, capped, wait == committed threshold, satisfied"
+    (let [r (liveness/latency-sensitivity 280 1 1 30)] ; ρ = 1.0
+      (is (== 1.0 (:utilization r)))
+      (is (= :liveness/queue-saturated (:saturation-queue r)))
+      (is (true? (:liveness/wait-capped? r)))
+      (is (== (:saturation-queue-days r) (:queue-wait-days r)))
+      (is (= liveness/saturation-queue-days (:queue-wait-days r)))
+      (is (true? (:saturation-satisfied r)))
+      (is (:holds? (liveness/check-saturation-invariant r))))))
+
+(deftest saturation-above-100-utilization
+  (testing "utilization > 1.0: saturated, same canonical capped wait, satisfied"
+    (let [r (liveness/latency-sensitivity 336 1 1 30)] ; ρ = 1.2
+      (is (> (:utilization r) 1.0))
+      (is (= :liveness/queue-saturated (:saturation-queue r)))
+      (is (true? (:liveness/wait-capped? r)))
+      (is (== (:saturation-queue-days r) (:queue-wait-days r))
+          "capped wait equals the committed threshold")
+      (is (= liveness/saturation-queue-days (:queue-wait-days r)))
+      (is (true? (:saturation-satisfied r)))
+      (is (:holds? (liveness/check-saturation-invariant r))))))
+
+(deftest saturation-zero-capacity-fields-consistent
+  (testing "zero resolving capacity: saturated/unserviceable, fields internally consistent"
+    (doseq [args [[100 0 5 30] [0 0 5 30]]]
+      (let [r (apply liveness/latency-sensitivity args)]
+        (is (= :liveness/queue-saturated (:saturation-queue r)))
+        (is (true? (:liveness/wait-capped? r)))
+        (is (== (:saturation-queue-days r) (:queue-wait-days r)))
+        (is (true? (:saturation-satisfied r)))
+        (is (:holds? (liveness/check-saturation-invariant r))
+            (str "saturation fields internally consistent for " args))))))
+
+(deftest saturation-mutation-detected
+  (testing "changing any one emitted saturation field is detected by the verifier"
+    (let [r (liveness/latency-sensitivity 336 1 1 30) ; ρ = 1.2, saturated
+          _ (is (true? (:saturation-satisfied r)))
+          _ (is (:holds? (liveness/check-saturation-invariant r)))
+          mutants [(assoc r :saturation-queue :liveness/queue-unsaturated)
+                   (assoc r :queue-wait-days 14.0)
+                   (assoc r :saturation-queue-days 60.0)
+                   (assoc r :liveness/wait-capped? false)
+                   (assoc r :saturation-satisfied false)
+                   (assoc r :utilization 0.5)]]
+      (doseq [m mutants]
+        (is (not (:holds? (liveness/check-saturation-invariant m)))
+            (str "mutation detected: " (select-keys m [:saturation-queue :queue-wait-days
+                                                       :saturation-queue-days
+                                                       :liveness/wait-capped?
+                                                       :saturation-satisfied :utilization])))
+        (is (not (:holds? (liveness/check-latency-sensitivity m)))
+            "the latency checker surfaces the mutation too")))))
+
+(deftest participation-spiral-emits-saturation-fields
+  (testing "each weekly entry carries the same canonical saturation fields, consistently"
+    (let [history (liveness/participation-spiral 20 100 0.6 0.5 4)]
+      (is (seq history))
+      (doseq [entry history]
+        (is (= liveness/saturation-queue-days (:saturation-queue-days entry)))
+        (is (contains? #{:liveness/queue-saturated :liveness/queue-unsaturated}
+                       (:saturation-queue entry)))
+        (is (boolean? (:liveness/wait-capped? entry)))
+        (is (boolean? (:saturation-satisfied entry)))
+        (is (number? (:queue-wait-days entry)))
+        (is (if (:liveness/wait-capped? entry)
+              (== (:saturation-queue-days entry) (:queue-wait-days entry))
+              (< (:queue-wait-days entry) (:saturation-queue-days entry)))
+            (str "week " (:week entry) " wait is on the canonical side of the committed threshold"))
+        (is (:holds? (liveness/check-saturation-invariant entry))
+            (str "week " (:week entry) " saturation artifact is consistent"))))))
+
 ;; ─────────────────────────────────────────────────────────────────────────────
 ;; check-participation-spiral
 ;; ─────────────────────────────────────────────────────────────────────────────

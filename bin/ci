@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Local CI runner — runs the GitHub Actions workflows with `act` (via the
+# `gh act` extension) before pushing, so you can catch failures locally.
+#
+# The `.actrc` at the repo root supplies the runner image mapping; extra args
+# below are passed straight through to `gh act`.
+#
+# Usage:
+#   ./bin/ci                 # run all workflows via the `pull_request` event
+#   ./bin/ci pull_request    # explicit event name (default)
+#   ./bin/ci push            # use push; may find no stages off main/master
+#   ./bin/ci -j unit-and-framework                   # run one job
+#   ./bin/ci -W .github/workflows/uberjar-build.yml
+#   ./bin/ci -P ubuntu-latest=catthehacker/ubuntu:full-latest
+#   ./bin/ci --secret-file .secrets
+#
+# Fast iteration example:
+#   ./bin/ci -j unit-and-framework
+#
+# NOTE on events: `push` is branch-filtered to [main, master] and act resolves
+# the push ref via the (unauthenticated) `gh` CLI, so it often reports
+# "Could not find any stages to run". Every workflow here also triggers on
+# `pull_request` with no branch filter, so we default to that event.
+
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# --- preflight -------------------------------------------------------------
+if ! command -v docker >/dev/null 2>&1; then
+  echo "error: docker not found — act needs a Docker daemon." >&2
+  exit 1
+fi
+if ! docker info >/dev/null 2>&1; then
+  echo "error: Docker daemon is not running. Start it, then retry." >&2
+  exit 1
+fi
+# NOTE: do NOT probe `gh act --version` — this gh-act build falls through to
+# running the workflows instead of printing a version, which hangs. Also avoid
+# `gh extension list` (needs auth and hides extensions when unauthenticated).
+# Instead, check the extension's on-disk binary exists (inert, no auth).
+if [[ ! -x "$HOME/.local/share/gh/extensions/gh-act/gh-act" ]]; then
+  echo "error: 'gh act' not available. Install the extension:" >&2
+  echo "  gh extension install https://github.com/nektos/gh-act" >&2
+  exit 1
+fi
+
+# --- build args ------------------------------------------------------------
+args=()
+
+# Default to the `pull_request` event unless the caller supplied an event name
+# (first non-flag arg) explicitly. act takes the event name as its single
+# positional arg and rejects more than one, so it must come first.
+if [[ $# -eq 0 ]] || [[ "$1" == -* ]]; then
+  args+=(pull_request)
+fi
+
+# Runner image: GitHub's `ubuntu-latest` is a fuller VM than act's default
+# images, so map it to a fuller local image. This is applied explicitly here
+# because some `gh act` builds ignore the repo `.actrc`. A user-supplied `-P`
+# later on the CLI overrides this. Swap `act-latest` -> `full-latest` if the
+# workflows need system tooling missing from the smaller image.
+args+=(-P "ubuntu-latest=catthehacker/ubuntu:full-latest")
+
+# Inject GITHUB_TOKEN so actions that need it work locally.
+if token="$(gh auth token 2>/dev/null)" && [[ -n "$token" ]]; then
+  args+=(-s "GITHUB_TOKEN=$token")
+fi
+
+# Use local secrets file if present (kept out of git).
+if [[ -f .secrets ]]; then
+  args+=(--secret-file .secrets)
+fi
+
+# --- run -------------------------------------------------------------------
+set -x
+exec gh act "${args[@]}" "$@"

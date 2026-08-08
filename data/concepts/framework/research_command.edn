@@ -22,9 +22,11 @@
    "A command artifact may be combined with the artifacts it selects through include directives and with evidence produced under it. Common combinations:
    - command-artifact + incentive-root — incentive evaluation output bound to the command that requested :incentive.
    - command-artifact + held-custody-artifact — closed-form custody evidence (game-theoretic-validation artifact carrying validation class :validation.class/algebraic-integrity) bound to the command that produced it.
+   - command-artifact + add-held-action — a held-custody adjustment (the add-held action emitted as a :custody/held-adjustment effect, e.g. under :prf.effect/custody-held-adjustment.v2, carrying the custody account and owner/parameter address attribution) bound to the command that produced it. This is a concrete instance of the held-custody combination above.
    - command-artifact + research-assignment — a research task bound to the command artifact and runner that executed it; the command-root is the shared reference.
    - command-artifact + semantic-commitments-artifact — binds meaning-bearing scope, authorisation-lifecycle, economic-application, assurance, configuration, and research-execution references that are not implied solely by the command-root. The allowed categories are defined by the semantic-commitments concept, not enumerated here.
-   These combinations bind derived evidence to the exact command that produced it; the command-root (:execution/command-root) is the shared reference that ties them together in the outcome manifest or validation artifact."
+   These combinations bind derived evidence to the exact command that produced it; the command-root (:execution/command-root) is the shared reference that ties them together in the outcome manifest or validation artifact.
+   A combination never changes the command count: command-count counts distinct command declarations (the semantic scope committed in :command/hash), and binding derived evidence — incentive roots, held-custody/add-held evidence, research assignments, semantic commitments — to an existing command does not create or alter a declaration."
 
  :concept/roles
  {:commander {:description "Entity that constructs and commits the research command."
@@ -93,6 +95,8 @@
   "A command artifact combines with the evidence it produces through a shared command-root reference. This includes closed-form evidence artifacts (e.g. held-custody artifacts referenced by a game-theoretic-validation artifact, which carries validation class :validation.class/algebraic-integrity), so derived evidence is attributable to the exact command that produced it."
   "A command artifact combines with a research-assignment, binding a content-addressed research task to the command-root and runner that executed it. The command-root is the shared reference tying task, command, runner, and produced evidence together."
   "A command artifact combines with a semantic-commitments artifact to bind meaning-bearing scope, authorisation-lifecycle, economic-application, assurance, configuration, and research-execution references that are not implied by the command-root alone. The allowed categories are defined by the semantic-commitments concept."
+  "A command artifact combines with an add-held-action (a held-custody adjustment emitted as a :custody/held-adjustment effect) through the same shared command-root reference, so add-held custody evidence is attributable to the exact command that produced it."
+  "Combinations of a command with derived artifacts (incentive roots, held-custody add-held evidence, research assignments, semantic commitments) bind to the same command-root and never change the command count; command-count counts distinct command declarations."
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
@@ -110,7 +114,13 @@
    :status :documented}}
 
  :concept/metrics
- {:command-count {:description "Number of research commands recorded."
-                  :source :derived-from-trace}
-  :command-valid-count {:description "Number of commands passing validation."
-                        :source :derived-from-invariant-results}}}
+ {:command-count
+  {:description "Number of research command declarations recorded in a trace snapshot (an entry is a declaration iff it carries the :command/id key). Combinations of a command with derived artifacts bind to the same command-root and do not change this count; non-command entries (e.g. combination artifacts) are excluded. Duplicate :command/id declarations fail closed as a malformed trace; a command-looking map carrying :command/id is discovered but judged invalid, never silently skipped."
+   :source :derived-from-trace
+   :producer "resolver-sim.benchmark.research-command/command-trace-metrics"
+   :bound-to :trace/root}
+  :command-valid-count
+  {:description "Number of research command declarations passing validation under the same trace snapshot. Combinations do not change this count; a declaration requesting an unsupported domain, or one without a committed :command/hash or keyword :command/id, counts as discovered but not valid."
+   :source :derived-from-validation
+   :producer "resolver-sim.benchmark.research-command/command-trace-metrics"
+   :bound-to :trace/root}}}

@@ -66,7 +66,8 @@
                #"newScheduledThreadPool" #"\.newThread\(" #"new Thread\b"]}
    :ports-servers
    {:msg "Fixed ports/local servers collide between concurrent namespaces."
-    :patterns [#"new ServerSocket" #"ServerSocket" #"localhost:\d+" #":\d{4,}\b" #"java\.net\.Socket" #"\.bind\("]}
+    :patterns [#"new ServerSocket" #"ServerSocket" #"localhost:\d+" #"java\.net\.Socket" #"\.bind\("
+              #"(?<![\w]):\d{4,}\b"]}
    :fixed-path-writes
    {:msg "Writes to fixed/shared paths (target/, out/, coverage/, caches) clobber across namespaces."
     :patterns [#"\"target/" #"\"out/" #"\"coverage/" #"\.cpcache" #"\"/tmp/" #"\"/dev/shm/"]}

@@ -1043,10 +1043,12 @@ cycle detected, and unreachable node.
 
 A content-addressed artifact binding: the source combination root, exact
 capability descriptor roots, exact composition-contract roots, canonical node
-order, canonical edges, inserted adapters (empty in v1), graph input/output
-contracts, effect merge semantics, verification contract, and compiler
-identity/version. Execution consumes only the plan (or proves an equivalent
-plan was compiled) and re-checks every descriptor root before invocation.
+order, canonical edges, graph input/output contracts, effect merge semantics,
+verification contract, and compiler identity/version. v1 plans carry no
+adapters — adapters are categorically unsupported in v1, so `:plan/adapters` is
+not part of the v1 plan root. Execution consumes only the plan (or proves an
+equivalent plan was compiled) and re-checks every descriptor root before
+invocation.
 
 ### Execution
 
@@ -1060,14 +1062,19 @@ are committed when the contract requires it.
 ### Comparability
 
 A **distinct contract and derivation process**: whether two capabilities or
-compiled compositions may be meaningfully compared. Classes are `:exact`,
-`:compatible` (through an explicit normalization), `:partial` (with an
-identified shared projection), `:incomparable`, and `:unknown` (missing or
-malformed comparison evidence — non-passing). Comparability is derived from
-committed contracts and plan roots; a capability cannot self-assert exact
-comparability. It is symmetric where the classification requires symmetry, and
-exact comparability is transitive only when the committed descriptor roots are
-identical.
+compiled compositions may be meaningfully compared. Classes are `:exact`
+(identical committed roots), `:compatible-normalized` (difference reconciled
+by an explicitly committed normalization root), `:compatible-direct`
+(semantically substitutable on the committed surface without a normalization),
+`:partial` (with an identified shared projection), `:incomparable`
+(demonstrated conflict), and `:unknown` (missing or malformed comparison
+evidence — non-passing). The `:composition/roles` dimension is gating: a
+declared role mismatch is `:incomparable`, and a non-exact comparison whose
+roles are not evaluable on both sides is `:unknown`. Plan comparisons fail
+closed on absent or malformed output contracts or merge strategies. A
+capability cannot self-assert exact comparability. It is symmetric where the
+classification requires symmetry, and exact comparability is transitive only
+when the committed descriptor roots are identical.
 
 ### Invariants (machine-enforced)
 

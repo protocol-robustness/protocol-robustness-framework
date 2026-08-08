@@ -40,6 +40,40 @@
     {:capability/kind :prf/force-authorisation
      :capability/id :scope-verification}]})
 
+(def historical-read-contract
+  "Permanent, machine-readable historical-read contract for this package.
+
+   Distinguishes the current production capability from the frozen historical
+   artifact classes the extension is contractually committed to verifying, and
+   marks historical PRODUCTION as forbidden. Future cleanup may not remove a
+   listed historical reader without changing this explicit contract (the
+   contract is validated by the extension registry and committed into the
+   package root).
+
+     current production:      held-custody mutation v1
+     historical read support: add-held v1/v2 verification,
+                              summary v1/v2 verification
+     historical production:   forbidden"
+  {:current-production
+   {:capability/id :held-custody/mutation
+    :schema-version "force-auth-held-custody-mutation.v1"}
+
+   :historical-read
+   [{:schema-version "force-auth-add-held.v1"
+     :artifact/kind :force-auth-add-held
+     :read-only true}
+    {:schema-version "force-auth-add-held.v2"
+     :artifact/kind :force-auth-add-held
+     :read-only true}
+    {:schema-version "force-auth-add-held-summary.v1"
+     :artifact/kind :force-auth-add-held-summary
+     :read-only true}
+    {:schema-version "force-auth-add-held-summary.v2"
+     :artifact/kind :force-auth-add-held-summary
+     :read-only true}]
+
+   :historical-production :forbidden})
+
 (def package
   "Extension package manifest. Register explicitly via
    resolver-sim.extensions.registry/register-package (pure) or
@@ -48,7 +82,8 @@
    :extension/version "0.1.0"
    :extension/api-version 1
    :extension/manifest-version 1
-   :extension/capabilities [capability]})
+   :extension/capabilities [capability]
+   :extension/historical-read historical-read-contract})
 
 (defn extension
   "Capability map returned by the manifest entrypoint. Names and shapes match

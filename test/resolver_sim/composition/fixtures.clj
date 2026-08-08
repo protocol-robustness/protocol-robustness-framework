@@ -32,8 +32,8 @@
   [{:keys [addresses spec]}]
   {:amount (:amount spec)
    :effects [{:effect/type :custody/held-adjustment
-              :effect/contract :prf.effect/custody-held-adjustment.v1
-              :effect/direction :add
+              :effect/contract :prf.effect/custody-held-adjustment.v2
+              :effect/action "add-held"
               :effect/account (or (:account spec) :escrow)
               :effect/amount (:amount spec)
               :held/kind (:add-held-kind spec)
@@ -47,8 +47,8 @@
   [{:keys [addresses spec]}]
   {:amount (:amount spec)
    :effects [{:effect/type :custody/held-adjustment
-              :effect/contract :prf.effect/custody-held-adjustment.v1
-              :effect/direction :add
+              :effect/contract :prf.effect/custody-held-adjustment.v2
+              :effect/action "add-held"
               :effect/account (or (:account spec) :escrow)
               :effect/amount (:amount spec)
               :held/kind (:add-held-kind spec)

@@ -10,7 +10,10 @@
   (:require [resolver-sim.hash.canonical :as hash]
             [resolver-sim.assurance.parameter-attribution :as pa]
             [resolver-sim.accounting.held-ledger-index :as held-index]
+            [resolver-sim.accounting.held-position-policy :as held-policy]
             [resolver-sim.hash.reference :as hash-ref]))
+
+(declare build-held-custody-artifact)
 
 (defn parameter-attribution-check
   "Validate the optional parameter provenance pair carried by a held adjustment.
@@ -83,11 +86,12 @@
       (:held/previous-artifact-hash artifact) (assoc :held/previous-artifact-hash (:held/previous-artifact-hash artifact))
       (:authorization/provenance artifact) (assoc :authorization/provenance (:authorization/provenance artifact)))))
 
-(defn held-custody-closed-form-checks
-  "Deterministic closed-form checks for derived held custody artifacts.
+(defn- artifact-surface-checks
+  "Deterministic closed-form checks over the held custody ARTIFACT surface.
    These checks do not replace the canonical held-adjustment ledger; they
    verify that the first-class artifact surface is internally consistent and
-   replay-consistent enough for researcher-facing validation.
+   replay-consistent enough for researcher-facing validation.  They operate on
+   the artifact package alone (no ledger dependency).
 
    Check ids:
    - :held-custody/hash-integrity
@@ -226,43 +230,231 @@
                                        :actual-after (:held/after artifact)}))]
               (recur (assoc state token expected-after) (next remaining) violations'))
             violations))]
-    (let [results [{:check/id :held-custody/hash-integrity
-                    :status (if (empty? hash-violations) :pass :fail)
-                    :details {:violations hash-violations}}
-                   {:check/id :held-custody/artifact-schema
-                    :status (if (empty? schema-violations) :pass :fail)
-                    :details {:violations schema-violations}}
-                   {:check/id :held-custody/parameter-attribution
-                    :status (if (empty? parameter-attribution-violations) :pass :fail)
-                    :details {:basis :structural-provenance
-                              :valid-classification-counts
-                              (frequencies (map :parameter-attribution/classification
-                                                (filter :artifact-valid?
-                                                        parameter-attribution-statuses)))
-                              :invalid-artifact-count
-                              (count (remove :artifact-valid? parameter-attribution-statuses))
-                              :attributions parameter-attribution-statuses
-                              :violations parameter-attribution-violations}}
-                   {:check/id :held-custody/local-delta
-                    :status (if (empty? local-delta-violations) :pass :fail)
-                    :details {:violations local-delta-violations}}
-                   {:check/id :held-custody/non-negative-after
-                    :status (if (empty? negative-after-violations) :pass :fail)
-                    :details {:violations negative-after-violations}}
-                   {:check/id :held-custody/predecessor-continuity
-                    :status (if (empty? predecessor-violations) :pass :fail)
-                    :details {:violations predecessor-violations}}
-                   {:check/id :held-custody/sequence-replay
-                    :status (if (empty? sequence-replay-violations) :pass :fail)
-                    :details {:violations sequence-replay-violations
-                              :replayed-final-state replay-state}}]
-          failed (filterv #(= :fail (:status %)) results)]
-      (when (seq failed)
-        (throw (ex-info "Held custody closed-form checks failed"
-                        {:type :closed-form-failure
-                         :check-results results
-                         :failed-checks failed})))
-      results)))
+    [{:check/id :held-custody/hash-integrity
+      :status (if (empty? hash-violations) :pass :fail)
+      :details {:violations hash-violations}}
+     {:check/id :held-custody/artifact-schema
+      :status (if (empty? schema-violations) :pass :fail)
+      :details {:violations schema-violations}}
+     {:check/id :held-custody/parameter-attribution
+      :status (if (empty? parameter-attribution-violations) :pass :fail)
+      :details {:basis :structural-provenance
+                :valid-classification-counts
+                (frequencies (map :parameter-attribution/classification
+                                  (filter :artifact-valid?
+                                          parameter-attribution-statuses)))
+                :invalid-artifact-count
+                (count (remove :artifact-valid? parameter-attribution-statuses))
+                :attributions parameter-attribution-statuses
+                :violations parameter-attribution-violations}}
+     {:check/id :held-custody/local-delta
+      :status (if (empty? local-delta-violations) :pass :fail)
+      :details {:violations local-delta-violations}}
+     {:check/id :held-custody/non-negative-after
+      :status (if (empty? negative-after-violations) :pass :fail)
+      :details {:violations negative-after-violations}}
+     {:check/id :held-custody/predecessor-continuity
+      :status (if (empty? predecessor-violations) :pass :fail)
+      :details {:violations predecessor-violations}}
+     {:check/id :held-custody/sequence-replay
+      :status (if (empty? sequence-replay-violations) :pass :fail)
+      :details {:violations sequence-replay-violations
+                :replayed-final-state replay-state}}]))
+
+(defn- throw-on-failed-checks
+  "Fail closed: throw with the full check results when any check is :fail."
+  [results]
+  (let [failed (filterv #(= :fail (:status %)) results)]
+    (when (seq failed)
+      (throw (ex-info "Held custody closed-form checks failed"
+                      {:type :closed-form-failure
+                       :check-results results
+                       :failed-checks failed})))
+    results))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Ledger <-> artifact completeness (P0)
+;; ═══════════════════════════════════════════════════════════════════════════
+;; The artifact-surface battery alone cannot prove that the artifact package is
+;; an exact image of the canonical ledger.  These two checks close that gap by
+;; taking BOTH the ledger and the artifacts.
+
+(defn held-custody-ledger-artifact-checks
+  "Ledger <-> artifact completeness and ordering.
+
+   :held-custody/ledger-artifact-bijection — the artifact package is an exact,
+   one-to-one image of the canonical ledger: same count, same
+   :held-adjustment/id set (no missing, extra, or duplicate ids), and every
+   artifact recomputes from the ledger adjustment with the same id (catching an
+   artifact bound to a different adjustment).  A chain that omits a ledger entry,
+   contains a spurious artifact, or substitutes one adjustment's artifact for
+   another is rejected here.
+
+   :held-custody/ledger-artifact-order — the artifact sequence corresponds to the
+   ledger's canonical sequence: the canonical id-sequence (by held-adjustment-order)
+   equals the ledger's, and the artifacts are PRESENTED in that canonical order
+   (a reordered or subset presentation is flagged).  Chain integrity between
+   artifacts is verified separately by :held-custody/predecessor-continuity.
+
+   Fail closed: nil for either side is :not-evaluated, never a silent pass."
+  [adjustments artifacts]
+  (if (or (nil? adjustments) (nil? artifacts))
+    [{:check/id :held-custody/ledger-artifact-bijection
+      :status :not-evaluated
+      :details {:reason :missing-ledger-or-artifacts}}
+     {:check/id :held-custody/ledger-artifact-order
+      :status :not-evaluated
+      :details {:reason :missing-ledger-or-artifacts}}]
+    (let [adjustments (vec adjustments)
+          artifacts (vec artifacts)
+          ordered-adj (sort-by held-adjustment-order adjustments)
+          ordered-arts (sort-by held-adjustment-order artifacts)
+          adj-ids (mapv :held-adjustment/id ordered-adj)
+          art-ids (mapv :held-adjustment/id ordered-arts)
+          given-art-ids (mapv :held-adjustment/id artifacts)
+          adj-set (set adj-ids)
+          art-set (set art-ids)
+          art-by-id (into {} (map (juxt :held-adjustment/id identity)) artifacts)
+          adj-by-id (into {} (map (juxt :held-adjustment/id identity)) adjustments)
+          missing (vec (remove art-set adj-ids))
+          extra (vec (remove adj-set art-ids))
+          dup-adj (->> (frequencies adj-ids)
+                       (keep (fn [[id n]] (when (> n 1) id)))
+                       vec)
+          dup-art (->> (frequencies art-ids)
+                       (keep (fn [[id n]] (when (> n 1) id)))
+                       vec)
+          hash-mismatches
+          (into []
+                (keep (fn [id]
+                        (let [expected (build-held-custody-artifact (get adj-by-id id))
+                              actual (get art-by-id id)]
+                          (when (or (nil? actual)
+                                    (not= (:artifact/hash expected) (:artifact/hash actual)))
+                            {:held-adjustment/id id
+                             :expected-hash (:artifact/hash expected)
+                             :actual-hash (:artifact/hash actual)}))))
+                adj-ids)
+          bijection-violations
+          (cond-> []
+            (not= (count adjustments) (count artifacts))
+            (conj {:type :count-mismatch
+                   :adjustment-count (count adjustments)
+                   :artifact-count (count artifacts)})
+            (seq dup-adj)
+            (conj {:type :duplicate-adjustment-ids :ids dup-adj})
+            (seq dup-art)
+            (conj {:type :duplicate-artifact-ids :ids dup-art})
+            (seq missing)
+            (conj {:type :missing-artifacts :ids missing})
+            (seq extra)
+            (conj {:type :extra-artifacts :ids extra})
+            (seq hash-mismatches)
+            (conj {:type :artifact-identity-mismatch :mismatches hash-mismatches}))
+          order-violations
+          (cond-> []
+            (not= adj-ids art-ids)
+            (conj {:type :sequence-mismatch
+                   :ledger-ids adj-ids
+                   :artifact-ids art-ids})
+            (not= given-art-ids art-ids)
+            (conj {:type :presentation-not-canonical
+                   :presented-ids given-art-ids
+                   :canonical-ids art-ids}))]
+      [{:check/id :held-custody/ledger-artifact-bijection
+        :status (if (empty? bijection-violations) :pass :fail)
+        :details {:violations bijection-violations}}
+       {:check/id :held-custody/ledger-artifact-order
+        :status (if (empty? order-violations) :pass :fail)
+        :details {:violations order-violations}}])))
+
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Replayed reason/position policy and attribution requirements (P1)
+;; ═══════════════════════════════════════════════════════════════════════════
+;; The write path enforces reason-derived positions and ownership requirements;
+;; these checks re-derive the same obligations from the ledger so the verifier
+;; does not trust the artifact's selected account.
+
+(defn held-custody-reason-attribution-checks
+  "Replay reason-position policy and attribution requirements over the LEDGER
+   (not the artifact surface), so the verifier does not trust the artifact's
+   selected account.
+
+   :held-custody/reason-position-policy — every :held/reason is classified by the
+   shared held-position-policy: position-bearing reasons must match the derived
+   account/position-id, policy-exempt reasons must carry no position-id, and an
+   unknown reason (:unknown-reason-outside-policy) is a violation unless it is
+   committed in held-position-policy/policy-exempt-reasons.
+
+   :held-custody/attribution-shape — when owner/address or the parameter pair is
+   present it must be structurally valid.
+
+   :held-custody/required-attribution — a reason that demands explicit ownership
+   (held-position-policy/address-scoped-held-reasons) must have committed a
+   non-blank :owner/address."
+  [adjustments]
+  (let [adjustments (vec (or adjustments []))
+        policy-violations
+        (into []
+              (keep (fn [adj]
+                      (let [err (held-policy/position-policy-check-error adj)]
+                        (when err
+                          {:held-adjustment/id (:held-adjustment/id adj)
+                           :held/reason (:held/reason adj)
+                           :error err})))
+                    adjustments))
+        shape-violations
+        (into []
+              (keep (fn [adj]
+                      (let [owner (:owner/address adj)
+                            bad-owner (and (some? owner) (held-policy/blank-owner? owner))
+                            pa-error (pa/parameter-attribution-error
+                                      {:parameter/context (:parameter/context adj)
+                                       :parameter/address (:parameter/address adj)})]
+                        (when (or bad-owner (some? pa-error))
+                          {:held-adjustment/id (:held-adjustment/id adj)
+                           :owner-invalid? bad-owner
+                           :parameter-attribution-error pa-error})))
+                    adjustments))
+        required-violations
+        (into []
+              (keep (fn [adj]
+                      (let [reason (:held/reason adj)]
+                        (when (and (held-policy/required-owner-attribution? reason)
+                                   (held-policy/blank-owner? (:owner/address adj)))
+                          {:held-adjustment/id (:held-adjustment/id adj)
+                           :held/reason reason})))
+                    adjustments))]
+    [{:check/id :held-custody/reason-position-policy
+      :status (if (empty? policy-violations) :pass :fail)
+      :details {:violations policy-violations}}
+     {:check/id :held-custody/attribution-shape
+      :status (if (empty? shape-violations) :pass :fail)
+      :details {:violations shape-violations}}
+     {:check/id :held-custody/required-attribution
+      :status (if (empty? required-violations) :pass :fail)
+      :details {:violations required-violations}}]))
+
+(defn held-custody-closed-form-checks
+  "Deterministic closed-form checks for held custody.  Fail closed: any failing
+   check throws ex-info carrying :check-results (and :failed-checks) in ex-data.
+
+   One-arity (artifacts only) runs the artifact-surface battery
+   (artifact-surface-checks).
+
+   Two-arity (adjustments + artifacts) additionally runs:
+     - :held-custody/ledger-artifact-bijection
+     - :held-custody/ledger-artifact-order
+     - :held-custody/reason-position-policy
+     - :held-custody/attribution-shape
+     - :held-custody/required-attribution"
+  ([artifacts]
+   (throw-on-failed-checks (artifact-surface-checks artifacts)))
+  ([adjustments artifacts]
+   (throw-on-failed-checks
+    (into (vec (artifact-surface-checks artifacts))
+          (concat (held-custody-ledger-artifact-checks adjustments artifacts)
+                  (held-custody-reason-attribution-checks adjustments))))))
 
 (defn replay-held-adjustment-state
   "Replay a held-adjustment ledger into replay-verified materialized custody
@@ -585,8 +777,35 @@
 ;; projection/report — it is not a second verifier; it aggregates the existing
 ;; ledger, index, artifacts, and closed-form checks.
 
-(def held-custody-summary-schema-version "held-custody-summary.v1")
+(def held-custody-summary-schema-version "held-custody-summary.v2")
 (def held-custody-summary-verifier-id "held-custody-summary-verifier.v1")
+
+(defn ledger-root
+  "Content root over the canonical ledger: intent-tagged hash of the adjustments
+   in canonical (held-adjustment-order) sequence.  Any change to any adjustment
+   changes the root."
+  [adjustments]
+  (hash-ref/sha256-ref
+   (hash/hash-with-intent {:hash/intent :evidence-record}
+                          (vec (sort-by held-adjustment-order adjustments)))))
+
+(defn artifact-sequence-root
+  "Order-sensitive hash chain over the artifact hashes in canonical sequence.
+   Reordering or substituting any artifact changes the root.  Nil for an empty
+   artifact set."
+  [artifacts]
+  (reduce (fn [acc a]
+            (hash-ref/sha256-ref
+             (hash/hash-with-intent {:hash/intent :evidence-record}
+                                    {:previous-sequence-root acc
+                                     :artifact/hash (:artifact/hash a)})))
+          nil
+          (vec (sort-by held-adjustment-order artifacts))))
+
+(defn- details-for
+  "Details of the closed-form check result with the given id, or nil."
+  [check-results check-id]
+  (some (fn [r] (when (= check-id (:check/id r)) (:details r))) check-results))
 
 (defn- finalize-artifact
   "Attach the content hash and exact preimage to an artifact body."
@@ -598,10 +817,11 @@
            :artifact/preimage (pr-str body))))
 
 (defn- guarded-closed-form-checks
-  "Run the closed-form checks, returning {:results [...]} without throwing so a
-   summary can count failures rather than fail."
-  [artifacts]
-  (try {:results (held-custody-closed-form-checks artifacts)}
+  "Run the full closed-form battery (artifact surface + ledger/artifact
+   completeness + replayed reason/attribution), returning {:results [...]}
+   without throwing so a summary can count failures rather than fail."
+  [adjustments artifacts]
+  (try {:results (held-custody-closed-form-checks adjustments artifacts)}
        (catch Exception e
          {:results (get-in (ex-data e) [:check-results] [])})))
 
@@ -683,18 +903,20 @@
         artifacts (vec (or artifacts []))
         total-held (or total-held {})
         ordered (sort-by held-adjustment-order adjustments)
-        closed-form (guarded-closed-form-checks artifacts)
+        closed-form (guarded-closed-form-checks adjustments artifacts)
         check-results (:results closed-form)
         check-status (into {} (map (fn [r] [(:check/id r) (:status r)]) check-results))
         check-failure-counts (into {}
                                    (map (fn [r] [(:check/id r) (count (:violations (:details r)))]))
                                    check-results)
-        pa-details (some #(when (= :held-custody/parameter-attribution (:check/id %)) (:details %))
-                         check-results)
-        predecessor-details (some #(when (= :held-custody/predecessor-continuity (:check/id %)) (:details %))
-                                  check-results)
-        replay-details (some #(when (= :held-custody/sequence-replay (:check/id %)) (:details %))
-                             check-results)
+        pa-details (details-for check-results :held-custody/parameter-attribution)
+        predecessor-details (details-for check-results :held-custody/predecessor-continuity)
+        replay-details (details-for check-results :held-custody/sequence-replay)
+        bijection-details (details-for check-results :held-custody/ledger-artifact-bijection)
+        order-details (details-for check-results :held-custody/ledger-artifact-order)
+        reason-policy-details (details-for check-results :held-custody/reason-position-policy)
+        attribution-shape-details (details-for check-results :held-custody/attribution-shape)
+        required-attribution-details (details-for check-results :held-custody/required-attribution)
         complete? (if (map? completeness)
                     (get completeness :held-adjustments/complete? true)
                     (if (nil? completeness) true completeness))
@@ -723,6 +945,8 @@
                                             :last (held-adjustment-order (last ordered))})
               :artifact-chain-head (let [ordered-arts (sort-by held-adjustment-order artifacts)]
                                      (:artifact/hash (last ordered-arts)))
+              :ledger-root (ledger-root adjustments)
+              :artifact-sequence-root (artifact-sequence-root artifacts)
               :by-token (tally-count adjustments :token)
               :by-direction (tally-count adjustments :held/direction)
               :by-account (tally-count adjustments :held/account)
@@ -746,7 +970,12 @@
               :triage {:broken-predecessor-links (mapv :held-adjustment/id (:violations predecessor-details))
                        :invalid-artifacts invalid-artifacts
                        :overdraw-attempts overdraw
-                       :replay-mismatches (mapv :held-adjustment/id (:violations replay-details))}}]
+                       :replay-mismatches (mapv :held-adjustment/id (:violations replay-details))
+                       :ledger-artifact-bijection-violations (:violations bijection-details)
+                       :ledger-artifact-order-violations (:violations order-details)
+                       :reason-policy-violations (:violations reason-policy-details)
+                       :attribution-shape-violations (:violations attribution-shape-details)
+                       :required-attribution-violations (:violations required-attribution-details)}}]
     (finalize-artifact body)))
 
 (defn valid-held-custody-summary?

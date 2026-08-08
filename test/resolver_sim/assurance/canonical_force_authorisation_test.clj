@@ -303,7 +303,9 @@
                       :transitions
                       {:randomness-requested #{:allocation-committed}}))]
       (is (not (:valid? bad)))
-      (is (= [[:randomness-requested :allocation-committed]] (:violations bad))))))
+      (is (= [[:randomness-requested :allocation-committed]] (:violations bad)))))
+  (testing "the committed probabilistic-allocation-window transitions are monotonic"
+    (is (:valid? (cfa/validate-lifecycle-monotonicity cfa/probabilistic-allocation-window)))))
 
 (deftest cancellation-taxonomy-and-binding-contracts
   (testing "contract 1: only explicit cancellation of a valid authorisation decides"

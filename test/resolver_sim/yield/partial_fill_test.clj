@@ -240,6 +240,72 @@
       (is (= :fail (:status fairness)))
       (is (seq (get-in fairness [:details :violations]))))))
 
+(deftest test-partial-fill-closed-form-checks-fail-action-fairness
+  (testing "fail-action fairness check passes when the deferred shortfall is pro-rata"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 200 :c 300}
+                    :filled {:a 10 :b 20 :c 30}
+                    :deferred {:a 90 :b 180 :c 270}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                    :evidence {:available-liquidity 60 :total-requested 600 :shortage 540}}
+          checks (closed-form-checks decision)
+          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+                                         (:check/id %))
+                                     checks))]
+      (is (= :pass (:status fail-action)))
+      (is (= [] (get-in fail-action [:details :violations]))))))
+
+(deftest test-partial-fill-closed-form-checks-fail-action-catches-unfair-split
+  (testing "fail-action fairness catches a deferred/haircut split concentrated on one claimant"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 200 :c 300}
+                    :filled {:a 10 :b 20 :c 30}
+                    :deferred {:a 90 :b 180 :c 0}
+                    :haircut {:a 0 :b 0 :c 270}
+                    :policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                    :evidence {:available-liquidity 60 :total-requested 600 :shortage 540}}
+          checks (closed-form-checks decision)
+          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+                                         (:check/id %))
+                                     checks))
+          buckets (set (map :bucket (get-in fail-action [:details :violations])))]
+      (is (= :fail (:status fail-action)))
+      (is (seq (get-in fail-action [:details :violations])))
+      (is (contains? buckets :deferred))
+      (is (contains? buckets :haircut)))))
+
+(deftest test-partial-fill-closed-form-checks-fail-action-not-applicable-without-fail
+  (testing "fail-action fairness is not-applicable when nothing is deferred or haircut"
+    (let [decision {:settlement-mode :full-fill
+                    :requested {:a 100 :b 200 :c 300}
+                    :filled {:a 100 :b 200 :c 300}
+                    :deferred {}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                    :evidence {:available-liquidity 600 :total-requested 600 :shortage 0}}
+          checks (closed-form-checks decision)
+          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+                                         (:check/id %))
+                                     checks))]
+      (is (= :not-applicable (:status fail-action)))
+      (is (= "no deferred or haircut amounts (no fail action exercised)"
+             (get-in fail-action [:details :reason]))))))
+
+(deftest test-partial-fill-closed-form-checks-fail-action-not-applicable-lr-dust
+  (testing "fail-action fairness is not-applicable under largest-remainder dust"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 100 :c 100}
+                    :filled {:a 4 :b 3 :c 3}
+                    :deferred {:a 96 :b 97 :c 97}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                    :evidence {:available-liquidity 10}}
+          checks (closed-form-checks decision)
+          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+                                         (:check/id %))
+                                     checks))]
+      (is (= :not-applicable (:status fail-action))))))
 (deftest test-partial-fill-closed-form-checks-per-claim-conservation-violation
   (testing "per-claim-conservation catches filled+deferred != requested"
     (let [decision {:settlement-mode :partial-fill

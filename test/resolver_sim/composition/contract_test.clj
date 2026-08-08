@@ -61,6 +61,32 @@
                           (cc :mutate #(assoc % :composition/custody
                                               {:accounts [1 2]})))))))
 
+(deftest verification-declaration-validated
+  (is (:valid? (c/validate-composition-contract
+                (cc :mutate #(assoc % :composition/verification
+                                    {:intermediate-output-committed? false
+                                     :evidence-contract-ref :prf/evidence.v1})))))
+  (is (:valid? (c/validate-composition-contract (cc :mutate #(dissoc % :composition/verification))))
+      "verification obligations are optional")
+  (is (some #(= :violation/invalid-composition-verification (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc % :composition/verification "garbage")))))
+      "a non-map verification value is rejected, never silently defaulted")
+  (is (some #(= :violation/unknown-composition-verification-key (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc % :composition/verification
+                                              {:intermediate-output-committed? true
+                                               :evidence-contract-ref nil
+                                               :typo/flag true}))))))
+  (is (some #(= :violation/invalid-verification-intermediate-flag (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc % :composition/verification
+                                              {:intermediate-output-committed? "yes"}))))))
+  (is (some #(= :violation/invalid-verification-evidence-contract-ref (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc % :composition/verification
+                                              {:evidence-contract-ref 42})))))))
+
 (deftest contract-root-mutation
   (testing "every committed contract field changes the contract root"
     (doseq [[label mutate] [["version" #(assoc % :composition-contract/version 2)]

@@ -127,18 +127,24 @@
            (combo/combination-root with-edges)))))
 
 (deftest combination-root-mutation
-  (testing "every semantic compiler input changes the combination root"
+  (testing "every committed semantic compiler input changes the combination root"
     (let [base (two-stage (fx/ext-map-with))]
       (doseq [[label mutate] [["input-semantic" #(assoc-in % [:combination/input :semantic-type] :gross)]
                               ["expected-output" #(assoc-in % [:combination/expected-output :semantic-type] :gross)]
                               ["verification" #(assoc % :combination/verification
                                                       {:intermediate-output-committed? false})]
-                              ["adapters" #(assoc % :combination/adapters [:fixture/adapter])]
                               ["node-capability" #(assoc-in % [:combination/nodes 1 :capability/ref 1]
                                                             :prf/resolved-amount)]]]
         (is (not= (combo/combination-root base)
                   (combo/combination-root (mutate base)))
             (str label " must change the combination root")))))
+  (testing "adapters are not committed in v1"
+    (let [base (two-stage (fx/ext-map-with))
+          with-adapters (assoc base :combination/adapters [:fixture/adapter])]
+      (is (= (combo/combination-root base)
+             (combo/combination-root with-adapters))
+          "v1 categorically forbids adapters, so the field is not part of the
+          combination root")))
   (testing "irrelevant node metadata does not change the combination root"
     (let [base (two-stage (fx/ext-map-with))
           noisy (update base :combination/nodes
@@ -337,6 +343,30 @@
         combo (assoc (two-stage emap)
                      :combination/verification {:intermediate-output-committed? false})]
     (is (rejects emap combo :violation/verification-contract-not-preserved))))
+
+(deftest malformed-combination-verification-rejected
+  (let [emap (fx/ext-map-with)]
+    (doseq [[label verification] [["non-map" "garbage"]
+                                  ["vector" [:x]]
+                                  ["non-boolean-flag" {:intermediate-output-committed? "yes"}]
+                                  ["bad-evidence-ref" {:evidence-contract-ref 42}]
+                                  ["unknown-key" {:intermediate-output-committed? true :typo/key 1}]]]
+      (let [combo (assoc (two-stage emap) :combination/verification verification)
+            {:keys [valid? violations]} (combo/validate-combination combo)]
+        (is (not valid?) (str label " must be rejected by validate-combination"))
+        (is (seq violations)))
+      (is (= :invalid (:status (compile-it emap
+                                           (assoc (two-stage emap)
+                                                  :combination/verification verification))))
+          (str label " must not compile")))))
+
+(deftest valid-combination-verification-compiles
+  (let [emap (fx/ext-map-with)
+        combo (assoc (two-stage emap)
+                     :combination/verification {:intermediate-output-committed? true
+                                                :evidence-contract-ref :prf/evidence.v1})]
+    (is (:valid? (combo/validate-combination combo)))
+    (is (= :valid (:status (compile-it emap combo))))))
 
 ;; ── graph helpers ─────────────────────────────────────────────────────────
 

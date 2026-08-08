@@ -22,10 +22,15 @@
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
      - resolver-sim.protocols.sew
-     - any form under protocols_src/"
+     - any form under protocols_src/
+     - resolver-sim.evidence.force-authorisation (deleted legacy core domain)
+
+   Historical member verification is extension-owned: the frozen v1/v2
+   validators live in prf.extensions.held-custody.legacy-validate, the
+   extension's permanent historical-read contract."
   (:require [resolver-sim.assurance.force-authorisation :as fa]
-            [resolver-sim.evidence.force-authorisation :as fa-ev]
-            [prf.extensions.held-custody.mutation :as mutation]))
+            [prf.extensions.held-custody.mutation :as mutation]
+            [prf.extensions.held-custody.legacy-validate :as lv]))
 
 (defn classify-legacy-add-held
   "Classify a legacy (or new) held-custody mutation artifact:
@@ -37,12 +42,12 @@
   (cond
     (not (map? artifact)) :not-force-auth-add-held
     (= mutation/schema-version (:schema-version artifact)) :action-and-direction-bound
-    (= fa-ev/add-held-v2-schema-version (:schema-version artifact))
-    (if (fa-ev/valid-force-auth-add-held-v2? artifact)
+    (= lv/add-held-v2-schema-version (:schema-version artifact))
+    (if (lv/valid-force-auth-add-held-v2? artifact)
       :legacy-direction-bound
       :legacy-direction-unbound)
-    (= fa-ev/add-held-schema-version (:schema-version artifact))
-    (if (fa-ev/valid-force-auth-add-held? artifact)
+    (= lv/add-held-schema-version (:schema-version artifact))
+    (if (lv/valid-force-auth-add-held? artifact)
       :legacy-direction-unbound
       :not-force-auth-add-held)
     :else :not-force-auth-add-held))

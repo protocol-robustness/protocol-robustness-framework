@@ -77,15 +77,15 @@
   ([] (resolve-claim-registry nil))
   ([opts]
    (let [registry (resolver-sim.benchmark.claim-registry/load-claim-registry
-                   (:claim-registry/path opts))
-         data (rp/edn-read (:claim-registry/path registry))]
-     ;; Preserve the historical data shape (:claims vector + document fields)
-     ;; while surfacing selection provenance so consumers can tell which file
-     ;; actually governed the run.
-     (merge data
+                   (:claim-registry/path opts))]
+     ;; Single read: the resolver returns the validated document plus selection
+     ;; provenance, so there is no second (potentially divergent) file read.
+     (merge (:claim-registry/data registry)
             {:claims (:claims registry)
+             :claim-registry/data (:claim-registry/data registry)
              :claim-registry/path (:claim-registry/path registry)
-             :claim-registry/source (:claim-registry/source registry)}))))
+             :claim-registry/source (:claim-registry/source registry)
+             :claim-registry/version (:claim-registry/version registry)}))))
 
 (defn- resolve-protocol-registry
   ([] (resolve-protocol-registry nil))

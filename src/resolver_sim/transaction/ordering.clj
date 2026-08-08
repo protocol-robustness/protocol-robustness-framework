@@ -99,31 +99,48 @@
        :transaction/state-before-root == prior :transaction/state-after-root
        (prior-state fixed point).
 
+   CHAIN ORIGIN — The first ordering's :transaction/state-before-root is not
+   independently verifiable (there is no prior to check against).  Chain
+   verification proves internal continuity, not origin correctness.
+
+   FAIL-CLOSED SKIP — When an ordering fails its self-hash, state-root
+   continuity and previous-hash linkage against it are intentionally skipped:
+   the chain is already known invalid and further checks add no safety.
+   The forensic consequence is that you cannot distinguish \"prior was tampered
+   AND current state-root is mismatched\" from \"prior was tampered alone\".
+
    The first ordering must carry a nil :transaction/previous-transaction-hash.
    Returns {:valid? bool :errors [str]}."
   [orderings]
-  (let [errors (atom [])
-        vs (mapv (fn [o] {:ordering o :v (verify-ordering o)}) orderings)]
-    (doseq [[i {:keys [ordering v]}] (map-indexed vector vs)]
-      (when-not (:valid? v)
-        (swap! errors conj (str "ordering[" i "] " (:detail v)))))
-    (doseq [[i {:keys [ordering]}] (map-indexed vector vs)]
-      (when (zero? i)
-        (when (some? (:transaction/previous-transaction-hash ordering))
-          (swap! errors conj (str "ordering[0] must carry nil "
-                                  ":transaction/previous-transaction-hash"))))
-      (when (pos? i)
-        (let [prior (get vs (dec i))
-              prior-ordering (:ordering prior)
-              prior-valid? (:valid? (:v prior))]
-          (when (and prior-valid? (:valid? (:v (get vs i))))
-            (when-not (= (:transaction-ordering/hash prior-ordering)
-                         (:transaction/previous-transaction-hash ordering))
-              (swap! errors conj (str "ordering[" i "] previous-transaction-hash does not "
-                                      "match prior ordering hash")))
-            (when-not (= (:transaction/state-after-root prior-ordering)
-                         (:transaction/state-before-root ordering))
-              (swap! errors conj (str "ordering[" i "] state-before-root is not the "
-                                      "prior-state fixed point of ordering[" (dec i)
-                                      "] (prior state-after-root) ")))))))
-    {:valid? (empty? @errors) :errors @errors}))
+  (let [vs (mapv (fn [o] {:ordering o :v (verify-ordering o)}) orderings)]
+    (loop [i 0
+           errors []]
+      (if (>= i (count vs))
+        {:valid? (empty? errors) :errors errors}
+        (let [{:keys [ordering v]} (nth vs i)
+              self-valid? (:valid? v)
+              errors (if self-valid?
+                       errors
+                       (conj errors (str "ordering[" i "] " (:detail v))))
+              errors (if (zero? i)
+                       ;; chain origin: no prior to validate against
+                       (if (some? (:transaction/previous-transaction-hash ordering))
+                         (conj errors "ordering[0] must carry nil :transaction/previous-transaction-hash")
+                         errors)
+                       ;; subsequent ordering: check linkage when both sides are valid
+                       (let [prior (nth vs (dec i))
+                             prior-valid? (:valid? (:v prior))
+                             prior-ordering (:ordering prior)]
+                         (if (and prior-valid? self-valid?)
+                           (cond-> errors
+                             (not= (:transaction-ordering/hash prior-ordering)
+                                   (:transaction/previous-transaction-hash ordering))
+                             (conj (str "ordering[" i "] previous-transaction-hash does not "
+                                        "match prior ordering hash"))
+                             (not= (:transaction/state-after-root prior-ordering)
+                                   (:transaction/state-before-root ordering))
+                             (conj (str "ordering[" i "] state-before-root is not the "
+                                        "prior-state fixed point of ordering[" (dec i)
+                                        "] (prior state-after-root)")))
+                           errors)))]
+          (recur (inc i) errors))))))

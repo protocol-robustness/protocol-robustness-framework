@@ -22,9 +22,13 @@
    The guard reads parsed Clojure forms (comments are not forms; docstring
    slots of def/defn/defmacro are excluded), so English prose and unrelated
    keywords (e.g. :finalize/sub-held-amount, :held-custody-position-isolation
-   claim ids) are out of scope. It permits only exact frozen-legacy entries;
-   Phase 6 acceptance: the approval lists are empty for held-custody
-   vocabulary."
+   claim ids) are out of scope. After Phase 3B all held-custody approvals are
+   :protocol-neutral: they are the MINIMAL historical-recognition vocabulary
+   core keeps so it can classify/verify the extension-owned historical read
+   contract (sensitivity sentinel, canonical reconciliation, and the neutral
+   artifact hashing layer the extension's legacy validators call into).
+   Semantic ownership of held-custody vocabulary lives in the extension
+   manifest (:extension/historical-read), cross-checked by a conformance test."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -133,13 +137,23 @@
 (defn- approvals-by-file [approvals]
   (into {} (map (juxt :file :literals)) approvals))
 
+(def historical-recognition-files
+  "Core files that legitimately recognize historical held-custody artifact
+   vocabulary for classification/verification of the extension-owned
+   historical read contract. Artifact vocabulary may be :protocol-neutral
+   ONLY in these files; the conformance test cross-checks their tables against
+   the extension manifest."
+  #{"src/resolver_sim/sensitivity/sentinel.clj"
+    "src/resolver_sim/assurance/canonical_force_authorisation.clj"
+    "src/resolver_sim/evidence/artifact.clj"})
+
 (deftest core-domain-vocabulary-boundaries
   (doseq [[approvals-key family-key vocab-name allowed-statuses]
-          [[:approved/core-domain-literals :artifact "artifact/schema" #{:legacy}]
+          [[:approved/core-domain-literals :artifact "artifact/schema" #{:protocol-neutral}]
            [:approved/core-operation-literals :operation "operation"
-            #{:legacy :protocol-neutral}]
+            #{:protocol-neutral}]
            [:approved/core-status-literals :status "status"
-            #{:legacy :protocol-neutral}]]]
+            #{:protocol-neutral}]]]
     (let [approvals (get boundary-policy approvals-key [])
           approved-by-file (approvals-by-file approvals)
           found (into {}
@@ -186,8 +200,10 @@
           (when (= :legacy (:status a))
             (is (some? (:replacement a)) (str "legacy approval without replacement: " (:file a))))
           (when (= :protocol-neutral (:status a))
-            (is (empty? (filter artifact-vocab? (:literals a)))
-                (str "protocol-neutral operation approval must not carry artifact vocabulary: " (:file a))))))
+            (when (seq (filter artifact-vocab? (:literals a)))
+              (is (contains? historical-recognition-files (:file a))
+                  (str "protocol-neutral artifact vocabulary allowed only in "
+                       "historical-recognition files: " (:file a)))))))
       (testing (str vocab-name " approval entries are unique per file")
         (is (= (count approvals) (count (distinct (map :file approvals))))))
       (testing (str "a stale " vocab-name " approval (file no longer contains a listed literal) fails")

@@ -16,6 +16,7 @@
             [resolver-sim.yield.position :as pos]
             [resolver-sim.yield.registry :as reg]
             [resolver-sim.yield.invariants :as inv]
+            [resolver-sim.yield.invariant-catalog :as cat]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.hash.canonical :as hc]))
 
@@ -171,6 +172,106 @@
           replay (ll/apply-pro-rata-propagation applied-world propagation)]
       (is (= :already-applied (:status replay)))
       (is (= applied-world (:world replay))))))
+
+(deftest shared-withdrawal-conservation-holds
+  (testing "check-shared-withdrawal-conservation holds on real shared decisions"
+    (doseq [[owners available opts]
+            [[["alice" "bob"] 150 {}]
+             [["alice" "bob"] 150 {:effective-caps {"alice" 20 "bob" 100}}]
+             [["alice" "bob" "carol"] 100 {}]
+             [["alice"] 100 {}]
+             [["alice" "bob"] 300 {:effective-caps {"alice" 20 "bob" 30}}]
+             [["alice" "bob"] 200 {:effective-caps {"alice" 0}}]]]
+      (let [decision (shared-decision owners available opts)
+            result (inv/check-shared-withdrawal-conservation decision)]
+        (is (:holds? result)
+            (str "conservation must hold for " (pr-str owners) " " available " "
+                 (pr-str opts) " but got " (:violations result)))))))
+
+(deftest shared-withdrawal-capped-equality-locked
+  (testing "Σ filled = min(available, Σ effective-demand) even when caps bind below both"
+    (doseq [[owners available opts]
+            [[["alice" "bob"] 150 {}]
+             [["alice" "bob"] 150 {:effective-caps {"alice" 20 "bob" 100}}]
+             [["alice" "bob"] 300 {:effective-caps {"alice" 20 "bob" 30}}]
+             [["alice" "bob"] 200 {:effective-caps {"alice" 0}}]
+             [["alice" "bob" "carol"] 100 {}]]]
+      (let [decision (shared-decision owners available opts)
+            A (get-in decision [:evidence :available-liquidity])
+            D (reduce + 0 (map #(long (:effective-cap %))
+                               (get-in decision [:evidence :allocation-rows])))
+            F (reduce + 0 (vals (:filled decision)))
+            R (reduce + 0 (vals (:requested decision)))]
+        (is (= (min A D) (long F))
+            (str "locked theorem violated for " (pr-str owners) " " available " "
+                 (pr-str opts) ": F=" F " A=" A " D=" D))
+        (is (<= (long F) (long A)) "budget bound")
+        (is (<= (long F) (long D)) "demand/caps bound")
+        (is (<= (long F) (long R)) "never fill more than requested")))))
+
+(deftest shared-withdrawal-overflow-residual-reconciles
+  (testing "Σ filled + :unallocated-residual = committed available (overflow conserved)"
+    (doseq [[owners available opts]
+            [[["alice" "bob"] 150 {}]
+             [["alice" "bob"] 150 {:effective-caps {"alice" 20 "bob" 100}}]
+             [["alice" "bob"] 300 {:effective-caps {"alice" 20 "bob" 30}}]
+             [["alice" "bob"] 200 {:effective-caps {"alice" 0}}]]]
+      (let [decision (shared-decision owners available opts)
+            A (get-in decision [:evidence :available-liquidity])
+            F (reduce + 0 (vals (:filled decision)))
+            R (get-in decision [:evidence :unallocated-residual])]
+        (is (= (long A) (+ (long F) (long R)))
+            (str "overflow not conserved for " (pr-str owners) " " available " " opts))
+        (is (<= 0 (long R)) "residual non-negative")
+        (is (:holds? (inv/check-shared-withdrawal-conservation decision)))))))
+
+(deftest shared-withdrawal-conservation-detects-tamper
+  (testing "altering any committed conservation input is detected"
+    (let [decision (shared-decision ["alice" "bob"] 150
+                                    {:effective-caps {"alice" 20 "bob" 100}})
+          mutants [(assoc-in decision [:evidence :available-liquidity] 500)
+                   (update decision :filled assoc "alice" 50)
+                   (assoc decision :allocation/scope :token-pool)
+                   (update-in decision [:policy] assoc :rounding-policy :floor)
+                   (update-in decision [:evidence :allocation-rows 0] assoc :effective-cap 200)
+                   (update-in decision [:evidence :allocation-rows 0] assoc :filled 200)
+                   (assoc-in decision [:evidence :unallocated-residual] 60)
+                   (assoc decision :decision/hash "0xdead")]]
+      (doseq [m mutants]
+        (is (not (:holds? (inv/check-shared-withdrawal-conservation m)))
+            (str "tamper must be detected for mutation " (select-keys m [:allocation/scope])))))))
+
+(deftest shared-withdrawal-conservation-world-and-runtime
+  (testing "the world-level checker and runtime registration catch tampering"
+    (let [result (ll/withdraw-shared (shared-withdrawal-world ["alice" "bob"] 150)
+                                     test-mod
+                                     {:owner-ids ["alice" "bob"] :token "USDC"
+                                      :allocation-mode :pro-rata
+                                      :effective-caps {"alice" 20 "bob" 100}})]
+      (is (:holds? (inv/check-shared-withdrawal-conservation-world result)))
+      (is (:holds? (get (inv/run-invariants result cat/default-runtime-invariant-ids)
+                        :yield/shared-withdrawal-conservation))
+          ":yield/shared-withdrawal-conservation must hold in the default runtime set")
+      (let [decision-id (-> result :yield/partial-fill-decisions keys first)
+            tampered (update-in result [:yield/partial-fill-decisions decision-id :filled]
+                                assoc "alice" 50)]
+        (is (not (:holds? (inv/check-shared-withdrawal-conservation-world tampered)))
+            "tampered in-world artifact must be detected")))))
+
+(deftest single-withdrawals-respect-committed-recoverable
+  (testing "each single withdrawal is bounded by its committed :ledger/available (record-local)"
+    (let [world (shared-withdrawal-world ["alice" "bob"] 200)
+          w1 (ll/withdraw world test-mod {:owner/id "alice"})
+          w2 (ll/withdraw w1 test-mod {:owner/id "bob"})]
+      ;; The record-local bound holds for every record regardless of timing.
+      (doseq [r (:yield/withdrawal-ledger w2)]
+        (is (<= (long (:ledger/filled r)) (long (:ledger/available r)))
+            (str "filled exceeds committed recoverable: " (:ledger/id r))))
+      ;; check-withdrawal-ledger-conservation re-derives each record's committed
+      ;; state-cutpoint against the world it is called with, so a record is only
+      ;; validated against the world at which it was the most recent operation.
+      (is (:holds? (inv/check-withdrawal-ledger-conservation w1))
+          "alice's single-withdrawal ledger is valid at its own world step"))))
 
 (deftest shared-withdrawal-v2-propagation-binds-decision-and-allocation
   (let [world (shared-withdrawal-world ["alice" "bob"] 100)

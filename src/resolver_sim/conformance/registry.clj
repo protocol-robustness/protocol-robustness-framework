@@ -16,6 +16,25 @@
 
 (def registry-schema-version "conformance.implementation-registry/v1")
 
+(def committed-identity-fields
+  "Fields that constitute a committed implementation identity. These are the
+   only fields bound into the deterministic registry root. The runtime
+   :implementation/run value is deliberately NOT committed: it is the local
+   realization of the committed identity, not identity itself."
+  [:implementation/id
+   :implementation/kind
+   :implementation/domain
+   :implementation/version
+   :implementation/source-root
+   :implementation/status
+   :implementation/artifact-root
+   :implementation/entrypoint])
+
+(defn- committed-entry
+  "Project an implementation entry to its committed identity fields."
+  [entry]
+  (select-keys entry committed-identity-fields))
+
 (defn register!
   "Register an implementation entry.
      {:implementation/id <kw>
@@ -24,20 +43,31 @@
       :implementation/version <int>
       :implementation/source-root <sha256>
       :implementation/status :active|:experimental|:deprecated
-      :implementation/run (fn [...] ...)}
+      :implementation/artifact-root <optional committed artifact identity>
+      :implementation/entrypoint <optional committed entrypoint symbol>
+      :implementation/run (fn [...] ...)   ;; local, NON-committed runtime
+                                           ;; realization of the identity}
 
-   Duplicate IDs are rejected regardless of registration order unless the entry
-   is byte-identical (idempotent re-registration).  Registration order never
-   changes the committed registry root (entries are canonicalised sorted)."
+   Registry identity is the committed metadata
+   (committed-identity-fields). Duplicate IDs are rejected when the committed
+   metadata differs, regardless of registration order; identical committed
+   metadata is an idempotent re-registration. :implementation/run is the local
+   realization of that committed identity: it is never part of the committed
+   root, and re-registering the same committed identity with a different :run
+   is a runtime rebind, not a registry change. Registration order never changes
+   the committed registry root (entries are canonicalised sorted)."
   [entry]
   (let [id (:implementation/id entry)]
     (when-not id
       (throw (ex-info "implementation requires :implementation/id" {:entry entry})))
     (let [existing (get @implementations id)]
-      (when (and existing (not= (dissoc existing :implementation/run)
-                                (dissoc entry :implementation/run)))
-        (throw (ex-info "implementation id already registered with a different entry"
-                        {:implementation/id id})))
+      (when (and existing
+                 (not= (committed-entry existing)
+                       (committed-entry entry)))
+        (throw (ex-info "implementation id already registered with a different committed identity"
+                        {:implementation/id id
+                         :existing (dissoc (committed-entry existing) :implementation/run)
+                         :incoming (dissoc (committed-entry entry) :implementation/run)})))
       (swap! implementations assoc id entry))
     id))
 
@@ -51,18 +81,12 @@
   (keys @implementations))
 
 (defn registry-entries
-  "Canonical, sorted vector of committed implementation entries (excluding :run),
-   used for the deterministic registry root."
+  "Canonical, sorted vector of committed implementation entries (excluding the
+   non-committed :run and any other non-identity metadata), used for the
+   deterministic registry root."
   []
   (vec (sort-by :implementation/id
-                (map (fn [[_ e]]
-                       (select-keys e [:implementation/id
-                                       :implementation/kind
-                                       :implementation/domain
-                                       :implementation/version
-                                       :implementation/source-root
-                                       :implementation/status]))
-                     @implementations))))
+                (map committed-entry (vals @implementations)))))
 
 (defn registry-root
   "Deterministic committed root of the combined implementation surface
@@ -188,6 +212,8 @@
             @implementations)))
 
 (defn implementation-root
-  "Content root of an implementation entry (excluding :run)."
+  "Content root of an implementation's committed identity (the committed
+   fields; :implementation/run is explicitly excluded as non-committed runtime
+   state)."
   [entry]
-  (canonical/root (dissoc entry :implementation/run)))
+  (canonical/root (committed-entry entry)))

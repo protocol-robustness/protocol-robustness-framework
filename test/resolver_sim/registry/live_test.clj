@@ -25,7 +25,18 @@
     (let [result (live/read-live-registry :claim)]
       (is (= :claim (:registry/type result)))
       (is (contains? (:registry/content result) :claims))
-      (is (vector? (:claims (:registry/content result)))))))
+      (is (vector? (:claims (:registry/content result))))))
+  (testing "claim registry content exposes selection provenance and raw document
+            from a single read (no divergent second read)"
+    (let [content (:registry/content (live/read-live-registry :claim))]
+      (is (= :default (:claim-registry/source content)))
+      (is (string? (:claim-registry/path content)))
+      (is (integer? (:claim-registry/version content)))
+      (is (map? (:claim-registry/data content)))
+      ;; The document's own claim entries and the resolver's validated claims
+      ;; come from the same file read, so they must agree.
+      (is (= (count (:claims (:claim-registry/data content)))
+             (count (:claims content)))))))
 
 (deftest read-benchmark-registry
   (testing "read-live-registry reads benchmark registry"
