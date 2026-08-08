@@ -1,0 +1,11 @@
+{
+  "scenario-id": "a-vs-b-plus-c",
+  "scenario-version": "1",
+  "description": "Claimant A versus claimants B plus C. A single large claim competes with two smaller claims; both outcomes are all-or-nothing and exact-capacity.",
+  "capacity": "50",
+  "total-eligible-weight": "100",
+  "exact-pro-rata-denominator": "100",
+  "authoritative-randomness": "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "selection-algorithm": "domain-hash-rejection-v1",
+  "kernel-version": "allocation-kernel.v1"
+}

@@ -1,0 +1,17 @@
+[package]
+name = "allocation-kernel"
+version = "0.1.0"
+edition = "2021"
+description = "Independent Rust allocation kernel for the IEE-PRF coprocessor demo. Reproduces the PRF reference allocation computation byte-for-byte at the declared public-output boundary."
+
+[dependencies]
+sha2 = "0.10"
+num-bigint = "0.4"
+num-traits = "0.2"
+num-integer = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+
+[profile.release]
+opt-level = 3

@@ -1,0 +1,28 @@
+[package]
+name = "allocation-sp1-script"
+version = "0.1.0"
+edition = "2021"
+description = "SP1 host script for the IEE-PRF allocation kernel: executes, proves, verifies, and generates EVM-compatible proof fixtures."
+
+[build-dependencies]
+sp1-build = "6.0.1"
+
+[dependencies]
+sp1-sdk = { version = "6.0.1", features = ["blocking", "native-gnark"] }
+allocation-kernel = { path = "../core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+clap = { version = "4.0", features = ["derive", "env"] }
+
+[[bin]]
+name = "allocation-prove"
+path = "src/main.rs"
+
+[[bin]]
+name = "allocation-evm"
+path = "src/bin/evm.rs"
+
+[[bin]]
+name = "allocation-vkey"
+path = "src/bin/vkey.rs"

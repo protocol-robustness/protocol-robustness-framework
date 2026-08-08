@@ -2,7 +2,6 @@
   "Sew Protocol Evidence Design System (SPEDS) v1.1
    Core Visual Primitives for Protocol Storytelling."
   (:require [resolver-sim.notebook-support.speds.tokens :as tokens]
-            [resolver-sim.notebook-support.speds.config :as config]
             [clojure.string :as str]))
 
 ;; ---
@@ -100,14 +99,18 @@
 ;; P8: Replay Badge (V-RPY)
 
 (defn v-rpy
-  "Renders the cryptographic evidence anchor."
+  "Renders the cryptographic evidence anchor. When no replay hash is
+   supplied, shows an explicit 'N/A' rather than claiming verification."
   [hash-val]
-  (let [h (or hash-val (:hash-suffix config/protocol-defaults))]
-    [:div {:style {:fontFamily (get-typo :font/mono)
-                   :fontSize "9px"
-                   :color (get-color :sys/structural)
-                   :letterSpacing "0.05em"}}
-     "TRACE_ID: " [:span {:style {:color (get-color :sys/primary)}} (subs h 0 (min 12 (count h)))] " | REPLAY: VERIFIED"]))
+  (let [base {:fontFamily (get-typo :font/mono)
+              :fontSize "9px"
+              :color (get-color :sys/structural)
+              :letterSpacing "0.05em"}]
+    (if (seq hash-val)
+      [:div {:style base}
+       "TRACE_ID: " [:span {:style {:color (get-color :sys/primary)}} (subs hash-val 0 (min 12 (count hash-val)))] " | REPLAY: VERIFIED"]
+      [:div {:style base}
+       "REPLAY: N/A"])))
 
 ;; ---
 ;; Main Component: V-FRAME

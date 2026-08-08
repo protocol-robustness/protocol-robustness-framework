@@ -195,6 +195,22 @@
       (is (not-any? #(re-find #"decode failed" %) (:errors r))
           "resource rejection must not be misreported as a decode failure"))))
 
+(deftest verify-sequence-commitment-rejects-over-stream-limit
+  (testing "a genuine commitment whose bytes exceed :max-stream-bytes is
+            inadmissible (resource policy), exactly as verify-stream rejects
+            it — decode-one and verify-stream share one admission profile"
+    (let [ba (seq/canonical-sequence-bytes {:purpose :a}
+               [{:a (apply str (repeat 700000 \a))}
+                {:b (apply str (repeat 700000 \b))}])
+          r (seq/verify-sequence-commitment ba)]
+      (is (> (count ba) (:max-stream-bytes fv/default-limits))
+          "the commitment is genuinely over the stream bound")
+      (is (not (:valid? r)))
+      (is (some #(re-find #"inadmissible under the admission profile" %) (:errors r)))
+      (is (some #(re-find #"max-stream-bytes" %) (:errors r)))
+      (is (not-any? #(re-find #"decode failed" %) (:errors r))
+          "resource rejection must not be misreported as a decode failure"))))
+
 (deftest verify-sequence-commitment-round-trips-hash
   (let [ba (seq/canonical-sequence-bytes {:purpose :a} [1 "x" :k])
         r (seq/verify-sequence-commitment ba)]

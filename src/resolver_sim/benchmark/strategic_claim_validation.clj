@@ -111,8 +111,11 @@
      compliance, and complete allocation reporting."
     :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
-    :closed-form-check-ids #{:partial-fill/pro-rata-cross-product
-                             :partial-fill/fail-action-pro-rata-fairness}
+    :closed-form-check-ids #{:partial-fill/exact-pro-rata
+                             :partial-fill/rounding-fairness
+                             :partial-fill/fail-action-fairness}
+    :closed-form-alternative-sets #{#{:partial-fill/exact-pro-rata
+                                      :partial-fill/rounding-fairness}}
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/partial-fill}}})
 
@@ -244,11 +247,7 @@
                     (->> checks
                          (filter #(contains? check-ids (:check/id %)))
                          (map (fn [check]
-                                (cond-> (assoc check :decision/id (:decision/id decision))
-                                  (= :not-applicable (:status check))
-                                  (assoc :status :not-exercised
-                                         :details (assoc (:details check)
-                                                         :reason :allocation-mode-not-exercised))))))))
+                                (assoc check :decision/id (:decision/id decision)))))))
                 decisions)))))
 
 (defn- scenario-check-results
@@ -307,21 +306,53 @@
                           :witnesses witnesses
                           :required-mechanisms (when (= :allocation/partial-fill level)
                                                  (set (keep :fill-mode witnesses))))
-          not-exercised? (some #(= :not-exercised (:status %)) level-checks)
+          ;; Alternative-theorem coverage: a :not-applicable check is acceptable
+          ;; when it belongs to a declared :closed-form-alternative-set whose
+          ;; group is covered by another member passing on the same decision.
+          ;; Without this, largest-remainder dust would make the exact-pro-rata
+          ;; theorem :not-applicable and incorrectly fail the whole level even
+          ;; though the rounding-fairness theorem covers the regime.
+          alternative-sets (or (:closed-form-alternative-sets claim-spec) #{})
+          covered-alternative-sets
+          (set (for [alt-set alternative-sets
+                     :let [passing-ids (set (map :check/id
+                                                 (filter #(= :pass (:status %)) level-checks)))
+                           covered (seq (filter #(contains? passing-ids %) alt-set))]
+                     :when covered]
+                 alt-set))
+          not-applicable-ok?
+          (fn [check]
+            (boolean (some (fn [alt-set]
+                             (and (contains? alt-set (:check/id check))
+                                  (contains? covered-alternative-sets alt-set)))
+                           alternative-sets)))
+          not-exercised? (some #(or (= :not-exercised (:status %))
+                                    (and (= :not-applicable (:status %))
+                                         (not (not-applicable-ok? %))))
+                               level-checks)
           ;; Require at least one exercised partial-fill decision when checking
           ;; partial-fill allocation properties
           partial-fill-exercised? (or (not= :allocation/partial-fill level)
                                       (some :exercised-fill? witnesses))
+          all-acceptable? (every? (fn [check]
+                                    (or (= :pass (:status check))
+                                        (and (= :not-applicable (:status check))
+                                             (not-applicable-ok? check))))
+                                  level-checks)
           verdict (cond
                     not-exercised? :uncovered
                     (not partial-fill-exercised?) :unexercised
-                    (every? #(= :pass (:status %)) level-checks) :pass
+                    all-acceptable? :pass
                     :else :fail)
           uncovered-reason (when (or not-exercised?
                                      (and (= :allocation/partial-fill level)
                                           (not partial-fill-exercised?)))
                              (if not-exercised?
-                               :no-partial-fill-decision-artifacts
+                               (if (some #(and (= :not-applicable (:status %))
+                                               (not (not-applicable-ok? %)))
+                                         level-checks)
+                                 :no-applicable-theorem
+                                 :no-partial-fill-decision-artifacts)
                                :no-exercised-partial-fill))]
       {:mechanism-level level
        :verdict verdict
@@ -522,7 +553,8 @@
   (and (keyword? (:mechanism-level gap))
        (contains? #{:no-declared-scenarios-for-level
                     :declared-scenarios-failed-match-basis
-                    :no-partial-fill-decision-artifacts}
+                    :no-partial-fill-decision-artifacts
+                    :no-applicable-theorem}
                   (:reason gap))))
 
 (defn- validate-artifact!

@@ -308,7 +308,8 @@
 
    This is a single-trace proxy. Per-claimant proportional fairness is
    verified independently by the closed-form partial-fill checks
-   (:partial-fill/pro-rata-cross-product in resolver-sim.yield.partial-fill).
+   (:partial-fill/exact-pro-rata and :partial-fill/rounding-fairness in
+   resolver-sim.yield.partial-fill).
 
    :inconclusive — no shortfall events recorded (untested).
    :pass         — conservation holds; recovery = basis.

@@ -4,11 +4,42 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.composition.combination :as combo]
             [resolver-sim.composition.compiler :as comp]
-            [resolver-sim.composition.fixtures :as fx]))
+            [resolver-sim.composition.fixtures :as fx]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 (defn- compile-it
-  [emap combination]
-  (comp/compile-combination emap combination))
+  [emap combination & [evidence-contracts]]
+  (comp/compile-combination emap combination evidence-contracts))
+
+(defn- hex64 [c] (apply str (repeat 64 c)))
+
+(def ref-a
+  "Committed root of evidence.contract/a."
+  (hash-ref/sha256-ref (hex64 \a)))
+
+(def ref-a-v2
+  "A later registry mutation re-pointing evidence.contract/a."
+  (hash-ref/sha256-ref (hex64 \d)))
+
+(def ref-b
+  "Committed root of evidence.contract/b."
+  (hash-ref/sha256-ref (hex64 \b)))
+
+(def ref-invariant
+  "Committed root of a non-evidence-contract kind entry."
+  (hash-ref/sha256-ref (hex64 \c)))
+
+(def evidence-contracts
+  "Explicit evidence-contract registry resolved by the compiler."
+  {:evidence.contract/a {:evidence-contract/id :evidence.contract/a
+                         :evidence-contract/kind :evidence-contract
+                         :evidence-contract/root ref-a}
+   :evidence.contract/b {:evidence-contract/id :evidence.contract/b
+                         :evidence-contract/kind :evidence-contract
+                         :evidence-contract/root ref-b}
+   :yield.invariant/ledger-balanced {:evidence-contract/id :yield.invariant/ledger-balanced
+                                     :evidence-contract/kind :invariant
+                                     :evidence-contract/root ref-invariant}})
 
 (defn- rejects
   [emap combination violation-id]
@@ -25,6 +56,10 @@
    (two-stage nil n1 (fx/node :n2 [:economics/award-amount :prf/rate-of-gross])))
   ([_emap n1 n2]
    (fx/seq-combination n1 n2)))
+
+(defn- verification-combo
+  [verification]
+  (assoc (two-stage (fx/ext-map-with)) :combination/verification verification))
 
 ;; ── combination validation ────────────────────────────────────────────────
 
@@ -364,9 +399,124 @@
   (let [emap (fx/ext-map-with)
         combo (assoc (two-stage emap)
                      :combination/verification {:intermediate-output-committed? true
-                                                :evidence-contract-ref :prf/evidence.v1})]
+                                                :evidence-contract-ref :evidence.contract/a})]
     (is (:valid? (combo/validate-combination combo)))
-    (is (= :valid (:status (compile-it emap combo))))))
+    (is (= :valid (:status (compile-it emap combo evidence-contracts))))
+    (is (= {:id :evidence.contract/a :root ref-a}
+           (:evidence-contract (:plan/verification (:plan (compile-it emap combo evidence-contracts))))))))
+
+;; ── evidence-contract resolution (compile-time trust boundary) ─────────────
+
+(deftest evidence-contract-resolved-and-committed
+  (let [emap (fx/ext-map-with)
+        combo (verification-combo {:evidence-contract-ref :evidence.contract/a})
+        {:keys [status plan]} (compile-it emap combo evidence-contracts)]
+    (is (= :valid status))
+    (is (= {:id :evidence.contract/a :root ref-a}
+           (:evidence-contract (:plan/verification plan)))
+        "the resolved identity, not merely the symbolic ref, is committed")
+    (is (not (contains? (:plan/verification plan) :evidence-contract-ref))
+        "the symbolic ref is not committed raw")))
+
+(deftest evidence-contract-absent-remains-valid
+  (testing "no evidence-contract-ref declares no evidence obligation and is valid"
+    (let [{:keys [status plan]} (compile-it (fx/ext-map-with) (two-stage (fx/ext-map-with)))]
+      (is (= :valid status))
+      (is (nil? (:evidence-contract (:plan/verification plan)))))))
+
+(deftest evidence-contract-unresolved-rejected
+  (testing "a declared ref that does not exist in the registry fails compilation"
+    (let [{:keys [status violations]}
+          (compile-it (fx/ext-map-with)
+                      (verification-combo {:evidence-contract-ref :evidence.contract/nope})
+                      evidence-contracts)]
+      (is (= :invalid status))
+      (is (some #(= :violation/unresolved-evidence-contract (:violation/id %)) violations)))))
+
+(deftest evidence-contract-wrong-kind-rejected
+  (testing "a ref that resolves to a non-evidence-contract kind is rejected"
+    (let [{:keys [status violations]}
+          (compile-it (fx/ext-map-with)
+                      (verification-combo {:evidence-contract-ref :yield.invariant/ledger-balanced})
+                      evidence-contracts)]
+      (is (= :invalid status))
+      (is (some #(= :violation/evidence-contract-wrong-kind (:violation/id %)) violations)))))
+
+(deftest evidence-contract-requires-explicit-registry
+  (testing "a declared ref with no registry supplied is never silently dropped"
+    (let [{:keys [status violations]}
+          (compile-it (fx/ext-map-with)
+                      (verification-combo {:evidence-contract-ref :evidence.contract/a}))]
+      (is (= :invalid status))
+      (is (some #(= :violation/unresolved-evidence-contract (:violation/id %)) violations)))))
+
+(deftest evidence-contract-committed-root-is-immutable
+  (testing "the compiled plan binds the resolved root, so a later registry
+            mutation cannot change what the plan already meant"
+    (let [emap (fx/ext-map-with)
+          combo (verification-combo {:evidence-contract-ref :evidence.contract/a})
+          plan (-> (compile-it emap combo evidence-contracts) :plan)
+          ;; a later registry mutation points the same ref at a new contract
+          mutated (assoc-in evidence-contracts
+                            [:evidence.contract/a :evidence-contract/root]
+                            ref-a-v2)
+          later (-> (compile-it emap combo mutated) :plan)]
+      (is (= ref-a (get-in plan [:plan/verification :evidence-contract :root]))
+          "the already-compiled plan keeps its committed root")
+      (is (= ref-a-v2 (get-in later [:plan/verification :evidence-contract :root]))
+          "a fresh compilation against the mutated registry resolves the new root"))))
+
+(deftest evidence-contract-change-changes-plan-root
+  (testing "changing the referenced evidence contract changes the plan root"
+    (let [emap (fx/ext-map-with)
+          base (verification-combo {:evidence-contract-ref :evidence.contract/a})
+          other (verification-combo {:evidence-contract-ref :evidence.contract/b})
+          plan-a (-> (compile-it emap base evidence-contracts) :plan)
+          plan-b (-> (compile-it emap other evidence-contracts) :plan)]
+      (is (not= (:plan/root plan-a) (:plan/root plan-b))
+          "a different evidence contract is a different compiled plan"))))
+
+(deftest evidence-contract-identity-is-declared-contract-based
+  (testing "identity is the (id, root) pair: two refs resolving to the SAME
+            root commit different identities and therefore different plans"
+    (let [emap (fx/ext-map-with)
+          alias-contracts (assoc evidence-contracts
+                                 :evidence.contract/a-alias
+                                 {:evidence-contract/id :evidence.contract/a-alias
+                                  :evidence-contract/kind :evidence-contract
+                                  :evidence-contract/root ref-a})
+          plan-a (-> (compile-it emap
+                                 (verification-combo {:evidence-contract-ref :evidence.contract/a})
+                                 alias-contracts)
+                     :plan)
+          plan-alias (-> (compile-it emap
+                                     (verification-combo {:evidence-contract-ref :evidence.contract/a-alias})
+                                     alias-contracts)
+                         :plan)]
+      (is (= ref-a (get-in plan-a [:plan/verification :evidence-contract :root])))
+      (is (= {:id :evidence.contract/a-alias :root ref-a}
+             (:evidence-contract (:plan/verification plan-alias)))
+          "the ref id names WHICH declared contract the plan binds")
+      (is (not= (:plan/root plan-a) (:plan/root plan-alias))
+          "same root, different declared id => different plan root"))))
+
+(deftest per-node-evidence-contract-ref-is-not-mistaken-for-combination-obligation
+  (testing "a per-node :composition/verification :evidence-contract-ref is NOT
+            a combination-level obligation: it is not resolved and does not
+            require the registry, even when the registry lacks the ref"
+    (let [node-cap (assoc-in (fx/cap :fixture/evidence-node)
+                             [:composition-contract :composition/verification :evidence-contract-ref]
+                             :prf/calculation-result.v1)
+          emap (fx/ext-map-with node-cap)
+          combo (two-stage emap
+                           (fx/node :n1 [:economics/award-amount :fixture/evidence-node])
+                           (fx/node :n2 [:economics/award-amount :prf/rate-of-gross]))
+          {:keys [status plan]} (compile-it emap combo evidence-contracts)]
+      (is (= :valid status)
+          "the per-node ref is legacy/unresolved vocabulary and must not fail
+          compilation through the combination-level resolver")
+      (is (nil? (:evidence-contract (:plan/verification plan)))
+          "no combination-level evidence obligation is committed"))))
 
 ;; ── graph helpers ─────────────────────────────────────────────────────────
 

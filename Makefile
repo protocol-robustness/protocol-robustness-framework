@@ -284,3 +284,33 @@ test-dr:
 .PHONY: ci
 ci:
 	./bin/ci
+
+# ── Allocation coprocessor (migrated from iee-prf-allocation-coprocessor-demo) ──
+# The independent Rust kernel + SP1 guest/prover + Solidity verifier + PRF
+# conformance gate now live in this repo. The gate remains
+#   PRF reference result == native Rust result,
+# with SP1 proof generation and on-chain verification as the next phase.
+# See docs/allocation-proofs/.
+
+.PHONY: allocation-rust-test
+allocation-rust-test:
+	cd coprocessor && cargo fmt --check && cargo test
+
+.PHONY: allocation-rust-clippy
+allocation-rust-clippy:
+	cd coprocessor && cargo clippy --all-targets --all-features -- -D warnings
+
+.PHONY: allocation-guest
+allocation-guest:
+	cd coprocessor && cargo build --release -p allocation-sp1-program
+
+.PHONY: allocation-contracts
+allocation-contracts:
+	cd contracts/allocation && forge build --quiet && forge test
+
+.PHONY: allocation-conformance
+allocation-conformance:
+	./scripts/conformance/conformance.sh
+
+.PHONY: allocation-test
+allocation-test: allocation-rust-test allocation-rust-clippy allocation-guest allocation-contracts allocation-conformance

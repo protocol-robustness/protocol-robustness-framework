@@ -258,6 +258,60 @@
         (is (not (:holds? (inv/check-shared-withdrawal-conservation-world tampered)))
             "tampered in-world artifact must be detected")))))
 
+(deftest withdrawal-budget-provenance-holds
+  (testing "L1 budget provenance holds on shared, batch, and single withdrawals"
+    (let [shared (ll/withdraw-shared (shared-withdrawal-world ["alice" "bob"] 150) test-mod
+                                     {:owner-ids ["alice" "bob"] :token "USDC"
+                                      :allocation-mode :pro-rata
+                                      :effective-caps {"alice" 20 "bob" 100}})
+          batch (ll/withdraw-many (shared-withdrawal-world ["alice" "bob"] 200) test-mod
+                                  [{:owner/id "alice" :token "USDC"}
+                                   {:owner/id "bob" :token "USDC"}])
+          single (-> (shared-withdrawal-world ["alice"] 100)
+                     (ll/withdraw test-mod {:owner/id "alice"}))]
+      (doseq [w [shared batch single]]
+        (is (:holds? (inv/check-withdrawal-budget-provenance w))
+            (str "budget provenance must hold: "
+                 (map :kind (:violations (inv/check-withdrawal-budget-provenance w))))))
+      (is (:holds? (get (inv/run-invariants shared cat/default-runtime-invariant-ids)
+                        :yield/withdrawal-budget-provenance))
+          ":yield/withdrawal-budget-provenance must hold in the default runtime set"))))
+
+(deftest withdrawal-budget-provenance-detects-inconsistent-committed-budget
+  (testing "a committed budget that does not recompute from custody x ratio is caught"
+    (let [d (shared-decision ["alice" "bob"] 150 {:effective-caps {"alice" 20 "bob" 100}})
+          world (shared-withdrawal-world ["alice" "bob"] 150)
+          tampered-world (assoc-in world [:yield/partial-fill-decisions (:decision/id d)]
+                                   (assoc d :liquidity/available 100))]
+      (is (not (:holds? (inv/check-withdrawal-budget-provenance tampered-world)))
+          "a committed budget that custody x ratio cannot produce must be detected")
+      (is (some #(= :resolver-sim.yield.partial-fill/budget-recompute-mismatch (:kind %))
+                (:violations (inv/check-withdrawal-budget-provenance tampered-world)))))))
+
+(deftest withdrawal-residual-disposition-holds
+  (testing "L3 residual disposition: decision commits intended disposition, application realizes it"
+    (let [result (ll/withdraw-shared (shared-withdrawal-world ["alice" "bob"] 150) test-mod
+                                     {:owner-ids ["alice" "bob"] :token "USDC"
+                                      :allocation-mode :pro-rata
+                                      :effective-caps {"alice" 20 "bob" 100}})
+          d (-> result :yield/partial-fill-decisions vals first)]
+      (is (= :remain-in-shared-liquidity (:residual/destination d)))
+      (is (contains? d :residual/policy-root))
+      (is (:holds? (inv/check-withdrawal-residual-disposition result))
+          (str "disposition violations: "
+               (:violations (inv/check-withdrawal-residual-disposition result)))))))
+
+(deftest withdrawal-settlement-aggregates
+  (testing "check-withdrawal-settlement aggregates L1-L4 and catches tampering"
+    (let [result (ll/withdraw-shared (shared-withdrawal-world ["alice" "bob"] 150) test-mod
+                                     {:owner-ids ["alice" "bob"] :token "USDC"
+                                      :allocation-mode :pro-rata
+                                      :effective-caps {"alice" 20 "bob" 100}})]
+      (is (:holds? (inv/check-withdrawal-settlement result)))
+      (let [decision-id (-> result :yield/partial-fill-decisions keys first)
+            tampered (assoc-in result [:yield/partial-fill-decisions decision-id :liquidity/available] 100)]
+        (is (not (:holds? (inv/check-withdrawal-settlement tampered))))))))
+
 (deftest single-withdrawals-respect-committed-recoverable
   (testing "each single withdrawal is bounded by its committed :ledger/available (record-local)"
     (let [world (shared-withdrawal-world ["alice" "bob"] 200)
@@ -940,7 +994,17 @@
    :ledger/canonical-bytes (fn [r] (assoc r :ledger/canonical-bytes "00"))
    :ledger/canonical-hash (fn [r] (assoc r :ledger/canonical-hash "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
    :ledger/hash (fn [r] (assoc r :ledger/hash "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
-   :ledger/preimage (fn [r] (assoc r :ledger/preimage "{:tampered true}"))})
+   :ledger/preimage (fn [r] (assoc r :ledger/preimage "{:tampered true}"))
+   ;; Withdrawal budget provenance (L1) committed fields.
+   :liquidity/schema-version (fn [r] (assoc r :liquidity/schema-version "liquidity-budget-provenance.v2"))
+   :liquidity/source-custody (fn [r] (assoc r :liquidity/source-custody (+ (long (:liquidity/source-custody r)) 1)))
+   :liquidity/available-ratio (fn [r] (assoc r :liquidity/available-ratio 0.5))
+   :liquidity/available (fn [r] (assoc r :liquidity/available (+ (long (:liquidity/available r)) 1)))
+   :liquidity/evaluation-context (fn [r] (assoc-in r [:liquidity/evaluation-context :at] 999999))
+   :liquidity/source-state-root (fn [r] (assoc r :liquidity/source-state-root "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
+   :liquidity/market-state-root (fn [r] (assoc r :liquidity/market-state-root "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
+   :token (fn [r] (assoc r :token :USDT))
+   :module/id (fn [r] (assoc r :module/id :other-mod))})
 
 (deftest committed-field-mutation-coverage-is-exhaustive
   (testing "every field present on a produced certificate has a mutation case,

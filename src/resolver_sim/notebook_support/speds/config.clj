@@ -27,8 +27,10 @@
   {:id          "dispute-resolution-validation-v1"
    :version     "1.1"
    :run-id      "UNNAMED"
-   :git-sha     "AE8F2C1"
-   :hash-suffix "8f2a74c1e5f6d3b2a1c9c8d7e6f5a4b3"})
+   ;; git-sha / hash-suffix intentionally nil: callers must render honest
+   ;; "unset" markers instead of inventing a fake commit or evidence anchor.
+   :git-sha     nil
+   :hash-suffix nil})
 
 (def sew-profile
   {:protocol-label "SEW_PROT"

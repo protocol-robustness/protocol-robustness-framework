@@ -116,7 +116,7 @@
                         0)
      :replay-match-pct (or (:replay_match_pct summary)
                            (:deterministic_replay_pct summary))
-     :git-sha (or (:git_sha summary) (:git-sha config/protocol-defaults))}))
+     :git-sha (:git_sha summary)}))
 
 (defn load-run-artifacts
   "Loads the full set of artifacts for a validation run."
@@ -197,8 +197,8 @@
   [artifacts scenario-id]
   (let [{:keys [summary manifest coverage]} artifacts
         scenario (find-scenario-by-id coverage scenario-id)
-        git-sha  (or (:git_sha summary) (:git-sha config/protocol-defaults))
-        git7     (subs git-sha 0 (min 7 (count git-sha)))]
+        git-sha  (:git_sha summary)
+        git7     (if (seq git-sha) (subs git-sha 0 (min 7 (count git-sha))) "UNSET")]
     {:trace-id    (or (:ipfs-cid manifest) "LOCALLY_SIGNED")
      :git-sha     git7
      :run-id      (or (:run_id summary) (:run-id config/protocol-defaults))

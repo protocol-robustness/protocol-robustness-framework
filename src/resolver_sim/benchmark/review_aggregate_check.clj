@@ -5,7 +5,9 @@
    properties that span multiple artifacts."
   (:require [clojure.set]
             [resolver-sim.benchmark.review-round :as rr]
-            [resolver-sim.benchmark.review-member-canonical-indices :as ci]))
+            [resolver-sim.benchmark.review-member-canonical-indices :as ci]
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.framing-view :as fv]))
 
 (declare check-aggregate-member-key-density)
 
@@ -248,6 +250,75 @@
     {:holds? (empty? @violations)
      :violations (vec @violations)}))
 
+;; ── Three-classifications fixed-point (threaded through canonical bytes) ────
+
+(def classification-dimensions
+  "The three classification dimensions that must survive the canonical
+   fixed-point (see check-aggregate-three-member-classifications)."
+  [:authority-status
+   :outcome-source
+   :valid-supporting-positions
+   :valid-dissenting-positions
+   :valid-qualifying-positions
+   :invalid-positions
+   :re-scoped-positions
+   :duplicate-seat-positions
+   :equivocating-members
+   :unknown-members])
+
+(defn- classification-projection
+  "Project the classification dimensions of an authority report."
+  [report]
+  (select-keys report classification-dimensions))
+
+(defn classifications-fixed-point
+  "Canonical fixed-point stage for an authority report's three classification
+   dimensions.
+
+   Serializes `report` to canonical bytes, decodes it back, and returns BOTH
+   the verification verdict and the actual decoded report:
+
+     {:valid? bool
+      :violations [...]
+      :report <decoded-report-map>}   ; the decoded report (nil on decode failure)
+
+   The decoded report is first-class output so a downstream semantic check can
+   consume the real fixed-point artifact (the value a verifier would recompute)
+   instead of re-decoding or re-deriving an equivalent value.  :valid? is true
+   when the decoded report's three classification dimensions equal the
+   original's — the classification survived the canonical round-trip."
+  [report]
+  (try
+    (let [ba (hc/canonical-bytes report)
+          decoded (:value (fv/decode-one ba 0))
+          orig (classification-projection report)
+          dec  (classification-projection decoded)]
+      (if (= orig dec)
+        {:valid? true :violations [] :report decoded}
+        {:valid? false
+         :violations [{:kind ::classifications-not-fixed-point
+                       :original orig :decoded dec}]
+         :report decoded}))
+    (catch Exception e
+      {:valid? false
+       :violations [{:kind ::classifications-fixed-point-decode-failed
+                     :error (.getMessage e)}]
+       :report nil})))
+
+(defn check-classifications-fixed-point
+  "Verify the three classification dimensions of an authority report survive
+   the canonical fixed-point: serializing the report to canonical bytes and
+   decoding it back reproduces exactly the same classification, never a
+   collapsed, dropped, or reordered variant.
+
+   Thin wrapper over `classifications-fixed-point`; consumers that need the
+   decoded report for downstream verification should call that directly.
+
+   Returns {:holds? bool :violations [...]}."
+  [report]
+  (let [{:keys [valid? violations]} (classifications-fixed-point report)]
+    {:holds? valid? :violations violations}))
+
 ;; ── Aggregate runner (threaded) ─────────────────────────────────────────────
 ;;
 ;; The aggregate checks are composed here so consumers can run the full
@@ -260,8 +331,21 @@
    round             — review-round artifact.
    canonical-indices — optional canonical-indices artifact.
    report            — optional evaluate-three-member-authority result. When
-                       supplied, the three-classifications-preserved check is
-                       included (the threaded invariant for three-member).
+                       supplied, the three-classifications-preserved check runs
+                       on BOTH the stored report and (through the canonical
+                       fixed-point stage) on the decoded report:
+
+                         stored report
+                            ├──> three-member-classifications
+                            └──> classifications-fixed-point
+                                       │
+                                       └── decoded report
+                                            └──> three-member-classifications-on-fixed-point
+
+                       The decoded report consumed by the second semantic check
+                       is the actual artifact returned by the fixed-point stage —
+                       never an independent re-decode or a re-check of the
+                       original input.
 
    Returns {:holds? bool
             :checks {<check-name> {:holds? bool :violations [...]}}}
@@ -270,7 +354,9 @@
   ([round canonical-indices]
    (run-review-aggregate-checks round canonical-indices nil))
   ([round canonical-indices report]
-   (let [checks (cond-> {:member-bit-width
+   (let [fixed-point (when report (classifications-fixed-point report))
+         decoded-report (:report fixed-point)
+         checks (cond-> {:member-bit-width
                          (check-aggregate-member-bit-width round canonical-indices)
                          :member-key-density
                          (check-aggregate-member-key-density round canonical-indices)
@@ -279,7 +365,18 @@
                   report
                   (assoc :three-member-classifications
                          (check-aggregate-three-member-classifications
-                          round report)))]
+                          round report))
+                  report
+                  (assoc :classifications-fixed-point
+                         {:holds? (:valid? fixed-point)
+                          :violations (:violations fixed-point)})
+                  ;; The semantic check on the decoded report consumes the actual
+                  ;; fixed-point artifact (decoded-report) — a real data
+                  ;; dependency, not a duplicate check of the stored report.
+                  decoded-report
+                  (assoc :three-member-classifications-on-fixed-point
+                         (check-aggregate-three-member-classifications
+                          round decoded-report)))]
      {:holds? (every? :holds? (vals checks))
       :checks checks})))
 

@@ -196,36 +196,49 @@
             :payload-hash hex sha256 of the payload bytes | nil}.
 
    Structural failures (truncation, unknown tags, declared lengths exceeding
-   remaining bytes) and resource-limit failures throw structured ex-info."
-  [^bytes ba pos total depth limits path slot]
-  (when (>= pos total)
-    (throw-stream-issue :truncated-tag pos :tag {}))
-  (let [tag (byte-int ba pos)
-        tag-pos pos
-        pos (inc pos)
-        type (tag-names tag)
-        _ (when-not type
-            (throw-stream-issue :unknown-tag tag-pos :tag {:tag tag}))]
-    (case tag
+   remaining bytes) and resource-limit failures throw structured ex-info.
+
+   Optional flags (opts map):
+   - :roles?        build per-byte role annotations (default true)
+   - :payload-hash? compute per-component sha256 payload commitments
+                    (default true)
+   The fail-closed verification path (verify-stream) passes both as false:
+   role annotations and payload commitments are explanatory artifacts, not
+   needed to establish well-framedness/canonicality, so skipping them keeps
+   the admission path's cost proportional to the stream without a large
+   constant factor."
+  [^bytes ba pos total depth limits path slot & [opts]]
+  (let [{:keys [roles? payload-hash?]}
+        (merge {:roles? true :payload-hash? true} opts)]
+    (when (>= pos total)
+      (throw-stream-issue :truncated-tag pos :tag {}))
+    (let [tag (byte-int ba pos)
+          tag-pos pos
+          pos (inc pos)
+          type (tag-names tag)
+          _ (when-not type
+              (throw-stream-issue :unknown-tag tag-pos :tag {:tag tag}))]
+      (case tag
       0x00 {:tag tag :tag-name type :value nil :next pos :prefix-end pos
-            :roles {tag-pos (entry path :tag type slot)}
+            :roles (when roles? {tag-pos (entry path :tag type slot)})
             :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
       0x01 {:tag tag :tag-name type :value false :next pos :prefix-end pos
-            :roles {tag-pos (entry path :tag type slot)}
+            :roles (when roles? {tag-pos (entry path :tag type slot)})
             :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
       0x02 {:tag tag :tag-name type :value true :next pos :prefix-end pos
-            :roles {tag-pos (entry path :tag type slot)}
+            :roles (when roles? {tag-pos (entry path :tag type slot)})
             :issues [] :map-keys nil :map-key-bytes nil :payload-hash nil}
       0x10 (let [vu (read-varuint* ba pos total)
                  _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
                  end (:end vu)]
              {:tag tag :tag-name type :value (zigzag-decode (:value vu))
               :next end :prefix-end pos
-              :roles (merge {tag-pos (entry path :tag type slot)}
-                            (range-entries pos end path :len type slot))
+              :roles (when roles?
+                       (merge {tag-pos (entry path :tag type slot)}
+                              (range-entries pos end path :len type slot)))
               :issues (minimality-issues vu pos :len path)
               :map-keys nil :map-key-bytes nil
-              :payload-hash (sha256-hex (slice ba pos end))})
+              :payload-hash (when payload-hash? (sha256-hex (slice ba pos end)))})
       0x20 (let [vu (read-varuint* ba pos total)
                  _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
                  len (long (:value vu))
@@ -239,12 +252,13 @@
              (let [s (String. ba (int end) (int len) "UTF-8")]
                {:tag tag :tag-name type :value s :next payload-end
                 :prefix-end end
-                :roles (merge {tag-pos (entry path :tag type slot)}
-                              (range-entries pos end path :len type slot)
-                              (range-entries end payload-end path :payload type slot))
+                :roles (when roles?
+                         (merge {tag-pos (entry path :tag type slot)}
+                                (range-entries pos end path :len type slot)
+                                (range-entries end payload-end path :payload type slot)))
                 :issues (minimality-issues vu pos :len path)
                 :map-keys nil :map-key-bytes nil
-                :payload-hash (sha256-hex (slice ba end payload-end))}))
+                :payload-hash (when payload-hash? (sha256-hex (slice ba end payload-end)))}))
       0x22 (let [vu (read-varuint* ba pos total)
                  _ (when-not vu (throw-stream-issue :truncated-length pos :len {}))
                  len (long (:value vu))
@@ -258,43 +272,46 @@
              (let [s (String. ba (int end) (int len) "UTF-8")]
                {:tag tag :tag-name type :value (keyword s) :next payload-end
                 :prefix-end end
-                :roles (merge {tag-pos (entry path :tag type slot)}
-                              (range-entries pos end path :len type slot)
-                              (range-entries end payload-end path :payload type slot))
+                :roles (when roles?
+                         (merge {tag-pos (entry path :tag type slot)}
+                                (range-entries pos end path :len type slot)
+                                (range-entries end payload-end path :payload type slot)))
                 :issues (minimality-issues vu pos :len path)
                 :map-keys nil :map-key-bytes nil
-                :payload-hash (sha256-hex (slice ba end payload-end))}))
+                :payload-hash (when payload-hash? (sha256-hex (slice ba end payload-end)))}))
       0x30 (let [vu (read-varuint* ba pos total)
                  _ (when-not vu (throw-stream-issue :truncated-count pos :count {}))
                  n (long (:value vu))
                  count-end (:end vu)
-                 tag-role (entry path :tag type slot)
-                 count-entries (range-entries pos count-end path :count type slot)]
+                 tag-role (when roles? (entry path :tag type slot))
+                 count-entries (when roles?
+                                 (range-entries pos count-end path :count type slot))]
              (when (> n (:max-collection-members limits))
                (throw-limit :max-collection-members limits pos :count))
              (when (> depth (:max-collection-depth limits))
                (throw-limit :max-collection-depth limits pos :collection))
              (let [{vals :value next :next child-roles :roles child-issues :issues}
                    (loop [i 0 pos count-end acc []
-                          roles (merge {tag-pos tag-role} count-entries)
+                          roles (merge (when roles? {tag-pos tag-role}) count-entries)
                           issues (minimality-issues vu pos :count path)]
                      (if (= i n)
                        {:value (vec acc) :next pos :roles roles :issues issues}
                        (let [{v :value next :next r :roles rs :issues}
                              (decode-one* ba pos total (inc depth) limits
-                                          (conj path i) :element)]
+                                          (conj path i) :element opts)]
                          (recur (inc i) next (conj acc v)
                                 (merge roles r) (into issues rs)))))]
                {:tag tag :tag-name type :value vals :next next
                 :prefix-end count-end :roles child-roles :issues child-issues
                 :map-keys nil :map-key-bytes nil
-                :payload-hash (sha256-hex (slice ba count-end next))}))
+                :payload-hash (when payload-hash? (sha256-hex (slice ba count-end next)))}))
       0x31 (let [vu (read-varuint* ba pos total)
                  _ (when-not vu (throw-stream-issue :truncated-count pos :count {}))
                  n (long (:value vu))
                  count-end (:end vu)
-                 tag-role (entry path :tag type slot)
-                 count-entries (range-entries pos count-end path :count type slot)]
+                 tag-role (when roles? (entry path :tag type slot))
+                 count-entries (when roles?
+                                 (range-entries pos count-end path :count type slot))]
              (when (> n (:max-collection-members limits))
                (throw-limit :max-collection-members limits pos :count))
              (when (> depth (:max-collection-depth limits))
@@ -302,7 +319,7 @@
              (let [{m :value next :next child-roles :roles child-issues :issues
                     korder :keys kbytes :key-bytes}
                    (loop [i 0 pos count-end acc {}
-                          roles (merge {tag-pos tag-role} count-entries)
+                          roles (merge (when roles? {tag-pos tag-role}) count-entries)
                           issues (minimality-issues vu pos :count path)
                           prev nil keys [] key-bytes []]
                      (if (= i n)
@@ -310,7 +327,7 @@
                         :keys keys :key-bytes key-bytes}
                        (let [{k :value next1 :next k-roles :roles k-issues :issues}
                              (decode-one* ba pos total (inc depth) limits
-                                          (conj path (* 2 i)) :map-key)
+                                          (conj path (* 2 i)) :map-key opts)
                              key-ok? (or (string? k) (keyword? k))
                              kb (hc/canonical-bytes k)
                              kb-hex (apply str (map #(format "%02x"
@@ -334,7 +351,7 @@
                                            :else [])
                              {v :value next2 :next v-roles :roles v-issues :issues}
                              (decode-one* ba next1 total (inc depth) limits
-                                          (conj path (inc (* 2 i))) :map-value)]
+                                          (conj path (inc (* 2 i))) :map-value opts)]
                          (recur (inc i) next2 (assoc acc k v)
                                 (merge roles k-roles v-roles)
                                 (into (into (into issues k-issues) order-issue) v-issues)
@@ -343,15 +360,26 @@
                {:tag tag :tag-name type :value m :next next
                 :prefix-end count-end :roles child-roles :issues child-issues
                 :map-keys korder :map-key-bytes kbytes
-                :payload-hash (sha256-hex (slice ba count-end next))})))))
+                :payload-hash (when payload-hash? (sha256-hex (slice ba count-end next)))}))))))
 
 (defn decode-one
   "Decode one canonical component starting at byte offset pos (public wrapper).
    Returns {:tag :tag-name :value :next :prefix-end :roles :issues
             :map-keys :map-key-bytes :payload-hash}.  Throws structured
-   ex-info on truncation, unknown tags, or resource-limit failures."
+   ex-info on truncation, unknown tags, or resource-limit failures.
+
+   The stream-bytes bound is enforced here exactly as in `frame-stream`:
+   decoding one value from a byte array longer than :max-stream-bytes is a
+   resource-policy rejection, never a successful decode.  This keeps every
+   single-value admission path (e.g. `verify-sequence-commitment`) on the same
+   normative profile as `verify-stream`, so the limits are not an accidental
+   consensus boundary between verifiers."
   [^bytes ba pos]
-  (decode-one* ba pos (count ba) 0 default-limits [1] nil))
+  (let [limits default-limits
+        total (count ba)]
+    (when (> total (:max-stream-bytes limits))
+      (throw-limit :max-stream-bytes limits 0 :stream))
+    (decode-one* ba pos total 0 limits [1] nil)))
 
 (defn concat-bytes
   "Consecutive byte-array concatenation."
@@ -377,9 +405,13 @@
    or {:status :limit-exceeded :reason kw :limit n :offset int :role kw}
    when a configured resource limit is exceeded.
 
-   Options: {:limits {...}} merges over default-limits."
+   Options: {:limits {...}} merges over default-limits, and the decode
+   flags :roles? / :payload-hash? (both default true) are forwarded to
+   decode-one* — pass both as false to skip per-byte annotations and
+   per-component sha256 commitments when only framing/validity is needed."
   [^bytes ba & [opts]]
   (let [limits (merge default-limits (:limits opts))
+        flags (select-keys opts [:roles? :payload-hash?])
         total (count ba)]
     (if (> total (:max-stream-bytes limits))
       {:status :limit-exceeded :reason :max-stream-bytes
@@ -390,7 +422,7 @@
           (if (> i (:max-component-count limits))
             {:status :limit-exceeded :reason :max-component-count
              :limit (:max-component-count limits) :offset pos :role :component}
-            (let [decoded (try (decode-one* ba pos total 0 limits [i] nil)
+            (let [decoded (try (decode-one* ba pos total 0 limits [i] nil flags)
                                (catch clojure.lang.ExceptionInfo e
                                  (if (= :limit-exceeded (:type (ex-data e)))
                                    e
@@ -519,10 +551,17 @@
    or reserved tags, overlong or non-minimal varints, declared lengths
    exceeding remaining bytes, collection counts inconsistent with their
    contents, noncanonical map ordering, duplicate canonical map keys,
-   non-canonical map key types, and resource limits."
+   non-canonical map key types, and resource limits.
+
+   Verification needs only framing and validity, not the explanatory per-byte
+   role annotations or per-component payload commitments, so it runs the lean
+   decode path (no :roles, no :payload-hash).  Memory and CPU are thereby
+   bounded by the stream size without a large constant factor; the exact same
+   resource profile (:max-stream-bytes, :max-component-count,
+   :max-collection-members, :max-collection-depth) is enforced."
   [^bytes ba]
   (let [total (count ba)
-        result (try (frame-stream ba)
+        result (try (frame-stream ba {:roles? false :payload-hash? false})
                     (catch clojure.lang.ExceptionInfo e
                       (when (= :stream-issue (:type (ex-data e)))
                         {:stream-error (ex-data e)})))

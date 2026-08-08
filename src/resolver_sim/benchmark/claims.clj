@@ -600,7 +600,9 @@
                 :partial-fill/evidence-self-consistency
                 :partial-fill/unrealized-bucket-valid
                 :partial-fill/decision-artifact-format
-                :partial-fill/pro-rata-cross-product
+                :partial-fill/exact-pro-rata
+                :partial-fill/rounding-fairness
+                :partial-fill/fail-action-fairness
                 :partial-fill/principal-first-priority
                 :partial-fill/waterfall-priority}))}
 

@@ -637,6 +637,98 @@
           {:canonical/bytes (:decision/canonical-bytes decision)
            :canonical/hash (:decision/canonical-hash decision)}))))
 
+;; ---------------------------------------------------------------------------
+;; Withdrawal budget provenance (L1) — the budget is a computed function of
+;; committed world inputs, never a bare attested scalar.
+;;
+;; A producer that commits `available = 100, allocated = 80, residual = 20` when
+;; the real pool held 60 satisfies every allocation-level equation.  Closing
+;; that requires the committed budget to be re-derivable from committed source
+;; custody, the committed available-ratio, and the committed evaluation point:
+;;     B = canonical-liquidity-available(source-custody, available-ratio)
+;; with both inputs bound by content-addressed roots over the same evaluation
+;; context.  All three withdrawal modes commit this provenance so budget
+;; derivation is one provenance chain, not three unrelated checks.
+;; ---------------------------------------------------------------------------
+
+(defn canonical-liquidity-available
+  "Canonical mapping from committed source custody + available-ratio to the
+   liquidity budget B a withdrawal may draw on.  Single definition shared by the
+   :single-position / :fcfs-sequential / :pro-rata modes."
+  [source-custody available-ratio]
+  (max 0 (long (* (long source-custody) (double available-ratio)))))
+
+(defn liquidity-budget-provenance
+  "Commit the derivation of a withdrawal's liquidity budget from world state:
+     B = canonical-liquidity-available(source-custody, available-ratio)
+   `source-custody` is the pre-withdrawal custody the mode draws on (escrow
+   custody slice for single, the token pool for batch/shared); `available-ratio`
+   is the market ratio used; `evaluation-context` pins the world state at which
+   the withdrawal was authorized ({:module/id :token :at :application-order}).
+   Returns a map of :liquidity/* keys to merge into the committing artifact
+   (decision extra / ledger record)."
+  [{:keys [module-id token source-custody available-ratio evaluation-context]}]
+  (let [custody (long source-custody)
+        ratio (double available-ratio)]
+    (assoc {:liquidity/schema-version "liquidity-budget-provenance.v1"
+            :token token
+            :module/id module-id
+            :liquidity/source-custody custody
+            :liquidity/available-ratio ratio
+            :liquidity/available (canonical-liquidity-available custody ratio)
+            :liquidity/evaluation-context evaluation-context}
+           :liquidity/source-state-root
+           (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                {:kind :liquidity/source-state
+                                 :token token :source-custody custody
+                                 :evaluation-context evaluation-context})
+           :liquidity/market-state-root
+           (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                {:kind :liquidity/market-state
+                                 :token token :available-ratio ratio
+                                 :evaluation-context evaluation-context}))))
+
+(defn liquidity-budget-provenance-valid?
+  "Recompute the budget from the committed :liquidity/source-custody and
+   :liquidity/available-ratio and confirm the committed :liquidity/available and
+   both content-addressed roots reconcile.  Returns {:holds? bool :violations [...]}."
+  [provenance]
+  (let [token (:token provenance)
+        custody (long (or (:liquidity/source-custody provenance) -1))
+        ratio (double (or (:liquidity/available-ratio provenance) -1.0))
+        available (long (or (:liquidity/available provenance) -1))
+        ctx (:liquidity/evaluation-context provenance)
+        expected (canonical-liquidity-available custody ratio)
+        expected-source-root (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                                  {:kind :liquidity/source-state
+                                                   :token token :source-custody custody
+                                                   :evaluation-context ctx})
+        expected-market-root (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                                  {:kind :liquidity/market-state
+                                                   :token token :available-ratio ratio
+                                                   :evaluation-context ctx})
+        violations (cond-> []
+                     (not= expected available)
+                     (conj {:kind ::budget-recompute-mismatch
+                            :expected expected :observed available
+                            :source-custody custody :available-ratio ratio})
+                     (not= expected-source-root (:liquidity/source-state-root provenance))
+                     (conj {:kind ::source-state-root-mismatch
+                            :expected expected-source-root
+                            :observed (:liquidity/source-state-root provenance)})
+                     (not= expected-market-root (:liquidity/market-state-root provenance))
+                     (conj {:kind ::market-state-root-mismatch
+                            :expected expected-market-root
+                            :observed (:liquidity/market-state-root provenance)}))]
+    {:holds? (empty? violations) :violations (vec violations)}))
+
+(defn residual-policy-root
+  "Content-addressed root over a committed residual disposition policy."
+  [{:keys [destination] :as policy}]
+  (hc/hash-with-intent {:hash/intent :projection-artifact}
+                       (assoc policy :kind :liquidity/residual-policy
+                              :schema-version "liquidity-residual-policy.v1")))
+
 (defn attach-decision-artifact
   "Attach a partial-fill decision artifact to world state under a stable map."
   [world artifact]
@@ -1307,8 +1399,9 @@
    :partial-fill/settlement-mode-consistency :validation.class/algebraic-integrity
    :partial-fill/settlement-mode-valid   :validation.class/algebraic-integrity
    :partial-fill/mode-valid              :validation.class/algebraic-integrity
-   :partial-fill/pro-rata-cross-product  :validation.class/allocation-property
-   :partial-fill/fail-action-pro-rata-fairness :validation.class/allocation-property
+   :partial-fill/exact-pro-rata          :validation.class/allocation-property
+   :partial-fill/rounding-fairness       :validation.class/allocation-property
+   :partial-fill/fail-action-fairness    :validation.class/allocation-property
    :partial-fill/rounding-fairness-ideal :validation.class/allocation-property
    :partial-fill/rounding-fairness-remainder-ranking :validation.class/allocation-property
    :partial-fill/principal-first-priority :validation.class/allocation-property
@@ -1342,8 +1435,11 @@
    - :partial-fill/evidence-self-consistency
    - :partial-fill/unrealized-bucket-valid
    - :partial-fill/decision-artifact-format
-   - :partial-fill/pro-rata-cross-product
-   - :partial-fill/fail-action-pro-rata-fairness
+   - :partial-fill/exact-pro-rata
+   - :partial-fill/rounding-fairness
+   - :partial-fill/fail-action-fairness
+   - :partial-fill/rounding-fairness-ideal
+   - :partial-fill/rounding-fairness-remainder-ranking
    - :partial-fill/principal-first-priority
    - :partial-fill/waterfall-priority
    - :partial-fill/rounding-residual-bounded
@@ -1447,61 +1543,65 @@
            [])
         total-unfilled (long (+ total-deferred total-haircut))
         unfilled (into {}
-                       (merge-with +
-                                   (or deferred {})
-                                   (or haircut {})))
-        ;; The fail path (deferred + haircut) must itself be pro-rata so the
-        ;; shortfall burden falls proportionally across claimants. Mirrors the
-        ;; filled-side cross-product check but over the unfilled residual, gated
-        ;; on the shortfall amount: a fair fail-action cannot concentrate the
-        ;; shortfall on one claimant. Deferred and haircut are checked as their
-        ;; own buckets too, so a fair aggregate cannot hide an unfair treatment
-        ;; split (e.g. one claimant's shortfall deferred while another's is
-        ;; haircut).
-        strict-fail-action-pro-rata? (and (= :pro-rata mode)
-                                          (not cap-constrained?)
-                                          (pos? total-unfilled)
-                                          (or (not= :largest-remainder rounding-policy)
-                                              (every? (fn [[_ claim]]
-                                                        (zero? (mod (* (long claim) total-unfilled)
-                                                                    (max 1 total-requested))))
-                                                      positive-claims)))
-        fail-action-pairs (when strict-fail-action-pro-rata?
-                            (sort (keys positive-claims)))
+                        (merge-with +
+                                    (or deferred {})
+                                    (or haircut {})))
+        ;; The fail-action theorem is policy-bound: the execution must conform
+        ;; to its declared pro-rata fail-action policy, not to an unconditional
+        ;; definition of fairness. Each bucket declares how its shortfall is
+        ;; treated; :same-ratio buckets must be pro-rata within rounding
+        ;; tolerance. The effective policy and its committed root are included
+        ;; so the theorem is replayable and provable.
+        fail-action-policy (or (get-in decision [:policy :fail-action-policy])
+                               {:mode :pro-rata-treatment
+                                :deferred-policy :same-ratio
+                                :haircut-policy :same-ratio})
+        fail-action-policy-root (hc/hash-with-intent {:hash/intent :fail-action-policy}
+                                                     fail-action-policy)
+        bucket-policy (fn [bucket] (get fail-action-policy
+                                       (if (= :deferred bucket) :deferred-policy :haircut-policy)
+                                       :same-ratio))
+        same-ratio-bucket? (fn [bucket] (= :same-ratio (bucket-policy bucket)))
+        fail-action-max-error (case rounding-policy
+                                :largest-remainder 1
+                                0)
+        ;; A :same-ratio bucket must give every claimant the same shortfall
+        ;; ratio within the permitted rounding advantage. Deferred/haircut are
+        ;; the complement of the fill, so their remainder pattern is the inverse
+        ;; of the fill's; a fresh largest-remainder ordering must NOT be applied
+        ;; here. Only the ideal-floor bound (no claimant receives more than the
+        ;; permitted rounding advantage) is enforced, against the bucket's own
+        ;; totals.
         fail-action-bucket-violations
-        (fn [amounts]
-          (let [amounts (or amounts {})]
-            (->> (for [i (range (count fail-action-pairs))
-                       j (range (inc i) (count fail-action-pairs))]
-                 (let [ki (nth fail-action-pairs i)
-                       kj (nth fail-action-pairs j)
-                       claim-i (long (get positive-claims ki 0))
-                       claim-j (long (get positive-claims kj 0))
-                       left (long (get amounts ki 0))
-                       right (long (get amounts kj 0))]
-                   (when (and (pos? claim-i)
-                              (pos? claim-j)
-                              (not= (* left claim-j)
-                                    (* right claim-i)))
-                      {:left ki
-                       :right kj
-                       :left-amount left
-                       :right-amount right
-                       :left-cross (* left claim-j)
-                       :right-cross (* right claim-i)})))
-                 (remove nil?)
-                 vec)))
+        (fn [amounts bucket-total bucket]
+          (if (and (pos? bucket-total) (same-ratio-bucket? bucket))
+            (let [amounts (or amounts {})
+                  ideals (compute-ideal-fills positive-claims total-requested bucket-total)]
+              (->> ideals
+                   (keep (fn [[k {:keys [requested ideal-floor]}]]
+                           (let [actual (long (get amounts k 0))
+                                 error (- actual ideal-floor)]
+                             (when (or (neg? error)
+                                       (> error fail-action-max-error))
+                               {:claim k
+                                :requested requested
+                                :ideal-floor ideal-floor
+                                :actual actual
+                                :error error
+                                :max-error fail-action-max-error}))))
+                   vec))
+            []))
         fail-action-violations
-        (if strict-fail-action-pro-rata?
-          (into (fail-action-bucket-violations unfilled)
-                (cond-> []
-                  (pos? total-deferred)
-                  (into (map (fn [v] (assoc v :bucket :deferred)))
-                        (fail-action-bucket-violations deferred))
-                  (pos? total-haircut)
-                  (into (map (fn [v] (assoc v :bucket :haircut)))
-                        (fail-action-bucket-violations haircut))))
-          [])
+        (cond-> []
+          (same-ratio-bucket? :deferred)
+          (into (map #(assoc % :bucket :deferred)
+                     (fail-action-bucket-violations deferred total-deferred :deferred)))
+          (same-ratio-bucket? :haircut)
+          (into (map #(assoc % :bucket :haircut)
+                     (fail-action-bucket-violations haircut total-haircut :haircut)))
+          (and (same-ratio-bucket? :deferred) (same-ratio-bucket? :haircut))
+          (into (map #(assoc % :bucket :unfilled)
+                     (fail-action-bucket-violations unfilled total-unfilled :unfilled))))
         rounding-applicable? (and (not cap-constrained?)
                                   (#{:floor-and-carry :floor :largest-remainder :principal-protective-floor} rounding-policy))
         residual-ok? (if cap-constrained?
@@ -1652,35 +1752,55 @@
                          (check-result :partial-fill/per-claim-bound
                                        (if (empty? per-claim-violations) :pass :fail)
                                        {:violations per-claim-violations}))
-          cross-product-ch (future
-                             (if strict-pro-rata?
-                               (check-result :partial-fill/pro-rata-cross-product
-                                             (if (empty? pro-rata-violations) :pass :fail)
-                                             {:violations pro-rata-violations})
-                               (check-result :partial-fill/pro-rata-cross-product
-                                             :not-applicable
-                                             {:mode mode
-                                              :rounding-policy rounding-policy
+          exact-pro-rata-ch (future
+                              (if strict-pro-rata?
+                                (check-result :partial-fill/exact-pro-rata
+                                              (if (empty? pro-rata-violations) :pass :fail)
+                                              {:violations pro-rata-violations})
+                                (check-result :partial-fill/exact-pro-rata
+                                              :not-applicable
+                                              {:mode mode
+                                               :rounding-policy rounding-policy
                                                :reason (if cap-constrained?
                                                          "effective caps require constrained redistribution rather than one global ratio"
-                                                          "indivisible pro-rata allocation is checked by rounding fairness")})))
+                                                         "indivisible pro-rata allocation is checked by rounding-fairness")})))
+          rounding-fairness-ch (future
+                                 (if (and (= :pro-rata mode) (not cap-constrained?))
+                                   (let [violations (rounding-fairness-violations
+                                                     positive-claims filled available
+                                                     total-requested rounding-policy)
+                                         ranking-violations (filter #(= :unexpected-extra-unit (:kind %))
+                                                                    violations)]
+                                     (check-result :partial-fill/rounding-fairness
+                                                   (if (and (empty? violations)
+                                                            (empty? ranking-violations)
+                                                            residual-ok?)
+                                                     :pass :fail)
+                                                   {:violations violations
+                                                    :max-allowed-error (case rounding-policy
+                                                                         :largest-remainder 1
+                                                                         0)
+                                                    :ideal-fills (compute-ideal-fills
+                                                                  positive-claims total-requested available)
+                                                    :reconciles? residual-ok?}))
+                                   (check-result :partial-fill/rounding-fairness
+                                                 :not-applicable
+                                                 {:mode mode
+                                                  :rounding-policy rounding-policy
+                                                  :reason (if cap-constrained?
+                                                            "effective caps require constrained redistribution"
+                                                            "pro-rata mode not exercised")})))
           fail-action-ch (future
                            (if (pos? total-unfilled)
-                             (if strict-fail-action-pro-rata?
-                               (check-result :partial-fill/fail-action-pro-rata-fairness
-                                             (if (empty? fail-action-violations) :pass :fail)
-                                             {:violations fail-action-violations
-                                              :total-deferred total-deferred
-                                              :total-haircut total-haircut
-                                              :total-unfilled total-unfilled})
-                               (check-result :partial-fill/fail-action-pro-rata-fairness
-                                             :not-applicable
-                                             {:mode mode
-                                              :rounding-policy rounding-policy
-                                              :reason (if cap-constrained?
-                                                        "effective caps require constrained redistribution rather than one global ratio"
-                                                        "indivisible pro-rata shortfall is checked by rounding fairness")}))
-                             (check-result :partial-fill/fail-action-pro-rata-fairness
+                             (check-result :partial-fill/fail-action-fairness
+                                           (if (empty? fail-action-violations) :pass :fail)
+                                           {:violations fail-action-violations
+                                            :fail-action-policy fail-action-policy
+                                            :fail-action-policy-root fail-action-policy-root
+                                            :total-deferred total-deferred
+                                            :total-haircut total-haircut
+                                            :total-unfilled total-unfilled})
+                             (check-result :partial-fill/fail-action-fairness
                                            :not-applicable
                                            {:reason "no deferred or haircut amounts (no fail action exercised)"})))
           rounding-fairness-ideal-ch (future
@@ -1797,7 +1917,7 @@
       (let [results (mapv deref [conservation-ch capacity-ch per-claim-ch per-claim-conservation-ch
                                  claim-key-ch non-negative-ch settlement-mode-ch settlement-mode-valid-ch
                                  mode-valid-ch overlap-ch deferred-haircut-sum-ch evidence-ch unrealized-ch artifact-format-ch
-                                 cross-product-ch rounding-fairness-ideal-ch rounding-remainder-ch
+                                 exact-pro-rata-ch rounding-fairness-ch rounding-fairness-ideal-ch rounding-remainder-ch
                                  principal-first-ch waterfall-ch
                                  residual-ch fail-action-ch])
             failed (filterv #(= :fail (:status %)) results)]

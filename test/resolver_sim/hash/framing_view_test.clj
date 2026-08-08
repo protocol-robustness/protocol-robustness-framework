@@ -200,6 +200,37 @@
     (is (= :limit-exceeded (:status r)))
     (is (= :max-stream-bytes (:reason r)))))
 
+(deftest decode-one-enforces-max-stream-bytes
+  (testing "the single-value admission path enforces the same stream-size
+            bound as verify-stream: a value whose canonical bytes exceed
+            :max-stream-bytes is a resource-policy rejection, never a
+            successful decode — otherwise decode-one and verify-stream would
+            disagree on admission, an accidental consensus boundary"
+    (let [big {:a (apply str (repeat 700000 \a))
+               :b (apply str (repeat 700000 \b))}
+          ba (hc/canonical-bytes big)]
+      (is (> (count ba) (:max-stream-bytes fv/default-limits)))
+      (is (not (:canonical? (fv/verify-single ba)))
+          "verify-single rejects the over-limit stream")
+      (let [thrown (try (fv/decode-one ba 0)
+                        ::no-throw
+                        (catch clojure.lang.ExceptionInfo e
+                          (ex-data e)))]
+        (is (not= ::no-throw thrown))
+        (is (= :limit-exceeded (:type thrown)))
+        (is (= :max-stream-bytes (:reason thrown)))
+        (is (= (:max-stream-bytes fv/default-limits) (:limit thrown)))))))
+
+(deftest verify-single-and-decode-one-agree-on-stream-boundary
+  (testing "verify-single and decode-one must agree on admissibility at the
+            :max-stream-bytes boundary (shared normative admission profile)"
+    (let [at-limit (hc/canonical-bytes {:a (apply str (repeat 1000000 \a))})]
+      (is (<= (count at-limit) (:max-stream-bytes fv/default-limits)))
+      (is (:canonical? (fv/verify-single at-limit))
+          "stream at the limit is admitted by verify-single")
+      (is (map? (:value (fv/decode-one at-limit 0)))
+          "stream at the limit is admitted by decode-one"))))
+
 (deftest frame-stream-respects-max-component-count
   (let [ba (fv/concat-bytes (map hc/canonical-bytes [1 2 3 4 5]))
         r (fv/frame-stream ba {:limits {:max-component-count 3}})]

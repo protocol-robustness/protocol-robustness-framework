@@ -11,6 +11,8 @@
             [resolver-sim.time.deadlines :as dl]
             [resolver-sim.logging :as log]))
 
+(declare check-pro-rata-accounting-reconciles)
+
 (defn- inv-result [holds?]
   {:holds? (boolean holds?)})
 
@@ -761,6 +763,208 @@
                  shared))]
     {:holds? (empty? violations)
      :violations violations}))
+
+;; ---------------------------------------------------------------------------
+;; Withdrawal settlement — four independent layers
+;;
+;;   L1 budget provenance       — is the committed liquidity budget a computed
+;;                                function of committed world inputs (and of the
+;;                                world itself where reconstructable)?
+;;   L2 allocation conservation — does the allocator stay within that budget?
+;;                                (mode-specific: ledger certificate for
+;;                                single/batch, decision artifact for pro-rata)
+;;   L3 residual disposition    — is unused budget assigned according to the
+;;                                committed decision policy and actually realized?
+;;   L4 custody execution       — do custody/propagation mutations realize the
+;;                                allocation?  (P2: settlement-scoped held
+;;                                adjustment attribution is designed, not yet
+;;                                implemented at the Sew layer.)
+;;
+;; This framing keeps the layers separable: a system can satisfy L2 while
+;; completely failing L1 (the budget being conserved may not be real), so the
+;; checks must not be collapsed into one "withdrawal conservation" claim.
+;; ---------------------------------------------------------------------------
+
+(defn- withdrawal-provenance-artifacts
+  "All provenance-bearing withdrawal artifacts in a world: shared decisions and
+   single/batch ledger records."
+  [world]
+  (concat
+   (filter #(some? (:liquidity/source-custody %))
+           (vals (:yield/partial-fill-decisions world {})))
+   (filter #(some? (:liquidity/source-custody %))
+           (:yield/withdrawal-ledger world []))))
+
+(defn- world-custody
+  "Current custody for a token as the withdrawal modes see it."
+  [world token]
+  (long (or (get-in world [:total-held token])
+            (get-in world [:yield/held-balances token])
+            (get-in world [:yield/held-balances
+                           (if (keyword? token) (name token) token)])
+            0)))
+
+(defn- artifact-filled-total
+  "Total filled by the withdrawal an artifact represents (shared decision filled
+   map, or ledger rows)."
+  [artifact]
+  (if (:decision/id artifact)
+    (reduce + 0 (vals (:filled artifact {})))
+    (reduce + 0 (map #(long (:filled % 0)) (:ledger/rows artifact [])))))
+
+(defn check-withdrawal-budget-provenance
+  "L1 budget provenance.  For every provenance-bearing withdrawal artifact
+   (shared decision or single/batch ledger record):
+
+     - deterministic recomputation: the committed :liquidity/available must equal
+       canonical-available(committed :liquidity/source-custody, committed
+       :liquidity/available-ratio), and both committed roots must reconcile
+       (::budget-recompute-mismatch / ::source-state-root-mismatch /
+       ::market-state-root-mismatch).  The budget is therefore never a bare
+       attested scalar — it is a computed function of committed world inputs.
+
+     - world cross-check (shared decisions and batch records, and any record
+       whose pre-withdrawal custody reconstructs exactly): reconstruct the
+       pre-withdrawal custody as `current custody + filled`; when that equals
+       the committed :liquidity/source-custody (i.e. this world is the record's
+       evaluation point), the committed :liquidity/available must equal
+       canonical-available(reconstructed custody, committed ratio)
+       (::world-custody-mismatch).  Records whose reconstruction does not match
+       the committed custody are :not-evaluated rather than failed (historical
+       worlds), so no false positives.
+
+   Single withdrawals whose base was a custody-scoped slice (not the token pool)
+   are covered by the deterministic recomputation layer; their world cross-check
+   requires the custody slice at the evaluation point, which the current world
+   does not independently expose (documented boundary).
+
+   Returns {:holds? bool :violations [...]}."
+  [world]
+  (let [violations
+        (vec
+         (mapcat
+          (fn [a]
+            (let [artifact-violations (:violations (partial-fill/liquidity-budget-provenance-valid? a))
+                  token (:token a)
+                  committed-custody (long (:liquidity/source-custody a))
+                  committed-available (long (:liquidity/available a))
+                  ratio (double (:liquidity/available-ratio a))
+                  filled (artifact-filled-total a)
+                  reconstructed-pre (+ (world-custody world token) filled)
+                  world-violations
+                  (when (= committed-custody reconstructed-pre)
+                    (let [recomputed (partial-fill/canonical-liquidity-available
+                                      reconstructed-pre ratio)]
+                      (when (not= committed-available recomputed)
+                        [{:kind ::world-custody-mismatch
+                          :token token
+                          :committed-available committed-available
+                          :reconstructed-available recomputed
+                          :reconstructed-source-custody reconstructed-pre
+                          :available-ratio ratio}])))]
+              (into (vec artifact-violations) world-violations)))
+          (withdrawal-provenance-artifacts world)))]
+    {:holds? (empty? violations)
+     :violations violations}))
+
+(defn check-withdrawal-residual-disposition
+  "L3 residual disposition.  A shared decision commits its INTENDED residual
+   disposition (:residual/destination + a reconciling :residual/policy-root);
+   the bound propagation/application proves the ACTUAL disposition (destination
+   and amount) against the decision root.
+
+   Violations (namespaced :kind):
+     ::residual-destination-missing  — decision lacks :residual/destination.
+     ::residual-policy-root-mismatch — committed :residual/policy-root does not
+                                       reconcile with the committed destination.
+     ::disposition-not-realized      — the application/propagation residual
+                                       destination or amount disagrees with the
+                                       decision's committed disposition.
+
+   Returns {:holds? bool :violations [...]}."
+  [world]
+  (let [decisions (filter shared-withdrawal-artifact?
+                          (vals (:yield/partial-fill-decisions world {})))
+        propagations (get world :yield/pro-rata-propagations {})
+        applications (get world :yield/applied-pro-rata-propagations {})
+        violations
+        (vec
+         (mapcat
+          (fn [d]
+            (let [destination (:residual/destination d)
+                  policy-root (:residual/policy-root d)
+                  residual (get-in d [:evidence :unallocated-residual])
+                  prop (some #(when (= (:decision/id d) (:calculation-ref %)) %)
+                             (vals propagations))
+                  app (when prop (get applications (:propagation/id prop)))]
+              (cond-> []
+                (nil? destination)
+                (conj {:kind ::residual-destination-missing :decision/id (:decision/id d)})
+                (and (some? destination) (some? policy-root)
+                     (not= policy-root (partial-fill/residual-policy-root
+                                        {:destination destination})))
+                (conj {:kind ::residual-policy-root-mismatch :decision/id (:decision/id d)})
+                (and prop (not= destination (get-in prop [:residual :destination])))
+                (conj {:kind ::disposition-not-realized :decision/id (:decision/id d)
+                       :expected destination :observed (get-in prop [:residual :destination])})
+                (and prop (some? residual)
+                     (not= (long residual) (long (get-in prop [:summary :unallocated-residual] 0))))
+                (conj {:kind ::disposition-not-realized :decision/id (:decision/id d)
+                       :expected-amount (long residual)
+                       :observed-amount (get-in prop [:summary :unallocated-residual])})
+                (and app (not= destination (get-in app [:residual :destination])))
+                (conj {:kind ::disposition-not-realized :decision/id (:decision/id d)
+                       :application-destination (get-in app [:residual :destination])})
+                (and app (some? residual)
+                     (not= (long residual) (long (get-in app [:residual :amount] -1))))
+                (conj {:kind ::disposition-not-realized :decision/id (:decision/id d)
+                       :expected-amount (long residual)
+                       :application-amount (get-in app [:residual :amount])}))))
+          decisions))]
+    {:holds? (empty? violations)
+     :violations violations}))
+
+(defn- merge-withdrawal-layers
+  [results]
+  {:holds? (every? :holds? results)
+   :violations (vec (mapcat :violations results))})
+
+(defn check-withdrawal-allocation-conservation
+  "L2 allocation conservation: allocators stay within their committed budget.
+   Mode-specific by construction — :fcfs-sequential / :single-position via the
+   withdrawal-ledger certificate, :pro-rata via the shared decision artifact —
+   so the modes' allocation mechanics are not conflated."
+  [world]
+  (merge-withdrawal-layers
+   [(check-withdrawal-ledger-conservation world)
+    (check-shared-withdrawal-conservation-world world)]))
+
+(defn check-withdrawal-custody-realization
+  "L4 custody execution: the applied shared-withdrawal propagation's source
+   debit, participant credits, and balanced ledger realize the committed
+   allocation.  Single/batch custody realization is the Sew held-adjustment
+   attribution (P2 — settlement-scoped, identity-bound attribution is designed
+   but not yet implemented; the Sew :held-adjustments-* invariants cover the
+   aggregate held↔total-held binding)."
+  [world]
+  (check-pro-rata-accounting-reconciles world))
+
+(defn check-withdrawal-settlement
+  "Four-layer withdrawal settlement verification, aggregated:
+
+     L1 check-withdrawal-budget-provenance
+     L2 check-withdrawal-allocation-conservation
+     L3 check-withdrawal-residual-disposition
+     L4 check-withdrawal-custody-realization
+
+   Returns {:holds? bool :violations [...]} with violations tagged by the
+   contributing layer's :kind."
+  [world]
+  (merge-withdrawal-layers
+   [(check-withdrawal-budget-provenance world)
+    (check-withdrawal-allocation-conservation world)
+    (check-withdrawal-residual-disposition world)
+    (check-withdrawal-custody-realization world)]))
 
 (defn check-deferred-reclaim
   "Withdrawn positions: no shortfall; reclaimed ≥ 0."
@@ -1854,6 +2058,7 @@
    :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles check-pro-rata-accounting-reconciles
    :yield/shared-withdrawal-conservation check-shared-withdrawal-conservation-world
+   :yield/withdrawal-budget-provenance check-withdrawal-budget-provenance
    :yield/withdrawal-ledger-conservation check-withdrawal-ledger-conservation})
 
 (defn registered-ids []

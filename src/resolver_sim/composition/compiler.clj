@@ -10,6 +10,7 @@
   (:require [clojure.set :as set]
             [resolver-sim.composition.combination :as combo]
             [resolver-sim.composition.contract :as contract]
+            [resolver-sim.composition.evidence-contract :as evidence-contract]
             [resolver-sim.composition.plan :as plan]))
 
 (def compiler-id
@@ -174,13 +175,28 @@
 (defn compile-combination
   "Compile a requested combination against an extension-map.
 
+   evidence-contracts — an explicit evidence-contract registry (see
+   resolver-sim.composition.evidence-contract) used to resolve the
+   COMBINATION-LEVEL :combination/verification :evidence-contract-ref. A
+   declared combination-level ref that cannot be resolved (missing,
+   wrong-kind, or malformed entry) fails compilation; the resolved identity is
+   committed into the plan as
+   :plan/verification :evidence-contract {:id <ref> :root <committed-root>},
+   so a later registry mutation cannot silently change what the plan meant.
+   Per-node :composition/verification :evidence-contract-ref values are NOT
+   resolved by this mechanism — they remain legacy/unresolved capability
+   vocabulary pending the contract-obligation patch.
+
    Returns {:status :valid, :plan <compiled-plan>}
         or {:status :invalid, :violations [<structured rejections>]}.
 
    The compiled plan binds exact descriptor roots, exact composition-contract
    roots, canonical node order, canonical edges, graph input/output contracts,
-   effect merge semantics, verification, and compiler identity/version."
-  [extension-map combination]
+   effect merge semantics, resolved verification (including the committed
+   evidence contract), and compiler identity/version."
+  ([extension-map combination]
+   (compile-combination extension-map combination nil))
+  ([extension-map combination evidence-contracts]
   (let [shape (combo/validate-combination combination)]
     (if-not (:valid? shape)
       {:status :invalid :violations (:violations shape)}
@@ -298,6 +314,18 @@
                                          [{:violation/id :violation/verification-contract-not-preserved
                                            :details {:combination-verification declared-verification
                                                      :required true}}])
+                ;; evidence-contract resolution: a declared ref must resolve
+                ;; against the explicit evidence-contract registry, or the
+                ;; combination fails to compile (never silently dropped)
+                evidence-ref (:evidence-contract-ref declared-verification)
+                evidence-resolution (when (some? evidence-ref)
+                                      (evidence-contract/resolve-ref evidence-contracts evidence-ref))
+                evidence-violations (when (and (some? evidence-ref)
+                                               (not (:resolved? evidence-resolution)))
+                                      [{:violation/id (:violation/id evidence-resolution)
+                                        :details {:evidence-contract-ref evidence-ref
+                                                  :kind (:kind evidence-resolution)
+                                                  :violations (:violations evidence-resolution)}}])
                 ;; graph-wide structural checks (defensive; valid chains pass)
                 cycle-violations (when (graph-has-cycle? node-ids edges)
                                    [{:violation/id :violation/cycle-detected
@@ -318,6 +346,7 @@
                                              merge-conflicts
                                              adapter-violations
                                              verification-conflicts
+                                             evidence-violations
                                              cycle-violations
                                              unreachable-violations))]
             (if (seq all-violations)
@@ -325,9 +354,14 @@
               (let [effect-merge-strategy (or declared-strategy
                                               (first node-strategies)
                                               :accumulate)
-                    plan-verification {:intermediate-output-committed?
-                                       (boolean (or requires-intermediate?
-                                                    (:intermediate-output-committed? declared-verification)))}
+                    plan-verification (cond-> {:intermediate-output-committed?
+                                               (boolean (or requires-intermediate?
+                                                            (:intermediate-output-committed? declared-verification)))}
+                                       (some? evidence-ref)
+                                       (assoc :evidence-contract
+                                              (evidence-contract/committed-identity
+                                               evidence-ref
+                                               (:entry evidence-resolution))))
                     compiled-plan (plan/build-plan
                                    {:combination-root (combo/combination-root combination)
                                     :compiler-id compiler-id
@@ -339,4 +373,4 @@
                                     :output-contract (:combination/expected-output combination)
                                     :effect-merge-strategy effect-merge-strategy
                                     :verification plan-verification})]
-                {:status :valid :plan compiled-plan}))))))))
+                {:status :valid :plan compiled-plan})))))))))

@@ -4,7 +4,8 @@
             [resolver-sim.benchmark.review-member-canonical-indices :as ci]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.assurance.three-member-authority :as tma]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.framing-view :as fv]))
 
 (def keyed-members
   [{:review-member/key 0, :researcher/id "researcher-a", :role :model-steward}
@@ -280,7 +281,63 @@
           with-report (rac/run-review-aggregate-checks round nil report)]
       (is (:holds? with-report))
       (is (contains? (:checks with-report) :three-member-classifications))
-      (is (:holds? (get-in with-report [:checks :three-member-classifications]))))))
+      (is (:holds? (get-in with-report [:checks :three-member-classifications])))
+      (testing "the canonical fixed-point check is threaded into the aggregate"
+        (is (contains? (:checks with-report) :classifications-fixed-point))
+        (is (:holds? (get-in with-report [:checks :classifications-fixed-point]))))
+      (testing "the semantic check is re-run on the decoded fixed-point report"
+        (is (contains? (:checks with-report) :three-member-classifications-on-fixed-point))
+        (is (:holds? (get-in with-report [:checks :three-member-classifications-on-fixed-point])))))))
+
+;; ── three-classifications preserved through the canonical fixed-point ───────
+
+(deftest classifications-fixed-point-holds-for-authorised-report
+  (testing "an authorised report survives the canonical round-trip with all
+            three classification dimensions intact"
+    (let [report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          result (rac/check-classifications-fixed-point report)]
+      (is (:holds? result))
+      (is (empty? (:violations result)))))
+
+  (testing "classifications-preserved still holds on the decoded report"
+    (let [report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          ba (hc/canonical-bytes report)
+          decoded (:value (fv/decode-one ba 0))
+          round (make-legacy-round)
+          check (rac/check-aggregate-three-member-classifications round decoded)]
+      (is (:holds? check))
+      (is (= :authorised (:authority-status decoded))))))
+
+(deftest classifications-fixed-point-preserves-not-authorised
+  (let [report (auth-report
+                :positions [(v2-pos "researcher-a" :approve outcome-a)
+                            (v2-pos "researcher-b" :dissent outcome-a)
+                            (v2-pos "researcher-c" :dissent outcome-a)])
+        result (rac/check-classifications-fixed-point report)]
+    (is (= :not-authorised (:authority-status report)))
+    (is (:holds? result))))
+
+(deftest classifications-fixed-point-reveals-tampered-category
+  (testing "removing a supporting position from the stored report breaks the
+            canonical fixed-point identity — the classification no longer
+            recomputes to the same bytes"
+    (let [report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          tampered (assoc-in report [:valid-supporting-positions 1]
+                             (v2-pos "researcher-b" :approve outcome-b))
+          result (rac/check-classifications-fixed-point report)]
+      ;; the honest report itself is a fixed point of its own bytes
+      (is (:holds? result))
+      (testing "a changed category content changes the canonical bytes"
+        (is (not= (hc/canonical-bytes report) (hc/canonical-bytes tampered)))))))
 
 (deftest run-review-aggregate-checks-reveals-classification-violation
   (let [round (make-legacy-round)
@@ -354,3 +411,85 @@
       (is (= :authorised (:authority-status report)))
       (is (:holds? result))
       (is (empty? (:violations result))))))
+
+;; ── Threading: on-fixed-point consumes the decoded artifact ─────────────────
+;;
+;; The semantic check on the fixed-point result must consume the ACTUAL decoded
+;; report produced by the fixed-point stage, never an independent re-decode or
+;; a re-check of the stored input.  These tests substitute the fixed-point
+;; stage with a decoded representation whose classification dimensions are
+;; invalid, while the STORED report is valid — so the aggregate can only fail
+;; if the runner threaded the decoded artifact downstream.
+
+(deftest fixed-point-threading-rejects-invalid-decoded-classifications
+  (testing "a valid stored report whose decoded fixed-point classification is
+            invalid fails :three-member-classifications-on-fixed-point"
+    (let [round (make-legacy-round)
+          report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          ;; stored report is intrinsically valid
+          stored-check (rac/check-aggregate-three-member-classifications round report)
+          ;; decoded representation that double-counts an equivocator as a
+          ;; supporter — invalid classification dimensions
+          support-hash (first (:valid-supporting-positions report))
+          decoded-bad (update report :equivocating-members conj
+                              {:member/id "researcher-a"
+                               :incompatible-positions [support-hash]})
+          result (with-redefs [rac/classifications-fixed-point
+                               (constantly {:valid? true :violations []
+                                            :report decoded-bad})]
+                   (rac/run-review-aggregate-checks round nil report))]
+      ;; the stored report itself passes — the failure must come from the
+      ;; decoded artifact being threaded, not the stored one
+      (is (:holds? stored-check))
+      (is (:holds? (get-in result [:checks :three-member-classifications]))
+          "stored report check must pass")
+      (is (:holds? (get-in result [:checks :classifications-fixed-point]))
+          "the substituted fixed-point stage itself reports valid")
+      (is (not (:holds? (get-in result [:checks :three-member-classifications-on-fixed-point])))
+          "the decoded report's invalid classification must fail the on-fixed-point check")
+      (is (some #(= ::rac/equivocator-counted-as-supporter (:kind %))
+                (:violations (get-in result [:checks :three-member-classifications-on-fixed-point])))
+          "the violation must come from the decoded report's double-counted equivocator")
+      (is (not (:holds? result))
+          "the aggregate must fail when the fixed-point artifact is semantically invalid"))))
+
+(deftest fixed-point-threading-passes-decoded-artifact-not-stored
+  (testing "the on-fixed-point check reflects the DECODED report, not the stored
+            one — proven by substituting a decoded report whose outcome-source
+            contradicts its authority-status"
+    (let [round (make-legacy-round)
+          report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          ;; decoded report: still authorised but with a non-authoritative
+          ;; outcome-source — a semantic contradiction only the fixed-point
+          ;; artifact carries
+          decoded-bad (assoc report :outcome-source :target-outcome-unavailable)
+          result (with-redefs [rac/classifications-fixed-point
+                               (constantly {:valid? true :violations []
+                                            :report decoded-bad})]
+                   (rac/run-review-aggregate-checks round nil report))]
+      (is (:holds? (get-in result [:checks :three-member-classifications]))
+          "stored report is consistent (authorised + authoritative-target)")
+      (is (not (:holds? (get-in result [:checks :three-member-classifications-on-fixed-point])))
+          "the decoded report contradicts (authorised + target-outcome-unavailable)")
+      (is (some #(= ::rac/authorised-without-authoritative-outcome (:kind %))
+                (:violations (get-in result [:checks :three-member-classifications-on-fixed-point])))))))
+
+(deftest fixed-point-threading-exposes-decoded-report
+  (testing "classifications-fixed-point returns the decoded report as first-class
+            data for downstream composition"
+    (let [report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          fp (rac/classifications-fixed-point report)]
+      (is (true? (:valid? fp)))
+      (is (map? (:report fp)))
+      (is (= :authorised (:authority-status (:report fp))))
+      (is (= (count (:valid-supporting-positions report))
+             (count (:valid-supporting-positions (:report fp))))))))

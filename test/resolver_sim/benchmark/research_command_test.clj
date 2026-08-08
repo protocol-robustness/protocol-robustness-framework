@@ -151,9 +151,30 @@
     (is (:trace/valid? metrics))
     (is (string? (:trace/root metrics)))))
 
+(deftest combinations-are-recognized-not-counted-as-commands
+  (testing "a combination is a distinct first-class trace entity: it is
+            counted as a combination, never as a command, and never as
+            skipped debris"
+    (let [cmd (built-command :trace/held)
+          add-held-combination {:combination/id :test.combination/add-held
+                                :combination/version 1
+                                :combination/nodes []}
+          metrics (rcmd/command-trace-metrics [cmd add-held-combination])]
+      (is (= 1 (:command-count metrics))
+          "a combination is not a command declaration")
+      (is (= 1 (:command-valid-count metrics)))
+      (is (= 1 (:combination-count metrics))
+          "the combination is recognized and counted separately")
+      (is (= 0 (:trace/skipped metrics))
+          "a combination is not skipped debris")
+      (is (seq (filter #(contains? % :combination/id)
+                       [cmd add-held-combination]))
+          "the combination entry is a :combination/id artifact"))))
+
 (deftest combinations-do-not-affect-command-count
-  (testing "non-command artifacts (composition combinations, add-held evidence
-            maps) recorded alongside commands never change the command counts"
+  (testing "non-command entries alongside commands never change the command
+            counts; a combination is counted separately and only unrecognized
+            entries are skipped"
     (let [cmd (built-command :trace/held)
           add-held-combination {:combination/id :test.combination/add-held
                                 :combination/version 1
@@ -170,11 +191,26 @@
       (is (= 1 (:command-count metrics))
           "a combination is not a command declaration")
       (is (= 1 (:command-valid-count metrics)))
-      (is (:trace/valid? metrics))
-      (is (= 2 (:trace/skipped metrics))
-          "non-command entries are surfaced, not silently dropped")
+      (is (= 1 (:combination-count metrics))
+          "the combination is recognized, not skipped")
+      (is (= 1 (:trace/skipped metrics))
+          "only genuinely unrecognized entries are skipped")
       (is (= (rcmd/command-trace-root [cmd]) (:trace/root metrics))
-          "the trace root binds exactly the counted declarations"))))
+          "the trace root binds exactly the counted command declarations"))))
+
+(deftest combination-with-command-id-counts-as-command
+  (testing "the :command/id discriminator is authoritative: a combination map
+            that also carries :command/id is a command declaration (discovered,
+            then judged invalid), never a combination"
+    (let [cmd (built-command :trace/held)
+          annotated-combination (assoc {:combination/id :test.combination/add-held
+                                        :combination/version 1
+                                        :combination/nodes []}
+                                       :command/id :trace/annotated)
+          metrics (rcmd/command-trace-metrics [cmd annotated-combination])]
+      (is (= 2 (:command-count metrics)))
+      (is (= 0 (:combination-count metrics)))
+      (is (= 0 (:trace/skipped metrics))))))
 
 (deftest duplicate-command-id-fails-closed
   (testing "two declarations carrying the same :command/id are a malformed

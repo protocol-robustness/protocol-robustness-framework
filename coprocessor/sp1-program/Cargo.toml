@@ -1,0 +1,12 @@
+[package]
+name = "allocation-sp1-program"
+version = "0.1.0"
+edition = "2021"
+description = "SP1 guest for the IEE-PRF allocation kernel. Reads the canonical allocation input document, runs the shared allocation kernel, and commits the public-value projection."
+
+[dependencies]
+allocation-kernel = { path = "../core" }
+sp1-zkvm = "6.0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"

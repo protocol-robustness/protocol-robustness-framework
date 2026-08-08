@@ -176,7 +176,8 @@
    :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"
    :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"
    :lab-parameter-root      "LAB_PARAMETER_ROOT_V1"
-   :lab-withdrawal-fcfs     "LAB_WITHDRAWAL_FCFS_V1"})
+   :lab-withdrawal-fcfs     "LAB_WITHDRAWAL_FCFS_V1"
+   :fail-action-policy      "FAIL_ACTION_POLICY_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1813,6 +1814,15 @@
     :intent/description "Canonical witness binding of the Assurance Lab FCFS sequential-withdrawal outcome"
     :intent/includes    #{:mechanism :available :requested-total :filled-total
                           :deferred-total :rows}
+    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :fail-action-policy
+   {:intent/name        :fail-action-policy
+    :intent/domain-tag  "FAIL_ACTION_POLICY_V1"
+    :intent/description "Committed root of a declared pro-rata fail-action policy: how a partial-fill shortfall is treated per bucket (deferred/haircut) when the fill cannot be settled in full"
+    :intent/includes    #{:mode :deferred-policy :haircut-policy :treatment :priority}
     :intent/excludes    #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-identity
     :intent/version     1}})

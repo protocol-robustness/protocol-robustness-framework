@@ -1,0 +1,52 @@
+name: conformance
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install Clojure CLI
+        uses: DeLaGuardo/setup-clojure@12.5
+        with:
+          cli: 1.11.1.1435
+
+      - name: Rust fmt check
+        run: cd coprocessor && cargo fmt --check
+
+      - name: Rust clippy
+        run: cd coprocessor && cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Rust unit tests
+        run: cd coprocessor && cargo test
+
+      - name: Rust release build
+        run: cd coprocessor && cargo build --release
+
+      - name: Build pinned PRF sewer JAR
+        run: clojure -T:build uberjar :variant sew
+
+      - name: PRF JAR SHA-256 + vector-set root verification
+        run: |
+          python3 -c "import json,hashlib; lock=json.load(open('prf-runner/artifact-lock.json')); actual=hashlib.sha256(open('target/prf-runner-sew-0.1.0-uber.jar','rb').read()).hexdigest(); assert actual==lock['artifact_sha256'], f'JAR hash mismatch: {actual}'"
+          ./scripts/conformance/vector-set-root.sh | python3 -c "import json,sys; vsroot,count=sys.stdin.read().split(); lock=json.load(open('prf-runner/artifact-lock.json')); assert vsroot==lock['vector_set_root'], f'vector-set root mismatch: {vsroot}'; assert int(count)==lock['vector_count']"
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Forge build + mock verifier tests
+        run: cd contracts/allocation && forge build && forge test
+
+      - name: Conformance gate (PRF result == native Rust result)
+        run: ./scripts/conformance/conformance.sh

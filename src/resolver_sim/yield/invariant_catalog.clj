@@ -66,6 +66,10 @@
    {:description "Every :yield-withdraw-shared decision artifact is replay-verifiable: the decision hash reconciles; the committed allocation scope/mode/rounding policy match the shared pro-rata contract; the participant/request set is bijective to the allocation rows; per-row filled ≤ effective-cap ≤ requested, deferred = requested - filled, no haircut; Σ filled ≤ committed available (the shared-liquidity non-overallocation bound); and the locked equality Σ filled = min(available, Σ effective-demand) holds, so caps binding below both requests and liquidity are honoured."
     :prf-tags [:pro-rata :liquidity :solvency :conservation :aggregate :withdrawal]},
 
+   :yield/withdrawal-budget-provenance
+   {:description "Withdrawal budget provenance (L1): the committed liquidity budget is a computed function of committed source custody and available-ratio — recomputed deterministically with both content-addressed roots reconciled — never a bare attested scalar. Where the world is the withdrawal's evaluation point (pre-withdrawal custody reconstructs exactly), the committed budget is additionally cross-checked against reconstructed world custody. Covers :single-position / :fcfs-sequential / :pro-rata so budget derivation is one provenance chain."
+    :prf-tags [:liquidity :solvency :conservation :provenance :withdrawal]},
+
    :yield/withdrawal-ledger-conservation
    {:description "Every recorded withdrawal (single or batch) settles at most the liquidity pool available to it, bound to its exact execution world and withdrawal subject. Per record: the fixed-point certificate is valid; the committed run-root matches the recomputed execution context (run/execution/scenario/params); the request-set root matches the ledger's own rows; declared principals are unique and biject to row owners; filled ≤ available; per-row and aggregate economic conservation (filled + deferred + haircut = requested, totals reconcile to rows); FCFS prefix pool bound holds."
     :prf-tags [:liquidity :solvency :conservation :aggregate :withdrawal :provenance]}})
@@ -88,6 +92,7 @@
    :yield/pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles
    :yield/shared-withdrawal-conservation
+   :yield/withdrawal-budget-provenance
    :yield/withdrawal-ledger-conservation])
 
 (def default-transition-invariant-ids

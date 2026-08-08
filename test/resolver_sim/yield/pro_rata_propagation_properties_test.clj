@@ -88,7 +88,7 @@
                                 :principal 100 :realized-yield 60 :deferred-yield 0})
         decision (pf/calculate-fulfillment 80 pos {:mode :pro-rata})
         checks (closed-form-checks decision)
-        cross-prod (first (filter #(= :partial-fill/pro-rata-cross-product (check-id %)) checks))]
+        cross-prod (first (filter #(= :partial-fill/exact-pro-rata (check-id %)) checks))]
     (is (check-pass? cross-prod)
         (str "Cross-product check failed: " cross-prod))))
 

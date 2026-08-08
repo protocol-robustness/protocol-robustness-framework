@@ -271,6 +271,17 @@
       (source-liquidity-balance world token)
       0))
 
+(defn- liquidity-evaluation-context
+  "Pin the world state at which a withdrawal's liquidity budget was authorized:
+   module/token, wall-clock time, and (when available) the application-order
+   step/event-id.  This is what makes the committed budget provenance
+   attributable to one evaluation point rather than a free-floating scalar."
+  [module-id token now application-order]
+  (cond-> {:module/id module-id :token token :at now}
+    application-order
+    (assoc :application-order {:step (:step application-order)
+                               :event-id (:event-id application-order)})))
+
 ;; ---------------------------------------------------------------------------
 ;; deposit
 ;; ---------------------------------------------------------------------------
@@ -581,42 +592,55 @@
                                  [:yield/withdrawal-ledger]
                                  (fnil conj [])
                                  (content-address-ledger
-                                  {:ledger/kind :yield/withdrawal-single
-                                   :ledger/id [:withdrawal-single module-id token
-                                               owner-id (resolve-now world-after-accrue)]
-                                   :ledger/domain withdrawal-ledger-domain
-                                   :ledger/module-id module-id
-                                   :ledger/token token
-                                   :ledger/owner-ids [owner-id]
-                                   :ledger/run-id (:run/id world-with-position)
-                                   :ledger/execution-id (:execution/id world-with-position)
-                                   :ledger/run-root (partial-fill/ledger-run-root world-with-position)
-                                   :ledger/params-root
-                                   (partial-fill/ledger-params-root world-with-position)
-                                   :ledger/state-cutpoint-root
-                                   (partial-fill/ledger-state-cutpoint-root world-with-position)
-                                   :ledger/request-set-root
-                                   (partial-fill/ledger-request-set-root
-                                    [owner-id]
-                                    [{:owner-id owner-id
-                                      :requested basis-total}])
-                                   :ledger/request-order-root
-                                   (partial-fill/ledger-request-order-root [owner-id])
-                                   :ledger/allocation-policy
-                                   allocation-policy
-                                   :ledger/allocation-policy-root
-                                   (partial-fill/ledger-allocation-policy-root
-                                    allocation-policy)
-                                   :ledger/available (max 0 (long recoverable))
-                                   :ledger/requested basis-total
-                                   :ledger/filled fulfilled-total
-                                   :ledger/deferred deferred-total
-                                   :ledger/haircut haircut-total
-                                   :ledger/rows [{:owner-id owner-id
-                                                  :requested basis-total
-                                                  :filled fulfilled-total
-                                                  :deferred deferred-total
-                                                  :haircut haircut-total}]}))
+                                  (merge
+                                   {:ledger/kind :yield/withdrawal-single
+                                    :ledger/id [:withdrawal-single module-id token
+                                                owner-id (resolve-now world-after-accrue)]
+                                    :ledger/domain withdrawal-ledger-domain
+                                    :ledger/module-id module-id
+                                    :ledger/token token
+                                    :ledger/owner-ids [owner-id]
+                                    :ledger/run-id (:run/id world-with-position)
+                                    :ledger/execution-id (:execution/id world-with-position)
+                                    :ledger/run-root (partial-fill/ledger-run-root world-with-position)
+                                    :ledger/params-root
+                                    (partial-fill/ledger-params-root world-with-position)
+                                    :ledger/state-cutpoint-root
+                                    (partial-fill/ledger-state-cutpoint-root world-with-position)
+                                    :ledger/request-set-root
+                                    (partial-fill/ledger-request-set-root
+                                     [owner-id]
+                                     [{:owner-id owner-id
+                                       :requested basis-total}])
+                                    :ledger/request-order-root
+                                    (partial-fill/ledger-request-order-root [owner-id])
+                                    :ledger/allocation-policy
+                                    allocation-policy
+                                    :ledger/allocation-policy-root
+                                    (partial-fill/ledger-allocation-policy-root
+                                     allocation-policy)
+                                    :ledger/available (max 0 (long recoverable))
+                                    :ledger/requested basis-total
+                                    :ledger/filled fulfilled-total
+                                    :ledger/deferred deferred-total
+                                    :ledger/haircut haircut-total
+                                    :ledger/rows [{:owner-id owner-id
+                                                   :requested basis-total
+                                                   :filled fulfilled-total
+                                                   :deferred deferred-total
+                                                   :haircut haircut-total}]}
+                                    ;; Budget provenance: the committed
+                                    ;; :ledger/available (the position's
+                                    ;; recoverable slice) must equal
+                                     ;; canonical-available(base, ratio) for the
+                                     ;; committed custody/ratio.
+                                   (partial-fill/liquidity-budget-provenance
+                                    {:module-id module-id :token token
+                                     :source-custody base-recoverable
+                                     :available-ratio available-ratio
+                                     :evaluation-context
+                                     (liquidity-evaluation-context
+                                      module-id token now nil)}))))
                 shortfall
                 (ye/emit-shortfall-event
                  :yield.shortfall/deferred-created
@@ -1802,46 +1826,69 @@
                 :signature-status :unsigned
                 :claim-note :protocol-time-is-not-proof-of-signing-time}}
               decision
-              (partial-fill/decision-artifact
-               {:owner/id "shared-pool"
-                :position/id "shared-pool"
-                :module/id module-id
-                :token token}
-               settlement
-               {:decision-source :yield-withdraw-shared
-                :position-id "shared-pool"
-                :extra
-                {:participants owners
-                 :allocation/effective-caps
-                 (into {} (map (juxt :key :cap) rows))
-                 :allocation/effective-cap-source
-                 (or effective-cap-source :scenario-fixture)
-                 :allocation/scope :shared-liquidity-pool
-                 :allocation/domain
-                 {:module/id module-id
-                  :token token
-                  :block-time now}
-                 :allocation/ordering
-                 :original-priority-ascending
-                 :allocation/rounding-tie-break
-                 :original-priority-ascending
-                 :allocation/priority-witness
-                 (mapv (fn [row]
-                         (merge
-                          (select-keys row
-                                       [:key
-                                        :obligation-id
-                                        :source-position-id
-                                        :original-priority
-                                        :priority-source])
-                          {:queue/domain (queue-domain module-id token)
-                           :queue/key
-                           {:original-priority (:original-priority row)
-                            :secondary-position-id
-                            (secondary-position-id
-                             (get-in accrued-world [:yield/positions (:key row)]))}}))
-                       rows)
-                 :allocation/invocation-context invocation-context}})
+              (let [liquidity-provenance
+                    (partial-fill/liquidity-budget-provenance
+                     {:module-id module-id :token token
+                      :source-custody base-held
+                      :available-ratio (:available-ratio market 1.0)
+                      :evaluation-context
+                      (liquidity-evaluation-context
+                       module-id token now application-order)})
+                    residual-destination
+                    (get-in propagation-policy*
+                            [:residual-liquidity :destination]
+                            :remain-in-shared-liquidity)
+                    residual-disposition {:destination residual-destination}]
+                (partial-fill/decision-artifact
+                 {:owner/id "shared-pool"
+                  :position/id "shared-pool"
+                  :module/id module-id
+                  :token token}
+                 settlement
+                 {:decision-source :yield-withdraw-shared
+                  :position-id "shared-pool"
+                  :extra
+                  (merge
+                   {:participants owners
+                    :allocation/effective-caps
+                    (into {} (map (juxt :key :cap) rows))
+                    :allocation/effective-cap-source
+                    (or effective-cap-source :scenario-fixture)
+                    :allocation/scope :shared-liquidity-pool
+                    :allocation/domain
+                    {:module/id module-id
+                     :token token
+                     :block-time now}
+                    :allocation/ordering
+                    :original-priority-ascending
+                    :allocation/rounding-tie-break
+                    :original-priority-ascending
+                    :allocation/priority-witness
+                    (mapv (fn [row]
+                            (merge
+                             (select-keys row
+                                          [:key
+                                           :obligation-id
+                                           :source-position-id
+                                           :original-priority
+                                           :priority-source])
+                             {:queue/domain (queue-domain module-id token)
+                              :queue/key
+                              {:original-priority (:original-priority row)
+                               :secondary-position-id
+                               (secondary-position-id
+                                (get-in accrued-world [:yield/positions (:key row)]))}}))
+                          rows)
+                    :allocation/invocation-context invocation-context}
+                   ;; Budget provenance (L1): the committed available budget is
+                   ;; recomputable from committed source custody + ratio.
+                   liquidity-provenance
+                   ;; Residual disposition (L3): the decision commits the
+                   ;; INTENDED disposition; the application proves the actual one
+                   ;; against this decision root.
+                   {:residual/destination residual-destination
+                    :residual/policy-root
+                    (partial-fill/residual-policy-root residual-disposition)})}))
               preconditions
               (build-application-preconditions
                accrued-world
@@ -2119,38 +2166,47 @@
     (update-in w [:yield/withdrawal-ledger]
                (fnil conj [])
                (content-address-ledger
-                {:ledger/kind :yield/withdrawal-batch
-                 :ledger/id ledger-id
-                 :ledger/domain withdrawal-ledger-domain
-                 :ledger/module-id module-id
-                 :ledger/token token
-                 :ledger/owner-ids owner-ids
-                 ;; Per-run root binding: commit the content-addressed execution
-                 ;; root (run/execution/scenario/params) plus the withdrawal
-                 ;; subject root (distinct principals + requested amounts), so
-                 ;; the certificate says "these withdrawals occurred in this
-                 ;; exact execution world" and cannot be substituted with a
-                 ;; different withdrawal in the same run.
-                 :ledger/run-id (:run/id w)
-                 :ledger/execution-id (:execution/id w)
-                 :ledger/run-root (partial-fill/ledger-run-root w)
-                 :ledger/params-root (partial-fill/ledger-params-root w)
-                 :ledger/state-cutpoint-root
-                 (partial-fill/ledger-state-cutpoint-root w)
-                 :ledger/request-set-root
-                 (partial-fill/ledger-request-set-root owner-ids rows)
-                 :ledger/request-order-root
-                 (partial-fill/ledger-request-order-root owner-ids)
-                 :ledger/allocation-policy
-                 allocation-policy
-                 :ledger/allocation-policy-root
-                 (partial-fill/ledger-allocation-policy-root allocation-policy)
-                 :ledger/available batch-available
-                 :ledger/requested requested
-                 :ledger/filled filled
-                 :ledger/deferred deferred
-                 :ledger/haircut haircut
-                 :ledger/rows rows}))))
+                (merge
+                 {:ledger/kind :yield/withdrawal-batch
+                  :ledger/id ledger-id
+                  :ledger/domain withdrawal-ledger-domain
+                  :ledger/module-id module-id
+                  :ledger/token token
+                  :ledger/owner-ids owner-ids
+                  ;; Per-run root binding: commit the content-addressed execution
+                  ;; root (run/execution/scenario/params) plus the withdrawal
+                  ;; subject root (distinct principals + requested amounts), so
+                  ;; the certificate says "these withdrawals occurred in this
+                  ;; exact execution world" and cannot be substituted with a
+                  ;; different withdrawal in the same run.
+                  :ledger/run-id (:run/id w)
+                  :ledger/execution-id (:execution/id w)
+                  :ledger/run-root (partial-fill/ledger-run-root w)
+                  :ledger/params-root (partial-fill/ledger-params-root w)
+                  :ledger/state-cutpoint-root
+                  (partial-fill/ledger-state-cutpoint-root w)
+                  :ledger/request-set-root
+                  (partial-fill/ledger-request-set-root owner-ids rows)
+                  :ledger/request-order-root
+                  (partial-fill/ledger-request-order-root owner-ids)
+                  :ledger/allocation-policy
+                  allocation-policy
+                  :ledger/allocation-policy-root
+                  (partial-fill/ledger-allocation-policy-root allocation-policy)
+                  :ledger/available batch-available
+                  :ledger/requested requested
+                  :ledger/filled filled
+                  :ledger/deferred deferred
+                  :ledger/haircut haircut
+                  :ledger/rows rows}
+                 ;; Budget provenance: :ledger/available (the batch's shared-pool
+                 ;; budget) must equal canonical-available(base, ratio).
+                 (partial-fill/liquidity-budget-provenance
+                  {:module-id module-id :token token
+                   :source-custody base-recoverable
+                   :available-ratio (:available-ratio market 1.0)
+                   :evaluation-context
+                   (liquidity-evaluation-context module-id token now application-order)}))))))
 
 ;; ---------------------------------------------------------------------------
 ;; emergency unwind

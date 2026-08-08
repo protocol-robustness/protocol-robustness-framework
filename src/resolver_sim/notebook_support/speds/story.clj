@@ -98,6 +98,24 @@
                   :threat-tags (:threat-tags scenario) :fallback result}))
     result))
 
+;; ──────────────────────────────────────────────────────────────────────────
+;; Story-family frame specs.
+;;
+;; NOTE ON NARRATIVE COPY (read before editing):
+;; The headline strings, badges and footers below (e.g. "THREAT_DETECTED",
+;; "ATTACK DEFLECTED", "LATENCY: 0.1ms", "ACCURACY: 1e-18", "MARGIN: 100%",
+;; "CERT: BUNDLE_v1.1") are ILLUSTRATIVE EXAMPLE COPY, not values measured
+;; from the run. They exist so a rendered story reads clearly; they are NOT
+;; derived from trace/coverage data and must NOT be treated as evidence.
+;;
+;; The frame-spec functions receive only a small `ctx` (see story-data/
+;; build-story-data). Deriving these claims from real data would require
+;; threading raw artifacts/traces into each family — a deliberate refactor
+;; that has NOT been done. Do not "fix" a typo here and assume it reflects
+;; the system. If a frame must assert a measured fact, add the value to the
+;; `:claims` vector (which the closing frame / findings layer DO derive from
+;; data) rather than to the decorative copy strings.
+
 (defn- deflection-frame-specs
   [{:keys [trace-id git-sha hash title replay-match-label] :as ctx}]
   [{:header "STATUS: ALERT"

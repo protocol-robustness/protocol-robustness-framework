@@ -220,7 +220,8 @@
                   :evidence {:available-liquidity 10}}
         checks (closed-form-checks decision)
         by-id (into {} (map (juxt :check/id identity) checks))]
-    (is (= :not-applicable (:status (get by-id :partial-fill/pro-rata-cross-product))))
+    (is (= :not-applicable (:status (get by-id :partial-fill/exact-pro-rata))))
+    (is (= :pass (:status (get by-id :partial-fill/rounding-fairness))))
     (is (= :pass (:status (get by-id :partial-fill/rounding-fairness-ideal))))
     (is (= :pass (:status (get by-id :partial-fill/rounding-fairness-remainder-ranking))))))
 
@@ -234,7 +235,7 @@
                     :policy {:mode :pro-rata}
                     :evidence {:available-liquidity 50}}
           checks (closed-form-checks decision)
-          fairness (first (filter #(= :partial-fill/pro-rata-cross-product
+          fairness (first (filter #(= :partial-fill/exact-pro-rata
                                       (:check/id %))
                                   checks))]
       (is (= :fail (:status fairness)))
@@ -250,7 +251,7 @@
                     :policy {:mode :pro-rata :rounding-policy :largest-remainder}
                     :evidence {:available-liquidity 60 :total-requested 600 :shortage 540}}
           checks (closed-form-checks decision)
-          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+          fail-action (first (filter #(= :partial-fill/fail-action-fairness
                                          (:check/id %))
                                      checks))]
       (is (= :pass (:status fail-action)))
@@ -266,7 +267,7 @@
                     :policy {:mode :pro-rata :rounding-policy :largest-remainder}
                     :evidence {:available-liquidity 60 :total-requested 600 :shortage 540}}
           checks (closed-form-checks decision)
-          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+          fail-action (first (filter #(= :partial-fill/fail-action-fairness
                                          (:check/id %))
                                      checks))
           buckets (set (map :bucket (get-in fail-action [:details :violations])))]
@@ -274,6 +275,27 @@
       (is (seq (get-in fail-action [:details :violations])))
       (is (contains? buckets :deferred))
       (is (contains? buckets :haircut)))))
+
+(deftest test-partial-fill-closed-form-checks-fail-action-honors-declared-policy
+  (testing "fail-action fairness conforms to a declared :contractual policy rather than enforcing same-ratio"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 200 :c 300}
+                    :filled {:a 10 :b 20 :c 30}
+                    :deferred {:a 90 :b 180 :c 0}
+                    :haircut {:a 0 :b 0 :c 270}
+                    :policy {:mode :pro-rata :rounding-policy :largest-remainder
+                             :fail-action-policy {:mode :pro-rata-treatment
+                                                  :deferred-policy :contractual
+                                                  :haircut-policy :contractual}}
+                    :evidence {:available-liquidity 60 :total-requested 600 :shortage 540}}
+          checks (closed-form-checks decision)
+          fail-action (first (filter #(= :partial-fill/fail-action-fairness
+                                         (:check/id %))
+                                     checks))]
+      (is (= :pass (:status fail-action)))
+      (is (= [] (get-in fail-action [:details :violations])))
+      (is (= :contractual (get-in fail-action [:details :fail-action-policy :deferred-policy])))
+      (is (some? (get-in fail-action [:details :fail-action-policy-root]))))))
 
 (deftest test-partial-fill-closed-form-checks-fail-action-not-applicable-without-fail
   (testing "fail-action fairness is not-applicable when nothing is deferred or haircut"
@@ -285,15 +307,15 @@
                     :policy {:mode :pro-rata :rounding-policy :largest-remainder}
                     :evidence {:available-liquidity 600 :total-requested 600 :shortage 0}}
           checks (closed-form-checks decision)
-          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+          fail-action (first (filter #(= :partial-fill/fail-action-fairness
                                          (:check/id %))
                                      checks))]
       (is (= :not-applicable (:status fail-action)))
       (is (= "no deferred or haircut amounts (no fail action exercised)"
              (get-in fail-action [:details :reason]))))))
 
-(deftest test-partial-fill-closed-form-checks-fail-action-not-applicable-lr-dust
-  (testing "fail-action fairness is not-applicable under largest-remainder dust"
+(deftest test-partial-fill-closed-form-checks-fail-action-passes-under-lr-dust
+  (testing "fail-action fairness passes under largest-remainder dust: deferred is the fill complement"
     (let [decision {:settlement-mode :partial-fill
                     :requested {:a 100 :b 100 :c 100}
                     :filled {:a 4 :b 3 :c 3}
@@ -302,10 +324,10 @@
                     :policy {:mode :pro-rata :rounding-policy :largest-remainder}
                     :evidence {:available-liquidity 10}}
           checks (closed-form-checks decision)
-          fail-action (first (filter #(= :partial-fill/fail-action-pro-rata-fairness
+          fail-action (first (filter #(= :partial-fill/fail-action-fairness
                                          (:check/id %))
                                      checks))]
-      (is (= :not-applicable (:status fail-action))))))
+      (is (= :pass (:status fail-action))))))
 (deftest test-partial-fill-closed-form-checks-per-claim-conservation-violation
   (testing "per-claim-conservation catches filled+deferred != requested"
     (let [decision {:settlement-mode :partial-fill
@@ -442,7 +464,7 @@
                     :policy {:mode :waterfall}
                     :evidence {:available-liquidity 80}}
           checks (closed-form-checks decision)
-          fairness (first (filter #(= :partial-fill/pro-rata-cross-product
+          fairness (first (filter #(= :partial-fill/exact-pro-rata
                                       (:check/id %))
                                   checks))]
       (is (= :not-applicable (:status fairness))))))

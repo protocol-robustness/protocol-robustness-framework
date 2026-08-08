@@ -1,0 +1,84 @@
+{
+  "allocation-context-hash": "0xaec90fc6a813d8b3f28ca2c27573a70b5daf0c81964ae4121b12d6fa89555dd3",
+  "allocation-kernel-version": "allocation-kernel.v1",
+  "assertions": [
+    {
+      "assertion/id": "allocation.assertion/claimant-set-root-valid",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/outcome-set-root-valid",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/proposed-rates-root-valid",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/rates-canonical-exact",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/rates-sum-to-one",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/outcomes-eligible-only",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/outcomes-no-duplicate-claims",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/outcomes-all-or-nothing",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/outcomes-exact-capacity",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/proportional-proposed",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/randomness-selection-valid",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/selected-outcome-membership",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/result-root-valid",
+      "assertion/result": true
+    },
+    {
+      "assertion/id": "allocation.assertion/result-capacity-reconciles",
+      "assertion/result": true
+    }
+  ],
+  "certificate-assertions-digest": "0x5a29a46492bc63928290ad234807c12bd977a57618547abd518aef785d7f38d2",
+  "claimant-set-root": "0xc45b857d28c2d643dd9331fe396c44862df632125a6299e523073a197ce7a978",
+  "outcome-set-root": "0xc8180b14b358826dad95c2dad6b3783d2a380af2790a66b27a9580a01d99b866",
+  "proposed-rates-root": "0x4d32943ddcbf3ced6f774bb2841ec526ddefa5105777e981d3883ce9225c6314",
+  "rate-derived-summary-hash": "0xf717d67f518a821d06276f1effcb0bf8971f228bdf0b8c0de456d11546bc32ad",
+  "residual-capacity": "0",
+  "result-root": "0xf82ca61e0b3bb6949606bef5489663b73db9359dfb6eed478c3c2701440fdc06",
+  "result/status": "passing",
+  "selected-outcome-hash": "0xc9b6ab9cc713a0206c16a714e1e3955bcf13fa7ad925ac176f52cd5fafaa64ed",
+  "selected-outcome-id": "O2",
+  "selected-outcome-index": "1",
+  "selection-algorithm": "domain-hash-rejection-v1",
+  "selection-receipt": {
+    "accepted-counter": "0",
+    "algorithm": "domain-hash-rejection-v1",
+    "candidate-digest": "0x8ae6ab2bb536d3a01b998e2a208c6802952bf1a3701a048c6a1c28acbed38ae3",
+    "outcome-count": "2",
+    "selected-index": "1",
+    "selected-outcome-hash": "0xc9b6ab9cc713a0206c16a714e1e3955bcf13fa7ad925ac176f52cd5fafaa64ed",
+    "selected-outcome-id": "O2"
+  },
+  "total-allocated": "50"
+}

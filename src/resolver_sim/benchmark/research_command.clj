@@ -209,33 +209,43 @@
 
 (defn command-trace-metrics
   "Derive the research-command trace metrics from ONE canonical snapshot of
-   command declarations:
+   trace entries:
 
      :command-count        — number of discovered command declarations (entries
                              carrying the :command/id key)
      :command-valid-count  — number passing validate-command under the same
                              snapshot
-     :trace/root           — canonical root binding the exact declarations
-     :trace/valid?         — true when every declaration passes validation
-     :trace/skipped        — number of entries in the input that do NOT carry
-                             the :command/id discriminator (combinations,
-                             evidence maps, …) — never counted as commands
+     :combination-count    — number of combination artifacts (entries carrying
+                             the :combination/id key) — relations over
+                             already-identified roots, never counted as
+                             commands
+     :trace/root           — canonical root binding the exact command
+                             declarations
+     :trace/valid?         — true when every command declaration passes
+                             validation
+     :trace/skipped        — number of entries that carry neither the
+                             :command/id nor the :combination/id discriminator
+                             (evidence maps, garbage, …)
 
-   Declaration-recognition contract:
-     - an entry is a declaration iff it carries the :command/id key (presence,
+   Category contract:
+     - a command declaration is an entry carrying the :command/id key (presence,
        not truthiness); a malformed or command-looking entry that carries the
-       key is therefore DISCOVERED but invalid, never silently skipped;
+       key is DISCOVERED but invalid, never silently skipped;
+     - a combination is an entry carrying the :combination/id key (without
+       :command/id): it is a distinct first-class trace entity, counted
+       separately, and never affects :command-count / :command-valid-count;
      - duplicate :command/id values are a malformed trace and FAIL CLOSED
        (:command-trace/duplicate-command-id) — the metric never silently
        deduplicates and never counts a duplicated declaration as two distinct
        ones;
-     - combinations of a command with derived artifacts (add-held custody
-       evidence, incentive roots, …) bind to the same command-root and are
-       relations over already-identified roots — they are never inspected to
-       infer additional commands and never change these counts."
+     - combinations are relations over already-identified roots; they are never
+       inspected to infer additional commands."
   [commands]
   (let [commands (vec commands)
         declarations (filterv #(contains? % :command/id) commands)
+        combinations (filterv #(and (contains? % :combination/id)
+                                    (not (contains? % :command/id)))
+                              commands)
         duplicates (->> (frequencies (map :command/id declarations))
                         (filter (fn [[_ n]] (> n 1)))
                         (map key)
@@ -248,6 +258,7 @@
     (let [valid-count (count (filter :valid? (map validate-command declarations)))]
       {:command-count (count declarations)
        :command-valid-count valid-count
+       :combination-count (count combinations)
        :trace/root (command-trace-root declarations)
        :trace/valid? (= (count declarations) valid-count)
-       :trace/skipped (- (count commands) (count declarations))})))
+       :trace/skipped (- (count commands) (count declarations) (count combinations))})))

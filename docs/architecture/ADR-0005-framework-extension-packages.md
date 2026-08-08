@@ -1037,18 +1037,43 @@ missing/invalid composition contract, unsupported composition mode,
 nondeterministic capability forbidden, input/output semantic mismatch, graph
 input/output not satisfied, illegal terminal placement, undeclared dependency,
 effect conflict, unsupported adapters, verification contract not preserved,
-cycle detected, and unreachable node.
+unresolved or wrong-kind evidence contract, cycle detected, and unreachable
+node.
+
+A declared `:combination/verification :evidence-contract-ref` is resolved
+against an explicit evidence-contract registry at compile time. A ref that
+cannot be resolved (missing, wrong-kind, or malformed entry) fails
+compilation — it is never silently dropped — and the resolved identity
+(`{:id <ref> :root <committed-root>}`) is committed into the plan, so a later
+registry mutation cannot silently change what an already-compiled plan meant.
+The registry participates in compilation but is not an ambient dependency of
+execution or verification.
+
+Evidence-contract identity is the **(id, root) pair** (declared-contract
+semantics, not content-alias semantics): the ref id names *which* declared
+contract the plan binds, so two different refs resolving to the same root
+commit different identities and therefore different plan roots. Typed
+obligations inherit this identity model.
+
+**Scope note — per-node refs remain unresolved.** Only the *combination-level*
+`:combination/verification :evidence-contract-ref` is compiler-resolved and
+committed. Per-node `:composition/verification :evidence-contract-ref` values
+(e.g. `:prf/calculation-result.v1` on core capability descriptors) remain
+legacy/unresolved symbolic vocabulary pending the contract-obligation patch;
+they receive none of the resolution guarantees above. A regression test locks
+this boundary so accidental partial resolution is visible during the
+transition.
 
 ### Compiled plan
 
 A content-addressed artifact binding: the source combination root, exact
 capability descriptor roots, exact composition-contract roots, canonical node
 order, canonical edges, graph input/output contracts, effect merge semantics,
-verification contract, and compiler identity/version. v1 plans carry no
-adapters — adapters are categorically unsupported in v1, so `:plan/adapters` is
-not part of the v1 plan root. Execution consumes only the plan (or proves an
-equivalent plan was compiled) and re-checks every descriptor root before
-invocation.
+resolved verification (including the committed evidence-contract identity —
+id and root), and compiler identity/version. v1 plans carry no adapters —
+adapters are categorically unsupported in v1, so `:plan/adapters` is not part
+of the v1 plan root. Execution consumes only the plan (or proves an equivalent
+plan was compiled) and re-checks every descriptor root before invocation.
 
 ### Execution
 
