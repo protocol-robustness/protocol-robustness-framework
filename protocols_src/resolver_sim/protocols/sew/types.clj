@@ -410,6 +410,13 @@
    Mirrors BaseEscrow.DEFAULT_MAX_DISPUTE_DURATION."
   2592000)
 
+(def ^:const default-resolver-response-window
+  "Default resolver-response-window in seconds.
+   0 = disabled (no response-window bound; a lazy resolver is only caught by
+   max-dispute-duration).  A positive value bounds how long the assigned
+   resolver has to submit a resolution after dispute-raise."
+  0)
+
 (def ^:const fee-denominator
   "ESCROW_FEE_DENOMINATOR = 10000 bps."
   10000)

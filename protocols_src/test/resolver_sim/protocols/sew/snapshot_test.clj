@@ -52,6 +52,24 @@
       (catch clojure.lang.ExceptionInfo e
         (is (= :snapshot/yield-module-not-registered (:error/type (ex-data e))))))))
 
+(deftest test-resolver-response-window-snapshot-field
+  (testing "resolver-response-window maps through protocol-params into the snapshot"
+    (let [snap (snap/snapshot-from-protocol-params
+                {:resolver-response-window 120 :max-dispute-duration 300})]
+      (is (= 120 (:resolver-response-window snap)))
+      (is (= 300 (:max-dispute-duration snap)))))
+  (testing "defaults to 0 when absent (window disabled)"
+    (let [snap (snap/snapshot-from-protocol-params
+                {:max-dispute-duration 300})]
+      (is (= 0 (:resolver-response-window snap)))))
+  (testing "negative value rejected as non-negative-integer"
+    (try
+      (snap/snapshot-from-protocol-params {:resolver-response-window -5})
+      (is false "expected throw")
+      (catch clojure.lang.ExceptionInfo e
+        (is (= :snapshot/non-negative-integer (:error/type (ex-data e))))
+        (is (= :resolver-response-window (:snapshot/field (ex-data e))))))))
+
 (deftest test-snapshot-from-protocol-params-resolves-yield-profile
   (let [snap (snap/snapshot-from-protocol-params
               {:resolver-fee-bps 50 :yield-profile :aave-v3})]

@@ -18,6 +18,7 @@
             [resolver-sim.scenario.normalize :as norm]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.scenario.runner :as runner]
+            [resolver-sim.scenario.equilibrium :as equilibrium]
             [resolver-sim.scenario.dispute-coverage :as dc]
             [resolver-sim.evidence.summary :as ev-sum]
             [resolver-sim.evidence.config :as evcfg]
@@ -279,6 +280,43 @@
           "At least 1 resolver-integrity scenario")
       (is (>= (get by-coverage "coverage/finality" 0) 1)
           "At least 1 finality scenario"))))
+
+;; ---------------------------------------------------------------------------
+;; Appeal expected-value equilibrium scenarios
+;; ---------------------------------------------------------------------------
+
+(def appeal-ev-scenario-ids
+  "Appeal EV model boundary scenarios (S-DR-097/098/099)."
+  ["S-DR-097-appeal-ev-safe-calibrated"
+   "S-DR-098-appeal-ev-under-deterred"
+   "S-DR-099-appeal-ev-correct-blocked"])
+
+(deftest test-appeal-ev-scenarios-exist-and-replay
+  (testing "Appeal EV boundary scenarios load, replay, and declare the equilibrium concept"
+    (doseq [sid appeal-ev-scenario-ids]
+      (let [s (try (load-scenario (str "scenarios/edn/" sid ".edn"))
+                   (catch Exception e (println "MISSING:" sid (.getMessage e)) nil))]
+        (is (some? s) (str sid " must exist"))
+        (when s
+          (is (= :pass (:outcome (replay-scenario s)))
+              (str sid " must replay to :pass"))
+          (is (= [:appeal-decision-rationality] (get-in s [:theory :equilibrium-concept]))
+              (str sid " must declare :appeal-decision-rationality equilibrium concept")))))))
+
+(deftest test-appeal-ev-equilibrium-verdicts
+  (testing "Appeal EV equilibrium check returns expected verdicts across boundary regimes"
+    (let [expected {"S-DR-097-appeal-ev-safe-calibrated" :pass
+                    "S-DR-098-appeal-ev-under-deterred" :fail
+                    "S-DR-099-appeal-ev-correct-blocked" :fail}]
+      (doseq [[sid kw] expected]
+        (let [s (load-scenario (str "scenarios/edn/" sid ".edn"))
+              replay (replay-scenario s)
+              eq-result (equilibrium/evaluate-equilibrium (:theory s) replay)
+              concept-result (get (:equilibrium-results eq-result) :appeal-decision-rationality)]
+          (testing (str sid " appeal-decision-rationality")
+            (is (= kw (:status concept-result))
+                (str sid " expected equilibrium " kw " but got "
+                     (:status concept-result)))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Report: coverage report function works

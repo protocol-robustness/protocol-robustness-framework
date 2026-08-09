@@ -31,13 +31,31 @@
   :oracle-failure         {:label "Oracle Failure"         :severity :medium}
   :same-block-ordering    {:label "Same-Block Ordering"    :severity :medium}}
 
- ;; ── notebook registry ────────────────────────────────────────────────────────
- ;; :status values: :verified :partial :experimental :draft :stale :requires-review
- ;; :risk   values: :high :medium :low :informational
- ;; Categories: notebook belongs to ALL listed; first = primary for nav highlighting
- :notebooks
- [{:id             :report
-   :path           "notebooks/report.clj"
+  ;; ── public themes (for the exported screenshot site's Explore layer) ────────
+  ;; A newcomer-facing simplification of :categories. Each notebook's
+  ;; :presentation.theme picks one; the exporter never hard-codes membership.
+  :themes
+  {:failures-attacks       {:label "Failures & attacks"       :icon "⚔️"  :blurb "Admission failures, adversarial escalation, short circuits, invariant failures."}
+   :allocation-liquidity   {:label "Allocation & liquidity"   :icon "💧"  :blurb "Pro-rata, withdrawals, partial fills, liquidity recovery."}
+   :disputes-governance    {:label "Disputes & governance"    :icon "⚖️"  :blurb "Dispute resolution, appeals, governance decisions."}
+   :evidence-reproducibility {:label "Evidence & reproducibility" :icon "🔗" :blurb "Evidence graph, reports, provenance, canonical hashing."}
+   :simulation-scenarios   {:label "Simulation & scenarios"   :icon "🧪"  :blurb "Workbenches, multi-epoch behaviour, telemetry."}}
+
+  ;; ── notebook registry ────────────────────────────────────────────────────────
+  ;; :status values: :verified :partial :experimental :draft :stale :requires-review
+  ;; :risk   values: :high :medium :low :informational
+  ;; Categories: notebook belongs to ALL listed; first = primary for nav highlighting
+  ;; :presentation — editorial layer for the exported site (optional):
+  ;;   :theme          one of :themes keys (public Explore section)
+  ;;   :kind           :demo | :analysis | :report | :tool
+  ;;   :audience-level :intro | :intermediate | :deep-dive
+  ;;   :featured?      true → appears on the homepage "Start here" rail
+  ;;   :start-here-rank 1..n (ordered, only meaningful when :featured?)
+  ;;   :question       newcomer-friendly one-liner ("Why was this rejected?")
+  ;;   :deeper-id      larger notebook a demo points to ("See the deeper analysis")
+  :notebooks
+  [{:id             :report
+    :path           "notebooks/report.clj"
    :title          "Evidence Workbook"
    :summary        "At-a-glance evidence surface for a validation run. Status indicators paired with source artifacts and known limitations."
    :categories     [:security-validation :evidence-artifacts]
@@ -46,7 +64,10 @@
    :risk           :high
    :protocol-areas [:dispute-resolution :invariants :escrow]
    :threats        [:resolver-cartelization :escalation-abuse]
-   :tags           ["invariants" "evidence" "findings" "benchmark"]}
+    :tags           ["invariants" "evidence" "findings" "benchmark"]
+    :presentation   {:theme :evidence-reproducibility :kind :report
+                     :audience-level :intermediate
+                     :question "What does one validation run actually surface, and what are its limitations?"}}
 
   {:id             :protocol-provenance
    :path           "notebooks/protocol_provenance.clj"
@@ -57,7 +78,9 @@
    :status         :verified
    :risk           :high
    :protocol-areas [:all]
-   :tags           ["manifest" "provenance" "signing" "reproducibility" "publication"]}
+    :tags           ["manifest" "provenance" "signing" "reproducibility" "publication"]
+    :presentation   {:theme :evidence-reproducibility :kind :report
+                     :audience-level :intermediate}}
 
   {:id             :invariant-failures
    :path           "notebooks/invariant_failures.clj"
@@ -69,7 +92,9 @@
    :risk           :high
    :protocol-areas [:invariants :state-machine]
    :threats        [:replay-divergence :escalation-abuse]
-   :tags           ["invariants" "failures" "scenarios" "state-machine"]}
+    :tags           ["invariants" "failures" "scenarios" "state-machine"]
+    :presentation   {:theme :failures-attacks :kind :analysis
+                     :audience-level :deep-dive}}
 
    {:id             :benchmark-protocol-robustness
    :path           "notebooks/benchmark_protocol_robustness.clj"
@@ -80,7 +105,9 @@
    :status         :experimental
    :risk           :low
    :protocol-areas [:benchmark]
-   :tags           ["benchmark" "protocol-robustness" "prf" "evidence" "reproducibility"]}
+    :tags           ["benchmark" "protocol-robustness" "prf" "evidence" "reproducibility"]
+    :presentation   {:theme :evidence-reproducibility :kind :report
+                     :audience-level :intermediate}}
 
    {:id             :game-theory-artifact
    :path           "notebooks/game_theory_artifact.clj"
@@ -92,7 +119,9 @@
    :risk           :medium
    :protocol-areas [:bonding :fee-model :dispute-resolution]
    :threats        [:economic-extraction :resolver-cartelization]
-   :tags           ["game-theory" "nash" "equilibrium" "incentives"]}
+    :tags           ["game-theory" "nash" "equilibrium" "incentives"]
+    :presentation   {:theme :disputes-governance :kind :analysis
+                     :audience-level :deep-dive}}
 
    {:id             :equilibrium-artifact
    :path           "notebooks/equilibrium_artifact.clj"
@@ -104,7 +133,9 @@
    :risk           :medium
    :protocol-areas [:fee-model :bonding]
    :threats        [:economic-extraction :governance-capture]
-   :tags           ["equilibrium" "stability" "parameter-sensitivity"]}
+    :tags           ["equilibrium" "stability" "parameter-sensitivity"]
+    :presentation   {:theme :simulation-scenarios :kind :analysis
+                     :audience-level :deep-dive}}
 
   {:id             :hardening-artifact
    :path           "notebooks/hardening_artifact.clj"
@@ -116,7 +147,9 @@
    :risk           :high
    :protocol-areas [:all]
    :threats        [:escalation-abuse :griefing :economic-extraction]
-   :tags           ["hardening" "security" "attack-surface" "mitigations"]}
+    :tags           ["hardening" "security" "attack-surface" "mitigations"]
+    :presentation   {:theme :failures-attacks :kind :analysis
+                     :audience-level :deep-dive}}
 
    {:id             :withdrawal-observatory
    :path           "notebooks/withdrawal_observatory.clj"
@@ -128,7 +161,9 @@
    :risk           :medium
    :protocol-areas [:accounting :yield :withdrawal]
    :threats        [:yield-reorg-race :liquidity-shortfall]
-   :tags           ["withdrawal" "claimable" "balance" "yield" "concurrent"]}
+    :tags           ["withdrawal" "claimable" "balance" "yield" "concurrent"]
+    :presentation   {:theme :allocation-liquidity :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :counterfactual-pairs
    :path           "notebooks/counterfactual_pairs.clj"
@@ -139,7 +174,9 @@
    :status         :experimental
    :risk           :medium
    :protocol-areas [:all]
-   :tags           ["counterfactual" "pairs" "correctness" "differential"]}
+    :tags           ["counterfactual" "pairs" "correctness" "differential"]
+    :presentation   {:theme :simulation-scenarios :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :dispute-resolution
    :path           "notebooks/dispute_resolution.clj"
@@ -151,7 +188,9 @@
    :risk           :high
    :protocol-areas [:dispute-resolution :governance :bonding]
    :threats        [:resolver-cartelization :escalation-abuse :governance-capture]
-   :tags           ["dispute" "resolution" "governance" "mechanism-design"]}
+    :tags           ["dispute" "resolution" "governance" "mechanism-design"]
+    :presentation   {:theme :disputes-governance :kind :analysis
+                     :audience-level :deep-dive}}
 
   {:id             :telemetry
    :path           "notebooks/telemetry.clj"
@@ -162,7 +201,9 @@
    :status         :requires-review
    :risk           :low
    :protocol-areas [:all]
-   :tags           ["telemetry" "XTDB" "live" "metrics" "performance"]}
+    :tags           ["telemetry" "XTDB" "live" "metrics" "performance"]
+    :presentation   {:theme :simulation-scenarios :kind :tool
+                     :audience-level :intermediate}}
 
   {:id             :xtdb-overview
    :path           "notebooks/xtdb_overview.clj"
@@ -173,7 +214,9 @@
    :status         :requires-review
    :risk           :low
    :protocol-areas [:all]
-   :tags           ["XTDB" "database" "health" "records"]}
+    :tags           ["XTDB" "database" "health" "records"]
+    :presentation   {:theme :simulation-scenarios :kind :tool
+                     :audience-level :intermediate}}
 
   {:id             :workbench-v2
    :path           "notebooks/workbench_v2.clj"
@@ -184,7 +227,9 @@
    :status         :verified
    :risk           :medium
    :protocol-areas [:all]
-   :tags           ["workbench" "phases" "aggregate" "production"]}
+    :tags           ["workbench" "phases" "aggregate" "production"]
+    :presentation   {:theme :simulation-scenarios :kind :tool
+                     :audience-level :intermediate}}
 
   {:id             :yield-scenarios-workbench
    :path           "notebooks/yield_scenarios_workbench.clj"
@@ -195,7 +240,9 @@
    :status         :verified
    :risk           :low
    :protocol-areas [:yield]
-   :tags           ["workbench" "yield" "shortfall" "demo" "scenarios"]}
+    :tags           ["workbench" "yield" "shortfall" "demo" "scenarios"]
+    :presentation   {:theme :allocation-liquidity :kind :tool
+                     :audience-level :intermediate}}
 
    {:id             :demo-adversarial-escalation
    :path           "notebooks/demo_adversarial_escalation.clj"
@@ -207,7 +254,13 @@
    :risk           :medium
    :protocol-areas [:dispute-resolution :bonding]
    :threats        [:escalation-abuse :economic-extraction]
-   :tags           ["demo" "adversarial" "escalation" "walkthrough"]}
+    :tags           ["demo" "adversarial" "escalation" "walkthrough"]
+    :presentation   {:theme :disputes-governance :kind :demo
+                     :audience-level :intro
+                     :featured? true
+                     :start-here-rank 6
+                     :question "A dispute escalates — follow the governance and appeal path."
+                     :deeper-id :dispute-resolution}}
 
   {:id             :demo-liquidity-shortfall
    :path           "notebooks/demo_liquidity_shortfall_partial_settlement.clj"
@@ -219,7 +272,10 @@
    :risk           :medium
    :protocol-areas [:accounting :yield :settlement]
    :threats        [:liquidity-shortfall]
-   :tags           ["demo" "liquidity" "shortfall" "partial-settlement" "waterfall"]}
+    :tags           ["demo" "liquidity" "shortfall" "partial-settlement" "waterfall"]
+    :presentation   {:theme :allocation-liquidity :kind :demo
+                     :audience-level :intro
+                     :question "When liquidity runs short, how are the available funds divided up?"}}
 
   {:id             :demo-multi-epoch-cartel
    :path           "notebooks/demo_multi_epoch_cartel_dynamics.clj"
@@ -231,7 +287,10 @@
    :risk           :medium
    :protocol-areas [:bonding :reputation :dispute-resolution]
    :threats        [:resolver-cartelization :governance-capture]
-   :tags           ["demo" "cartel" "multi-epoch" "reputation"]}
+    :tags           ["demo" "cartel" "multi-epoch" "reputation"]
+    :presentation   {:theme :simulation-scenarios :kind :demo
+                     :audience-level :intro
+                     :question "How does a cartel form over multiple epochs — and can the protocol recover?"}}
 
   {:id             :demo-short-circuit
    :path           "notebooks/demo_short_circuit.clj"
@@ -242,7 +301,13 @@
    :status         :draft
    :risk           :informational
    :protocol-areas [:composition :execution]
-   :tags           ["demo" "short-circuit" "composition" "pipeline" "execution"]}
+    :tags           ["demo" "short-circuit" "composition" "pipeline" "execution"]
+    :presentation   {:theme :failures-attacks :kind :demo
+                     :audience-level :intro
+                     :featured? true
+                     :start-here-rank 3
+                     :question "What happens when one step in a pipeline short-circuits?"
+                     :deeper-id :workbench-v2}}
 
   {:id             :demo-not-admitted
    :path           "notebooks/demo_not_admitted.clj"
@@ -253,7 +318,13 @@
    :status         :draft
    :risk           :informational
    :protocol-areas [:custody :evidence]
-   :tags           ["demo" "admission" "evidence" "tamper" "verification"]}
+    :tags           ["demo" "admission" "evidence" "tamper" "verification"]
+    :presentation   {:theme :evidence-reproducibility :kind :demo
+                     :audience-level :intro
+                     :featured? true
+                     :start-here-rank 1
+                     :question "A decision is rejected — see exactly why admission failed."
+                     :deeper-id :not-admitted}}
 
   {:id             :demo-reorder-chain
    :path           "notebooks/demo_reorder_chain.clj"
@@ -264,7 +335,13 @@
    :status         :draft
    :risk           :informational
    :protocol-areas [:evidence :chain]
-   :tags           ["demo" "admission" "evidence" "order" "chain"]}
+    :tags           ["demo" "admission" "evidence" "order" "chain"]
+    :presentation   {:theme :evidence-reproducibility :kind :demo
+                     :audience-level :intro
+                     :featured? true
+                     :start-here-rank 2
+                     :question "Order changes the result — see how provenance catches reordered evidence."
+                     :deeper-id :canonical-framing}}
 
   {:id             :security-validation-notebook
    :path           "notebooks/security_validation.clj"
@@ -276,7 +353,9 @@
    :risk           :high
    :protocol-areas [:dispute-resolution :invariants :governance :yield :accounting]
    :threats        [:reentrancy :governance-capture :resolver-cartelization :liquidity-shortfall :escalation-abuse]
-   :tags           ["security" "audit" "invariants" "claims" "falsifiable" "adversarial" "conservation"]}
+    :tags           ["security" "audit" "invariants" "claims" "falsifiable" "adversarial" "conservation"]
+    :presentation   {:theme :failures-attacks :kind :report
+                     :audience-level :deep-dive}}
 
   {:id             :component-gallery
     :path           "examples/speds/component_gallery.clj"
@@ -287,7 +366,9 @@
     :status         :draft
     :risk           :informational
     :protocol-areas []
-    :tags           ["components" "UI" "gallery" "SPEDS" "reference"]}
+    :tags           ["components" "UI" "gallery" "SPEDS" "reference"]
+    :presentation   {:theme :simulation-scenarios :kind :tool
+                     :audience-level :intermediate}}
 
    {:id             :appeal-analysis
     :path           "notebooks/appeal_analysis.clj"
@@ -299,7 +380,9 @@
     :risk           :medium
     :protocol-areas [:dispute-resolution :bonding :accounting]
     :threats        [:escalation-abuse :economic-extraction]
-    :tags           ["appeal" "analysis" "bonds" "escalation" "grant" "invariants"]}
+    :tags           ["appeal" "analysis" "bonds" "escalation" "grant" "invariants"]
+    :presentation   {:theme :disputes-governance :kind :analysis
+                     :audience-level :deep-dive}}
 
   {:id             :appealed-escrow-walkthrough
    :path           "notebooks/appealed_escrow_walkthrough.clj"
@@ -311,7 +394,10 @@
    :risk           :medium
    :protocol-areas [:dispute-resolution :bonding]
    :threats        [:escalation-abuse]
-   :tags           ["appeal" "bond" "walkthrough" "escalation" "deadline"]}
+    :tags           ["appeal" "bond" "walkthrough" "escalation" "deadline"]
+    :presentation   {:theme :disputes-governance :kind :demo
+                     :audience-level :intro
+                     :question "Walk through a third-party challenge: bond custody and escalation deadlines."}}
 
   {:id             :pro-rata-allocation-result
    :path           "notebooks/pro_rata_allocation_result.clj"
@@ -322,7 +408,9 @@
    :status         :verified
    :risk           :medium
    :protocol-areas [:bonding :accounting]
-   :tags           ["pro-rata" "allocation" "artifact" "evidence" "verification"]}
+    :tags           ["pro-rata" "allocation" "artifact" "evidence" "verification"]
+    :presentation   {:theme :allocation-liquidity :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :ef-demo-dispute-refund
    :path           "notebooks/ef_demo_dispute_refund.clj"
@@ -333,7 +421,10 @@
    :status         :verified
    :risk           :medium
    :protocol-areas [:escrow :dispute-resolution]
-   :tags           ["demo" "EF" "evidence" "state-transition" "replay"]}
+    :tags           ["demo" "EF" "evidence" "state-transition" "replay"]
+    :presentation   {:theme :evidence-reproducibility :kind :demo
+                     :audience-level :intro
+                     :question "Follow one state transition end-to-end: escrow, dispute, refund — with the evidence trail."}}
 
   {:id             :ef-demo-pro-rata-allocation
    :path           "notebooks/ef_demo_pro_rata_allocation.clj"
@@ -344,7 +435,10 @@
    :status         :verified
    :risk           :medium
    :protocol-areas [:bonding :accounting]
-   :tags           ["demo" "EF" "pro-rata" "attestation" "DAG" "resolution"]}
+    :tags           ["demo" "EF" "pro-rata" "attestation" "DAG" "resolution"]
+    :presentation   {:theme :allocation-liquidity :kind :demo
+                     :audience-level :intro
+                     :question "How is pro-rata allocation computed and attested, end to end?"}}
 
   {:id             :not-governance
    :path           "notebooks/not_governance.clj"
@@ -356,7 +450,10 @@
    :risk           :medium
    :protocol-areas [:dispute-resolution :bonding :invariants]
    :threats        [:resolver-cartelization :economic-extraction]
-   :tags           ["quickstart" "dispute" "slash" "allocation" "invariants"]}
+    :tags           ["quickstart" "dispute" "slash" "allocation" "invariants"]
+    :presentation   {:theme :disputes-governance :kind :demo
+                     :audience-level :intro
+                     :question "From dispute to evidence bundle — the happy path in one place."}}
 
   {:id             :not-admitted
    :path           "notebooks/not_admitted.clj"
@@ -367,7 +464,9 @@
    :status         :verified
    :risk           :medium
    :protocol-areas [:evidence :yield]
-   :tags           ["chain" "admission" "ordering" "invariants" "pro-rata"]}
+    :tags           ["chain" "admission" "ordering" "invariants" "pro-rata"]
+    :presentation   {:theme :evidence-reproducibility :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :evaluate-pro-rata-allocation
    :path           "notebooks/evaluate_pro_rata_allocation.clj"
@@ -378,7 +477,9 @@
    :status         :verified
    :risk           :low
    :protocol-areas [:bonding :accounting]
-   :tags           ["pro-rata" "evaluation" "API" "hash" "determinism"]}
+    :tags           ["pro-rata" "evaluation" "API" "hash" "determinism"]
+    :presentation   {:theme :allocation-liquidity :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :partial-liquidity-recovery
    :path           "notebooks/partial_liquidity_recovery_deferred_claim.clj"
@@ -390,7 +491,9 @@
    :risk           :medium
    :protocol-areas [:yield :accounting]
    :threats        [:liquidity-shortfall]
-   :tags           ["yield" "liquidity" "recovery" "deferred" "partial-fill"]}
+    :tags           ["yield" "liquidity" "recovery" "deferred" "partial-fill"]
+    :presentation   {:theme :allocation-liquidity :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :yield-shortfall-partial-withdrawal-fills
    :path           "notebooks/yield_shortfall_partial_withdrawal_fills.clj"
@@ -402,7 +505,13 @@
    :risk           :medium
    :protocol-areas [:yield :accounting]
    :threats        [:liquidity-shortfall]
-   :tags           ["yield" "shortfall" "withdrawal" "partial-fill" "liquidity"]}
+    :tags           ["yield" "shortfall" "withdrawal" "partial-fill" "liquidity"]
+    :presentation   {:theme :allocation-liquidity :kind :demo
+                     :audience-level :intro
+                     :featured? true
+                     :start-here-rank 4
+                     :question "Liquidity is insufficient — see how partial fills and recovery behave."
+                     :deeper-id :partial-liquidity-recovery}}
 
   {:id             :yield-demo
    :path           "notebooks/yield_demo.clj"
@@ -414,7 +523,10 @@
    :risk           :low
    :protocol-areas [:yield]
    :threats        [:liquidity-shortfall]
-   :tags           ["yield" "shortfall" "demo" "data-driven" "general-yield"]}
+    :tags           ["yield" "shortfall" "demo" "data-driven" "general-yield"]
+    :presentation   {:theme :allocation-liquidity :kind :demo
+                     :audience-level :intro
+                     :question "A general yield engine: deposit, accrue, hit a shortfall, withdraw."}}
 
   {:id             :evidence-graph-viewer
    :path           "notebooks/evidence_graph_viewer.clj"
@@ -425,7 +537,9 @@
    :status         :verified
    :risk           :low
    :protocol-areas [:evidence]
-   :tags           ["graph" "D3" "evidence" "visualization" "attestation"]}
+    :tags           ["graph" "D3" "evidence" "visualization" "attestation"]
+    :presentation   {:theme :evidence-reproducibility :kind :tool
+                     :audience-level :intermediate}}
 
   {:id             :canonical-framing
    :path           "notebooks/canonical_framing.clj"
@@ -436,7 +550,9 @@
    :status         :verified
    :risk           :informational
    :protocol-areas [:evidence]
-   :tags           ["canonical-hash" "framing" "prefix-free" "visualization" "conformance" "verification"]}
+    :tags           ["canonical-hash" "framing" "prefix-free" "visualization" "conformance" "verification"]
+    :presentation   {:theme :evidence-reproducibility :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :researcher-interaction-topology
    :path           "notebooks/researcher_interaction_topology.clj"
@@ -447,7 +563,9 @@
    :status         :draft
    :risk           :informational
    :protocol-areas [:benchmark]
-   :tags           ["topology" "consensus" "research-round" "review-member" "isomorphism"]}
+    :tags           ["topology" "consensus" "research-round" "review-member" "isomorphism"]
+    :presentation   {:theme :simulation-scenarios :kind :analysis
+                     :audience-level :intermediate}}
 
   {:id             :allocation-activation
    :path           "notebooks/allocation_activation.clj"
@@ -458,7 +576,13 @@
    :status         :draft
    :risk           :informational
    :protocol-areas [:allocation]
-   :tags           ["allocation" "activation" "receipt" "all-active" "no-churn" "prohibited" "exact-capacity" "covered-fraction"]}
+    :tags           ["allocation" "activation" "receipt" "all-active" "no-churn" "prohibited" "exact-capacity" "covered-fraction"]
+    :presentation   {:theme :allocation-liquidity :kind :analysis
+                     :audience-level :intermediate
+                     :featured? true
+                     :start-here-rank 5
+                     :question "An allocation is activated — see when it is valid authorization, and when it is prohibited."
+                     :deeper-id :authorization-chain}}
 
   {:id             :authorization-chain
    :path           "notebooks/authorization_chain.clj"
@@ -469,7 +593,9 @@
    :status         :draft
    :risk           :informational
    :protocol-areas [:allocation :review :with-bounty]
-   :tags           ["authorization" "chain" "allocation" "activation" "review" "three-classifications" "with-bounty" "visibility"]}
+    :tags           ["authorization" "chain" "allocation" "activation" "review" "three-classifications" "with-bounty" "visibility"]
+    :presentation   {:theme :evidence-reproducibility :kind :analysis
+                     :audience-level :deep-dive}}
 
   ;; ── archived / migrated notebooks ──────────────────────────────────────────────
   {:id             :workbench-production

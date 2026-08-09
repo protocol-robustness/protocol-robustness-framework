@@ -38,7 +38,10 @@
                                     "S-DR-021-griefing-claim-cost"
                                     "S-DR-022-lazy-counterparty-timeout"
                                     "S-DR-072-resolver-unavailable-timeout"
-                                    "S-DR-085-repeated-frivolous-disputes"]}
+                                    "S-DR-085-repeated-frivolous-disputes"
+                                    "S-DR-097-appeal-ev-safe-calibrated"
+                                    "S-DR-098-appeal-ev-under-deterred"
+                                    "S-DR-099-appeal-ev-correct-blocked"]}
    :resolver-integrity {:label "Resolver integrity"
                         :scenarios ["S-DR-030-biased-resolver-appealed"
                                     "S-DR-031-colluding-resolver-detected"
@@ -85,7 +88,8 @@
     :resolution "evidence-window-duration added to protocol-params and snapshot. submit-evidence now rejects with :evidence-deadline-exceeded when block-time > dispute-raise-time + evidence-window-duration. See S-DR-012 (late rejection), S-DR-013 (boundary), S-DR-088 (within window)."}
    {:coverage :strategic
     :gap :expected-value-appeal
-    :reason "no game-theoretic EV model for appeal decisions; can only test structural behaviour"}
+    :status :resolved
+    :resolution "Game-theoretic appeal EV model added (terminal-payoff.clj appeal-ev + appeal-indifference-threshold). S-DR-097/098/099 exercise the appeal-decision-rationality equilibrium check across the well-calibrated, under-deterred, and correct-blocked regimes."}
    {:coverage :resolver-integrity
     :gap :resolver-response-deadline
     :reason "no resolver-response-window param; lazy resolver detected only via max-dispute-duration timeout"}

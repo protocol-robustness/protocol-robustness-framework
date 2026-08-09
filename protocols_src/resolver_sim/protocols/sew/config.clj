@@ -26,7 +26,8 @@
    {:max-dispute-duration time-ctx/seconds-per-day
     :appeal-window-duration (* 2 time-ctx/seconds-per-day)
    :default-auto-release-delay 0
-   :default-auto-cancel-delay 0})
+   :default-auto-cancel-delay 0
+   :resolver-response-window 0})
 
 (def EFFORT_LEVELS
   "Effort level configurations for trust floor threshold sweeps."

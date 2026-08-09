@@ -58,20 +58,24 @@
   "Cross-protocol action-name convention for bounded strategic-node analysis.
    Creation is intentionally excluded because it has no prior subgame state."
   #{"raise-dispute" "escalate-dispute" "execute-resolution"
-    "sender-cancel" "recipient-cancel"})
+    "sender-cancel" "recipient-cancel" "appeal-slash" "resolve-appeal"})
 
 (def ^:private action-alternatives
   {"raise_dispute" ["settle_now" "wait"]
    "escalate_dispute" ["settle_now" "wait"]
    "execute_resolution" ["defer_verdict" "alternate_verdict"]
    "sender_cancel" ["raise_dispute" "wait"]
-   "recipient_cancel" ["raise_dispute" "wait"]})
+   "recipient_cancel" ["raise_dispute" "wait"]
+   "appeal_slash" ["accept_slash" "wait"]
+   "resolve_appeal" ["uphold_slash" "reverse_slash"]})
 
 (def ^:private node-type-alternatives
   {:challenge-timing ["challenge_now" "challenge_later" "no_challenge"]
    :escalation-timing ["escalate_now" "escalate_later" "no_escalation"]
    :resolver-verdict ["verdict_for_buyer" "verdict_for_seller" "defer_verdict"]
-   :cancel-timing ["raise_dispute" "wait"]})
+   :cancel-timing ["raise_dispute" "wait"]
+   :appeal-decision ["accept_slash" "appeal_slash" "wait"]
+   :governance-ruling ["uphold_slash" "reverse_slash"]})
 
 (def ^:private node-type-by-action
   {"create_escrow" :escrow-creation
@@ -79,7 +83,9 @@
    "escalate_dispute" :escalation-timing
    "execute_resolution" :resolver-verdict
    "sender_cancel" :cancel-timing
-   "recipient_cancel" :cancel-timing})
+   "recipient_cancel" :cancel-timing
+   "appeal_slash" :appeal-decision
+   "resolve_appeal" :governance-ruling})
 
 ;; ---------------------------------------------------------------------------
 ;; Phase F — Subgame boundary classification

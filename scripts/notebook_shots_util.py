@@ -5,8 +5,11 @@ slugify, output path planning) can be unit-tested in isolation.
 """
 from __future__ import annotations
 
+import html
+import json
 import os
 import re
+import shutil
 import unicodedata
 
 
@@ -170,6 +173,119 @@ def plan_output(out_dir: str, name: str, rel_files: list[str]) -> list[str]:
 def section_filename(index: int, heading_text: str, heading_id: str | None) -> str:
     slug = slugify(heading_text or heading_id or "")
     return "%02d-%s.png" % (index, slug)
+
+
+# ---------------------------------------------------------------------------
+# Run-archived site layout
+# ---------------------------------------------------------------------------
+# Each export is stored under <site>/runs/<run-id>/ so history is preserved and
+# the whole tree can be copied to any static host (no Clerk/Java needed to
+# serve it). <site>/index.html is a run index listing every export, newest
+# first; each run keeps its own contact sheet (index.html + run-meta.json).
+#
+#   <site>/
+#     index.html            # run index: one entry per export, newest first
+#     runs/<run-id>/
+#       index.html          # contact sheet for that export
+#       run-meta.json
+#       <name>.png          # single-shot notebook (flattened)
+#       <name>/full.png     # multi-shot notebook
+#       <name>/01-<slug>.png
+
+
+def default_run_id(t=None) -> str:
+    """Run directory name: UTC timestamp, sortable so lexicographic order == age order."""
+    import time as _time
+
+    return _time.strftime("%Y%m%dT%H%M%SZ", _time.gmtime(t))
+
+
+def sanitize_run_id(s: str, default: str = "run") -> str:
+    s = (s or "").strip()
+    s = re.sub(r"[^A-Za-z0-9._-]+", "-", s).strip("-")
+    return s[:80].rstrip("-") or default
+
+
+def _iter_images(run_dir):
+    for root, _dirs, files in os.walk(run_dir):
+        for fn in sorted(files):
+            if fn.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+                yield os.path.relpath(os.path.join(root, fn), run_dir)
+
+
+def collect_runs(site_dir: str) -> list:
+    """Scan <site>/runs/*/run-meta.json; return list of run dicts, newest first.
+
+    Each dict: {"id", "ok", "failed", "images"}. Runs without a run-meta.json
+    (partial/interrupted) are still listed with empty metadata.
+    """
+    runs_root = os.path.join(site_dir, "runs")
+    if not os.path.isdir(runs_root):
+        return []
+    runs = []
+    for rid in sorted(os.listdir(runs_root), reverse=True):
+        run_dir = os.path.join(runs_root, rid)
+        if not os.path.isdir(run_dir):
+            continue
+        meta = {}
+        meta_path = os.path.join(run_dir, "run-meta.json")
+        if os.path.exists(meta_path):
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+            except (OSError, ValueError):
+                meta = {}
+        runs.append({
+            "id": rid,
+            "ok": sorted(meta.get("ok") or []),
+            "failed": sorted(meta.get("failed") or []),
+            "images": sum(1 for _ in _iter_images(run_dir)),
+        })
+    return runs
+
+
+def run_index_html(site_dir: str, runs: list, thumbnail_limit: int = 0) -> str:
+    """Site index: one entry per export run, newest first.
+
+    thumbnail_limit > 0 embeds that many small preview images per run (via
+    <img> pointing at the run's own PNGs) so the landing page is self-contained.
+    """
+    html = [
+        "<!doctype html><html><head><meta charset='utf-8'>",
+        "<title>Notebook Screenshots — All Exports</title>",
+        "<style>body{font-family:system-ui,sans-serif;margin:24px;background:#0f172a;color:#e2e8f0}",
+        "h1{font-size:20px}h2{font-size:15px;margin:28px 0 10px;color:#7adddc}",
+        "a{color:#94a3b8;text-decoration:none;font-size:12px}",
+        ".run{display:block;background:#1e293b;border:1px solid #334155;border-radius:8px;",
+        "padding:12px;margin:0 0 18px;overflow:hidden}",
+        ".run h2{margin:6px 0 4px;font-weight:700;color:#e2e8f0;font-size:13px}",
+        ".run .meta{color:#94a3b8;font-size:12px;margin-bottom:8px}",
+        ".thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}",
+        ".thumbs img{width:100%;border-radius:4px;border:1px solid #334155;display:block}",
+        "</style></head><body><h1>Notebook screenshots — all exports</h1>",
+    ]
+    if not runs:
+        html.append("<p style='color:#94a3b8'>No exports yet. Run <code>bb notebook:shots</code>.</p>")
+    for r in runs:
+        ok, failed, images = r["ok"], r["failed"], r["images"]
+        html.append("<div class='run'><a href='runs/%s/index.html'><h2>%s</h2></a>"
+                    "<div class='meta'>%d notebook(s), %d image(s)"
+                    % (r["id"], r["id"], len(ok) + len(failed), images))
+        if failed:
+            html.append(" · <span style='color:#f87171'>%d failed</span>" % len(failed))
+        html.append("</div>")
+        if thumbnail_limit > 0:
+            run_dir = os.path.join(site_dir, "runs", r["id"])
+            thumbs = [os.path.join("runs", r["id"], rel)
+                      for rel in list(_iter_images(run_dir))[:thumbnail_limit]]
+            if thumbs:
+                html.append("<div class='thumbs'>")
+                for t in thumbs:
+                    html.append("<img loading='lazy' src='%s'>" % t)
+                html.append("</div>")
+        html.append("</div>")
+    html.append("</body></html>")
+    return "\n".join(html)
 
 
 RENDER_READY_JS = """() => {

@@ -428,6 +428,18 @@
     (when-not ref (throw (ex-info "Benchmark evidence omitted manifest source" {})))
     (lifecycle/snapshot-input! (:run/root context) (input-source/source ref) (:benchmark/definition-file context))))
 
+(defn- snapshot-claim-registry!
+  "Materialize the claim registry selected for this run into the bundle at the
+   exact relative path committed in the input set. Without this the input-set
+   and verdict-policy verifiers (which require every committed input to exist
+   under the run root) can never validate the registry entry."
+  [context]
+  (let [cli-path (or (:claim-registry/path context) *claim-registry-path*)
+        path (claim-registry/claim-registry-path cli-path)
+        source (input-source/source path)
+        target (io/file (str (:run/root context)) path)]
+    (lifecycle/snapshot-input! (:run/root context) source target)))
+
 (defn- write-conservation! [context evidence]
   (let [root (.toPath (io/file (str (:run/root context))))
         results (:results evidence)
@@ -588,7 +600,8 @@
                                                 result))
                                    :finalize-runner (fn [_ result] (finalize-runner! context result))
                                    :write-manifest (fn [_ result] (write-run-manifest! context (:evidence result)))
-                                   :snapshot-definition (fn [_ result] (snapshot-definition! context (:evidence result)))
+                                   :snapshot-definition (fn [_ result] (snapshot-definition! context (:evidence result))
+                                                          (snapshot-claim-registry! context))
                                    :write-conclusion (fn [_ result]
                                                        (write-conservation! context (:evidence result))
                                                        (reset! benchmark-conclusion (conclusion/write! context (:evidence result))))

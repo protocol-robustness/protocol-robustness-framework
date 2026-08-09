@@ -1,0 +1,61 @@
+{:scenario-id "s-dr-097-appeal-ev-safe-calibrated"
+ :schema-version "1.0"
+ :purpose "theory-confirmation"
+ :title "Appeal EV safe calibration — bond equals slash, correct resolvers appeal, wrong resolvers deterred"
+ :description "Demonstrates the appeal expected-value model in a well-calibrated regime. With reversal-slash-bps=2500 and appeal-bond-bps=2500 (bond = slash), the breakeven uphold probability is 0.50. Under the default governance calibration (accuracy 0.70, error-rate 0.30), a correct resolver's appeal has positive EV while a wrong resolver's appeal has negative EV. The :appeal-decision-rationality equilibrium check should PASS."
+ :tags ["suite/dispute-resolution"
+        "coverage/strategic"
+        "coverage/appeal"
+        "coverage/economic"
+        "appeal-ev/safe-calibrated"]
+ :threat-tags ["dispute-resolution" "appeal" "economic" "expected-value"]
+ :provenance {:author "appeal-ev-model" :created-at "2026-08-09" :license "CC-BY-4.0"}
+ :claim {:id "appeal-ev-safe-calibrated"
+         :statement "With bond = slash, a correct resolver has positive appeal EV while a wrong resolver has negative appeal EV."
+         :falsifies-if ["A correct resolver would not rationally appeal at these parameters"
+                        "A wrong resolver would rationally appeal at these parameters"]}
+ :expected/events [:reversal-slash/proposed :reversal-slash/executed :appeal/opened :appeal/resolved]
+ :expected/not-events [:reversal-slash/reversed]
+ :expectations {:terminal-state "released"}
+ :expected/invariants [:stake/non-negative
+                       :slash/requested-equals-debited-plus-unmet-plus-reversed
+                       :resolver/balances-conserved]
+ :threat {:family "economic-fairness" :attack "appeal-ev-safe-calibrated" :severity "info"
+          :actors ["l1resolver"] :victims ["l1resolver"]
+          :assumptions ["Governance accuracy 0.70" "Governance error-rate 0.30" "Bond = slash"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "l2resolver" "governance" "protocol" "slashPool" "insurance"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500 :appeal-bond-bps 2500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1" :2 "0xl2"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "l2resolver" :address "0xl2" :role "resolver" :stake 10000}
+          {:id "governance" :address "0xgov" :role "governance"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :theory {:claim-id "appeal-ev-safe-calibrated"
+          :assumptions [:governance-accuracy-0.70
+                        :governance-error-rate-0.30
+                        :bond-equals-slash]
+          :equilibrium-concept [:appeal-decision-rationality]
+          :spe-config {:appeal-ev-options {:governance-accuracy 0.7
+                                           :governance-error-rate 0.3
+                                           :reversal-slash-bps 2500
+                                           :appeal-bond-bps 2500}}}
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "l2resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 3 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 4 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 5 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          {:seq 6 :time 1125 :agent "buyer" :action "challenge_resolution" :params {:workflow-id 0}}
+          {:seq 7 :time 1130 :agent "l1resolver" :action "submit_evidence" :params {:workflow-id 0 :evidence-hash "0xl1-false-justification"}}
+          {:seq 8 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          {:seq 9 :time 1175 :agent "buyer" :action "challenge_resolution" :params {:workflow-id 0}}
+          {:seq 10 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
+          {:seq 11 :time 1300 :agent "l1resolver" :action "appeal_slash" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}}}}
+          {:seq 12 :time 1400 :agent "governance" :action "resolve_appeal" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}} :upheld? false}}
+          {:seq 13 :time 2000 :agent "keeper" :action "automate_timed_actions" :params {:workflow-id 0}}]}

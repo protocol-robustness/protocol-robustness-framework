@@ -97,3 +97,78 @@
                                            {:role :protocol :net -99}]
                                           :epsilon 1)]
       (is (true? (:balanced? result))))))
+
+;; ── Appeal expected-value model ──────────────────────────────────────────────
+
+(deftest appeal-ev-correct-resolver-positive-margin
+  (testing "a correct resolver has positive margin when P(uphold) > breakeven"
+    ;; slash=1000 bond=500 → breakeven = 500/1500 = 0.333
+    ;; accuracy=0.7 > 0.333 → should appeal
+    (let [r (tp/appeal-ev 1000 500 true)]
+      (is (true? (:should-appeal? r)))
+      (is (pos? (:margin r)))
+      (is (= 0.3333333333333333 (:breakeven-uphold-prob r))))))
+
+(deftest appeal-ev-wrong-resolver-negative-margin
+  (testing "a wrong resolver has negative margin when P(uphold) < breakeven"
+    ;; slash=1000 bond=500 → breakeven = 0.333
+    ;; error-rate=0.3 < 0.333 → should NOT appeal
+    (let [r (tp/appeal-ev 1000 500 false)]
+      (is (false? (:should-appeal? r)))
+      (is (neg? (:margin r))))))
+
+(deftest appeal-ev-zero-slash-never-appeals
+  (testing "with no slash at stake, appealing only risks the bond (expected loss, not full bond)"
+    (let [r (tp/appeal-ev 0 500 true)]
+      (is (false? (:should-appeal? r)))
+      ;; EV = P(reject=0.3) × (-(0+500)) = -150 (bond at risk only when rejected)
+      (is (< (Math/abs (- -150.0 (:appeal-ev r))) 1e-9))
+      (is (< (Math/abs (:no-appeal-ev r)) 1e-9)))))
+
+(deftest appeal-ev-zero-bond-always-appeals
+  (testing "with no bond cost, appealing is free (rational even for a wrong resolver)"
+    (let [r (tp/appeal-ev 1000 0 false)]
+      (is (true? (:should-appeal? r)))
+      (is (zero? (:breakeven-uphold-prob r))))))
+
+(deftest appeal-indifference-threshold-verdicts
+  (testing "appeal-indifference-threshold classifies the regimes"
+    ;; bond = slash → correct can appeal (0.7>0.5), wrong cannot (0.3<0.5)
+    (let [safe (tp/appeal-indifference-threshold 10000 :slash-bps 2500 :appeal-bond-bps 2500)
+          ;; bond << slash → both can appeal (breakeven 0.107 < both 0.7 and 0.3)
+          under (tp/appeal-indifference-threshold 10000 :slash-bps 2500 :appeal-bond-bps 300)
+          ;; bond >> slash → neither can appeal (breakeven 0.737 > 0.7)
+          blocked (tp/appeal-indifference-threshold 10000 :slash-bps 2500 :appeal-bond-bps 7000)
+          ;; pathological governance: error-rate > accuracy → wrong incentivized while correct blocked
+          pathological (tp/appeal-indifference-threshold 10000 :slash-bps 2500 :appeal-bond-bps 3000
+                                                         :governance-accuracy 0.3 :governance-error-rate 0.7)]
+      (is (= :safe (:verdict safe)))
+      (is (= :both (:verdict under)))
+      (is (= :correct-blocked (:verdict blocked)))
+      (is (= :wrong-incentivized (:verdict pathological))))))
+
+(deftest appeal-calibration-window-default
+  (testing "default governance (a=0.7, e=0.3) at slash-bps 2500 gives the safe window"
+    (let [r (tp/appeal-calibration-window)]
+      (is (< (Math/abs (- 0.4285714285714286 (:min-bond-slash-ratio r))) 1e-9))
+      (is (< (Math/abs (- 2.3333333333333335 (:max-bond-slash-ratio r))) 1e-9))
+      (is (= 1071 (:min-appeal-bond-bps r)))
+      (is (= 5833 (:max-appeal-bond-bps r))))))
+
+(deftest appeal-calibration-window-boundary-verification
+  (testing "the three S-DR scenarios land correctly relative to the safe window"
+    (let [win (tp/appeal-calibration-window)
+          min-ratio (:min-bond-slash-ratio win)
+          max-ratio (:max-bond-slash-ratio win)
+          check (fn [bond-bps]
+                  (let [ratio (/ bond-bps 2500.0)]
+                    {:ratio ratio
+                     :below-deterrence? (< ratio min-ratio)
+                     :above-access? (> ratio max-ratio)}))
+          safe (check 2500)     ;; bond = slash → inside window
+          under (check 300)     ;; below window → wrong resolvers incentivized
+          blocked (check 7000)] ;; above window → correct resolvers blocked
+      (is (not (:below-deterrence? safe)))
+      (is (not (:above-access? safe)))
+      (is (:below-deterrence? under))
+      (is (:above-access? blocked)))))

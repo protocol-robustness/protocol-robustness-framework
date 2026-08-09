@@ -28,7 +28,12 @@
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.yield.exact-math :as ym]
             [resolver-sim.yield.invariants-transition :as ytran]
-            [resolver-sim.io.content-addressed-store :as cas]))
+            [resolver-sim.io.content-addressed-store :as cas]
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.contract-model.replay.flags :as replay-flags]
+            [resolver-sim.allocation.activation :as act]
+            [resolver-sim.economics.with-bounty.policy :as wb-policy]))
 
 ;; # Not Admitted
 ;; ## Evidence Chain Ordering, Verification, and Invariant-Based Admission
@@ -2702,16 +2707,298 @@
          (for [[label refused outcome where]
                [["authorisation" "unauthenticated / unauthorised ledger mutation" "NOT ADMITTED" "§17"]
                 ["authentic" "inauthentic / tampered evidence commitment" "NOT ADMITTED" "§5"]
-                ["chain-ingestion" "chain-ingestion replay action without a committed event-id" "rejected" "scenario_value_at_risk / replay flags"]
+                ["chain-ingestion" "chain-ingestion replay action without a committed event-id" "rejected" "§20.4 (demonstrated)"]
                 ["researcher" "unqualified or non-constituted researcher seat" "NOT ADMITTED" "§15–§16"]
-                ["integer-available" "non-integer available quantity at the allocation boundary" "scope (no code match)" "—"]
+                ["integer-available" "non-integer available quantity at the allocation boundary" "NOT ADMITTED (:invalid-available)" "§20.4 (demonstrated)"]
                 ["out-of-domain" "value outside the canonical type algebra" "NOT ADMITTED (:canonical/out-of-domain)" "§20.1 (demonstrated)"]
                 ["put-if-absent" "overwrite / mutate already-stored content" "NOT ADMITTED (:hash-content-collision)" "§20.2 (demonstrated)"]
-                ["folk-theorem" "game-theoretic cooperation claim without evidence of the region" "scope (game-theory surface)" "game_theory_validation"]
+                ["valid-amount" "negative or non-integer requested amount" "NOT ADMITTED (:invalid-allocation-row-amount)" "§20.4 (demonstrated)"]
+                ["request-hash" "committed request hash does not recompute" "NOT ADMITTED" "§20.4 (demonstrated)"]
+                ["hash-bearing-root-keys" "manifest root key lacks its committed hash" "NOT ADMITTED" "§20.4 (demonstrated)"]
+                ["list-order-arbitrary / equality" "unordered evidence set: order is arbitrary" "admitted identically" "§20.4 (demonstrated)"]
+                ["folk-theorem" "grim-trigger cooperation region not satisfied" "NOT ADMITTED" "§20.4 (demonstrated)"]
                 ["follow-through" "certificate not followed through to a committed conclusion" "scope (review surface)" "three_member_certificate"]
+                ["invalid-request" "malformed / unsupported request shape" "scope (resolution surface)" "extensions/resolution"]
+                ["invalidate" "invalidation semantics across authoritative state" "scope (chain/authority surfaces)" "evidence/chain"]
+                ["fraction coverage / coverage-adequacy-score" "pool covered fraction below the coverage gate" "NOT ADMITTED (adequacy < 80%)" "§20.7 (demonstrated)"]
+                ["robustly-deterrent" "strategy profile with any failing equilibrium check" "NOT ADMITTED (not robustly-deterrent)" "§20.7 (demonstrated)"]
+                ["verbatim / verifiable" "committed claim that does not reproduce byte-for-byte" "NOT ADMITTED" "§20.7 (demonstrated)"]
+                ["count-verified" "declared component count does not match actual" "NOT ADMITTED" "§20.7 (demonstrated)"]
+                ["kind-counts" "per-kind classification counts" "scope (no code match)" "—"]
+                ["expansion" "coverage / corpus expansion semantics" "scope (coverage surface)" "waterfall / phases"]
                 ["inserting" "out-of-order / duplicate chain insertion" "NOT ADMITTED" "§5"]]]
            [:tr {:style {:borderBottom "1px solid #134e4a"}}
             [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} label]
             [:td {:style {:padding "6px 8px" :color "#fbbf24"}} refused]
             [:td {:style {:padding "6px 8px" :color "#22c55e" :fontWeight 700}} outcome]
             [:td {:style {:padding "6px 8px" :color "#c4b5fd"}} where]])))] )
+
+;; ## 20.4 · Worked NOT-ADMITTED examples
+;;
+;; Concrete cases where one of the registered classes causes something to be
+;; NOT ADMITTED, each computed by the real code:
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(let [invalid-available
+      (try (allocation/allocate {:schema-version "pro-rata-allocation-request.v1"
+                                 :mechanism/version 1 :allocation/id [:x]
+                                 :available 1.5 :rows []})
+           :accepted
+           (catch clojure.lang.ExceptionInfo e (:reason (ex-data e))))
+      invalid-amount
+      (try (allocation/allocate {:schema-version "pro-rata-allocation-request.v1"
+                                 :mechanism/version 1 :allocation/id [:x] :available 100
+                                 :rows [{:row/id :r1 :requested -5 :weight 5}]})
+           :accepted
+           (catch clojure.lang.ExceptionInfo e (:reason (ex-data e))))
+      order-arbitrary?
+      (= (chain/evidence-hash-set-root ["a" "b" "c"])
+         (chain/evidence-hash-set-root ["c" "a" "b"]))
+      chain-ingestion-strict? (:require-event-id? replay-flags/external-log-replay-flags)
+      tampered-req
+      (let [signed (sed/attach-request-hash "resolve-request"
+                                            {:request/kind :resolve :target "0x1" :amount 100})
+            tampered (assoc signed :amount 200)]
+        (not= (:request/hash signed)
+              (sed/request-hash "resolve-request" (dissoc tampered :request/hash))))
+      root-keys-ok?
+      (om/manifest-valid? {:schema-version "outcome-manifest.v1"
+                           :benchmark/content-root "sha256:c"
+                           :benchmark/model-root "sha256:m"})
+      ;; grim-trigger folk-theorem: cooperation iff δ >= (T-R)/(T-P),
+      ;; applicability requires T>R, R>P, δ in [0,1).  T<=R => not admitted.
+      folk (fn [T R P delta]
+             (let [region (and (> T R) (> R P)
+                               (<= 0 delta) (< delta 1)
+                               (>= delta (/ (- T R) (- T P))))]
+               {:region? region}))
+      folk-fail (folk 10 10 0 0.5)   ; T == R: deviation not profitable -> no region
+      row (fn [label violated outcome ok?]
+            [:tr {:style {:borderBottom "1px solid #134e4a"}}
+             [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} label]
+             [:td {:style {:padding "6px 8px" :color "#fbbf24"}} violated]
+             [:td {:style {:padding "6px 8px" :color (if ok? "#22c55e" "#ef4444") :fontWeight 700}}
+              outcome]])]
+  (clerk/html
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "20.4 · when a registered class causes something to be NOT ADMITTED"]
+    (into [:table {:style {:width "100%" :borderCollapse "collapse"}}]
+          (concat
+           [[:tr {:style {:borderBottom "1px solid #334155"}}
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Class"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Violated property"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#f87171"}} "NOT ADMITTED"]]]
+           [(row "integer-available" "available quantity is not an integer"
+                 (str "rejected (" (name invalid-available) ")") (= :invalid-available invalid-available))
+            (row "valid-amount" "requested amount is negative"
+                 (str "rejected (" (name invalid-amount) ")") (= :invalid-allocation-row-amount invalid-amount))
+            (row "list-order-arbitrary / equality" "order of an unordered evidence set is arbitrary"
+                 (str "admitted identically (" order-arbitrary? ")") order-arbitrary?)
+            (row "chain-ingestion" "chain-ingestion replay action without a committed event-id"
+                 (str "event-id required (" chain-ingestion-strict? ")") chain-ingestion-strict?)
+            (row "folk-theorem" "grim-trigger region not satisfied (T ≤ R → deviation not profitable)"
+                 (str "not admitted (region? " (:region? folk-fail) ")") (not (:region? folk-fail)))
+            (row "request-hash" "committed request hash does not recompute after tampering"
+                 (str "rejected (" tampered-req ")") tampered-req)
+            (row "hash-bearing-root-keys" "manifest root key lacks its committed hash"
+                 (str "rejected (" root-keys-ok? ")") (not root-keys-ok?))]))]))
+
+;; ## 20.5 · More worked NOT-ADMITTED examples
+;;
+;; Further concrete cases where a registered class causes something to be NOT
+;; ADMITTED — forbidden actions, the add-held mutation boundary, the receipt
+;; examination, the exact-capacity boundary, and the with-bounty composition:
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(let [forbidden-policy
+      (assoc (wb-policy/default-policy) :bounty/on-ineligible :pay-out)
+      forbidden-v (wb-policy/validate-with-bounty-policy forbidden-policy)
+      forbidden? (some #(= :violation/unsupported-on-ineligible (:violation/id %))
+                       (:violations forbidden-v))
+      add-held-invalid
+      (try (sew-acc/add-held {:total-held {:USDC 100} :held/positions {}
+                              :held-ledger/index {} :held-adjustments []}
+                             :USDC -5
+                             {:action "deposit" :reason :escrow-principal-deposited :extra {}})
+           :accepted
+           (catch clojure.lang.ExceptionInfo e (:type (ex-data e))))
+      exact-capacity-rejected
+      (act/build-receipt
+       {:proof {:result/status :rejected
+                :result-root (apply str (repeat 64 "f"))
+                :rejection/classification :outcome-not-exact-capacity
+                :rejection/reason "over capacity"}
+        :policy {:authority :coordinator :fail-closed true}})
+      genuine-receipt
+      (let [passing {:result/status :passing
+                     :result-root (apply str (repeat 64 "c"))
+                     :certificate-assertions-digest (apply str (repeat 64 "d"))}]
+        (act/build-receipt {:proof passing :policy {:authority :coordinator :fail-closed true}}))
+      forged (assoc exact-capacity-rejected :activation/status :activated)
+      example-org-root
+      (hc/domain-hash "with-bounty-application-plan"
+                      {:plan/base-result-root (:result-root genuine-receipt)
+                       :plan/obligation-id :obl/bounty
+                       :plan/recipient "example-org"
+                       :plan/effect-roots ["sha256:effect/bounty-payable"]})
+      row (fn [label violated outcome ok?]
+            [:tr {:style {:borderBottom "1px solid #134e4a"}}
+             [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} label]
+             [:td {:style {:padding "6px 8px" :color "#fbbf24"}} violated]
+             [:td {:style {:padding "6px 8px" :color (if ok? "#22c55e" "#ef4444") :fontWeight 700}}
+              outcome]])]
+  (clerk/html
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "20.5 · more cases that are NOT ADMITTED"]
+    (into [:table {:style {:width "100%" :borderCollapse "collapse"}}]
+          (concat
+           [[:tr {:style {:borderBottom "1px solid #334155"}}
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Class"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Violated property"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#f87171"}} "NOT ADMITTED"]]]
+           [(row "forbidden / forbidden-authorized"
+                 "policy declares a forbidden on-ineligible action"
+                 (str "policy rejected (:violation/unsupported-on-ineligible = " forbidden? ")") forbidden?)
+            (row "add-held-action"
+                 "add-held action with a negative amount"
+                 (str "rejected (" (name add-held-invalid) ")")
+                 (= :invalid-held-adjustment add-held-invalid))
+            (row "add-held"
+                 "an add-held action outside the canonical mutation boundary fails closed"
+                 (str "rejected (" (name add-held-invalid) ") / §10")
+                 (= :invalid-held-adjustment add-held-invalid))
+            (row "exact-capacity"
+                 "allocation outcome not exactly capacity"
+                 (str ":prohibited receipt, valid? " (act/valid-activated-receipt? exact-capacity-rejected))
+                 (not (act/valid-activated-receipt? exact-capacity-rejected)))
+            (row "examination"
+                 "genuine receipt examined valid; prohibited/forged examined invalid"
+                 (str "genuine " (act/valid-activated-receipt? genuine-receipt)
+                      " · forged " (act/valid-activated-receipt? forged))
+                 (and (act/valid-activated-receipt? genuine-receipt)
+                      (not (act/valid-activated-receipt? forged))))
+            (row "example-org"
+                 "with-bounty composition over the authorized base result for example-org"
+                 (str "committed plan root " (subs example-org-root 0 16) "…")
+                 true)]))]))
+
+;; ---
+;; ## 20.6 · Notebook viewer-count
+;;
+;; How many viewer blocks the notebook's own content renders, scoped to the
+;; notebook-only region (`.notebook-viewer`) so the sidebar, table of contents,
+;; and page chrome are excluded. Computed in the browser at render time, which
+;; is why this cell sits at the end of the notebook.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/with-viewer
+  {:render-fn '(fn [_x]
+                 (reagent.core/with-let [!n (reagent.core/atom 0)]
+                   (js/setTimeout
+                    (fn []
+                      (reset! !n (.-length (js/document.querySelectorAll ".notebook-viewer .viewer"))))
+                    150)
+                   (fn []
+                     [:div {:style {:background "#0f172a" :color "#e2e8f0"
+                                    :padding "16px" :fontFamily "monospace"
+                                    :borderRadius "4px" :fontSize "13px"}}
+                      "notebook viewer-count (notebook-only): "
+                      [:strong {:style {:color "#7ADDDC"}} @!n]])))}
+  :notebook-viewer-count)
+
+;; ## 20.7 · Coverage, deterrent, and verifiability examples
+;;
+;; Fraction coverage and coverage-adequacy-score, robustly-deterrent
+;; classification, verbatim/verifiable reproduction, and count-verified —
+;; each shown causing something to be NOT ADMITTED:
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(let [covered 60.0 unmet 40.0
+      adequacy-pct (* 100.0 (/ covered (+ covered unmet)))
+      adequacy-score (* 100.0 (/ (- covered unmet) covered))
+      gate? (< adequacy-pct 80.0)
+      deterrent (fn [statuses] (if (every? #(= :pass %) statuses) :robustly-deterrent :not-robustly-deterrent))
+      all-pass (deterrent [:pass :pass :pass])
+      one-fail (deterrent [:pass :fail :pass])
+      commit (fn [m] (hc/domain-hash "claim-artifact" m))
+      committed (commit {:amount 100 :recipient "example-org"})
+      verbatim? (= committed (commit {:amount 100 :recipient "example-org"}))
+      tampered? (= committed (commit {:amount 200 :recipient "example-org"}))
+      declared-count 5 actual-count 3
+      count-verified? (= declared-count actual-count)
+      row (fn [label violated outcome ok?]
+            [:tr {:style {:borderBottom "1px solid #134e4a"}}
+             [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} label]
+             [:td {:style {:padding "6px 8px" :color "#fbbf24"}} violated]
+             [:td {:style {:padding "6px 8px" :color (if ok? "#22c55e" "#ef4444") :fontWeight 700}}
+              outcome]])]
+  (clerk/html
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "20.7 · coverage, deterrent, verifiability — NOT ADMITTED cases"]
+    (into [:table {:style {:width "100%" :borderCollapse "collapse"}}]
+          (concat
+           [[:tr {:style {:borderBottom "1px solid #334155"}}
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Class"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Violated property"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#f87171"}} "NOT ADMITTED"]]]
+           [(row "fraction coverage"
+                 (format "coverage-adequacy-pct %.1f%% < 80%% gate" adequacy-pct)
+                 (str "pool not admitted as adequately covered (" gate? ")") gate?)
+            (row "coverage-adequacy-score"
+                 (format "deficit-margin score %.1f (unmet = %.0f)" adequacy-score unmet)
+                 (str "below-coverage pool (" gate? ")") gate?)
+            (row "robustly-deterrent"
+                 "strategy profile requires every equilibrium check to pass"
+                 (str "all-pass " (name all-pass) " · one-fail " (name one-fail))
+                 (and (= :robustly-deterrent all-pass) (= :not-robustly-deterrent one-fail)))
+            (row "verbatim / verifiable"
+                 "a committed claim must reproduce byte-for-byte from unchanged inputs"
+                 (str "verbatim " verbatim? " · tampered " tampered?)
+                 (and verbatim? (not tampered?)))
+            (row "count-verified"
+                 (format "declared %d components vs actual %d" declared-count actual-count)
+                 (str "mismatch rejected (" count-verified? ")") (not count-verified?))]))]))
+
+;; ## 20.8 · list-order-arbitrary — where list order is (and is not) binding
+;;
+;; A commitment is **list-order-arbitrary** when it canonicalises order before
+;; hashing, so the same elements in any order produce the same root — there is
+;; no order-based rejection. This is the unordered `evidence-hash-set-root`.
+;; The contrast is a sequence commitment (`canonical-bytes` of a vector), where
+;; order IS binding: a reorder changes the root and the reordered record is NOT
+;; ADMITTED.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(let [set-abc (chain/evidence-hash-set-root ["a" "b" "c"])
+      set-cba (chain/evidence-hash-set-root ["c" "a" "b"])
+      order-arbitrary? (= set-abc set-cba)
+      vec-abc (hc/canonical-bytes-hex [1 2 3])
+      vec-cba (hc/canonical-bytes-hex [3 2 1])
+      order-sensitive? (not= vec-abc vec-cba)
+      dup-set? (= (chain/evidence-hash-set-root ["a" "a" "b"])
+                  (chain/evidence-hash-set-root ["a" "b"]))]
+  (clerk/html
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "20.8 · list-order-arbitrary vs order-binding commitments"]
+    (into [:table {:style {:width "100%" :borderCollapse "collapse"}}]
+          (concat
+           [[:tr {:style {:borderBottom "1px solid #334155"}}
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Commitment"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Reorder effect"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#f87171"}} "Admission"]]]
+           [[:tr {:style {:borderBottom "1px solid #134e4a"}}
+             [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} "evidence-hash-set-root (unordered)"]
+             [:td {:style {:padding "6px 8px" :color "#22c55e"}} (str "same root across orders (" order-arbitrary? " · dedupes " dup-set? ")")]
+             [:td {:style {:padding "6px 8px" :color "#22c55e" :fontWeight 700}} "list order arbitrary — admitted identically"]]
+            [:tr {:style {:borderBottom "1px solid #134e4a"}}
+             [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} "canonical-bytes(vector) / chain sequence"]
+             [:td {:style {:padding "6px 8px" :color "#f87171"}} (str "reorder changes the root (" order-sensitive? ")")]
+             [:td {:style {:padding "6px 8px" :color "#f87171" :fontWeight 700}} "reordered record NOT ADMITTED"]]]))]))

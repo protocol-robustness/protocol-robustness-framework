@@ -386,6 +386,235 @@
                   :fraud-success-rate fraud-success-rate}}))
 
 ;; ---------------------------------------------------------------------------
+;; Appeal expected-value model (second-stage decision)
+;; ---------------------------------------------------------------------------
+
+(def default-appeal-assumptions
+  "Default governance calibration for the appeal EV model.
+   :governance-accuracy — P(governance upholds | resolver's verdict was correct)
+   :governance-error-rate — P(governance mistakenly upholds | resolver was wrong)
+   :appeal-bond-protocol-fee-bps — protocol's cut of appeal bond on upheld appeals
+    (0 = full refund, matching current resolve-appeal behaviour)"
+  {:governance-accuracy 0.7
+   :governance-error-rate 0.3
+   :appeal-bond-protocol-fee-bps 0})
+
+(defn appeal-ev
+  "Compute the expected value of a slash appeal decision for a resolver.
+
+   Models the two-stage game:
+     1. Dispute resolution → resolver slashed (slash proposed)
+     2. Resolver decides: appeal or accept?
+
+   Parameters:
+   - `slash-amount-wei` — absolute amount being slashed
+   - `appeal-bond-wei` — bond the resolver must post for the appeal
+   - `resolver-correct?` — was the resolver's original verdict correct
+
+   Options:
+   - `:governance-accuracy` — P(upheld | correct) [0,1], default 0.7
+   - `:governance-error-rate` — P(upheld | wrong) [0,1], default 0.3
+   - `:appeal-bond-protocol-fee-bps` — protocol cut of bond even on upheld, default 0
+
+   Payoffs:
+     No appeal:           -slash_amount (certain loss)
+     Appeal, upheld:      protocol_fee on bond (slash reversed, bond refunded)
+     Appeal, rejected:    -(slash_amount + appeal_bond) (slash executes, bond forfeited)
+
+   Breakeven condition:
+     P(uphold) > appeal_bond / (slash_amount + appeal_bond - protocol_fee)
+
+   Returns a map:
+     :appeal-ev    — expected value of appealing
+     :no-appeal-ev — expected value of not appealing (-slash_amount)
+     :should-appeal? — true when appeal-ev > no-appeal-ev
+     :margin       — appeal_ev - no_appeal_ev (positive = appealing is better)
+     :uphold-prob  — P(governance upholds appeal)
+     :reject-prob  — P(governance rejects appeal)
+     :breakeven-uphold-prob — minimum P(uphold) for appealing to be rational
+     :parameters   — input parameters
+     :rationale    — human-readable explanation"
+  [slash-amount-wei appeal-bond-wei resolver-correct?
+   & {:keys [governance-accuracy governance-error-rate appeal-bond-protocol-fee-bps]
+      :or {governance-accuracy 0.7
+           governance-error-rate 0.3
+           appeal-bond-protocol-fee-bps 0}}]
+  (let [S (long slash-amount-wei)
+        B (long appeal-bond-wei)
+        fee (long (* B (/ (double appeal-bond-protocol-fee-bps) 10000.0)))
+        ;; P(governance upholds) depends on whether the resolver was correct
+        p (double (if resolver-correct? governance-accuracy governance-error-rate))
+        q (double (- 1.0 p))
+        ;; Payoff: upheld → only protocol fee on bond (slash reversed, bond returned minus fee)
+        upheld-payoff (double (- fee))
+        ;; Payoff: rejected → slash executes + bond forfeited
+        rejected-payoff (double (- (+ S B)))
+        ;; Expected values
+        appeal-ev-val (+ (* p upheld-payoff) (* q rejected-payoff))
+        no-appeal-ev-val (double (- S))
+        margin (- appeal-ev-val no-appeal-ev-val)
+        ;; Breakeven: minimum P(uphold) where appealing is better than not
+        denominator (double (- (+ S B) fee))
+        breakeven (if (pos? denominator)
+                    (double (/ B denominator))
+                    1.0)
+        should-appeal? (pos? margin)
+        resolution (cond
+                     (= S 0) "no slash at stake — appeal only risks bond"
+                     (= B 0) "no appeal bond cost — appealing is free"
+                     (not (pos? margin)) (str "appealing is not rational: breakeven uphold-prob="
+                                              (format "%.1f%%" (* 100.0 breakeven))
+                                              ", actual="
+                                              (format "%.1f%%" (* 100.0 p)))
+                     :else (str "appealing is rational: P(uphold)="
+                                (format "%.1f%%" (* 100.0 p))
+                                " exceeds breakeven="
+                                (format "%.1f%%" (* 100.0 breakeven))))]
+    {:appeal-ev appeal-ev-val
+     :no-appeal-ev no-appeal-ev-val
+     :should-appeal? should-appeal?
+     :margin margin
+     :uphold-prob p
+     :reject-prob q
+     :breakeven-uphold-prob breakeven
+     :parameters {:slash-amount-wei S
+                  :appeal-bond-wei B
+                  :resolver-correct? resolver-correct?
+                  :appeal-bond-protocol-fee-bps appeal-bond-protocol-fee-bps}
+     :governance-calibration {:accuracy governance-accuracy
+                              :error-rate governance-error-rate}
+     :rationale resolution}))
+
+;; ---------------------------------------------------------------------------
+;; Appeal indifference threshold — parameter-space analysis
+;; ---------------------------------------------------------------------------
+
+(defn appeal-indifference-threshold
+  "Compute the breakeven parameter thresholds for the appeal decision.
+
+   Given a slash/escrow scenario, returns:
+   - `:breakeven-governance-accuracy` — minimum governance accuracy needed for a
+     correct resolver to rationally appeal.
+   - `:breakeven-governance-error-rate` — minimum governance error rate above which
+     a wrong resolver finds appealing rational (higher = governance worse).
+   - `:breakeven-slash-bps` — the slash rate (in bps of escrow) at which appealing
+     becomes rational, holding bond and escrow fixed.
+   - `:breakeven-appeal-bond-bps` — the appeal bond rate (in bps of escrow) below
+     which appealing is rational.
+
+   Returns a map with breakeven values and a `:verdict` key:
+     :safe — correct resolvers can appeal profitably, wrong resolvers cannot
+     :correct-blocked — correct resolvers cannot profitably appeal
+     :wrong-incentivized — wrong resolvers have incentive to appeal
+     :both — correct can appeal and wrong also can (ambiguous system)"
+  [escrow-amount-wei
+   & {:keys [slash-bps appeal-bond-bps governance-accuracy governance-error-rate
+             appeal-bond-protocol-fee-bps]
+      :or {slash-bps 2500
+           appeal-bond-bps 700
+           governance-accuracy 0.7
+           governance-error-rate 0.3
+           appeal-bond-protocol-fee-bps 0}}]
+  (let [slash-amount (long (* escrow-amount-wei (/ (or slash-bps 2500) 10000.0)))
+        appeal-bond (long (* escrow-amount-wei (/ (or appeal-bond-bps 700) 10000.0)))
+        fee (long (* appeal-bond (/ appeal-bond-protocol-fee-bps 10000.0)))
+        denominator (- (+ slash-amount appeal-bond) fee)
+        breakeven-uphold (if (pos? denominator)
+                           (double (/ appeal-bond denominator))
+                           1.0)
+        correct-result (appeal-ev slash-amount appeal-bond true
+                                  :governance-accuracy governance-accuracy
+                                  :governance-error-rate governance-error-rate
+                                  :appeal-bond-protocol-fee-bps appeal-bond-protocol-fee-bps)
+        wrong-result (appeal-ev slash-amount appeal-bond false
+                                :governance-accuracy governance-accuracy
+                                :governance-error-rate governance-error-rate
+                                :appeal-bond-protocol-fee-bps appeal-bond-protocol-fee-bps)
+        ;; Breakeven slash bps: solve for slash_bps where appeal_ev = no_appeal_ev
+        ;; From breakeven: B/(S+B-fee) = p  →  S = B/p - B + fee
+        ;; slash_bps = S * 10000 / escrow
+        breakeven-slash-amount (max 0.0 (- (/ appeal-bond breakeven-uphold) appeal-bond (- fee)))
+        breakeven-slash-bps (if (pos? escrow-amount-wei)
+                              (long (/ (* breakeven-slash-amount 10000.0) escrow-amount-wei))
+                              0)
+        correct-can-appeal? (:should-appeal? correct-result)
+        wrong-can-appeal? (:should-appeal? wrong-result)
+        verdict (cond
+                  (and correct-can-appeal? (not wrong-can-appeal?)) :safe
+                  (and (not correct-can-appeal?) wrong-can-appeal?) :wrong-incentivized
+                  (and correct-can-appeal? wrong-can-appeal?) :both
+                  :else :correct-blocked)]
+    {:breakeven-uphold-prob breakeven-uphold
+     :breakeven-slash-bps breakeven-slash-bps
+     :correct-appeal (:should-appeal? correct-result)
+     :wrong-appeal (:should-appeal? wrong-result)
+     :verdict verdict
+     :rationale (case verdict
+                  :safe "correct resolvers can appeal profitably while wrong resolvers cannot — system well-calibrated"
+                  :correct-blocked "correct resolvers cannot profitably appeal — governance accuracy too low relative to bond/slash ratio"
+                  :wrong-incentivized "wrong resolvers have incentive to appeal — governance error rate too high relative to bond/slash ratio"
+                  :both "both correct and wrong resolvers have incentive to appeal — bond too low relative to slash amount")
+     :scenario {:escrow-amount-wei escrow-amount-wei
+                :slash-amount-wei slash-amount
+                :appeal-bond-wei appeal-bond
+                :slash-bps (or slash-bps 2500)
+                :appeal-bond-bps (or appeal-bond-bps 700)}
+     :governance-calibration {:accuracy governance-accuracy
+                              :error-rate governance-error-rate}}))
+
+;; ---------------------------------------------------------------------------
+;; Appeal calibration window — parameter-space recommendation
+;; ---------------------------------------------------------------------------
+
+(defn appeal-calibration-window
+  "Compute the safe appeal-bond calibration window for a governance calibration.
+
+   A slash-appeal system is economically well-calibrated when:
+   - a WRONG resolver is deterred: P(uphold|wrong) = e <= breakeven
+   - a CORRECT resolver can access appeal: P(uphold|correct) = a >= breakeven
+
+   Since breakeven = bond / (slash + bond), this requires:
+     e/(1-e) <= bond/slash <= a/(1-a)
+
+   Options:
+   - `:governance-accuracy` — P(upheld | correct) [0,1], default 0.7
+   - `:governance-error-rate` — P(upheld | wrong) [0,1], default 0.3
+   - `:slash-bps` — reversal slash rate in bps (for the bps conversion)
+
+   Returns:
+     :min-bond-slash-ratio   — lower bound of the safe window (deterrence)
+     :max-bond-slash-ratio   — upper bound of the safe window (access)
+     :min-appeal-bond-bps    — minimum appeal-bond-bps (for the given slash-bps)
+     :max-appeal-bond-bps    — maximum appeal-bond-bps (for the given slash-bps)
+     :governance-calibration — the accuracy/error-rate used
+     :rationale              — human-readable summary"
+  [& {:keys [governance-accuracy governance-error-rate slash-bps]
+      :or {governance-accuracy 0.7
+           governance-error-rate 0.3
+           slash-bps 2500}}]
+  (let [a (double governance-accuracy)
+        e (double governance-error-rate)
+        min-ratio (/ e (- 1.0 e))
+        max-ratio (/ a (- 1.0 a))
+        min-bps (long (* slash-bps min-ratio))
+        max-bps (long (* slash-bps max-ratio))]
+    {:min-bond-slash-ratio min-ratio
+     :max-bond-slash-ratio max-ratio
+     :min-appeal-bond-bps min-bps
+     :max-appeal-bond-bps max-bps
+     :slash-bps slash-bps
+     :governance-calibration {:accuracy a
+                              :error-rate e}
+     :rationale (str "Appeal system is economically well-calibrated when appeal-bond "
+                     "is between " (format "%.1f%%" (* 100.0 min-ratio))
+                     " and " (format "%.1f%%" (* 100.0 max-ratio))
+                     " of the reversal slash amount. Below the lower bound, wrong "
+                     "resolvers can profitably appeal (under-deterred). Above the "
+                     "upper bound, correct resolvers cannot justify appealing "
+                     "(correct-blocked). At slash-bps " slash-bps " this is appeal-bond-bps "
+                     "in [" min-bps ", " max-bps "].")}))
+
+;; ---------------------------------------------------------------------------
 ;; Claimant and Protocol payoff projections
 ;; ---------------------------------------------------------------------------
 

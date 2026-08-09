@@ -232,6 +232,58 @@
        :violations violations
        :assertions assertions})))
 
+(def ^:private appeal-ev-claim-coverage
+  "Scenarios exercising the :appeal-decision-rationality equilibrium check,
+   with the expected equilibrium verdict per regime."
+  {"S-DR-097-appeal-ev-safe-calibrated" :pass
+   "S-DR-098-appeal-ev-under-deterred"  :fail
+   "S-DR-099-appeal-ev-correct-blocked" :fail})
+
+(defn- appeal-decision-rationality-check
+  "Verify that the three appeal expected-value scenarios were evaluated by the
+   :appeal-decision-rationality equilibrium check and produced the expected
+   verdict per regime:
+     S-DR-097 (well-calibrated)  → :pass  (correct can appeal, wrong deterred)
+     S-DR-098 (under-deterred)   → :fail  (wrong resolvers profitably appeal)
+     S-DR-099 (correct-blocked)  → :fail  (correct resolvers cannot appeal)
+
+   Reads the equilibrium result carried on each scenario entry under
+   :checks :theory :result :equilibrium-results. Returns reviewer-readable
+   assertions per scenario."
+  [results]
+  (let [by-id (group-by (comp clojure.string/lower-case (fn [x] (or (:scenario-id x) ""))) results)
+        assertions
+        (mapv (fn [[scenario-id expected-verdict]]
+                (let [result (first (get by-id (clojure.string/lower-case scenario-id)))
+                      theory-result (get-in result [:checks :theory :result])
+                      eq-result (get-in theory-result [:equilibrium-results :appeal-decision-rationality])
+                      actual-verdict (:status eq-result)]
+                  {:scenario/id scenario-id
+                   :scenario/present? (boolean result)
+                   :equilibrium/evaluated? (boolean eq-result)
+                   :equilibrium/actual-verdict actual-verdict
+                   :equilibrium/expected-verdict expected-verdict
+                   :holds? (and result
+                                eq-result
+                                (= expected-verdict actual-verdict))}))
+              appeal-ev-claim-coverage)
+        violations (->> assertions
+                        (keep (fn [assertion]
+                                (when-not (:holds? assertion)
+                                  {:type :appeal-ev-equilibrium-mismatch
+                                   :scenario/id (:scenario/id assertion)
+                                   :message "Appeal EV scenario did not produce the expected :appeal-decision-rationality verdict"
+                                   :details (dissoc assertion :holds?)})))
+                        vec)]
+    (if (empty? results)
+      {:outcome :not-exercised
+       :violations [{:type :missing-appeal-ev-results
+                     :message "No scenario results were supplied for appeal EV claim evaluation"}]
+       :assertions []}
+      {:holds? (empty? violations)
+       :violations violations
+       :assertions assertions})))
+
 (defn- scenario-group-key
   [result]
   (or (:scenario/id result)
@@ -667,7 +719,15 @@
    :claim/governance-force-reversal-authorized
    {:scope :benchmark
     :check (fn [ctx]
-             (reversal-claim-check :claim/governance-force-reversal-authorized (:benchmark/results ctx)))}})
+             (reversal-claim-check :claim/governance-force-reversal-authorized (:benchmark/results ctx)))}
+
+   ;; reversal-slashing-v1 pack: economic rationality of slash-appeal decisions,
+   ;; evaluated against the :appeal-decision-rationality equilibrium results
+   ;; carried on the S-DR-097/098/099 scenario entries.
+   :claim/appeal-decision-rationality
+   {:scope :benchmark
+    :check (fn [ctx]
+             (appeal-decision-rationality-check (:benchmark/results ctx)))}})
 
 (def ^:private scoring-rule-paths
   {:scoring/robustness-dimensions-v0 hash-ref/scoring-robustness-dimensions-path

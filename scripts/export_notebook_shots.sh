@@ -28,5 +28,12 @@ ensure_server() {
   exit 1
 }
 
+# --index-only / --flat never need the Clerk server (pure index rebuild / CI gate
+# against an already-running server), so skip the ensure step when requested.
+if [[ " $* " == *" --index-only "* ]]; then
+  echo "[shots] index-only: skipping server ensure"
+  exec python3 "$ROOT/scripts/export_notebook_shots.py" --base-url "$URL" "$@"
+fi
+
 ensure_server
 exec python3 "$ROOT/scripts/export_notebook_shots.py" --base-url "$URL" "$@"

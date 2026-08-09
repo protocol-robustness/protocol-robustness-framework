@@ -30,7 +30,8 @@
    :force-refund-path-integrity         :validation.class/algebraic-integrity
    :force-reversal-path-integrity       :validation.class/algebraic-integrity
    :pending-lifecycle-integrity         :validation.class/algebraic-integrity
-   :cancellation-dominance              :validation.class/deviation-resistance})
+    :cancellation-dominance              :validation.class/deviation-resistance
+    :appeal-decision-rationality         :validation.class/equilibrium})
 
 (defn- pass [property basis observed expected]
   {:property  property
@@ -763,8 +764,171 @@
              :cancel-max-regret (str "<= " threshold)}))))
 
 ;; ---------------------------------------------------------------------------
-;; Public validator registries
+;; Appeal decision rationality (post-hoc EV check)
 ;; ---------------------------------------------------------------------------
+
+(def ^:private appeal-relevant-actions
+  "Trace actions relevant to appeal decision evaluation."
+  #{"appeal_slash" "resolve_appeal"})
+
+(defn- escrow-amount-at
+  "Extract escrow amount for a workflow-id from the world state.
+   Returns 0 when the escrow is not found."
+  [world workflow-id]
+  (or (get-in world [:escrow-amounts (long workflow-id)]) 0))
+
+(defn- find-appeal-nodes
+  "Find appeal-slash events in the raw-trace and pair them with their
+   subsequent resolve-appeal outcome (if present).
+   Returns a vector of maps:
+   {:seq N :agent A :workflow-id W :escrow-amount E
+    :slash-amount S :appeal-bond B
+    :appeal-upheld? boolean | nil}"
+  [raw-trace protocol-params appeal-ev-options]
+  (let [slash-bps (or (:reversal-slash-bps appeal-ev-options)
+                      (:reversal-slash-bps protocol-params)
+                      0)
+        bond-bps (or (:appeal-bond-bps appeal-ev-options)
+                     (:appeal-bond-bps protocol-params)
+                     0)
+        bond-amount (or (:appeal-bond-amount appeal-ev-options)
+                        (:appeal-bond-amount protocol-params)
+                        nil)
+        appeals (vec (keep-indexed
+                      (fn [i e]
+                        (when (= "appeal_slash" (name (:action e)))
+                          (let [wfid (or (get-in e [:params :workflow-id])
+                                        (get-in e [:params :slash-id :slash-ref :workflow-id]))
+                                wfid' (long (or wfid 0))
+                                world (:world (nth raw-trace (dec i) nil))
+                                escrow (escrow-amount-at world wfid')
+                                slash-amt (long (* escrow (/ (double slash-bps) 10000.0)))
+                                bond-amt (if bond-amount
+                                           (long bond-amount)
+                                           (long (* escrow (/ (double bond-bps) 10000.0))))
+                                ;; Find subsequent resolve-appeal for this seq
+                                resolve-e (first (filter #(= "resolve_appeal" (name (:action %)))
+                                                        (drop (inc i) raw-trace)))
+                                upheld? (when resolve-e
+                                          (:upheld? (:params resolve-e)))]
+                            {:seq (:seq e)
+                             :agent (:agent e)
+                             :workflow-id wfid'
+                             :escrow-amount-wei escrow
+                             :slash-amount-wei slash-amt
+                             :appeal-bond-wei bond-amt
+                             :appeal-upheld? upheld?
+                             :trace-index i})))
+                      raw-trace))]
+    appeals))
+
+(defn- check-appeal-decision-rationality
+  "Verify that each appeal-slash decision in the trace was economically rational
+   under the expected-value model.
+
+   For each appeal-slash event:
+   1. Extracts slash amount and appeal bond from world state + protocol params
+   2. Evaluates whether a correct resolver would rationally appeal under the
+      configured governance accuracy
+   3. Also evaluates whether a wrong resolver would rationally appeal under the
+      configured governance error rate (useful for confirming deterrence)
+
+   The validator does NOT check whether the outcome (upheld/rejected) matches the
+   EV model — it checks whether the decision to file was rational at the time of
+   filing, before the outcome was known.
+
+   Spe-configurable parameters (passed via :spe-config :appeal-ev-options):
+     :governance-accuracy — P(upheld | correct) [0,1], default 0.7
+     :governance-error-rate — P(upheld | wrong) [0,1], default 0.3
+     :appeal-bond-protocol-fee-bps — protocol fee cut on bond [0,10000], default 0
+
+   :pass — all appeal decisions were rational for a correct resolver,
+           and no wrong resolver could have rationally appealed (deterrence holds)
+   :fail — at least one appeal decision was irrational, or wrong resolvers
+           would have incentive to appeal
+   :inconclusive — no appeal-slash events found in trace"
+  [projection]
+  (let [{:keys [raw-trace protocol-params spe-config]} projection
+        appeal-ev-options (merge {:governance-accuracy 0.7
+                                  :governance-error-rate 0.3
+                                  :appeal-bond-protocol-fee-bps 0}
+                                 (:appeal-ev-options spe-config))
+        appeal-nodes (find-appeal-nodes raw-trace protocol-params appeal-ev-options)
+        appeal-count (count appeal-nodes)]
+    (if (zero? appeal-count)
+      (inconclusive :appeal-decision-rationality :absent-evidence
+                    "no appeal-slash events found in trace; cannot evaluate appeal rationality")
+      (let [;; For each appeal node: evaluate as if resolver was correct
+            ;; (they believed they were correct when filing)
+            correct-results
+            (mapv (fn [node]
+                    (let [ev (tp/appeal-ev
+                              (:slash-amount-wei node)
+                              (:appeal-bond-wei node)
+                              true
+                              :governance-accuracy (:governance-accuracy appeal-ev-options)
+                              :governance-error-rate (:governance-error-rate appeal-ev-options)
+                              :appeal-bond-protocol-fee-bps (:appeal-bond-protocol-fee-bps appeal-ev-options))]
+                      (assoc node :correct-ev ev :correct-rational? (:should-appeal? ev))))
+                  appeal-nodes)
+            ;; Also evaluate as if resolver was wrong (deterrence check)
+            wrong-results
+            (mapv (fn [node]
+                    (let [ev (tp/appeal-ev
+                              (:slash-amount-wei node)
+                              (:appeal-bond-wei node)
+                              false
+                              :governance-accuracy (:governance-accuracy appeal-ev-options)
+                              :governance-error-rate (:governance-error-rate appeal-ev-options)
+                              :appeal-bond-protocol-fee-bps (:appeal-bond-protocol-fee-bps appeal-ev-options))]
+                      (assoc node :wrong-ev ev :wrong-rational? (:should-appeal? ev))))
+                  appeal-nodes)
+            correct-irrational (filter #(not (:correct-rational? %)) correct-results)
+            wrong-rational (filter :wrong-rational? wrong-results)
+            observed {:appeal-count appeal-count
+                      :correct-evaluations (mapv (fn [node]
+                                                   (merge (select-keys node [:seq :agent :workflow-id
+                                                                             :slash-amount-wei :appeal-bond-wei])
+                                                          (select-keys (:correct-ev node) [:appeal-ev :no-appeal-ev :margin
+                                                                                           :should-appeal? :rationale])))
+                                                 correct-results)
+                      :wrong-deterrence (mapv (fn [node]
+                                                (merge (select-keys node [:seq :agent :workflow-id
+                                                                          :slash-amount-wei :appeal-bond-wei])
+                                                       (select-keys (:wrong-ev node) [:appeal-ev :no-appeal-ev :margin
+                                                                                       :should-appeal? :rationale])))
+                                              wrong-results)}
+            expected {:correct-irrational 0 :wrong-rational 0
+                      :description (str "all appeal decisions rational for correct resolver, "
+                                        "no incentive for wrong resolver to appeal")}
+            offending []]
+        (cond
+          (seq correct-irrational)
+          (fail :appeal-decision-rationality :single-trace-node-counterfactual-proxy
+                observed
+                expected
+                (mapv (fn [n]
+                        {:node/seq (:seq n) :agent (:agent n)
+                         :slash-amount (:slash-amount-wei n)
+                         :appeal-bond (:appeal-bond-wei n)
+                         :gap "appeal not rational for correct resolver \u2014 protocol under-calibrated"
+                         :ev-snapshot (select-keys (:correct-ev n) [:appeal-ev :no-appeal-ev :uphold-prob :breakeven-uphold-prob :rationale])})
+                      correct-irrational))
+          (seq wrong-rational)
+          (fail :appeal-decision-rationality :single-trace-node-counterfactual-proxy
+                observed
+                expected
+                (mapv (fn [n]
+                        {:node/seq (:seq n) :agent (:agent n)
+                         :slash-amount (:slash-amount-wei n)
+                         :appeal-bond (:appeal-bond-wei n)
+                         :gap "appeal rational for wrong resolver \u2014 protocol under-deters frivolous appeals"
+                         :ev-snapshot (select-keys (:wrong-ev n) [:appeal-ev :no-appeal-ev :uphold-prob :breakeven-uphold-prob :rationale])})
+                      wrong-rational))
+          :else
+          (pass :appeal-decision-rationality :single-trace-node-counterfactual-proxy
+                observed
+                expected))))))
 
 (def mechanism-property-validators
   "Map of Sew-specific mechanism-property keyword → validator-fn.
@@ -789,4 +953,5 @@
    :bounded-backward-induction-spe          check-bounded-backward-induction-spe
    :resolver-reputation-spe                 check-resolver-reputation-spe
    :resolver-reputation-profile-matrix      check-resolver-reputation-profile-matrix
-   :cancellation-dominance                  check-cancellation-dominance})
+   :cancellation-dominance                  check-cancellation-dominance
+   :appeal-decision-rationality         check-appeal-decision-rationality})

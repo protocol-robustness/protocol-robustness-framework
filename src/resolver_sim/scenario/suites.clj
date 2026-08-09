@@ -191,7 +191,10 @@
    "DR-P-002-force-reversal-slash-idempotent"
    "DR-Q-001-challenge-bounty-reversal"
    "DR-Q-002-challenge-bounty-no-challenger"
-   "DR-R-001-reversal-slash-insufficient-stake"])
+   "DR-R-001-reversal-slash-insufficient-stake"
+   "S-DR-097-appeal-ev-safe-calibrated"
+   "S-DR-098-appeal-ev-under-deterred"
+   "S-DR-099-appeal-ev-correct-blocked"])
 
 ;; ── Suite definitions ─────────────────────────────────────────────────────────
 ;; Use :scenario-ids for executable scenarios (resolved via sc/scenario-path)

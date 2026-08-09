@@ -36,13 +36,13 @@ require_absent() {
 }
 
 run_scenario() {
-  java -jar "$JAR" run-scenario \
+  java -jar "$JAR" -m resolver-sim.cli.main run-scenario \
     classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
     --run-root "$1"
 }
 
 verify_scenario() {
-  java -jar "$JAR" verify-scenario --run-root "$1"
+  java -jar "$JAR" -m resolver-sim.cli.main verify-scenario --run-root "$1"
 }
 
 if [ ! -f "$JAR" ]; then
@@ -61,8 +61,8 @@ verify_scenario "$SCENARIO_ROOT"
 a=$(python3 -c 'import json, os; root="'"$SCENARIO_ROOT"'"; x=json.load(open(root+"/manifest/diagnostic-summary.json")); assert x["scenario_id"]; refs=x["evidence"]; assert all(os.path.isfile(os.path.join(root, refs[k])) for k in ["trace_ref", "metrics_ref", "run_finalization_ref"]); print("scenario diagnostic references resolve")')
 echo "$a"
 
-java -jar "$JAR" run-benchmark force-authorisation-custody-v1 --run-root "$BENCHMARK_ROOT"
-java -jar "$JAR" verify-benchmark --run-root "$BENCHMARK_ROOT"
+java -jar "$JAR" -m resolver-sim.cli.main run-benchmark prf-core/force-authorisation-custody-v1 --run-root "$BENCHMARK_ROOT"
+java -jar "$JAR" -m resolver-sim.cli.main verify-benchmark --run-root "$BENCHMARK_ROOT"
 python3 -c 'import json; x=json.load(open("'"$BENCHMARK_ROOT"'/completion.json")); assert x["lifecycle_status"] == "completed"; assert x["semantic_status"] in {"pass", "fail", "inconclusive"}; print("benchmark lifecycle and conclusion are distinct")'
 
 # Completed roots are immutable by default.

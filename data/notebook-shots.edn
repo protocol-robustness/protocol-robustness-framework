@@ -22,13 +22,16 @@
   {:path "notebooks/demo_short_circuit.clj"              :modes [:full :sections] :section-level 2}
   {:path "notebooks/demo_not_admitted.clj"               :modes [:full :sections] :section-level 2}
   {:path "notebooks/demo_reorder_chain.clj"              :modes [:full :sections] :section-level 2}
+  {:path "notebooks/demo_adversarial_escalation.clj"     :modes [:full :sections] :section-level 2}
   {:path "notebooks/allocation_activation.clj"           :modes [:sections] :section-level 2}
   {:path "notebooks/authorization_chain.clj"             :modes [:sections] :section-level 2}
 
   ;; Interactive/workbench notebooks: static shot captures only the initial state.
-  {:path "notebooks/evidence_graph_viewer.clj"           :modes [:full] :interactive true}
-  {:path "notebooks/workbench_v2.clj"                    :modes [:full] :interactive true}
-  {:path "notebooks/telemetry.clj"                       :modes [:full] :interactive true}
-  {:path "notebooks/xtdb_overview.clj"                   :modes [:full] :interactive true}]
+  ;; Heavy ones are lazily evaluated on first request and can exceed the default
+  ;; 60s nav timeout, so give them more room (the driver also retries navigation).
+  {:path "notebooks/evidence_graph_viewer.clj"           :modes [:full] :interactive true :timeout-ms 180000}
+  {:path "notebooks/workbench_v2.clj"                    :modes [:full] :interactive true :timeout-ms 180000}
+  {:path "notebooks/telemetry.clj"                       :modes [:full] :interactive true :timeout-ms 180000}
+  {:path "notebooks/xtdb_overview.clj"                   :modes [:full] :interactive true :timeout-ms 180000}]
 
  :exclude ["_template"]}

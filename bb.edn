@@ -788,11 +788,11 @@ test:community {:doc "Run community participation tests"
    :depends [notebook:lint notebook:visibility notebook:check]}
 
   notebook:shots
-  {:doc "Export notebook screenshots (config: data/notebook-shots.edn) into shots/"
+  {:doc "Export notebook screenshots (config: data/notebook-shots.edn) into shots/. Each run is archived under shots/runs/<id>/; shots/index.html lists all exports (no Java needed to host)."
    :task (shell "scripts/export_notebook_shots.sh")}
 
   notebook:shots:one
-  {:doc "Screenshot a single notebook (name without .clj) into shots/. Usage: bb notebook:shots:one report"
+  {:doc "Screenshot a single notebook (name without .clj) into shots/runs/<newest>. Usage: bb notebook:shots:one report"
    :task (shell "scripts/export_notebook_shots.sh" "--notebook" (first *command-line-args*))}
 
   notebook:shots:sections
@@ -800,16 +800,32 @@ test:community {:doc "Run community participation tests"
    :task (shell "scripts/export_notebook_shots.sh" "--notebook" (first *command-line-args*) "--modes" "sections")}
 
   notebook:shots:open
-  {:doc "Open the screenshot contact sheet (shots/index.html) in a browser"
+  {:doc "Open the screenshot site index (shots/index.html) in a browser"
    :task (shell "bash" "-c" "xdg-open shots/index.html 2>/dev/null || open shots/index.html 2>/dev/null || echo 'Open shots/index.html manually'")}
+
+  notebook:shots:index
+  {:doc "Rebuild shots/index.html (+latest.html) from existing runs without rendering (no server/Java needed)"
+   :task (shell "scripts/export_notebook_shots.sh" "--index-only" "--thumbnails" "3")}
+
+  notebook:shots:retry
+  {:doc "Rerun the failed notebooks of the newest run that has failures, completing that run in place"
+   :task (shell "scripts/export_notebook_shots.sh" "--only-failures")}
+
+  notebook:shots:serve
+  {:doc "Serve the static screenshot site locally with no Java: python3 -m http.server. Open http://localhost:8899"
+   :task (shell "python3" "-m" "http.server" "8899" "--directory" "shots")}
+
+  notebook:shots:package
+  {:doc "Package shots/ as a static site tarball (target/shots-site.tar.gz) for any static host (GitHub Pages, S3, nginx)"
+   :task (shell "bash" "-c" "mkdir -p target && tar -czf target/shots-site.tar.gz -C shots . && echo 'target/shots-site.tar.gz ready'")}
 
   notebook:shots:setup
   {:doc "Install the Playwright Chromium browser used for screenshots (one-time)"
    :task (shell "python3" "-m" "playwright" "install" "chromium")}
 
   notebook:shots:ci
-  {:doc "Render gate: full-page screenshot of every hub notebook; fail on any render error"
-   :task (shell "scripts/export_notebook_shots.sh" "--modes" "full" "--out" "target/shots-ci")}
+  {:doc "Render gate: full-page screenshot of every hub notebook; fail on any render error (flat layout into target/shots-ci)"
+   :task (shell "scripts/export_notebook_shots.sh" "--modes" "full" "--flat" "--out" "target/shots-ci")}
 
   demo:record
   {:doc "Record a demo via asciinema. Usage: bb demo:record <id>

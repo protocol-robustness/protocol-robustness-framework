@@ -6,21 +6,24 @@
   (:import [java.nio.file Files StandardCopyOption]))
 
 (defn normalize-replay [bundle]
-  (if (= "bundle-root.v1" (:bundle/schema-version bundle))
+  (if (contains? #{"bundle-root.v1" "bundle-root.v2"} (:bundle/schema-version bundle))
     (let [results (get-in bundle [:overview :results])
           raw-results (:run/scenario-results bundle)
           _ (when (not= 1 (count results))
               (throw (ex-info "Structured scenario extraction requires exactly one scenario result" {:count (count results)})))
-          _ (when (not= 1 (count raw-results))
+          _ (when (and (seq raw-results) (not= 1 (count raw-results)))
               (throw (ex-info "Structured scenario extraction requires exactly one raw scenario result" {:count (count raw-results)})))
           overview (first results)
-          raw (first raw-results)]
+          raw (first raw-results)
+          replay (or (:replay-result raw) raw)]
       (let [scenario-id (or (:scenario-id overview)
                             (:scenario-id raw)
-                            (get-in raw [:world :params :scenario-id]))]
+                            (:scenario-id replay)
+                            (get-in replay [:world :params :scenario-id]))]
         (assoc bundle :scenario-id scenario-id :outcome (:outcome overview)
-               :events-processed (count (:trace raw)) :source {:scenario-id scenario-id}
-               :trace (:trace raw) :metrics (:metrics raw) :world (:world raw))))
+               :events-processed (or (:events-processed replay) (count (:trace replay)))
+               :source {:scenario-id scenario-id}
+               :trace (:trace replay) :metrics (:metrics replay) :world (:world replay))))
     bundle))
 
 (defn- action [event] (or (:action event) (:event-type event) "?"))

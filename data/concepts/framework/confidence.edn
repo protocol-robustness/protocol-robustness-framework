@@ -94,19 +94,19 @@
    "Trust scores for individual actors or oracles."
    "Statistical or Bayesian confidence intervals."
    "Selection and interpretation of confidence fields are defined by this concept. When confidence values are included in a hashable evidence or attestation structure, their canonical encoding follows the verifiable-assurance canonical serialization rules; the containing artifact concept defines whether and where those fields enter its hash projection."]
- :concept/subconcepts
- [{:concept/id :concept/claim-confidence
-   :concept/name "Claim confidence"
-   :concept/summary "Confidence in a specific claim result based on the number, relevance, determinism, and quality of scenarios and evidence artifacts backing it."}
-  {:concept/id :concept/evidence-confidence
-   :concept/name "Evidence confidence"
-   :concept/summary "Confidence derived from the integrity and completeness of evidence artifacts: canonical hashes present, evidence chain verifies, artifact registry complete."}
-  {:concept/id :concept/coverage-confidence
-   :concept/name "Coverage confidence"
-   :concept/summary "Confidence that the scenario suite exercises the relevant mechanisms, edge cases, and failure modes for a claim. Important for benchmark reporting -- slashing conservation may have high evidence confidence but medium coverage confidence if reversal paths are missing."}
-  {:concept/id :concept/determinism-confidence
-   :concept/name "Determinism confidence"
-   :concept/summary "Confidence that repeated execution of the same scenario and configuration produces identical results, artifacts, and hashes."}
-  {:concept/id :concept/attestation-confidence
-   :concept/name "Attestation confidence"
-   :concept/summary "Confidence added by independent attestation, signature, external witness, timestamp, or on-chain anchor. Attestation increases provenance confidence, not necessarily semantic correctness."}]}
+  :concept/subconcepts
+  [{:concept/id :concept/claim-confidence
+    :concept/name "Claim confidence"
+    :concept/summary "Confidence in a specific claim result based on the number, relevance, determinism, and quality of scenarios and evidence artifacts backing it."}
+   {:concept/id :concept/evidence-confidence
+    :concept/name "Evidence confidence"
+    :concept/summary "Confidence derived from the integrity and completeness of evidence artifacts: canonical hashes present, evidence chain verifies, artifact registry complete."}
+   {:concept/id :concept/coverage-confidence
+    :concept/name "Coverage confidence"
+    :concept/summary "Confidence that the scenario suite exercises the relevant mechanisms, edge cases, and failure modes for a claim. Important for benchmark reporting -- slashing conservation may have high evidence confidence but medium coverage confidence if reversal paths are missing. Appeal and reversal-reviewer slash paths are exercised by DR-N/O/P/Q/R and by the appeal expected-value scenarios S-DR-097/098/099 via the :appeal-decision-rationality equilibrium check, which scores whether correct resolvers can profitably appeal and whether wrong resolvers are deterred at the declared slash/bond parameters."}
+   {:concept/id :concept/determinism-confidence
+    :concept/name "Determinism confidence"
+    :concept/summary "Confidence that repeated execution of the same scenario and configuration produces identical results, artifacts, and hashes."}
+   {:concept/id :concept/attestation-confidence
+    :concept/name "Attestation confidence"
+    :concept/summary "Confidence added by independent attestation, signature, external witness, timestamp, or on-chain anchor. Attestation increases provenance confidence, not necessarily semantic correctness."}]}

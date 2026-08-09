@@ -109,3 +109,34 @@
     ;; Claimable classification is Clojure-authoritative and uses the
     ;; established underscore-keyed taxonomy document contract.
     (is (some? (:schema_version classification)))))
+
+(deftest normalize-replay-extracts-bundle-root-v2-projections
+  (let [bundle {:bundle/schema-version "bundle-root.v2"
+                :overview {:results [{:scenario-id "v2-replay"
+                                      :outcome "pass"
+                                      :scenario-hash "abc"}]}
+                :run/scenario-results
+                [{:scenario-id "v2-replay"
+                  :outcome "pass"
+                  :replay-result {:scenario-id "v2-replay"
+                                  :events-processed 3
+                                  :trace [{:seq 0 :action "create_escrow" :result "ok"}
+                                          {:seq 1 :action "release_escrow" :result "ok"}
+                                          {:seq 2 :action "raise_dispute" :result "ok"}]
+                                  :metrics {:escrow-unrealized 0}
+                                  :world {:total-fees {"USDC" 1}}}}]}
+        normalized (extraction/normalize-replay bundle)]
+    (is (= "v2-replay" (:scenario-id normalized)))
+    (is (= 3 (:events-processed normalized)))
+    (is (= 3 (count (:trace normalized))))
+    (is (= {:total-fees {"USDC" 1}} (:world normalized)))
+    (is (= {:escrow-unrealized 0} (:metrics normalized)))))
+
+(deftest normalize-replay-reads-scenario-id-from-overview-for-persisted-v2
+  (let [bundle {:bundle/schema-version "bundle-root.v2"
+                :overview {:results [{:scenario-id "persisted-v2"
+                                      :outcome "fail"
+                                      :scenario-hash "def"}]}}
+        normalized (extraction/normalize-replay bundle)]
+    (is (= "persisted-v2" (:scenario-id normalized)))
+    (is (= "fail" (:outcome normalized)))))

@@ -2535,3 +2535,64 @@
                          :excludes (vec excludes)
                          :violations (vec all-violations)})))
       nil)))
+
+(defn intent-hash=
+  "Compare hash values with intent awareness.
+   Prevents accidental cross-intent hash comparison.
+
+   Each argument can be:
+   - A map with :hash/intent and :hash/hex keys (intent-aware)
+   - A string (legacy plain hex hash, intent-agnostic)
+
+   When both arguments have intent metadata and intents differ,
+   returns false. Use :allow-cross-intent? true to override.
+
+   Usage:
+     (intent-hash= result1 result2)
+     (intent-hash= result1 result2 {:allow-cross-intent? true})"
+  ([a b] (intent-hash= a b nil))
+  ([a b {:keys [allow-cross-intent?] :or {allow-cross-intent? false}}]
+   (let [a-intent (when (map? a) (:hash/intent a))
+         b-intent (when (map? b) (:hash/intent b))
+         a-hex    (if (map? a) (:hash/hex a) a)
+         b-hex    (if (map? b) (:hash/hex b) b)]
+     (if (and a-intent b-intent (not= a-intent b-intent) (not allow-cross-intent?))
+       false
+       (= a-hex b-hex)))))
+
+(defn hash-with-intent
+  "Compute a hash with an explicit intent declaration.
+
+   The intent map documents WHY this hash is being computed, what
+   projection (if any) is applied to the data, and what domain tag
+   separates the hash. This prevents accidental misuse, silent
+   semantic drift, and confusion during refactors.
+
+   When *validate-intent-constraints* is true, validates data against
+   the intent's :intent/excludes before hashing (enable in tests).
+
+   Usage:
+     (hash-with-intent {:hash/intent :world-structure} world-state)
+     (hash-with-intent {:hash/intent :evidence-record} evidence-data)
+     (hash-with-intent {:hash/intent :evidence-content} evidence-map)
+     (hash-with-intent {:hash/intent :manifest} manifest-data)
+
+   Returns a hex string (64 chars). For intent-aware comparison,
+   use intent-hash= or wrap the result:
+     {:hash/intent :evidence-record, :hash/hex (hash-with-intent ...)}
+
+   See hash-intents for all supported intents with their scope
+   and exclusion contracts."
+  [{:keys [hash/intent]} value]
+  (let [{:intent/keys [projection-fn domain-tag]} (resolve-intent intent)
+        flattened-fields (atom [])
+        projected (if (or (= projection-fn project-world-to-structure-view)
+                          (= projection-fn project-for-content-hash))
+                    (projection-fn value intent flattened-fields)
+                    (projection-fn value intent))]
+    (when *validate-intent-constraints*
+      (validate-intent-constraints! intent value))
+    (domain-hash domain-tag
+                 (if (= projection-fn project-world-to-structure-view)
+                   (dissoc projected :projection/flattened-fields)
+                   projected))))

@@ -29,6 +29,7 @@ cp "$PROJECT_DIR/scripts/verify-ef-review-packet.sh" "$OUTPUT_DIR/bin/verify-rev
 chmod +x "$OUTPUT_DIR/bin/verify-review-packet.sh"
 cp "$PROJECT_DIR/docs/review/EF_REVIEW_GUIDE.md" "$OUTPUT_DIR/docs/REVIEW_GUIDE.md"
 cp "$PROJECT_DIR/docs/review/SCENARIO_REVIEW_HIGHLIGHTS.md" "$OUTPUT_DIR/docs/SCENARIO_REVIEW_HIGHLIGHTS.md"
+cp "$PROJECT_DIR/docs/review/PACKET_LAYOUT.md" "$OUTPUT_DIR/docs/PACKET_LAYOUT.md"
 cp "$PROJECT_DIR/docs/benchmarks/BENCHMARK_ASSURANCE_SPEC_V1.md" "$OUTPUT_DIR/docs/BENCHMARK_ASSURANCE_SPEC_V1.md"
 cp "$PROJECT_DIR/docs/specs/SEW_CUSTODY_EXPOSURE_V1.md" \
    "$OUTPUT_DIR/docs/specs/SEW_CUSTODY_EXPOSURE_V1.md"
@@ -245,6 +246,7 @@ EOF
     inputs/test-vectors/pro-rata/liquidity-fulfillment-liquidity-equal-buckets-dust.json \
     docs/REVIEW_GUIDE.md \
     docs/SCENARIO_REVIEW_HIGHLIGHTS.md \
+    docs/PACKET_LAYOUT.md \
     docs/BENCHMARK_ASSURANCE_SPEC_V1.md \
     PROVENANCE.txt \
     REVIEW_PACKET_MANIFEST.json \

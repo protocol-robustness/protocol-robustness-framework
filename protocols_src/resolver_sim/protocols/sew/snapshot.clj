@@ -27,6 +27,7 @@
   #{:escrow-fee-bps :appeal-bond-protocol-fee-bps :yield-protocol-fee-bps
     :default-auto-release-delay :default-auto-cancel-delay
     :max-dispute-duration :appeal-window-duration :evidence-window-duration
+    :resolver-response-window
     :appeal-bond-bps :resolver-bond-bps :appeal-bond-amount
     :reversal-slash-bps :challenge-window-duration
     :challenge-bond-bps :challenge-bounty-bps})
@@ -63,9 +64,10 @@
            yield-generation-module yield-distribution-module incentive-module
            yield-module-id yield-profile yield-archetype escrow-modules
            yield-protocol-fee-bps appeal-bond-protocol-fee-bps escrow-fee-bps
-           default-auto-release-delay default-auto-cancel-delay
-           max-dispute-duration appeal-window-duration dispute-resolver
-           appeal-bond-bps resolver-bond-bps appeal-bond-amount
+            default-auto-release-delay default-auto-cancel-delay
+            max-dispute-duration appeal-window-duration dispute-resolver
+            resolver-response-window
+            appeal-bond-bps resolver-bond-bps appeal-bond-amount
             reversal-slash-bps reversal-detection-probability
             challenge-window-duration challenge-bond-bps challenge-bounty-bps
             evidence-window-duration]}]
@@ -86,6 +88,7 @@
    :default-auto-cancel-delay        (or default-auto-cancel-delay 0)
    :max-dispute-duration             (or max-dispute-duration 0)
    :appeal-window-duration           (or appeal-window-duration 0)
+   :resolver-response-window         (or resolver-response-window 0)
    :dispute-resolver                 dispute-resolver
    :appeal-bond-bps                  (or appeal-bond-bps 0)
    :resolver-bond-bps                (or resolver-bond-bps 0)
@@ -231,10 +234,11 @@
         {:keys [profile-id archetype module-id]}
         (yield-proto/resolve-yield-profile yield-id)
         snap (make-escrow-snapshot
-              {:escrow-fee-bps         (get pp :resolver-fee-bps 100)
+              {               :escrow-fee-bps         (get pp :resolver-fee-bps 100)
                :resolution-module            (get pp :resolution-module nil)
                :appeal-window-duration       (get pp :appeal-window-duration 0)
                :max-dispute-duration         (get pp :max-dispute-duration types/default-max-dispute-duration)
+               :resolver-response-window     (get pp :resolver-response-window 0)
                :appeal-bond-protocol-fee-bps (get pp :appeal-bond-protocol-fee-bps 0)
                :dispute-resolver             (get pp :dispute-resolver nil)
                :appeal-bond-bps              (get pp :appeal-bond-bps 0)
