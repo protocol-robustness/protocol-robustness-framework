@@ -1,4 +1,5 @@
-^{:nextjournal.clerk/dark-mode true}
+^{:nextjournal.clerk/visibility {:code :fold}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.yield-scenarios-workbench
   "Demo workbench for yield-provider JSON scenarios (workbench v2 visuals)."
   (:require [nextjournal.clerk :as clerk]

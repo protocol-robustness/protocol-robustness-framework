@@ -23,8 +23,8 @@
 ;; - `results/test-artifacts/coverage.json` — transition / threat-tag coverage
 ;; - Live: `resolver-sim.protocols.sew.invariant-runner/run-all` — in-process invariant suite
 
-;; Settings: default-code-visibility = :hide (hidden) or :show (visible)
-^{:nextjournal.clerk/visibility {:code :hide :result :show}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.dispute-resolution
   (:require [nextjournal.clerk :as clerk]
@@ -41,8 +41,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Notebook Configuration
 ;; ---------------------------------------------------------------------------
-
-(def default-code-visibility :fold)
 
 ;; ===========================================================================
 ;; Navigation

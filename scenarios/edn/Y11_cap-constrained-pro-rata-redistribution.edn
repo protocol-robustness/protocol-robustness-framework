@@ -20,7 +20,7 @@
           {:seq 4 :time 1200000 :agent "governance" :action "yield_withdraw_shared"
            :params {:token "USDC" :module-id "aave-v3" :owner-ids ["0xCarol" "0xAlice" "0xBob"]
                     :allocation-mode "pro-rata"
-                    :effective-caps {"0xAlice" 20 "0xBob" 30 "0xCarol" 10}}}]}
+                    :effective-caps {"0xAlice" 20 "0xBob" 30 "0xCarol" 10}}}]
  :expectations {:metrics [{:name "yield/positions-count" :value 3}
                           {:name "yield/total-principal" :value 100}
                           {:name "yield/focus-principal" :value 60}

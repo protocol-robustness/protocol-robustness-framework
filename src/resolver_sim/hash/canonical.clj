@@ -19,7 +19,7 @@
   (:require [clojure.edn :as edn]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(declare domain-hash)
+(declare domain-hash out-of-domain! strip-self-hash-fields)
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Type Tags (per Binary Encoding ABI)
@@ -189,7 +189,80 @@
    :round-lifecycle         "ROUND_LIFECYCLE_V1"
    :scenario-evidence-binding "SCENARIO_EVIDENCE_BINDING_V1"
    :allocation-activation   "ALLOCATION_ACTIVATION_V1"
-   :allocation-activation-policy "ALLOCATION_ACTIVATION_POLICY_V1"})
+   :allocation-activation-policy "ALLOCATION_ACTIVATION_POLICY_V1"
+   :confidence-composition-v1 "CONFIDENCE_COMPOSITION_V1"
+   :research-command-trace-v1 "RESEARCH_COMMAND_TRACE_V1"
+   :extension-envelope-shape-v1 "EXTENSION_ENVELOPE_SHAPE_V1"
+   :extension-lockfile-v1      "EXTENSION_LOCKFILE_V1"
+   :extension-resolution-v1    "EXTENSION_RESOLUTION_V1"
+   :extension-capability-descriptor-v1 "EXTENSION_CAPABILITY_DESCRIPTOR_V1"
+   :extension-package-manifest-v1     "EXTENSION_PACKAGE_MANIFEST_V1"
+   :benchmark-conservation-v1         "BENCHMARK_CONSERVATION_V1"
+   :benchmark-input-set-v1            "BENCHMARK_INPUT_SET_V1"
+   :benchmark-content-registry-v1     "BENCHMARK_CONTENT_REGISTRY_V1"
+   :benchmark-finalization-v1         "BENCHMARK_FINALIZATION_V1"
+   :suite-definition-v1               "SUITE_DEFINITION_V1"
+   :native-exact-replication-v1       "NATIVE_EXACT_REPLICATION_V1"
+   :conformance-reproduction-lineage-v1 "conformance.reproduction-lineage.v1"
+   :conformance-validator-implementation-v1 "conformance.validator-implementation.v1"
+   :evidence-package-admission-v1     "evidence-package-admission.v1"
+   :benchmark-execution-descriptor-v1 "BENCHMARK_EXECUTION_DESCRIPTOR_V1"
+   :benchmark-execution-parameters-v1 "BENCHMARK_EXECUTION_PARAMETERS_V1"
+   :benchmark-execution-protocol-config-v1 "BENCHMARK_EXECUTION_PROTOCOL_CONFIG_V1"
+   :claim-outcome-v1                  "CLAIM_OUTCOME_V1"
+   :community-attestation-v0          "COMMUNITY_ATTESTATION_V0"
+   :community-code-v0                 "COMMUNITY_CODE_V0"
+   :community-env-v0                  "COMMUNITY_ENV_V0"
+   :community-finding-v0              "COMMUNITY_FINDING_V0"
+   :community-mailbox-v0              "COMMUNITY_MAILBOX_V0"
+   :community-stable-result-v0        "COMMUNITY_STABLE_RESULT_V0"
+   :community-task-v0                 "COMMUNITY_TASK_V0"
+   :comparability-shared-v1           "COMPARABILITY_SHARED_V1"
+   :composition-combination-v1        "COMPOSITION_COMBINATION_V1"
+   :composition-contract-v1           "COMPOSITION_CONTRACT_V1"
+   :composition-plan-v1               "COMPOSITION_PLAN_V1"
+   :default-build-attestation-v1      "DEFAULT_BUILD_ATTESTATION_V1"
+   :default-build-smoke-output-v1     "DEFAULT_BUILD_SMOKE_OUTPUT_V1"
+   :deferral-v1                       "DEFERRAL_V1"
+   :evidence-graph-v1                 "EVIDENCE_GRAPH_V1"
+   :held-adjustment-v1                "HELD_ADJUSTMENT_V1"
+   :prf-artifact-publish-decision-v1  "PRF_ARTIFACT_PUBLISH_DECISION_V1"
+   :prf-artifact-publish-manifest-v1  "PRF_ARTIFACT_PUBLISH_MANIFEST_V1"
+   :prf-artifact-publish-request-v1   "PRF_ARTIFACT_PUBLISH_REQUEST_V1"
+   :prf-authorisation-instance-v1     "PRF_AUTHORISATION_INSTANCE_V1"
+   :prf-authorisation-provenance-v1   "PRF_AUTHORISATION_PROVENANCE_V1"
+   :prf-contract-schema-v1            "PRF_CONTRACT_SCHEMA_V1"
+   :prf-force-authorisation-policy-v1 "PRF_FORCE_AUTHORISATION_POLICY_V1"
+   :prf-release-attestation-payload-v1 "PRF_RELEASE_ATTESTATION_PAYLOAD_V1"
+   :prf-resubmission-issue-request-v1 "PRF_RESUBMISSION_ISSUE_REQUEST_V1"
+   :prf-sensitivity-sentinel-decision-v1 "PRF_SENSITIVITY_SENTINEL_DECISION_V1"
+   :prf-sensitivity-sentinel-projection-v1 "PRF_SENSITIVITY_SENTINEL_PROJECTION_V1"
+   :prf-sensitivity-sentinel-request-v1 "PRF_SENSITIVITY_SENTINEL_REQUEST_V1"
+   :prf-verdict-policy-v1             "PRF_VERDICT_POLICY_V1"
+   :pro-rata-evaluation-v1            "PRO_RATA_EVALUATION_V1"
+   :scenario-distribution-v1          "SCENARIO_DISTRIBUTION_V1"
+   :var-projection-v1                 "VAR_PROJECTION_V1"
+   :workflow-group-v1                 "WORKFLOW_GROUP_V1"
+   :workflow-group-member-v1          "WORKFLOW_GROUP_MEMBER_V1"
+   :conformance-bundle-v1             "conformance.bundle.v1"
+   :conformance-derivation-chain-v1   "conformance.derivation-chain.v1"
+   :conformance-profile-v1            "conformance.profile.v1"
+   :conformance-signature-verification-v1 "conformance.signature-verification.v1"
+   :conformance-subject-set-v1        "conformance.subject-set.v1"
+   :conformance-validation-subject-v1 "conformance.validation-subject.v1"
+   :force-authorisation-scope         "force-authorisation-scope"
+   :prf-attempt-disposition-v1        "prf.attempt-disposition.v1"
+   :prf-researcher-resubmission-v1    "prf.researcher-resubmission.v1"
+   :prf-resubmission-chain-state-v1   "prf.resubmission-chain-state.v1"
+   :prf-resubmission-family-v1        "prf.resubmission-family.v1"
+   :prf-resubmission-idempotency-v1   "prf.resubmission-idempotency.v1"
+   :prf-submission-attempt-receipt-v1 "prf.submission-attempt-receipt.v1"
+   :prf-submission-basis-v1           "prf.submission-basis.v1"
+   :prf-submission-bundle-v1          "prf.submission-bundle.v1"
+   :prf-transaction-effects-v1        "prf.transaction-effects.v1"
+   :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
+   :related-claims-member             "related-claims-member"
+   :withdrawal-ledger-v1              "withdrawal-ledger.v1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -275,6 +348,23 @@
         (let [ba (first bas)]
           (System/arraycopy ba 0 out idx (count ba))
           (recur (+ idx (count ba)) (rest bas)))))
+    out))
+
+(defn- ba-concat-all
+  "Concatenate a seq of byte-arrays into one byte-array in a single pass.
+   Unlike (apply ba-concat bas), this does not realize the full argument
+   sequence into an Object[] for the variadic apply, so very large flat
+   collections (many array/map elements) do not pay the arg-list materialization
+   cost.  Single allocation; each input is copied exactly once."
+  [bas]
+  (let [bas (seq bas)
+        total (reduce + 0 (map count bas))
+        out (byte-array total)]
+    (loop [idx 0, bas bas]
+      (when bas
+        (let [ba (first bas)]
+          (System/arraycopy ^bytes ba 0 out idx (count ba))
+          (recur (+ idx (count ba)) (next bas)))))
     out))
 
 (defn- ba-of
@@ -484,19 +574,10 @@
                        done))
 
               (instance? clojure.lang.IPersistentMap x)
-              (let [n (count x)
-                    pairs (mapv (fn [[k val]]
-                                  {:key-bytes (canonical-bytes k)
-                                   :val val})
-                                x)
-                    sorted (sort-by :key-bytes
-                                    (fn [^bytes a ^bytes b]
-                                      (neg? (byte-compare a b)))
-                                    pairs)
-                    key-bytes (mapv :key-bytes sorted)
-                    vals (mapv :val sorted)]
-                (recur (into (conj work [:map n key-bytes])
-                             (map (fn [val] [:encode val]) (reverse vals)))
+              (let [entries (into [] x)
+                    n (count entries)
+                    key-encodes (map (fn [e] [:encode (first e)]) (reverse entries))]
+                (recur (into (conj work [:map-keys n entries]) key-encodes)
                        done))
 
               :else
@@ -508,17 +589,35 @@
                 split (- (count done) n)
                 elems (subvec done split)
                 rest-done (subvec done 0 split)
-                combined (apply ba-concat (ba-of tag-array) (encode-varuint n) elems)]
+                combined (ba-concat-all (list* (ba-of tag-array) (encode-varuint n) elems))]
             (recur work (conj rest-done combined)))
 
-          :map
+          :map-keys
+          (let [n (nth task 1)
+                entries (nth task 2)
+                split (- (count done) n)
+                key-bytes (subvec done split)
+                rest-done (subvec done 0 split)
+                pairs (mapv (fn [e kb] {:key-bytes kb :val (second e)})
+                            entries key-bytes)
+                sorted (sort-by :key-bytes
+                                (fn [^bytes a ^bytes b]
+                                  (neg? (byte-compare a b)))
+                                pairs)
+                sorted-keys (mapv :key-bytes sorted)
+                val-encodes (map (fn [v] [:encode v])
+                                 (reverse (mapv :val sorted)))]
+            (recur (into (conj work [:map-combine n sorted-keys]) val-encodes)
+                   rest-done))
+
+          :map-combine
           (let [n (nth task 1)
                 key-bytes (nth task 2)
                 split (- (count done) n)
                 val-bytes (subvec done split)
                 rest-done (subvec done 0 split)
                 elements (mapcat (fn [kb vb] [kb vb]) key-bytes val-bytes)
-                combined (apply ba-concat (ba-of tag-map) (encode-varuint n) elements)]
+                combined (ba-concat-all (list* (ba-of tag-map) (encode-varuint n) elements))]
             (recur work (conj rest-done combined))))))))
 
 (defn canonical-bytes-hex
@@ -591,7 +690,7 @@
               (instance? java.time.temporal.TemporalAccessor x)
               (str x)
               (set? x) (vec (sort-by canonical-bytes-hex (map walk x)))
-              (map? x) (into {} (map (fn [[k val]] [k (walk val)]) x))
+              (map? x) (into {} (map (fn [[k val]] [(walk k) (walk val)]) x))
               (vector? x) (mapv walk x)
               (sequential? x) (mapv walk x)
               :else x))]
@@ -607,6 +706,30 @@
    compatibility with the projection-fn calling convention."
   [x & _]
   x)
+
+(defn project-self-hash-stripped
+  "Cancel root-level self-hash keys (see self-hash-keys) and pass everything
+   else through unchanged.  Used by intents that declare a self-hash exclusion
+   but whose payload carries no other projection need.  Cancellation is
+   root-level only; nested self-hash keys are ordinary content."
+  [value _intent]
+  (strip-self-hash-fields value))
+
+(defn project-canonical-safe
+  "Deep-project a value into canonical-safe form for canonical encoding: sets →
+   sorted vectors (by string representation), maps and sequential values
+   recursed, all other values passed through unchanged.
+
+   This is the identity projection on canonical-safe values (nil, boolean,
+   integer, string, keyword, vector, map), so existing commitments are
+   byte-unchanged; set- and seq-bearing bodies that could not previously be
+   hashed become content-addressable.  Map keys are preserved as-is.  Idempotent."
+  [v]
+  (cond
+    (set? v) (vec (sort-by str v))
+    (map? v) (into {} (map (fn [[k vv]] [k (project-canonical-safe vv)]) v))
+    (sequential? v) (mapv project-canonical-safe v)
+    :else v))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; World State Projection
@@ -734,7 +857,9 @@
                   {:type :fn})
               ;; Vector — recurse elements
               (vector? x) (mapv #(walk % (conj path [:vector %2])) x (range))
-              ;; Map — recurse keys and values; ordering at encode time
+              ;; Map — recurse keys and values; ordering at encode time.
+              ;; The strict encoder now encodes map keys as full canonical values,
+              ;; so composite keys (structured ids) survive the projection as-is.
               (map? x)
               (persistent!
                (reduce-kv (fn [m k v]
@@ -913,12 +1038,16 @@
 (def ^:private self-hash-keys
   "Keys that hold the hash of the artifact currently being hashed.
 
-   These keys are stripped before canonical hashing so an artifact does not
-   recursively commit to its own attached hash.
+   These keys are cancelled (stripped) before canonical hashing so an artifact
+   does not recursively commit to its own attached hash.  Cancellation is a
+   ROOT-LEVEL contract: only a self-hash key at the top level of the hashed
+   value is stripped; a nested occurrence is ordinary content and is preserved.
 
    Do not add reference hashes here. A reference hash commits to another
    artifact or contextual component and is part of the current artifact's
-   identity.
+   identity.  In particular, the bare :hash key is NOT listed: :hash is
+   context-dependent and must be excluded per-intent when it is a self-hash
+   (see :action), per HASH_INTENT_REGISTRY_SPEC_V1 §2.6.
 
    Examples:
    - self hash:      :node-hash on an evidence node
@@ -926,20 +1055,18 @@
    - reference hash: :action-hash on an evidence record
    - reference hash: :before-hash / :after-hash on a transition record
    - reference hash: :action-hash inside an :action-at projection
+   - reference hash: :prev-hash / :cursor/final-self-hash on an evidence chain
 
    Per HASH_INTENT_REGISTRY_SPEC_V1 §2.6: only self-hashes are stripped.
    Reference hashes are part of the canonical content because they commit
    the artifact to other artifacts, actions, worlds, claims, attestations,
    registries, or execution contexts."
   #{:canonical-hash
-    :hash
     :intent-hash
     :registry-hash
     :projection-hash
     :allocation-result-hash
     :self-hash
-    :chain/self-hash
-    :evidence/self-hash
     :node-hash})
 
 (defn- stable-symbol-name
@@ -1214,6 +1341,7 @@
             (throw (ex-info "Action must have :action/type"
                             {:value value})))
         artifact (-> value
+                     (dissoc :hash)   ; intent-specific: bare :hash is a self-hash on actions (§2.6)
                      strip-self-hash-fields
                      project-canonical-artifact-value)]
     {:intent intent
@@ -1248,6 +1376,173 @@
         sorted (into (sorted-map) (map (fn [[k v]] [(str k) (str v)]) files))]
     {:intent intent
      :stability/files sorted}))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Bounty / with-bounty projections (single source of truth for hashing)
+;; ──────────────────────────────────────────────────────────────────────────────
+;; The with-bounty artifacts (bounty-payable.v1, bounty-payable-backing.v1,
+;; and the ADR-0006 with-bounty composition artifacts) are content-addressed
+;; through these projections.  The economics namespaces delegate their
+;; domain-hash call sites here so intent-based hashing (hash-with-intent),
+;; direct domain-hash, and committed artifact roots can never drift.
+
+(def with-bounty-policy-defaults
+  "Stage A defaults for a with-bounty policy (mirror of
+   resolver-sim.economics.with-bounty.policy/default-policy)."
+  {:composition/type :economics/with-bounty
+   :composition/version 1
+   :bounty/on-ineligible :skip
+   :bounty/on-calculation-failure :abort-bounty
+   :bounty/on-unsupported-effect :abort-before-mutation
+   :bounty/failure-mode :base-independent})
+
+(defn project-bounty-payable
+  "Canonical projection of a bounty-payable.v1 artifact: the committed payable
+   identity fields, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value
+                [:schema-version
+                 :payable/id
+                 :payable/distribution-root
+                 :payable/award-id
+                 :payable/beneficiary
+                 :payable/amount
+                 :payable/kind
+                 :payable/lifecycle
+                 :payable/evidence-references
+                 :payable/context])))
+
+(defn project-bounty-payable-backing
+  "Canonical projection of a bounty-payable-backing.v1 artifact: the committed
+   backing identity fields, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value
+                [:schema-version
+                 :backing/id
+                 :backing/payable-root
+                 :backing/payable-id
+                 :backing/distribution-root
+                 :backing/amount
+                 :backing/source-allocations
+                 :backing/kind
+                 :backing/lifecycle
+                 :backing/context])))
+
+(defn project-with-bounty-policy
+  "Canonical projection of a with-bounty policy: the normalised policy (defaults
+   filled in) so identical authored policies with omitted defaults hash
+   identically.  Matches normalize-with-bounty-policy exactly."
+  [value _intent]
+  (merge with-bounty-policy-defaults (or value {})))
+
+(defn project-with-bounty-obligation
+  "Versioned projection of a with-bounty obligation identity:
+     [:bounty-payable operation-root bounty-id recipient token amount policy-root]"
+  [{:keys [operation-root bounty-id recipient token amount policy-root]} _intent]
+  [:bounty-payable operation-root bounty-id recipient token amount policy-root])
+
+(defn project-with-bounty-invocation
+  "Versioned projection of a with-bounty step invocation identity:
+     [policy-root step-id index capability-ref]"
+  [value _intent]
+  [(:policy-root value) (:step/id value) (:index value) (:capability/ref value)])
+
+(defn project-with-bounty-effect
+  "Canonical projection of a single with-bounty effect, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe value))
+
+(defn project-with-bounty-effect-set
+  "Canonical projection of a with-bounty effect set: the ordered effect roots
+   bound under a (possibly nil) base plan root."
+  [[base-plan-root effect-roots] _intent]
+  [base-plan-root (vec effect-roots)])
+
+(def with-bounty-plan-projection-fields
+  "Committed fields of a with-bounty-application-plan.v1 identity."
+  [:schema-version
+   :plan/policy-root
+   :plan/base-operation-root
+   :plan/base-result-root
+   :plan/base-plan-root
+   :plan/extensions-resolution-root
+   :plan/adapter
+   :plan/effects
+   :plan/effect-roots
+   :plan/combined-effect-root
+   :plan/effect-schema-roots
+   :plan/declared-maximum
+   :plan/funding-available
+   :plan/obligation-id
+   :plan/no-duplicate-creation-key
+   :plan/preconditions
+   :plan/idempotency-key
+   :plan/context])
+
+(defn project-with-bounty-application-plan
+  "Canonical projection of a with-bounty-application-plan.v1: the committed plan
+   fields, projected canonical-safe (sets → sorted vectors)."
+  [value _intent]
+  (project-canonical-safe (select-keys value with-bounty-plan-projection-fields)))
+
+(def with-bounty-transition-evidence-fields
+  "Committed fields of a with-bounty transition evidence identity."
+  [:transition/type
+   :plan/root
+   :effect-root
+   :combined-effect-root
+   :world-before-root
+   :world-after-root
+   :payable/roots
+   :backing/roots
+   :custody/adjustment-roots
+   :idempotent?
+   :context])
+
+(defn project-with-bounty-transition-evidence
+  "Canonical projection of a with-bounty transition evidence record, projected
+   canonical-safe."
+  [value _intent]
+  (project-canonical-safe (select-keys value with-bounty-transition-evidence-fields)))
+
+(def with-bounty-verification-basis-fields
+  "Committed fields of a with-bounty-verification-basis.v1 identity."
+  [:schema-version
+   :basis/subject-root
+   :basis/package-root
+   :basis/artifact-root
+   :basis/verification-contract
+   :basis/verification-contract-version
+   :basis/entrypoint
+   :basis/invocation-parameters
+   :basis/dependency-lockfile-root
+   :basis/runtime-root
+   :basis/environment-root
+   :basis/vector-set-root
+   :basis/resource-limit-profile
+   :basis/expected-public-result-schema
+   :basis/classification-policy-root])
+
+(defn project-with-bounty-verification-basis
+  "Canonical projection of a with-bounty-verification-basis.v1 artifact, projected
+   canonical-safe."
+  [value _intent]
+  (project-canonical-safe (select-keys value with-bounty-verification-basis-fields)))
+
+(defn project-with-bounty-public-result
+  "Canonical public-result projection of a with-bounty evaluation result.
+   Excludes replay inputs, invocation evidence, and plan/effect payloads —
+   only the committed public roots and the classification remain."
+  [{:keys [status receipt]} _intent]
+  {:status status
+   :composition/policy-root (get-in receipt [:composition/policy-root])
+   :composition/base-operation-root (get-in receipt [:composition/base-operation-root])
+   :extensions/resolution-root (get-in receipt [:extensions/resolution-root])
+   :bounty/obligation-id (get-in receipt [:bounty/obligation-id])
+   :bounty/effect-root (get-in receipt [:bounty/effect-root])
+   :bounty/application-plan-root (get-in receipt [:bounty/application-plan-root])})
 
 (def hash-intents
   "Map of hash intent keywords to their Intent Registry Contracts.
@@ -1302,7 +1597,8 @@
     :intent/domain-tag  "EVIDENCE_CHAIN_V1"
     :intent/description "Evidence chain linking structure for audit trails"
     :intent/includes    #{:chain-links :registry-structure :prev-hash
-                          :chain-seq :self-hash}
+                          :chain-seq :cursor/final-self-hash
+                          :evidence/chain-self-hash}
     :intent/excludes    #{:artifact-content :evidence-payload :timestamps}
     :intent/projection-fn project-identity
     :intent/version     1}
@@ -1340,7 +1636,7 @@
     :intent/description "Canonical payload identity for evidence-finalization.v2"
     :intent/includes    #{:finalization-envelope}
     :intent/excludes    #{:artifact-id :self-hash :signatures :timestamps}
-    :intent/projection-fn project-identity
+    :intent/projection-fn project-self-hash-stripped
     :intent/version     2}
 
    :runner-finalization
@@ -1837,6 +2133,163 @@
     :intent/includes    #{:mode :deferred-policy :haircut-policy :treatment :priority}
     :intent/excludes    #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :bounty-payable-v1
+   {:intent/name        :bounty-payable-v1
+    :intent/domain-tag  "BOUNTY_PAYABLE_V1"
+    :intent/description "Content-addressed root of a bounty-payable.v1 artifact: the committed payable identity"
+    :intent/includes    #{:schema-version :payable/id :payable/distribution-root
+                          :payable/award-id :payable/beneficiary :payable/amount
+                          :payable/kind :payable/lifecycle
+                          :payable/evidence-references :payable/context}
+    :intent/excludes    #{:payable/hash :runtime-values :functions}
+    :intent/projection-fn project-bounty-payable
+    :intent/version     1}
+
+   :bounty-payable-backing-v1
+   {:intent/name        :bounty-payable-backing-v1
+    :intent/domain-tag  "BOUNTY_PAYABLE_BACKING_V1"
+    :intent/description "Content-addressed root of a bounty-payable-backing.v1 artifact: the committed backing identity"
+    :intent/includes    #{:schema-version :backing/id :backing/payable-root
+                          :backing/payable-id :backing/distribution-root
+                          :backing/amount :backing/source-allocations
+                          :backing/kind :backing/lifecycle :backing/context}
+    :intent/excludes    #{:backing/hash :runtime-values :functions}
+    :intent/projection-fn project-bounty-payable-backing
+    :intent/version     1}
+
+   :with-bounty-policy-v1
+   {:intent/name        :with-bounty-policy-v1
+    :intent/domain-tag  "WITH_BOUNTY_POLICY_V1"
+    :intent/description "Content-addressed root of a normalised with-bounty policy: the declared contract of a with-bounty composition"
+    :intent/includes    #{:composition/type :composition/version
+                          :bounty/on-ineligible :bounty/on-calculation-failure
+                          :bounty/on-unsupported-effect :bounty/failure-mode
+                          :base :bounty}
+    :intent/excludes    #{:policy/root :runtime-values :functions}
+    :intent/projection-fn project-with-bounty-policy
+    :intent/version     1}
+
+   :with-bounty-invocation-v1
+   {:intent/name        :with-bounty-invocation-v1
+    :intent/domain-tag  "WITH_BOUNTY_INVOCATION_V1"
+    :intent/description "Deterministic identity of one with-bounty step invocation (eligibility or amount)"
+    :intent/includes    #{:policy-root :step/id :index :capability/ref}
+    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/projection-fn project-with-bounty-invocation
+    :intent/version     1}
+
+   :with-bounty-obligation-v1
+   {:intent/name        :with-bounty-obligation-v1
+    :intent/domain-tag  "WITH_BOUNTY_OBLIGATION_V1"
+    :intent/description "Deterministic obligation identity of a with-bounty payable"
+    :intent/includes    #{:operation-root :bounty-id :recipient :token :amount :policy-root}
+    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/projection-fn project-with-bounty-obligation
+    :intent/version     1}
+
+   :with-bounty-effect-v1
+   {:intent/name        :with-bounty-effect-v1
+    :intent/domain-tag  "WITH_BOUNTY_EFFECT_V1"
+    :intent/description "Content-addressed root of a single validated with-bounty effect"
+    :intent/includes    #{:effect/contract :effect/kind :effect/params}
+    :intent/excludes    #{:effect/root :runtime-values :functions}
+    :intent/projection-fn project-with-bounty-effect
+    :intent/version     1}
+
+   :with-bounty-effect-set-v1
+   {:intent/name        :with-bounty-effect-set-v1
+    :intent/domain-tag  "WITH_BOUNTY_EFFECT_SET_V1"
+    :intent/description "Combined with-bounty effect-set root: base plan root plus the ordered effect roots"
+    :intent/includes    #{:base-plan-root :effect-roots}
+    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/projection-fn project-with-bounty-effect-set
+    :intent/version     1}
+
+   :with-bounty-application-plan-v1
+   {:intent/name        :with-bounty-application-plan-v1
+    :intent/domain-tag  "WITH_BOUNTY_APPLICATION_PLAN_V1"
+    :intent/description "Content-addressed root of a with-bounty application plan committing creation preconditions and the combined effect set"
+    :intent/includes    #{:schema-version :plan/policy-root :plan/base-operation-root
+                          :plan/base-result-root :plan/base-plan-root
+                          :plan/extensions-resolution-root :plan/adapter
+                          :plan/effects :plan/effect-roots
+                          :plan/combined-effect-root :plan/effect-schema-roots
+                          :plan/declared-maximum :plan/funding-available
+                          :plan/obligation-id :plan/no-duplicate-creation-key
+                          :plan/preconditions :plan/idempotency-key :plan/context}
+    :intent/excludes    #{:plan/hash :runtime-values :functions}
+    :intent/projection-fn project-with-bounty-application-plan
+    :intent/version     1}
+
+   :with-bounty-transition-evidence-v1
+   {:intent/name        :with-bounty-transition-evidence-v1
+    :intent/domain-tag  "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"
+    :intent/description "Content-addressed transition evidence binding a with-bounty application plan to the resulting protocol transition"
+    :intent/includes    #{:transition/type :plan/root :effect-root
+                          :combined-effect-root :world-before-root
+                          :world-after-root :payable/roots :backing/roots
+                          :custody/adjustment-roots :idempotent? :context}
+    :intent/excludes    #{:transition/hash :runtime-values :functions}
+    :intent/projection-fn project-with-bounty-transition-evidence
+    :intent/version     1}
+
+   :with-bounty-verification-basis-v1
+   {:intent/name        :with-bounty-verification-basis-v1
+    :intent/domain-tag  "WITH_BOUNTY_VERIFICATION_BASIS_V1"
+    :intent/description "Content-addressed root of a with-bounty verification basis: exactly what a verifier evaluated"
+    :intent/includes    #{:schema-version :basis/subject-root :basis/package-root
+                          :basis/artifact-root :basis/verification-contract
+                          :basis/verification-contract-version :basis/entrypoint
+                          :basis/invocation-parameters
+                          :basis/dependency-lockfile-root :basis/runtime-root
+                          :basis/environment-root :basis/vector-set-root
+                          :basis/resource-limit-profile
+                          :basis/expected-public-result-schema
+                          :basis/classification-policy-root}
+    :intent/excludes    #{:basis/root :runtime-values :functions}
+    :intent/projection-fn project-with-bounty-verification-basis
+    :intent/version     1}
+
+   :with-bounty-public-result-v1
+   {:intent/name        :with-bounty-public-result-v1
+    :intent/domain-tag  "WITH_BOUNTY_PUBLIC_RESULT_V1"
+    :intent/description "Canonical public-result root of a with-bounty evaluation for verifier comparison"
+    :intent/includes    #{:status :composition/policy-root
+                          :composition/base-operation-root
+                          :extensions/resolution-root :bounty/obligation-id
+                          :bounty/effect-root :bounty/application-plan-root}
+    :intent/excludes    #{:replay/inputs :invocation-evidence :diagnostics}
+    :intent/projection-fn project-with-bounty-public-result
+    :intent/version     1}
+
+   :confidence-composition-v1
+   {:intent/name        :confidence-composition-v1
+    :intent/domain-tag  "CONFIDENCE_COMPOSITION_V1"
+    :intent/description "Hash-bound consecutive concatenation of confidence components bound to a :purpose (canonical-value-sequence.v1 contract)"
+    :intent/includes    #{:encoding-contract :purpose :component-count :components}
+    :intent/excludes    #{:timestamps :runtime-values :functions}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :research-command-trace-v1
+   {:intent/name        :research-command-trace-v1
+    :intent/domain-tag  "RESEARCH_COMMAND_TRACE_V1"
+    :intent/description "Legacy research-command trace root (v1, DEPRECATED — use research-command-trace-v2 / bound-sequence)"
+    :intent/includes    #{:command-id :commands}
+    :intent/excludes    #{:timestamps :runtime-values :functions}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :research-command-trace-v2
+   {:intent/name        :research-command-trace-v2
+    :intent/domain-tag  "RESEARCH_COMMAND_TRACE_V2"
+    :intent/description "Research-command-trace.v2 root over a canonical-value-sequence.v1 commitment with an explicit :purpose"
+    :intent/includes    #{:trace/schema-version :trace/purpose :trace/component-count
+                          :trace/components}
+    :intent/excludes    #{:trace/root :timestamps :runtime-values :functions}
+    :intent/projection-fn project-identity
     :intent/version     1}})
 
 (defn resolve-intent
@@ -1849,6 +2302,24 @@
       (throw (ex-info "Unknown hash intent"
                       {:intent intent-kw
                        :known  (vec (keys hash-intents))}))))
+
+(defn- validate-prefix-free-domain-tags!
+  "Fail closed when the domain-tag set violates the consecutive-concatenation
+   framing requirement: no tag may be a strict prefix of another.  Because
+   domain-hash concatenates DOMAIN_TAG || CANONICAL_BYTES without a length
+   frame, a prefix relationship is the only way two distinct (tag, value)
+   pairs can collide on the concatenated byte stream.  Returns nil when
+   prefix-free, throws ex-info otherwise."
+  [tags]
+  (doseq [t tags]
+    (doseq [t2 tags]
+      (when (and (not= t t2)
+                 (or (and (< (count t) (count t2)) (.startsWith t2 t))
+                     (and (< (count t2) (count t)) (.startsWith t t2))))
+        (throw (ex-info "Domain tags must be prefix-free: one domain tag is a strict prefix of another"
+                        {:shorter (if (< (count t) (count t2)) t t2)
+                         :longer  (if (< (count t) (count t2)) t2 t)
+                         :guidance "domain-hash concatenates DOMAIN_TAG || CANONICAL_BYTES without a length frame; a prefix relationship makes the boundary ambiguous"}))))))
 
 (defn validate-registry!
   "Validate the intent registry against INTENT_REGISTRY_SPEC_V1.
@@ -1881,7 +2352,8 @@
                         {:intent kw :intent/name (:intent/name contract)})))
       (let [validation-samples
             {:action "test-action"
-             :action-at {:action-hash "test-hash" :step 1 :block-time 100}}
+             :action-at {:action-hash "test-hash" :step 1 :block-time 100}
+             :with-bounty-effect-set-v1 ["plan-root" ["effect-root-1" "effect-root-2"]]}
             sample (get validation-samples kw {:sample [:a :b] :n 1})
             projection-a ((:intent/projection-fn contract) sample kw)
             projection-b ((:intent/projection-fn contract) sample kw)]
@@ -1901,7 +2373,27 @@
         (when-not ((set (vals domain-tags)) (:intent/domain-tag contract))
           (throw (ex-info "Intent domain tag must be registered in domain-tags"
                           {:intent kw
-                           :domain-tag (:intent/domain-tag contract)})))))
+                           :domain-tag (:intent/domain-tag contract)})))
+        ;; Self-hash exclusion cross-check (HASH_INTENT_REGISTRY_SPEC_V1 §2.6):
+        ;; every self-hash key declared in :intent/excludes MUST be absent from
+        ;; the projection output, so the exclusion is structural, not merely
+        ;; declarative — this catches drift even though validate-intent-constraints!
+        ;; is off in production.
+        (let [excluded-self-hashes (keep #(when (self-hash-keys %) %)
+                                         (:intent/excludes contract))]
+          (when (seq excluded-self-hashes)
+            (let [base (if (map? sample) sample {:sample [:a :b] :n 1})
+                  base (if (= kw :action) (assoc base :action/type "test-action") base)
+                  self-hash-sample (reduce (fn [m k] (assoc m k "self-hash-sentinel"))
+                                           base excluded-self-hashes)
+                  projected-self-hash ((:intent/projection-fn contract)
+                                       self-hash-sample kw)]
+              (doseq [k excluded-self-hashes]
+                (when (contains? projected-self-hash k)
+                  (throw (ex-info "Intent declares a self-hash exclusion its projection does not implement"
+                                  {:intent kw
+                                   :self-hash-key k
+                                   :guidance "per HASH_INTENT_REGISTRY_SPEC_V1 §2.6 the exclusion must be structural (select-keys / strip-self-hash-fields), not declarative"})))))))))
     (let [tag->intents (reduce-kv (fn [acc kw contract]
                                     (update acc (:intent/domain-tag contract) (fnil conj []) kw))
                                   {}
@@ -1910,6 +2402,14 @@
         (when (< 1 (count intents))
           (throw (ex-info "Intent domain tags must be unique"
                           {:domain-tag tag :intents intents})))))
+    ;; Consecutive-concatenation framing requirement (CANONICAL_HASH_SPEC_V1 §2):
+    ;; domain-hash is SHA256(DOMAIN_TAG || CANONICAL_BYTES) with no length frame
+    ;; on the tag.  For that concatenation to be byte-unambiguous across domains,
+    ;; no domain tag may be a strict prefix of another — a prefix relationship is
+    ;; the ONLY way two distinct (tag, canonical-bytes) pairs can produce the same
+    ;; concatenated stream.  This is enforced here so a future tag cannot silently
+    ;; introduce cross-domain collision ambiguity.
+    (validate-prefix-free-domain-tags! (set (vals domain-tags)))
     nil))
 
 (def ^:private registry-startup-validation
@@ -1988,12 +2488,8 @@
                              "root map contains :evidence/timestamp"))
    :hash-fields    (fn [v]
                      (when (and (map? v)
-                                (some (fn [k]
-                                        (or (contains? self-hash-keys k)
-                                            (when (or (keyword? k) (string? k))
-                                              (boolean (re-find #"-hash$" (name k))))))
-                                      (keys v)))
-                       "map contains hash-like keys"))
+                                (some self-hash-keys (keys v)))
+                       "map contains a self-hash key at root"))
    :chain-metadata (fn [v]
                      (when (and (map? v)
                                 (some #(re-find #"^evidence/chain-" (name %))
@@ -2020,82 +2516,22 @@
         violations (volatile! [])]
     ;; Tree-walk type checks
     (let [type-preds (keep #(when-let [c (get exclude-type-checkers %)]
-                              [% c])
-                           excludes)]
-      (doseq [[exclude pred] type-preds
-              v (walk-for-excludes [pred] value)]
-        (vswap! violations conj {:exclude exclude :detail (:detail v)})))
-    ;; Root-level structural checks
-    (doseq [exclude excludes
-            :let [checker (get exclude-root-checkers exclude)]
-            :when checker
-            :let [violation (checker value)]
-            :when violation]
-      (vswap! violations conj {:exclude exclude :detail violation}))
-    (when (seq @violations)
-      (throw (ex-info (str "Intent " intent-kw " constraints violated: "
-                           (pr-str (mapv :detail @violations)))
-                      {:intent intent-kw
-                       :violations @violations
-                       :value (try (subs (pr-str value) 0 200) (catch Exception _ "<unprintable>"))})))))
-
-(defn intent-hash=
-  "Compare hash values with intent awareness.
-   Prevents accidental cross-intent hash comparison.
-
-   Each argument can be:
-   - A map with :hash/intent and :hash/hex keys (intent-aware)
-   - A string (legacy plain hex hash, intent-agnostic)
-
-   When both arguments have intent metadata and intents differ,
-   returns false. Use :allow-cross-intent? true to override.
-
-   Usage:
-     (intent-hash= result1 result2)
-     (intent-hash= result1 result2 {:allow-cross-intent? true})"
-  ([a b] (intent-hash= a b nil))
-  ([a b {:keys [allow-cross-intent?] :or {allow-cross-intent? false}}]
-   (let [a-intent (when (map? a) (:hash/intent a))
-         b-intent (when (map? b) (:hash/intent b))
-         a-hex    (if (map? a) (:hash/hex a) a)
-         b-hex    (if (map? b) (:hash/hex b) b)]
-     (if (and a-intent b-intent (not= a-intent b-intent) (not allow-cross-intent?))
-       false
-       (= a-hex b-hex)))))
-
-(defn hash-with-intent
-  "Compute a hash with an explicit intent declaration.
-
-   The intent map documents WHY this hash is being computed, what
-   projection (if any) is applied to the data, and what domain tag
-   separates the hash. This prevents accidental misuse, silent
-   semantic drift, and confusion during refactors.
-
-   When *validate-intent-constraints* is true, validates data against
-   the intent's :intent/excludes before hashing (enable in tests).
-
-   Usage:
-     (hash-with-intent {:hash/intent :world-structure} world-state)
-     (hash-with-intent {:hash/intent :evidence-record} evidence-data)
-     (hash-with-intent {:hash/intent :evidence-content} evidence-map)
-     (hash-with-intent {:hash/intent :manifest} manifest-data)
-
-   Returns a hex string (64 chars). For intent-aware comparison,
-   use intent-hash= or wrap the result:
-     {:hash/intent :evidence-record, :hash/hex (hash-with-intent ...)}
-
-   See hash-intents for all supported intents with their scope
-   and exclusion contracts."
-  [{:keys [hash/intent]} value]
-  (let [{:intent/keys [projection-fn domain-tag]} (resolve-intent intent)
-        flattened-fields (atom [])
-        projected (if (or (= projection-fn project-world-to-structure-view)
-                          (= projection-fn project-for-content-hash))
-                    (projection-fn value intent flattened-fields)
-                    (projection-fn value intent))
-        hash-value (if (= projection-fn project-world-to-structure-view)
-                     (dissoc projected :projection/flattened-fields)
-                     projected)]
-    (when *validate-intent-constraints*
-      (validate-intent-constraints! intent value))
-    (domain-hash domain-tag hash-value)))
+                              c)
+                           excludes)
+          type-violations (walk-for-excludes (vec type-preds) value)
+          root-checkers (keep (fn [cat]
+                                (when-let [c (get exclude-root-checkers cat)]
+                                  [cat c]))
+                              excludes)
+          root-violations (into []
+                                (keep (fn [[cat checker]]
+                                        (when-let [msg (checker value)]
+                                          {:category cat :detail msg}))
+                                      root-checkers))
+          all-violations (concat type-violations root-violations)]
+      (when (seq all-violations)
+        (throw (ex-info "Intent constraint violation"
+                        {:intent intent-kw
+                         :excludes (vec excludes)
+                         :violations (vec all-violations)})))
+      nil)))

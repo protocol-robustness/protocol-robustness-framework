@@ -1,5 +1,6 @@
 (ns notebooks.pro-rata-allocation-result
-  {:nextjournal.clerk/visibility {:code :fold :result :show}
+  {:nextjournal.clerk/toc true
+   :nextjournal.clerk/visibility {:code :fold :result :show}
    :nextjournal.clerk/dark-mode true}
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]

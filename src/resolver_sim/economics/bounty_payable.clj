@@ -18,24 +18,15 @@
 
 ;; ── hash projection ─────────────────────────────────────────────────────────
 
-(defn payable-hash-projection
-  [payable]
-  (select-keys payable
-               [:schema-version
-                :payable/id
-                :payable/distribution-root
-                :payable/award-id
-                :payable/beneficiary
-                :payable/amount
-                :payable/kind
-                :payable/lifecycle
-                :payable/evidence-references
-                :payable/context]))
-
 (defn payable-hash
+  "Content-addressed root of a bounty-payable.v1 artifact.  The committed
+   identity fields are projected canonical-safe (single source of truth:
+   resolver-sim.hash.canonical/project-bounty-payable), so set- or
+   seq-bearing :payable/context / :payable/evidence-references hash
+   deterministically instead of failing the encoder."
   [payable]
   (hc/domain-hash :bounty-payable-v1
-                  (payable-hash-projection payable)))
+                  (hc/project-bounty-payable payable nil)))
 
 ;; ── builder ─────────────────────────────────────────────────────────────────
 

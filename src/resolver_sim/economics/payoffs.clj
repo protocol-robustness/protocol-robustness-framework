@@ -569,14 +569,31 @@
       (let [weight-total (reduce +' 0 (map #(non-negative-integer (weight-fn %)) active))]
         (cond
           (empty? active)
-          (let [allocations (allocations-in-input-order items id-fn (vals committed))
-                total-allocated (reduce +' 0 (map :allocated allocations))
-                ;; Every active item was committed at its cap. The residual was
+          (let [;; Every active item was committed at its cap. The residual was
                 ;; claimed by those caps but could not be satisfied, so it is
-                ;; unmet, not unallocatable remainder. Only report a
-                ;; redistribution when some pass left uncapped survivors (i.e.
-                ;; excess actually flowed between rounds); a single all-capped
-                ;; pass is not a redistribution.
+                ;; unmet, not unallocatable remainder. Attribute that shortfall
+                ;; to the committed rows pro-rata by weight (largest remainder)
+                ;; so per-row :unmet sums exactly to the aggregate shortfall and
+                ;; no obligation vanishes from the committed rows.
+                share-allocation (allocate-pro-rata
+                                  {:amount remaining
+                                   :items (vals committed)
+                                   :id-fn :id :weight-fn :weight
+                                   :cap-fn (constantly nil)
+                                   :rounding :floor-with-largest-remainder
+                                   :remainder-policy :unallocated
+                                   :ordering-policy ordering-policy
+                                   :on-progress observer})
+                unmet-by-id (into {} (map (juxt :id :allocated))
+                                  (:allocations share-allocation))
+                committed (into {} (map (fn [[id entry]]
+                                          [id (assoc entry :unmet (get unmet-by-id id 0))])
+                                        committed))
+                allocations (allocations-in-input-order items id-fn (vals committed))
+                total-allocated (reduce +' 0 (map :allocated allocations))
+                ;; Only report a redistribution when some pass left uncapped
+                ;; survivors (i.e. excess actually flowed between rounds); a
+                ;; single all-capped pass is not a redistribution.
                 redistributed? (some #(not= (:active-ids %) (:capped-ids %)) passes)]
             {:allocations allocations :total-requested amount
              :total-allocated total-allocated :total-unmet remaining :remainder 0

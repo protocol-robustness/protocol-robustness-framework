@@ -34,14 +34,16 @@
 ;; ── effect roots ──────────────────────────────────────────────────────────
 
 (defn effect-root
-  "Content-addressed root of a single validated effect."
+  "Content-addressed root of a single validated effect, projected canonical-safe
+   (single source of truth: resolver-sim.hash.canonical/project-with-bounty-effect)."
   [effect]
-  (hc/domain-hash effect-domain-tag effect))
+  (hc/domain-hash effect-domain-tag (hc/project-with-bounty-effect effect nil)))
 
 (defn- effect-set-root
   "Combined effect-set root: base plan root plus the ordered effect roots."
   [base-plan-root effect-roots]
-  (hc/domain-hash effect-set-domain-tag [base-plan-root (vec effect-roots)]))
+  (hc/domain-hash effect-set-domain-tag
+                  (hc/project-with-bounty-effect-set [base-plan-root (vec effect-roots)] nil)))
 
 ;; ── helpers ───────────────────────────────────────────────────────────────
 
@@ -120,44 +122,16 @@
 ;; ── plan identity ─────────────────────────────────────────────────────────
 
 (def plan-hash-projection-fields
-  [:schema-version
-   :plan/policy-root
-   :plan/base-operation-root
-   :plan/base-result-root
-   :plan/base-plan-root
-   :plan/extensions-resolution-root
-   :plan/adapter
-   :plan/effects
-   :plan/effect-roots
-   :plan/combined-effect-root
-   :plan/effect-schema-roots
-   :plan/declared-maximum
-   :plan/funding-available
-   :plan/obligation-id
-   :plan/no-duplicate-creation-key
-   :plan/preconditions
-   :plan/idempotency-key
-   :plan/context])
-
-(defn- project-canonical-safe
-  "Deep-project a value for canonical encoding: sets -> sorted vectors
-   (CANONICAL_HASH_SPEC_V1: sets are outside the canonical type domain and
-   must be projected to a sorted vector; this also makes plan hashes
-   deterministic across JVMs regardless of set iteration order)."
-  [v]
-  (cond
-    (set? v) (vec (sort-by str v))
-    (map? v) (into {} (map (fn [[k vv]] [k (project-canonical-safe vv)]) v))
-    (sequential? v) (mapv project-canonical-safe v)
-    :else v))
+  "Committed fields of a with-bounty-application-plan.v1 identity (single source
+   of truth: resolver-sim.hash.canonical/with-bounty-plan-projection-fields)."
+  hc/with-bounty-plan-projection-fields)
 
 (defn plan-hash
   "Content-addressed root of a with-bounty application plan. Sets are projected
    to sorted vectors before encoding (canonical-safe, deterministic)."
   [plan]
   (hc/domain-hash plan-domain-tag
-                  (project-canonical-safe
-                   (select-keys plan plan-hash-projection-fields))))
+                  (hc/project-with-bounty-application-plan plan nil)))
 
 ;; ── plan builder ──────────────────────────────────────────────────────────
 

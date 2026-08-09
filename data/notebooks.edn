@@ -438,6 +438,39 @@
    :protocol-areas [:evidence]
    :tags           ["canonical-hash" "framing" "prefix-free" "visualization" "conformance" "verification"]}
 
+  {:id             :researcher-interaction-topology
+   :path           "notebooks/researcher_interaction_topology.clj"
+   :title          "Researcher Interaction Topology"
+   :summary        "Integer-keyed researcher interaction topology for three-member research rounds: round-local member keys separate global identity from local interaction position, enabling compact consensus vectors, deterministic grouping, and cross-round isomorphism analysis."
+   :categories     [:replay-determinism :tooling]
+   :audience       [:reviewer :researcher]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:benchmark]
+   :tags           ["topology" "consensus" "research-round" "review-member" "isomorphism"]}
+
+  {:id             :allocation-activation
+   :path           "notebooks/allocation_activation.clj"
+   :title          "Allocation Activation v1 — Receipt, All-Active No-Churn, and the Prohibited Boundary"
+   :summary        "allocation-activation.v1 receipt: a passing all-active proof yields a valid :activated receipt with no hash churn; any rejected proof produces a :prohibited receipt that is never valid authorization — exact-capacity, forbidden-authorized (ineligible claimant), covered-fraction, and the receipt examination."
+   :categories     [:economic-analysis :replay-determinism]
+   :audience       [:reviewer :auditor :researcher]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:allocation]
+   :tags           ["allocation" "activation" "receipt" "all-active" "no-churn" "prohibited" "exact-capacity" "covered-fraction"]}
+
+  {:id             :authorization-chain
+   :path           "notebooks/authorization_chain.clj"
+   :title          "Authorization Chain — from allocation proof to bounty payout, with a visibility guarantee"
+   :summary        "One continuous provability pipeline: a decision is computed (allocate, all-active, exact-capacity), authorized (allocation-activation.v1 receipt, the prohibited boundary), attested (three-classifications-preserved review, threaded), and composed into a with-bounty payout over the authorized base result — every step a content-addressed root any verifier recomputes."
+   :categories     [:economic-analysis :evidence-artifacts :replay-determinism]
+   :audience       [:reviewer :auditor :researcher]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:allocation :review :with-bounty]
+   :tags           ["authorization" "chain" "allocation" "activation" "review" "three-classifications" "with-bounty" "visibility"]}
+
   ;; ── archived / migrated notebooks ──────────────────────────────────────────────
   {:id             :workbench-production
    :notebook/status :archived

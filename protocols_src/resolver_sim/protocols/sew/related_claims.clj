@@ -91,12 +91,18 @@
                      :relationship/creator-provenance (or creator-provenance {})}))
 
 (defn related-claims-hash-v3
-  "V3 canonical hash. Commits members, creator provenance, and semantics."
+  "V3 canonical hash. Commits members, creator provenance, and semantics.
+
+   `semantics` is a Clojure SET (e.g. #{:audit-only}) — legal as data, but the
+   canonical encoder REJECTS sets (:canonical/out-of-domain). It is projected
+   to a sorted vector before hashing. This was previously hashed raw, so the
+   V3 hash path always threw and no V3 artifact could ever have been committed;
+   projecting cannot invalidate anything."
   [members creator-provenance semantics]
   (hash/domain-hash related-claims-domain-v3
                     {:related-claims/schema-version "related-claims.v3"
                      :relationship/members (canonical-members members)
-                     :relationship/semantics semantics
+                     :relationship/semantics (vec (sort semantics))
                      :relationship/creator-provenance (or creator-provenance {})}))
 
 (defn related-claims-hash

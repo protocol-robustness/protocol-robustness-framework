@@ -47,14 +47,10 @@
 ;; ── defaults / normalisation ──────────────────────────────────────────────
 
 (defn default-policy
-  "Stage A defaults for a with-bounty policy."
+  "Stage A defaults for a with-bounty policy (single source of truth:
+   resolver-sim.hash.canonical/with-bounty-policy-defaults)."
   []
-  {:composition/type composition-type
-   :composition/version composition-version
-   :bounty/on-ineligible :skip
-   :bounty/on-calculation-failure :abort-bounty
-   :bounty/on-unsupported-effect :abort-before-mutation
-   :bounty/failure-mode :base-independent})
+  hc/with-bounty-policy-defaults)
 
 (defn normalize-with-bounty-policy
   "Fill defaults into an authored policy. The policy root commits the
@@ -208,6 +204,8 @@
 (defn with-bounty-policy-root
   "Content-addressed root of the normalised with-bounty policy. Replacing any
    capability, funding, recipient, effect-contract, or base reference changes
-   the root; map key ordering does not."
+   the root; map key ordering does not.  Projection is the single source of
+   truth in resolver-sim.hash.canonical/project-with-bounty-policy and is
+   byte-identical to normalize-with-bounty-policy."
   [policy]
-  (hc/domain-hash policy-domain-tag (normalize-with-bounty-policy policy)))
+  (hc/domain-hash policy-domain-tag (hc/project-with-bounty-policy policy nil)))

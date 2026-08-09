@@ -1132,6 +1132,40 @@
         (is (= (hc/hash-with-intent {:hash/intent intent} a)
                (hc/hash-with-intent {:hash/intent intent} b)))))))
 
+(deftest test-self-hash-cancellation-is-root-only
+  (testing "root-level self-hash keys are cancelled before hashing"
+    (let [proj (hc/project-self-hash-stripped {:a 1 :node-hash "self"} nil)]
+      (is (not (contains? proj :node-hash)))
+      (is (= 1 (:a proj)))))
+  (testing "nested self-hash keys are ordinary content (root-only contract)"
+    (let [nested {:a {:node-hash "nested"} :b 2}]
+      (is (= {:node-hash "nested"} (:a (hc/project-self-hash-stripped nested nil))))
+      (is (not= (hc/canonical-bytes-hex nested)
+                (hc/canonical-bytes-hex (assoc nested :node-hash "top")))
+          "a nested self-hash participates in the hash as content")))
+  (testing "evidence-finalization-v2 projection cancels a root self-hash"
+    (let [proj (hc/project-self-hash-stripped
+                {:scenario-id :s1 :head-hash "h" :self-hash "self"} nil)]
+      (is (not (contains? proj :self-hash)))
+      (is (= :s1 (:scenario-id proj)))
+      (is (= "h" (:head-hash proj)) "reference hashes are preserved")))
+  (testing "bare :hash is intent-excluded on actions, not globally stripped"
+    (is (= (hc/hash-with-intent {:hash/intent :action} {:action/type :release :hash "x"})
+           (hc/hash-with-intent {:hash/intent :action} {:action/type :release})))))
+
+(deftest test-hash-fields-checker-does-not-flag-reference-hashes
+  (testing "the :hash-fields checker flags only exact self-hash keys, never
+            -hash-suffixed reference keys (HASH_INTENT_REGISTRY_SPEC_V1 §2.6)"
+    (let [checker (get @#'hc/exclude-root-checkers :hash-fields)]
+      (is (nil? (checker {:action-hash "ref"
+                          :before-hash "ref"
+                          :after-hash "ref"
+                          :claim-definition-hash "ref"}))
+          "reference hashes must not be flagged")
+      (is (some? (checker {:node-hash "self"}))
+          "exact self-hash keys are flagged")
+      (is (nil? (checker {:a 1 :b 2})) "plain maps are not flagged"))))
+
 (deftest test-phase-1-identity-fields-affect-artifact-identity
   (let [fixture (:projection-artifact phase-1-projection-fixtures)
         changed (assoc fixture :projection-id "proj-2")]
@@ -1852,3 +1886,108 @@
     (is (not= (hc/domain-hash :allocation-context {:sample :value})
               (hc/domain-hash :claimant-set {:sample :value}))
         "Allocation domains must be domain-separated")))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Domain-tag framing (consecutive concatenation of DOMAIN_TAG || CANONICAL_BYTES)
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(defn- byte-prefix?
+  "True if the byte array `a` is a strict prefix of the byte array `b`."
+  [^bytes a ^bytes b]
+  (and (< (count a) (count b))
+       (loop [i 0]
+         (if (= i (count a))
+           true
+           (and (= (bit-and (int (aget a i)) 0xFF)
+                   (bit-and (int (aget b i)) 0xFF))
+                (recur (inc i)))))))
+
+(deftest test-map-keys-encode-iteratively
+  (testing "scalar map keys (including integer keys) encode identically to a
+            direct recursive walk — backward compatible"
+    (is (bytes= (hc/canonical-bytes {0 1})
+                (byte-array (map #(Integer/parseInt % 16)
+                                 (re-seq #".." "310110001002")))))
+    (is (bytes= (hc/canonical-bytes {0 {:a 1}})
+                (hc/canonical-bytes {0 {:a 1}})) "deterministic"))
+  (testing "composite map keys (vector/map) encode deterministically via the
+            iterative stack — no recursion, no rejection (backward compatible)"
+    (is (bytes= (hc/canonical-bytes {[:a] 1})
+                (hc/canonical-bytes {[:a] 1})) "deterministic vector key")
+    (is (bytes= (hc/canonical-bytes {{:a 1} :v})
+                (hc/canonical-bytes {{:a 1} :v})) "deterministic map key")
+    (is (bytes= (hc/canonical-bytes {[1 2] {:x [3]}})
+                (hc/canonical-bytes {[1 2] {:x [3]}})) "nested composite keys")
+    (testing "key order independence is preserved for composite keys"
+      (is (bytes= (hc/canonical-bytes {[1] 1 [2] 2})
+                  (hc/canonical-bytes {[2] 2 [1] 1})))))
+  (testing "sets as map keys remain rejected (sets are outside the canonical domain)"
+    (is (thrown? Exception (hc/canonical-bytes {#{:a} :v}))))
+  (testing "deep map-key nesting is stack-safe (iterative key encoding)"
+    (let [deep (reduce (fn [acc _] {acc 1}) [:a] (range 1000))]
+      (is (= (hc/canonical-bytes-hex deep) (hc/canonical-bytes-hex deep)))))
+  (testing "nil, boolean, and keyword scalar keys remain supported"
+    (is (bytes= (hc/canonical-bytes {nil 1}) (hc/canonical-bytes {nil 1})))
+    (is (bytes= (hc/canonical-bytes {true 1}) (hc/canonical-bytes {true 1})))
+    (is (bytes= (hc/canonical-bytes {:a 1}) (hc/canonical-bytes {:a 1})))))
+
+(deftest test-confidence-and-command-trace-intents-registered
+  (doseq [[intent tag] {:confidence-composition-v1 "CONFIDENCE_COMPOSITION_V1"
+                        :research-command-trace-v1 "RESEARCH_COMMAND_TRACE_V1"
+                        :research-command-trace-v2 "RESEARCH_COMMAND_TRACE_V2"}]
+    (testing (str intent)
+      (let [contract (hc/resolve-intent intent)]
+        (is (= tag (:intent/domain-tag contract)))
+        (is (= tag (get hc/domain-tags intent)))
+        (is (string? (:intent/description contract)))))))
+
+(deftest test-production-string-tags-are-registered
+  (testing "production domain tags previously passed as bare strings are now
+            registered, so prefix-freeness enforcement covers them"
+    (doseq [tag ["EXTENSION_ENVELOPE_SHAPE_V1"
+                 "EXTENSION_LOCKFILE_V1"
+                 "EXTENSION_RESOLUTION_V1"
+                 "EXTENSION_CAPABILITY_DESCRIPTOR_V1"
+                 "EXTENSION_PACKAGE_MANIFEST_V1"
+                 "BENCHMARK_CONSERVATION_V1"
+                 "BENCHMARK_INPUT_SET_V1"
+                 "BENCHMARK_CONTENT_REGISTRY_V1"
+                 "BENCHMARK_FINALIZATION_V1"
+                 "SUITE_DEFINITION_V1"
+                 "NATIVE_EXACT_REPLICATION_V1"
+                 "conformance.reproduction-lineage.v1"
+                 "conformance.validator-implementation.v1"
+                 "evidence-package-admission.v1"]]
+      (is (some #(= % tag) (vals hc/domain-tags))
+          (str tag " must be registered in domain-tags")))))
+
+(deftest test-domain-tags-prefix-free
+  (testing "no registered domain tag is a strict prefix of another
+            (requirement for unambiguous DOMAIN_TAG || CANONICAL_BYTES framing)"
+    (let [tags (vec (vals hc/domain-tags))]
+      (doseq [[i t1] (map-indexed vector tags)
+              t2 (drop (inc i) tags)]
+        (is (not (or (byte-prefix? (.getBytes t1 "UTF-8") (.getBytes t2 "UTF-8"))
+                     (byte-prefix? (.getBytes t2 "UTF-8") (.getBytes t1 "UTF-8"))))
+            (str "domain tags \"" t1 "\" and \"" t2 "\" violate prefix-freeness"))))))
+
+(deftest test-registry-rejects-prefix-violating-domain-tags
+  (testing "prefix-freeness validation fails closed on a prefix relationship"
+    (let [e (try (#'hc/validate-prefix-free-domain-tags! #{"PREFIX"
+                                                           "PREFIX_SUFFIX"})
+                 nil
+                 (catch clojure.lang.ExceptionInfo e e))]
+      (is (some? e))
+      (is (re-find #"prefix-free" (.getMessage e)))
+      (is (= "PREFIX" (:shorter (ex-data e))))
+      (is (= "PREFIX_SUFFIX" (:longer (ex-data e)))))
+    (testing "reversed order is also rejected"
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (#'hc/validate-prefix-free-domain-tags! #{"PREFIX_SUFFIX"
+                                                             "PREFIX"}))))
+    (testing "prefix-free sets pass"
+      (is (nil? (#'hc/validate-prefix-free-domain-tags! #{"ALPHA" "BETA"})))
+      (is (nil? (#'hc/validate-prefix-free-domain-tags! #{"EVIDENCE_RECORD_V1"
+                                                          "EVIDENCE_RECORD_V2"})))))
+  (testing "prefix-freeness holds for the live registry"
+    (is (nil? (hc/validate-registry!)))))

@@ -360,6 +360,34 @@
         (is (some #(= :resolver-sim.yield.invariants/declared-capacity-exceeded (:kind %))
                   (:violations result)))))))
 
+(deftest withdrawal-mode-dispatch-boundary
+  (testing "a missing :mode tag on an otherwise-valid allocation artifact fails the registered invariant"
+    (let [shared (ll/withdraw-shared (shared-withdrawal-world ["alice" "bob"] 150) test-mod
+                                     {:owner-ids ["alice" "bob"] :token "USDC"
+                                      :allocation-mode :pro-rata
+                                      :effective-caps {"alice" 20 "bob" 100}})
+          decision-id (-> shared :yield/partial-fill-decisions keys first)
+          untagged (update-in shared [:yield/partial-fill-decisions decision-id :policy] dissoc :mode)
+          shared-hold (get (inv/run-invariants shared cat/default-runtime-invariant-ids)
+                           :yield/shared-withdrawal-conservation)
+          shared-untagged (get (inv/run-invariants untagged cat/default-runtime-invariant-ids)
+                               :yield/shared-withdrawal-conservation)
+          batch (ll/withdraw-many (shared-withdrawal-world ["alice" "bob"] 200) test-mod
+                                  [{:owner/id "alice" :token "USDC"}
+                                   {:owner/id "bob" :token "USDC"}])
+          batch-untagged (update-in batch [:yield/withdrawal-ledger 0 :ledger/allocation-policy] dissoc :mode)
+          batch-result (get (inv/run-invariants batch-untagged cat/default-runtime-invariant-ids)
+                            :yield/withdrawal-ledger-conservation)]
+      (is (:holds? shared-hold) "the tagged decision holds")
+      (is (not (:holds? shared-untagged))
+          "removing :mode from the shared decision fails the registered invariant")
+      (is (some #(= :resolver-sim.yield.invariants/mode-over-allocated (:kind %))
+                (:violations shared-untagged)))
+      (is (not (:holds? batch-result))
+          "removing :mode from the batch ledger record fails the registered invariant")
+      (is (some #(= :resolver-sim.yield.invariants/mode-over-allocated %)
+                (mapcat :mode-issues (:violations batch-result)))))))
+
 (deftest shared-withdrawal-v2-propagation-binds-decision-and-allocation
   (let [world (shared-withdrawal-world ["alice" "bob"] 100)
         result (ll/withdraw-shared world test-mod {:owner-ids ["alice" "bob"]

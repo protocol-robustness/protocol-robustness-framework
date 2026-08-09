@@ -66,7 +66,7 @@
 ;;   BENCHMARK_EVIDENCE_PATH=results/benchmarks/shortfall-allocation-v0.edn \
 ;;     bb clerk:serve
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def config
   (let [default-path "results/benchmarks/protocol-robustness-v0.edn"
         env-path (System/getenv "BENCHMARK_EVIDENCE_PATH")
@@ -77,7 +77,7 @@
      :concepts-path "benchmarks/concepts/protocol-robustness-v0.edn"
      :scoring-path  "benchmarks/scoring/robustness-dimensions-v0.edn"}))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def report
   (try
     ;; Prefer auto-resolution from evidence bundle alone,
@@ -96,7 +96,7 @@
 
 ;; ── Header ────────────────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  (let [rag (if report
              (if (:all-pass? report) :green :red)
@@ -151,7 +151,7 @@
 
 ;; ── Scope notice ──────────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (views/notice-box
  "Scope"
  "This v0 benchmark checks selected robustness dimensions over representative"
@@ -160,7 +160,7 @@
 
 ;; ── Benchmark concepts ────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (when report
   (clerk/html
    [:div
@@ -195,7 +195,7 @@
 
 ;; ── Dimension results ─────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (if (nil? report)
   (clerk/html
    (views/notice-box
@@ -238,7 +238,7 @@
 
 ;; ── Scoring detail ────────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (when report
   (clerk/html
    [:div
@@ -259,7 +259,7 @@
 
 ;; ── Invariant summary ─────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (when report
   (let [inv (:invariant-summary report)]
     (clerk/html
@@ -302,7 +302,7 @@
 
 ;; ── Evidence trail ────────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (when report
   (clerk/html
    [:div
@@ -352,7 +352,7 @@
 
 ;; ── Concepts reference ────────────────────────────────────────────────────────
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div
   [:h2 {:style heading-style} "Concepts reference"]

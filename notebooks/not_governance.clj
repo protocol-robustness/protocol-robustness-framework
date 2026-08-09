@@ -20,11 +20,11 @@
 
 ;; Shared constants loaded from notebook-local config.
 ;; Edit notebooks/appeal_config.edn to change parameter bands.
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce const
   (io-params/load-edn "notebooks/appeal_config.edn"))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- run-batch
   [n-trials strategy-mix & [extra-opts]]
   (let [c const
@@ -36,7 +36,7 @@
     (delay (batch/run-batch (rng/make-rng (:seed c)) n-trials
                             (merge base extra-opts)))))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- run-batch-with-seed
   [seed n-trials strategy-mix & [extra-opts]]
   (let [c const
@@ -48,11 +48,11 @@
     (delay (batch/run-batch (rng/make-rng seed) n-trials
                             (merge base extra-opts)))))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce slash-obligation
   (* 1.25 (:escrow-amount const)))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce slash-dist
   (sew-econ/calculate-slashing-distribution slash-obligation 0))
 
@@ -60,12 +60,12 @@
 ;; badge, notice-box, trace-table moved to resolver-sim.notebook.views
 ;; delta-str kept here as notebook-specific (only used in strategy comparison)
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- delta-str [a b fmt-str]
   (let [diff (- (or a 0) (or b 0))]
     (format fmt-str (double diff))))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- sweep-at-bond
   [bond-label bond-bps probs]
   (map-indexed
@@ -106,7 +106,7 @@
 
 ;; ## 1. Happy-Path Dispute Lifecycle
 
-^{::clerk/visibility {:code :fold :result :show}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
   ::clerk/auto-expand-results? true}
 (defonce lifecycle-scenario
   {:schema-version "1.0"
@@ -125,7 +125,7 @@
             {:seq 2 :time 1120 :agent "resolver" :action "execute_resolution"
              :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}]})
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce lifecycle-result
   (delay
     (let [result (sew/replay-with-sew-protocol lifecycle-scenario {:allow-dirty? true})]
@@ -135,7 +135,7 @@
        result)
       result)))
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  (let [r @lifecycle-result
        trace (:trace r)
@@ -174,12 +174,12 @@
 
 ;; ## 2. Malicious Resolver Attempt
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce malice-batch
   (delay (-> (deref (run-batch 200 {:malicious 1.0}))
              (checks/assert-batch-shape!))))
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  (let [r @malice-batch
        slash-count (get r :fraud-slashed-count 0)
@@ -211,7 +211,7 @@
 
 ;; ## 3. Slashing Distribution: Who Covers the Loss?
 
-^{::clerk/visibility {:code :fold :result :show}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
   ::clerk/auto-expand-results? true
   ::clerk/budget nil}
 (clerk/html
@@ -247,7 +247,7 @@
 
 ;; ## 4. Pro-Rata Slash Allocation
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce prorata-alloc
   (let [ea  (:escrow-amount const)
         stake-a (quot ea 10)
@@ -260,7 +260,7 @@
        {:id "Resolver B" :slashable-stake stake-b :available-slashable stake-b}
        {:id "Resolver C" :slashable-stake stake-c :available-slashable stake-c}]})))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce prorata-display
   [:div {:style {:maxWidth "900px"}}
    [:div {:style {:display "grid" :gridTemplateColumns "repeat(3, 1fr)" :gap "12px" :marginBottom "16px"}}
@@ -297,22 +297,22 @@
              [:td {:style {:padding "6px 8px" :textAlign "right" :color (if (pos? (:unmet a)) "#f59e0b" "#64748b")}} (:unmet a)]
              [:td {:style {:padding "6px 8px" :textAlign "right" :color "#38bdf8"}} (- (:basis-amount a) (:paid a))]]))]])
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html prorata-display)
 
 ;; ## 5. Strategy Comparison
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce honest-batch
   (delay (-> (deref (run-batch 300 {:honest 1.0}))
              (checks/assert-batch-shape!))))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce malice-compare
   (delay (-> (deref (run-batch 300 {:malicious 1.0}))
              (checks/assert-batch-shape!))))
 
-^{::clerk/visibility {:code :fold :result :show}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
   ::clerk/auto-expand-results? true
   ::clerk/budget nil}
 (clerk/html
@@ -351,17 +351,17 @@
 
 ;; ## 6. Detection Probability Sweep
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce sweep-default
   (delay (sweep-at-bond "Default bond (10%)" (get-in const [:resolver-bonds :bps-default])
                         (:sweep-detection-probs const))))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defonce sweep-breakeven
   (delay (sweep-at-bond "Breakeven bond (210%)" (get-in const [:resolver-bonds :bps-breakeven])
                         (:sweep-detection-probs const))))
 
-^{::clerk/visibility {:code :fold :result :show}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
   ::clerk/auto-expand-results? true
   ::clerk/budget nil}
 (clerk/html
@@ -403,7 +403,7 @@
 
 ;; ## 7. Inline Invariant Check
 
-^{::clerk/visibility {:code :hide :result :hide}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}
   ::clerk/auto-expand-results? true
   ::clerk/budget nil}
 (defonce invariant-display
@@ -435,12 +435,12 @@
        (views/badge "PASS" "#22c55e") [:span {:style {:color "#c4b5fd"}} "Claimable amounts match settlement outcome"]]]
      [:p {:style {:color "#64748b" :fontSize "12px" :marginTop "8px"}} "Full suite includes invariant checks in CI."]]))
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html invariant-display)
 
 ;; ## 8. Evidence Bundle
 
-^{::clerk/visibility {:code :fold :result :show}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
   ::clerk/auto-expand-results? true
   ::clerk/budget nil}
 (clerk/html

@@ -1,5 +1,5 @@
-;; Settings: default-code-visibility = :hide (hidden) or :show (visible)
-^{:nextjournal.clerk/visibility {:code :hide :result :show}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.xtdb-overview
   (:require [nextjournal.clerk :as clerk]

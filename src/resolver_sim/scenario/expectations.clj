@@ -176,60 +176,105 @@
      2. :step-terminal — world snapshot after a given :seq
      3. :metrics    — named metric assertions (op + value, optional :slack)
 
-   Returns {:ok? bool :violations [v-map]}"
+   Returns {:ok? bool
+            :violations [v-map]
+            :summary {:expectations/total n
+                      :expectations/passed m
+                      :expectations/failed k
+                      :expectations/not-evaluated j}}
+
+   The summary is derived from evaluated results, never from declarations or
+   caller-supplied counts: every declared expectation is accounted as passed,
+   failed, or not-evaluated. A declared metric whose key is absent from the
+   result metrics is reported as a :metric-not-evaluated violation (fail-closed)
+   rather than silently omitted, so a missing metric can never masquerade as a
+   pass."
   [result expectations]
   (let [metrics    (:metrics result)
         trace      (:trace result)
         last-world (get (last trace) :world)
-        violations (atom [])]
+        summary    (atom {:expectations/total 0
+                          :expectations/passed 0
+                          :expectations/failed 0
+                          :expectations/not-evaluated 0})
+        violations (atom [])
+        pass!      (fn [] (swap! summary update :expectations/passed inc))
+        fail!      (fn [v]
+                     (swap! summary update :expectations/failed inc)
+                     (swap! violations conj v))
+        note!      (fn [v]
+                     (swap! summary update :expectations/not-evaluated inc)
+                     (swap! violations conj v))]
 
     ;; 0. Named invariant checks
-    (let [inv-res (evaluate-invariants result (:invariants expectations []))]
-      (when-not (:ok? inv-res)
-        (doseq [v (:violations inv-res)]
-          (swap! violations conj v))))
+    (let [declared (count (:invariants expectations []))
+          inv-res  (evaluate-invariants result (:invariants expectations []))
+          inv-fails (count (:violations inv-res))]
+      (swap! summary update :expectations/total + declared)
+      (swap! summary update :expectations/passed + (- declared inv-fails))
+      (swap! summary update :expectations/failed + inv-fails)
+      (doseq [v (:violations inv-res)]
+        (swap! violations conj v)))
 
     ;; 1. Terminal state checks
     (doseq [t (:terminal expectations)]
+      (swap! summary update :expectations/total inc)
       (let [path   (normalize-path (:path t))
             actual (get-in-relaxed last-world path)]
-        (when-not (terminal-check-ok? actual t)
-          (swap! violations conj {:type     :terminal-mismatch
-                                  :path     path
-                                  :expected (or (:equals t) (:value t))
-                                  :op       (:op t :=)
-                                  :actual   actual}))))
+        (if (terminal-check-ok? actual t)
+          (pass!)
+          (fail! {:type     :terminal-mismatch
+                  :path     path
+                  :expected (or (:equals t) (:value t))
+                  :op       (:op t :=)
+                  :actual   actual}))))
 
     ;; 2. Step terminal checks
     (doseq [t (:step-terminal expectations)]
+      (swap! summary update :expectations/total inc)
       (let [seq-t  (if (string? (:seq t)) (Integer/parseInt (:seq t)) (:seq t))
             entry  (first (filter #(= seq-t (:seq %)) trace))
             world  (:world entry)
             path   (normalize-path (:path t))
             actual (get-in-relaxed world path)]
-        (when-not (terminal-check-ok? actual t)
-          (swap! violations conj {:type     :step-terminal-mismatch
-                                  :seq      (:seq t)
-                                  :path     path
-                                  :expected (or (:equals t) (:value t))
-                                  :op       (:op t :=)
-                                  :actual   actual}))))
+        (if (terminal-check-ok? actual t)
+          (pass!)
+          (fail! {:type     :step-terminal-mismatch
+                  :seq      (:seq t)
+                  :path     path
+                  :expected (or (:equals t) (:value t))
+                  :op       (:op t :=)
+                  :actual   actual}))))
 
     ;; 3. Metric expectations
     (doseq [m (:metrics expectations)]
+      (swap! summary update :expectations/total inc)
       (let [actual (get metrics (theory/metric-key (:name m)))
             target (:value m)
             slack  (:slack m)
             ok?    (if slack
                      (metric-within-slack? actual target slack)
                      (theory/evaluate-metric-op (:op m) actual target))]
-        (when-not ok?
-          (swap! violations conj {:type     :metric-violation
-                                  :name     (:name m)
-                                  :op       (:op m)
-                                  :expected target
-                                  :slack    slack
-                                  :actual   actual}))))
+        (cond
+          (nil? actual)
+          (note! {:type :metric-not-evaluated
+                  :name (:name m)
+                  :op   (:op m)
+                  :expected target
+                  :slack slack
+                  :note "declared metric absent from result metrics"})
+
+          ok?
+          (pass!)
+
+          :else
+          (fail! {:type     :metric-violation
+                  :name     (:name m)
+                  :op       (:op m)
+                  :expected target
+                  :slack    slack
+                  :actual   actual}))))
 
     {:ok? (empty? @violations)
-     :violations @violations}))
+     :violations @violations
+     :summary @summary}))

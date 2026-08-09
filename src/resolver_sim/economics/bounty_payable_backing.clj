@@ -35,24 +35,15 @@
 
 ;; ── hash projection ─────────────────────────────────────────────────────────
 
-(defn backing-hash-projection
-  [backing]
-  (select-keys backing
-               [:schema-version
-                :backing/id
-                :backing/payable-root
-                :backing/payable-id
-                :backing/distribution-root
-                :backing/amount
-                :backing/source-allocations
-                :backing/kind
-                :backing/lifecycle
-                :backing/context]))
-
 (defn backing-hash
+  "Content-addressed root of a bounty-payable-backing.v1 artifact.  The
+   committed identity fields are projected canonical-safe (single source of
+   truth: resolver-sim.hash.canonical/project-bounty-payable-backing), so
+   set- or seq-bearing :backing/context / :backing/source-allocations hash
+   deterministically instead of failing the encoder."
   [backing]
   (hc/domain-hash :bounty-payable-backing-v1
-                  (backing-hash-projection backing)))
+                  (hc/project-bounty-payable-backing backing nil)))
 
 ;; ── builder ─────────────────────────────────────────────────────────────────
 

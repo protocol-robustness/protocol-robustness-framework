@@ -74,7 +74,7 @@
                :held/action "create-escrow"}
           artifact (custody/build-held-custody-artifact adj)
           checks (custody/held-custody-closed-form-checks [artifact])]
-      (is (= 7 (count checks)))
+      (is (= 9 (count checks)))
       (is (every? #(= :pass (:status %)) checks)
           "all closed-form checks pass on a valid synthetic artifact")))
 

@@ -46,8 +46,13 @@
     "lineage-conservation-verification": "lineage-conservation-verification.v1",
     "force-auth-add-held": "force-auth-add-held.v1",
     "force-auth-add-held-summary": "force-auth-add-held-summary.v2",
-    "held-custody-summary": "held-custody-summary.v1",
-    "partial-fill-decisions-summary": "partial-fill-decisions-summary.v1"
+    "held-custody-summary": "held-custody-summary.v2",
+    "partial-fill-decisions-summary": "partial-fill-decisions-summary.v1",
+    "run-completion": "run-completion.v1",
+    "run-package-index": "run-package-index.v1",
+    "artifacts-registry": "artifacts-registry.v1",
+    "artifacts-validation": "artifacts-validation.v1",
+    "sensitivity-report": "sensitivity-report.v2"
   },
   "producers": {
     "summary": "summary-emitter.v1",
@@ -71,7 +76,12 @@
     "force-auth-add-held-verifier": "force-auth-add-held-verifier.v1",
     "force-auth-add-held-summary-verifier": "force-auth-add-held-summary-verifier.v1",
     "held-custody-summary-verifier": "held-custody-summary-verifier.v1",
-    "partial-fill-decisions-summary-verifier": "partial-fill-decisions-summary-verifier.v1"
+    "partial-fill-decisions-summary-verifier": "partial-fill-decisions-summary-verifier.v1",
+    "run-completion-emitter": "run-completion-emitter.v1",
+    "run-package-index-emitter": "run-package-index-emitter.v1",
+    "artifacts-registry-emitter": "artifacts-registry-emitter.v1",
+    "artifacts-validation-emitter": "artifacts-validation-emitter.v1",
+    "sensitivity-report-emitter": "sensitivity-report-emitter.v1"
   },
   "importance": {
     "CORE": 0,
@@ -393,6 +403,60 @@
       "input_dependencies": [
         "test-run"
       ]
+    },
+    {
+      "id": "completion",
+      "file": "completion.json",
+      "kind": "run-completion",
+      "schema_key": "run-completion",
+      "producer_key": "run-completion-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": []
+    },
+    {
+      "id": "package-index",
+      "file": "manifest/run-package-index.json",
+      "kind": "run-package-index",
+      "schema_key": "run-package-index",
+      "producer_key": "run-package-index-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": [
+        "run-completion"
+      ]
+    },
+    {
+      "id": "registry",
+      "file": "manifest/artifacts.json",
+      "kind": "artifacts-registry",
+      "schema_key": "artifacts-registry",
+      "producer_key": "artifacts-registry-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": []
+    },
+    {
+      "id": "validation",
+      "file": "manifest/artifacts-validation.json",
+      "kind": "artifacts-validation",
+      "schema_key": "artifacts-validation",
+      "producer_key": "artifacts-validation-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": [
+        "artifacts-registry"
+      ]
+    },
+    {
+      "id": "report",
+      "file": "manifest/sensitivity-report.json",
+      "kind": "sensitivity-report",
+      "schema_key": "sensitivity-report",
+      "producer_key": "sensitivity-report-emitter",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [],
+      "input_dependencies": []
     }
   ],
   "event_evidence": {

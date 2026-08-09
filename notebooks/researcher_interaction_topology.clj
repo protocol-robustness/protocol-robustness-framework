@@ -30,7 +30,7 @@
             [resolver-sim.benchmark.outcome-manifest :as om]
             [resolver-sim.benchmark.signing :as signing]))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def base-input
   {:benchmark/content-root "sha256:demo-content"
    :benchmark/model-root "sha256:demo-model"
@@ -44,20 +44,20 @@
    :execution/generated-case-set-root "sha256:demo-cases"
    :results/operational {:conservation :pass :quota-bounded :pass}})
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def runner-info
   {:runner/id :runner/demo
    :source-tree-hash "sha256:demo-tree"
    :distribution-hash "sha256:demo-dist"
    :environment-hash "sha256:demo-env"})
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def evidence-refs
   {:evidence-dag-root "sha256:demo-dag"
    :event-evidence-root "sha256:demo-events"
    :execution-log-root "sha256:demo-log"})
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def manifest (om/build-manifest base-input))
 
 ;; ## 1.  Keyed Review Round
@@ -66,13 +66,13 @@
 ;; The keys commit into the review-round hash — they are not derived
 ;; from string sorting.
 
-^{::clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :show :result :hide}}
 (def keyed-members
   [{:review-member/key 0, :researcher/id "researcher-a", :role :model-steward}
    {:review-member/key 1, :researcher/id "researcher-b", :role :independent-reproducer}
    {:review-member/key 2, :researcher/id "researcher-c", :role :adversarial-reviewer}])
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def review-round
   (rr/build-review-round
    {:benchmark/content-root "sha256:demo-content"
@@ -95,7 +95,7 @@
 
 ;;   `{:review-round/hash "sha256:..." :review-member/key N}`
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
  {:head ["Member Key" "Researcher ID" "Role" "lookup by key" "lookup by ID"]
   :rows [[0 "researcher-a" "model-steward"
@@ -113,7 +113,7 @@
 ;; Three researchers submit positions.  The certificate groups them by
 ;; dimension and emits integer key vectors alongside existing ID vectors.
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- finalise-report
   "Compute the content hash for an unsigned run report so it passes
    certificate pre-checks.  Mirrors the test-suite helper."
@@ -121,7 +121,7 @@
   (assoc report :researcher-run-report/hash
          (str "sha256:" (hc/domain-hash :researcher-run-report report))))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def reports
   (mapv (fn [id]
           (-> (rrr/build-report {:outcome-manifest manifest
@@ -132,11 +132,11 @@
               (finalise-report)))
         ["researcher-a" "researcher-b" "researcher-c"]))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def outcome-hash
   (:researcher-run-report/outcome-hash (first reports)))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def positions
   [(rp/build-position
     {:benchmark/content-root "sha256:demo-content"
@@ -160,7 +160,7 @@
                   :model-state {:status :incomplete}
                   :evidence {:status :insufficient}}})])
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def cert
   (-> (tmc/build-certificate
        {:review-round review-round
@@ -173,7 +173,7 @@
 ;; When all three researchers agree, both key and ID vectors reflect
 ;; the full set.
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (let [pub (get-in cert [:other-consensus :publication])]
   (clerk/html
    [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
@@ -187,7 +187,7 @@
 ;; When member 2 (carol) dissents, the key vector `[2]` identifies
 ;; the dissenter compactly without repeating the researcher ID string.
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (let [model (get-in cert [:model-consensus :model-state])
       evid  (get-in cert [:other-consensus :evidence])]
   (clerk/html
@@ -208,7 +208,7 @@
 ;; Each position entry in the certificate includes the derived
 ;; `:review-member/key` when the round is keyed.
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
  {:head ["Researcher" "Key" "Position Hash"]
   :rows (mapv (fn [mp]
@@ -221,7 +221,7 @@
 ;; The `verify-against-round` function cross-checks member keys against
 ;; the frozen review round.
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (with-redefs [signing/sign-hash (fn [_ _ _] "deadbeef")]
   (def fa-auth
     (rfa/build-authorisation
@@ -252,7 +252,7 @@
         :signature {:algorithm :ed25519 :value "sig3" :signed-at "now"}}]
       :authorisation/threshold {:required 2 :eligible 3}})))
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (let [check (rfa/verify-against-round review-round fa-auth)]
   (clerk/html
    [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
@@ -269,7 +269,7 @@
 ;; `{0 → researcher-x, 1 → researcher-y, 2 → researcher-z}`
 ;; produces the same approval and dissent vectors by key.
 
-^{::clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :show :result :hide}}
 (def round-iso-a
   (rr/build-review-round
    {:benchmark/content-root "sha256:iso"
@@ -281,7 +281,7 @@
     :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
     :review-round/policy-root "sha256:policy"}))
 
-^{::clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :show :result :hide}}
 (def round-iso-b
   (rr/build-review-round
    {:benchmark/content-root "sha256:iso"
@@ -293,7 +293,7 @@
     :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
     :review-round/policy-root "sha256:policy"}))
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
                 :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
@@ -322,7 +322,7 @@
 ;; | ✅ | `{:review-round/hash \"sha256:...\" :review-member/key 1}` | review-round hash |
 ;; | ❌ | `{:review-member/key 1}` | scope missing — meaningless |
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
                 :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
@@ -338,13 +338,13 @@
 ;; Unkeyed rounds (no `:review-member/key` on any member) continue to
 ;; validate, hash, and build certificates without emitting key vectors.
 
-^{::clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :show :result :hide}}
 (def legacy-members
   [{:researcher/id "researcher-a" :role :model-steward}
    {:researcher/id "researcher-b" :role :independent-reproducer}
    {:researcher/id "researcher-c" :role :adversarial-reviewer}])
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (let [legacy-content-root (:benchmark/content-root manifest)
       legacy-round
       (rr/build-review-round

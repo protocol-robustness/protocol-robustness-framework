@@ -2,7 +2,7 @@
 ;;
 ;; Purpose: show "what if x had been y" with concrete paired scenarios.
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.counterfactual-pairs
   (:require [nextjournal.clerk :as clerk]

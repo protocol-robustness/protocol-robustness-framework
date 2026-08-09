@@ -5,7 +5,7 @@
 
 ^{:nextjournal.clerk/toc true
   :nextjournal.clerk/dark-mode true
-  :nextjournal.clerk/visibility {:code :hide :result :show}}
+  :nextjournal.clerk/visibility {:code :fold :result :show}}
 (ns notebooks.appealed-escrow-walkthrough
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.notebook-support.ui :as ui]

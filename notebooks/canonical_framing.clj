@@ -25,28 +25,28 @@
 
 ^{:nextjournal.clerk/toc true
   :nextjournal.clerk/dark-mode true
-  :nextjournal.clerk/visibility {:code :hide}}
+  :nextjournal.clerk/visibility {:code :fold}}
 (ns notebooks.canonical-framing
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]
             [resolver-sim.hash.framing-view :as fv]
             [resolver-sim.hash.canonical :as hc]))
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def role-colors
   {:tag    "#3b82f6"
    :len    "#22c55e"
    :count  "#a855f7"
    :payload "#475569"})
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def role-labels
   {:tag    "tag"
    :len    "len"
    :count  "count"
    :payload "payload"})
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn render-frames
   "Render one framed stream as a set of component cards + a decode-walk table."
   [d & [opts]]
@@ -128,11 +128,11 @@
 ;; recovers the sequence *and* the boundaries, because every component is
 ;; self-framing.
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def worked
   (fv/decompose-values [1 "active" :a/b [1 2] {:x 1}]))
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (render-frames worked)
 
 ;; ### 1.1 The raw stream, as bytes
@@ -140,7 +140,7 @@
 ;; The full concatenated byte stream (hex). Note that a byte stream alone
 ;; *looks* ambiguous — the framing is what makes it unambiguous.
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div {:style {:background "#0f172a" :padding "14px" :borderRadius "6px"
                 :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
@@ -156,14 +156,14 @@
 ;; prefix and the nested type tags change the byte layout. This is the
 ;; `framing` property from the test suite, shown as bytes:
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def vec-demo
   (fv/decompose-values [[1 2 3]]))
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (render-frames vec-demo)
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div {:style {:display "grid" :gridTemplateColumns "1fr 1fr" :gap "12px"
                 :fontFamily "monospace" :fontSize "12px"}}
@@ -190,13 +190,13 @@
 ;; Null, booleans, zero, `Long/MIN_VALUE` (whose ZigZag form needs more than
 ;; 64 bits), multibyte UTF-8, and nested structures all frame the same way:
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def extremes
   (fv/decompose-values
    [nil false true 0 -1 Long/MIN_VALUE "\u043F\u0440\u0438\u0432\u0435\u0442"
     [1 [2 [3 [4]]] {:k "v" :j [1 2]} :a.b/c]]))
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (render-frames extremes)
 
 ;; ## 4. Nested paths and map ordering
@@ -207,14 +207,14 @@
 ;; for investigating collection-ordering disagreements.  (The canonical bytes
 ;; sort keys; the original insertion order is not recoverable from the bytes.)
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def map-demo
   (fv/decompose-values [{:zeta 1 :alpha 2 :mid 3}]))
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (render-frames map-demo)
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div {:style {:background "#0f172a" :padding "14px" :borderRadius "6px"
                 :fontFamily "monospace" :fontSize "12px" :color "#e2e8f0"}}
@@ -231,15 +231,15 @@
 ;; can be parsed as different protocol objects.  New commitments use the named
 ;; contract from `resolver-sim.hash.sequence`:
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (require '[resolver-sim.hash.sequence :as seq])
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def bound
   {:bytes (seq/canonical-sequence-bytes {:purpose :evidence-content} [1 "active"])
    :hash  (seq/sequence-hash {:purpose :evidence-content} [1 "active"])})
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div {:style {:background "#0f172a" :padding "14px" :borderRadius "6px"
                 :fontFamily "monospace" :fontSize "12px" :color "#e2e8f0"}}
@@ -257,14 +257,14 @@
 ;; count, offsets, boundary reasoning, and a per-payload SHA-256 commitment.
 ;; Useful when the framing must be inspectable but the content is private:
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def redacted-demo
   (fv/decompose-values ["top-secret-value" [1 2]]))
 
-^{::clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (render-frames redacted-demo {:redact-payload? true})
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:pre {:style {:background "#0f172a" :padding "14px" :borderRadius "6px"
                 :fontFamily "monospace" :fontSize "12px" :color "#e2e8f0"
@@ -288,3 +288,48 @@
 ;;
 ;; Every frame card above is a witness for properties 2, 4, and 5 at the byte
 ;; level.
+
+;; ---
+;; ## 8. Injectivity, computed
+;;
+;; Property 3 is `prop-consecutive-injective` from
+;; `test/resolver_sim/hash/concat_properties_test.clj`:
+;;
+;; > `bytes(encode-consecutive xs) = bytes(encode-consecutive ys)`  ⇒  `xs = ys`
+;;
+;; because the stream is prefix-free and self-delimiting.  The edge cases that
+;; would collide if the framing were ambiguous are computed here at the byte
+;; level — a two-element stream can never equal a single element, and the empty
+;; stream can never equal a non-empty one.
+;;
+;; This is what makes content addresses in the **admission notebook**
+;; (`notebooks/not_admitted`, §5 chain ordering) unambiguous: a reordered or
+;; tampered evidence sequence cannot share a byte commitment with the original,
+;; so a tampered record is *detectably different*.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ (let [hex (fn [v] (hc/canonical-bytes-hex v))
+       header [:tr {:style {:borderBottom "1px solid #334155"}}
+               [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Stream A"]
+               [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "bytes(A)"]
+               [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Stream B"]
+               [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "bytes(B)"]
+               [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "distinct?"]]
+       rows (for [[la a lb b] [["[1 2]" [1 2] "[3]" [3]]
+                               ["[1]"   [1]   "[2 3]" [2 3]]
+                               ["[]"    []    "[nil]" [nil]]]]
+              [:tr {:style {:borderBottom "1px solid #134e4a"}}
+               [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} la]
+               [:td {:style {:padding "6px 8px" :color "#22c55e"}} (hex a)]
+               [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} lb]
+               [:td {:style {:padding "6px 8px" :color "#fbbf24"}} (hex b)]
+               [:td {:style {:padding "6px 8px" :color "#22c55e" :fontWeight 700}} "✓"]])]
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "No two different sequences share a byte stream"]
+    (into [:table {:style {:width "100%" :borderCollapse "collapse"}}]
+          (cons header rows))
+    [:div {:style {:marginTop "8px" :color "#94a3b8" :fontSize "11px"}}
+     "Equal sequences produce equal bytes: " (hex [1 2]) " == " (hex [1 2]) "."]]))

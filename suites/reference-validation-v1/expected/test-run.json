@@ -1,10 +1,10 @@
 {
   "schema_version": "test-run.v1",
-  "run_id": "20260728-023429",
+  "run_id": "20260809-173139",
   "framework": {
     "name": "protocol-robustness-framework-test-runner",
     "version": "0.1.0",
-    "git_commit": "f2b6f5a360089a0c3beed0193c171950a73f6752",
+    "git_commit": "4466a17af6fb6ed4fffcb0c39a6fb732dd264e40",
     "git_message": null
   }
 }

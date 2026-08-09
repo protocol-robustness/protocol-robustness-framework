@@ -348,8 +348,10 @@
 (def ^:const trace-domain-tag
   "Domain tag of a research-command trace root.
    DEPRECATED for new commitments: use research-command-trace.v2
-   (canonical-value-sequence.v1 contract) instead."
-  "RESEARCH_COMMAND_TRACE_V1")
+   (canonical-value-sequence.v1 contract) instead.  The v1 tag is registered
+   in resolver-sim.hash.canonical/domain-tags; it hashes under the registered
+   keyword so prefix-freeness governance applies."
+  :research-command-trace-v1)
 
 (defn command-trace-root
   "Content root of a collection (trace) of research command declarations.

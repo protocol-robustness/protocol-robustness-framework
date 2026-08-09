@@ -1,8 +1,8 @@
 {
   "schema_version": "test-artifacts.v1.2",
   "contract_version": "evidence-contract.v1",
-  "run_id": "20260806-214713",
-  "generated_at": "2026-08-06T21:47:13.934966+00:00",
+  "run_id": "20260809-173139",
+  "generated_at": "2026-08-09T17:31:39.751949+00:00",
   "generator": {
     "name": "artifact-registry-emitter",
     "version": "v1.2"
@@ -21,10 +21,29 @@
         "test-run.v1",
         "projection.v1"
       ],
-      "dependencies": [],
-      "sha256": "cd097d3f65ce3999b814ac593142e2099ef1168b38fce1d4fba551ce9ea2d8fb",
+      "dependencies": [
+        {
+          "id": "test-run",
+          "sha256": "309ef83352723b850fb54f6a3c950300f7902281617aec5f3ceb7beaff88a83f"
+        }
+      ],
+      "sha256": "8ed013437042e41d495b584ce542433d0ec81b3980c8b41dc085965bb2bdfa50",
       "bytes": 304,
-      "mtime_utc": "2026-08-06T21:36:37.295798+00:00"
+      "mtime_utc": "2026-08-07T22:23:05.588273+00:00"
+    },
+    {
+      "id": "test-run",
+      "kind": "run-manifest",
+      "path": "results/test-artifacts/test-run.json",
+      "importance": "CORE",
+      "schema_version": "test-run.v1",
+      "contract_version": "evidence-contract.v1",
+      "producer": "test-run-emitter.v1",
+      "verifies_against": [],
+      "dependencies": [],
+      "sha256": "309ef83352723b850fb54f6a3c950300f7902281617aec5f3ceb7beaff88a83f",
+      "bytes": 413,
+      "mtime_utc": "2026-08-07T22:23:05.589273+00:00"
     },
     {
       "id": "theory-eval",
@@ -40,12 +59,12 @@
       "dependencies": [
         {
           "id": "test-summary",
-          "sha256": "cd097d3f65ce3999b814ac593142e2099ef1168b38fce1d4fba551ce9ea2d8fb"
+          "sha256": "8ed013437042e41d495b584ce542433d0ec81b3980c8b41dc085965bb2bdfa50"
         }
       ],
       "sha256": "9fe69141262a6004d7c726de04ab0be05f69fddde76eb20d1e43560dc81565ac",
       "bytes": 331,
-      "mtime_utc": "2026-08-06T21:46:08.920927+00:00"
+      "mtime_utc": "2026-08-09T17:30:24.600517+00:00"
     },
     {
       "id": "evidence-registry",
@@ -58,10 +77,15 @@
       "verifies_against": [
         "test-run.v1"
       ],
-      "dependencies": [],
-      "sha256": "72226966713defb6b6fbc325708c189e064b665391e2e7aa5679035c4b9cd936",
+      "dependencies": [
+        {
+          "id": "test-run",
+          "sha256": "309ef83352723b850fb54f6a3c950300f7902281617aec5f3ceb7beaff88a83f"
+        }
+      ],
+      "sha256": "5e7717d7d29fd777c0344cee4c791ae77d4939bfa91295ef39640d56f1c985f6",
       "bytes": 11674,
-      "mtime_utc": "2026-08-06T21:46:08.923927+00:00"
+      "mtime_utc": "2026-08-09T17:30:24.602517+00:00"
     }
   ]
 }

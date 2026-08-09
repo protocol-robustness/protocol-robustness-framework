@@ -114,6 +114,36 @@
                         {:reason :state-after-root-mismatch
                          :ordering (:transaction/state-after-root ordering)
                          :derived derived-root}))))
+    ;; 3b. the ordering's remaining committed evidence must match the re-derived
+    ;;     transition exactly. The authority re-runs the pure transition, so it
+    ;;     KNOWS the correct pre-state root, effects root, and expected/observed
+    ;;     snapshots; an ordering that is self-hash-consistent but misstates any
+    ;;     of them must not be signed.
+    (let [state-before-root (transition/state-root state-before)
+          effects-root (transition/effects-root (:effects result))
+          ordering-input (:ordering-input result)]
+      (when-not (= (:transaction/state-before-root ordering) state-before-root)
+        (throw (ex-info "ordering state-before-root mismatch"
+                        {:reason :state-before-root-mismatch
+                         :ordering (:transaction/state-before-root ordering)
+                         :derived state-before-root})))
+      (when-not (= (:transaction/effects-root ordering) effects-root)
+        (throw (ex-info "ordering effects-root mismatch"
+                        {:reason :effects-root-mismatch
+                         :ordering (:transaction/effects-root ordering)
+                         :derived effects-root})))
+      (when-not (= (:transaction/expected ordering-input)
+                   (:transaction/expected ordering))
+        (throw (ex-info "ordering expected snapshot mismatch"
+                        {:reason :ordering-expected-mismatch
+                         :derived (:transaction/expected ordering-input)
+                         :ordering (:transaction/expected ordering)})))
+      (when-not (= (:transaction/observed ordering-input)
+                   (:transaction/observed ordering))
+        (throw (ex-info "ordering observed snapshot mismatch"
+                        {:reason :ordering-observed-mismatch
+                         :derived (:transaction/observed ordering-input)
+                         :ordering (:transaction/observed ordering)}))))
     ;; 4. candidate receipt binding
     (when-not (receipt/valid-receipt-shape? candidate-receipt)
       (throw (ex-info "invalid candidate receipt"

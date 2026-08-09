@@ -135,3 +135,25 @@ As of the current codebase (22 intents):
 3. Add a corresponding entry to `intent-definitions` in `resolver-sim.definitions.passive-registries`
 4. Add a projection function (or use `project-identity` if no transformation is needed)
 5. Startup validation (`validate-registry!`) will enforce the contract automatically
+
+## Direct `domain-hash` vs registered intents
+
+Subsystem code may call `(domain-hash <domain-tag> <projected-body>)` directly for
+internal composition and content-addressing. This is supported and cheap, but it
+bypasses the intent layer: no exclusion/constraint enforcement, no registry
+validation of the projection, and no `intent-hash=` comparison.
+
+The governed path is a registered intent:
+
+- every domain tag SHOULD have a corresponding entry in `hash-intents`;
+- `validate-registry!` enforces the reverse direction (every intent's domain tag
+  must exist in `domain-tags`) but does NOT require every domain tag to have an
+  intent — orphan tags are a governance smell;
+- when a projection is shared between a direct `domain-hash` call site and an
+  intent, the projection MUST live in `resolver-sim.hash.canonical` (single
+  source of truth) so the two paths cannot drift.
+
+The bounty / with-bounty domains follow this pattern: the projections live in
+`resolver-sim.hash.canonical` (`project-bounty-payable`,
+`project-with-bounty-policy`, etc.), the economics namespaces delegate to them,
+and all eleven bounty domain tags are registered as intents.

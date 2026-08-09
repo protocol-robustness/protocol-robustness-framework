@@ -14,7 +14,9 @@
 ;; The outcome is inspectable: status, which nodes executed, the value that
 ;; flowed, and the effects that were emitted.
 
-^{:nextjournal.clerk/dark-mode true}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.demo-short-circuit
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.composition.execution :as exec]
@@ -204,6 +206,7 @@
    (fx/node :n3 [:economics/award-amount :fixture/effects]
             :spec {:amount 5 :effects [{:effect/contract :prf.effect/y.v1}]})))
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (outcome-box vm-a)
 (pipeline-viz vm-a)
 (outcome-summary vm-a)
@@ -226,6 +229,7 @@
    (fx/node :n3 [:economics/award-amount :fixture/effects]
             :spec {:amount 5 :effects [{:effect/contract :prf.effect/y.v1}]})))
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (outcome-box vm-b)
 (pipeline-viz vm-b)
 (outcome-summary vm-b)

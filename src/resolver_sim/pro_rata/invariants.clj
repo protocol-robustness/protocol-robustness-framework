@@ -289,6 +289,31 @@
       [{:reason :pro-rata/unsupported-residual-reason
         :observed reason}])))
 
+(defn- aggregate-conservation-violations
+  "The available quantity must be fully accounted for by the allocated total,
+   the per-row unmet amounts, and the unallocated residual. Without this check a
+   capacity shortfall that no row can absorb (e.g. every row capped) would
+   silently vanish from the committed rows.
+
+   Only exercised when the result carries the full canonical aggregate fields;
+   partial/derived evidence results that omit them are not this check's subject."
+  [result]
+  (let [available (:available result)
+        allocated-total (:allocated-total result)
+        residual (:unallocated-residual result)
+        per-row-unmet (reduce + 0 (map #(long (or (:unmet %) 0)) (or (:rows result) [])))]
+    (when (and (some? available)
+               (some? allocated-total)
+               (some? residual))
+      (let [accounted (+ allocated-total per-row-unmet residual)]
+        (when (not= available accounted)
+          [{:reason :pro-rata/aggregate-conservation-violated
+            :available available
+            :allocated-total allocated-total
+            :per-row-unmet per-row-unmet
+            :unallocated-residual residual
+            :accounted accounted}])))))
+
 (defn result-violations
   [result]
   (vec (concat (when-not (= (:request/hash result)
@@ -303,6 +328,7 @@
                    :observed (:allocation/hash result)}])
                (cap-respecting-violations result)
                (residual-violations result)
+               (aggregate-conservation-violations result)
                (round-trace-violations result)
                (quota-bounded-violations result)
                (fractional-remainder-violations result)

@@ -2,7 +2,8 @@
   "Tests for confidence composition: versioned policies, scope handling,
    fail-closed validation, and recomputability of aggregates."
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.evidence.confidence :as c]))
+            [resolver-sim.evidence.confidence :as c]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def ^:private cpt
   {:subject-hash "sha256:aaaa" :role :required :level :high :scope :unbounded})
@@ -191,3 +192,25 @@
   (testing "commitment binds all components, not a collapsed minimum"
     (is (not= (c/concatenate-bound [(req "a" :high) (req "b" :low)])
               (c/concatenate-bound [(req "a" :high)])))))
+
+(deftest concatenate-bound-binds-purpose
+  (testing "the confidence composition commitment embeds an explicit :purpose
+            (the incentive to declare what a consecutive concatenation commits
+            to) via the canonical-value-sequence.v1 contract"
+    (let [components [(req "a" :high) (req "b" :medium)]
+          ref (c/concatenate-bound components)
+          bare (str "sha256:"
+                    (resolver-sim.hash.canonical/domain-hash
+                     c/confidence-commitment-domain-tag
+                     (c/canonical-components components)))]
+      (is (re-matches #"sha256:[0-9a-f]{64}" ref))
+      (testing "the bound commitment differs from a bare domain-hash of the raw
+                component vector (the purpose binding is real, not cosmetic)"
+        (is (not= ref bare))))))
+
+(deftest confidence-commitment-domain-tag-is-registered
+  (testing "the confidence domain tag is governed by the canonical registry"
+    (is (= "CONFIDENCE_COMPOSITION_V1"
+           (get hc/domain-tags c/confidence-commitment-domain-tag)))
+    (is (= c/confidence-commitment-domain-tag
+           (:intent/name (hc/resolve-intent :confidence-composition-v1))))))

@@ -91,7 +91,7 @@
 ;; Executive summary
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "# Appeal, Challenge, and Escalation Framework
 
    **Contribution.** The protocol does more than require an appeal bond. It is
@@ -110,7 +110,7 @@
    adjacent governance-path provenance normalization, and external-arbitration
    integration.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Capability" "Status" "Reader should infer"]
  [["Resolver slash appeal and governance resolution" "Implemented" "A slashed resolver has a bounded correction path"]
@@ -121,7 +121,7 @@
   ["External/Kleros-style arbitration" "Proposed / modelled" "No live request, callback, ruling, or fee-settlement integration"]
   ["Full per-bond conservation" "Proposed hardening" "Existing legacy invariant checks non-negativity only"]])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Current calibration finding
 
    **F6** reports appeal-window adequacy across its tested configurations.
@@ -135,7 +135,7 @@
 ;; Section 1: Appeal Subsystem Summary
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  "## 1. Appeal Subsystem Summary
 
@@ -196,14 +196,14 @@
    a live Kleros integration, external callback, or external ruling as an
    implemented execution path.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Feature scope: resolver appeals vs. open resolution challenges
 
    The protocol has two related but distinct correction mechanisms. Keeping
    them separate is essential for evaluating authorization, bond accounting,
    and finality.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Mechanism" "Initiator" "Action" "Immediate effect" "Decision authority"]
  [["Resolver slash appeal"
@@ -217,21 +217,21 @@
    "Posts a challenge bond, supersedes the pending settlement, and advances the dispute level"
    "Next-level resolver; modelled external/Kleros tier"]])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "**Important boundary:** a third party cannot submit a resolver's
    ``appeal-slash``; that action rejects callers other than the slashed
    resolver. A third party instead uses ``challenge-resolution`` to challenge
    a provisional dispute outcome during its open window. The two paths have
    different state, bond, and resolution semantics.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Worked example — illustrative 10 ETH slash appeal
 
    This is a reader-oriented example, **not** a claim about the active
    parameter snapshot or a completed replay. Assume a 10 ETH provisional slash
    and a 15% resolver slash-appeal bond requirement.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Step" "Amount / state" "Ledger or evidence effect"]
  [["Before appeal" "10 ETH slash is :pending" "Pending slash records resolver, deadline, token, and slash amount"]
@@ -241,7 +241,7 @@
   ["Appeal rejected" "1.5 ETH forfeited; 10 ETH slash becomes executable" "Custody is cleared; the current model records forfeiture in slash-appeal insurance/distribution accounting"]
   ["Separate third-party path" "Challenge bond is distinct from 1.5 ETH" "challenge-resolution uses the fee-bearing generic bond ledger and advances one dispute level"]])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "**Accounting limit:** this example illustrates intended movements,
    not a proved conservation equation. The current legacy
    ``appeal-bond-conserved?`` invariant prevents negative slash-scoped custody
@@ -251,7 +251,7 @@
 ;; Section 2: Appeal Lifecycle Map
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 2. Appeal Lifecycle Map")
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
@@ -284,10 +284,10 @@
              "    note right of WINDOW : fraud-slash deadline only"
              "    note right of APPEALED : governance is the sole resolver"]))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (mermaid (appeal-lifecycle-diagram))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  "**Lifecycle key events:**
 
@@ -306,7 +306,7 @@
 ;; Section 2a: Open Third-Party Resolution Challenge
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 2a. Open Third-Party Resolution Challenge
 
    A provisional resolution can be challenged by a participant **or any third
@@ -315,7 +315,7 @@
    challenge bond, the pending settlement is superseded, and the dispute moves
    to the next resolver level.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Scenario" "Actor" "Action" "Expected result" "Boundary demonstrated"]
  [["s76-sponsored-appeal-third-party-funding"
@@ -329,7 +329,7 @@
    "Rejected with :appeal-window-expired; settlement may execute"
    "Challenge access closes at the deterministic finality boundary"]])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "**Presentation note:** The S76 title uses “sponsored appeal,” but
    its executed action is ``challenge-resolution``. It demonstrates third-party
    funding of a challenge bond; it does not allow a sponsor to call
@@ -339,7 +339,7 @@
 ;; Section 2b: Chained Resolution Challenges
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 2b. Chained Resolution Challenges
 
    Resolution challenges form a **sequential, bounded chain**, not a set of
@@ -377,10 +377,10 @@
              "    note right of L1_REVIEW : prior pending settlement superseded"
              "    note right of L2_REVIEW : one level per valid challenge"]))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (mermaid (chained-escalation-diagram))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Stage" "Precondition" "Actor" "Bond / fee path" "State transition" "Can chain?"]
  [["L0 provisional resolution"
@@ -408,7 +408,7 @@
    "Settlement executes, or further challenge is rejected"
    "No"]])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "**Evidence and safety boundaries:**
 
    - ``s76-sponsored-appeal-third-party-funding`` demonstrates the first
@@ -425,7 +425,7 @@
 ;; Section 3: Challenge-Bond Fee and Custody Flow
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 3. Challenge-Bond Fee and Custody Flow
 
    This diagram covers the generic ``post-appeal-bond`` path used by open
@@ -465,10 +465,10 @@
              "    note right of RETURNED : custody cleared, bond returned"
              "    note right of FORFEITED : custody cleared, bond slashed"]))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (mermaid (appeal-bond-flow))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  "**Key accounting functions:**
 
@@ -484,7 +484,7 @@
    than this fee-accruing posting function. Do not infer from this diagram that
    every resolver appeal pays a protocol fee.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Financial-flow separation
 
    The generic ``post-appeal-bond`` flow shown above is the custody path used
@@ -492,7 +492,7 @@
    custody (``:appeal-bond-custody`` and ``:appeal-bond-held``). They should
    not be treated as interchangeable when reconciling fees or custody.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Flow" "Gross amount" "Fee generation" "Custody / destination" "Feature evidence"]
  [["Resolver slash appeal"
@@ -520,7 +520,7 @@
 ;; Section 4: Appeal Economics Deep Dive
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 4. Appeal Economics Deep Dive
 
    This section shows how appeal cost changes with escrow amount, bond basis
@@ -559,7 +559,7 @@
 (def economics-bond-table
   (bond-amount-table))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Bond Amount and Fee by Escrow Size and Rate
 
    Required bond = ``calculate-appeal-bond-amount(escrow, snap)`` where
@@ -569,7 +569,7 @@
    ``appeal-slash`` currently holds the full slash-scoped bond and does not
    invoke generic bond-fee accrual.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  (apply str
         (for [[bps rows] economics-bond-table]
@@ -594,14 +594,14 @@
        :marginal-bond (ee/appeal-bond-at-round (dec r) config)
        :cumulative-cost (ee/total-appeal-cost-to-round r config)})))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Escalation Cost by Round
 
    Each escalation level increases the appeal bond cost. Using
    ``appeal-bond-at-round`` and ``total-appeal-cost-to-round`` from the
    escalation economics model with default parameters.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Round" "Marginal Bond Cost" "Cumulative Appeal Cost"]
  (map (fn [{:keys [round marginal-bond cumulative-cost]}]
@@ -621,14 +621,14 @@
      ["Protection improvement R1" (str (int (* 100 (:protection-improvement-r1 security)))) "%"]
      ["Protection improvement R2" (str (int (* 100 (:protection-improvement-r2 security)))) "%"]]))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Modelled Cost and Robustness Effects of Escalation
 
    Under the model assumptions, higher rounds increase resolver stakes and
    appeal-bond costs. This increases modelled attack cost and may improve
    robustness; it is not a formal security guarantee.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Metric" "Value" "Unit"]
  (security-improvement-rows))
@@ -678,7 +678,7 @@
                         " (" (get summary numerator-key 0) "/" (:total-trials summary 0) " trials)")
            :else " — no benchmark result was returned"))))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Analytic Benchmark Results
 
    These benchmarks are computed at render time from the analytic suite.
@@ -686,17 +686,17 @@
    loading or executing the benchmark failed; it is not a negative research
    finding. **UNAVAILABLE** means no interpretable result was returned.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md (benchmark-result-markdown @f6-results :healthy-trials))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md (benchmark-result-markdown @m3-results :discouraged-trials))
 
 ;; ===========================================================================
 ;; Section 5: Appeal Scenarios Deep Dive
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 5. Appeal Scenarios Deep Dive
 
    This is a curated **static mapping** from appeal-related mechanisms to
@@ -820,13 +820,13 @@
     :invariant "finality-blocked-during-appeal?"
     :grant-claim "Maps pending-settlement deadline semantics to its canonical fixture"}])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Appeal Scenario Registry
 
    Each row links a scenario to its risk model, appeal mechanism, expected
    outcome, invariant coverage, and grant-facing claim.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Scenario" "Risk Model" "Mechanism" "Invariant Coverage" "Grant Claim"]
  (map (fn [{:keys [scenario display-name mechanism invariant grant-claim]}]
@@ -837,7 +837,7 @@
 ;; Section 6: Appeal Invariant Coverage
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 6. Appeal Invariant Coverage
 
    This section documents the appeal-specific invariants, their plain-English
@@ -877,14 +877,14 @@
                 "dr-b-001-appeal-window-expiry-race" "S81"]
     :grant-claim "Settlement finality is blocked while the provisional-resolution challenge window is open."}])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Invariant" "Meaning" "Failure Class" "Lifecycle Phase" "Exercised By" "Grant Claim"]
  (map (fn [{:keys [name meaning failure-class phase scenarios grant-claim]}]
         [name meaning failure-class phase (str/join ", " scenarios) grant-claim])
       appeal-invariant-registry))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  "**Evidence status:**
 
@@ -898,7 +898,7 @@
 ;; Section 7: Appeal Boundary Testing
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 7. Deadline Semantics and Boundary Limits
 
    The protocol has two different deadline guards. They must not be presented
@@ -923,14 +923,14 @@
 
 ;; --- Canonical pending-settlement boundary fixtures ---
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Scenario" "Offset from Deadline" "Expected Outcome" "Guard Checked"]
  [["s74-appeal-deadline-boundary" "-1 / 0 / +1" "Reject before; eligible at and after deadline" "execute-pending-settlement"]
   ["dr-b-001-appeal-window-expiry-race" "0" "Challenge rejected; settlement eligible" "challenge-resolution / execute-pending-settlement"]
   ["S81  appeal-deadline-boundary-before" "-1" "Execution rejected" ":appeal-window-not-expired"]])
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  "**Evidence limit:** These fixture references document the intended
    pending-settlement boundary semantics. This notebook does not execute them
@@ -941,7 +941,7 @@
 ;; Section 8: Kleros and Escalation Analysis
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 8. Escalation Economics and External-Arbitration Model
 
    This section models how appeal outcomes may be affected by higher-level
@@ -949,7 +949,7 @@
    escalation and economic assumptions, not a deployed external-arbitration
    integration.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Capability" "Status represented here" "Not demonstrated by this notebook"]
  [["On-protocol challenge and escalation" "Implemented state-machine path" "—"]
@@ -985,7 +985,7 @@
 (def appeal-stochastic-results
   (simulate-appeal-scenarios))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Stochastic Appeal Reversal Outcomes
 
    **Illustrative execution traces — not statistical evidence.** Each row is
@@ -995,7 +995,7 @@
    rates, false-reversal rates, failure-to-correct rates, or confidence
    intervals. Those require repeated trials and an aggregate experiment.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Band" "Verdict Context" "L1 Reversed?" "L2 Escalated?" "L2 Reversed?" "Decision Reversed?"]
  (map (fn [{:keys [band verdict-context l1-reversed? l2-escalated? l2-reversed? decision-reversed?]}]
@@ -1035,7 +1035,7 @@
                             :escalation-count "N/A"
                             :was-error "Simulation failed — check dependencies"}])))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Full Appeal Simulation
 
    **Illustrative traces — not aggregate decision-quality evidence.** Each row
@@ -1045,7 +1045,7 @@
    R2 is a model input, not an executed external integration; escalation counts
    reflect the sampled appeal decisions, not a measured improvement rate.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Difficulty" "Evidence Quality" "Ground Truth" "Initial Decision" "Final Decision" "Correct Outcome?" "Escalations"]
  (map (fn [{:keys [difficulty evidence-quality ground-truth initial-decision final-decision correct-outcome? escalation-count]}]
@@ -1065,7 +1065,7 @@
       (let [comparison (ee/compare-attack-costs dv config)]
         (assoc comparison :dispute-value dv)))))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "### Attack Cost Relative to Dispute Value
 
    The default escalation model compares absolute corruption costs by route.
@@ -1074,7 +1074,7 @@
    cost stays fixed while dispute value rises, the model becomes less protective
    relative to value; this is a calibration warning, not evidence of safety.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Normalized Dispute Value" "Attack R0" "Attack R0→R1" "Attack R1" "Cheapest Cost" "Cost / Value" "Potential Surplus" "Calibration Warning"]
  (map (fn [{:keys [dispute-value attack-r0-only attack-r0-then-r1 attack-r1-only cheapest-route]}]
@@ -1092,7 +1092,7 @@
            (if (< ratio 100.0) "Value exceeds modeled cheapest attack cost" "No surplus at this model value")]))
       (escalation-cost-comparison)))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  "**Key escalation insights**
 
@@ -1108,13 +1108,13 @@
 ;; Section 9: Governance and Authorization Paths
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 9. Governance and Authorization Paths
 
    This section covers governance appeal paths and emergency override
    patterns for the appeal subsystem.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md
  "### Governance resolving an appeal
 
@@ -1161,7 +1161,7 @@
    - Governance authorization boundaries between TIMELOCK and DAO are still
      being migrated to explicit evidence records.")
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (styled-table
  ["Capability" "Status" "Grant relevance"]
  [["Governance resolves appeal" "Implemented (resolve-appeal)" "Auditability, dispute safety"]
@@ -1174,7 +1174,7 @@
 ;; Section 10: Grant Application Summary
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md "## 10. Grant Application Summary Section
 
    ---
@@ -1283,14 +1283,14 @@
 ;; Notebook navigation
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html (ui/notebook-navigation "Appeal Analysis"))
 
 ;; ===========================================================================
 ;; Provenance footer
 ;; ===========================================================================
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/md (str "---\n\n"
                "*Notebook generated by the Sew Protocol simulation toolchain.*  \n"
                "*Source: `notebooks/appeal_analysis.clj`*  \n"

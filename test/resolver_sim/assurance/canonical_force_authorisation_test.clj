@@ -365,7 +365,14 @@
       (is (= [:cancellation/effects] (cfa/missing-cancellation-binding-fields binding)))))
   (testing "a populated zero is present, not missing"
     (is (empty? (cfa/missing-cancellation-binding-fields
-                 (assoc (complete-binding) :target/hash 0))))))
+                 (assoc (complete-binding) :target/hash 0)))))
+  (testing "an empty :cancellation/effects set is present, not missing - it
+            projects to an empty canonical vector and is a legitimate committed
+            value"
+    (let [binding (assoc (complete-binding) :cancellation/effects #{})]
+      (is (empty? (cfa/missing-cancellation-binding-fields binding)))
+      (is (cfa/cancellation-binding-complete? binding))
+      (is (re-matches #"sha256:[0-9a-f]{64}" (cfa/cancellation-binding-hash binding))))))
 
 (deftest cancellation-binding-is-hash-bound
   (let [binding (complete-binding)

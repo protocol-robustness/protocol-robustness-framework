@@ -1,4 +1,5 @@
-^{:nextjournal.clerk/visibility {:code :show :result :show}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/width :full
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.partial-liquidity-recovery-deferred-claim

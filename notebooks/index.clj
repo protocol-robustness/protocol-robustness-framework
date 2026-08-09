@@ -6,7 +6,8 @@
 ;;
 ;; Audience: Auditors, Protocol Researchers, Grant Reviewers, Governance Participants
 
-^{:nextjournal.clerk/dark-mode true}
+^{:nextjournal.clerk/visibility {:code :fold}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.index
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.notebook-support.nav :as nav]
@@ -43,6 +44,8 @@
             ["Security Validation"     "/notebooks/security_validation"             "🛡️"]
             ["Pro-Rata Allocation"     "/notebooks/pro_rata_allocation_result"      "📐"]
             ["Not Admitted"            "/notebooks/not_admitted"                    "⛔"]
+            ["Allocation Activation"   "/notebooks/allocation_activation"           "✅"]
+            ["Authorization Chain"      "/notebooks/authorization_chain"            "🔗"]
             ["Yield Scenarios"         "/notebooks/yield_scenarios_workbench"       "📈"]
             ["Benchmark Report"        "/notebooks/benchmark_protocol_robustness"   "📊"]
             ["Appeal Analysis"         "/notebooks/appeal_analysis"                 "⚖️"]]]

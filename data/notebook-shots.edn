@@ -1,0 +1,34 @@
+{:output "shots"
+ :base-url "http://localhost:7777"
+ :viewport   {:width 1440 :height 900}
+ :device-scale-factor 2
+ :section-level 2
+ ;; :sections captures each section's FULL extent by default. Set true to capture
+ ;; one viewport per heading instead.
+ ;; :section-viewport false
+ :settle-ms 1500
+ :timeout-ms 60000
+
+ ;; Default mode for notebooks without a per-notebook override.
+ :default {:modes [:full]}
+
+ :notebooks
+ [{:path "notebooks/report.clj"                          :modes [:sections] :section-level 2}
+  {:path "notebooks/canonical_framing.clj"               :modes [:sections] :section-level 2}
+  {:path "notebooks/pro_rata_allocation_result.clj"      :modes [:sections] :section-level 2}
+  {:path "notebooks/partial_liquidity_recovery_deferred_claim.clj" :modes [:sections] :section-level 2}
+  {:path "notebooks/yield_shortfall_partial_withdrawal_fills.clj" :modes [:sections] :section-level 2}
+  {:path "notebooks/yield_demo.clj"                      :modes [:sections] :section-level 2}
+  {:path "notebooks/demo_short_circuit.clj"              :modes [:full :sections] :section-level 2}
+  {:path "notebooks/demo_not_admitted.clj"               :modes [:full :sections] :section-level 2}
+  {:path "notebooks/demo_reorder_chain.clj"              :modes [:full :sections] :section-level 2}
+  {:path "notebooks/allocation_activation.clj"           :modes [:sections] :section-level 2}
+  {:path "notebooks/authorization_chain.clj"             :modes [:sections] :section-level 2}
+
+  ;; Interactive/workbench notebooks: static shot captures only the initial state.
+  {:path "notebooks/evidence_graph_viewer.clj"           :modes [:full] :interactive true}
+  {:path "notebooks/workbench_v2.clj"                    :modes [:full] :interactive true}
+  {:path "notebooks/telemetry.clj"                       :modes [:full] :interactive true}
+  {:path "notebooks/xtdb_overview.clj"                   :modes [:full] :interactive true}]
+
+ :exclude ["_template"]}

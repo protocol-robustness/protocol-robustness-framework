@@ -85,3 +85,71 @@
           r (expectations/evaluate-invariants result [:conservation-of-funds :solvency :time-lock-integrity])]
       (is (= true (:ok? r)))
       (is (= [] (:violations r))))))
+
+;; Unit tests for evaluate-expectations summary accounting.
+;; The summary must be derived from evaluated results, never from declarations.
+
+(defn- result-with-metrics
+  ([metrics] (result-with-metrics metrics nil))
+  ([metrics world]
+   {:outcome :pass
+    :metrics metrics
+    :trace (cond-> [] world (conj {:seq 0 :world world}))}))
+
+(deftest test-expectation-summary-all-pass
+  (testing "Every declared metric evaluated and passing is counted"
+    (let [r (expectations/evaluate-expectations
+             (result-with-metrics {:yield/positions-count 2 :yield/total-principal 3000})
+             {:metrics [{:name "yield/positions-count" :value 2}
+                        {:name "yield/total-principal" :value 3000}]})]
+      (is (= true (:ok? r)))
+      (is (= [] (:violations r)))
+      (is (= {:expectations/total 2
+              :expectations/passed 2
+              :expectations/failed 0
+              :expectations/not-evaluated 0}
+             (:summary r))))))
+
+(deftest test-expectation-summary-failure-counted
+  (testing "A failing metric is counted as failed, others pass"
+    (let [r (expectations/evaluate-expectations
+             (result-with-metrics {:yield/positions-count 2 :yield/total-principal 999})
+             {:metrics [{:name "yield/positions-count" :value 2}
+                        {:name "yield/total-principal" :value 3000}]})]
+      (is (= false (:ok? r)))
+      (is (= 1 (count (:violations r))))
+      (is (= :metric-violation (get-in (:violations r) [0 :type])))
+      (is (= {:expectations/total 2
+              :expectations/passed 1
+              :expectations/failed 1
+              :expectations/not-evaluated 0}
+             (:summary r))))))
+
+(deftest test-expectation-summary-missing-metric-not-evaluated
+  (testing "Declared metric absent from result metrics is fail-closed and counted as not-evaluated"
+    (let [r (expectations/evaluate-expectations
+             (result-with-metrics {:yield/positions-count 2})
+             {:metrics [{:name "yield/positions-count" :value 2}
+                        {:name "yield/focus-principal" :value 1000}]})]
+      (is (= false (:ok? r)))
+      (is (= 1 (count (:violations r))))
+      (is (= :metric-not-evaluated (get-in (:violations r) [0 :type])))
+      (is (= "yield/focus-principal" (get-in (:violations r) [0 :name])))
+      (is (= {:expectations/total 2
+              :expectations/passed 1
+              :expectations/failed 0
+              :expectations/not-evaluated 1}
+             (:summary r))))))
+
+(deftest test-expectation-summary-no-expectations-block
+  (testing "No expectations block produces an empty summary rather than an invented count"
+    (let [r (expectations/evaluate-expectations
+             (result-with-metrics {:yield/positions-count 2})
+             nil)]
+      (is (= true (:ok? r)))
+      (is (= [] (:violations r)))
+      (is (= {:expectations/total 0
+              :expectations/passed 0
+              :expectations/failed 0
+              :expectations/not-evaluated 0}
+             (:summary r))))))

@@ -22,14 +22,15 @@
 
 (defn obligation-id-projection
   "Versioned projection of a bounty obligation identity:
-     [:bounty-payable operation-root bounty-id recipient token amount policy-root]"
+     [:bounty-payable operation-root bounty-id recipient token amount policy-root]
+   Single source of truth: resolver-sim.hash.canonical/project-with-bounty-obligation."
   [{:keys [operation-root bounty-id recipient token amount policy-root]}]
   [:bounty-payable operation-root bounty-id recipient token amount policy-root])
 
 (defn bounty-obligation-id
   "Deterministic obligation identity of a with-bounty payable."
   [args]
-  (hc/domain-hash obligation-domain-tag (obligation-id-projection args)))
+  (hc/domain-hash obligation-domain-tag (hc/project-with-bounty-obligation args nil)))
 
 ;; ── invocation identity ───────────────────────────────────────────────────
 
@@ -43,4 +44,4 @@
   "Deterministic identity of one with-bounty step invocation (eligibility or
    amount)."
   [args]
-  (hc/domain-hash invocation-domain-tag (invocation-id-projection args)))
+  (hc/domain-hash invocation-domain-tag (hc/project-with-bounty-invocation args nil)))

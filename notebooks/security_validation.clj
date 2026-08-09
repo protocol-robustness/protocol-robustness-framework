@@ -18,7 +18,8 @@
 ;; - ASSUMPTION REQUIRED -- relies on unvalidated invariants or off-chain guarantees
 ;; - NOT EVALUATED -- claim registered but not yet exercised by any scenario
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.security-validation
   (:require [nextjournal.clerk :as clerk]

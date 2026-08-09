@@ -779,9 +779,37 @@ test:community {:doc "Run community participation tests"
   {:doc "Lint notebook and notebook support code with clj-kondo"
    :task (clojure {:dir "."} "-M:lint" "--lint" "src/resolver_sim/notebook")}
 
+  notebook:visibility
+  {:doc "Enforce collapsed-by-default visibility policy across notebooks/*.clj"
+   :task (clojure {:dir "."} "-M" "-m" "scripts.check-notebook-visibility")}
+
   notebook:ci
-  {:doc "Full notebook validation: lint + load/check"
-   :depends [notebook:lint notebook:check]}
+  {:doc "Full notebook validation: lint + visibility policy + load/check"
+   :depends [notebook:lint notebook:visibility notebook:check]}
+
+  notebook:shots
+  {:doc "Export notebook screenshots (config: data/notebook-shots.edn) into shots/"
+   :task (shell "scripts/export_notebook_shots.sh")}
+
+  notebook:shots:one
+  {:doc "Screenshot a single notebook (name without .clj) into shots/. Usage: bb notebook:shots:one report"
+   :task (shell "scripts/export_notebook_shots.sh" "--notebook" (first *command-line-args*))}
+
+  notebook:shots:sections
+  {:doc "Force per-section screenshots for one notebook into shots/. Usage: bb notebook:shots:sections report"
+   :task (shell "scripts/export_notebook_shots.sh" "--notebook" (first *command-line-args*) "--modes" "sections")}
+
+  notebook:shots:open
+  {:doc "Open the screenshot contact sheet (shots/index.html) in a browser"
+   :task (shell "bash" "-c" "xdg-open shots/index.html 2>/dev/null || open shots/index.html 2>/dev/null || echo 'Open shots/index.html manually'")}
+
+  notebook:shots:setup
+  {:doc "Install the Playwright Chromium browser used for screenshots (one-time)"
+   :task (shell "python3" "-m" "playwright" "install" "chromium")}
+
+  notebook:shots:ci
+  {:doc "Render gate: full-page screenshot of every hub notebook; fail on any render error"
+   :task (shell "scripts/export_notebook_shots.sh" "--modes" "full" "--out" "target/shots-ci")}
 
   demo:record
   {:doc "Record a demo via asciinema. Usage: bb demo:record <id>

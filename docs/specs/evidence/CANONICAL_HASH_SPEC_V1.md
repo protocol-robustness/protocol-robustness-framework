@@ -32,6 +32,28 @@ Where:
     • CANONICAL_BYTES are produced by this specification
     • || denotes byte concatenation
 
+2.1 Domain-Tag Framing (consecutive concatenation)
+The concatenation DOMAIN_TAG || CANONICAL_BYTES carries no length frame on the
+domain tag. Framing is therefore only unambiguous when no registered domain tag
+is a strict prefix of another: a prefix relationship is the ONLY way two
+distinct (DOMAIN_TAG, value) pairs can produce the same concatenated byte
+stream (CANONICAL_BYTES is itself prefix-free and injective over the canonical
+type algebra, so the canonical-bytes side of the concatenation cannot introduce
+ambiguity).
+
+Implementations and registries SHALL enforce prefix-freeness of the domain-tag
+set: adding a tag that is a strict prefix of (or is prefixed by) an existing tag
+is a framing violation and MUST fail closed at registry load.  This invariant is
+enforced by the authoritative registry validation
+(resolver-sim.hash.canonical/validate-registry!).
+
+A future revision MAY replace the unframed concatenation with a length-prefixed
+form (e.g. varuint(len) || DOMAIN_TAG || CANONICAL_BYTES).  Because every
+existing content hash depends on the current framing, such a change is a
+breaking format change: it requires recomputing all golden hashes, conformance
+test vectors, and cross-language verifier preimages, and MUST NOT be introduced
+without coordinated versioning.
+
 3. Supported Types
 Implementations MUST support only the following value types.
 Null

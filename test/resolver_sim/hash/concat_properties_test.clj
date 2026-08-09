@@ -120,31 +120,100 @@
                 (recur (inc i)))))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
-;; Generators
+;; Generators (generalised canonical-value domain)
 ;; ──────────────────────────────────────────────────────────────────────────────
+;;
+;; `gen-canonical-value` covers the FULL canonical type algebra — nil, boolean,
+;; integer, string, keyword, vector, map — including the domain's edge cases:
+;; empty/whitespace/NUL/multibyte strings, integer extremes (Long/MIN_VALUE,
+;; Long/MAX_VALUE, arbitrary precision), empty collections, and nested maps.
+;; `gen-value` is the default instance used by the properties; callers can tune
+;; depth/size or disable collections for focused suites.
+
+(def gen-integer
+  "Integers of every canonical width, including the host extremes and
+   arbitrary-precision values."
+  (gen/one-of [(gen/return 0)
+               (gen/return Long/MIN_VALUE)
+               (gen/return Long/MAX_VALUE)
+               gen/large-integer
+               (gen/fmap bigint gen/large-integer)
+               (gen/fmap #(java.math.BigInteger. (str %)) gen/large-integer)]))
+
+(def ^:private utf8-elements
+  "Safe multi-char UTF-8 string elements (no unpaired surrogates — those do not
+   survive a UTF-8 round-trip): ASCII, whitespace, NUL, multibyte scripts,
+   combining marks, and a surrogate pair."
+  ["a" "Z" "0" " " "\n" "\t" "\u0000" "é" "п" "中" "e\u0301" "\uD83D\uDE00"])
+
+(def gen-string
+  "Strings covering empty, alphanumeric, ASCII, and UTF-8 edge cases."
+  (gen/one-of [(gen/return "")
+               gen/string-alphanumeric
+               gen/string-ascii
+               (gen/fmap #(apply str %)
+                         (gen/vector (gen/elements utf8-elements) 0 12))]))
+
+(def gen-keyword
+  "Keywords, plain and namespaced."
+  (gen/one-of [gen/keyword gen/keyword-ns]))
 
 (def gen-key
-  "Map keys are restricted to String or Keyword."
-  (gen/one-of [gen/string-alpha-numeric gen/keyword gen/keyword-ns]))
+  "Canonical map keys are String or Keyword."
+  (gen/one-of [gen-string gen-keyword]))
 
-(def gen-scalar
-  (gen/one-of [(gen/return nil)
-               gen/boolean
-               (gen/one-of [gen/large-integer (gen/fmap bigint gen/large-integer)])
-               gen/string-alpha-numeric
-               ;; multibyte UTF-8 strings: é, п, 中, space
-               (gen/fmap #(apply str %)
-                         (gen/vector (gen/elements (map char [0x61 0xE9 0x043F 0x4E2D 0x20])) 0 8))
-               gen/keyword
-               gen/keyword-ns]))
+(defn gen-canonical-value
+  "Configurable generator over the canonical type algebra (nil, boolean,
+   integer, string, keyword, vector, map).
+
+   opts:
+     :max-depth  recursion depth of vector/map nesting (default 3)
+     :max-size   max collection element count (default 5)
+     :vectors?   include vector values (default true)
+     :maps?      include map values (default true)"
+  [& {:keys [max-depth max-size vectors? maps?]
+      :or {max-depth 3 max-size 5 vectors? true maps? true}}]
+  (letfn [(node [depth]
+            (gen/one-of
+             (remove nil?
+                     [(gen/return nil)
+                      gen/boolean
+                      gen-integer
+                      gen-string
+                      gen-keyword
+                      (when (and vectors? (pos? depth))
+                        (gen/vector (node (dec depth)) 0 max-size))
+                      (when (and maps? (pos? depth))
+                        (gen/fmap (partial into {})
+                                  (gen/vector (gen/tuple gen-key (node (dec depth)))
+                                              0 max-size)))])))]
+    (node max-depth)))
 
 (def gen-value
-  (gen/recursive-gen
-   (fn [inner]
-     (gen/one-of [gen-scalar
-                  (gen/vector inner 0 8)
-                  (gen/map gen-key inner)]))
-   gen-scalar))
+  "Default canonical-value generator (full domain, bounded depth/size)."
+  (gen-canonical-value))
+
+(deftest gen-canonical-value-produces-in-domain-values
+  (testing "every generated value passes validate-canonical-value!"
+    (doseq [v (gen/sample (gen-canonical-value) 200)]
+      (is (nil? (hc/validate-canonical-value! v)) (pr-str v))))
+  (testing "scalar-only mode never produces collections"
+    (doseq [v (gen/sample (gen-canonical-value :vectors? false :maps? false) 50)]
+      (is (not (coll? v)) (pr-str v))))
+  (testing "custom depth/size bounds are honoured"
+    (doseq [v (gen/sample (gen-canonical-value :max-depth 2 :max-size 3) 100)]
+      (is (nil? (hc/validate-canonical-value! v)) (pr-str v)))))
+
+(deftest gen-canonical-value-reaches-domain-edges
+  (testing "integer extremes and edge strings are reachable"
+    (let [ints (set (gen/sample gen-integer 500))]
+      (is (contains? ints 0))
+      (is (contains? ints Long/MIN_VALUE))
+      (is (contains? ints Long/MAX_VALUE)))
+    (let [strings (set (gen/sample gen-string 500))]
+      (is (contains? strings "")))
+    (let [keys (set (gen/sample gen-key 500))]
+      (is (some #(or (string? %) (keyword? %)) keys)))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Decoder conformance (independent, non-circular)

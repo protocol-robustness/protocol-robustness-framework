@@ -94,7 +94,7 @@
 ;; - `:expected-negative` — scenario designed to demonstrate a known limitation
 ;; - `:missing-data` — artifact absent; evidence incomplete
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/html
  [:div
   [:div {:style {:display "flex" :gap "12px" :flexWrap "wrap" :alignItems "center" :marginBottom "6px"}}

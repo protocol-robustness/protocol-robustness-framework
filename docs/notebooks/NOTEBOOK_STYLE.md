@@ -25,6 +25,19 @@
 
 ## Visibility Standards
 
+Every notebook must be **collapsed by default**. Enforced by `bb notebook:visibility`
+(a dependency of `bb notebook:ci`). Rules:
+
+- **Namespace-level default is required.** Declare `{:nextjournal.clerk/visibility {:code :fold}}`
+  on the `ns` form (either as `^{...}` metadata or the first map arg). Clerk otherwise
+  shows all code (`:show`).
+- **The namespace-level code default must be `:fold` or `:hide` — never `:show`.**
+- **`:fold`** = collapsed but expandable. This is the default for supporting/content code
+  so it stays auditable.
+- **`:hide`** = code never shown, not expandable. Reserved for plumbing only
+  (data loading, `:result :hide`).
+- **`:show`** = code shown by default. Reserved for key invariants and formulas.
+
 Use Clerk visibility metadata to guide reader attention. The rule for each section type:
 
 | Section | Code visibility | Result visibility | Reason |
@@ -48,21 +61,21 @@ Use Clerk visibility metadata to guide reader attention. The rule for each secti
   ...)
 
 ;; Show formulas and invariants
-^{::clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (defn conservation-holds?
   [{:keys [requested debited unmet waived]}]
   (= requested (+ debited unmet waived)))
 
 ;; Fold evidence tables
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table (map project-event (:events run)))
 
 ;; Hide loading/plumbing
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def run (-> (data/load-run) checks/assert-run-shape!))
 
 ;; Curated data with budget
-^{::clerk/visibility {:code :fold :result :show}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}
   ::clerk/auto-expand-results? true
   ::clerk/budget 1000}
 (clerk/table (map compact-event (:events run)))
@@ -73,7 +86,7 @@ Use Clerk visibility metadata to guide reader attention. The rule for each secti
 Every artifact loaded by a notebook must be validated. Use `resolver-sim.notebook.checks`:
 
 ```clojure
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def run
   (-> (speds-data/load-summary)
       checks/assert-test-summary!))
@@ -133,8 +146,9 @@ Before committing notebook changes:
 ## CLI Tasks
 
 ```shell
-bb notebook          # Serve notebooks
-bb notebook:check    # Load namespaces + validate shapes
-bb notebook:lint     # clj-kondo lint
-bb notebook:ci       # lint + check
+bb notebook            # Serve notebooks
+bb notebook:check      # Load namespaces + validate shapes
+bb notebook:lint       # clj-kondo lint
+bb notebook:visibility # Enforce collapsed-by-default visibility policy
+bb notebook:ci         # lint + visibility + check
 ```

@@ -1,4 +1,5 @@
-^{:nextjournal.clerk/visibility {:code :show :result :show}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.evaluate-pro-rata-allocation
   "Pro-Rata Evaluation API — self-contained allocation with content-addressed verification.

@@ -7,10 +7,12 @@
    over a real bundle."
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.notebook-support.speds.risk :as risk]
-            [resolver-sim.notebook-support.speds.var :as var]))
+            [resolver-sim.notebook-support.speds.var :as var]
+            [resolver-sim.notebook-support.speds.var-render :as render]))
 
 (defn- fake-proj
   "A minimal risk-projection-shaped map for model tests."
@@ -172,3 +174,21 @@
       (is (= :pass (:status (risk/verify-root proj))))
       (is (= (:distribution/root d) (var/verify-distribution-root d)))
       (is (= (:var/root v) (var/verify-var-root v))))))
+
+(deftest var-card-renders-value-and-interpretation
+  (testing "the VaR card renders derived values, the mandatory interpretation, and NOT MEASURED when the tail is empty"
+    (let [proj (fake-proj (mapv (fn [i] (scenario (str "s" i) (* i 100) (* i 10)))
+                                (range 1 11)))
+          d (var/build-distribution proj :per-scenario-peak-exposure)
+          v (var/build-var-projection proj d)
+          html (render/render-card-html v)]
+      (is (str/starts-with? html "<!doctype html>"))
+      (is (str/includes? html "VAR PROJECTION"))
+      (is (str/includes? html "VaR p95"))
+      (is (str/includes? html "VaR p99"))
+      (is (str/includes? html "1000"))
+      (is (str/includes? html "INTERPRETATION"))
+      (is (str/includes? html "NOT a probabilistic forecast"))
+      (is (str/includes? html "NOT MEASURED")
+          "empty tail renders ES as NOT MEASURED, never a fabricated number")
+      (is (= html (render/render-card-html v))))))

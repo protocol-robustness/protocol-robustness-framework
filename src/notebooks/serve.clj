@@ -37,6 +37,7 @@
     (show-notebook! "notebooks/benchmark_protocol_robustness.clj")
     (show-notebook! "notebooks/demo_not_admitted.clj")
     (show-notebook! "notebooks/demo_reorder_chain.clj")
+    (show-notebook! "notebooks/demo_short_circuit.clj")
 
     ;; Index is shown last — it becomes the default landing page.
     (show-notebook! "notebooks/index.clj")))

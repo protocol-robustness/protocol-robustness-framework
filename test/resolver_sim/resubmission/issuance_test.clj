@@ -190,6 +190,30 @@
                                       :transaction/state-after-root "sha256:WRONG"))
             req (issue-request state-before cmd2 tampered-ordering candidate)]
         (is (= :state-after-root-mismatch (decide-reason (:private-key validator-key) req)))))
+    (testing "state-before-root mismatch"
+      (let [tampered-ordering (ordering/transaction-ordering
+                               (assoc (ordering/unsigned-ordering-projection ordering)
+                                      :transaction/state-before-root "sha256:WRONG"))
+            req (issue-request state-before cmd2 tampered-ordering candidate)]
+        (is (= :state-before-root-mismatch (decide-reason (:private-key validator-key) req)))))
+    (testing "effects-root mismatch"
+      (let [tampered-ordering (ordering/transaction-ordering
+                               (assoc (ordering/unsigned-ordering-projection ordering)
+                                      :transaction/effects-root "sha256:WRONG"))
+            req (issue-request state-before cmd2 tampered-ordering candidate)]
+        (is (= :effects-root-mismatch (decide-reason (:private-key validator-key) req)))))
+    (testing "expected snapshot mismatch"
+      (let [tampered-ordering (ordering/transaction-ordering
+                               (assoc (ordering/unsigned-ordering-projection ordering)
+                                      :transaction/expected {:chain-head "sha256:WRONG"}))
+            req (issue-request state-before cmd2 tampered-ordering candidate)]
+        (is (= :ordering-expected-mismatch (decide-reason (:private-key validator-key) req)))))
+    (testing "observed snapshot mismatch"
+      (let [tampered-ordering (ordering/transaction-ordering
+                               (assoc (ordering/unsigned-ordering-projection ordering)
+                                      :transaction/observed {:chain-head "sha256:WRONG"}))
+            req (issue-request state-before cmd2 tampered-ordering candidate)]
+        (is (= :ordering-observed-mismatch (decide-reason (:private-key validator-key) req)))))
     (testing "ordering hash mismatch"
       (let [tampered-ordering (assoc ordering :transaction/commit-index 999)
             req (issue-request state-before cmd2 tampered-ordering candidate)]

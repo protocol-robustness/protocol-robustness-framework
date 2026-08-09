@@ -27,10 +27,15 @@
             [resolver-sim.benchmark.outcome-manifest :as om]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.yield.exact-math :as ym]
-            [resolver-sim.yield.invariants-transition :as ytran]))
+            [resolver-sim.yield.invariants-transition :as ytran]
+            [resolver-sim.io.content-addressed-store :as cas]))
 
 ;; # Not Admitted
 ;; ## Evidence Chain Ordering, Verification, and Invariant-Based Admission
+;;
+;; ⬇ **Admission gallery (§19):** the whole notebook in one catalogue — submit a
+;; candidate, it violates a property, the system refuses to admit it, and why.
+;; Scan that first; each section below is the proof behind its row.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- short-hash
@@ -63,7 +68,7 @@
 ;; A hash-linked evidence chain commits each record to its position.
 ;; Three records with distinct content hashes:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def content-hashes
   [(hc/hash-with-intent {:hash/intent :evidence-content} {:event :deposit  :amount 100})
    (hc/hash-with-intent {:hash/intent :evidence-content} {:event :dispute  :id "0x1"})
@@ -76,7 +81,7 @@
 
 ;; Chain-link hashes commit to content, seq, and predecessor:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def chain-links
   (let [link1 (chain/chain-link-hash (nth content-hashes 0) 1 nil)
         link2 (chain/chain-link-hash (nth content-hashes 1) 2 link1)
@@ -125,7 +130,7 @@
 
 ;; A valid chain link (`:evidence-chain-link-v1`) commits to exactly four fields:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def spec-link-hash
   (chain/chain-link-hash (nth content-hashes 0) 1 nil))
 
@@ -163,7 +168,7 @@
 ;;
 ;; Contrast: chain links are order-dependent; the hash set root is not.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def hash-set-root
   (chain/evidence-hash-set-root content-hashes))
 
@@ -178,7 +183,7 @@
 ;; ---
 ;; ## 5. Chain Verification — Admitted vs Not Admitted
 
-^{:nextjournal.clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (defn- build-chain-records
   "Convert chain-links to verify-scenario-chain format."
   [links]
@@ -194,7 +199,7 @@
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (def valid-chain (build-chain-records chain-links))
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def chain-verification
   (chain/verify-scenario-chain valid-chain))
 
@@ -209,22 +214,26 @@
 
 ;; Four failure modes that cause evidence to be *not admitted*:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def chain-failure-modes
   [{:label "Hash mismatch — tampered self-hash"
+    :property "chain self-hash must equal the computed link hash"
     :chain (let [bad (update (first valid-chain) :evidence/chain-self-hash (fn [_] "0xtampered"))
                 rest (subvec valid-chain 1)]
              (into [bad] rest))
     :expected-reason :chain-link-hash-mismatch}
    {:label "Link break — wrong prev-hash"
+    :property "each prev-hash must match its predecessor's self-hash"
     :chain (let [good (first valid-chain)
                 bad (assoc (second valid-chain) :evidence/chain-prev-hash "0xbroken")]
              [good bad (nth valid-chain 2)])
     :expected-reason :predecessor-mismatch}
    {:label "Sequence gap — missing seq 2"
+    :property "chain sequence must be contiguous (no gaps or duplicates)"
     :chain [(first valid-chain) (nth valid-chain 2)]
     :expected-reason :non-contiguous-sequence}
    {:label "Wrong scheme"
+    :property "every record must use chain scheme \"link-v1\""
     :chain [(assoc (first valid-chain) :evidence/chain-hash-scheme "link-v0")
             (second valid-chain) (nth valid-chain 2)]
     :expected-reason :unsupported-chain-hash-scheme}])
@@ -250,9 +259,7 @@
          [":verified" "All records valid: scheme, hashes, links, sequence"]
          [":invalid" "One or more validation errors — evidence not admitted"]]})
 
-;; ===========================================================================
-;; 7. Propagate Pro-Rata (Invariant)
-;; ===========================================================================
+;; ## 7. Propagate Pro-Rata (Invariant)
 
 ;; The `:yield/pro-rata-propagation-complete` invariant checks that every
 ;; persisted shared pro-rata outcome has been applied exactly once and that
@@ -406,7 +413,7 @@
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (def happy-world (build-propagation-happy-world demo-propagation-case))
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def propagation-invariant-result
   (yinv/check-pro-rata-propagation-complete happy-world))
 
@@ -418,7 +425,7 @@
 ;; Now show a failure: entitlement not conserved.
 ;; The participant's fulfilled total no longer matches their eligible obligation:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def propagation-failure
   (let [p (get-in happy-world [:yield/pro-rata-propagations "p1"])
         p2 (-> p (assoc-in [:summary :allocated] 150)
@@ -448,7 +455,7 @@
 ;; against the propagation — application hash binding, source arithmetic,
 ;; residual record, and balanced entries:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def accounting-reconcile-result
   (yinv/check-pro-rata-accounting-reconciles happy-world))
 
@@ -457,7 +464,7 @@
 
 ;; Two targeted failures:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def accounting-failures
   [{:label "Application hash mismatch"
     :world (assoc-in happy-world [:yield/applied-pro-rata-propagations "p1" :application/hash] "0xtampered")
@@ -488,7 +495,7 @@
 ;; bugs.  The shared Malli contract (held-ledger-index-schema) prevents
 ;; structural drift; differential tests catch semantic divergence.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def hli-dimensions
   "The five index dimensions in canonical order."
   hli/index-dimensions)
@@ -514,7 +521,7 @@
 
 ;; Build a world with held adjustments and inspect the resulting index:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def sample-index
   "A sample held-ledger index reflecting real Sew protocol structure.
    Position-ids are vectors, owner keys are address strings, workflow-ids
@@ -545,7 +552,7 @@
 
 ;; Validate the sample index against the shared Malli schema:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def index-valid? (hli/valid-held-ledger-index? sample-index))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
@@ -560,7 +567,7 @@
 
 ;; A malformed index (missing dimension) is correctly rejected:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def malformed-index
   {:by-token {:USDC 1000} :by-position {} :by-account {} :by-owner {}
    ;; by-workflow intentionally missing
@@ -568,16 +575,18 @@
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html
- (let [explain (hli/explain-held-ledger-index malformed-index)]
+ (let [explain (hli/explain-held-ledger-index malformed-index)
+       bad-paths (mapv :in (:errors explain))]
    [:div {:style {:background "#450a0a" :border "1px solid #ef4444" :color "#e2e8f0" :padding "12px"
                   :font-family "monospace" :border-radius "4px"}}
     [:div {:style {:color "#ef4444" :font-weight 700}} "✗ Rejected — schema violation"]
-    [:div {:style {:margin-top "4px" :font-size "12px" :color "#fbbf24"}} (pr-str explain)]]))
+    [:div {:style {:margin-top "4px" :font-size "12px" :color "#fbbf24"}}
+     "Invalid/missing index dimension(s): " (pr-str bad-paths)]]))
 
 ;; The contract also provides a reconciliation check: top-level :total-held
 ;; and :held/positions must match the corresponding index dimensions:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def custody-state
   {:held-ledger/index sample-index
    :total-held (:by-token sample-index)
@@ -617,7 +626,7 @@
 ;; clears the flag and passes cleanly; they are not generic authorised
 ;; direct-write locations.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-before
   "World state before any held mutation — empty index, zero balances."
   {:total-held {}
@@ -629,7 +638,7 @@
 
 ;; Step 1 — deposit 10 000 USDC into workflow 0:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-add
   (sew-acc/add-held mut-before :USDC 10000
                     {:action "deposit-wf-0"
@@ -664,7 +673,7 @@
 ;; Step 2 — release 3 000 USDC from workflow 0 (sub-held produces
 ;; negative :by-owner attribution to the recipient):
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-sub
   (sew-acc/sub-held mut-add :USDC 3000
                     {:action "release-wf-0"
@@ -698,7 +707,7 @@
 
 ;; Step 3 — deposit 50 ETH into workflow 1 (multi-token):
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-multi
   (sew-acc/add-held mut-sub :ETH 50
                     {:action "deposit-wf-1"
@@ -732,7 +741,7 @@
 
 ;; Validate every intermediate and final index:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-valids
   {:step-1-add    (hli/valid-held-ledger-index? (:held-ledger/index mut-add))
    :step-2-sub    (hli/valid-held-ledger-index? (:held-ledger/index mut-sub))
@@ -761,7 +770,7 @@
 ;; artifact binds `:held/previous-artifact-hash` to its predecessor's hash.
 ;; This is the evidence-chain surface the closed-form verifier checks.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-chain
   {:artifacts (sort-by :held-adjustment/id (vals (:held-artifacts mut-multi)))
    :checks (custody/held-custody-closed-form-checks
@@ -804,7 +813,7 @@
 ;; replay from {} is deterministic and must match the live index, :total-held,
 ;; and :held/positions dimension for dimension.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-replay
   (let [live (:held-ledger/index mut-multi)
         replayed (custody/replay-held-adjustment-state (:held-adjustments mut-multi))
@@ -849,7 +858,7 @@
 ;; to custody mutations: invalid inputs, exceptional reasons without provenance,
 ;; and sub-held overdraw all fail closed and leave the world untouched.
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- custody-state-projection
   "Compact accounting + evidence-chain projection used to prove a rejected
    mutation leaves the world unchanged — not just :total-held, but positions,
@@ -860,7 +869,7 @@
                       :held-adjustments :held-artifacts
                       :force-authorisations/consumed]))
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- gate-error [f world]
   (let [before (custody-state-projection world)]
     (try (f) {:ok? true :world-unchanged? false}
@@ -870,7 +879,7 @@
               :error (or (:reason d) (:type d))
               :world-unchanged? (= before (custody-state-projection world))})))))
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def add-held-gates
   {:missing-token       (gate-error #(sew-acc/add-held mut-before nil 100 {}) mut-before)
    :negative-amount     (gate-error #(sew-acc/add-held mut-before :USDC -5 {}) mut-before)
@@ -912,7 +921,7 @@
 ;; be created this way through the Sew action surface — creation and revocation
 ;; are governance-gated (see Step 8).
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def fa-add-held-pos
   (let [auth-id "fa-add-held-gov"
         scope-map {:authorization/id auth-id
@@ -985,7 +994,7 @@
 ;; :held/previous-artifact-hash on the valid chain: hash-integrity (artifact no
 ;; longer self-consistent) and predecessor-continuity (link broken) must fail.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def mut-tampered
   (let [tampered (assoc-in (:held-artifacts mut-multi)
                            ["held-adjustment-2" :held/previous-artifact-hash]
@@ -1009,9 +1018,59 @@
                 [:span {:style {:color "#94a3b8" :marginLeft "auto"}}
                  (str (count (:violations details)) " violation(s)")]])
              mut-tampered))
+   [:div {:style {:marginTop "8px" :fontSize "10px" :color "#94a3b8"}}
+    "The green five-check table is not merely descriptive: broken chain ordering is
+     detected (hash-integrity + predecessor-continuity fail)."]])
+
+;; Step 7b — the two-arity battery closes the ledger-completeness gap.
+;;
+;; The one-arity surface battery (above) proves artifact-chain integrity. The
+;; two-arity form `(adjustments artifacts)` additionally re-derives
+;; ledger↔artifact completeness (bijection + order), replayed reason/position
+;; policy, and attribution shape/requirement — so a chain that omits, adds, or
+;; substitutes a ledger entry is now independently rejected, not only a chain
+;; whose internal links are broken.
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(def full-battery
+  {:valid (custody/held-custody-closed-form-checks
+           (:held-adjustments mut-multi)
+           (vals (:held-artifacts mut-multi)))
+   :dropped-artifact
+   (try (custody/held-custody-closed-form-checks
+         (:held-adjustments mut-multi)
+         (rest (vals (:held-artifacts mut-multi))))
+        (catch clojure.lang.ExceptionInfo e
+          (:check-results (ex-data e))))})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "▸ two-arity battery — ledger completeness, policy parity, attribution"]
+  [:div {:style {:color "#94a3b8" :fontSize "11px" :marginBottom "6px"}}
+   "Valid world — all checks pass, including ledger/artifact bijection + order
+    and the replayed reason-position-policy / attribution checks:"]
+  (into [:div {:style {:display "grid" :gap "3px" :fontSize "11px"}}]
+        (map (fn [{:keys [check/id status]}]
+               [:div {:style {:display "flex" :gap "8px"}}
+                [:span {:style {:color (if (= :pass status) "#22c55e" "#ef4444") :fontWeight 700}}
+                 (if (= :pass status) "✓" "✗")]
+                [:span {:style {:color "#cbd5e1"}} (name id)]])
+             (:valid full-battery)))
+  [:div {:style {:color "#fbbf24" :fontWeight 700 :marginTop "12px" :fontSize "11px"}}
+   "Dropping one artifact — ledger/artifact bijection and order reject it:"]
+  (into [:div {:style {:display "grid" :gap "3px" :fontSize "11px"}}]
+        (map (fn [{:keys [check/id status]}]
+               [:div {:style {:display "flex" :gap "8px"}}
+                [:span {:style {:color (if (= :pass status) "#22c55e" "#ef4444") :fontWeight 700}}
+                 (if (= :pass status) "✓" "✗")]
+                [:span {:style {:color "#cbd5e1"}} (name id)]])
+             (:dropped-artifact full-battery)))
   [:div {:style {:marginTop "8px" :fontSize "10px" :color "#94a3b8"}}
-   "The green five-check table is not merely descriptive: broken chain ordering is
-    detected (hash-integrity + predecessor-continuity fail)."]])
+   "The artifact surface stays internally valid, but the ledger/artifact bijection
+    fails: the chain is no longer an exact image of the ledger."]])
 
 ;; Step 8 — the legitimate public path: governance grants, anyone executes.
 ;;
@@ -1026,7 +1085,7 @@
 ;; Execution is intentionally unprivileged: the privilege lives in the
 ;; authenticated, scope-locked, consumable capability.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def fa-legit
   (let [snap (snap-fix/escrow-snapshot {:escrow-fee-bps 50})
         w0 (sew-types/empty-world 1000)
@@ -1124,7 +1183,7 @@
   [positions]
   {:yield/positions positions})
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def aggregate-happy-world
   "Positions where shortfall ≤ available value — invariant should pass."
   (build-shortfall-world
@@ -1135,7 +1194,7 @@
              :principal 500 :realized-yield 50 :unrealized-yield 0
              :shortfall {:basis-amount 100}}}))
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def shortfall-cap-pass
   (yinv/check-aggregate-shortfall-cap aggregate-happy-world))
 
@@ -1144,7 +1203,7 @@
 
 ;; Failure: shortfall exceeds available value in a (module, token) pair:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def aggregate-fail-world
   "Positions where shortfall exceeds available value — invariant should fail."
   (build-shortfall-world
@@ -1155,7 +1214,7 @@
              :principal 500 :realized-yield 50 :unrealized-yield 0
              :shortfall {:basis-amount 100}}}))
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def shortfall-cap-fail
   (yinv/check-aggregate-shortfall-cap aggregate-fail-world))
 
@@ -1171,7 +1230,7 @@
 
 ;; Separate (module, token) pairs are checked independently:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def aggregate-module-separate-world
   "Two different (module, token) pairs — each checked independently."
   (build-shortfall-world
@@ -1182,7 +1241,7 @@
              :principal 100 :realized-yield 0 :unrealized-yield 0
              :shortfall {:basis-amount 500}}}))
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def shortfall-cap-separate
   (yinv/check-aggregate-shortfall-cap aggregate-module-separate-world))
 
@@ -1206,7 +1265,7 @@
 ;; seconds.  The monotonicity invariant ensures the index moves in the
 ;; correct direction: up for positive yield, down for negative yield.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def new-index-demo
   [{:label "positive APY  (1000 bps = 10%)"
     :old-index 1.0
@@ -1246,7 +1305,7 @@
 
 ;; Violation: positive yield mode but index decreases (wrong direction):
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def new-index-violation
   (ytran/index-monotone-ok? 2.0 1.5 false))
 
@@ -1284,7 +1343,7 @@
 ;; A pending settlement records the direction (release/refund) and the
 ;; appeal-deadline block timestamp after which execution is permitted:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def pending-settlement-def
   {:exists          true
    :is-release      true
@@ -1309,7 +1368,7 @@
 ;; The protocol guard is: `block-time >= appeal-deadline` when escrow is
 ;; `:disputed`.  This replicates the guard from `execute-pending-settlement`:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (defn settlement-executable?
   "Check whether a pending settlement may be executed.
    Mirrors the relevant guards from execute-pending-settlement.
@@ -1357,7 +1416,7 @@
 ;; Three theorems formalise the settlement properties.  Each has a statement,
 ;; scope, conclusion, and falsifier conditions:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def theorems
   [{:theorem/id :theorem/settlement-consistency
     :theorem/type :state-invariant
@@ -1378,7 +1437,7 @@
 ;; Each position records the researcher's assessment (reproduced, challenged,
 ;; not-reviewed) of each theorem:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def reviewer-positions
   [{:researcher/id "researcher-alpha"
     :position/hash "sha256:pos-alpha"
@@ -1433,7 +1492,7 @@
 ;;
 ;; The certificate's `per-theorem-consensus` function classifies each theorem:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def settlement-consensus
   (tmc/per-theorem-consensus reviewer-positions))
 
@@ -1493,7 +1552,7 @@
 ;; Every resolved award must carry a `:participant/id` under `:beneficiary`.
 ;; `build-slash-distribution` rejects the input when this is nil:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (defn check-beneficiary-present
   "Simplified structural check mirroring the slash-distribution guard."
   [award]
@@ -1527,7 +1586,7 @@
 ;; `:execution/force-authorisation` sections match on all four identity
 ;; fields:
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def manifest-a
   {:execution/force-authorisation
    {:authorisation-hash "sha256:auth-1"
@@ -1535,7 +1594,7 @@
     :consumption-key    "ck-alpha"
     :execution-attempt-id "attempt-1"}})
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def manifest-b
   {:execution/force-authorisation
    {:authorisation-hash "sha256:auth-1"
@@ -1543,7 +1602,7 @@
     :consumption-key    "ck-alpha"
     :execution-attempt-id "attempt-1"}})
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def manifest-c
   {:execution/force-authorisation
    {:authorisation-hash "sha256:auth-2"
@@ -1578,7 +1637,7 @@
 ;; predicate says "same content" while the provenance predicate says
 ;; "different authority":
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def scope-manifest-a
   {:benchmark/content-root "sha256:content"
    :execution/model-root "sha256:model"
@@ -1595,7 +1654,7 @@
     :consumption-key    "ck-alpha"
     :execution-attempt-id "attempt-alpha"}})
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def scope-manifest-b
   (assoc scope-manifest-a
          :execution/force-authorisation
@@ -1633,7 +1692,7 @@
 ;; is globally unambiguous.  A naked `{:review-member/key N}` without its
 ;; round hash is not meaningful.
 
-^{:nextjournal.clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def assignment-members
   [{:review-member/key 0, :researcher/id "researcher-alpha", :role :model-steward}
    {:review-member/key 1, :researcher/id "researcher-beta",  :role :independent-reproducer}
@@ -1732,38 +1791,47 @@
                  :review-round/policy-root "sha256:p"})
                (catch Exception e (.getMessage e)))]]})
 
-;; ### 15.4  Integer Hash Commitment
-
-;; The review-round hash commits to the member keys.  Changing any key
-;; produces a different hash.  This is the integer-key → hash binding:
-;; the key set `{0, 1, 2}` enters the domain-separated round identity.
+;; ### 15.4  Integer Keys and the Round Identity Hash
+;;
+;; The review-round identity hash commits to the member **researchers**
+;; (sorted identities), not to the integer member keys.  `build-review-round`
+;; deliberately excludes `:review-member/key` from the identity projection
+;; (`member-identity-projection`, resolver-sim.benchmark.review-round): the key
+;; is a compatibility assertion for the derived approval index, not part of the
+;; round's durable identity.  Changing a key with the same researchers leaves
+;; the round hash unchanged; changing a researcher changes it.  The integer key
+;; IS committed where it matters — the scoped reference (§15.2) and the
+;; approval/dissent key-vectors (§16).
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(let [round-a (rr/build-review-round
-               {:benchmark/content-root "sha256:h"
-                :review-round/purpose :model-admission
-                :review-round/members
-                [{:review-member/key 0, :researcher/id "a", :role :model-steward}
-                 {:review-member/key 1, :researcher/id "b", :role :independent-reproducer}
-                 {:review-member/key 2, :researcher/id "c", :role :adversarial-reviewer}]
-                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
-                :review-round/policy-root "sha256:p"})
-      round-b (rr/build-review-round
-               {:benchmark/content-root "sha256:h"
-                :review-round/purpose :model-admission
-                :review-round/members
-                [{:review-member/key 0, :researcher/id "a", :role :model-steward}
-                 {:review-member/key 1, :researcher/id "b", :role :independent-reproducer}
-                 {:review-member/key 3, :researcher/id "c", :role :adversarial-reviewer}]
-                :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
-                :review-round/policy-root "sha256:p"})]
+(let [role-for {0 :model-steward 1 :independent-reproducer 2 :adversarial-reviewer 3 :adversarial-reviewer}
+      mk (fn [ks rs]
+           (rr/build-review-round
+            {:benchmark/content-root "sha256:h"
+             :review-round/purpose :model-admission
+             :review-round/members
+             (mapv (fn [k r] {:review-member/key k :researcher/id r :role (role-for k)})
+                   ks rs)
+             :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+             :review-round/policy-root "sha256:p"}))
+      round-012  (mk [0 1 2] ["a" "b" "c"])
+      round-013  (mk [0 1 3] ["a" "b" "c"])
+      round-012d (mk [0 1 2] ["a" "b" "d"])
+      id-012  (:review-round/id round-012)
+      id-013  (:review-round/id round-013)
+      id-012d (:review-round/id round-012d)]
   (clerk/html
    [:div {:style {:background "#0f172a" :padding "16px" :borderRadius "8px"
                   :fontFamily "monospace" :fontSize "13px" :color "#e2e8f0"}}
-    [:div "Keys {0, 1, 2} → hash " [:strong {:style {:color "#22c55e"}} (subs (:review-round/id round-a) 0 24) "…"]]
-    [:div "Keys {0, 1, 3} → hash " [:strong {:style {:color "#fbbf24"}} (subs (:review-round/id round-b) 0 24) "…"]]
-    [:div {:style {:marginTop "8px" :borderTop "1px solid #334155" :paddingTop "8px" :color "#94a3b8"}}
-     "Different keys ⇒ different hash — the key set is committed."]]))
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "Integer keys are not part of the round identity hash (by design)"]
+    [:div "Keys {0,1,2}, researchers a,b,c → " [:strong {:style {:color "#22c55e"}} id-012]]
+    [:div "Keys {0,1,3}, researchers a,b,c → " [:strong {:style {:color "#fbbf24"}} id-013]]
+    [:div "Keys {0,1,2}, researchers a,b,d → " [:strong {:style {:color "#fbbf24"}} id-012d]]
+    [:div {:style {:marginTop "8px" :borderTop "1px solid #334155" :paddingTop "8px"
+                   :color "#94a3b8"}}
+     (str "keys differ ⇒ hash " (if (= id-012 id-013) "UNCHANGED" "CHANGED")
+          "   ·   researcher differs ⇒ hash " (if (not= id-012 id-012d) "CHANGED" "UNCHANGED"))]]))
 
 ;; ---
 ;; ## 16. Researcher Approval (Key-Based Consensus)
@@ -1988,7 +2056,7 @@
 ;; The round hashes differ — proof that identity and topology are
 ;; independently committed.
 
-^{:nextjournal.clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def iso-round-a
   (rr/build-review-round
    {:benchmark/content-root "sha256:iso"
@@ -2000,7 +2068,7 @@
     :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
     :review-round/policy-root "sha256:policy"}))
 
-^{:nextjournal.clerk/visibility {:code :show :result :hide}}
+^{:nextjournal.clerk/visibility {:code :fold :result :hide}}
 (def iso-round-b
   (rr/build-review-round
    {:benchmark/content-root "sha256:iso"
@@ -2036,20 +2104,20 @@
     [:tr [:td {:style {:padding "6px 8px" :color "#c4b5fd"}} "Key 2 →"]
      [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} (rr/researcher-id-for-member-key iso-round-a 2)]
      [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} (rr/researcher-id-for-member-key iso-round-b 2)]]
-    [:tr {:style (str "borderTop: 2px solid #22c55e")}
+    [:tr {:style {:borderTop "2px solid #22c55e"}}
      [:td {:style {:padding "6px 8px" :color "#7ADDDC" :fontWeight 700}} "Hash"]
-     [:td {:style {:padding "6px 8px" :color "#22c55e" :fontSize "11px"}} (subs (:review-round/id iso-round-a) 0 24) "…"]
-     [:td {:style {:padding "6px 8px" :color "#fbbf24" :fontSize "11px"}} (subs (:review-round/id iso-round-b) 0 24) "…"]]
-    [:tr {:style (str "borderTop: 2px solid #ef4444")}
+     [:td {:style {:padding "6px 8px" :color "#22c55e" :fontSize "11px" :wordBreak "break-all"}} (:review-round/id iso-round-a)]
+     [:td {:style {:padding "6px 8px" :color "#fbbf24" :fontSize "11px" :wordBreak "break-all"}} (:review-round/id iso-round-b)]]
+    [:tr {:style {:borderTop "2px solid #ef4444"}}
      [:td {:style {:padding "6px 8px" :color "#fbbf24" :fontWeight 700}} "Approval vector (key [0, 1])"]
      [:td {:style {:padding "6px 8px" :color "#22c55e"}} "α + β"]
      [:td {:style {:padding "6px 8px" :color "#22c55e"}} "ξ + ψ"]]]]
-  [:div {:style {:marginTop "8px" :color "#94a3b8" :fontSize "12px"}}
-   "Same keys, same topology.  Different researchers, different hashes."]])
+  [:div {:style {:marginTop "8px" :color (if (not= (:review-round/id iso-round-a) (:review-round/id iso-round-b)) "#22c55e" "#ef4444") :fontSize "12px"}}
+   (if (not= (:review-round/id iso-round-a) (:review-round/id iso-round-b))
+     "✓ Same keys, same topology.  Different researchers ⇒ different hashes."
+     "✗ Hashes unexpectedly equal.")]])
 
-;; ===========================================================================
-;; 17. Protected Held-Ledger Authorization Boundary
-;; ===========================================================================
+;; ## 17. Protected Held-Ledger Authorization Boundary
 ;;
 ;; **Claim.** Protected held-ledger mutations require a currently usable force
 ;; authorization bound to the requested scope. A failed authorization check
@@ -2157,89 +2225,212 @@
         {:accepted? false :before before :after before
          :error-type (:type (ex-data e)) :error-data (ex-data e)}))))
 
-;; ### 17.1 Rejection matrix
+;; ### 17.1 Rejection matrices (data-driven)
 ;;
 ;; Each row attempts a force-authorised `sub-held` against a world whose grant
-;; differs in exactly one way.  The expected authorization failure is observed,
-;; the held-ledger projection is identical to its pre-attempt value, and the
-;; grant is left unconsumed (or, in the already-consumed case, unchanged).
+;; differs in exactly one way.  The matrices are data-driven: a case is a small
+;; spec describing the one mutated dimension plus the expected authorization
+;; error; `build-sc-case` / `build-rc-case` derive the world, provenance, and
+;; attempt from it.  Adding a dimension means adding one map, not a fresh world.
+;; Every rejection leaves the held-ledger projection identical to its pre-attempt
+;; value and the grant unconsumed.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(def fa-rejection-cases
-  (let [base (fa-grant-world {})
-        base-world (:world base)
-        base-prov (:provenance base)]
-    [{:label "missing provenance" :expected-type :invalid-held-adjustment
-      :world base-world :auth-id (:auth-id base) :token :USDC :amount 40
-      :opts {:action "finalize-released" :reason :force-authorised-release
-             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
-     {:label "unknown grant" :expected-type :authorization/not-found
-      :world base-world :auth-id (:auth-id base) :token :USDC :amount 40
-      :opts {:action "finalize-released" :reason :force-authorised-release
-             :authorization-provenance {:authorization/type :force-authorisation
-                                        :authorization/id "fa-missing"
-                                        :authorization/scope-hash "0xforged"}
-             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
-     {:label "consumed grant" :expected-type :authorization/already-consumed
-      :world (:world (fa-grant-world {:grant-status :consumed :grant-consumed? true}))
-      :auth-id "fa-USDC-force-authorised-release-42" :token :USDC :amount 40
-      :opts {:action "finalize-released" :reason :force-authorised-release
-             :authorization-provenance base-prov
-             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
-     {:label "scope mismatch" :expected-type :authorization/grant-scope-mismatch
-      :world (:world (fa-grant-world {:grant-reason :force-authorised-refund}))
-      :auth-id "fa-USDC-force-authorised-refund-42" :token :USDC :amount 40
-      :opts {:action "finalize-released" :reason :force-authorised-release
-             :authorization-provenance (:provenance (fa-grant-world {:grant-reason :force-authorised-refund}))
-             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
-     {:label "not yet valid" :expected-type :authorization/not-yet-started
-      :world (:world (fa-grant-world {:starts-at 100 :block-time 0}))
-      :auth-id "fa-USDC-force-authorised-release-42" :token :USDC :amount 40
-      :opts {:action "finalize-released" :reason :force-authorised-release
-             :authorization-provenance (:provenance (fa-grant-world {:starts-at 100}))
-             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}
-     {:label "expired" :expected-type :authorization/expired
-      :world (:world (fa-grant-world {:expires-at 100 :block-time 100}))
-      :auth-id "fa-USDC-force-authorised-release-42" :token :USDC :amount 40
-      :opts {:action "finalize-released" :reason :force-authorised-release
-             :authorization-provenance (:provenance (fa-grant-world {:expires-at 100}))
-             :extra {:held/workflow-id 42 :owner/address "0xBob"}}}]))
+(def sc-rejection-specs
+  "Single-claim rejection cases.  Each row mutates one dimension of an otherwise
+   valid, active, scope-matching grant."
+  [{:label "missing provenance" :expected-type :invalid-held-adjustment
+    :property "sub-held requires an authorization-provenance" :provenance :none}
+   {:label "unknown / forged grant" :expected-type :authorization/not-found
+    :property "the authorization record must exist (no forged id)" 
+    :provenance {:authorization/id "fa-forged" :authorization/scope-hash "0xforged"}}
+   {:label "consumed grant" :expected-type :authorization/already-consumed
+    :property "a consumed grant cannot be reused"
+    :grant {:grant-status :consumed :grant-consumed? true}}
+   {:label "revoked grant (not-active)" :expected-type :authorization/not-active
+    :property "a grant must be :active to be usable"
+    :grant {:grant-status :revoked}}
+   {:label "scope mismatch" :expected-type :authorization/grant-scope-mismatch
+    :property "attempt scope must equal the grant's granted scope"
+    :grant {:grant-reason :force-authorised-refund}}
+   {:label "not yet valid" :expected-type :authorization/not-yet-started
+    :property "block-time must be at or after grant starts-at"
+    :grant {:starts-at 100 :block-time 0}}
+   {:label "expired" :expected-type :authorization/expired
+    :property "block-time must be before grant expires-at"
+    :grant {:expires-at 100 :block-time 100}}])
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- build-sc-case
+  "Turn a single-claim rejection spec into a ready-to-attempt case map
+   {:label :expected-type :world :auth-id :opts}."
+  [{:keys [label expected-type grant provenance]}]
+  (let [g (fa-grant-world (or grant {}))
+        base-prov (:provenance g)
+        attempt-prov (cond
+                       (= :none provenance) nil
+                       (nil? provenance) base-prov
+                       :else (merge base-prov provenance))]
+    {:label label :expected-type expected-type
+     :world (:world g) :auth-id (:auth-id g)
+     :opts (cond-> {:action "finalize-released"
+                    :reason :force-authorised-release
+                    :extra {:held/workflow-id 42 :owner/address "0xBob"}}
+             (some? attempt-prov) (assoc :authorization-provenance attempt-prov))}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- rc-scope-map
+  "Scope map for a related-claims member workflow (shape matches the single-claim
+   scope and the accounting tests)."
+  [auth-id workflow-id]
+  {:authorization/id auth-id
+   :authorization/type :force-authorisation
+   :held/direction :out
+   :token :USDC
+   :amount 40
+   :held/account :escrow-principal
+   :owner/address "0xBob"
+   :held/reason :force-authorised-release
+   :held/workflow-id workflow-id})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- rc-rejection-world
+  "Build a related-claims world: relationship 99 over workflows [10 11], one
+   active grant authorizing `grant-member-hashes`.  Options:
+     :auth-id             grant / provenance id (default \"fa-rc-1\")
+     :grant-member-hashes hashes the grant authorizes (default: both workflows)
+     :relationship-status relationship lifecycle (default :active)
+     :consumed-members    pre-consumed member hashes (for the member-reuse case)"
+  [{:keys [auth-id grant-member-hashes relationship-status consumed-members]
+    :or {auth-id "fa-rc-1" relationship-status :active consumed-members #{}}}]
+  (let [wf-a 10 wf-b 11 rel-id 99
+        hash-a (hc/domain-hash "force-authorisation-scope" (rc-scope-map auth-id wf-a))
+        hash-b (hc/domain-hash "force-authorisation-scope" (rc-scope-map auth-id wf-b))
+        member-hashes (or grant-member-hashes [hash-a hash-b])]
+    {:auth-id auth-id :wf-a wf-a :wf-b wf-b :rel-id rel-id
+     :hash-a hash-a :hash-b hash-b :member-hashes member-hashes
+     :world {:total-held {:USDC 200}
+             :held/positions {[:held/position :USDC :escrow-principal wf-a] 100
+                              [:held/position :USDC :escrow-principal wf-b] 100}
+             :held-ledger/index {:by-token {:USDC 200}
+                                 :by-position {[:held/position :USDC :escrow-principal wf-a] 100
+                                               [:held/position :USDC :escrow-principal wf-b] 100}
+                                 :by-account {:escrow-principal 200}
+                                 :by-workflow {wf-a 100 wf-b 100}}
+             :force-authorisations
+             {auth-id {:authorization/id auth-id
+                       :authorization/status :active
+                       :consumed? false
+                       :starts-at 0
+                       :authorization/scope-kind :related-claims
+                       :relationship/id rel-id
+                       :relationship/hash "rel-hash"
+                       :member-scope-hashes member-hashes}}
+             :force-authorisations/consumed
+             (if (seq consumed-members)
+               {auth-id {:consumed-members consumed-members}}
+               {})
+             :related-claims
+             {rel-id {:relationship/id rel-id
+                      :relationship/status relationship-status
+                      :relationship/hash "rel-hash"
+                      :relationship/members
+                      [{:claim/kind :sew/workflow :workflow/id wf-a}
+                       {:claim/kind :sew/workflow :workflow/id wf-b}]}}}}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def rc-rejection-specs
+  "Related-claims rejection cases (multi-member scope-kind)."
+  [{:label "member not in relationship" :expected-type :authorization/member-not-in-relationship
+    :property "attempted member must be in the related-claims relationship"
+    :workflow-id 12}
+   {:label "member scope not authorized" :expected-type :authorization/member-scope-not-authorized
+    :property "attempted member scope must be in the grant's authorized set"
+    :workflow-id 11 :grant-member-hashes :wf-a-only}
+   {:label "member reuse (already consumed)" :expected-type :authorization/member-already-consumed
+    :property "a member scope can be consumed only once"
+    :workflow-id 10 :consumed-members :wf-a}
+   {:label "inactive relationship" :expected-type :authorization/relationship-inactive
+    :property "the related-claims relationship must be :active"
+    :relationship-status :closed}])
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- build-rc-case
+  "Turn a related-claims rejection spec into a ready-to-attempt case map."
+  [{:keys [label expected-type workflow-id grant-member-hashes relationship-status consumed-members]}]
+  (let [auth-id "fa-rc-1"
+        base (rc-rejection-world {:auth-id auth-id})
+        wf (or workflow-id (:wf-a base))
+        granted (case grant-member-hashes
+                  :wf-a-only [(:hash-a base)]
+                  :wf-b-only [(:hash-b base)]
+                  [(:hash-a base) (:hash-b base)])
+        consumed-set (case consumed-members
+                       :wf-a #{(:hash-a base)}
+                       #{})
+        rc (rc-rejection-world {:auth-id auth-id
+                                :grant-member-hashes granted
+                                :relationship-status (or relationship-status :active)
+                                :consumed-members consumed-set})
+        scope (rc-scope-map auth-id wf)
+        prov {:authorization/type :force-authorisation
+              :authorization/id auth-id
+              :authorization/scope-kind :related-claims
+              :authorization/scope-hash (hc/domain-hash "force-authorisation-scope" scope)
+              :relationship/id (:rel-id rc)
+              :relationship/hash "rel-hash"
+              :member-scope-hashes granted}]
+    {:label label :expected-type expected-type
+     :world (:world rc) :auth-id auth-id
+     :opts {:action "finalize-released" :reason :force-authorised-release
+            :authorization-provenance prov
+            :extra {:held/workflow-id wf :owner/address "0xBob"}}}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- render-rejection-matrix
+  "Render a data-driven rejection matrix table from built case maps."
+  [title cases]
+  (clerk/html
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     title]
+    (into [:table {:style {:width "100%" :borderCollapse "collapse" :fontSize "12px"}}]
+          (map (fn [{:keys [label expected-type world auth-id opts]}]
+                 (let [r (fa-attempt world :USDC 40 opts)
+                       type-ok? (= expected-type (:error-type r))
+                       ledger-ok? (= (:before r) (:after r))
+                       gr (get-in world [:force-authorisations auth-id])
+                       grant-after (str (name (:authorization/status gr))
+                                        (if (:consumed? gr) "/consumed" "/unconsumed"))]
+                   [:tr {:key label}
+                    [:td {:style {:padding "6px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a"}} label]
+                    [:td {:style {:padding "6px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
+                     (name expected-type)]
+                    [:td {:style {:padding "6px 8px" :color (if type-ok? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
+                     (if (:accepted? r) "ACCEPTED" (name (:error-type r)))]
+                    [:td {:style {:padding "6px 8px" :color (if ledger-ok? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
+                     (if ledger-ok? "UNCHANGED" "CHANGED")]
+                    [:td {:style {:padding "6px 8px" :color "#94a3b8" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
+                     grant-after]]))
+              cases))]))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(clerk/html
- [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
-                :fontFamily "monospace" :borderRadius "4px"}}
-  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
-   "A. Rejection matrix — authentication → scope → temporal → replay protection"]
-  (into [:table {:style {:width "100%" :borderCollapse "collapse" :fontSize "12px"}}]
-        (map (fn [{:keys [label expected-type world auth-id token amount opts]}]
-               (let [r (fa-attempt world token amount opts)
-                     type-ok? (= expected-type (:error-type r))
-                     ledger-ok? (= (:before r) (:after r))
-                     gr (get-in world [:force-authorisations auth-id])
-                     grant-after (str (name (:authorization/status gr))
-                                      (if (:consumed? gr) "/consumed" "/unconsumed"))]
-                 [:tr {:key label}
-                  [:td {:style {:padding "6px 8px" :color "#c4b5fd" :borderBottom "1px solid #134e4a"}} label]
-                  [:td {:style {:padding "6px 8px" :color "#e2e8f0" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
-                   (name expected-type)]
-                  [:td {:style {:padding "6px 8px" :color (if type-ok? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
-                   (if (:accepted? r) "ACCEPTED" (name (:error-type r)))]
-                  [:td {:style {:padding "6px 8px" :color (if ledger-ok? "#22c55e" "#ef4444") :borderBottom "1px solid #134e4a" :fontWeight 700}}
-                   (if ledger-ok? "UNCHANGED" "CHANGED")]
-                  [:td {:style {:padding "6px 8px" :color "#94a3b8" :borderBottom "1px solid #134e4a" :fontSize "11px"}}
-                   grant-after]]))
-             fa-rejection-cases))])
+(render-rejection-matrix
+ "A. Single-claim rejection matrix — authentication → lifecycle → scope → temporal"
+ (map build-sc-case sc-rejection-specs))
 
-;; **claim-deferred.** The matrix above demonstrates missing / forged /
-;; consumed / scope-mismatched / not-yet-valid / expired force-authorisations.
-;; Two force-authorisation rejection classes are implemented and tested but are
-;; **not** demonstrated by this notebook: a `:revoked`/`:not-active` grant
-;; status (`ensure-force-authorisation-usable!` → `:authorization/not-active`),
-;; and the multi-member `related-claims` scope-kind rejection matrix
-;; (member-not-in-relationship, member-scope-not-authorized, member reuse,
-;; inactive relationship). Treat those as deferred evidence; do not read this
-;; section as asserting notebook-level coverage of them.
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(render-rejection-matrix
+ "B. Related-claims rejection matrix — membership → member-scope → reuse → relationship"
+ (map build-rc-case rc-rejection-specs))
+
+;; The single-claim matrix above demonstrates authentication (missing / forged),
+;; lifecycle (consumed / revoked → :not-active), temporal (not-yet-valid /
+;; expired), and scope (mismatch) rejections.  The related-claims matrix
+;; demonstrates the multi-member scope-kind rejections: member-not-in-relationship,
+;; member-scope-not-authorized, member reuse, and inactive relationship.  Every
+;; row leaves the held-ledger projection unchanged and the grant unconsumed.
 
 ;; ### 17.2 Successful authorized mutation
 ;;
@@ -2338,7 +2529,7 @@
 ;; `:total-held`. Here the two compose: add-held produces a held balance, and
 ;; grounded-amount gives that balance its committed context.
 
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (def ga-held-demo
   (let [base {:total-held {}
               :held/positions {}
@@ -2376,36 +2567,151 @@
      [:span {:style {:color "#e2e8f0"}} (pr-str v)]])])
 
 ;; ---
-;; ## 19. Summary
+;; ## 19. Admission gallery
 
-;; The verification surfaces in this notebook enforce different properties:
+;; The fast visual catalogue: submit a candidate, it violates a property, the
+;; system refuses to admit it — and exactly why.  Each row is derived from the
+;; rejection data already demonstrated above (chain §5, held-ledger §9-§10,
+;; yield §7/§8/§11/§12, settlement §13, provenance §14, authorization §17), so
+;; the catalogue cannot drift from the proofs.
 
-;; - The **chain verifier** ensures evidence is hash-linked and ordered correctly.
-;; - **Propagation completeness** ensures a pro-rata outcome was applied once and that
-;;   every participant's entitlement, capacity, and position reflect the outcome.
-;; - **Accounting reconciliation** ensures the application snapshot is hash-consistent
-;;   and that the source debits and participant credits balance.
-;; - **Held-ledger index** formalises the shared contract between live and replay
-;;   custody paths, preventing structural drift via a Malli schema.
-;; - **Second-order mutation path** demonstrates `add-held`/`sub-held` producing
-;;   a valid index as a side effect of custody accounting, plus the
-;;   **live-vs-replay differential** (`replay-held-adjustment-state` reproduces
-;;   the live `:total-held`, `:held/positions`, and every index dimension).
-;; - **Protected held-ledger authorization boundary** demonstrates that only a
-;;   currently usable force-authorization bound to the requested scope can mutate
-;;   the ledger: every failed check leaves the projection unchanged and the grant
-;;   unconsumed, while a valid grant performs exactly the intended transition and
-;;   is consumed exactly once.
-;; - **Yield index monotonicity** verifies `new-index = old-index × growth-factor`
-;;   moves in the correct direction for both positive and negative APY.
-;; - **Aggregate shortfall cap** prevents systemic over-counting where recorded
-;;   shortfall exceeds available position value.
-;; - **Settlement deadline enforcement** demonstrates the PendingSettlement data
-;;   model, appeal-deadline guard logic, and three-member per-theorem consensus
-;;   that classifies each settlement theorem.
-;; - **Missing-beneficiary, misalignment, provenance** checks that every award
-;;   has a beneficiary, that execution scope ≠ provenance identity, and that
-;;   `same-authorisation-provenance?` correctly classifies matching manifests.
-;;
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def admission-gallery-rows
+  (concat
+   (map (fn [{:keys [label property expected-reason]}]
+          {:candidate label :property property :outcome expected-reason :section "§5"})
+        chain-failure-modes)
+   [{:candidate "already-applied pro-rata propagation" :section "§7"
+     :property ":yield/pro-rata-propagation-complete — applied exactly once"
+     :outcome :invariant-violation}
+    {:candidate "tampered application hash / imbalanced account" :section "§8"
+     :property ":application-binding-valid — snapshot hash-consistent and balanced"
+     :outcome :check-failure}
+    {:candidate "held-ledger index missing a dimension" :section "§9"
+     :property "held-ledger-index schema (closed map, all dimensions present)"
+     :outcome :schema-violation}
+    {:candidate "unauthorized or tampered add-held / sub-held mutation" :section "§10"
+     :property "authorized direct-write boundary (only canonical entry points mutate the ledger)"
+     :outcome :rejected}
+    {:candidate "aggregate shortfall above the per-module cap" :section "§11"
+     :property ":yield/shortfall-cap — recorded shortfall cannot exceed available position value"
+     :outcome :invariant-violation}
+    {:candidate "yield index regression while in positive-yield mode" :section "§12"
+     :property "yield index monotonicity (new-index = old-index × growth-factor)"
+     :outcome :violation}
+    {:candidate "settlement execution attempt before the appeal deadline" :section "§13"
+     :property "settlement deadline enforcement (block-time ≥ appeal-deadline)"
+     :outcome :not-executable}
+    {:candidate "award with missing beneficiary or misaligned provenance" :section "§14"
+     :property "beneficiary presence + same-authorisation provenance classification"
+     :outcome :not-admitted}]
+   (map (fn [{:keys [label property expected-type]}]
+          {:candidate label :property property :outcome expected-type :section "§17.1"})
+        sc-rejection-specs)
+   (map (fn [{:keys [label property expected-type]}]
+          {:candidate label :property property :outcome expected-type :section "§17.1"})
+        rc-rejection-specs)))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- admission-gallery
+  "Render the at-a-glance rejection catalogue table."
+  [rows]
+  (clerk/html
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "What the system refuses to accept — and exactly why"]
+    (into [:table {:style {:width "100%" :borderCollapse "collapse"}}]
+          (concat
+           [[:tr {:style {:borderBottom "1px solid #334155"}}
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Candidate (submitted)"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Violated property"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#f87171"}} "NOT ADMITTED"]
+             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "§"]]]
+           (map (fn [{:keys [candidate property outcome section]}]
+                  [:tr {:style {:borderBottom "1px solid #134e4a"}}
+                   [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} candidate]
+                   [:td {:style {:padding "6px 8px" :color "#fbbf24"}} property]
+                   [:td {:style {:padding "6px 8px" :color "#fca5a5" :whiteSpace "nowrap"}} (name outcome)]
+                   [:td {:style {:padding "6px 8px" :color "#7ADDDC" :whiteSpace "nowrap"}} section]])
+                rows)))]))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(admission-gallery admission-gallery-rows)
+
 ;; These are independent verification surfaces. A valid chain does not imply valid
-;; propagation, and vice versa — each must be checked separately.
+;; propagation, and vice versa — each must be checked separately.  The proofs
+;; live in the sections above; this catalogue only summarises the refusals.
+
+;; ---
+;; ## 20. Administrative — additional NOT-ADMITTED classes
+;;
+;; An administrative register of further rejection classes relevant to the
+;; admission boundary. Two are demonstrated here with real code (canonical
+;; encoding refuses out-of-domain values; the content-addressed store refuses to
+;; overwrite stored bytes); the rest map to existing sections above or to
+;; surfaces covered elsewhere, and are registered so the boundary is explicit.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(let [out-of-domain? (try (hc/canonical-bytes #{1 2})
+                          false
+                          (catch clojure.lang.ExceptionInfo e
+                            (= :canonical/out-of-domain (get-in (ex-data e) [:type]))))
+      store (cas/create-store (str (System/getProperty "java.io.tmpdir")
+                                   "/na-cas-" (System/nanoTime)))
+      ref (str "sha256:" (hc/domain-hash "na-demo-artifact" {:a 1}))
+      put (fn [art] (cas/put-if-absent! store {:hash-reference ref :artifact art :verify (fn [m] true)}))
+      first-put (:status (put {:a 1}))
+      dup-put (:status (put {:a 1}))
+      collision (try (:status (put {:a 2}))
+                     (catch clojure.lang.ExceptionInfo e (get-in (ex-data e) [:reason])))]
+  (clerk/html
+   [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                  :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+     "20.1 · out-of-domain — the canonical encoder refuses non-canonical values"]
+    [:div "A set (outside the canonical type algebra) is rejected: "
+     [:strong {:style {:color (if out-of-domain? "#22c55e" "#ef4444")}}
+      (if out-of-domain? "NOT ADMITTED (:canonical/out-of-domain)" "unexpectedly encoded")]]
+    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginTop "14px" :marginBottom "8px"}}
+     "20.2 · put-if-absent — the content-addressed store refuses to overwrite stored bytes"]
+    [:div "first write: "
+     [:strong {:style {:color "#22c55e"}} (name first-put)]
+     "  ·  duplicate: "
+     [:strong {:style {:color "#fbbf24"}} (name dup-put)]
+     "  ·  same-key/different-content: "
+     [:strong {:style {:color (if (= :hash-content-collision collision) "#22c55e" "#ef4444")}}
+      (if (= :hash-content-collision collision) "NOT ADMITTED (:hash-content-collision)" collision)]
+     " — stored bytes never change."]]))
+
+;; The administrative register — rejection class → what the system refuses → outcome:
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
+                :fontFamily "monospace" :borderRadius "4px" :fontSize "12px"}}
+  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
+   "20.3 · administrative register of NOT-ADMITTED classes"]
+  (into [:table {:style {:width "100%" :borderCollapse "collapse"}}]
+        (concat
+         [[:tr {:style {:borderBottom "1px solid #334155"}}
+           [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Rejection class"]
+           [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "What the system refuses"]
+           [:th {:style {:padding "6px 8px" :textAlign "left" :color "#f87171"}} "Outcome"]
+           [:th {:style {:padding "6px 8px" :textAlign "left" :color "#94a3b8"}} "Where"]]]
+         (for [[label refused outcome where]
+               [["authorisation" "unauthenticated / unauthorised ledger mutation" "NOT ADMITTED" "§17"]
+                ["authentic" "inauthentic / tampered evidence commitment" "NOT ADMITTED" "§5"]
+                ["chain-ingestion" "chain-ingestion replay action without a committed event-id" "rejected" "scenario_value_at_risk / replay flags"]
+                ["researcher" "unqualified or non-constituted researcher seat" "NOT ADMITTED" "§15–§16"]
+                ["integer-available" "non-integer available quantity at the allocation boundary" "scope (no code match)" "—"]
+                ["out-of-domain" "value outside the canonical type algebra" "NOT ADMITTED (:canonical/out-of-domain)" "§20.1 (demonstrated)"]
+                ["put-if-absent" "overwrite / mutate already-stored content" "NOT ADMITTED (:hash-content-collision)" "§20.2 (demonstrated)"]
+                ["folk-theorem" "game-theoretic cooperation claim without evidence of the region" "scope (game-theory surface)" "game_theory_validation"]
+                ["follow-through" "certificate not followed through to a committed conclusion" "scope (review surface)" "three_member_certificate"]
+                ["inserting" "out-of-order / duplicate chain insertion" "NOT ADMITTED" "§5"]]]
+           [:tr {:style {:borderBottom "1px solid #134e4a"}}
+            [:td {:style {:padding "6px 8px" :color "#e2e8f0"}} label]
+            [:td {:style {:padding "6px 8px" :color "#fbbf24"}} refused]
+            [:td {:style {:padding "6px 8px" :color "#22c55e" :fontWeight 700}} outcome]
+            [:td {:style {:padding "6px 8px" :color "#c4b5fd"}} where]])))] )

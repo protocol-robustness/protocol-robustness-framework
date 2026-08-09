@@ -22,27 +22,16 @@
   :with-bounty-verification-basis-v1)
 
 (def basis-projection-fields
-  [:schema-version
-   :basis/subject-root
-   :basis/package-root
-   :basis/artifact-root
-   :basis/verification-contract
-   :basis/verification-contract-version
-   :basis/entrypoint
-   :basis/invocation-parameters
-   :basis/dependency-lockfile-root
-   :basis/runtime-root
-   :basis/environment-root
-   :basis/vector-set-root
-   :basis/resource-limit-profile
-   :basis/expected-public-result-schema
-   :basis/classification-policy-root])
+  "Committed fields of a with-bounty-verification-basis.v1 identity (single
+   source of truth: resolver-sim.hash.canonical/with-bounty-verification-basis-fields)."
+  hc/with-bounty-verification-basis-fields)
 
 (defn verification-basis-root
-  "Content-addressed root of a committed verification basis."
+  "Content-addressed root of a committed verification basis, projected
+   canonical-safe."
   [basis]
   (hc/domain-hash basis-domain-tag
-                  (select-keys basis basis-projection-fields)))
+                  (hc/project-with-bounty-verification-basis basis nil)))
 
 (defn build-verification-basis
   "Assemble a verification-basis.v1 from its committed fields and attach

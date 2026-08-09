@@ -1018,11 +1018,11 @@
                              :reconciliation-valid? reconciliation-valid?}
               :closed-form-failure-counts check-failure-counts
               :closed-form-status check-status
-:triage {:broken-predecessor-links (mapv :held-adjustment/id (:violations predecessor-details))
-                        :invalid-artifacts invalid-artifacts
-                        :valid-amount-violations (:violations valid-amount-details)
-                        :valid-artifact-violations (:violations valid-artifact-details)
-                        :overdraw-attempts overdraw
+              :triage {:broken-predecessor-links (mapv :held-adjustment/id (:violations predecessor-details))
+                       :invalid-artifacts invalid-artifacts
+                       :valid-amount-violations (:violations valid-amount-details)
+                       :valid-artifact-violations (:violations valid-artifact-details)
+                       :overdraw-attempts overdraw
                        :replay-mismatches (mapv :held-adjustment/id (:violations replay-details))
                        :ledger-artifact-bijection-violations (:violations bijection-details)
                        :ledger-artifact-order-violations (:violations order-details)

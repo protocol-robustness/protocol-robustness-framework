@@ -9,7 +9,7 @@
      clojure -M:test -m scripts.scenarios.generate-risk-projection
        <bundle-dir> <trace-dir> <output-dir>
 
-   Writes (into output-dir, default tmp/risk-projection):
+   Writes (into output-dir, default results/risk-projection/<bundle-ts>/):
      risk-projection.edn        risk-card.html
      distribution.exposure.edn  distribution.loss.edn
      var-projection.exposure.edn  var-card.exposure.html
@@ -27,6 +27,13 @@
   (binding [*out* *err*]
     (println msg))
   (System/exit 1))
+
+(defn- default-output-dir
+  "Bundle-keyed stable output: results/risk-projection/<test-artifacts-ts>/."
+  [bundle-dir]
+  (let [ts (or (second (re-find #"test-artifacts-(\d{8}T\d{6}Z)" (str bundle-dir)))
+               "default")]
+    (str "results/risk-projection/" ts)))
 
 (defn- latest-bundle-dir
   "Pick the most recent results/test-artifacts-<ts> directory that actually
@@ -70,7 +77,7 @@
             [nil nil nil])
         bundle-dir (or bundle-dir (latest-bundle-dir))
         trace-dir (or trace-dir (.getAbsolutePath (io/file "data/fixtures/traces")))
-        output-dir (or output-dir "tmp/risk-projection")
+        output-dir (or output-dir (default-output-dir bundle-dir))
         projection (risk/project {:bundle-dir bundle-dir
                                   :trace-dir trace-dir
                                   :run-id "generator"})

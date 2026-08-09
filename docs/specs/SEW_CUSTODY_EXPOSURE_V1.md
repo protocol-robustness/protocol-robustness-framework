@@ -17,9 +17,10 @@ on the Sew function. The existing test `held-custody-closed-form-checks-pass-on-
 characterises the current equivalence guarantee.
 
 `held-custody-closed-form-checks` has two arities: the one-arity form verifies the
-artifact surface alone (hash, schema, delta, non-negative, predecessor, sequence);
-the two-arity form `held-custody-closed-form-checks(adjustments, artifacts)`
-additionally verifies ledger↔artifact completeness (`ledger-artifact-bijection`,
+artifact surface alone (hash, schema, amount/artifact well-formedness, delta,
+non-negative, predecessor, sequence); the two-arity form
+`held-custody-closed-form-checks(adjustments, artifacts)` additionally verifies
+ledger↔artifact completeness (`ledger-artifact-bijection`,
 `ledger-artifact-order`), replayed reason/position policy, and attribution
 shape/requirement. This packet uses the two-arity form so that custody assurance
 covers ledger completeness, not only artifact-chain integrity.

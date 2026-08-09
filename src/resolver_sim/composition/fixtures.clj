@@ -1,6 +1,10 @@
 (ns resolver-sim.composition.fixtures
-  "Composition framework test fixtures: capability builders, an extension-map
-   seeded with core capabilities, and executable fixture entrypoints."
+  "Composition capability builders: a capability factory, an extension-map
+   seeded with core capabilities, and executable entrypoints.
+
+   Shared by tests and by the served short-circuit demo notebook, so it lives
+   on the base (non-test) classpath. These are research/demo scaffolding, not
+   production protocol capabilities."
   (:require [resolver-sim.economics.slash-distribution :as sd]
             [resolver-sim.extensions.registry :as reg]))
 

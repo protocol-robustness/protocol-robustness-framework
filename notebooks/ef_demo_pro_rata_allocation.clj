@@ -12,7 +12,8 @@
 ;; 4. Attestation resolution: parse typed ref → registry lookup → hash match → type verify
 ;; 5. A full verifiable evidence chain from protocol action through to resolution
 
-^{:nextjournal.clerk/visibility {:code :fold :result :show}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.ef-demo-pro-rata-allocation
   (:require [nextjournal.clerk :as clerk]

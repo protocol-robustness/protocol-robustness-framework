@@ -553,6 +553,26 @@ Depending on the workflow, generated evidence may include:
 - package indexes and completion records;
 - signatures and release metadata.
 
+#### Risk projection and VaR
+
+Generate a canonical, evidence-backed view of escrow exposure across a scenario
+corpus, with an explicit — and honestly separated — VaR pipeline:
+
+- `risk-projection.v1` — time-indexed `escrow/total-held` exposure series with
+  per-row evidence provenance (evidence hash + exact field path), scenario-local
+  deltas, measured/not-measured coverage, and corpus-safe metrics. Chain
+  verification is `:verified`; content-hash recomputation and world-transition
+  recomputation are reported `:not-measured` with recorded reasons.
+- `scenario-distribution.v1` — the explicit probability/weighting boundary
+  (empirical, uniform weights over measured scenarios).
+- `var-projection.v1` — `:var/p95`, `:var/p99`, exact expected shortfall, and
+  tail attribution, with a mandatory statement that these are corpus-relative
+  quantiles, not a probabilistic forecast.
+
+Every artifact commits a canonical root that re-verifies; rendering is outside
+the commitment. Generate the full set with `bb risk:projection`. Spec:
+`docs/specs/RISK_PROJECTION_SPEC_V1.md`.
+
 #### Independent output verification
 
 Verify persisted scenario and benchmark packages separately from the process that executed them.

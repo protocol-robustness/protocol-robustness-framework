@@ -129,6 +129,37 @@
             {:canonical/bytes (:ledger/canonical-bytes record)
              :canonical/hash (:ledger/canonical-hash record)})))))
 
+(defn reconcile-withdrawal-ledger
+  "Re-certify the withdrawal ledger records for the given module/token against
+   the supplied world after a legitimate protocol state change (liquidity
+   recovery, deferred claim) that mutates allocation-relevant world state which
+   the records' state-cutpoint roots commit.
+
+   Without reconciliation, the world-bound `:yield/withdrawal-ledger-conservation`
+   check would reject an intact historical settlement because the live world has
+   advanced past its cutpoint (e.g. `yield_recover_liquidity` restores
+   `available-ratio` to 1.0, changing `:yield/risk`, which is part of the
+   committed state-cutpoint projection).
+
+   Only records matching the module/token are re-committed.  Economic content
+   (available / requested / filled / deferred / haircut / rows / owner-ids) is
+   preserved; only the contextual state-cutpoint root and the compositional
+   basis/certificate are refreshed against the new world."
+  [world module-id token]
+  (let [mid (keyword module-id)
+        tok (keyword token)]
+    (update world :yield/withdrawal-ledger
+            (fn [ledger]
+              (mapv (fn [r]
+                      (if (and (= (keyword (:ledger/module-id r)) mid)
+                               (= (keyword (:ledger/token r)) tok))
+                        (-> r
+                            (assoc :ledger/state-cutpoint-root
+                                   (partial-fill/ledger-state-cutpoint-root world))
+                            content-address-ledger)
+                        r))
+                    ledger)))))
+
 (defn- fail!
   ([message reason]
    (fail! message reason {}))
@@ -2254,11 +2285,12 @@
   (let [owner-id (:owner/id op)
         position-path [:yield/positions owner-id]
         position (get-in world position-path)
-        module-id (:module/id module)]
+        module-id (:module/id module)
+        token (:token position)]
     (attr/with-attribution
       {:claim/module-id module-id
        :claim/position-id owner-id
-       :claim/token (:token position)}
+       :claim/token token}
       (cond
         (nil? position) world
         (not= (:module/id position) module-id) world
@@ -2301,9 +2333,12 @@
           (if (pos? reclaimed)
             (let [world-with-position
                   (assoc-in world position-path new-position)
+                  world-with-ledger
+                  (reconcile-withdrawal-ledger
+                   world-with-position module-id token)
                   final-world
                   (ye/emit-shortfall-event
-                   world-with-position
+                   world-with-ledger
                    :yield.shortfall/deferred-reclaimed
                    owner-id
                    {:reclaimed-amount reclaimed
@@ -2389,7 +2424,10 @@
      :yield/withdraw-shared withdraw-shared
      :yield/accrue accrue
      :yield/emergency-unwind emergency-unwind
-     :yield/claim-deferred claim-deferred}}))
+     :yield/claim-deferred claim-deferred
+     :yield/reconcile-withdrawal-ledger
+     (fn [world module op]
+       (reconcile-withdrawal-ledger world (:module/id module) (:token op)))}}))
 
 (def liquid-lending-module
   (make-liquid-lending-module :yield.provider/liquid-lending))

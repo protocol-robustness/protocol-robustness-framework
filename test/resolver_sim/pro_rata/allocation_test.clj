@@ -133,6 +133,71 @@
       (is (some #(= :pro-rata/allocation-reconstruction-mismatch (:reason %))
                 (mechanism-evidence/evidence-violations forged-envelope))))))
 
+(deftest unallocated-capped-witness-agrees-with-clamped-allocation
+  (testing "unallocated policy with binding caps emits internally consistent evidence"
+    (let [result (allocation/allocate
+                  {:allocation/id :dr-pr-002-shape
+                   :available 600
+                   :rounding-policy :largest-remainder
+                   :redistribution-policy :unallocated
+                   :rows [{:row/id :a :obligation/id :a :requested 600 :weight 100 :cap 100}
+                          {:row/id :b :obligation/id :b :requested 600 :weight 300 :cap 300}]})]
+      (is (= [[:a 100N] [:b 300N]] (mapv (juxt :row/id :allocated) (:rows result))))
+      (is (= [[:a 50N] [:b 150N]] (mapv (juxt :row/id :unmet) (:rows result))))
+      (is (= 400N (:allocated-total result)))
+      (is (= 0N (:unallocated-residual result)))
+      (is (= :none (:residual-reason result)))
+      (is (empty? (invariants/result-violations result)))
+      (is (empty? (mechanism-evidence/evidence-violations
+                   (mechanism-evidence/mechanism-evidence-artifact result)))))))
+
+(deftest unallocated-mixed-caps-remainder-rank-is-contiguous
+  (let [result (allocation/allocate
+                {:allocation/id :mixed-caps
+                 :available 10
+                 :rounding-policy :largest-remainder
+                 :redistribution-policy :unallocated
+                 :rows [{:row/id :a :obligation/id :a :requested 10 :weight 8 :cap 1}
+                        {:row/id :b :obligation/id :b :requested 10 :weight 1 :cap 10}
+                        {:row/id :c :obligation/id :c :requested 10 :weight 1 :cap 10}]})]
+    (is (nil? (:remainder-rank (first (:rows result)))))
+    (is (= [0 1] (keep :remainder-rank (:rows result))))
+    (is (empty? (invariants/result-violations result)))))
+
+(deftest redistribute-all-capped-shortfall-is-accounted
+  (testing "capacity shortfall with every row capped reconciles per-row unmet"
+    (let [result (allocation/allocate
+                  {:allocation/id :all-capped-shortfall
+                   :available 600
+                   :rounding-policy :largest-remainder
+                   :redistribution-policy :redistribute-cap-excess
+                   :rows [{:row/id :a :obligation/id :a :requested 600 :weight 100 :cap 100}
+                          {:row/id :b :obligation/id :b :requested 600 :weight 300 :cap 300}]})]
+      (is (= [[:a 100N] [:b 300N]] (mapv (juxt :row/id :allocated) (:rows result))))
+      (is (= 200N (reduce + 0 (map :unmet (:rows result)))))
+      (is (= 0N (:unallocated-residual result)))
+      (is (empty? (invariants/result-violations result))))))
+
+(deftest missing-row-field-is-structured-invalid
+  (doseq [field [:requested :weight]]
+    (let [row (if (= field :requested)
+                {:row/id :x :weight 1}
+                {:row/id :x :requested 10})
+          error (try
+                  (allocation/allocate {:allocation/id :missing-field
+                                        :available 10 :rows [row]})
+                  nil
+                  (catch clojure.lang.ExceptionInfo exception exception))]
+      (is error)
+      (is (= :missing-allocation-row-field (:reason (ex-data error))))
+      (is (= field (:field (ex-data error)))))))
+
+(deftest aggregate-conservation-violation-is-detected
+  (let [result (allocation/allocate {:allocation/id :conservation :available 10 :rows rows})
+        tampered (assoc result :allocated-total 5N)]
+    (is (some #(= :pro-rata/aggregate-conservation-violated (:reason %))
+              (invariants/result-violations tampered)))))
+
 (deftest allocation-rejects-duplicate-row-identity
   (testing "duplicate evidence is rejected rather than silently collapsed"
     (let [error (try

@@ -135,7 +135,7 @@
 (defn- run-simulator-scenario
   [sc actual-dir protocol replay-fn replay-opts]
   (let [{:keys [id trace-slug upgrade-path classification primary-threat
-                expectations-passed invariants-passed claim-id invariant-ids]} sc
+                invariants-passed claim-id invariant-ids]} sc
         scenario-path (:simulator/scenario-path sc)
         trace-rel (str "actual/traces/" trace-slug ".trace.json")
         trace-path (str actual-dir "/traces/" trace-slug ".trace.json")
@@ -154,7 +154,12 @@
           inv-violations  (:invariant-violations metrics 0)
           expectations    (:expectations result)
           exp-ok?         (or (nil? expectations) (:ok? expectations))
-          exp-violations  (count (:violations expectations []))]
+          exp-violations  (count (:violations expectations []))
+          exp-summary     (or (:summary expectations) {})
+          exp-passed      (get exp-summary :expectations/passed 0)
+          exp-failed      (get exp-summary :expectations/failed 0)
+          exp-not-eval    (get exp-summary :expectations/not-evaluated 0)
+          exp-total       (get exp-summary :expectations/total 0)]
       (when (not= :pass (:outcome result))
         (throw (ex-info "reference-validation simulator scenario did not pass"
                         {:scenario-id id :path scenario-path
@@ -187,8 +192,10 @@
          :classification (namespace-keyword->string classification)
          :confidence (name (:level (confidence/default-confidence :scenario)))
          :evidence_type "simulator-backed"
-         :expectations_failed (if exp-ok? 0 exp-violations)
-         :expectations_passed (or expectations-passed 0)
+         :expectations_failed exp-failed
+         :expectations_passed exp-passed
+         :expectations_not_evaluated exp-not-eval
+         :expectations_total exp-total
          :invariants_failed inv-violations
          :invariants_passed (or invariants-passed (count (or invariant-ids [])))
          :primary_claim (name claim-id)

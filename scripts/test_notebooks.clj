@@ -1,10 +1,31 @@
 (ns scripts.test-notebooks
+  "Verify every notebook namespace loads.
+
+   Each notebook is loaded in its OWN isolated JVM, with a per-notebook timeout.
+   This is deliberate: loading ~37 heavy notebooks sequentially in one JVM
+   accumulates namespace state and memory, which intermittently produces
+   spurious loader errors (e.g. 'Syntax error reading source' at valid code) on
+   the heaviest notebooks and lets a single slow notebook hang the whole gate.
+   Isolation removes both problems.
+
+   Exit code is 0 when every notebook loads, 1 otherwise."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]))
 
-;; ── helpers ────────────────────────────────────────────────────────────────────
-
 (def notebooks-dir (io/file "notebooks"))
+
+(def ^:const per-notebook-timeout-seconds
+  "Maximum seconds to wait for a single notebook's subprocess.
+   Covers cold-JVM startup (~40s) plus expensive top-level computation.
+   notebooks/workbench_v2.clj alone needs ~400s (heavy top-level scenario
+   work), so this is set comfortably above that. With per-notebook isolation a
+   slow or hung notebook only delays its own result, never the whole gate."
+  600)
+
+(def ^:const classpath-alias
+  "Alias used to launch each notebook subprocess. Must include every path a
+   notebook requires (see deps.edn); matches the way the server is run."
+  "-M:with-sew")
 
 (defn read-ns-form [^java.io.File f]
   (with-open [rdr (io/reader f)]
@@ -23,30 +44,54 @@
            (not (str/includes? (.getName f) "_template"))))
     (file-seq notebooks-dir))))
 
-(def ^:const notebook-timeout-ms
-  "Maximum milliseconds to wait for a single notebook to load.
-   JVM startup for the first notebook (~40s) plus require time for
-   notebooks with expensive top-level computations (scenario replay,
-   trace data loading).  Notebooks exceeding this should use delay
-   or lazy evaluation at top level."
-  120000)
+(defn- read-all
+  "Read a stream to a string in a background thread (so a noisy subprocess
+   cannot block on a full pipe buffer). Returns a string."
+  [^java.io.InputStream is]
+  (let [sb (StringBuilder.)
+        t (Thread. (fn []
+                     (with-open [r (io/reader is)]
+                       (loop []
+                         (when-let [line (.readLine r)]
+                           (.append sb line)
+                           (.append sb "\n")
+                           (recur))))))]
+    (.start t)
+    {:string-builder sb :thread t}))
+
+(defn load-notebook-isolated
+  "Require a notebook namespace in a fresh JVM, with a timeout.
+
+   Returns {:ok? bool :exit int-or-:timeout :output string}."
+  [ns-sym]
+  (let [cmd ["clojure" classpath-alias "-e" (str "(require '" ns-sym ")")]
+        pb (doto (ProcessBuilder. ^java.util.List cmd)
+             (.redirectErrorStream true))
+        proc (.start pb)
+        {:keys [string-builder thread]} (read-all (.getInputStream proc))
+        exited? (.waitFor proc (long per-notebook-timeout-seconds)
+                          java.util.concurrent.TimeUnit/SECONDS)]
+    (if exited?
+      (let [exit (.exitValue proc)]
+        (.join thread 5000)
+        {:ok? (zero? exit) :exit exit :output (str string-builder)})
+      (do (.destroy proc)
+          (.join thread 5000)
+          {:ok? false :exit :timeout :output (str string-builder)}))))
 
 (defn load-notebook [ns-sym]
-  (try
-    (require ns-sym)
-    (println "  ✓" ns-sym)
-    true
-    (catch Exception e
-      (println "  ✗" ns-sym)
-      (println "    " (ex-message e))
-      false)))
+  (let [{:keys [ok? exit output]} (load-notebook-isolated ns-sym)]
+    (if ok?
+      (do (println "  ✓" ns-sym) true)
+      (do (println "  ✗" ns-sym)
+          (println "    exit:" (pr-str exit))
+          (let [last-lines (->> output str/split-lines
+                                (take-last 6)
+                                (map #(str "      " %)))]
+            (doseq [l last-lines] (println l)))
+          false))))
 
-
-;; ── entry point ────────────────────────────────────────────────────────────────
-
-(defn -main [& args]
-  ;; Suppress log spam from notebook namepace loading
-  (System/setProperty "org.slf4j.simpleLogger.defaultLogLevel" "error")
+(defn -main [& _args]
   (let [files (notebook-files)
         total (count files)
         results (mapv (fn [f]

@@ -9,7 +9,8 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.notebook-support.speds.risk :as risk]))
+            [resolver-sim.notebook-support.speds.risk :as risk]
+            [resolver-sim.notebook-support.speds.risk-render :as render]))
 
 (defn- write-json!
   [dir file m]
@@ -233,3 +234,18 @@
       (is (= [nil 1970] (mapv :delta rows)))
       (is (not= (:risk-projection/root full) (:risk-projection/root reduced)))
       (is (= :pass (:status (risk/verify-root reduced)))))))
+
+(deftest risk-card-renders-honestly
+  (testing "the risk card renders required labels, shows VaR as NOT MEASURED, and is deterministic"
+    (let [p (risk/project (bundle-dirs))
+          html (render/render-card-html p)]
+      (is (str/starts-with? html "<!doctype html>"))
+      (is (str/includes? html "SCENARIO RISK PROJECTION"))
+      (is (str/includes? html "QUANTITY"))
+      (is (str/includes? html "escrow/total-held"))
+      (is (str/includes? html "VaR p95"))
+      (is (str/includes? html "VaR p99"))
+      (is (str/includes? html "NOT MEASURED"))
+      (is (str/includes? html "VERIFIED"))
+      (is (str/includes? html "Chain verification"))
+      (is (= html (render/render-card-html p))))))

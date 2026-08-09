@@ -21,12 +21,12 @@
 ;;
 ;; <inputs, assumptions, parameters>
 
-^{::clerk/visibility {:code :hide :result :hide}}
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def run
   (-> (speds-data/load-summary)
       checks/assert-test-summary!))
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (views/render-card
  {:label "Scenario"
   :rag   :green
@@ -37,13 +37,13 @@
 ;;
 ;; <key result — small table, chart, or card>
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (defn conservation-holds?
   "Invariant: requested = debited + unmet + waived"
   [{:keys [requested debited unmet waived]}]
   (= requested (+ debited unmet waived)))
 
-^{::clerk/visibility {:code :fold :result :show}}
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
  {:head ["Metric" "Value"]
   :rows [["Status" (:overall_status run)]

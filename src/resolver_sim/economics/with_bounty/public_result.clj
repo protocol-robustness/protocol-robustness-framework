@@ -23,20 +23,16 @@
 (defn public-result-projection
   "The canonical public projection of an evaluation result. Excludes
    :replay/inputs, invocation evidence, and the plan/effect payloads — only
-   the committed public roots and the classification remain."
-  [{:keys [status receipt]}]
-  {:status status
-   :composition/policy-root (get-in receipt [:composition/policy-root])
-   :composition/base-operation-root (get-in receipt [:composition/base-operation-root])
-   :extensions/resolution-root (get-in receipt [:extensions/resolution-root])
-   :bounty/obligation-id (get-in receipt [:bounty/obligation-id])
-   :bounty/effect-root (get-in receipt [:bounty/effect-root])
-   :bounty/application-plan-root (get-in receipt [:bounty/application-plan-root])})
+   the committed public roots and the classification remain.  Single source of
+   truth: resolver-sim.hash.canonical/project-with-bounty-public-result."
+  [result]
+  (hc/project-with-bounty-public-result result nil))
 
 (defn public-result-root
   "Content-addressed root of the canonical public result."
   [result]
-  (hc/domain-hash public-result-domain-tag (public-result-projection result)))
+  (hc/domain-hash public-result-domain-tag
+                  (hc/project-with-bounty-public-result result nil)))
 
 (defn validate-public-result
   "Structural check that a public-result projection carries exactly the

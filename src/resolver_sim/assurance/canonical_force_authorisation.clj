@@ -602,15 +602,16 @@
 
 (defn- cancellation-binding-field-present?
   "True when the binding carries a populated value for `field` - i.e. the key is
-   present AND its value is not blank (nil, whitespace-only string, or an empty
-   collection).  Contract 7 binds a whole outcome over the exact target
-   snapshot, so a blank placeholder must not count as the binding being present."
+   present AND its value is not nil or a whitespace-only string.  Contract 7
+   binds a whole outcome over the exact target snapshot, so a nil blank
+   placeholder must not count as the binding being present.  Empty collections
+   (e.g. an empty :cancellation/effects set) ARE present - they project to an
+   empty canonical vector and are legitimately committable."
   [binding field]
   (let [v (get binding field ::missing)]
     (and (not (identical? v ::missing))
          (not (or (nil? v)
-                  (and (string? v) (str/blank? v))
-                  (and (coll? v) (empty? v)))))))
+                  (and (string? v) (str/blank? v)))))))
 
 (defn cancellation-binding-complete?
   "True when the commit map carries a populated value for every

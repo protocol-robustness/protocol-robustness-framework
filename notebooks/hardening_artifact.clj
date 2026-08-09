@@ -1,4 +1,5 @@
-^{:nextjournal.clerk/dark-mode true}
+^{:nextjournal.clerk/visibility {:code :fold}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.hardening-artifact
   (:require [nextjournal.clerk :as clerk]))
 

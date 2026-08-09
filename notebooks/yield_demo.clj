@@ -1,4 +1,6 @@
-^{:nextjournal.clerk/dark-mode true}
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/visibility {:code :fold}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.yield-demo
   "Yield Shortfall Handling Demo: Data-Driven General Yield.
    Targeted at non-expert readers evaluating the Protocol Robustness Framework."
@@ -194,6 +196,7 @@
    "Healthy yield withdrawal"
    "In the healthy case, expected yield and available liquidity match. Full withdrawal succeeded."))
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (outcome-box vm-a)
 (expected-vs-actual vm-a)
 (outcome-classification vm-a)
@@ -232,6 +235,7 @@
    "Yield shortfall"
    "Shortfall: Full yield is deferred due to zero available liquidity. The unpaid amount is preserved as evidence and may be recoverable if liquidity returns."))
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (outcome-box vm-b)
 (expected-vs-actual vm-b)
 (outcome-classification vm-b)
@@ -271,6 +275,7 @@
    "Partial-fill withdrawal"
    "Partial liquidity available: user receives available funds now; unpaid amount is tracked as deferred. The framework distinguishes between fully paid, partially paid, and blocked."))
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (outcome-box vm-c)
 (expected-vs-actual vm-c)
 (outcome-classification vm-c)

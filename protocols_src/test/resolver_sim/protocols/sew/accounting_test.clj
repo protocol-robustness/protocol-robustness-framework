@@ -247,6 +247,8 @@
             :held-custody/artifact-schema
             :held-custody/parameter-attribution
             :held-custody/local-delta
+            :held-custody/valid-amount
+            :held-custody/valid-artifact
             :held-custody/non-negative-after
             :held-custody/predecessor-continuity
             :held-custody/sequence-replay]
@@ -270,6 +272,8 @@
             :held-custody/artifact-schema
             :held-custody/parameter-attribution
             :held-custody/local-delta
+            :held-custody/valid-amount
+            :held-custody/valid-artifact
             :held-custody/non-negative-after
             :held-custody/predecessor-continuity
             :held-custody/sequence-replay

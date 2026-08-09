@@ -13,22 +13,16 @@
   :with-bounty-transition-evidence-v1)
 
 (def transition-projection-fields
-  [:transition/type
-   :plan/root
-   :effect-root
-   :combined-effect-root
-   :world-before-root
-   :world-after-root
-   :payable/roots
-   :backing/roots
-   :custody/adjustment-roots
-   :idempotent?
-   :context])
+  "Committed fields of a with-bounty transition evidence identity (single source
+   of truth: resolver-sim.hash.canonical/with-bounty-transition-evidence-fields)."
+  hc/with-bounty-transition-evidence-fields)
 
 (defn transition-hash
+  "Content-addressed root of a with-bounty transition evidence record, projected
+   canonical-safe."
   [evidence]
   (hc/domain-hash transition-domain-tag
-                  (select-keys evidence transition-projection-fields)))
+                  (hc/project-with-bounty-transition-evidence evidence nil)))
 
 (defn build-transition-evidence
   "Assemble a with-bounty transition evidence record from a plan and the

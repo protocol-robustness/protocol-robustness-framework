@@ -11,9 +11,9 @@
 
    Derivation is a pure function of policy + signals, returning a structured
    record with reasons for auditability."
-  (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as canon]
-            [resolver-sim.hash.reference :as href]))
+  (:require [resolver-sim.hash.canonical :as canon]
+            [resolver-sim.hash.reference :as href]
+            [resolver-sim.hash.sequence :as seq]))
 
 ;; ===========================================================================
 ;; Canonical vocabulary
@@ -536,16 +536,27 @@
   "Domain-separation tag for confidence composition commitments.
    Prevents cross-domain hash collisions between a confidence commitment and
    any other evidence record hashed under the Canonical Hash Spec V1."
-  "CONFIDENCE_COMPOSITION_V1")
+  :confidence-composition-v1)
+
+(def confidence-composition-purpose
+  "Purpose tag bound into every confidence composition commitment via the
+   canonical-value-sequence.v1 contract.  The :purpose makes the consecutive
+   concatenation self-describing — the commitment declares what it is, so it
+   cannot be reinterpreted as a different protocol object under the same tag."
+  :confidence-composition)
 
 (defn concatenate-bound
-  "Concatenate the canonical bytes of hash-bound components and
-   commit them as a single domain-separated canonical sha256 reference.
+  "Concatenate the canonical bytes of hash-bound components and commit them as
+   a single domain-separated canonical sha256 reference, bound to an explicit
+   :purpose under the canonical-value-sequence.v1 contract.
 
    The full bound sequence is preserved in the commitment — the sequence is
    the evidence input, not a collapsed aggregate.  Components are bound by
    :subject-hash so confidence cannot be reordered or reassigned independent
-   of the claims it qualifies.
+   of the claims it qualifies.  Wrapping through bound-sequence commits
+   {:encoding-contract ... :purpose :confidence-composition
+    :component-count n :components [...]}, so the byte commitment is
+   self-describing rather than a bare consecutive concatenation.
 
    ordering:
      :by-subject (default) — set semantics; canonical-components sorts by
@@ -560,9 +571,13 @@
   ([components ordering]
    (let [components (if (= ordering :as-given)
                       (vec components)
-                      (canonical-components components))]
+                      (canonical-components components))
+         bound (seq/bound-sequence
+                {:purpose confidence-composition-purpose
+                 :expected-component-count (count components)}
+                components)]
      (href/sha256-ref
-      (canon/domain-hash confidence-commitment-domain-tag components)))))
+      (canon/domain-hash confidence-commitment-domain-tag bound)))))
 
 ;; ===========================================================================
 ;; Utility

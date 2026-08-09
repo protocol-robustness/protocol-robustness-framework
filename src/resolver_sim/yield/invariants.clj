@@ -12,6 +12,7 @@
             [resolver-sim.logging :as log]))
 
 (declare check-pro-rata-accounting-reconciles)
+(declare mode-over-allocation-violations)
 
 (defn- inv-result [holds?]
   {:holds? (boolean holds?)})
@@ -510,10 +511,13 @@
                                 (and (seq rows) row-over-request)
                                 (conj :withdrawal-row-exceeds-requested)
                                 (and (seq rows) fcfs-over-commit?)
-                                (conj :withdrawal-fcfs-over-commit))]
-                   (when (seq issues)
+                                (conj :withdrawal-fcfs-over-commit))
+                       mode-issues
+                       (vec (map :kind (mode-over-allocation-violations r)))]
+                   (when (or (seq issues) (seq mode-issues))
                      (merge (select-keys r [:ledger/id :ledger/module-id :ledger/token])
                             {:issues issues
+                             :mode-issues mode-issues
                              :available available
                              :requested requested
                              :filled filled
@@ -799,8 +803,14 @@
         violations
         (vec
          (mapcat (fn [artifact]
-                   (map #(assoc % :decision/id (:decision/id artifact))
-                        (:violations (check-shared-withdrawal-conservation artifact))))
+                   (concat
+                    (map #(assoc % :decision/id (:decision/id artifact))
+                         (:violations (check-shared-withdrawal-conservation artifact)))
+                    ;; Mode-model dispatch boundary: a :yield-withdraw-shared
+                    ;; decision must carry its :pro-rata mode tag, else it cannot
+                    ;; be model-verified and the registered invariant fails.
+                    (map #(assoc % :decision/id (:decision/id artifact))
+                         (mode-over-allocation-violations artifact))))
                  shared))]
     {:holds? (empty? violations)
      :violations violations}))
@@ -1009,57 +1019,59 @@
    themselves a violation (the artifact cannot be model-verified).  Returns a
    vector of {:kind ::mode-over-allocated ...}."
   [artifact]
-  (let [mode (withdrawal-artifact-mode artifact)]
-    (case mode
-      nil []
-      :single-position
-      (let [available (long (:ledger/available artifact 0))
-            filled (long (:ledger/filled artifact 0))
-            rows (vec (:ledger/rows artifact []))]
-        (cond-> []
-          (> filled available)
-          (conj {:kind ::mode-over-allocated :mode :single-position
-                 :filled filled :capacity available})
-          (some #(> (long (:filled % 0)) (long (:requested % 0))) rows)
-          (conj {:kind ::mode-over-allocated :mode :single-position
-                 :reason :row-exceeds-requested})))
-      :fcfs-sequential
-      (let [available (long (:ledger/available artifact 0))
-            rows (vec (:ledger/rows artifact []))
-            prefix-over? (boolean (:over? (reduce (fn [{:keys [remaining over?]} row]
-                                                    (let [row-filled (long (:filled row 0))
-                                                          remaining' (- remaining row-filled)]
-                                                      {:remaining remaining'
-                                                       :over? (or over? (neg? remaining'))}))
-                                                  {:remaining available :over? false}
-                                                  rows)))]
-        (cond-> []
-          prefix-over?
-          (conj {:kind ::mode-over-allocated :mode :fcfs-sequential
-                 :reason :prefix-exceeds-pool :available available})
-          (some #(> (long (:filled % 0)) (long (:requested % 0))) rows)
-          (conj {:kind ::mode-over-allocated :mode :fcfs-sequential
-                 :reason :row-exceeds-requested})))
-      :pro-rata
-      (let [rows (vec (get-in artifact [:evidence :allocation-rows] []))
-            filled-map (or (:filled artifact) {})
-            declared-caps (or (:allocation/effective-caps artifact) {})
-            available (long (get-in artifact [:evidence :available-liquidity] 0))]
-        (cond-> []
-          (> (reduce + 0 (vals filled-map)) available)
-          (conj {:kind ::mode-over-allocated :mode :pro-rata
-                 :reason :sum-exceeds-available})
-          (some (fn [row]
-                  (let [k (:key row)
-                        cap (get declared-caps k (:effective-cap row))
-                        cap (if (some? cap) (long cap) (long (:effective-cap row 0)))]
-                    (> (long (:filled row 0)) cap)))
-                rows)
-          (conj {:kind ::mode-over-allocated :mode :pro-rata
-                 :reason :row-exceeds-declared-cap})))
-      ::unknown-mode
-      [{:kind ::mode-over-allocated :mode ::unknown-mode
-        :reason :missing-mode-tag}])))
+  (let [mode (withdrawal-artifact-mode artifact)
+        known-mode? (#{:single-position :fcfs-sequential :pro-rata} mode)]
+    (if (nil? mode)
+      []
+      (case (if known-mode? mode ::unknown-mode)
+        :single-position
+        (let [available (long (:ledger/available artifact 0))
+              filled (long (:ledger/filled artifact 0))
+              rows (vec (:ledger/rows artifact []))]
+          (cond-> []
+            (> filled available)
+            (conj {:kind ::mode-over-allocated :mode :single-position
+                   :filled filled :capacity available})
+            (some #(> (long (:filled % 0)) (long (:requested % 0))) rows)
+            (conj {:kind ::mode-over-allocated :mode :single-position
+                   :reason :row-exceeds-requested})))
+        :fcfs-sequential
+        (let [available (long (:ledger/available artifact 0))
+              rows (vec (:ledger/rows artifact []))
+              prefix-over? (boolean (:over? (reduce (fn [{:keys [remaining over?]} row]
+                                                      (let [row-filled (long (:filled row 0))
+                                                            remaining' (- remaining row-filled)]
+                                                        {:remaining remaining'
+                                                         :over? (or over? (neg? remaining'))}))
+                                                    {:remaining available :over? false}
+                                                    rows)))]
+          (cond-> []
+            prefix-over?
+            (conj {:kind ::mode-over-allocated :mode :fcfs-sequential
+                   :reason :prefix-exceeds-pool :available available})
+            (some #(> (long (:filled % 0)) (long (:requested % 0))) rows)
+            (conj {:kind ::mode-over-allocated :mode :fcfs-sequential
+                   :reason :row-exceeds-requested})))
+        :pro-rata
+        (let [rows (vec (get-in artifact [:evidence :allocation-rows] []))
+              filled-map (or (:filled artifact) {})
+              declared-caps (or (:allocation/effective-caps artifact) {})
+              available (long (get-in artifact [:evidence :available-liquidity] 0))]
+          (cond-> []
+            (> (reduce + 0 (vals filled-map)) available)
+            (conj {:kind ::mode-over-allocated :mode :pro-rata
+                   :reason :sum-exceeds-available})
+            (some (fn [row]
+                    (let [k (:key row)
+                          cap (get declared-caps k (:effective-cap row))
+                          cap (if (some? cap) (long cap) (long (:effective-cap row 0)))]
+                      (> (long (:filled row 0)) cap)))
+                  rows)
+            (conj {:kind ::mode-over-allocated :mode :pro-rata
+                   :reason :row-exceeds-declared-cap})))
+        ::unknown-mode
+        [{:kind ::mode-over-allocated :mode ::unknown-mode
+          :reason :missing-mode-tag}]))))
 
 (defn check-withdrawal-allocation-conservation
   "L2 allocation conservation, dispatched by each artifact's committed mode model

@@ -8,7 +8,8 @@
 ;; The computation below is shared with the terminal walkthrough
 ;; (`bb demo:reorder-chain`) and the automated assertion.
 
-^{:nextjournal.clerk/dark-mode true}
+^{:nextjournal.clerk/visibility {:code :fold}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.demo-reorder-chain
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.demos.reorder-chain.assertions :as assertions]
@@ -20,8 +21,10 @@
 
 ;; ---
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html (demo-views/demo-surface result))
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html (demo-views/technical-proof result))
 
 ;; ## Backed, not improvised

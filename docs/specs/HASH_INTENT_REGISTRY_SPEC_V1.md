@@ -42,6 +42,8 @@ A hash-bearing field MUST NOT be stripped merely because its name ends in `-hash
 
 Only self-hashes are stripped by `project-canonical-artifact` before hashing. A self-hash holds the hash of the artifact currently being hashed — stripping it avoids circular self-reference.
 
+Cancellation is a ROOT-LEVEL contract: only a self-hash key at the top level of the hashed value is stripped. A nested occurrence (e.g. `{:metadata {:node-hash "…"}}`) is ordinary content and MUST be preserved in the canonical bytes. Implementations that strip recursively would change the identity of otherwise-identical artifacts and MUST NOT do so.
+
 Reference hashes are NOT stripped. A reference hash commits the current artifact to another artifact, action, world state, claim definition, attestation, registry, or execution context. Reference hashes are part of the canonical content because they establish the semantic links that make the artifact meaningful.
 
 Examples:
@@ -57,6 +59,8 @@ Examples:
 | `:attestor-hash` | Reference hash | Points to an attestor entry, not the current artifact |
 
 When a hash key can be either a self-hash or a reference hash depending on context, prefer intent-specific exclusions (`:intent/excludes`) over global stripping. For example, `:evidence-node` explicitly excludes `:node-hash` rather than relying on global stripping, because `:node-hash` could appear as a reference in other artifacts.
+
+The bare `:hash` key is context-dependent and is therefore NOT in the global self-hash set; an intent that treats it as a self-hash MUST exclude it explicitly (e.g. `:action`). `validate-registry!` enforces that every self-hash key declared in `:intent/excludes` is structurally absent from the projection output, so a declared exclusion can never silently drift into being hashed.
 
 ## 3. Registry Source
 

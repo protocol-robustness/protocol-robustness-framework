@@ -6,7 +6,8 @@
 ;; and renders. The same computation powers the terminal walkthrough
 ;; (`bb demo:not-admitted`) and the automated assertion.
 
-^{:nextjournal.clerk/dark-mode true}
+^{:nextjournal.clerk/visibility {:code :fold}
+  :nextjournal.clerk/dark-mode true}
 (ns notebooks.demo-not-admitted
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.demos.not-admitted.assertions :as assertions]
@@ -18,8 +19,10 @@
 
 ;; ---
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html (demo-views/demo-surface result))
 
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html (demo-views/technical-proof result))
 
 ;; ## Backed, not improvised

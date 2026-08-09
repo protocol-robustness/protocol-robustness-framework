@@ -93,11 +93,10 @@
               (status-line "Cross-scenario addition" "DISALLOWED" :verified))
 
      (apply section "OBSERVED METRICS (derived, scenario-local)"
-            (concat
-             (map metric-line (dissoc metrics :per-scenario :worst-observed-scenario))
-             (when worst
-               (status-line "Worst observed scenario" (:scenario/id worst)
-                            :verified))))
+            (into (mapv metric-line (dissoc metrics :per-scenario :worst-observed-scenario))
+                  (when worst
+                    [(status-line "Worst observed scenario" (:scenario/id worst)
+                                  :verified)])))
 
      (section "PER-SCENARIO EXPOSURE"
               (for [{:keys [scenario/id row-count peak-observed-exposure

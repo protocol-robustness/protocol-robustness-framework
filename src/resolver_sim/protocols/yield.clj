@@ -157,8 +157,13 @@
     (let [mid (module-id world event)
           tok (token-kw event)
           params (assoc (:params event) :shortfall {:available-ratio 1.0 :reason :recovery})
-          world' (yield-risk/apply-market-shock world mid tok params)]
-      (with-held-sync world'))
+          world' (yield-risk/apply-market-shock world mid tok params)
+          world'' (yield-ops/apply-yield-op
+                   world'
+                   {:op/type :yield/reconcile-withdrawal-ledger
+                    :module/id mid
+                    :token tok})]
+      (with-held-sync world''))
 
     "yield_claim_deferred"
     (try
