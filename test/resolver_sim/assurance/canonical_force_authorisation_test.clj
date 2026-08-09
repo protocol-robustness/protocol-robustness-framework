@@ -347,6 +347,26 @@
    :policy/instance "pol/1" :decision/validity-window "t0..t1"
    :conflict/consumption-key "ck"})
 
+(deftest cancellation-binding-blank-values-are-missing
+  (testing "a binding with every key present but all values nil is incomplete"
+    (let [blank (zipmap cfa/cancellation-binding-fields (repeat nil))]
+      (is (not (cfa/cancellation-binding-complete? blank)))
+      (is (= (vec (sort cfa/cancellation-binding-fields))
+             (cfa/missing-cancellation-binding-fields blank)))))
+  (testing "a present-but-nil value counts as missing"
+    (let [binding (assoc (complete-binding) :target/hash nil)]
+      (is (not (cfa/cancellation-binding-complete? binding)))
+      (is (= [:target/hash] (cfa/missing-cancellation-binding-fields binding)))))
+  (testing "a whitespace-only string value counts as missing"
+    (let [binding (assoc (complete-binding) :target/hash "   ")]
+      (is (= [:target/hash] (cfa/missing-cancellation-binding-fields binding)))))
+  (testing "an empty collection value counts as missing"
+    (let [binding (assoc (complete-binding) :cancellation/effects #{})]
+      (is (= [:cancellation/effects] (cfa/missing-cancellation-binding-fields binding)))))
+  (testing "a populated zero is present, not missing"
+    (is (empty? (cfa/missing-cancellation-binding-fields
+                 (assoc (complete-binding) :target/hash 0))))))
+
 (deftest cancellation-binding-is-hash-bound
   (let [binding (complete-binding)
         binding-hash (cfa/cancellation-binding-hash binding)]

@@ -600,15 +600,31 @@
     :cancellation/reason :decision/profile-id :policy/instance
     :decision/validity-window :conflict/consumption-key})
 
+(defn- cancellation-binding-field-present?
+  "True when the binding carries a populated value for `field` - i.e. the key is
+   present AND its value is not blank (nil, whitespace-only string, or an empty
+   collection).  Contract 7 binds a whole outcome over the exact target
+   snapshot, so a blank placeholder must not count as the binding being present."
+  [binding field]
+  (let [v (get binding field ::missing)]
+    (and (not (identical? v ::missing))
+         (not (or (nil? v)
+                  (and (string? v) (str/blank? v))
+                  (and (coll? v) (empty? v)))))))
+
 (defn cancellation-binding-complete?
-  "True when the commit map carries every `cancellation-binding-fields` key."
+  "True when the commit map carries a populated value for every
+   `cancellation-binding-fields` key."
   [binding]
-  (clojure.set/subset? cancellation-binding-fields (set (keys binding))))
+  (every? #(cancellation-binding-field-present? binding %)
+          cancellation-binding-fields))
 
 (defn missing-cancellation-binding-fields
-  "The binding keys absent from a committed cancellation decision map."
+  "The binding fields absent from - or blank/nil within - a committed
+   cancellation decision map."
   [binding]
-  (vec (sort (clojure.set/difference cancellation-binding-fields (set (keys binding))))))
+  (vec (sort (filter #(not (cancellation-binding-field-present? binding %))
+                     cancellation-binding-fields))))
 
 (defn- project-cancellation-binding
   "Project a committed cancellation binding into canonical-safe form.  Sets
