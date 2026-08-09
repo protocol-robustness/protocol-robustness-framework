@@ -7,7 +7,8 @@
      - resolver-sim.protocols.sew
      - any form under protocols_src/
      - benchmarks/packs/sew/"
-  (:require [resolver-sim.hash.canonical :as hash]
+  (:require [clojure.string :as str]
+            [resolver-sim.hash.canonical :as hash]
             [resolver-sim.assurance.parameter-attribution :as pa]
             [resolver-sim.accounting.held-ledger-index :as held-index]
             [resolver-sim.accounting.held-position-policy :as held-policy]
@@ -96,6 +97,7 @@
    Check ids:
    - :held-custody/hash-integrity
    - :held-custody/local-delta
+   - :held-custody/valid-amount
    - :held-custody/non-negative-after
    - :held-custody/sequence-replay"
   [artifacts]
@@ -164,7 +166,7 @@
              (keep (fn [artifact]
                      (let [before (long (:held/before artifact 0))
                            after (long (:held/after artifact 0))
-                           amount (long (:amount artifact 0))
+                           amount (long (or (:amount artifact) 0))
                            expected-after (case (:held/direction artifact)
                                             :in (+ before amount)
                                             :out (- before amount)
@@ -173,6 +175,47 @@
                          {:held-adjustment/id (:held-adjustment/id artifact)
                           :expected-after expected-after
                           :actual-after after}))))
+             vec)
+        valid-amount-violations
+        (->> ordered
+             (keep (fn [artifact]
+                     (let [amount (:amount artifact)]
+                       (when (or (nil? amount)
+                                 (not (number? amount))
+                                 (neg? amount))
+                         {:held-adjustment/id (:held-adjustment/id artifact)
+                          :amount amount
+                          :invalid-reason (cond
+                                            (nil? amount) :missing
+                                            (not (number? amount)) :non-numeric
+                                            (neg? amount) :negative)}))))
+             vec)
+        valid-artifact-violations
+        (->> ordered
+             (keep (fn [artifact]
+                     (let [id (:artifact/id artifact)
+                           hash (:artifact/hash artifact)
+                           kind (:artifact/kind artifact)
+                           schema (:schema-version artifact)
+                           adjustment-id (:held-adjustment/id artifact)
+                           valid-id? (and (string? id)
+                                          (str/starts-with? id "held-custody-"))
+                           valid-hash? (and (string? hash)
+                                            (re-matches #"^sha256:[0-9a-f]{64}$" hash))
+                           valid-kind? (= :held-custody-adjustment kind)
+                           valid-schema? (contains? supported-held-custody-artifact-versions schema)
+                           adjustment-id-present? (and (string? adjustment-id)
+                                                       (not (str/blank? adjustment-id)))]
+                       (when-not (and valid-id? valid-hash? valid-kind?
+                                      valid-schema? adjustment-id-present?)
+                         {:held-adjustment/id adjustment-id
+                          :artifact/id id
+                          :violations (cond-> []
+                                        (not valid-id?) (conj :invalid-artifact-id)
+                                        (not valid-hash?) (conj :invalid-artifact-hash)
+                                        (not valid-kind?) (conj :invalid-artifact-kind)
+                                        (not valid-schema?) (conj :unsupported-schema-version)
+                                        (not adjustment-id-present?) (conj :missing-adjustment-id))}))))
              vec)
         negative-after-violations
         (->> ordered
@@ -185,7 +228,7 @@
         (reduce (fn [state artifact]
                   (let [token (:token artifact)
                         current (get state token (:held/before artifact))
-                        amount (long (:amount artifact 0))
+                        amount (long (or (:amount artifact) 0))
                         expected-after (case (:held/direction artifact)
                                          :in (+ (long current) amount)
                                          :out (- (long current) amount)
@@ -214,7 +257,7 @@
             (let [token (:token artifact)
                   current (get state token (:held/before artifact))
                   before (long (:held/before artifact 0))
-                  amount (long (:amount artifact 0))
+                  amount (long (or (:amount artifact) 0))
                   expected-after (case (:held/direction artifact)
                                    :in (+ (long current) amount)
                                    :out (- (long current) amount)
@@ -250,6 +293,12 @@
      {:check/id :held-custody/local-delta
       :status (if (empty? local-delta-violations) :pass :fail)
       :details {:violations local-delta-violations}}
+     {:check/id :held-custody/valid-amount
+      :status (if (empty? valid-amount-violations) :pass :fail)
+      :details {:violations valid-amount-violations}}
+     {:check/id :held-custody/valid-artifact
+      :status (if (empty? valid-artifact-violations) :pass :fail)
+      :details {:violations valid-artifact-violations}}
      {:check/id :held-custody/non-negative-after
       :status (if (empty? negative-after-violations) :pass :fail)
       :details {:violations negative-after-violations}}
@@ -911,6 +960,8 @@
                                    check-results)
         pa-details (details-for check-results :held-custody/parameter-attribution)
         predecessor-details (details-for check-results :held-custody/predecessor-continuity)
+        valid-amount-details (details-for check-results :held-custody/valid-amount)
+        valid-artifact-details (details-for check-results :held-custody/valid-artifact)
         replay-details (details-for check-results :held-custody/sequence-replay)
         bijection-details (details-for check-results :held-custody/ledger-artifact-bijection)
         order-details (details-for check-results :held-custody/ledger-artifact-order)
@@ -967,9 +1018,11 @@
                              :reconciliation-valid? reconciliation-valid?}
               :closed-form-failure-counts check-failure-counts
               :closed-form-status check-status
-              :triage {:broken-predecessor-links (mapv :held-adjustment/id (:violations predecessor-details))
-                       :invalid-artifacts invalid-artifacts
-                       :overdraw-attempts overdraw
+:triage {:broken-predecessor-links (mapv :held-adjustment/id (:violations predecessor-details))
+                        :invalid-artifacts invalid-artifacts
+                        :valid-amount-violations (:violations valid-amount-details)
+                        :valid-artifact-violations (:violations valid-artifact-details)
+                        :overdraw-attempts overdraw
                        :replay-mismatches (mapv :held-adjustment/id (:violations replay-details))
                        :ledger-artifact-bijection-violations (:violations bijection-details)
                        :ledger-artifact-order-violations (:violations order-details)

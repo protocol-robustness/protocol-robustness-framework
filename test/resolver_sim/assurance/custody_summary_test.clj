@@ -176,3 +176,73 @@
           required (some #(when (= :held-custody/required-attribution (:check/id %)) %) checks)]
       (is (= :fail (:status required)))
       (is (seq (:violations (:details required)))))))
+
+(defn- surface-check
+  "Run the closed-form checks over artifacts only, capturing the per-check results
+   whether they pass or fail (the one-arity surface battery throws on failure)."
+  [artifacts]
+  (try
+    (c/held-custody-closed-form-checks artifacts)
+    (catch clojure.lang.ExceptionInfo e
+      (:check-results (ex-data e)))))
+
+(defn- surface-find
+  "Return the surface check result map with the given check id (or nil)."
+  [check-id artifacts]
+  (some #(when (= check-id (:check/id %)) %)
+        (surface-check artifacts)))
+
+(deftest held-custody-valid-amount-check
+  (testing "valid non-negative amounts pass"
+    (let [artifacts (mapv c/build-held-custody-artifact [adj-1 adj-2])
+          result (surface-find :held-custody/valid-amount artifacts)]
+      (is (= :pass (:status result)))))
+  (testing "a negative amount fails the check with an invalid-reason"
+    (let [artifacts (mapv c/build-held-custody-artifact [(assoc adj-1 :amount -5) adj-2])
+          result (surface-find :held-custody/valid-amount artifacts)]
+      (is (= :fail (:status result)))
+      (is (some #(= :negative (:invalid-reason %))
+                (:violations (:details result))))))
+  (testing "a missing amount fails the check"
+    (let [artifacts (mapv c/build-held-custody-artifact [(dissoc adj-1 :amount) adj-2])
+          result (surface-find :held-custody/valid-amount artifacts)]
+      (is (= :fail (:status result)))
+      (is (some #(= :missing (:invalid-reason %))
+                (:violations (:details result)))))))
+
+(deftest held-custody-valid-artifact-check
+  (testing "well-formed artifacts pass"
+    (let [artifacts (mapv c/build-held-custody-artifact [adj-1 adj-2])
+          result (surface-find :held-custody/valid-artifact artifacts)]
+      (is (= :pass (:status result)))))
+  (testing "a tampered artifact/hash fails the check"
+    (let [artifacts (mapv c/build-held-custody-artifact [adj-1 adj-2])
+          artifact (assoc (first artifacts) :artifact/hash "sha256:0000")
+          result (surface-find :held-custody/valid-artifact (into [artifact] (rest artifacts)))]
+      (is (= :fail (:status result)))
+      (is (some (fn [violation] (contains? (set (:violations violation)) :invalid-artifact-hash))
+                (:violations (:details result))))))
+  (testing "a missing artifact-id fails the check"
+    (let [artifacts (mapv c/build-held-custody-artifact [adj-1 adj-2])
+          artifact (dissoc (first artifacts) :artifact/id)
+          result (surface-find :held-custody/valid-artifact (into [artifact] (rest artifacts)))]
+      (is (= :fail (:status result)))
+      (is (some (fn [violation] (contains? (set (:violations violation)) :invalid-artifact-id))
+                (:violations (:details result)))))))
+
+(deftest held-custody-summary-exposes-valid-checks
+  (testing "valid-amount and valid-artifact statuses and triage appear in the summary"
+    (let [bad-adj (assoc adj-1 :amount -5)
+          artifacts (mapv c/build-held-custody-artifact [bad-adj adj-2])
+          tampered (assoc (first artifacts) :artifact/id "not-a-valid-id")
+          summary (c/build-held-custody-summary
+                   {:adjustments [bad-adj adj-2]
+                    :artifacts (conj (rest artifacts) tampered)
+                    :index {}
+                    :total-held {:USDC 600}
+                    :completeness {:held-adjustments/complete? true}})
+          status (:closed-form-status summary)]
+      (is (= :fail (get status :held-custody/valid-amount)))
+      (is (= :fail (get status :held-custody/valid-artifact)))
+      (is (seq (get-in summary [:triage :valid-amount-violations])))
+      (is (seq (get-in summary [:triage :valid-artifact-violations]))))))
