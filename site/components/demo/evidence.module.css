@@ -1,0 +1,111 @@
+.panel {
+  background: var(--surface-variant);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.heading {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 1.25rem;
+}
+
+.block {
+  margin-bottom: 1.25rem;
+}
+
+.blockLabel {
+  color: var(--fg-faint);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+
+.hash {
+  color: var(--primary);
+  font-size: 0.85rem;
+  word-break: break-all;
+  background: var(--bg);
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lines li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.lineLabel {
+  color: var(--fg-secondary);
+  font-size: 0.85rem;
+  min-width: 11rem;
+}
+
+.lineValue {
+  color: var(--primary);
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.table th {
+  text-align: left;
+  color: var(--fg-faint);
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--divider);
+  vertical-align: top;
+}
+
+.checkId {
+  color: var(--fg-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.pass {
+  color: var(--verified);
+  font-weight: 700;
+}
+
+.fail {
+  color: var(--rejected);
+  font-weight: 700;
+}
+
+.detail {
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
+}

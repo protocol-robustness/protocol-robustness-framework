@@ -336,9 +336,52 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
          --check exits non-zero if any committed expectation fails."
     :task (apply clojure "-M" "-m" "resolver-sim.demos.reorder-chain.cli" *command-line-args*)}
 
+   demo:liquidity-shortfall
+   {:doc "Run the 'liquidity shortfall' demonstration: what happens when
+         legitimate requests compete for scarce liquidity?
+         --json prints the machine-readable demo model;
+         --check exits non-zero if any committed expectation fails."
+    :task (apply clojure "-M" "-m" "resolver-sim.demos.liquidity-shortfall.cli" *command-line-args*)}
+
    demo:test
-   {:doc "Run the demo assertion suites (Demo A: not admitted; Demo B: reorder chain)."
-    :task (shell "clojure" "-M:test" "-e" "(require 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test) (clojure.test/run-tests 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test)")}
+   {:doc "Run the demo assertion suites (A: not admitted; B: reorder chain; C: liquidity shortfall; plus the public projections)."
+    :task (shell "clojure" "-M:test" "-e" "(require 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test 'resolver-sim.demos.liquidity-shortfall.demo-test 'resolver-sim.demos.public.blocked-decision-test 'resolver-sim.demos.public.liquidity-shortfall-test 'resolver-sim.demos.public.reordered-evidence-test 'resolver-sim.demos.public.provenance-test) (clojure.test/run-tests 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test 'resolver-sim.demos.liquidity-shortfall.demo-test 'resolver-sim.demos.public.blocked-decision-test 'resolver-sim.demos.public.liquidity-shortfall-test 'resolver-sim.demos.public.reordered-evidence-test 'resolver-sim.demos.public.provenance-test)")}
+
+   demo:public-build
+   {:doc "Generate the public-demo.v1 JSON artifacts for the product site
+         (site/generated/demos/<id>.json). Projected from the executable PRF
+         demo results; fails closed if required evidence is absent.
+         Usage: bb demo:public-build [--id <demo-id>] [--out <path>]"
+    :task (apply clojure "-M:test" "-m" "scripts.demos.export-public-demo" *command-line-args*)}
+
+   demo:public-check
+   {:doc "Regenerate the public-demo.v1 JSON artifacts and compare against the
+         committed files. Exits non-zero on drift, so the public demos cannot
+         silently diverge from what PRF actually computes.
+         Usage: bb demo:public-check [--id <demo-id>] [--out <path>]"
+    :task (apply clojure "-M:test" "-m" "scripts.demos.export-public-demo" "--check" *command-line-args*)}
+
+   demo:public-lab
+   {:doc "Build the static Clerk notebooks behind the public demos into
+         site/out/lab/notebooks/<name>/ (composed with the site at publish
+         time). These are the executable surfaces the demo pages deep-link to.
+         Usage: bb demo:public-lab [--out <path>] [--nb <notebook.clj>]"
+    :task (do
+            (let [args (vec *command-line-args*)
+                  out-idx (.indexOf args "--out")
+                  nb-idx (.indexOf args "--nb")
+                  out (if (and (not= -1 out-idx) (seq (drop (inc out-idx) args)))
+                        (nth args (inc out-idx))
+                        "site/out/lab")
+                  nbs (if (and (not= -1 nb-idx) (seq (drop (inc nb-idx) args)))
+                        [(nth args (inc nb-idx))]
+                        ["notebooks/not_admitted.clj"
+                         "notebooks/pro_rata_allocation_result.clj"])
+                  expr (str "(require '[nextjournal.clerk :as clerk]) "
+                            "(clerk/build! {:paths " (pr-str nbs)
+                            " :out-path " (pr-str out)
+                            " :package :directory}) (println :lab-built)")]
+              (shell "clojure" "-M:with-sew" "-e" expr)))}
 
    test:quick-sew
    {:doc "Fast Sew confidence check in a single JVM with noop capture.

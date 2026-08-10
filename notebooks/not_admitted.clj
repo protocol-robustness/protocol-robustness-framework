@@ -41,6 +41,13 @@
 ;; ⬇ **Admission gallery (§19):** the whole notebook in one catalogue — submit a
 ;; candidate, it violates a property, the system refuses to admit it, and why.
 ;; Scan that first; each section below is the proof behind its row.
+;;
+;; **Companions in this family:**
+;; - `notebooks/demo_not_admitted` — Demo A: change an amount after verification → NOT ADMITTED
+;; - `notebooks/demo_reorder_chain` — Demo B: reorder the evidence → NOT ADMITTED
+;; - `notebooks/resubmission_chain` — Demo C: attempt against a stale head → NOT ADMITTED
+;; - `notebooks/clean_room_not_admitted` — the clean-room corpus verdicts, recomputed
+;; - `notebooks/canonical_framing` — byte-level framing behind the chain commitments
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- short-hash

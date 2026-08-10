@@ -37,13 +37,17 @@
     "Navigate by category, threat, or audience role."]
    [:div {:style {:display "flex" :gap "16px" :marginTop "14px" :flexWrap "wrap"}}
     (for [[label href icon]
-           [["Evidence Workbook"       "/notebooks/report"                          "🛡️"]
+           [            ["Evidence Workbook"       "/notebooks/report"                          "🛡️"]
             ["Protocol Provenance"     "/notebooks/protocol_provenance"             "📋"]
+            ["Clean-Room Corpus"       "/notebooks/clean_room_not_admitted"         "📜"]
             ["Invariant Failures"      "/notebooks/invariant_failures"              "🔍"]
             ["Workbench v2"            "/notebooks/workbench_v2"                    "🔧"]
             ["Security Validation"     "/notebooks/security_validation"             "🛡️"]
             ["Pro-Rata Allocation"     "/notebooks/pro_rata_allocation_result"      "📐"]
             ["Not Admitted"            "/notebooks/not_admitted"                    "⛔"]
+            ["Demo: Changed Result"    "/notebooks/demo_not_admitted"               "🔁"]
+            ["Demo: Reorder"           "/notebooks/demo_reorder_chain"              "🔀"]
+            ["Resubmission Chain"      "/notebooks/resubmission_chain"              "⛓️"]
             ["Allocation Activation"   "/notebooks/allocation_activation"           "✅"]
             ["Authorization Chain"      "/notebooks/authorization_chain"            "🔗"]
             ["Yield Scenarios"         "/notebooks/yield_scenarios_workbench"       "📈"]
@@ -57,7 +61,9 @@
        (str icon " " label)])]]
 
   ;; recently added section
-  (let [recent-ids [:not-admitted :evaluate-pro-rata-allocation :pro-rata-allocation-result
+  (let [recent-ids [:not-admitted :demo-not-admitted :demo-reorder-chain
+                    :clean-room-not-admitted :canonical-framing :resubmission-chain
+                    :evaluate-pro-rata-allocation :pro-rata-allocation-result
                     :ef-demo-pro-rata-allocation :not-governance
                     :partial-liquidity-recovery :yield-shortfall-partial-withdrawal-fills]
         entries (keep registry-entry recent-ids)]
