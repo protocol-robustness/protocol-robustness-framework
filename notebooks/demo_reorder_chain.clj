@@ -7,6 +7,11 @@
 ;;
 ;; The computation below is shared with the terminal walkthrough
 ;; (`bb demo:reorder-chain`) and the automated assertion.
+;;
+;; **Companions:** the deeper admission analysis is `notebooks/not_admitted`;
+;; the byte-level framing behind the commitments is `notebooks/canonical_framing`;
+;; the change-the-amount variant is `notebooks/demo_not_admitted`; the
+;; stale-head chain variant is `notebooks/resubmission_chain`.
 
 ^{:nextjournal.clerk/visibility {:code :fold}
   :nextjournal.clerk/dark-mode true}

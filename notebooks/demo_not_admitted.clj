@@ -5,6 +5,11 @@
 ;; Everything below is computed by the real verifier — this page only narrates
 ;; and renders. The same computation powers the terminal walkthrough
 ;; (`bb demo:not-admitted`) and the automated assertion.
+;;
+;; **Companions:** the deeper admission analysis is `notebooks/not_admitted`;
+;; the order variant is `notebooks/demo_reorder_chain`; the stale-head chain
+;; variant is `notebooks/resubmission_chain`; the clean-room corpus
+;; verdicts are `notebooks/clean_room_not_admitted`.
 
 ^{:nextjournal.clerk/visibility {:code :fold}
   :nextjournal.clerk/dark-mode true}

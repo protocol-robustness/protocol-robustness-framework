@@ -1,0 +1,159 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+}
+
+.cardLabel {
+  color: var(--fg-faint);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+.rowLabel {
+  font-size: 0.95rem;
+  color: var(--fg);
+}
+
+.cardNote {
+  color: var(--fg-secondary);
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0;
+  line-height: 1.6;
+}
+
+.why {
+  color: var(--fg);
+  font-size: 1.05rem;
+  margin: 0 0 0.75rem;
+  line-height: 1.65;
+}
+
+/* ── scenario ─────────────────────────────────────────────── */
+
+.scenarioRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+.scenarioTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.scenarioMeta {
+  color: var(--fg-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.scenarioValue {
+  text-align: right;
+}
+
+.scenarioAmount {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--fg);
+}
+
+.scenarioUnit {
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  margin-left: 0.35rem;
+}
+
+/* ── chips ───────────────────────────────────────────────── */
+
+.chipVerified {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--verified-dim);
+  color: var(--verified);
+  border: 1px solid var(--verified-border);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.65rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.chipRejected {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--rejected-dim);
+  color: var(--rejected);
+  border: 1px solid var(--rejected-border);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.65rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.chipChanged {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--changed-dim);
+  color: var(--changed);
+  border: 1px solid var(--changed-border);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.65rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ── commitments ──────────────────────────────────────────── */
+
+.commitList {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+  color: var(--fg-secondary);
+  font-size: 0.9rem;
+}
+
+.commitList li {
+  margin: 0.35rem 0;
+}
+
+.commitList code {
+  color: var(--primary);
+  background: var(--surface-variant);
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+
+.card code {
+  color: var(--rejected);
+  background: var(--surface-variant);
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 640px) {
+  .scenarioValue {
+    text-align: left;
+  }
+}

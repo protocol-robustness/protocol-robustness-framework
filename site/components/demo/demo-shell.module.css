@@ -1,0 +1,109 @@
+.page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 3rem 2rem 4rem;
+}
+
+.kicker {
+  display: inline-block;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+}
+
+.title {
+  font-size: 2.2rem;
+  line-height: 1.15;
+  font-weight: 800;
+  margin: 0 0 1rem;
+  letter-spacing: -0.02em;
+}
+
+.question {
+  font-size: 1.15rem;
+  color: var(--fg-secondary);
+  max-width: 60ch;
+  margin: 0 0 2rem;
+}
+
+.story {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stepNav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.stepButton {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.stepButton:hover {
+  color: var(--fg);
+  border-color: var(--primary);
+}
+
+.stepButtonActive {
+  background: var(--primary);
+  color: var(--bg);
+  border-color: var(--primary);
+}
+
+.stepButtonActive:hover {
+  color: var(--bg);
+}
+
+.finalCtas {
+  display: flex;
+  gap: var(--gap);
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.primaryCta,
+.secondaryCta {
+  display: inline-block;
+  padding: 0.65rem 1.3rem;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.primaryCta {
+  background: var(--primary);
+  color: var(--bg);
+}
+
+.primaryCta:hover {
+  text-decoration: none;
+  filter: brightness(1.08);
+}
+
+.secondaryCta {
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+  font-weight: 600;
+}
+
+.secondaryCta:hover {
+  color: var(--fg);
+  border-color: var(--primary);
+  text-decoration: none;
+}

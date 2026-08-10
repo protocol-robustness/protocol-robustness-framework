@@ -25,6 +25,9 @@
   {:path "notebooks/demo_adversarial_escalation.clj"     :modes [:full :sections] :section-level 2}
   {:path "notebooks/allocation_activation.clj"           :modes [:sections] :section-level 2}
   {:path "notebooks/authorization_chain.clj"             :modes [:sections] :section-level 2}
+  {:path "notebooks/clean_room_not_admitted.clj"         :modes [:full :sections] :section-level 2}
+  {:path "notebooks/canonical_cancellation.clj"          :modes [:full :sections] :section-level 2}
+  {:path "notebooks/research_resolution.clj"             :modes [:full :sections] :section-level 2}
 
   ;; Interactive/workbench notebooks: static shot captures only the initial state.
   ;; Heavy ones are lazily evaluated on first request and can exceed the default

@@ -341,7 +341,68 @@
                      :featured? true
                      :start-here-rank 2
                      :question "Order changes the result — see how provenance catches reordered evidence."
-                     :deeper-id :canonical-framing}}
+                     :deeper-id :not-admitted}}
+
+  {:id             :clean-room-not-admitted
+   :path           "notebooks/clean_room_not_admitted.clj"
+   :title          "Clean-Room Corpus: the Not-Admitted Verdicts"
+   :summary        "7 adversarial cases, 7 expected rejections, 7 independently recomputed rejections, 0 verdict drift. Every rejected case in the conformance corpus is recomputed here by the real bundle verifier, inside the frozen clean-room boundary (inputs root, holdout root, release descriptor). The clean-room implementer receives only the package, and this notebook proves the committed verdicts are executable truth."
+   :categories     [:tooling :evidence-artifacts]
+   :audience       [:grant-reviewer :reviewer :auditor :researcher]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:evidence]
+    :tags           ["clean-room" "conformance" "corpus" "admission" "verification"]
+    :presentation   {:theme :evidence-reproducibility :kind :analysis
+                     :audience-level :intro
+                     :featured? true
+                     :start-here-rank 4
+                     :question "7 adversarial cases. 7 expected rejections. 7 independently recomputed rejections. 0 verdict drift."
+                     :deeper-id :not-admitted}}
+
+  {:id             :canonical-cancellation
+   :path           "notebooks/canonical_cancellation.clj"
+   :title          "Canonical Cancellation — can a valid approval cancel the wrong thing?"
+   :summary        "A cancellation decision must bind the complete target/action/state context. This notebook shows the whole binding a signed decision commits to, what happens when a field is dropped or the target substituted, the lifecycle window gate, and why a valid certificate cannot rescue a stale binding — all recomputed by the real cancellation machinery."
+   :categories     [:evidence-artifacts :security-validation]
+   :audience       [:grant-reviewer :reviewer :researcher :auditor]
+   :status         :draft
+   :risk           :medium
+   :protocol-areas [:evidence :assurance]
+    :tags           ["cancellation" "canonical" "binding" "forbidden" "admission" "force-authorisation"]
+    :presentation   {:theme :evidence-reproducibility :kind :analysis
+                     :audience-level :intro
+                     :question "Can a valid approval be reused to cancel the wrong thing?"
+                     :deeper-id :not-admitted}}
+
+  {:id             :research-resolution
+   :path           "notebooks/research_resolution.clj"
+   :title          "Research Resolution — is the claim actually established?"
+   :summary        "What was run, what evidence that produced, what each researcher concluded, and whether those conclusions collectively establish, qualify, or contest the claim. The chain runs from research-command provenance to the trace, researcher positions (including temporal fidelity), bounded conclusions, the collective view, and a cross-structure consistency check."
+   :categories     [:evidence-artifacts :provenance]
+   :audience       [:grant-reviewer :reviewer :researcher :auditor]
+   :status         :draft
+   :risk           :medium
+   :protocol-areas [:evidence :provenance]
+    :tags           ["research" "conclusion" "provenance" "trace" "position" "collective"]
+    :presentation   {:theme :evidence-reproducibility :kind :analysis
+                     :audience-level :intro
+                     :question "Is the claim actually established?"
+                     :deeper-id :researcher-interaction-topology}}
+
+  {:id             :resubmission-chain
+   :path           "notebooks/resubmission_chain.clj"
+   :title          "The Chain Decides — current-head & Resubmission Admission"
+   :summary        "The resubmission chain's admission cutpoint: one successor per parent, the parent must be the current head, and every pinned rejection is recomputed here by the real chain facade. Demo C shows a stale-head attempt being refused without moving the head."
+   :categories     [:evidence-artifacts :adversarial]
+   :audience       [:researcher :auditor :reviewer]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:evidence :resubmission]
+    :tags           ["resubmission" "chain" "admission" "current-head" "not-admitted"]
+    :presentation   {:theme :evidence-reproducibility :kind :analysis
+                     :audience-level :intermediate
+                     :deeper-id :not-admitted}}
 
   {:id             :security-validation-notebook
    :path           "notebooks/security_validation.clj"
@@ -552,7 +613,8 @@
    :protocol-areas [:evidence]
     :tags           ["canonical-hash" "framing" "prefix-free" "visualization" "conformance" "verification"]
     :presentation   {:theme :evidence-reproducibility :kind :analysis
-                     :audience-level :intermediate}}
+                     :audience-level :intermediate
+                     :deeper-id :not-admitted}}
 
   {:id             :researcher-interaction-topology
    :path           "notebooks/researcher_interaction_topology.clj"

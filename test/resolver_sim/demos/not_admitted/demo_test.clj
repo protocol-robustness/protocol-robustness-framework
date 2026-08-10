@@ -35,7 +35,7 @@
         evidence (:demo/evidence result)]
     (is (seq (:committed-hash evidence)))
     (is (seq (:lines evidence)))
-    (is (= 7 (count (:after/checks evidence)))
+    (is (= 9 (count (:after/checks evidence)))
         "the full closed-form check battery runs on the changed evidence")))
 
 (deftest change-only-mutates-amount-and-balance
