@@ -62,7 +62,8 @@
    "Y10_shared-pool-largest-remainder-pro-rata"
    "Y11_cap-constrained-pro-rata-redistribution"
    "Y12_cascading-cap-redistribution"
-   "Y13_all-caps-residual-liquidity"])
+   "Y13_all-caps-residual-liquidity"
+   "Y14_round-two-shared-liquidity"])
 
 (def ^:private dispute-resolution-scenario-ids
   ["S-DR-001-basic-release-ruling"
@@ -118,9 +119,19 @@
    "S-DR-092-automate-timed-actions"
    "S-DR-093-evidence-during-freeze"
    "S-DR-094-evidence-at-capacity"
-   "S-DR-095-evidence-after-settlement-attempt-rejected"
-   "S-DR-096-evidence-forking-strategist-combined"
-   "DR-PR-002-fraud-group-prorata-shortfall"])
+    "S-DR-095-evidence-after-settlement-attempt-rejected"
+    "S-DR-096-evidence-forking-strategist-combined"
+    "S-DR-097-appeal-ev-safe-calibrated"
+    "S-DR-098-appeal-ev-under-deterred"
+    "S-DR-099-appeal-ev-correct-blocked"
+    "S-DR-100-resolver-response-within-window"
+    "S-DR-101-resolver-response-window-expired-fresh-resolver"
+    "S-DR-102-resolver-response-deadline-boundary"
+    "S-DR-103-set-resolution-module-governance"
+    "S-DR-104-set-resolution-module-config-drift"
+    "S-DR-105-prorata-slash-allocation-capped"
+    "S-DR-106-prorata-slash-allocation-zero-weight"
+    "DR-PR-002-fraud-group-prorata-shortfall"])
 
 (def ^:private sew-reference-scenario-paths
   "Curated reference scenarios for external verifier reproducibility.

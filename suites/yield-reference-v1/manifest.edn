@@ -179,7 +179,23 @@
    :expectations-passed 2
    :invariants-passed 3
    :simulator/scenario-path "scenarios/edn/Y13_all-caps-residual-liquidity.edn"
-   :upgrade-path "maintain deterministic replay and trace hash stability"}]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  ;; ── Round-two re-admission ────────────────────────────────────────────
+  {:id "yield-round-two-lineage-v1"
+   :ordinal 13
+   :trace-slug "yield-013-round-two-lineage"
+   :claim-id :round-two-lineage-conservation-correct
+   :claim "Shared-liquidity withdrawal remains allocation-safe across liquidity shortage and subsequent re-admission of deferred demand: deferred descendants re-enter only when eligible, one descendant is satisfied while another remains deferred, and cumulative fill plus terminal outstanding conserves each original request."
+   :threat "Round-two re-admission"
+   :primary-threat "round-two-lineage-conservation"
+   :classification :economic-baseline
+   :invariant-ids ["yield-shortfall-splits" "yield-value-conservation" "yield-position-consistency"
+                   "yield-withdrawal-lineage-conservation"]
+   :expectations-passed 14
+   :invariants-passed 4
+   :simulator/scenario-path "scenarios/edn/Y14_round-two-shared-liquidity.edn"
+   :upgrade-path "exercise lineage-wide conservation and shuffled-replay determinism across further rounds"}]
 
  :invariants
  [{:id "yield-position-consistency"
@@ -205,6 +221,8 @@
   {:id "yield-deferred-reclaim"
    :scenarios ["yield-auto-shortfall-v1" "yield-shortfall-partial-withdraw-v1"
                "yield-deferred-recovery-v1"]}
+  {:id "yield-withdrawal-lineage-conservation"
+   :scenarios ["yield-round-two-lineage-v1"]}
   {:id "yield-exposure"
    :scenarios ["yield-shared-liquidity-v1"]}]
 
@@ -280,7 +298,14 @@
    :threat "Residual liquidity handling"
    :invariant-ids ["yield-shortfall-splits" "yield-value-conservation" "yield-position-consistency"]
    :scenario-ids ["yield-all-caps-residual-v1"]
-   :upgrade-path "maintain deterministic replay and trace hash stability"}]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  {:claim-id :round-two-lineage-conservation-correct
+   :claim "Shared-liquidity withdrawal remains allocation-safe across liquidity shortage and subsequent re-admission of deferred demand."
+   :threat "Round-two re-admission"
+   :invariant-ids ["yield-shortfall-splits" "yield-value-conservation" "yield-position-consistency"
+                   "yield-withdrawal-lineage-conservation"]
+   :scenario-ids ["yield-round-two-lineage-v1"]
+   :upgrade-path "exercise lineage-wide conservation and shuffled-replay determinism across further rounds"}]
 
  :economic-checks
  [{:check-id "yield-shared-liquidity-baseline"        :classification :economic-baseline :scenario-id "yield-shared-liquidity-v1"}
@@ -294,4 +319,5 @@
   {:check-id "yield-largest-remainder-pro-rata-baseline" :classification :economic-baseline :scenario-id "yield-largest-remainder-pro-rata-v1"}
   {:check-id "yield-cap-constrained-redistribution-baseline" :classification :economic-baseline :scenario-id "yield-cap-constrained-redistribution-v1"}
   {:check-id "yield-cascading-cap-redistribution-baseline" :classification :economic-baseline :scenario-id "yield-cascading-cap-redistribution-v1"}
-  {:check-id "yield-all-caps-residual-baseline"       :classification :economic-baseline :scenario-id "yield-all-caps-residual-v1"}]}
+  {:check-id "yield-all-caps-residual-baseline"       :classification :economic-baseline :scenario-id "yield-all-caps-residual-v1"}
+  {:check-id "yield-round-two-lineage-baseline"       :classification :economic-baseline :scenario-id "yield-round-two-lineage-v1"}]}

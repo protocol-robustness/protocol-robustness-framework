@@ -1,0 +1,36 @@
+{:scenario-id "s-dr-105-prorata-slash-allocation-capped"
+ :schema-version "1.0"
+ :purpose "theory-confirmation"
+ :title "compute-prorata-slash-allocation — capped pro-rata recovery with recorded unmet"
+ :description "Exercises the compute_prorata_slash_allocation query action (previously zero scenario coverage). A 400-unit slash obligation across three liable parties with unequal stakes and one binding cap (bob capped at 60) allocates 360 recovered units and records 40 unmet, preserving conservation: obligation = recovered + unmet. Mirrors the canonical slash-capped-party test vector."
+ :tags ["suite/dispute-resolution"
+        "coverage/finality"
+        "coverage/slash-allocation"
+        "coverage/prorata"
+        "coverage/conservation"
+        "compute-prorata/capped"]
+ :threat-tags ["dispute-resolution" "slash-allocation" "pro-rata" "conservation" "cap"]
+ :provenance {:author "prorata-allocation-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "compute-prorata-capped"
+         :statement "compute_prorata_slash_allocation allocates a capped slash obligation pro-rata and records unmet, preserving conservation."
+         :falsifies-if ["Allocation exceeds a party cap"
+                        "Conservation (obligation = recovered + unmet) is violated"]}
+ :expected/events [:prorata-allocation-computed]
+ :expectations {:terminal-state "pending"}
+ :expected/invariants [:slash-distribution-consistent
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "prorata-capped" :severity "info"
+          :actors ["buyer"] :victims ["resolver"]
+          :assumptions ["Obligation 400" "Three parties, bob capped at 60" "Recovered 360, unmet 40"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "compute_prorata_slash_allocation"
+           :params {:slash-obligation 400
+                    :basis :slashable-stake
+                    :cap-field :available-slashable
+                    :liable-parties [{:id "alice" :slashable-stake 1000 :available-slashable 1000}
+                                     {:id "bob" :slashable-stake 500 :available-slashable 60}
+                                     {:id "carol" :slashable-stake 500 :available-slashable 500}]}}]}

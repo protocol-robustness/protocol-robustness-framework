@@ -38,6 +38,22 @@
         (let [up (str "scenarios/" (str/upper-case (first (str trace-id)))
                       (subs trace-id 1) ".json")]
           (when (.exists (io/file up)) up))
+        ;; EDN scenarios live under scenarios/edn/ (post-JSON-migration).
+        ;; Filenames use the S-DR-* public convention; the trace-id is the
+        ;; lowercase golden id (e.g. s-dr-010-missing-evidence).  Match the
+        ;; EDN file whose scenario-id equals the trace-id case-insensitively.
+        (let [edn-dir (io/file "scenarios/edn")]
+          (when (.isDirectory edn-dir)
+            (some (fn [f]
+                    (when (.endsWith (.getName f) ".edn")
+                      (try
+                        (let [data (io-sc/load-scenario-file (.getPath f))]
+                          (when (and (map? data)
+                                     (= (str/lower-case (str (:scenario-id data)))
+                                        (str/lower-case trace-id)))
+                            (.getPath f)))
+                        (catch Exception _ nil))))
+                  (.listFiles edn-dir))))
         (let [dir (io/file "scenarios")]
           (when (.isDirectory dir)
             (some (fn [f]

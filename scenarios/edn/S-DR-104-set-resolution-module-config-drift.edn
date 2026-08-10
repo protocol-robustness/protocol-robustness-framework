@@ -1,0 +1,36 @@
+{:scenario-id "s-dr-104-set-resolution-module-config-drift"
+ :schema-version "1.0"
+ :purpose "theory-falsification"
+ :expected-fail? true
+ :title "set-resolution-module config does not propagate to new escrows (config→enforcement drift)"
+ :description "Governance sets a new resolution module (0xnewmod) mid-lifecycle. A subsequent escrow is created. The escrow's frozen module snapshot still carries the OLD module (0xoldmod) from the initial protocol-params, so the module change does not propagate to enforcement: a resolver authorized only by the new module is not recognized for the new escrow. Demonstrates config→enforcement drift in set-resolution-module."
+ :tags ["suite/dispute-resolution"
+        "coverage/resolver-integrity"
+        "coverage/resolution-module"
+        "coverage/governance"
+        "coverage/config-drift"
+        "set-resolution-module/config-drift"]
+ :threat-tags ["dispute-resolution" "resolution-module" "governance" "configuration" "drift"]
+ :provenance {:author "resolution-module-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "set-resolution-module-config-drift"
+         :statement "set-resolution-module updates the global module param, but new escrows keep the module frozen at their creation snapshot, so the config change does not affect enforcement for subsequent escrows."
+         :falsifies-if ["A new escrow reflects a mid-lifecycle module change"
+                        "set-resolution-module config propagates to enforcement"]}
+ :expected/events [:module-configured :escrow-created]
+ :expectations {:terminal-state "pending"}
+ :expected/invariants [:stake/non-negative
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "set-resolution-module-config-drift" :severity "medium"
+          :actors ["governance"] :victims ["buyer" "seller"]
+          :assumptions ["governance-mode :legacy"
+                        "Initial module 0xoldmod, governance sets 0xnewmod mid-lifecycle"
+                        "New escrow created after the change keeps 0xoldmod"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150
+                   :resolution-module "0xoldmod"}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "gov" :address "0xgov" :role "governance"}]
+ :events [{:seq 0 :time 1000 :agent "gov" :action "set_resolution_module" :params {:resolution-module "0xnewmod"}}
+          {:seq 1 :time 1010 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}]}

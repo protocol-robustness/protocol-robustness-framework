@@ -60,6 +60,11 @@
    :with-sew
    {:extra-paths [:paths/protocols]}
 
+   ;; Corruption guard: load-all / def-inventory integrity checks.
+   :check
+   {:extra-paths [:paths/scripts]
+    :extra-deps {org.clojure/tools.namespace {:mvn/version "1.5.0"}}}
+
    ;; ── Optional evidence extension: held-custody mutation ─────────────────
    ;; Package-shaped extension under extensions/held-custody/. The default
    ;; classpath excludes both extension source and test roots; enable

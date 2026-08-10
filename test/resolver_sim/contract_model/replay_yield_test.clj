@@ -29,6 +29,43 @@
     (is (= "yield-replay-test" (:scenario-id result)))
     (is (= "yield-replay-test" (get-in result [:world :params :scenario-id])))))
 
+(def shared-scenario
+  {:scenario-id "yield-shared-replay-test"
+   :id "yield-shared-replay-test"
+   :schema-version "1.1"
+   :title "Shared withdrawal canonical replay"
+   :purpose "functional-test"
+   :scenario-author "agent-c"
+   :initial-block-time 1000
+   :agents [{:id "alice" :address "0xAlice" :role "provider"}
+            {:id "bob" :address "0xBob" :role "provider"}
+            {:id "governance" :address "governance" :role "governance"}]
+   :protocol-params {:yield-profile "aave-v3" :token "USDC"}
+   :events [{:seq 0 :time 1000 :agent "alice" :action "yield_deposit"
+             :params {:amount 100 :token "USDC" :owner-id "alice"}}
+            {:seq 1 :time 1000 :agent "bob" :action "yield_deposit"
+             :params {:amount 100 :token "USDC" :owner-id "bob"}}
+            {:seq 2 :time 2000 :agent "governance" :action "set-yield-risk"
+             :params {:token "USDC" :shortfall {:available-ratio 0.5 :reason "liquidity-shortfall"}}}
+            {:seq 3 :time 3000 :agent "governance" :action "yield_withdraw_shared"
+             :params {:token "USDC" :module-id "aave-v3" :owner-ids ["alice" "bob"]
+                      :allocation-mode "pro-rata"}}]})
+
+(deftest canonical-replay-executes-shared-withdrawal-not-vacuous
+  (let [result (replay/replay-with-protocol yp/protocol shared-scenario
+                                            {:allow-dirty? true :skip-finalize true
+                                             :flags {:yield-dt-validation? true
+                                                     :metrics-profile :yield-provider}})
+        shared-step (first (filter #(= 3 (:seq %)) (:trace result)))]
+    (is (= :pass (:outcome result)))
+    (is (= :ok (:result shared-step))
+        "shared withdrawal must be applied through the canonical loop, not silently rejected")
+    (is (some? (get-in result [:world :run/id]))
+        "world carries run identity for application-order commitments")
+    (is (= 1 (count (filter #(= :yield-withdraw-shared (:decision/source %))
+                            (vals (get-in result [:world :yield/partial-fill-decisions])))))
+        "shared decision artifact persisted in the world")))
+
 (deftest replay-yield-scenario-rejects-dt-time-mismatch
   (let [scenario (assoc-in base-scenario [:events 1 :params :dt] 999)
         result   (yield-replay/replay-yield-scenario scenario)]

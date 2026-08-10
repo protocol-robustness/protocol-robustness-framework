@@ -69,6 +69,25 @@ Example: bb cli scenario list --search yield"
    test {:doc "Run canonical validation gate (all targets via scripts/test.sh)"
          :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "all")}
 
+   check:load
+   {:doc "Corruption guard: require every reachable namespace under src+protocols_src
+and fail on any that won't load. Catches silent source truncation where a file
+compiles standalone but is missing symbols referenced by consumers. Run before
+deploying notebooks so a corrupt repo never ships to the host.
+Usage: bb check:load [--roots src protocols_src]"
+    :task (apply shell "clojure" "-M:with-sew:check" "-m" "scripts.check-load" *command-line-args*)}
+
+   check
+   {:doc "Run both corruption guards (check:load + check:defs) in sequence."
+    :task (shell "bash" "-c" "bb check:load && bb check:defs")}
+
+   check:defs
+   {:doc "Corruption guard: verify every source namespace still has all defs recorded
+in checks/ns-defs.edn. Catches silent truncation where a file still loads but lost
+a definition. Regenerate the golden after legitimately adding/removing defs.
+Usage: bb check:defs [--generate] [--roots src protocols_src]"
+    :task (apply shell "clojure" "-M:check" "-m" "scripts.check-defs" *command-line-args*)}
+
    test:concurrent
    {:doc "Run canonical validation gate with a dedicated artifact dir. Can run alongside bb test, bb backstop, etc."
     :task (shell "bash" "-c"
@@ -788,7 +807,7 @@ test:community {:doc "Run community participation tests"
    :depends [notebook:lint notebook:visibility notebook:check]}
 
   notebook:shots
-  {:doc "Export notebook screenshots (config: data/notebook-shots.edn) into shots/. Each run is archived under shots/runs/<id>/; shots/index.html lists all exports (no Java needed to host)."
+  {:doc "Export notebook screenshots (config: data/notebook-shots.edn) into shots/. Builds the guided site: homepage + explore + catalogue + notebook pages; runs/ is provenance."
    :task (shell "scripts/export_notebook_shots.sh")}
 
   notebook:shots:one
@@ -800,11 +819,11 @@ test:community {:doc "Run community participation tests"
    :task (shell "scripts/export_notebook_shots.sh" "--notebook" (first *command-line-args*) "--modes" "sections")}
 
   notebook:shots:open
-  {:doc "Open the screenshot site index (shots/index.html) in a browser"
+  {:doc "Open the screenshot homepage (shots/index.html) in a browser"
    :task (shell "bash" "-c" "xdg-open shots/index.html 2>/dev/null || open shots/index.html 2>/dev/null || echo 'Open shots/index.html manually'")}
 
   notebook:shots:index
-  {:doc "Rebuild shots/index.html (+latest.html) from existing runs without rendering (no server/Java needed)"
+  {:doc "Rebuild the whole guided site (homepage, explore, catalogue, notebook pages, run archive) from existing runs without rendering (no server/Java needed)"
    :task (shell "scripts/export_notebook_shots.sh" "--index-only" "--thumbnails" "3")}
 
   notebook:shots:retry

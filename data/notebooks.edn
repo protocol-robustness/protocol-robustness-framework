@@ -319,7 +319,7 @@
    :risk           :informational
    :protocol-areas [:custody :evidence]
     :tags           ["demo" "admission" "evidence" "tamper" "verification"]
-    :presentation   {:theme :evidence-reproducibility :kind :demo
+    :presentation   {:theme :failures-attacks :kind :demo
                      :audience-level :intro
                      :featured? true
                      :start-here-rank 1

@@ -1,0 +1,80 @@
+{
+  "protocol-params": {
+    "resolver-fee-bps": 150,
+    "appeal-window-duration": 0,
+    "max-dispute-duration": 2592000
+  },
+  "threat-tags": [],
+  "purpose": "regression",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xattacker",
+        "amount": 10000,
+        "custom-resolver": "0xresolver"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1060,
+      "agent": "buyer",
+      "action": "release",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1120,
+      "agent": "attacker",
+      "action": "execute_reentrant_withdraw",
+      "params": {
+        "workflow-id": 0,
+        "callback": {
+          "agent": "attacker",
+          "action": "withdraw_escrow",
+          "params": {
+            "workflow-id": 0
+          }
+        }
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s67-reentrancy-callback",
+  "title": "s67-reentrancy-callback",
+  "id": "scenarios\/s67-reentrancy-callback",
+  "provenance": {
+    "author-id": "@grifma",
+    "author": "Marc Griffiths"
+  },
+  "agents": [
+    {
+      "id": "attacker",
+      "address": "0xattacker",
+      "type": "malicious"
+    },
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    },
+    {
+      "id": "resolver",
+      "address": "0xresolver",
+      "type": "resolver"
+    }
+  ],
+  "initial-block-time": 1000
+}

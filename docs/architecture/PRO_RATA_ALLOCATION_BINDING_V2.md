@@ -231,20 +231,34 @@ translation. It does **not** implement authoritative Sew slash propagation,
 stake debits, slash destination credits, unmet slash lifecycle state, or
 state mutation.
 
-## Explicit deferrals
+## Explicit deferrals vs. implemented capability
 
-The following are intentionally outside this contract:
+The following distinction keeps reviewers from misreading the contract. The
+**implemented capability** is what the yield domain actually does across
+multiple liquidity rounds; the **assurance-completeness** list is what is not
+yet demonstrated at scenario/evidence level. "Not yet assurance-complete" is
+therefore never "not implemented".
 
-- standalone mechanism evidence nodes;
-- mechanism claim-result evidence nodes;
-- package-index or evidence-DAG integration for standalone mechanism evidence;
-- operational later-liquidity / round-two shared-withdrawal execution;
-- successor deferred-position creation and multi-round lifecycle application;
-- authoritative Sew slash propagation, stake debits, and account mutation;
-- mechanism registry or runtime mechanism selection;
-- principal-first or waterfall extraction;
-- generic settlement, propagation, accounting, or deferred-position abstractions;
-- dynamic extension or plugin loading.
+### Implemented capability
+
+- deferred successor construction (a deferred descendant is created with a
+  stable lineage root, predecessor commitment, inherited original priority, and
+  round number);
+- eligibility of deferred requests (`:eligible-deferred-request` positions are
+  re-admitted into a subsequent shared withdrawal);
+- lineage continuation (deferred descendants inherit the original priority and
+  lineage root across rounds);
+- application of the allocator to subsequent rounds (a later round allocates
+  against the deferred residuals with caps re-applied per round).
+
+### Not yet assurance-complete
+
+- scenario-level two-round execution (canonical two-round scenarios that force
+  liquidity shortage, deferral, recovery, and re-admission in one replay);
+- lineage-wide conservation (a cross-round verifier proving Σ realized-fill
+  across the lineage + terminal outstanding = original requested);
+- shuffled-replay determinism;
+- multi-cycle original-priority proof.
 
 These omissions must not be inferred as supported from the presence of a
 mechanism envelope or a successful first-round shared-withdrawal application.

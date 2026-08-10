@@ -7,8 +7,10 @@
      Mechanism properties:
        :individual-rationality       — uses terminal-payoff canonical model
        :budget-balance-detailed      — uses terminal-payoff decomposition"
-   (:require [resolver-sim.scenario.subgame-counterfactual :as subgame-cf]
-             [resolver-sim.economics.terminal-payoff :as tp]))
+    (:require [resolver-sim.scenario.subgame-counterfactual :as subgame-cf]
+              [resolver-sim.economics.terminal-payoff :as tp]
+              [resolver-sim.protocols.sew.state-machine :as sm]
+              [resolver-sim.protocols.sew.types :as t]))
 
 ;; ---------------------------------------------------------------------------
 ;; Shared result constructors (mirrors scenario.equilibrium — kept local to
@@ -29,9 +31,10 @@
    :budget-balance-detailed             :validation.class/payoff-property
    :force-refund-path-integrity         :validation.class/algebraic-integrity
    :force-reversal-path-integrity       :validation.class/algebraic-integrity
-   :pending-lifecycle-integrity         :validation.class/algebraic-integrity
-    :cancellation-dominance              :validation.class/deviation-resistance
-    :appeal-decision-rationality         :validation.class/equilibrium})
+    :pending-lifecycle-integrity         :validation.class/algebraic-integrity
+    :resolver-response-deadline          :validation.class/equilibrium
+     :cancellation-dominance              :validation.class/deviation-resistance
+     :appeal-decision-rationality         :validation.class/equilibrium})
 
 (defn- pass [property basis observed expected]
   {:property  property
@@ -930,6 +933,88 @@
                 observed
                 expected))))))
 
+;; ---------------------------------------------------------------------------
+;; Resolver response-deadline (mechanism-property)
+;; ---------------------------------------------------------------------------
+
+(defn- check-resolver-response-deadline
+  "Verify that resolution actions in the trace respected the resolver response
+   window (when configured).
+
+   For each execute_resolution event, checks:
+   - if the caller is the assigned resolver (:dispute-resolver on the escrow):
+     the resolution may occur at any time (the resolver is responding).
+   - if the caller is a DIFFERENT (fresh) resolver: the resolution is only
+     legitimate once the response window has expired
+     (sm/resolver-response-exceeded? true).  A fresh resolver resolving before
+     the window is a premature escalation (authorization bypass attempt).
+
+   When the response window is disabled (window = 0) or the trace has no
+   execute_resolution events, the check is not-applicable/inconclusive.
+
+   :pass — every fresh-resolver resolution happened after the window expired
+   :fail — a fresh resolver resolved before the window expired (premature)"
+  [projection]
+  (let [{:keys [raw-trace agents]} projection
+        resolve-events (filter #(= "execute_resolution" (:action %)) raw-trace)
+        ;; agent-id → address map for caller comparison (assigned-resolver is an address)
+        addr-by-id (into {} (map (fn [a] [(:id a) (:address a)]) agents))]
+    (if (empty? resolve-events)
+      (inconclusive :resolver-response-deadline :absent-evidence
+                    "no execute_resolution events in trace; cannot evaluate response deadline")
+      (let [;; For each resolve event, find the pre-event world and determine
+            ;; whether the caller was the assigned resolver or a fresh one.
+            ;; The window is exceeded when event-time >= raise-time + window
+            ;; (computed directly, since the trace world's :block-ts is the
+            ;; pre-event snapshot and may not yet reflect the event time).
+            assessed (mapv (fn [entry]
+                             (let [idx (.indexOf raw-trace entry)
+                                   pre-world (when (pos? idx) (:world (nth raw-trace (dec idx) nil)))
+                                   caller-id (:agent entry)
+                                   caller-addr (get addr-by-id caller-id caller-id)
+                                   event-time (long (:time entry 0))
+                                   wf-id (long (get-in entry [:params :workflow-id] 0))
+                                   window (get-in pre-world [:module-snapshots wf-id :resolver-response-window] 0)
+                                   raise-ts (get-in pre-world [:dispute-timestamps wf-id] 0)
+                                   assigned-resolver (get-in pre-world [:escrow-transfers wf-id :dispute-resolver])
+                                   fresh? (and (some? assigned-resolver)
+                                               (not= caller-addr assigned-resolver))
+                                   exceeded? (and (pos? raise-ts) (pos? window)
+                                                  (>= event-time (+ raise-ts window)))]
+                               {:seq (:seq entry)
+                                :time event-time
+                                :caller caller-id
+                                :caller-address caller-addr
+                                :assigned-resolver assigned-resolver
+                                :fresh-resolver? fresh?
+                                :window-seconds window
+                                :window-exceeded? exceeded?}))
+                           resolve-events)
+            window-seconds (reduce max 0 (map :window-seconds assessed))
+            premature (filter #(and (:fresh-resolver? %) (not (:window-exceeded? %))) assessed)
+            observed {:resolution-count (count assessed)
+                      :window-seconds window-seconds
+                      :fresh-resolver-resolutions (mapv #(select-keys %
+                                                                    [:seq :time :caller
+                                                                     :assigned-resolver
+                                                                     :window-exceeded?])
+                                                        (filter :fresh-resolver? assessed))
+                      :premature-escalations (mapv #(select-keys %
+                                                                    [:seq :time :caller
+                                                                     :assigned-resolver])
+                                                    premature)}
+            expected {:premature-escalations 0
+                      :description "no fresh resolver resolved before the response window expired"}]
+        (if (seq premature)
+          (fail :resolver-response-deadline :single-trace-node-counterfactual-proxy
+                observed expected
+                (mapv (fn [p] {:seq (:seq p) :caller (:caller p)
+                               :time (:time p)
+                               :gap "fresh resolver resolved before the response window expired"})
+                      premature))
+          (pass :resolver-response-deadline :single-trace-node-counterfactual-proxy
+                observed expected))))))
+
 (def mechanism-property-validators
   "Map of Sew-specific mechanism-property keyword → validator-fn.
    Returned by SewProtocol/mechanism-property-validators and merged with the
@@ -941,7 +1026,8 @@
     :budget-balance-detailed     check-budget-balance-detailed
     :force-refund-path-integrity check-force-refund-path-integrity
     :force-reversal-path-integrity check-force-reversal-path-integrity
-    :pending-lifecycle-integrity check-pending-lifecycle-integrity})
+    :pending-lifecycle-integrity check-pending-lifecycle-integrity
+    :resolver-response-deadline check-resolver-response-deadline})
 
 (def equilibrium-concept-validators
   "Map of Sew-specific equilibrium-concept keyword → validator-fn.

@@ -66,6 +66,10 @@
    {:description "Every :yield-withdraw-shared decision artifact is replay-verifiable: the decision hash reconciles; the committed allocation scope/mode/rounding policy match the shared pro-rata contract; the participant/request set is bijective to the allocation rows; per-row filled ≤ effective-cap ≤ requested, deferred = requested - filled, no haircut; Σ filled ≤ committed available (the shared-liquidity non-overallocation bound); and the locked equality Σ filled = min(available, Σ effective-demand) holds, so caps binding below both requests and liquidity are honoured."
     :prf-tags [:pro-rata :liquidity :solvency :conservation :aggregate :withdrawal]},
 
+   :yield/withdrawal-lineage-conservation
+   {:description "Cross-round lineage conservation, deliberately distinct from the round-local shared-withdrawal-conservation. For each shared-withdrawal participant the round records are reconstructed from the committed :yield-withdraw-shared decisions (in application order) and proven: Σ realized-fill across the whole lineage + terminal outstanding = original requested (the uncapped entitlement deferral preserves), cumulative fill never exceeds that original requested, each re-entered request equals the prior round's deferred residual (round-chain continuity), and the position's :cumulative-fulfilled reconciles to the decision-derived cumulative fill. Caps are re-enforced per round by the round-local invariant, so cumulative fill may exceed the round-1 effective demand but never the original requested."
+    :prf-tags [:pro-rata :lineage :conservation :withdrawal :aggregate]},
+
    :yield/withdrawal-budget-provenance
    {:description "Withdrawal budget provenance (L1): the committed liquidity budget is a computed function of committed source custody and available-ratio — recomputed deterministically with both content-addressed roots reconciled — never a bare attested scalar. Where the world is the withdrawal's evaluation point (pre-withdrawal custody reconstructs exactly), the committed budget is additionally cross-checked against reconstructed world custody. Covers :single-position / :fcfs-sequential / :pro-rata so budget derivation is one provenance chain."
     :prf-tags [:liquidity :solvency :conservation :provenance :withdrawal]},
@@ -92,6 +96,7 @@
    :yield/pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles
    :yield/shared-withdrawal-conservation
+   :yield/withdrawal-lineage-conservation
    :yield/withdrawal-budget-provenance
    :yield/withdrawal-ledger-conservation])
 

@@ -816,6 +816,203 @@
      :violations violations}))
 
 ;; ---------------------------------------------------------------------------
+;; Withdrawal lineage conservation — cross-round (distinct from round-local)
+;;
+;; The round-local theorem (check-shared-withdrawal-conservation) proves each
+;; round individually satisfies its committed liquidity budget and allocation
+;; policy.  Once deferral produces descendants, the protocol also needs a
+;; lineage-level theorem: two individually valid rounds can be globally invalid
+;; if a descendant re-enters with the wrong residual, or if cumulative fill
+;; exceeds the participant's original entitlement.
+;;
+;; Per participant lineage (all rounds of shared withdrawal for one owner):
+;;
+;;   original request
+;;      │
+;;      ├── round-1 realization (filled_1)
+;;      └── deferred descendant
+;;              │
+;;              ├── round-2 realization (filled_2)
+;;              └── deferred descendant ...
+;;
+;; The lineage invariant reconstructs each participant's round records from the
+;; committed :yield-withdraw-shared decision artifacts (ordered by committed
+;; application step) and proves:
+;;
+;;   Σ realized-fill across lineage + terminal outstanding = original requested
+;;
+;; where "original requested" is the uncapped round-1 request (the entitlement
+;; deferral preserves; shared pro-rata applies no haircut).  Caps are re-enforced
+;; per round by the round-local invariant, so cumulative fill may legitimately
+;; exceed the round-1 effective demand (min(request, cap)) but never the original
+;; requested amount.  Round-chain continuity additionally requires each
+;; re-entered request to equal the prior round's deferred residual.
+;;
+;; This is deliberately a SEPARATE invariant from
+;; check-shared-withdrawal-conservation: round-local verification must not be
+;; stretched across both responsibilities.
+;; ---------------------------------------------------------------------------
+
+(defn- shared-withdrawal-decisions-in-order
+  "All :yield-withdraw-shared decision artifacts in application order.
+   Application order is committed per decision; the sort is only for
+   deterministic violation output — the lineage chain reconstruction below is
+   order-independent (it peels deferred residuals, it does not trust ordering)."
+  [world]
+  (->> (vals (:yield/partial-fill-decisions world {}))
+        (filter shared-withdrawal-artifact?)
+        (sort-by (fn [d] [(get-in d [:allocation/invocation-context :step]
+                                  Long/MAX_VALUE)
+                          (:decision/id d)]))))
+
+(defn- deferred-position-id?
+  "Does a :source-position-id look like a deferred-position id rather than a
+   base position?  Deferred ids are `<owner>/deferred/<round>/via/<prop-id>`;
+   base ids (owner-id for deposits, or a stringified legacy position id) are not."
+  [source-position-id]
+  (boolean (re-find #"/deferred/" (str source-position-id))))
+
+(defn- shared-round-one-record
+  "Identify the round-1 record for a participant's lineage.
+
+   Primary: `:source-position-id = participant` (deposit positions use the
+   owner as their base position id).  Fallback for legacy base positions whose
+   :position/id is a namespaced vector (e.g. make-position): their base
+   source-position-id is a non-owner string, but it is never a deferred-position
+   id, so the base record is the one whose source-position-id is not a deferred
+   id.  Exactly one base record can exist per participant (deferral re-admits
+   later rounds under deferred ids)."
+  [participant records]
+  (or (first (filter #(= participant (:source-position-id %)) records))
+      (first (remove #(deferred-position-id? (:source-position-id %)) records))))
+
+(defn- shared-lineage-chain
+  "Peel a participant's deferred-residual chain from the round-1 record.
+
+   Round-1 is identified by `:source-position-id = participant` (the base
+   position id; deferred descendants carry a deferred position id instead).
+   Each descendant's `:requested` must equal the prior round's `:deferred`
+   residual, and every record must be consumed exactly once. Order-independent:
+   a descendant that is replayed in two rounds, duplicated, or given an altered
+   request breaks the peel instead of passing.
+
+   Returns {:ok? bool :rounds n :terminal-deferred amount :reason kw}."
+  [participant round1 records]
+  (loop [remaining (remove #(identical? % round1) records)
+         current (:deferred round1)
+         rounds 1]
+    (if (empty? remaining)
+      {:ok? true :rounds rounds :terminal-deferred (long current)}
+      (let [matches (filter #(= (long current) (long (:requested %))) remaining)]
+        (if (= 1 (count matches))
+          (recur (remove #(identical? (first matches) %) remaining)
+                 (:deferred (first matches))
+                 (inc rounds))
+          {:ok? false
+           :rounds rounds
+           :reason (if (empty? matches) :missing-descendant :ambiguous-descendant)
+           :expected-requested (long current)
+           :matches (count matches)})))))
+
+(defn check-withdrawal-lineage-conservation
+  "Cross-round lineage conservation for shared-liquidity withdrawals.
+
+   Reconstructs each participant's round records from the committed shared
+   decisions and proves, per lineage:
+     Σ realized-fill across rounds + terminal outstanding = original requested
+   where `original requested` is the uncapped round-1 request (the entitlement
+   deferral preserves; shared pro-rata applies no haircut).  Cumulative fill
+   never exceeds that original requested, the round chain is a single
+   unambiguous deferred-residual path (each re-entered request equals the prior
+   round's deferred residual; no replay, duplication, or altered request), and
+   the position's :cumulative-fulfilled and active deferred residual reconcile
+   to the decision-derived values.
+
+   Vacuous-safe: a world with no shared-withdrawal decisions holds.
+
+   Returns {:holds? bool :violations [{:kind ...}]}."
+  [world]
+  (let [positions (:yield/positions world {})
+        by-participant
+        (reduce
+         (fn [acc d]
+           (reduce
+            (fn [acc row]
+              (let [k (:key row)]
+                (update acc k (fnil conj [])
+                        {:requested (long (:owed row 0))
+                         :filled (long (:filled row 0))
+                         :deferred (long (:deferred row 0))
+                         :source-position-id (:source-position-id row)})))
+            acc
+            (get-in d [:evidence :allocation-rows] [])))
+         {}
+         (shared-withdrawal-decisions-in-order world))
+        violations
+        (vec
+         (mapcat
+          (fn [[participant records]]
+            (let [round1 (shared-round-one-record participant records)
+                  original-requested (when round1 (:requested round1))
+                  cumulative-filled (reduce + 0 (map :filled records))
+                  pos (get positions participant)
+                  terminal-outstanding
+                  (long (get-in pos [:deferred-position :position/current-amount] 0))
+                  chain (when round1
+                          (shared-lineage-chain participant round1 records))]
+              (let [base (cond-> []
+                           (nil? round1)
+                           (conj {:kind ::lineage-missing-round-one
+                                  :participant participant
+                                  :records (count records)}))
+                    round1-violations (cond-> base
+                                        (and (some? round1)
+                                             (not (:ok? chain)))
+                                        (conj {:kind ::round-request-chain-mismatch
+                                               :participant participant
+                                               :reason (:reason chain)
+                                               :rounds (:rounds chain)
+                                               :expected-requested (:expected-requested chain)
+                                               :matches (:matches chain)})
+
+                                        (and (some? round1)
+                                             (> cumulative-filled original-requested))
+                                        (conj {:kind ::lineage-overfill
+                                               :participant participant
+                                               :cumulative-filled cumulative-filled
+                                               :original-requested original-requested})
+
+                                        (and (some? round1)
+                                             (not= (+ cumulative-filled terminal-outstanding)
+                                                   original-requested))
+                                        (conj {:kind ::lineage-conservation-failed
+                                               :participant participant
+                                               :cumulative-filled cumulative-filled
+                                               :terminal-outstanding terminal-outstanding
+                                               :original-requested original-requested})
+
+                                        (and (some? round1)
+                                             (:ok? chain)
+                                             (not= (:terminal-deferred chain) terminal-outstanding))
+                                        (conj {:kind ::lineage-terminal-mismatch
+                                               :participant participant
+                                               :chain-terminal-deferred (:terminal-deferred chain)
+                                               :position-terminal-deferred terminal-outstanding})
+
+                                        (and (some? round1)
+                                             pos
+                                             (not= (long (:cumulative-fulfilled pos 0))
+                                                   cumulative-filled))
+                                        (conj {:kind ::position-cumulative-mismatch
+                                               :participant participant
+                                               :position-cumulative (long (:cumulative-fulfilled pos 0))
+                                               :decision-cumulative cumulative-filled}))]
+                round1-violations)))
+          by-participant))]
+    {:holds? (empty? violations)
+     :violations violations}))
+
+;; ---------------------------------------------------------------------------
 ;; Withdrawal settlement — four independent layers
 ;;
 ;;   L1 budget provenance       — is the committed liquidity budget a computed
@@ -2041,12 +2238,33 @@
   [world]
   (let [propagations (vals (:yield/pro-rata-propagations world {}))
         decisions (:yield/partial-fill-decisions world {})
+        ;; Multi-round awareness: a participant's deferred state is superseded by
+        ;; each later shared-withdrawal round, so the position-state checks
+        ;; (deferred-position-applied / fulfilled-position-closed) only apply to
+        ;; that participant's LATEST propagation.  Earlier rounds' deferred
+        ;; residuals are validated by the round-chain/lineage invariants and the
+        ;; per-propagation accounting reconciliation instead.  A propagation
+        ;; without a committed step is treated as Long/MAX_VALUE (the safe
+        ;; single-round default).
+        latest-step-by-participant
+        (reduce (fn [m p]
+                  (let [step (long (get-in p [:allocation/invocation-context :step]
+                                           Long/MAX_VALUE))]
+                    (reduce (fn [m participant]
+                              (let [id (:participant-id participant)]
+                                (update m id (fnil max Long/MIN_VALUE) step)))
+                            m
+                            (:participants p []))))
+                {}
+                propagations)
         violations
         (vec
          (mapcat
           (fn [artifact]
             (let [pid (:propagation/id artifact)
                   participants (:participants artifact [])
+                  this-step (long (get-in artifact [:allocation/invocation-context :step]
+                                          Long/MAX_VALUE))
                   decision (get decisions (:calculation-ref artifact))
                   binding-errors (if (= "pro-rata-propagation.v2" (:schema-version artifact))
                                    (if decision
@@ -2072,7 +2290,8 @@
                            eligible (long (:eligible-obligation p 0))
                            cap (long (:effective-cap p eligible))
                            position (get positions id)
-                           position-deferred (long (get-in position [:shortfall :deferred-amount] 0))]
+                           position-deferred (long (get-in position [:shortfall :deferred-amount] 0))
+                           latest? (= this-step (long (get latest-step-by-participant id -1)))]
                        (cond-> []
                          (not= eligible (+ fulfilled deferred unmet waived))
                          (conj {:propagation/id pid :participant-id id
@@ -2080,10 +2299,10 @@
                          (> fulfilled cap)
                          (conj {:propagation/id pid :participant-id id
                                 :reason :capacity-exceeded})
-                         (and (pos? deferred) (not= deferred position-deferred))
+                         (and latest? (pos? deferred) (not= deferred position-deferred))
                          (conj {:propagation/id pid :participant-id id
                                 :reason :deferred-position-not-applied})
-                         (and (zero? deferred) (not= :withdrawn (:status position)))
+                         (and latest? (zero? deferred) (not= :withdrawn (:status position)))
                          (conj {:propagation/id pid :participant-id id
                                 :reason :fulfilled-position-not-closed}))))
                    participants)
@@ -2220,6 +2439,7 @@
    :yield/pro-rata-propagation-complete check-pro-rata-propagation-complete
    :yield/pro-rata-accounting-reconciles check-pro-rata-accounting-reconciles
    :yield/shared-withdrawal-conservation check-shared-withdrawal-conservation-world
+   :yield/withdrawal-lineage-conservation check-withdrawal-lineage-conservation
    :yield/withdrawal-budget-provenance check-withdrawal-budget-provenance
    :yield/withdrawal-ledger-conservation check-withdrawal-ledger-conservation})
 
@@ -2230,13 +2450,12 @@
   "Replay trace snapshots use :yield-positions / :yield-held; expand to world paths."
   [world]
   (cond-> world
-    (map? world)
-    (cond-> (:yield-positions world)
-      (assoc :yield/positions (:yield-positions world))
-      (:yield-held world)
-      (assoc :yield/held-balances (:yield-held world))
-      (:yield-indices world)
-      (assoc :yield/indices (:yield-indices world)))))
+    (and (map? world) (:yield-positions world))
+    (assoc :yield/positions (:yield-positions world))
+    (and (map? world) (:yield-held world))
+    (assoc :yield/held-balances (:yield-held world))
+    (and (map? world) (:yield-indices world))
+    (assoc :yield/indices (:yield-indices world))))
 
 (defn holds?
   "Run a single invariant check; returns boolean.

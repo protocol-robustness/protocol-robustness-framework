@@ -1,0 +1,73 @@
+{
+  "protocol-params": {
+    "yield-generation-module": "aave-v3",
+    "yield-protocol-fee-bps": 1000,
+    "resolver-fee-bps": 150,
+    "appeal-window-duration": 0,
+    "max-dispute-duration": 2592000,
+    "dispute-resolver": "resolver"
+  },
+  "threat-tags": [],
+  "purpose": "regression",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "sender",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "recipient",
+        "amount": 100000,
+        "yield-preset": "to-recipient"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 2000,
+      "agent": "sender",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 315361000,
+      "agent": "resolver",
+      "action": "execute_resolution",
+      "params": {
+        "workflow-id": 0,
+        "is-release": true,
+        "resolution-hash": "0x79"
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s79-yield-aave-partial-liquidity-dispute-resolution",
+  "title": "s79-yield-aave-partial-liquidity-dispute-resolution",
+  "id": "scenarios\/s79-yield-aave-partial-liquidity-dispute-resolution",
+  "provenance": {
+    "author-id": "@grifma",
+    "author": "Marc Griffiths"
+  },
+  "agents": [
+    {
+      "id": "sender",
+      "address": "sender",
+      "type": "honest"
+    },
+    {
+      "id": "recipient",
+      "address": "recipient",
+      "type": "honest"
+    },
+    {
+      "id": "resolver",
+      "address": "resolver",
+      "type": "honest"
+    }
+  ],
+  "initial-block-time": 1000
+}

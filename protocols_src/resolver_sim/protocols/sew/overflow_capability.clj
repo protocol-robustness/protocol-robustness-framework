@@ -15,8 +15,7 @@
    record minus its self-hash. Direct injection or mutation of a persisted
    record changes the recomputed hash and fails verification. Capability records
    are only constructible through the validated constructor (activation) or the
-   explicitly named test/migration escape hatch.")
-
+   explicitly named test/migration escape hatch."
   (:require [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.hash.canonical :as hash]))

@@ -30,8 +30,11 @@ Simulated time advances only via each event's `:time` field (no separate time-ad
 | `yield/token-key-consistency` | No simultaneous string/keyword token keys in accounting maps |
 | `yield/value-conservation` | Deferred + haircut within position residual value |
 | `yield/aggregate-shortfall-cap` / `yield/aggregate-shortfall` / `yield/aggregate` | Per-(module,token) aggregate: splits reconcile to basis, and total basis ≤ total value (using the recorded `:settlement-value`) |
-| `yield/pro-rata-propagation-complete` | Shared-withdrawal decision → propagation → application binding |
+| `yield/pro-rata-propagation-complete` | Shared-withdrawal decision → propagation → application binding (position-state checks apply to each participant's latest round; earlier rounds are covered by the lineage invariant) |
 | `yield/pro-rata-accounting-reconciles` | Shared-withdrawal accounting entries and participant chains reconcile |
+| `yield/shared-withdrawal-conservation` | Round-local: every `:yield-withdraw-shared` decision replay-verifies `Σ filled = min(available, Σ effective-demand)`, per-row caps, no haircut, non-overallocation |
+| `yield/withdrawal-lineage-conservation` | Cross-round: per participant, Σ realized-fill across the whole lineage + terminal outstanding = original requested; cumulative fill never exceeds it; each re-entered request equals the prior round's deferred residual; position cumulative reconciles to the decision-derived cumulative |
+| `yield/withdrawal-budget-provenance` | L1: committed liquidity budget recomputes from committed source custody + available-ratio (content-addressed roots) |
 | `yield/withdrawal-ledger-conservation` | Every recorded withdrawal is a valid fixed-point certificate bound to its execution world and withdrawal subject: recomputed roots (run, params, state cutpoint, request-set, request-order, allocation-policy, basis) reconcile; per-principal uniqueness and exact bijection; per-row and aggregate economic conservation; FCFS prefix pool bound; `filled ≥ 0`. Catches run/execution/state transplants, same-run withdrawal substitution, row-value substitution, duplicate owners, and fabricated totals |
 
 Implementation: `src/resolver_sim/yield/invariants.clj`  

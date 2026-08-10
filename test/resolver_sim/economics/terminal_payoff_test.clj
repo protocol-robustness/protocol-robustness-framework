@@ -172,3 +172,47 @@
       (is (not (:above-access? safe)))
       (is (:below-deterrence? under))
       (is (:above-access? blocked)))))
+
+;; ── Slow-resolver griefing cost ─────────────────────────────────────────────
+
+(deftest slow-resolver-griefing-cost-annual-rate
+  (testing "a full-year stall costs the annual rate of the escrow"
+    (let [r (tp/slow-resolver-griefing-cost
+             :escrow-wei 100000 :stall-seconds 31536000
+             :response-window-seconds 0)]
+      (is (= 5000 (:capital-cost-wei r))
+          "100000 * 5% per year = 5000"))
+    (let [r (tp/slow-resolver-griefing-cost
+             :escrow-wei 100000 :stall-seconds 31536000
+             :response-window-seconds 0 :capital-cost-rate-bps 1000)]
+      (is (= 10000 (:capital-cost-wei r))
+          "100000 * 10% per year = 10000"))))
+
+(deftest slow-resolver-griefing-cost-incremental-beyond-window
+  (testing "incremental cost is the delay beyond the agreed response window"
+    ;; 1M escrow, 30-day stall, 1-day window → griefing beyond the window
+    (let [r (tp/slow-resolver-griefing-cost
+             :escrow-wei 1000000 :stall-seconds 2592000
+             :response-window-seconds 86400 :max-dispute-duration-seconds 2592000)]
+      (is (pos? (:capital-cost-wei r)))
+      (is (pos? (:incremental-cost-wei r)))
+      (is (< (:incremental-cost-wei r) (:capital-cost-wei r))
+          "incremental excludes the agreed window")))
+  (testing "stall within the window has no incremental griefing"
+    (let [r (tp/slow-resolver-griefing-cost
+             :escrow-wei 100000 :stall-seconds 30 :response-window-seconds 60)]
+      (is (zero? (:incremental-cost-wei r))))))
+
+(deftest slow-resolver-griefing-cost-disabled-window
+  (testing "disabled window (0) means no incremental griefing is attributed"
+    (let [r (tp/slow-resolver-griefing-cost
+             :escrow-wei 100000 :stall-seconds 3600 :response-window-seconds 0)]
+      (is (zero? (:incremental-cost-wei r)))
+      (is (zero? (:response-window-seconds r))))))
+
+(deftest slow-resolver-griefing-cost-zero-escrow
+  (testing "zero escrow produces zero cost"
+    (let [r (tp/slow-resolver-griefing-cost
+             :escrow-wei 0 :stall-seconds 3600)]
+      (is (zero? (:capital-cost-wei r)))
+      (is (zero? (:incremental-cost-wei r))))))

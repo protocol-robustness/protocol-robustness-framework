@@ -724,26 +724,37 @@
 
 (defn execute-resolution
   "Submit a resolution decision for a :disputed escrow.
-   Gates on authorized-resolver? then delegates to apply-resolution-transition."
+   Gates on authorized-resolver? then delegates to apply-resolution-transition.
+
+   When :resolver-response-window is configured and the assigned resolver has
+   exceeded it (sm/resolver-response-exceeded?), the dispute is no longer
+   exclusively bound to the original resolver: any resolution-module-authorized
+   resolver (Priority 2) or a fresh resolver reaching the dispute via Priority 3
+   fallthrough may rule.  This lets a stalling resolver be escaped earlier than
+   max-dispute-duration."
   [world workflow-id caller is-release resolution-hash resolution-module-fn]
-  (cond
-    (not (t/valid-workflow-id? world workflow-id))
-    (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+  (let [response-window-expired? (sm/resolver-response-exceeded? world workflow-id)]
+    (cond
+      (not (t/valid-workflow-id? world workflow-id))
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id)
 
-    (not= :disputed (t/escrow-state world workflow-id))
-    (guard-fail :transfer-not-in-dispute
-                :escrow-state (t/escrow-state world workflow-id)
-                :workflow-id workflow-id)
+      (not= :disputed (t/escrow-state world workflow-id))
+      (guard-fail :transfer-not-in-dispute
+                  :escrow-state (t/escrow-state world workflow-id)
+                  :workflow-id workflow-id)
 
-    (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn))
-    (guard-fail :not-authorized-resolver
-                :caller caller
-                :dispute-level (t/dispute-level world workflow-id)
-                :workflow-id workflow-id)
+      ;; When the response window has expired, a different resolver may step in.
+      ;; Otherwise only the assigned resolver (or module-authorized resolver) may rule.
+      (and (not response-window-expired?)
+           (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn)))
+      (guard-fail :not-authorized-resolver
+                  :caller caller
+                  :dispute-level (t/dispute-level world workflow-id)
+                  :workflow-id workflow-id)
 
-    :else
-    (apply-resolution-transition world workflow-id caller is-release
-                                 resolution-hash resolution-module-fn)))
+      :else
+      (apply-resolution-transition world workflow-id caller is-release
+                                   resolution-hash resolution-module-fn))))
 
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution-refused (Kleros ruling 0 — refuse to arbitrate)

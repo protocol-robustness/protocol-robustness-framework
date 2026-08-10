@@ -8,7 +8,8 @@
    - Full lifecycle: deposit → shortfall → deferred → later withdrawal"
   (:require [clojure.test :refer :all]
             [resolver-sim.yield.modules.liquid-lending :as ll]
-            [resolver-sim.yield.position :as pos]))
+            [resolver-sim.yield.position :as pos]
+            [resolver-sim.yield.invariants :as inv]))
 
 (def test-mod
   (ll/make-liquid-lending-module :test-mod))
@@ -174,6 +175,24 @@
                                             :allocation-mode :pro-rata})]
       (is (= ["new-user" "legacy"] (mapv :participant-id (participants-from w)))
           "new-user (priority 0) ordered before legacy (MAX_VALUE)"))))
+
+(deftest mixed-legacy-and-modern-position-ids-are-comparable
+  (testing "a shared withdrawal mixing a legacy vector :position/id with a modern string :position/id must not crash canonical-row ordering, even across a deferral"
+    (let [legacy-pos (pos/make-position {:owner/id "legacy" :module/id :test-mod
+                                         :token "USDC" :principal 100})
+          w (-> base-world
+                (assoc-in [:yield/positions "legacy"] legacy-pos)
+                (ll/deposit test-mod {:owner/id "new-user" :amount 100 :token "USDC"})
+                (assoc-in [:total-held :USDC] 150)
+                (ll/withdraw-shared test-mod {:owner-ids ["legacy" "new-user"]
+                                              :token "USDC" :allocation-mode :pro-rata}))
+          decisions (vals (:yield/partial-fill-decisions w))]
+      (is (= 1 (count decisions)) "a valid shared decision is produced")
+      (is (= 75 (get-in w [:yield/positions "legacy" :cumulative-fulfilled]))
+          "legacy owner filled pro-rata")
+      (is (= 75 (get-in w [:yield/positions "new-user" :cumulative-fulfilled])))
+      (is (:holds? (inv/check-withdrawal-lineage-conservation w))
+          "lineage conservation holds on the mixed world with a deferred legacy owner"))))
 
 ;; ── Fixture suite 6: Prior-lineage lifecycle ──────────────────────────────
 

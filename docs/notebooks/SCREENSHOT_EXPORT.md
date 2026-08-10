@@ -71,32 +71,43 @@ to *serve* them.
 6. Write to the run's staging dir, then apply the final layout rule (§4). Each export is
    stored under `shots/runs/<run-id>/` so history is preserved; re-running replaces only
    the notebooks in that run (or the whole run if the same `--run-id` is reused).
-7. After the run, regenerate the run's contact sheet and the top-level run index.
+7. After the run, regenerate the guided site (homepage, explore, catalogue, notebook
+   pages, run archive).
 
 Per-notebook failures are caught, logged, and skipped; the run exits non-zero if any fail.
 
 ## 4. Output layout
 
-The output is a **run-archived static site** (this keeps every export, not just the last):
-
-- Each export lives in `shots/runs/<run-id>/` where `<run-id>` defaults to a UTC timestamp
-  (`20260701T120000Z`) and can be set explicitly with `--run-id`.
-- Within a run, the predictable layout rule still applies:
-  - **Single-shot notebook** → `<run>/<name>.png` (flat file named after the notebook).
-  - **Multi-shot notebook** → `<run>/<name>/full.png`, `<run>/<name>/01-<slug>.png`, …,
-    one directory per notebook.
+The output is a **guided static site** — the homepage and navigation come from
+`data/notebooks.edn` (themes + `:presentation`), not from the run layout. **Runs are
+provenance, not navigation**: a newcomer lands on the homepage, not a run index.
 
 ```
 shots/                              # static site root (hostable without Java)
-  index.html                        # run index: every export, newest first
+  index.html                        # HOMEPAGE: hero + "Start here" + 5 themes
   latest.html                       # redirect → newest run's contact sheet
+  explore/
+    failures-attacks.html           # 5 public-theme pages (from :themes)
+    allocation-liquidity.html
+    disputes-governance.html
+    evidence-reproducibility.html
+    simulation-scenarios.html
+  notebooks/
+    index.html                      # full catalogue + filters (theme/kind/level)
+    demo-not-admitted/
+      index.html                    # stable per-notebook page
+    demo-reorder-chain/
+      index.html
+    …
+  assets/
+    notebooks/<notebook-id>/NN-<slug>.png   # current screenshots (copied from newest run)
   runs/
+    index.html                      # run archive ("what was exported in build X?")
     20260701T120000Z/
       index.html                    # contact sheet: thumbnails → each image
       run-meta.json
       report.png                    # single-shot notebook (full-page only)
       report/01-adverse-escrow-lifecycle.png   # multi-shot notebook
-      report/02-resolution-throughput.png
       demo_short_circuit/
         full.png
         01-short-circuit-execution-composition-demo.png
@@ -105,18 +116,40 @@ shots/                              # static site root (hostable without Java)
       ...
 ```
 
-- `shots/index.html` is the **run index**: one entry per export, newest first, with
-  notebook/image counts and (optionally) preview thumbnails (`--thumbnails N`).
-- Each run's `index.html` is a self-contained contact sheet referencing the PNGs relative
-  to that run, plus a "← all exports" link back to the site index.
-- Each run's `run-meta.json` records the base URL, settings, `run-id`, and per-notebook
-  `ok`/`failed` lists so a reviewer knows which run a shot came from.
-- `latest.html` is a static `<meta refresh>` redirect to the newest run — a stable link
-  to "the current export".
+- `shots/index.html` is the **homepage**: a guided front door with a hero, a
+  "Start here" rail of 4–6 curated demos (one question → one visible consequence, each
+  with a "Deeper analysis →" link), and the 5 public themes. It is driven entirely by
+  `data/notebooks.edn`.
+- `shots/explore/<theme>.html` groups notebooks by public theme (a newcomer-facing
+  simplification of the 12 registry categories). A notebook's theme is set via
+  `:presentation.theme`; the exporter never hard-codes membership.
+- `shots/notebooks/<id>/index.html` is a **stable canonical page per notebook**: title,
+  question/summary, chips (theme / Demo-Analysis-Report-Tool / Intro-Intermediate-
+  Deep-dive), a preview strip, all sections, the source notebook path, and run history.
+- `shots/assets/notebooks/<id>/…` holds the notebook's **current** screenshots, copied
+  from the newest run that contains it, so notebook URLs don't change between runs.
+- `shots/runs/<id>/…` is the unchanged run archive (full artifacts + contact sheet +
+  `run-meta.json`). `runs/index.html` is the provenance view ("what exactly was exported
+  in build X?") and is linked from every notebook page.
+- `latest.html` is a static `<meta refresh>` redirect to the newest run.
 - `shots/` is gitignored (generated artifacts).
 - **Legacy `--flat`**: with `--flat`, output is written directly under `shots/` with no
   `runs/<id>/` nesting (the pre-history layout), used by the CI render gate
   (`target/shots-ci`). The two layouts never mix in one directory.
+
+### Registry-driven site
+
+`data/notebooks.edn` gains two editorial layers that drive the exported site:
+
+- **`:themes`** — the 5 public Explore themes (`:failures-attacks`, `:allocation-liquidity`,
+  `:disputes-governance`, `:evidence-reproducibility`, `:simulation-scenarios`) with label,
+  icon, and blurb.
+- **`:presentation`** per notebook — `:theme`, `:kind` (demo/analysis/report/tool),
+  `:audience-level` (intro/intermediate/deep-dive), `:featured?`, `:start-here-rank`,
+  `:question` (newcomer one-liner), and `:deeper-id` (which larger notebook a demo points to).
+
+`scripts/validate_notebook_registry.clj` (via `bb notebook:validate-registry`) checks theme
+ids, kind/level enums, `deeper-id` targets, and unique `:start-here-rank` values.
 
 ### Hosting without Java
 
@@ -125,12 +158,15 @@ Nothing in `shots/` needs the Clerk server or a JVM to view:
 ```shell
 bb notebook:shots:serve       # python3 -m http.server on shots/ → http://localhost:8899
 bb notebook:shots:package     # tar -czf target/shots-site.tar.gz -C shots .
-bb notebook:shots:index       # rebuild index.html/latest.html from existing runs (no server)
+bb notebook:shots:index       # rebuild the whole guided site from existing runs (no server)
 ```
 
 Upload the `shots/` directory (or the tarball) to GitHub Pages, Netlify, S3, nginx, or
-any static file server. `--index-only` regenerates `index.html`/`latest.html` from runs
-already on disk, so the index can be refreshed without touching the Clerk server.
+any static file server. `--index-only` (a.k.a. `bb notebook:shots:index`) regenerates the
+homepage, explore, catalogue, notebook pages, and run archive from runs already on disk,
+so the site can be refreshed without touching the Clerk server. A GitHub Actions workflow
+(`.github/workflows/notebook-shots-site.yml`, disabled by default) shows how to publish to
+GitHub Pages.
 
 ## 5. Config schema — `data/notebook-shots.edn`
 
@@ -179,23 +215,25 @@ already on disk, so the index can be refreshed without touching the Clerk server
 ## 7. CLI / bb tasks
 
 ```shell
-bb notebook:shots          # full run from data/notebook-shots.edn into shots/ (new run archive)
+bb notebook:shots          # full run from data/notebook-shots.edn into shots/ (new run archive + guided site)
 bb notebook:shots:one report   # single notebook (name without .clj)
 bb notebook:shots:sections report  # force per-section mode for one notebook
 bb notebook:shots:retry    # rerun failed notebooks, completing the newest failing run in place
-bb notebook:shots:open     # open shots/index.html (run index)
-bb notebook:shots:index    # rebuild index.html + latest.html from existing runs (no server)
+bb notebook:shots:open     # open shots/index.html (homepage)
+bb notebook:shots:index    # rebuild the whole guided site from existing runs (no server)
 bb notebook:shots:serve    # python3 -m http.server on shots/ (no Java) → :8899
 bb notebook:shots:package  # tar shots/ → target/shots-site.tar.gz for any static host
 bb notebook:shots:setup    # one-time: python3 -m playwright install chromium
 bb notebook:shots:ci       # render gate: full-page shots for all notebooks (target/shots-ci, --flat)
+bb notebook:validate-registry  # validate data/notebooks.edn incl. :presentation fields
 ```
 
 `scripts/export_notebook_shots.sh` is the entry point behind all of them: it ensures the
 Clerk server is up (reusing one on :7777, else starting it and waiting), then runs
-`scripts/export_notebook_shots.py`. `--index-only` skips the server entirely (pure index
-rebuild). Pure logic lives in `scripts/notebook_shots_util.py`
-(EDN config, slugify, path layout, run index) and is covered by `scripts/test_notebook_shots.py`.
+`scripts/export_notebook_shots.py`. `--index-only` skips the server entirely (pure site
+rebuild from existing runs). Pure logic lives in `scripts/notebook_shots_util.py`
+(EDN config, slugify, path layout, run archive, guided-site builders) and is covered by
+`scripts/test_notebook_shots.py`.
 
 `notebook:shots:ci` renders every hub notebook full-page into `target/shots-ci` (gitignored
 via `**/target`, flat layout via `--flat`) and fails on any render error — a cheap rendering
@@ -206,27 +244,32 @@ regression gate that complements `notebook:ci`.
 Shipped (this feature):
 
 - `scripts/export_notebook_shots.sh` — server-ensure + run (skips server for `--index-only`).
-- `scripts/export_notebook_shots.py` — Playwright driver (CLI; `--run-id`, `--flat`, `--index-only`, `--thumbnails`).
-- `scripts/notebook_shots_util.py` — pure helpers (EDN config, slugify, path layout, run index, JS).
-- `scripts/test_notebook_shots.py` — unit tests for the pure logic.
-- `data/notebook-shots.edn` — config.
+- `scripts/export_notebook_shots.py` — Playwright driver (CLI; `--run-id`, `--flat`, `--index-only`, `--thumbnails`, `--registry`).
+- `scripts/notebook_shots_util.py` — pure helpers (EDN config, slugify, path layout, run archive, guided-site builders: homepage, explore, catalogue, notebook pages, asset copy, JS).
+- `scripts/test_notebook_shots.py` — unit tests for the pure logic incl. the guided site.
+- `scripts/validate_notebook_registry.clj` — validates `:themes` + `:presentation` fields.
+- `data/notebooks.edn` — `:themes` + per-notebook `:presentation` editorial layer.
+- `data/notebook-shots.edn` — config (incl. `demo_adversarial_escalation` for the Start-here set).
 - `bb.edn` tasks (`notebook:shots`, `:one`, `:sections`, `:open`, `:retry`, `:index`, `:serve`, `:package`, `:setup`, `:ci`).
+- `.github/workflows/notebook-shots-site.yml` — GitHub Pages publish (disabled by default).
 - `shots/` gitignored.
 
 ## 9. Resolved / open decisions
 
 Resolved during implementation:
 - **Default mode** `[:full]`; curated `:sections` for narrative notebooks in the config.
-- **Output location** `shots/`, gitignored; the run index is the entry point, and each run
-  has its own contact sheet.
-- **Run-archived history**: every export is a timestamped `runs/<run-id>/` directory, so the
-  index lists all exports rather than just the last one. `latest.html` is a stable static
-  redirect to the newest.
+- **Guided front door**: the homepage is a curated "Start here" + 5 public themes, driven by
+  `data/notebooks.edn` — not by the run layout.
+- **Runs become provenance**: every export is a timestamped `runs/<run-id>/` directory; the
+  run archive lives at `runs/index.html` and is linked from every notebook page.
+- **Stable notebook URLs**: `notebooks/<id>/index.html` shows current screenshots (copied to
+  `assets/notebooks/<id>/`) plus run history.
 - **Single fixed viewport** 1440×900 @ DPR 2 for all modes.
 - **Readiness** is `.notebook-viewer` present + `.viewer` count stable (not `<article>`).
 - **Legacy flat layout** preserved via `--flat` for the CI render gate.
 - **Static hosting**: the exported tree is self-contained (relative links, no Java) and is
-  served/shipped via `notebook:shots:serve`/`:package`/`:index`.
+  served/shipped via `notebook:shots:serve`/`:package`/`:index`; GitHub Pages workflow
+  included but disabled by default.
 
 Still optional / future work:
 - `:interactive` notebooks captured as initial state only; a scripted-interaction mode is
@@ -237,5 +280,7 @@ Still optional / future work:
   bb task yet.
 - Very long notebooks produce very tall full-page PNGs; prefer `:sections` for those.
 - Run pruning (keep the last N exports) is not implemented; exports accumulate.
+- Object storage (S3/CloudFront) for large historical archives is deferred until volume
+  warrants it — GitHub Pages + repo-hosted images is enough to validate the experience.
 - Screenshots are evidence of rendering, not correctness — keep `bb notebook:ci` as the
   correctness gate.

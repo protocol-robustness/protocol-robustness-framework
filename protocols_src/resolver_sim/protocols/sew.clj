@@ -2104,6 +2104,8 @@
       :live-states        (into {} (map (fn [[id et]] [id (:escrow-state et)])
                                         (:escrow-transfers world)))
       :dispute-levels     (into {} (:dispute-levels world))
+      :dispute-timestamps (into {} (:dispute-timestamps world))
+      :module-snapshots   (into {} (:module-snapshots world))
       :dispute-resolvers  (into {} (map (fn [[id et]] [id (:dispute-resolver et)])
                                         (:escrow-transfers world)))
       :resolver-rotations (into {} (:resolver-rotations world))
@@ -2458,6 +2460,12 @@
         :evidence-submission
         (let [snap       (t/get-snapshot world wf-id)
               window-dur (:evidence-window-duration snap 0)]
+          (when (pos? window-dur)
+            (let [dispute-ts (get-in world [:dispute-timestamps wf-id] 0)]
+              (+ dispute-ts window-dur))))
+        :resolver-response
+        (let [snap       (t/get-snapshot world wf-id)
+              window-dur (:resolver-response-window snap 0)]
           (when (pos? window-dur)
             (let [dispute-ts (get-in world [:dispute-timestamps wf-id] 0)]
               (+ dispute-ts window-dur))))

@@ -2,7 +2,7 @@
 
 ## Classification
 
-- **Status:** `:review/open-assurance-gaps`
+- **Status:** `:review/open-assurance-gaps` (gap 5 resolved by M1 lineage verifier)
 - **Kind:** custody-transition and queue-ordering assurance
 - **Scope:** repeated partial-fill deferral of yield-backed positions
 
@@ -118,13 +118,13 @@ the following:
 1. A competing older/newer position scenario across two partial-fill cycles,
    followed by renewed liquidity, proving that the older lineage is serviced
    first.
-2. An explicit, position-identity-based tie-breaker contract and dedicated equal-priority regression. The current implementation sorts secondarily by stringified `owner-id`; that is deterministic for current owner-keyed positions but is not yet documented as the canonical lineage tie-breaker.
+2. An explicit, position-identity-based tie-breaker contract and dedicated equal-priority regression. The canonical secondary ordering is documented at `secondary-position-id` / `compare-queue-entries` (liquid_lending.clj): equal primary priorities break by the stringified content-addressed lineage root (deferred) or lineage-origin hash (base) — deterministic and stable across rounds, not the raw owner id. The dedicated equal-priority regression (`equal-primary-priorities-use-deterministic-owner-tie-break`) pins the ordering.
 3. Deterministic replay after shuffled input ordering.
 4. Cross-pool positions being incomparable rather than globally ordered.
-5. Full amount conservation across multiple descendants, reversals, and
-   write-downs. The single deferred-claim closure amount is checked, but this
-   is not a lineage-wide conservation verifier.
+5. ~~Full amount conservation across multiple descendants, reversals, and write-downs~~ **Resolved by M1:** `:yield/withdrawal-lineage-conservation` proves Σ realized-fill across a lineage + terminal outstanding = original requested (round-chain continuity, no cumulative overfill, position/decision reconciliation), exercised by the `Y14_round-two-shared-liquidity` scenario and `lineage_conservation_test.clj`.
 6. Explicit single-origin/multi-origin merge policy validation.
+
+Status: **resolved in part.** Gap 2 is closed (canonical tie-breaker documented + regression pinned), gap 5 is closed by the lineage-conservation invariant, gap 3 is covered by the shuffled-round-two determinism test; the remaining gaps (1, 4, 6) stay open.
 
 ## Required regression coverage
 

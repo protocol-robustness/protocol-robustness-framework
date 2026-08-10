@@ -1,0 +1,64 @@
+{
+  "description": "Tests how different automated yield policies (de-risking vs liquidity-attraction) respond to an injected liquidity shortfall and impact protocol solvency.",
+  "protocol-params": {
+    "yield-generation-module": "aave-v3-derisk",
+    "resolver-fee-bps": 0
+  },
+  "threat-tags": [],
+  "purpose": "adversarial-robustness",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create-escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 10000,
+        "yield-preset": "aave-v3-derisk"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1100,
+      "agent": "buyer",
+      "action": "set-yield-risk",
+      "params": {
+        "module-id": "aave-v3-derisk",
+        "token": "USDC",
+        "shortfall": {
+          "available-ratio": 0.4
+        }
+      }
+    },
+    {
+      "seq": 2,
+      "time": 2000,
+      "agent": "buyer",
+      "action": "trigger-accrue",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s105-policy-response-cascade",
+  "title": "Policy-response cascade: De-risking vs Attraction",
+  "id": "scenarios\/s105-policy-response-cascade",
+  "provenance": {
+    "author": "Sew Protocol Simulation",
+    "author-id": "@grifma",
+    "created-at": "2026-05-30T16:31:11Z",
+    "source": "manual-migration"
+  },
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    }
+  ],
+  "initial-block-time": 1000
+}

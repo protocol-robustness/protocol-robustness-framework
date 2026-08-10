@@ -97,6 +97,41 @@
         (swap! errors conj (str "Notebook file not found: " notebook-file
                                 " (referenced from " (str/join ", " sources) ")"))))
 
+    ;; 7. :presentation editorial layer (drives the exported site)
+    (let [theme-keys (set (keys (:themes (common/read-edn data-file))))
+          all-ids    (set (map :id entries))]
+      (doseq [e entries
+              :let [id (:id e)
+                    pres (:presentation e)]]
+        (when pres
+          (let [theme (:theme pres)
+                kind (:kind pres)
+                level (:audience-level pres)
+                deeper (:deeper-id pres)
+                featured? (:featured? pres)
+                rank (:start-here-rank pres)]
+            (when (and theme (not (contains? theme-keys theme)))
+              (swap! errors conj (str "Notebook " id " has unknown :presentation.theme " theme)))
+            (when (and kind (not (#{:demo :analysis :report :tool} kind)))
+              (swap! errors conj (str "Notebook " id " has unknown :presentation.kind " kind)))
+            (when (and level (not (#{:intro :intermediate :deep-dive} level)))
+              (swap! errors conj (str "Notebook " id " has unknown :presentation.audience-level " level)))
+            (when (and deeper (not (contains? all-ids deeper)))
+              (swap! errors conj (str "Notebook " id " has :presentation.deeper-id " deeper
+                                      " which is not a registry notebook ID"))))
+          (when (and (:featured? pres) (not (and (:start-here-rank pres) (pos? (:start-here-rank pres)))))
+            (swap! errors conj (str "Featured notebook " id " is missing a positive :start-here-rank"))))))
+
+    ;; 8. Featured notebooks must have unique start-here ranks
+    (let [ranks (->> entries
+                     (keep #(when (:featured? (or (:presentation %) {}))
+                              (:start-here-rank (:presentation %))))
+                     (frequencies)
+                     (filter #(> (val %) 1))
+                     (map key))]
+      (when (seq ranks)
+        (swap! errors conj (str "Duplicate :start-here-rank values: " (vec (sort ranks))))))
+
     ;; Report
     (println (str "Notebook registry validation: " (count entries) " entries"
                   " (" (count active) " active, " (count archived) " archived)"))
@@ -108,4 +143,5 @@
           (println (str "  " (count active-paths) " active paths resolve"))
           (println (str "  " (count archived) " archived entries with replacement metadata"))
           (println (str "  All active notebooks registered."))
-          (println (str "  All source-level references resolve."))))))
+          (println (str "  All source-level references resolve."))
+          (println (str "  All :presentation themes/kinds/levels/deeper-ids/ranks valid."))))))

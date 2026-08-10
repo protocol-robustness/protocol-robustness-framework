@@ -319,6 +319,140 @@
                      (:status concept-result)))))))))
 
 ;; ---------------------------------------------------------------------------
+;; Resolver response-window scenarios (S-DR-100/101/102)
+;; ---------------------------------------------------------------------------
+
+(def resolver-response-scenario-ids
+  ["S-DR-100-resolver-response-within-window"
+   "S-DR-101-resolver-response-window-expired-fresh-resolver"
+   "S-DR-102-resolver-response-deadline-boundary"])
+
+(deftest test-resolver-response-scenarios-replay
+  (testing "Resolver response-window scenarios load and replay to :pass"
+    (doseq [sid resolver-response-scenario-ids]
+      (let [s (try (load-scenario (str "scenarios/edn/" sid ".edn"))
+                   (catch Exception e (println "MISSING:" sid (.getMessage e)) nil))]
+        (is (some? s) (str sid " must exist"))
+        (when s
+          (is (= :pass (:outcome (replay-scenario s)))
+              (str sid " must replay to :pass"))
+          (is (= (get-in s [:protocol-params :resolver-response-window] 0)
+                 (get-in s [:protocol-params :resolver-response-window] 0))
+              (str sid " must declare a resolver-response-window")))))))
+
+(deftest test-resolver-response-fresh-resolver-authorized-after-window
+  (testing "S-DR-101: a fresh resolver is authorized only after the window expires"
+    (let [s (load-scenario "scenarios/edn/S-DR-101-resolver-response-window-expired-fresh-resolver.edn")
+          replay (replay-scenario s)
+          resolve-entry (first (filter #(= "execute_resolution" (name (:action %)))
+                                       (:trace replay)))]
+      (is (some? resolve-entry))
+      (when resolve-entry
+        (is (= "resolver2" (:agent resolve-entry))
+            "the fresh resolver (not the assigned resolver1) must resolve")
+        (is (nil? (:error resolve-entry))
+            "the fresh resolver's resolution after the window must not be rejected")))))
+
+;; ---------------------------------------------------------------------------
+;; Resolution-module configuration scenarios (S-DR-103/104)
+;; ---------------------------------------------------------------------------
+
+(def resolution-module-scenario-ids
+  ["S-DR-103-set-resolution-module-governance"
+   "S-DR-104-set-resolution-module-config-drift"])
+
+(deftest test-resolution-module-scenarios-replay
+  (testing "Resolution-module configuration scenarios load and replay"
+    (doseq [sid resolution-module-scenario-ids]
+      (let [s (try (load-scenario (str "scenarios/edn/" sid ".edn"))
+                   (catch Exception e (println "MISSING:" sid (.getMessage e)) nil))]
+        (is (some? s) (str sid " must exist"))
+        (when s
+          (is (= :pass (:outcome (replay-scenario s)))
+              (str sid " must replay to :pass")))))))
+
+(deftest test-set-resolution-module-guards
+  (testing "S-DR-103: set-resolution-module guards (governance gate, empty address)"
+    (let [s (load-scenario "scenarios/edn/S-DR-103-set-resolution-module-governance.edn")
+          replay (replay-scenario s)
+          set-events (filter #(= "set_resolution_module" (name (:action %)))
+                             (:trace replay))
+          buyer-set (first set-events)
+          gov-empty (second set-events)
+          gov-valid (nth set-events 2)]
+      (is (some? buyer-set))
+      (when buyer-set
+        (is (= :not-governance (:error buyer-set))
+            "non-governance caller must be rejected"))
+      (when gov-empty
+        (is (= :invalid-module-address (:error gov-empty))
+            "empty module address must be rejected"))
+      (when gov-valid
+        (is (nil? (:error gov-valid))
+            "governance setting a valid module must succeed")))))
+
+(deftest test-set-resolution-module-config-drift
+  (testing "S-DR-104: a mid-lifecycle module change does not propagate to new escrows"
+    (let [s (load-scenario "scenarios/edn/S-DR-104-set-resolution-module-config-drift.edn")
+          replay (replay-scenario s)
+          world (:world replay)
+          params-module (get-in world [:params :resolution-module])
+          escrow0-module (get-in world [:module-snapshots 0 :resolution-module])]
+      (is (= "0xnewmod" params-module)
+          "the global module param is updated by governance")
+      (is (not= "0xnewmod" escrow0-module)
+          "the new escrow's frozen snapshot keeps the pre-change module (config-drift)"))))
+
+;; ---------------------------------------------------------------------------
+;; Pro-rata slash-allocation query scenarios (S-DR-105/106)
+;; ---------------------------------------------------------------------------
+
+(def prorata-query-scenario-ids
+  ["S-DR-105-prorata-slash-allocation-capped"
+   "S-DR-106-prorata-slash-allocation-zero-weight"])
+
+(deftest test-prorata-query-scenarios-replay
+  (testing "compute_prorata_slash_allocation query scenarios load and replay"
+    (doseq [sid prorata-query-scenario-ids]
+      (let [s (try (load-scenario (str "scenarios/edn/" sid ".edn"))
+                   (catch Exception e (println "MISSING:" sid (.getMessage e)) nil))]
+        (is (some? s) (str sid " must exist"))
+        (when s
+          (is (= :pass (:outcome (replay-scenario s)))
+              (str sid " must replay to :pass")))))))
+
+(deftest test-prorata-query-capped-conservation
+  (testing "S-DR-105: capped allocation preserves conservation (obligation = recovered + unmet)"
+    (let [s (load-scenario "scenarios/edn/S-DR-105-prorata-slash-allocation-capped.edn")
+          replay (replay-scenario s)
+          ev (first (filter #(= "compute_prorata_slash_allocation" (name (:action %)))
+                            (:trace replay)))
+          alloc (get-in ev [:extra :allocation])]
+      (is (some? alloc))
+      (when alloc
+        (is (= 400N (+ (:recovered-total alloc) (:unmet-total alloc)))
+            "conservation: obligation 400 = recovered 360 + unmet 40")
+        (is (= 360N (:recovered-total alloc)))
+        (is (= 40N (:unmet-total alloc)))
+        (let [bob (first (filter #(= "bob" (:id %)) (:allocations alloc)))]
+          (is (= 60N (:paid bob)) "bob is capped at 60")
+          (is (= 40N (:unmet bob)) "bob's unmet is recorded"))))))
+
+(deftest test-prorata-query-zero-weight
+  (testing "S-DR-106: zero-weight party receives zero liability"
+    (let [s (load-scenario "scenarios/edn/S-DR-106-prorata-slash-allocation-zero-weight.edn")
+          replay (replay-scenario s)
+          ev (first (filter #(= "compute_prorata_slash_allocation" (name (:action %)))
+                            (:trace replay)))
+          alloc (get-in ev [:extra :allocation])
+          bob (first (filter #(= "bob" (:id %)) (:allocations alloc)))]
+      (is (some? alloc))
+      (when alloc
+        (is (= 100N (:recovered-total alloc)))
+        (is (= 0N (:unmet-total alloc)))
+        (is (= 0N (:paid bob)) "zero-weight party receives zero liability")))))
+
+;; ---------------------------------------------------------------------------
 ;; Report: coverage report function works
 ;; ---------------------------------------------------------------------------
 

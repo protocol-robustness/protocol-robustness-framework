@@ -11,19 +11,20 @@ The output is a self-contained static site that can be copied to any static
 host (GitHub Pages, S3, nginx, …) and served with NO Java: the Clerk server is
 only needed to *generate* the shots, never to view them.
 
-Default layout (run-archived, keeps every export):
-  <out>/index.html                 # run index: every export, newest first
-  <out>/latest.html                # redirect to the newest export
-  <out>/runs/<run-id>/index.html   # contact sheet for that export
-  <out>/runs/<run-id>/run-meta.json
-  <out>/runs/<run-id>/<name>.png                # single-shot notebook
-  <out>/runs/<run-id>/<name>/full.png           # multi-shot notebook
-  <out>/runs/<run-id>/<name>/01-<slug>.png
+Guided layout (navigation driven by data/notebooks.edn; runs are provenance):
+  <out>/index.html                 # homepage: hero + Start here + 5 themes
+  <out>/explore/<theme>.html       # public-theme pages
+  <out>/notebooks/index.html       # full catalogue + filters
+  <out>/notebooks/<id>/index.html  # stable per-notebook page (current + history)
+  <out>/assets/notebooks/<id>/…    # current screenshots (from newest run)
+  <out>/runs/<run-id>/…            # run archive: full artifacts + contact sheet
+  <out>/runs/index.html            # run archive index
+  <out>/latest.html                # redirect to the newest run
 
 --run-id labels the export (default: UTC timestamp); re-using one replaces that
 run. --flat keeps the legacy layout (directly under <out>, no runs/<id> nesting)
-used by the CI render gate. --index-only rebuilds <out>/index.html from existing
-runs without rendering.
+used by the CI render gate. --index-only rebuilds the whole guided site from
+existing runs without rendering (no server/Java needed).
 
 Exit code is non-zero if any notebook failed to render.
 """
@@ -44,8 +45,10 @@ from notebook_shots_util import (
     section_filename,
     collect_runs,
     default_run_id,
+    load_registry,
     run_index_html,
     sanitize_run_id,
+    write_guided_site,
     RENDER_READY_JS,
     COLLECT_HEADINGS_JS,
     SCROLL_TO_JS,
@@ -56,6 +59,7 @@ from notebook_shots_util import (
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(os.path.dirname(HERE), "data", "notebook-shots.edn")
+DEFAULT_REGISTRY = os.path.join(os.path.dirname(HERE), "data", "notebooks.edn")
 NOTEBOOKS_DIR = os.path.join(os.path.dirname(HERE), "notebooks")
 
 # Playwright / Chromium cap on viewport height (CSS px). A section taller than
@@ -274,12 +278,12 @@ def write_contact_sheet(out_dir, entries, parent_href=None):
         f.write("\n".join(html))
 
 
-def write_run_index(site_dir, thumbnail_limit=0):
-    """Regenerate <site>/index.html (+latest.html) from existing runs/."""
-    runs = collect_runs(site_dir)
-    html = run_index_html(site_dir, runs, thumbnail_limit=thumbnail_limit)
-    with open(os.path.join(site_dir, "index.html"), "w", encoding="utf-8") as f:
-        f.write(html)
+def write_site(out_dir, thumbnail_limit=0, registry_path=None):
+    """Full guided site: homepage + explore + catalogue + notebook pages + run archive."""
+    registry = load_registry(registry_path or DEFAULT_REGISTRY)
+    written = write_guided_site(out_dir, registry, thumbnail_limit=thumbnail_limit)
+    # stable "latest" redirect at the site root
+    runs = collect_runs(out_dir)
     if runs:
         newest = runs[0]["id"]
         latest = (
@@ -289,9 +293,10 @@ def write_run_index(site_dir, thumbnail_limit=0):
             "<a href='runs/%s/index.html'>latest export →</a></body></html>"
             % (newest, newest)
         )
-        with open(os.path.join(site_dir, "latest.html"), "w", encoding="utf-8") as f:
+        with open(os.path.join(out_dir, "latest.html"), "w", encoding="utf-8") as f:
             f.write(latest)
-    return runs
+        written["latest.html"] = True
+    return written
 
 
 def latest_run_meta_path(site_dir, with_failures_only=False):
@@ -371,6 +376,8 @@ def main(argv=None):
     ap.add_argument("--index-only", action="store_true", help="rebuild --out/index.html from existing runs; no rendering")
     ap.add_argument("--thumbnails", type=int, default=0, metavar="N",
                     help="embed up to N preview images per run in the run index (default: 0)")
+    ap.add_argument("--registry", default=None,
+                    help="path to data/notebooks.edn registry (default: data/notebooks.edn)")
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)
@@ -378,8 +385,9 @@ def main(argv=None):
 
     if args.index_only:
         os.makedirs(out_dir, exist_ok=True)
-        runs = write_run_index(out_dir, args.thumbnails)
-        print("%d run(s) indexed -> %s/index.html" % (len(runs), out_dir))
+        written = write_site(out_dir, args.thumbnails, args.registry)
+        print("%d run(s) indexed -> %s/index.html (guided site: %d file(s))"
+              % (len(collect_runs(out_dir)), out_dir, len(written)))
         return 0
 
     # Resolve the target run dir. --only-failures completes the newest run that
@@ -482,9 +490,10 @@ def main(argv=None):
     with open(run_meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, sort_keys=True)
 
-    # run index over ALL runs (unless flat/legacy layout)
+    # guided site over ALL runs (unless flat/legacy layout): homepage, explore,
+    # catalogue, per-notebook pages, plus the run archive under runs/
     if not args.flat:
-        write_run_index(out_dir, args.thumbnails)
+        write_site(out_dir, args.thumbnails, args.registry)
 
     failed = meta["failed"]
     if failed:
@@ -492,7 +501,9 @@ def main(argv=None):
         return 1
     print("\nOK: %d notebooks -> %s" % (len(meta["ok"]), run_dir))
     if not args.flat:
-        print("    site index: %s/index.html (latest: %s/latest.html)" % (out_dir, out_dir))
+        print("    homepage: %s/index.html · explore: %s/explore/ · catalogue: %s/notebooks/"
+              % (out_dir, out_dir, out_dir))
+        print("    run archive: %s/runs/index.html (latest: %s/latest.html)" % (out_dir, out_dir))
     return 0
 
 

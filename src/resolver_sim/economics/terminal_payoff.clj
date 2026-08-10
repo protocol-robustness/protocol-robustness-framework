@@ -615,8 +615,83 @@
                      "in [" min-bps ", " max-bps "].")}))
 
 ;; ---------------------------------------------------------------------------
-;; Claimant and Protocol payoff projections
+;; Slow-resolver griefing cost — economic cost of a stalling resolver
 ;; ---------------------------------------------------------------------------
+
+(defn slow-resolver-griefing-cost
+  "Model the economic cost a stalling resolver imposes on the escrow parties.
+
+   A resolver that does not rule within :resolver-response-window locks the
+   escrow amount beyond the agreed response deadline.  The cost to the parties
+   is the imputed opportunity cost of that capital for the stall duration:
+
+     capital-cost = escrow-wei * capital-cost-rate-bps / 10000 * (stall-seconds / seconds-per-year)
+
+   The `:capital-cost-rate-bps` is the annual opportunity-cost rate in bps
+   (default 500 = 5%/yr from `default-assumptions`), and the stall duration is
+   the time the escrow is held without a resolution.  A slow resolver also
+   imposes an incremental cost versus the shortest acceptable delay: if the
+   response window `w` was agreed and the resolver stalls past it to
+   `max-dispute-duration`, the extra cost is the capital cost over
+   `(max-dispute-duration - w)`.
+
+   Options:
+   - `:escrow-wei` — amount locked in the disputed escrow
+   - `:stall-seconds` — seconds the escrow is held without resolution
+   - `:response-window-seconds` — agreed response window (0 when disabled)
+   - `:max-dispute-duration-seconds` — maximum dispute duration (0 when unbounded)
+   - `:capital-cost-rate-bps` — annual rate in bps (default 500)
+   - `:seconds-per-year` — calendar basis (default 31 536 000)
+
+   Returns:
+     :capital-cost-wei      — imputed opportunity cost over the stall duration
+     :incremental-cost-wei  — capital cost of the delay beyond the response window
+                              (0 when the window is disabled or the stall is within it)
+     :rationale             — human-readable summary"
+  [& {:keys [escrow-wei stall-seconds response-window-seconds
+             max-dispute-duration-seconds capital-cost-rate-bps seconds-per-year]
+      :or {capital-cost-rate-bps 500
+           seconds-per-year 31536000}}]
+  (let [escrow (long (or escrow-wei 0))
+        stall  (long (or stall-seconds 0))
+        w      (long (or response-window-seconds 0))
+        maxd   (long (or max-dispute-duration-seconds 0))
+        rate   (double capital-cost-rate-bps)
+        spy    (long seconds-per-year)
+        capital-cost (if (and (pos? escrow) (pos? stall) (pos? spy))
+                       (long (quot (* escrow rate stall) (* 10000 spy)))
+                       0)
+        ;; Incremental cost: capital cost of the delay beyond the response window.
+        ;; When the window is disabled (w = 0) there is no agreed deadline, so the
+        ;; incremental cost is 0 (the stall is bounded only by max-dispute-duration).
+        ;; When the stall is within the window, there is no incremental griefing.
+        extra-seconds (if (and (pos? w) (> stall w))
+                        (- stall w)
+                        0)
+        incremental-cost (if (and (pos? extra-seconds) (pos? escrow) (pos? spy))
+                           (long (quot (* escrow rate extra-seconds) (* 10000 spy)))
+                           0)
+        window-info (if (pos? w)
+                      (str "response-window=" w "s")
+                      "response-window disabled")
+        maxd-info (if (pos? maxd)
+                    (str "max-dispute-duration=" maxd "s")
+                    "max-dispute-duration unbounded")]
+    {:capital-cost-wei capital-cost
+     :incremental-cost-wei incremental-cost
+     :stall-seconds stall
+     :response-window-seconds w
+     :max-dispute-duration-seconds maxd
+     :capital-cost-rate-bps rate
+     :rationale (str "Capital of " escrow " locked for " stall "s at "
+                     rate " bps/yr costs " capital-cost
+                     " wei. " window-info ", " maxd-info "; "
+                     (if (pos? incremental-cost)
+                       (str "the " extra-seconds "s stall beyond the response "
+                            "window costs an incremental " incremental-cost " wei.")
+                       (if (pos? w)
+                         "the stall is within the response window (no incremental griefing)."
+                         "no response window is configured (slow-resolver griefing is bounded only by max-dispute-duration).")))}))
 
 (defn claimant-payoff
   "Compute the canonical payoff decomposition for a claimant.

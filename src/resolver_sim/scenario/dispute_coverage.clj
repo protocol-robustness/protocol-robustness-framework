@@ -42,26 +42,31 @@
                                     "S-DR-097-appeal-ev-safe-calibrated"
                                     "S-DR-098-appeal-ev-under-deterred"
                                     "S-DR-099-appeal-ev-correct-blocked"]}
-   :resolver-integrity {:label "Resolver integrity"
-                        :scenarios ["S-DR-030-biased-resolver-appealed"
-                                    "S-DR-031-colluding-resolver-detected"
-                                    "S-DR-032-resolver-insufficient-stake"
-                                    "S-DR-050-resolution-module-plus-kleros"
-                                    "S-DR-051-challenge-without-escalation"
-                                    "S-DR-052-custom-resolver-bypasses-module"
-                                    "S-DR-053-module-false-fallthrough"
-                                    "S-DR-054-missing-escalation-level"
-                                    "S-DR-060-rotate-resolver-mid-dispute"
-                                    "S-DR-062-rotate-resolver-rejected"
-                                    "S-DR-070-empty-string-resolver-rejected"
-                                    "S-DR-071-governance-rotate-biased-ruling"
-                                    "S-DR-074-governance-capacity-bypass"
-                                    "S-DR-076-non-governance-rotate-rejected"
-                                    "S-DR-080-stake-capacity-enforced"
-                                    "S-DR-081-stake-capacity-bypass"
-                                    "S-DR-082-stake-capacity-sufficient"
-                                    "S-DR-089-freeze-recovery"
-                                    "S-DR-090-circuit-breaker-recovery"]}
+    :resolver-integrity {:label "Resolver integrity"
+                         :scenarios ["S-DR-030-biased-resolver-appealed"
+                                     "S-DR-031-colluding-resolver-detected"
+                                     "S-DR-032-resolver-insufficient-stake"
+                                     "S-DR-050-resolution-module-plus-kleros"
+                                     "S-DR-051-challenge-without-escalation"
+                                     "S-DR-052-custom-resolver-bypasses-module"
+                                     "S-DR-053-module-false-fallthrough"
+                                     "S-DR-054-missing-escalation-level"
+                                     "S-DR-060-rotate-resolver-mid-dispute"
+                                     "S-DR-062-rotate-resolver-rejected"
+                                     "S-DR-070-empty-string-resolver-rejected"
+                                     "S-DR-071-governance-rotate-biased-ruling"
+                                     "S-DR-074-governance-capacity-bypass"
+                                     "S-DR-076-non-governance-rotate-rejected"
+                                     "S-DR-080-stake-capacity-enforced"
+                                     "S-DR-081-stake-capacity-bypass"
+                                     "S-DR-082-stake-capacity-sufficient"
+                                     "S-DR-089-freeze-recovery"
+                                     "S-DR-090-circuit-breaker-recovery"
+                                     "S-DR-100-resolver-response-within-window"
+                                     "S-DR-101-resolver-response-window-expired-fresh-resolver"
+                                     "S-DR-102-resolver-response-deadline-boundary"
+                                     "S-DR-103-set-resolution-module-governance"
+                                     "S-DR-104-set-resolution-module-config-drift"]}
    :finality           {:label "Finality and payout correctness"
                         :scenarios ["S-DR-040-finality-blocked-during-appeal"
                                     "S-DR-041-finality-after-appeal-window"
@@ -73,7 +78,9 @@
                                     "S-DR-064-slash-appeal-rejected-executed"
                                     "S-DR-073-capacity-exhaustion-permanent-lock"
                                     "S-DR-075-insufficient-bond-deterrence"
-                                    "S-DR-092-automate-timed-actions"]}})
+                                    "S-DR-092-automate-timed-actions"
+                                    "S-DR-105-prorata-slash-allocation-capped"
+                                    "S-DR-106-prorata-slash-allocation-zero-weight"]}})
 
 (def coverage-gaps
   "Known research gaps that cannot yet be tested because the model lacks
@@ -92,7 +99,8 @@
     :resolution "Game-theoretic appeal EV model added (terminal-payoff.clj appeal-ev + appeal-indifference-threshold). S-DR-097/098/099 exercise the appeal-decision-rationality equilibrium check across the well-calibrated, under-deterred, and correct-blocked regimes."}
    {:coverage :resolver-integrity
     :gap :resolver-response-deadline
-    :reason "no resolver-response-window param; lazy resolver detected only via max-dispute-duration timeout"}
+    :status :resolved
+    :resolution "resolver-response-window protocol param (snapshot/config/types), resolver-response-exceeded? state-machine predicate, execute-resolution fresh-resolver fallthrough once the window expires, :resolver-response TemporalDeadlines kind, and the slow-resolver-griefing-cost model. S-DR-100/101/102 exercise the window (within / expired / at-deadline); the :resolver-response-deadline mechanism check + escrow-dispute-v1 benchmark claim verify no premature escalation."}
    {:coverage :evidence
     :gap :evidence-after-settlement-attempt-rejected
     :status :resolved

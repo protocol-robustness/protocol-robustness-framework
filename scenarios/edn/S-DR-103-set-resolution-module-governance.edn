@@ -1,0 +1,33 @@
+{:scenario-id "s-dr-103-set-resolution-module-governance"
+ :schema-version "1.0"
+ :purpose "regression"
+ :title "set-resolution-module — governance configures the resolution module, non-governance rejected"
+ :description "Exercises the set-resolution-module governance action (previously zero scenario coverage): governance sets a resolution module address; a non-governance caller is rejected with :not-governance; an empty address is rejected with :invalid-module-address; a valid address updates the global :params :resolution-module."
+ :tags ["suite/dispute-resolution"
+        "coverage/resolver-integrity"
+        "coverage/resolution-module"
+        "coverage/governance"
+        "set-resolution-module/basic"]
+ :threat-tags ["dispute-resolution" "resolution-module" "governance" "configuration"]
+ :provenance {:author "resolution-module-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "set-resolution-module-governance"
+         :statement "set-resolution-module is governance-gated: only governance may set the module, empty addresses are rejected, and a valid set updates the global module param."
+         :falsifies-if ["Non-governance can set the resolution module"
+                        "Empty module address is accepted"]}
+ :expected/events [:module-configured]
+ :expected/not-events [:unauthorized-configuration]
+ :expectations {:terminal-state "pending"}
+ :expected/invariants [:stake/non-negative
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "set-resolution-module-basic" :severity "info"
+          :actors ["governance" "buyer"] :victims ["protocol"]
+          :assumptions ["governance-mode :legacy" "module set to a valid address"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "gov" :address "0xgov" :role "governance"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "set_resolution_module" :params {:resolution-module "0xnewmod"}}
+          {:seq 1 :time 1010 :agent "gov" :action "set_resolution_module" :params {:resolution-module ""}}
+          {:seq 2 :time 1020 :agent "gov" :action "set_resolution_module" :params {:resolution-module "0xvalidmod"}}]}

@@ -1,0 +1,43 @@
+{
+  "description": "Tests shortfall logic in isolation from any protocol (like Sew).",
+  "protocol-params": {
+    "yield-generation-module": "aave-v3"
+  },
+  "threat-tags": [],
+  "purpose": "yield-robustness",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "gov",
+      "action": "set-yield-risk",
+      "params": {
+        "module-id": "aave-v3",
+        "token": "USDC",
+        "liquidity-mode": "shortfall",
+        "shortfall": {
+          "available-ratio": 0.5
+        }
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s107-isolated-shortfall",
+  "title": "Isolated yield module shortfall",
+  "id": "scenarios\/s107-isolated-shortfall",
+  "provenance": {
+    "author": "Sew Protocol Simulation",
+    "author-id": "@grifma",
+    "created-at": "2026-05-30T16:31:25Z",
+    "source": "manual-migration"
+  },
+  "agents": [
+    {
+      "id": "gov",
+      "address": "0xgov",
+      "type": "honest"
+    }
+  ],
+  "initial-block-time": 1000
+}

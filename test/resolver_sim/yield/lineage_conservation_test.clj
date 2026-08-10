@@ -1,9 +1,18 @@
 (ns resolver-sim.yield.lineage-conservation-test
-  "Lineage-wide amount conservation verification for deferred yield positions.
-   Covers repeated partial fill, claim-deferred, full fill, reversal, permanent
-   write-down, tampered archived amounts, and reclaim mismatches."
+  "Tests for the cross-round lineage conservation invariant.
+
+   Verifies that a shared-withdrawal lineage that survives into later liquidity
+   rounds conserves its original requested entitlement: Σ realized-fill across
+   rounds + terminal outstanding = original requested, with round-chain
+   continuity, no cumulative overfill, and position/decision reconciliation.
+
+   Round-1 (4 owners × 100, available 140 = 0.35 × 400):
+     alice 30 (cap 30), bob 37, carol 37, dan 36; deferred 70/63/63/64.
+   Round-2 (available 260, re-admitted deferred 70/63/63/64 with caps 30/40/50):
+     alice 30, bob 40, carol 50, dan 64 (satisfied); deferred 40/23/13/0.
+   Cumulative: 60/77/87/100, all conserving the original 100 request."
   (:require [clojure.test :refer :all]
-            [resolver-sim.yield.conservation :as cons]
+            [resolver-sim.yield.invariants :as inv]
             [resolver-sim.yield.modules.liquid-lending :as ll]))
 
 (def test-mod
@@ -21,189 +30,173 @@
    :execution/id "test-execution"
    :params {:scenario-id "test-scenario"}})
 
-(defn- deposit-one
-  [amount]
-  (ll/deposit base-world test-mod {:owner/id "alice" :amount amount :token "USDC"}))
+(defn- deposit-owners
+  [world owners amount]
+  (reduce (fn [w owner]
+            (ll/deposit w test-mod {:owner/id owner :amount amount :token "USDC"}))
+          world
+          owners))
 
-(defn- withdraw-shared-one
-  [world held]
-  (-> world
-      (assoc-in [:total-held :USDC] held)
-      (ll/withdraw-shared test-mod {:owner-ids ["alice"]
-                                    :token "USDC"
-                                    :allocation-mode :pro-rata})))
+(defn- with-shortfall-ratio
+  [world ratio]
+  (assoc-in world [:yield/risk :test-mod :USDC :shortfall :available-ratio] ratio))
 
-(defn- position-of [world]
-  (get-in world [:yield/positions "alice"]))
+(defn- withdraw-shared
+  [world owners caps]
+  (ll/withdraw-shared world test-mod
+                      {:owner-ids owners
+                       :token "USDC"
+                       :allocation-mode :pro-rata
+                       :effective-caps caps}))
 
-(defn- only-archived
-  "Return the single archived record of a position's deferred history."
-  [position]
-  (first (vals (:deferred-position-history position {}))))
+(defn- round-one-world
+  []
+  (-> (deposit-owners base-world ["alice" "bob" "carol" "dan"] 100)
+      (assoc-in [:total-held :USDC] 400)
+      (with-shortfall-ratio 0.35)
+      (withdraw-shared ["alice" "bob" "carol" "dan"]
+                       {"alice" 30 "bob" 40 "carol" 50})))
 
-;; ── Scenarios ─────────────────────────────────────────────────────────────
+(defn- round-two-world
+  []
+  (-> (round-one-world)
+      (with-shortfall-ratio 1.0)
+      (withdraw-shared ["alice" "bob" "carol" "dan"]
+                       {"alice" 30 "bob" 40 "carol" 50})))
 
-(deftest two-partial-fill-rounds-then-full-recovery
-  (testing "original 100 = fulfilled 60 + reclaimed 40 after two rounds + claim"
-    (let [w (-> (deposit-one 100)
-                (withdraw-shared-one 30)
-                (withdraw-shared-one 30)
-                (ll/claim-deferred test-mod {:owner/id "alice"}))
-          result (cons/verify-lineage-conservation (position-of w))]
-      (is (= :evaluated-pass (:classification result)))
-      (is (= 100 (:original-amount result)))
-      (is (= 60 (:fulfilled result)))
-      (is (= 0 (:active-deferred result)))
-      (is (= 40 (:reversed result)))
-      (is (= 0 (:written-down result)))
-      (is (= 100 (:reconstructed-total result)))
-      (is (empty? (:violations result))))))
+(defn- update-dan-round-two-filled
+  "Inflate dan's round-2 fill in the committed decision (owed 64) by delta."
+  [w delta]
+  (update w :yield/partial-fill-decisions
+          (fn [decisions]
+            (update-vals decisions
+                         (fn [d]
+                           (let [dan-pred? (fn [row] (and (= "dan" (:key row))
+                                                          (= 64 (long (:owed row 0)))))]
+                             (if (some dan-pred? (get-in d [:evidence :allocation-rows]))
+                               (update-in d [:evidence :allocation-rows]
+                                          (fn [rows]
+                                            (mapv (fn [row]
+                                                    (if (dan-pred? row)
+                                                      (update row :filled + delta)
+                                                      row))
+                                                  rows)))
+                               d)))))))
 
-(deftest partial-fill-then-claim-deferred
-  (testing "original 100 = fulfilled 30 + reclaimed 70"
-    (let [w (-> (deposit-one 100)
-                (withdraw-shared-one 30)
-                (ll/claim-deferred test-mod {:owner/id "alice"}))
-          result (cons/verify-lineage-conservation (position-of w))]
-      (is (= :evaluated-pass (:classification result)))
-      (is (= 100 (:original-amount result)))
-      (is (= 30 (:fulfilled result)))
-      (is (= 0 (:active-deferred result)))
-      (is (= 70 (:reversed result)))
-      (is (= 100 (:reconstructed-total result))))))
+(defn- alice-round-two-owed
+  "Change alice's round-2 requested (owed 70) so it no longer matches the
+   round-1 deferred residual."
+  [w new-owed]
+  (update w :yield/partial-fill-decisions
+          (fn [decisions]
+            (update-vals decisions
+                         (fn [d]
+                           (let [alice-pred? (fn [row] (and (= "alice" (:key row))
+                                                            (= 70 (long (:owed row 0)))))]
+                             (if (some alice-pred? (get-in d [:evidence :allocation-rows]))
+                               (update-in d [:evidence :allocation-rows]
+                                          (fn [rows]
+                                            (mapv (fn [row]
+                                                    (if (alice-pred? row)
+                                                      (assoc row :owed new-owed)
+                                                      row))
+                                                  rows)))
+                               d)))))))
 
-(deftest full-fill-no-deferred-successor
-  (testing "a lineage fully satisfied in a later round reconciles"
-    (let [w (-> (deposit-one 100)
-                (withdraw-shared-one 30)
-                (withdraw-shared-one 100))
-          result (cons/verify-lineage-conservation (position-of w))]
-      (is (= :evaluated-pass (:classification result)))
-      (is (= 100 (:fulfilled result)))
-      (is (= 0 (:active-deferred result)))
-      (is (= 100 (:reconstructed-total result))))))
+(defn- duplicate-alice-round-two-row
+  "Replay alice's round-2 descendant in a second allocation row of the same decision."
+  [w]
+  (update w :yield/partial-fill-decisions
+          (fn [decisions]
+            (update-vals decisions
+                         (fn [d]
+                           (let [alice-pred? (fn [row] (and (= "alice" (:key row))
+                                                            (= 70 (long (:owed row 0)))))]
+                             (if-let [row (first (filter alice-pred?
+                                                         (get-in d [:evidence :allocation-rows])))]
+                               (update-in d [:evidence :allocation-rows] (fnil conj []) row)
+                               d)))))))
 
-(deftest full-fill-with-no-lineage-is-not-evaluated
-  (testing "a plain full fill with no deferred lineage has nothing to verify"
-    (let [w (-> (deposit-one 100) (withdraw-shared-one 100))
-          result (cons/verify-lineage-conservation (position-of w))]
-      (is (= :not-evaluated (:classification result)))
-      (is (nil? (:original-amount result))))))
+(deftest lineage-conservation-holds-on-two-round-world
+  (let [w (round-two-world)]
+    (is (:holds? (inv/check-withdrawal-lineage-conservation w))
+        "honest two-round world conserves every lineage")
+    (is (= 60 (get-in w [:yield/positions "alice" :cumulative-fulfilled])))
+    (is (= 77 (get-in w [:yield/positions "bob" :cumulative-fulfilled])))
+    (is (= 87 (get-in w [:yield/positions "carol" :cumulative-fulfilled])))
+    (is (= 100 (get-in w [:yield/positions "dan" :cumulative-fulfilled])))
+    (is (= 40 (get-in w [:yield/positions "alice" :deferred-position :position/current-amount])))
+    (is (= 23 (get-in w [:yield/positions "bob" :deferred-position :position/current-amount])))
+    (is (= 13 (get-in w [:yield/positions "carol" :deferred-position :position/current-amount])))
+    (is (= :withdrawn (get-in w [:yield/positions "dan" :status]))
+        "dan is fully satisfied in round 2")))
 
-(deftest reversal-accounting
-  (testing "a terminal reversal returns deferred principal to the owner without fulfillment"
-    (let [w1 (-> (deposit-one 100) (withdraw-shared-one 30))
-          active (get-in w1 [:yield/positions "alice" :deferred-position])
-          ;; Represent a terminal reversal: the deferred 70 is returned to the
-          ;; owner's reclaim ledger as a reversed amount rather than being
-          ;; fulfilled or carried forward.
-          w-reversed (-> w1
-                         (update-in [:yield/positions "alice"] dissoc :deferred-position)
-                         (assoc-in [:yield/positions "alice" :deferred-position-history
-                                    (:position/id active)]
-                                   (assoc active
-                                          :position/status :closed
-                                          :position/current-amount 0
-                                          :position/closed-from-amount 70
-                                          :position/closed-by :reversed
-                                          :position/reversed-amount 70
-                                          :position/pre-closure-snapshot active)))
-          result (cons/verify-lineage-conservation (position-of w-reversed))]
-      (is (= :evaluated-pass (:classification result)))
-      (is (= 30 (:fulfilled result)))
-      (is (= 70 (:reversed result)))
-      (is (= 100 (:reconstructed-total result))))))
+(deftest lineage-conservation-holds-on-single-round
+  (let [w (round-one-world)]
+    (is (:holds? (inv/check-withdrawal-lineage-conservation w))
+        "a single liquidity-constrained round still conserves the lineage")))
 
-(deftest permanent-write-down-accounting
-  (testing "a permanent haircut is attributed to written-down, not a violation"
-    (let [w1 (-> (deposit-one 100) (withdraw-shared-one 30))
-          active (get-in w1 [:yield/positions "alice" :deferred-position])
-          w-write (-> w1
-                      (update-in [:yield/positions "alice"] dissoc :deferred-position)
-                      (assoc-in [:yield/positions "alice" :deferred-position-history
-                                 (:position/id active)]
-                                (assoc active
-                                       :position/status :closed
-                                       :position/current-amount 0
-                                       :position/closed-from-amount 70
-                                       :position/closed-by :write-down
-                                       :position/written-down-amount 70
-                                       :position/pre-closure-snapshot active)))
-          result (cons/verify-lineage-conservation (position-of w-write))]
-      (is (= :evaluated-pass (:classification result)))
-      (is (= 30 (:fulfilled result)))
-      (is (= 70 (:written-down result)))
-      (is (= 100 (:reconstructed-total result))))))
+(deftest lineage-conservation-vacuous-without-shared-decisions
+  (is (:holds? (inv/check-withdrawal-lineage-conservation
+                (deposit-owners base-world ["alice" "bob"] 100)))
+      "worlds with no shared withdrawal hold vacuously"))
 
-(deftest tampered-archived-amount-is-evaluated-fail
-  (testing "an archived closed-from-amount that disagrees with its pre-closure snapshot fails"
-    (let [w2 (-> (deposit-one 100) (withdraw-shared-one 30) (withdraw-shared-one 30))
-          archived (only-archived (position-of w2))
-          w-tampered (-> w2
-                         (assoc-in [:yield/positions "alice" :deferred-position-history
-                                    (:position/id archived) :position/closed-from-amount]
-                                   60))
-          result (cons/verify-lineage-conservation (position-of w-tampered))]
-      (is (= :evaluated-fail (:classification result)))
-      (is (some #(= :archived-amount-mismatch (:code %))
-                (:violations result))))))
+(defn- violation-kind
+  [result kind]
+  (some #(= kind (:kind %)) (:violations result)))
 
-(deftest reclaim-amount-mismatch-is-evaluated-fail
-  (testing "a claim-closed record whose reclaimed amount differs from outstanding fails"
-    (let [w (-> (deposit-one 100)
-                (withdraw-shared-one 30)
-                (ll/claim-deferred test-mod {:owner/id "alice"}))
-          archived (only-archived (position-of w))
-          w-tampered (assoc-in w
-                               [:yield/positions "alice"
-                                :deferred-position-history
-                                (:position/id archived)
-                                :position/closed-reclaimed-amount]
-                               69)
-          result (cons/verify-lineage-conservation (position-of w-tampered))]
-      (is (= :evaluated-fail (:classification result)))
-      (is (some #(= :reclaim-amount-mismatch (:code %))
-                (:violations result))))))
+(deftest lineage-conservation-detects-overfill
+  (let [w (update-dan-round-two-filled (round-two-world) 1)
+        result (inv/check-withdrawal-lineage-conservation w)]
+    (is (not (:holds? result)))
+    (is (violation-kind result :resolver-sim.yield.invariants/lineage-overfill)
+        "dan's cumulative fill exceeds his original 100 request")))
 
-(deftest lineage-amount-imbalance-is-evaluated-fail
-  (testing "a missing disposition (unaccounted residual) surfaces as an imbalance"
-    (let [w2 (-> (deposit-one 100) (withdraw-shared-one 30) (withdraw-shared-one 30))
-          w-lost (update-in w2 [:yield/positions "alice"] dissoc :deferred-position)
-          result (cons/verify-lineage-conservation (position-of w-lost))]
-      (is (= :evaluated-fail (:classification result)))
-      (is (some #(= :lineage-amount-imbalance (:code %))
-                (:violations result))))))
+(deftest lineage-conservation-detects-chain-mismatch
+  (let [w (alice-round-two-owed (round-two-world) 60)
+        result (inv/check-withdrawal-lineage-conservation w)]
+    (is (not (:holds? result)))
+    (is (violation-kind result :resolver-sim.yield.invariants/round-request-chain-mismatch)
+        "round-2 request no longer equals round-1 deferred residual")))
 
-;; ── Lineage conservation report file-artifact ────────────────────────────
+(deftest lineage-conservation-detects-replayed-descendant
+  (let [w (duplicate-alice-round-two-row (round-two-world))
+        result (inv/check-withdrawal-lineage-conservation w)]
+    (is (not (:holds? result)))
+    (is (violation-kind result :resolver-sim.yield.invariants/round-request-chain-mismatch)
+        "a descendant replayed in two rows is an ambiguous chain")))
 
-(deftest conservation-report-roundtrip
-  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
-        r (cons/build-conservation-report (position-of w))]
-    (is (= "lineage-conservation-verification.v1" (:schema-version r)))
-    (is (= :lineage-conservation-verification (:artifact/kind r)))
-    (is (string? (:report/hash r)))
-    (is (true? (cons/valid-conservation-report? r)))))
+(deftest lineage-conservation-detects-terminal-mismatch
+  (let [w (assoc-in (round-two-world)
+                    [:yield/positions "alice" :deferred-position :position/current-amount]
+                    50)
+        result (inv/check-withdrawal-lineage-conservation w)]
+    (is (not (:holds? result)))
+    (is (violation-kind result :resolver-sim.yield.invariants/lineage-conservation-failed)
+        "60 filled + 50 outstanding != 100 original request")))
 
-(deftest conservation-report-tamper-classification
-  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
-        r (cons/build-conservation-report (position-of w))]
-    (is (false? (cons/valid-conservation-report?
-                 (assoc r :classification :evaluated-fail))))))
+(deftest lineage-conservation-detects-position-cumulative-mismatch
+  (let [w (assoc-in (round-two-world)
+                    [:yield/positions "bob" :cumulative-fulfilled]
+                    78)
+        result (inv/check-withdrawal-lineage-conservation w)]
+    (is (not (:holds? result)))
+    (is (violation-kind result :resolver-sim.yield.invariants/position-cumulative-mismatch)
+        "position cumulative does not reconcile to the decision-derived cumulative")))
 
-(deftest conservation-report-tamper-hash
-  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
-        r (cons/build-conservation-report (position-of w))]
-    (is (false? (cons/valid-conservation-report?
-                 (assoc r :report/hash "sha256:forged"))))))
-
-(deftest conservation-report-wrong-schema
-  (let [w (-> (deposit-one 100) (withdraw-shared-one 30))
-        r (cons/build-conservation-report (position-of w))]
-    (is (false? (cons/valid-conservation-report?
-                 (assoc r :schema-version "wrong.v9"))))))
-
-(deftest conservation-report-not-evaluated-still-valid
-  (let [w (-> (deposit-one 100) (withdraw-shared-one 100))
-        r (cons/build-conservation-report (position-of w))]
-    (is (= :not-evaluated (:classification r)))
-    (is (true? (cons/valid-conservation-report? r)))))
+(deftest round-two-owner-order-is-deterministic
+  (testing "shuffled round-2 owner order yields identical decision artifacts and lineage results"
+    (let [w1 (round-one-world)
+          caps {"alice" 30 "bob" 40 "carol" 50}
+          w-a (-> w1 (with-shortfall-ratio 1.0) (withdraw-shared ["alice" "bob" "carol" "dan"] caps))
+          w-b (-> w1 (with-shortfall-ratio 1.0) (withdraw-shared ["dan" "carol" "bob" "alice"] caps))
+          hashes-a (sort (mapv :decision/hash (vals (:yield/partial-fill-decisions w-a))))
+          hashes-b (sort (mapv :decision/hash (vals (:yield/partial-fill-decisions w-b))))]
+      (is (= hashes-a hashes-b)
+          "decision hashes are order-independent")
+      (is (= (get-in w-a [:yield/positions "alice" :cumulative-fulfilled])
+             (get-in w-b [:yield/positions "alice" :cumulative-fulfilled])))
+      (is (= (get-in w-a [:yield/positions "dan" :status])
+             (get-in w-b [:yield/positions "dan" :status])))
+      (is (:holds? (inv/check-withdrawal-lineage-conservation w-a)))
+      (is (:holds? (inv/check-withdrawal-lineage-conservation w-b))))))

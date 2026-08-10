@@ -1,0 +1,48 @@
+{:scenario-id "s-dr-101-resolver-response-window-expired-fresh-resolver"
+ :schema-version "1.0"
+ :purpose "theory-confirmation"
+ :title "Response window expired — fresh resolver steps in when the assigned resolver stalls"
+ :description "The assigned resolver (custom-resolver 0xr1) never submits a resolution. After :resolver-response-window expires (raise at t=1060, window 120s, deadline t=1180), a fresh resolver (0xr2) submits the resolution at t=1200. The execute-resolution authorization fallthrough lets the fresh resolver rule, escaping the stalling resolver earlier than max-dispute-duration. Demonstrates the primary escalation mechanism for a lazy resolver."
+ :tags ["suite/dispute-resolution"
+        "coverage/resolver-integrity"
+        "coverage/resolver-response"
+        "coverage/timing"
+        "coverage/liveness"
+        "resolver-response/window-expired"]
+ :threat-tags ["dispute-resolution" "resolver-response" "timing" "liveness" "lazy-resolver" "griefing"]
+ :provenance {:author "resolver-response-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "resolver-response-window-expired-fresh-resolver"
+         :statement "Once the response window expires, a fresh resolver can resolve a dispute whose assigned resolver is stalling, escaping the lazy resolver earlier than max-dispute-duration."
+         :falsifies-if ["A fresh resolver cannot resolve after the window expires"
+                        "The stalling resolver keeps exclusive authority past the window"]}
+ :expected/events [:dispute-raised :resolution-executed :settlement-executed]
+ :expected/not-events [:resolver-rotation]
+ :expectations {:terminal-state "released"}
+ :expected/invariants [:stake/non-negative
+                       :resolver/balances-conserved
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "resolver-response-window-expired" :severity "medium"
+          :actors ["buyer" "seller"] :victims ["buyer" "seller"]
+          :assumptions ["Response window 120s" "Assigned resolver never responds"
+                        "Fresh resolver steps in at t=1200 after deadline t=1180"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver1" "resolver2" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
+                   :resolver-response-window 120
+                   :dispute-resolver "0xr1"}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver1" :address "0xr1" :role "resolver" :stake 10000}
+          {:id "resolver2" :address "0xr2" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :theory {:claim-id "resolver-response-window-expired-fresh-resolver"
+          :assumptions [:response-window-120s
+                        :assigned-resolver-never-responds
+                        :fresh-resolver-steps-in-after-window]
+          :mechanism-properties [:resolver-response-deadline]}
+ :events [{:seq 0 :time 1000 :agent "resolver1" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "resolver2" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000 :custom-resolver "0xr1"}}
+          {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 4 :time 1200 :agent "resolver2" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xr2release"}}
+          {:seq 5 :time 1300 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}]}

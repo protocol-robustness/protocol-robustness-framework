@@ -55,7 +55,8 @@
             "scenarios/edn/Y10_shared-pool-largest-remainder-pro-rata.edn"
             "scenarios/edn/Y11_cap-constrained-pro-rata-redistribution.edn"
             "scenarios/edn/Y12_cascading-cap-redistribution.edn"
-            "scenarios/edn/Y13_all-caps-residual-liquidity.edn"]
+            "scenarios/edn/Y13_all-caps-residual-liquidity.edn"
+            "scenarios/edn/Y14_round-two-shared-liquidity.edn"]
            paths))
     (is (every? #(str/starts-with? % "scenarios/edn/Y") paths))
     (is (not-any? #(str/includes? % "resource:scenarios/yield/") paths))

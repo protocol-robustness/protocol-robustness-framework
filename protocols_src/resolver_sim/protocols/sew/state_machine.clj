@@ -466,6 +466,42 @@
          (pos? max-dur)
          (dl/deadline-expired? (time-ctx/block-ts world) (dl/deadline ts max-dur)))))
 
+(defn resolver-response-exceeded?
+  "True when the assigned resolver has failed to submit a resolution within
+   :resolver-response-window after raiseDispute, with no pending settlement.
+
+   Window is `raise-time + resolver-response-window` from the snapshot.  When
+   :resolver-response-window is 0 (default) the window is disabled and this
+   returns false — a lazy resolver is only caught by max-dispute-duration.
+
+   ## Escalation/replacement mechanism (decision)
+
+   Once the window expires, the dispute is no longer exclusively bound to the
+   original resolver.  The primary escape is a fresh resolver stepping in via
+   execute-resolution authorization fallthrough (see execute-resolution in
+   resolution.clj): with the window expired, a module-authorized resolver
+   (Priority 2) or a new resolver reaching the dispute (Priority 3 fallthrough)
+   may rule.  rotate-dispute-resolver remains governance-gated; a lazy resolver
+   is replaced either by governance rotation or by any fresh resolver resolving
+   once the window has closed.  escalate-dispute is NOT the escape path — it
+   requires an existing pending settlement (an appeal of a ruling), which a
+   never-responded resolver has not produced.
+
+   The deadline is exposed to the TemporalDeadlines protocol as
+   :resolver-response (see deadline-for in sew.clj) so the temporal layer can
+   observe the window for enforcement/evidence."
+  [world workflow-id]
+  (let [state     (t/escrow-state world workflow-id)
+        ts        (get-in world [:dispute-timestamps workflow-id] 0)
+        snap      (t/get-snapshot world workflow-id)
+        window    (get snap :resolver-response-window 0)
+        pending   (t/get-pending world workflow-id)]
+    (and (= :disputed state)
+         (not (:exists pending))
+         (pos? ts)
+         (pos? window)
+         (dl/deadline-expired? (time-ctx/block-ts world) (dl/deadline ts window)))))
+
 (defn refused-resolution-timeout?
   "True when a resolution-refused escrow has exceeded max-dispute-duration
    and can be auto-cancelled by keeper.

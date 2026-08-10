@@ -7,6 +7,8 @@
 
    No mocking — pure functions over world-state maps."
   (:require [clojure.test :refer [deftest is testing run-tests]]
+            [resolver-sim.protocols.protocol :as proto]
+            [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.types        :as t]
             [resolver-sim.protocols.sew.state-machine :as sm]))
 
@@ -321,3 +323,57 @@
       "backward edge would create circular invalid_states")
   (is (false? (sm/valid-transition? :released :pending))
       "terminal must not re-enter live states"))
+
+;; ---------------------------------------------------------------------------
+;; resolver-response-exceeded?
+;; ---------------------------------------------------------------------------
+
+(deftest resolver-response-exceeded-true-after-window
+  (let [w (-> (disputed-world 1000)
+              (assoc-in [:module-snapshots 0 :resolver-response-window] 60)
+              (assoc-in [:context/time :block-ts] 1061))]
+    (is (true? (sm/resolver-response-exceeded? w 0)))))
+
+(deftest resolver-response-exceeded-false-before-window
+  (let [w (-> (disputed-world 1000)
+              (assoc-in [:module-snapshots 0 :resolver-response-window] 60)
+              (assoc-in [:context/time :block-ts] 1050))]
+    (is (false? (sm/resolver-response-exceeded? w 0)))))
+
+(deftest resolver-response-exceeded-at-deadline
+  (let [w (-> (disputed-world 1000)
+              (assoc-in [:module-snapshots 0 :resolver-response-window] 60)
+              (assoc-in [:context/time :block-ts] 1060))]
+    (is (true? (sm/resolver-response-exceeded? w 0))
+        "at-or-after the deadline means the window is closed")))
+
+(deftest resolver-response-exceeded-window-disabled
+  (let [w (-> (disputed-world 1000)
+              (assoc-in [:module-snapshots 0 :resolver-response-window] 0)
+              (assoc-in [:context/time :block-ts] 2000))]
+    (is (false? (sm/resolver-response-exceeded? w 0))
+        "window=0 (default) disables the deadline; lazy resolver caught only by max-dispute-duration")))
+
+(deftest resolver-response-exceeded-not-disputed
+  (let [w (-> (base-world 1000)
+              (assoc-in [:module-snapshots 0 :resolver-response-window] 60)
+              (assoc-in [:context/time :block-ts] 2000))]
+    (is (false? (sm/resolver-response-exceeded? w 0))
+        "must be :disputed to have a response deadline")))
+
+;; ---------------------------------------------------------------------------
+;; TemporalDeadlines :resolver-response kind
+;; ---------------------------------------------------------------------------
+
+(deftest resolver-response-deadline-for-exposed
+  (testing "deadline-for :resolver-response returns raise-time + window"
+    (let [w (-> (disputed-world 1000)
+                (assoc-in [:module-snapshots 0 :resolver-response-window] 60))]
+      (is (= 1060 (proto/deadline-for sew/protocol w :resolver-response 0 nil))
+          "raise-time 1000 + window 60 = deadline 1060"))))
+
+(deftest resolver-response-deadline-for-disabled
+  (testing "deadline-for :resolver-response is nil when the window is disabled"
+    (let [w (-> (disputed-world 1000)
+                (assoc-in [:module-snapshots 0 :resolver-response-window] 0))]
+      (is (nil? (proto/deadline-for sew/protocol w :resolver-response 0 nil))))))

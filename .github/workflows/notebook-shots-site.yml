@@ -1,0 +1,64 @@
+name: Notebook Shots Site
+
+# Publish the exported screenshot site (homepage + explore + catalogue +
+# notebook pages + run archive) to GitHub Pages.
+#
+# The Clerk server is only needed to *generate* the screenshots; the published
+# site is pure static HTML + PNGs. Runs are preserved under runs/ as provenance.
+#
+# NOTE: disabled by default. To enable, remove the `if: false` guard below,
+# set the repository Pages source to "GitHub Actions", and trigger via
+# Actions → Notebook Shots Site → Run workflow (workflow_dispatch).
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Optional --run-id for this export (default: UTC timestamp)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  export:
+    if: false # remove to enable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Clojure CLI
+        run: |
+          curl -fsSL https://download.clojure.org/install/linux-install-1.12.5.1654.sh -o /tmp/install-clojure.sh
+          bash /tmp/install-clojure.sh
+      - name: Install Playwright Chromium
+        run: |
+          pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+      - name: Export screenshots + build site
+        env:
+          RUN_ID: ${{ github.event.inputs.run_id }}
+        run: |
+          if [ -n "$RUN_ID" ]; then
+            python3 scripts/export_notebook_shots.sh --run-id "$RUN_ID"
+          else
+            python3 scripts/export_notebook_shots.sh
+          fi
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: shots
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

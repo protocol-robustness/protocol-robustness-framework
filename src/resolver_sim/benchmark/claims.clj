@@ -284,6 +284,51 @@
        :violations violations
        :assertions assertions})))
 
+(def resolver-response-claim-coverage
+  "Scenarios exercising the :resolver-response-deadline mechanism check."
+  ["S-DR-100-resolver-response-within-window"
+   "S-DR-101-resolver-response-window-expired-fresh-resolver"
+   "S-DR-102-resolver-response-deadline-boundary"])
+
+(defn- resolver-response-deadline-check
+  "Verify that the resolver response-window scenarios were evaluated by the
+   :resolver-response-deadline mechanism check and produced a passing verdict
+   (no premature escalation by a fresh resolver before the window expired).
+
+   Reads the mechanism result carried on each scenario entry under
+   :checks :theory :result :mechanism-results."
+  [results]
+  (let [by-id (group-by (comp clojure.string/lower-case (fn [x] (or (:scenario-id x) ""))) results)
+        assertions
+        (mapv (fn [scenario-id]
+                (let [result (first (get by-id (clojure.string/lower-case scenario-id)))
+                      theory-result (get-in result [:checks :theory :result])
+                      mech-result (get-in theory-result [:mechanism-results :resolver-response-deadline])
+                      actual-verdict (:status mech-result)]
+                  {:scenario/id scenario-id
+                   :scenario/present? (boolean result)
+                   :mechanism/evaluated? (boolean mech-result)
+                   :mechanism/actual-verdict actual-verdict
+                   :mechanism/expected-verdict :pass
+                   :holds? (and result mech-result (= :pass actual-verdict))}))
+              resolver-response-claim-coverage)
+        violations (->> assertions
+                        (keep (fn [assertion]
+                                (when-not (:holds? assertion)
+                                  {:type :resolver-response-deadline-violation
+                                   :scenario/id (:scenario/id assertion)
+                                   :message "Resolver response-window scenario did not satisfy the :resolver-response-deadline mechanism check"
+                                   :details (dissoc assertion :holds?)})))
+                        vec)]
+    (if (empty? results)
+      {:outcome :not-exercised
+       :violations [{:type :missing-resolver-response-results
+                     :message "No scenario results were supplied for resolver response-window claim evaluation"}]
+       :assertions []}
+      {:holds? (empty? violations)
+       :violations violations
+       :assertions assertions})))
+
 (defn- scenario-group-key
   [result]
   (or (:scenario/id result)
@@ -692,6 +737,14 @@
    {:scope :scenario
     :check (fn [ctx]
              (check-invariants ctx [:solvency :conservation-of-funds]))}
+
+   ;; escrow-dispute-v1 pack: resolver response-window liveness claim.
+   ;; Benchmark-scoped: reads the :resolver-response-deadline mechanism result
+   ;; carried on the S-DR-100/101/102 scenario entries.
+   :claim/resolver-response-deadline
+   {:scope :benchmark
+    :check (fn [ctx]
+             (resolver-response-deadline-check (:benchmark/results ctx)))}
 
    ;; reversal-slashing-v1 pack: benchmark-scoped so each claim verifies its
    ;; own registered scenario coverage rather than treating unrelated scenarios

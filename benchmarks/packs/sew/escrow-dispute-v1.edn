@@ -4,20 +4,22 @@
   :benchmark/domain          :domain/escrow-dispute-resolution
   :benchmark/protocol        :protocol/sew
    :benchmark/scenario-suite  :suite/sew-dispute-safety-v1
-  :benchmark/scenario-suite-description
-  "44 Sew dispute-resolution scenarios covering basic release/refund,
-   evidence lifecycle, resolver incentives, escalation paths, capacity
-   exhaustion, and governance interactions."
-  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
- :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
-   :benchmark/scoring-rule    :scoring/severity-weighted-robustness-v1
-   :benchmark/property-types  #{:safety :liveness}
-   :benchmark/property-claims {:safety [:claim/no-unauthorized-release
-                                        :claim/funds-conserved
-                                        :claim/slashing-conservation
-                                        :claim/governance-non-interference
-                                        :claim/solvency-status]
-                               :liveness [:claim/dispute-liveness]}
+   :benchmark/scenario-suite-description
+   "44 Sew dispute-resolution scenarios covering basic release/refund,
+    evidence lifecycle, resolver incentives, escalation paths, capacity
+    exhaustion, and governance interactions, plus the resolver
+    response-window scenarios S-DR-100/101/102."
+   :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
+    :benchmark/scoring-rule    :scoring/severity-weighted-robustness-v1
+    :benchmark/property-types  #{:safety :liveness}
+    :benchmark/property-claims {:safety [:claim/no-unauthorized-release
+                                         :claim/funds-conserved
+                                         :claim/slashing-conservation
+                                         :claim/governance-non-interference
+                                         :claim/solvency-status]
+                                :liveness [:claim/dispute-liveness
+                                           :claim/resolver-response-deadline]}
     :benchmark/description
    "A lens over :suite/sew-dispute-safety-v1 focusing on end-to-end
     dispute safety: unauthorized release prevention, fund conservation,
@@ -66,4 +68,8 @@
                               {:claim/id :claim/solvency-status
                                :claim/role :supporting
                                :claim/rationale "Escrow solvency is maintained across all dispute resolution transitions."
-                               :claim/failure-meaning "Solvency invariant failed — escrow total-held did not equal liabilities."}]}
+                               :claim/failure-meaning "Solvency invariant failed — escrow total-held did not equal liabilities."}
+                              {:claim/id :claim/resolver-response-deadline
+                               :claim/role :supporting
+                               :claim/rationale "A stalling resolver must not hold a dispute hostage: once :resolver-response-window expires, a fresh resolver can resolve (no premature escalation before the window)."
+                               :claim/failure-meaning "A fresh resolver resolved before the response window expired (premature escalation), or the dispute remained hostage to a stalling resolver."}]}

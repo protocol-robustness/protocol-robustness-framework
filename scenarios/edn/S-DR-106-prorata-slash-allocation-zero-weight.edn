@@ -1,0 +1,35 @@
+{:scenario-id "s-dr-106-prorata-slash-allocation-zero-weight"
+ :schema-version "1.0"
+ :purpose "adversarial-robustness"
+ :title "compute-prorata-slash-allocation — zero-weight party receives zero liability"
+ :description "Exercises the compute_prorata_slash_allocation query action with a zero-weight party: alice (weight 100, cap 100) fully absorbs a 100-unit obligation while bob (weight 0) receives zero liability. Verifies the zero-weight boundary and that the action returns a deterministic allocation. Mirrors the canonical slash-zero-weight-party test vector."
+ :tags ["suite/dispute-resolution"
+        "coverage/finality"
+        "coverage/slash-allocation"
+        "coverage/prorata"
+        "coverage/zero-weight"
+        "compute-prorata/zero-weight"]
+ :threat-tags ["dispute-resolution" "slash-allocation" "pro-rata" "zero-weight" "boundary"]
+ :provenance {:author "prorata-allocation-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "compute-prorata-zero-weight"
+         :statement "compute_prorata_slash_allocation assigns zero liability to a zero-weight party and fully allocates the obligation to weighted parties."
+         :falsifies-if ["A zero-weight party receives liability"
+                        "A weighted party receives less than its full proportional share"]}
+ :expected/events [:prorata-allocation-computed]
+ :expectations {:terminal-state "pending"}
+ :expected/invariants [:slash-distribution-consistent
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "prorata-zero-weight" :severity "info"
+          :actors ["buyer"] :victims ["resolver"]
+          :assumptions ["Obligation 100" "Bob weight 0" "Alice absorbs all 100"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "compute_prorata_slash_allocation"
+           :params {:slash-obligation 100
+                    :basis :slashable-stake
+                    :cap-field :available-slashable
+                    :liable-parties [{:id "alice" :slashable-stake 100 :available-slashable 100}
+                                     {:id "bob" :slashable-stake 0 :available-slashable 100}]}}]}

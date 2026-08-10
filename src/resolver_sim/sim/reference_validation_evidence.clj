@@ -66,7 +66,10 @@
    #{:yield/shortfall-splits}
 
    "yield-deferred-reclaim"
-   #{:yield/deferred-reclaim}})
+   #{:yield/deferred-reclaim}
+
+   "yield-withdrawal-lineage-conservation"
+   #{:yield/withdrawal-lineage-conservation}})
 
 (def all-evidence-ids
   (set (keys evidence-invariant->canonical)))

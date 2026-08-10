@@ -186,16 +186,34 @@
                            (assoc :replay-flags flags))
               agent-index (:agent-index context)
               scenario-id (:scenario-id scenario)
+              run-id  (or (:run-id opts) (:run-id scenario) (str scenario-id "-run"))
             ;; The execution loop derives per-event evidence attribution from
             ;; world parameters. Preserve the explicit input identity there
             ;; for every protocol before processing its first transition.
-              world0  (assoc-in (proto/init-world protocol scenario)
-                                [:params :scenario-id]
-                                scenario-id)
+            ;; Run/execution identity is ALSO assoc'd into the world itself
+            ;; because shared-withdrawal application-order commitments require
+            ;; it (liquid_lending/current-application-order). Without it every
+            ;; yield_withdraw_shared event is silently rejected
+            ;; (:incomplete-application-order), leaving shared-withdrawal
+            ;; scenarios vacuously passing without exercising the mechanism
+            ;; (matches the legacy contract-model.replay.yield fix).
+              world0  (-> (proto/init-world protocol scenario)
+                          (assoc-in [:params :scenario-id] scenario-id)
+                          (cond-> (= "yield-v1" (proto/protocol-id protocol))
+                            ;; Run/execution identity is assoc'd into the world
+                            ;; because shared-withdrawal application-order
+                            ;; commitments require it
+                            ;; (liquid_lending/current-application-order).
+                            ;; Without it every yield_withdraw_shared event is
+                            ;; silently rejected (:incomplete-application-order),
+                            ;; leaving shared-withdrawal scenarios vacuously
+                            ;; passing without exercising the mechanism (matches
+                            ;; the legacy contract-model.replay.yield fix).
+                            (assoc :run/id run-id
+                                   :execution/id (str run-id "-execution"))))
               events  (sort-by :seq (:events scenario))
               expected-errors-set (set (map expected-error-key (:expected-errors scenario [])))
               strict-expected-errors? (boolean (:strict-expected-errors? scenario false))
-              run-id  (or (:run-id opts) (:run-id scenario) (str scenario-id "-run"))
               options {:expected-errors-set expected-errors-set
                        :strict-expected-errors? strict-expected-errors?
                        :allow-open-entities? (:allow-open-entities? scenario)

@@ -176,7 +176,14 @@
   (and (integer? value) (pos? value)))
 
 (defn- base-position-id [owner-id position]
-  (or (:position/id position) owner-id))
+  ;; Canonical base position identity: `str`-normalized so legacy positions whose
+  ;; :position/id is a namespaced vector (e.g. make-position's
+  ;; [:yield/position owner module token]) produce the same comparable STRING
+  ;; identity as modern deposit positions (owner-id). Without this, a shared
+  ;; withdrawal mixing a legacy and a modern owner breaks the pro-rata
+  ;; mechanism's canonical-row ordering (compare String vs vector) and the
+  ;; lineage invariant's round-1 source-position-id detection.
+  (str (or (:position/id position) owner-id)))
 
 (defn- deferred-original-priority [position]
   (get-in position [:deferred-position :position/original-priority]))
@@ -798,7 +805,14 @@
    A deferred lineage shares one content-addressed root; a base position commits
    the same origin reference hash. This is the declared :secondary-position-id
    tie-break for equal original priorities and is stable across the whole
-   lineage including the genesis base position."
+   lineage including the genesis base position.
+
+   CANONICAL TIE-BREAKER: when two shared-withdrawal participants share the same
+   :original-priority, ordering is by `(compare (str :secondary-position-id) ...
+   (str :secondary-position-id))` — the stringified content-addressed lineage
+   root (deferred) or lineage-origin hash (base). This is the documented
+   secondary ordering, NOT the raw owner id; it is deterministic across
+   replay and stable for a lineage across rounds."
   [position]
   (or (get-in position [:deferred-position :deferred/lineage-root])
       (let [owner-id (or (:owner/id position)
