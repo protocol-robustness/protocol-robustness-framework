@@ -120,9 +120,9 @@
                      :transaction/scope :resubmission-family
                      :transaction/conflict-key [:resubmission-family family]
                      :transaction/commit-index 1
-                     :transaction/state-before-root "sha256:B"
-                     :transaction/state-after-root "sha256:A"
-                     :transaction/effects-root "sha256:E"})
+                     :transaction/state-before-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                     :transaction/state-after-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                     :transaction/effects-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"})
           candidate (issuance/receipt-candidate
                      (candidate-receipt-base)
                      {:admission-status :admitted :family-id family :sequence 1
@@ -187,19 +187,19 @@
     (testing "state-after-root mismatch"
       (let [tampered-ordering (ordering/transaction-ordering
                                (assoc (ordering/unsigned-ordering-projection ordering)
-                                      :transaction/state-after-root "sha256:WRONG"))
+                                      :transaction/state-after-root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))
             req (issue-request state-before cmd2 tampered-ordering candidate)]
         (is (= :state-after-root-mismatch (decide-reason (:private-key validator-key) req)))))
     (testing "state-before-root mismatch"
       (let [tampered-ordering (ordering/transaction-ordering
                                (assoc (ordering/unsigned-ordering-projection ordering)
-                                      :transaction/state-before-root "sha256:WRONG"))
+                                      :transaction/state-before-root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))
             req (issue-request state-before cmd2 tampered-ordering candidate)]
         (is (= :state-before-root-mismatch (decide-reason (:private-key validator-key) req)))))
     (testing "effects-root mismatch"
       (let [tampered-ordering (ordering/transaction-ordering
                                (assoc (ordering/unsigned-ordering-projection ordering)
-                                      :transaction/effects-root "sha256:WRONG"))
+                                      :transaction/effects-root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))
             req (issue-request state-before cmd2 tampered-ordering candidate)]
         (is (= :effects-root-mismatch (decide-reason (:private-key validator-key) req)))))
     (testing "expected snapshot mismatch"
@@ -224,9 +224,9 @@
                             :transaction/scope :resubmission-family
                             :transaction/conflict-key [:resubmission-family family]
                             :transaction/commit-index 1
-                            :transaction/state-before-root "sha256:B"
-                            :transaction/state-after-root "sha256:A"
-                            :transaction/effects-root "sha256:E"})
+                            :transaction/state-before-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                            :transaction/state-after-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                            :transaction/effects-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"})
             req (issue-request state-before cmd2 disp-ordering candidate)]
         (is (= :unexpected-ordering-action (decide-reason (:private-key validator-key) req)))))
     (testing "candidate not bound to the ordering is rejected"

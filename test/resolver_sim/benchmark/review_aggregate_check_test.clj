@@ -65,6 +65,18 @@
     (is (:holds? result))
     (is (empty? (:violations result)))))
 
+(deftest aggregate-member-bit-width-flags-empty-artifact
+  (testing "a keyed round paired with an empty (zero-count) artifact is a bit-width
+            mismatch, not a silent skip"
+    (let [round (make-keyed-round)
+          indices (ci/build-canonical-indices round)
+          empty-artifact (assoc indices :review-member/count 0)
+          result (rac/check-aggregate-member-bit-width round empty-artifact)]
+      (is (nil? (ci/member-bit-width empty-artifact))
+          "an empty artifact has no member bit-width")
+      (is (not (:holds? result)))
+      (is (some #(= ::rac/member-bit-width-mismatch (:kind %)) (:violations result))))))
+
 ;; ── check-aggregate-member-key-density tests ────────────────────────────────
 
 (deftest aggregate-member-key-density-holds-for-keyed-round
@@ -93,6 +105,42 @@
         result (rac/check-aggregate-member-key-density round bad-indices)]
     (is (not (:holds? result)))
     (is (some #(= ::rac/member-count-mismatch (:kind %)) (:violations result)))))
+
+(deftest aggregate-member-key-density-holds-for-reordered-dense-keyed-round
+  (testing "density is a SET property: a keyed round whose members are stored in
+            non-key-sorted order is still dense 0..n-1 and must not be flagged"
+    (let [round (rr/build-review-round
+                 {:benchmark/content-root "sha256:abc"
+                  :review-round/purpose :model-admission
+                  :review-round/members
+                  [{:review-member/key 2, :researcher/id "researcher-c" :role :adversarial-reviewer}
+                   {:review-member/key 0, :researcher/id "researcher-a" :role :model-steward}
+                   {:review-member/key 1, :researcher/id "researcher-b" :role :independent-reproducer}]
+                  :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                  :review-round/policy-root "sha256:policy"})
+          indices (ci/build-canonical-indices round)
+          result (rac/check-aggregate-member-key-density round indices)]
+      (is (rr/dense-member-key-set? (:review-round/members round))
+          "the key SET is dense even though the vector is not key-sorted")
+      (is (:holds? result))
+      (is (empty? (:violations result)))
+      (is (:holds? (rac/run-review-aggregate-checks round indices))
+          "the aggregate runner must not reject a valid reordered keyed round"))))
+
+(deftest aggregate-member-key-density-still-detects-truly-non-dense-keys
+  (testing "a key set missing 0..n-1 (a gap) is still rejected"
+    (let [round (rr/build-review-round
+                 {:benchmark/content-root "sha256:abc"
+                  :review-round/purpose :model-admission
+                  :review-round/members
+                  [{:review-member/key 0, :researcher/id "researcher-a" :role :model-steward}
+                   {:review-member/key 1, :researcher/id "researcher-b" :role :independent-reproducer}
+                   {:review-member/key 3, :researcher/id "researcher-c" :role :adversarial-reviewer}]
+                  :review-round/membership-frozen-at "2026-07-01T00:00:00Z"
+                  :review-round/policy-root "sha256:policy"})
+          result (rac/check-aggregate-member-key-density round)]
+      (is (not (:holds? result)))
+      (is (some #(= ::rac/non-dense-member-keys (:kind %)) (:violations result))))))
 
 ;; ── check-aggregate-three-member-standard tests ─────────────────────────────
 
@@ -411,6 +459,35 @@
       (is (= :authorised (:authority-status report)))
       (is (:holds? result))
       (is (empty? (:violations result))))))
+
+(deftest classifications-hold-for-legitimate-duplicate-seat
+  (testing "a legitimate identical duplicate submission is preserved (never
+            double-counted) and must NOT be flagged as a category overlap,
+            member overlap, or excluded-position-counted"
+    (let [round (make-legacy-round)
+          report (auth-report
+                  :positions [(v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-a" :approve outcome-a)
+                              (v2-pos "researcher-b" :approve outcome-a)
+                              (v2-pos "researcher-c" :dissent outcome-a)])
+          result (rac/check-aggregate-three-member-classifications round report)
+          aggregate (rac/run-review-aggregate-checks round nil report)]
+      (is (= :authorised (:authority-status report))
+          "two valid supporters (one duplicate copy) reach authority")
+      (is (= 2 (:counted-support report))
+          "the duplicate counts once, never as an extra vote")
+      (is (= 1 (count (:duplicate-seat-positions report)))
+          "the duplicate copy is preserved in the report")
+      (is (:holds? result))
+      (is (empty? (:violations result))
+          "the aggregate classification check must not reject a preserved duplicate")
+      (is (:holds? aggregate)
+          "the aggregate runner must hold on a legitimate duplicate-seat report")
+      (is (not-any? #(contains? #{::rac/position-category-overlap
+                                  ::rac/member-category-overlap
+                                  ::rac/excluded-position-counted}
+                                (:kind %))
+                    (get-in aggregate [:checks :three-member-classifications :violations]))))))
 
 ;; ── Threading: on-fixed-point consumes the decoded artifact ─────────────────
 ;;

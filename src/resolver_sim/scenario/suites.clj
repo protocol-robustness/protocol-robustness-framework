@@ -131,6 +131,8 @@
     "S-DR-104-set-resolution-module-config-drift"
     "S-DR-105-prorata-slash-allocation-capped"
     "S-DR-106-prorata-slash-allocation-zero-weight"
+    "S-DR-107-recipient-cancel-during-dispute-rejected"
+    "S-DR-108-recipient-cancel-after-finality-rejected"
     "DR-PR-002-fraud-group-prorata-shortfall"])
 
 (def ^:private sew-reference-scenario-paths

@@ -53,10 +53,10 @@
               :transaction/scope :resubmission-family
               :transaction/conflict-key [:resubmission-family family]
               :transaction/commit-index 17
-              :transaction/previous-transaction-hash "sha256:PREV"
-              :transaction/state-before-root "sha256:BEFORE"
-              :transaction/state-after-root "sha256:AFTER"
-              :transaction/effects-root "sha256:EFFECTS"
+              :transaction/previous-transaction-hash "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              :transaction/state-before-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              :transaction/state-after-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+              :transaction/effects-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
               :transaction/expected {:chain-head "sha256:PARENT" :chain-version 16}
               :transaction/observed {:chain-head "sha256:PARENT" :chain-version 16}})]
       (is (= "transaction-ordering.v1" (:transaction-ordering/schema o)))
@@ -67,14 +67,35 @@
                 :transaction/scope :resubmission-family
                 :transaction/conflict-key [:resubmission-family family]
                 :transaction/commit-index 17
-                :transaction/state-before-root "sha256:BEFORE"
-                :transaction/state-after-root "sha256:AFTER"
-                :transaction/effects-root "sha256:EFFECTS"}
+                :transaction/state-before-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                :transaction/state-after-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                :transaction/effects-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}
           o1 (ordering/transaction-ordering base)
           o2 (ordering/transaction-ordering (assoc base :transaction/commit-index 18))]
       (is (not= (:transaction-ordering/hash o1) (:transaction-ordering/hash o2)))
-      (let [tampered (assoc o1 :transaction/state-after-root "sha256:TAMPERED")]
-        (is (= :ordering-hash-mismatch (:reason (ordering/verify-ordering tampered))))))))
+      (let [tampered (assoc o1 :transaction/state-after-root "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")]
+        (is (= :ordering-hash-mismatch (:reason (ordering/verify-ordering tampered)))))))
+  (testing "a malformed root reference is rejected even when the self-hash recomputes"
+    (let [base {:transaction/action :prf.resubmission/admit-child
+                :transaction/scope :resubmission-family
+                :transaction/conflict-key [:resubmission-family family]
+                :transaction/commit-index 17
+                :transaction/state-before-root "not-a-hash"
+                :transaction/state-after-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                :transaction/effects-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}
+          o (ordering/transaction-ordering base)]
+      (is (= :malformed-root-reference (:reason (ordering/verify-ordering o)))))
+    (let [base {:transaction/action :prf.resubmission/admit-child
+                :transaction/scope :resubmission-family
+                :transaction/conflict-key [:resubmission-family family]
+                :transaction/commit-index 17
+                :transaction/state-before-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                :transaction/state-after-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                :transaction/effects-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+                :transaction/previous-transaction-hash "sha256:SHORT"}
+          o (ordering/transaction-ordering base)]
+      (is (= :malformed-root-reference (:reason (ordering/verify-ordering o)))
+          "a malformed previous-transaction-hash is also a malformed root"))))
 
 ;; ── pure transition: pinned rejection precedence ────────────────────────────
 
@@ -210,7 +231,7 @@
           o2 (:transaction-ordering r2)
           tampered (ordering/transaction-ordering
                     (assoc (ordering/unsigned-ordering-projection o2)
-                           :transaction/state-before-root "sha256:WRONG"))
+                           :transaction/state-before-root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))
           result (ordering/verify-ordering-chain
                   [(:transaction-ordering r1) tampered])]
       (is (not (:valid? result)))
@@ -222,10 +243,65 @@
           o1 (:transaction-ordering r1)
           tampered (ordering/transaction-ordering
                     (assoc (ordering/unsigned-ordering-projection o1)
-                           :transaction/previous-transaction-hash "sha256:SOMETHING"))
+                           :transaction/previous-transaction-hash "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
           result (ordering/verify-ordering-chain [tampered])]
       (is (not (:valid? result)))
       (is (some #(re-find #"ordering\[0\]" %) (:errors result))))))
+
+(deftest verify-ordering-chain-origin-anchor
+  (testing "an anchored chain is rejected when the first ordering's state-before-root
+            is not the supplied origin state root"
+    (let [s (store/new-resubmission-store family)
+          r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          r2 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
+          chain [(:transaction-ordering r1) (:transaction-ordering r2)]
+          true-origin (transition/state-root (transition/empty-state family))]
+      (testing "the true empty-state origin anchors the honest chain"
+        (is (:valid? (ordering/verify-ordering-chain chain true-origin))))
+      (testing "a wrong origin fails the chain even though internal continuity holds"
+        (let [result (ordering/verify-ordering-chain
+                      chain "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")]
+          (is (not (:valid? result)))
+          (is (some #(re-find #"chain origin state root" %) (:errors result)))))
+      (testing "the origin of the store's chain equals the domain empty-state root"
+        (is (= (:transaction/state-before-root (:transaction-ordering r1)) true-origin))))))
+
+(deftest verify-ordering-chain-commit-monotonicity-and-conflict-key
+  (testing "a non-monotonic commit-index is rejected"
+    (let [s (store/new-resubmission-store family)
+          r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          r2 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
+          o2 (:transaction-ordering r2)
+          ;; a true successor of o2 (correct prev-hash + state fixed point) but
+          ;; with a commit-index that does NOT strictly increase
+          successor (ordering/transaction-ordering
+                     {:transaction/action :prf.resubmission/admit-child
+                      :transaction/scope :resubmission-family
+                      :transaction/conflict-key [:resubmission-family family]
+                      :transaction/commit-index (:transaction/commit-index o2)
+                      :transaction/previous-transaction-hash (:transaction-ordering/hash o2)
+                      :transaction/state-before-root (:transaction/state-after-root o2)
+                      :transaction/state-after-root (:transaction/state-after-root o2)
+                      :transaction/effects-root (:transaction/effects-root o2)})
+          result (ordering/verify-ordering-chain [o2 successor])]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"commit-index does not strictly increase" %) (:errors result)))))
+  (testing "a conflict-key that diverges mid-chain is rejected"
+    (let [s (store/new-resubmission-store family)
+          r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          r2 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
+          o1 (:transaction-ordering r1)
+          o2 (:transaction-ordering r2)
+          ;; re-issue o2 under a different family conflict-key but same state roots,
+          ;; then link it as the successor of o1
+          other-family (ordering/transaction-ordering
+                        (assoc (ordering/unsigned-ordering-projection o2)
+                               :transaction/conflict-key [:resubmission-family "sha256:OTHER"]
+                               :transaction/previous-transaction-hash
+                               (:transaction-ordering/hash o1)))
+          result (ordering/verify-ordering-chain [o1 other-family])]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"conflict-key differs" %) (:errors result))))))
 
 ;; ── trace equivalence: reference transition vs persistent store ─────────────
 

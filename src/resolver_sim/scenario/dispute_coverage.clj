@@ -41,7 +41,9 @@
                                     "S-DR-085-repeated-frivolous-disputes"
                                     "S-DR-097-appeal-ev-safe-calibrated"
                                     "S-DR-098-appeal-ev-under-deterred"
-                                    "S-DR-099-appeal-ev-correct-blocked"]}
+                                    "S-DR-099-appeal-ev-correct-blocked"
+                                    "S-DR-107-recipient-cancel-during-dispute-rejected"
+                                    "S-DR-108-recipient-cancel-after-finality-rejected"]}
     :resolver-integrity {:label "Resolver integrity"
                          :scenarios ["S-DR-030-biased-resolver-appealed"
                                      "S-DR-031-colluding-resolver-detected"

@@ -453,6 +453,44 @@
         (is (= 0N (:paid bob)) "zero-weight party receives zero liability")))))
 
 ;; ---------------------------------------------------------------------------
+;; Recipient-cancel guard scenarios (S-DR-107/108)
+;; ---------------------------------------------------------------------------
+
+(def recipient-cancel-scenario-ids
+  ["S-DR-107-recipient-cancel-during-dispute-rejected"
+   "S-DR-108-recipient-cancel-after-finality-rejected"])
+
+(deftest test-recipient-cancel-scenarios-replay
+  (testing "recipient-cancel guard scenarios load and replay to :pass"
+    (doseq [sid recipient-cancel-scenario-ids]
+      (let [s (try (load-scenario (str "scenarios/edn/" sid ".edn"))
+                   (catch Exception e (println "MISSING:" sid (.getMessage e)) nil))]
+        (is (some? s) (str sid " must exist"))
+        (when s
+          (is (= :pass (:outcome (replay-scenario s)))
+              (str sid " must replay to :pass")))))))
+
+(deftest test-recipient-cancel-during-dispute-rejected
+  (testing "S-DR-107: recipient_cancel on a disputed escrow is rejected"
+    (let [s (load-scenario "scenarios/edn/S-DR-107-recipient-cancel-during-dispute-rejected.edn")
+          replay (replay-scenario s)
+          ev (first (filter #(= "recipient_cancel" (name (:action %))) (:trace replay)))]
+      (is (some? ev))
+      (when ev
+        (is (= :transfer-not-pending (:error ev))
+            "cancel requires a :pending escrow; a disputed escrow must reject it")))))
+
+(deftest test-recipient-cancel-after-finality-rejected
+  (testing "S-DR-108: recipient_cancel after settlement finality is rejected"
+    (let [s (load-scenario "scenarios/edn/S-DR-108-recipient-cancel-after-finality-rejected.edn")
+          replay (replay-scenario s)
+          ev (first (filter #(= "recipient_cancel" (name (:action %))) (:trace replay)))]
+      (is (some? ev))
+      (when ev
+        (is (= :transfer-not-pending (:error ev))
+            "cancel cannot unwind a terminal :released escrow")))))
+
+;; ---------------------------------------------------------------------------
 ;; Report: coverage report function works
 ;; ---------------------------------------------------------------------------
 

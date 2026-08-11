@@ -130,18 +130,33 @@
    :command/positional-args {:min 0 :max 0}
    :command/description "Run the structural validation pipeline (lint + notebook checks)."}
 
-  {:command/id :concepts-validate
-   :command/path ["concepts" "validate"]
-   :command/title "Validate concepts"
-   :command/category :concept
-   :command/surface :prf
-   :command/backstop-tier :default
-   :command/jar-availability :native
-   :command/runtime :jvm
-   :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
-   :command/outputs []
-   :command/positional-args {:min 0 :max 0}
-   :command/description "Validate concept data files and the concept registry."}
+   {:command/id :concepts-validate
+    :command/path ["concepts" "validate"]
+    :command/title "Validate concepts"
+    :command/category :concept
+    :command/surface :prf
+    :command/backstop-tier :default
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate concept data files and the concept registry."}
+
+   {:command/id :check-ownership
+    :command/path ["ownership" "check"]
+    :command/title "Check content authority"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :fast
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}
+                      {:name "--manifest" :type :string :doc "Path to content-authority manifest (default config/architecture/content-authority.edn)"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Verify every governed file resolves to exactly one content-authority classification."}
+
 
    {:command/id :benchmark-list
     :command/path ["benchmark" "list"]

@@ -244,20 +244,45 @@
    must equal the sum of shortfall basis-amounts, and shortfall balances must
    not exceed the pair's total available value.
 
+   FAILS CLOSED ON NON-INTEGRAL AMOUNTS (consistent with
+   check-aggregate-shortfall-cap): a fractional split/basis/deferred/haircut/
+   value term is never silently truncated to long (which could mask a genuine
+   imbalance); it is reported as a :non-integral-amount violation instead.
+
    Returns {:holds? bool
-            :violations [{:module-id mid :token tok :issues [kw ...]} ...]}."
+            :violations [{:module-id mid :token tok :issues [kw ...]} ...]
+                         | {:code :non-integral-amount ...}}."
   [world]
-  (let [by-key (group-by (fn [p] [(:module/id p) (:token p)])
-                         (vals (:yield/positions world {})))
-        violations (into []
-                         (keep (fn [[[mid tok] pos-group]]
-                                 (let [splits-ok? (every? (fn [p]
-                                                            (let [sf (:shortfall p)]
-                                                              (if sf
-                                                                (let [f (long (or (:fulfilled-amount sf) 0))
-                                                                      d (long (or (:deferred-amount sf) 0))
-                                                                      h (long (or (:haircut-amount sf) 0))
-                                                                      b (long (or (:basis-amount sf) 0))
+  (let [positions (vals (:yield/positions world {}))
+        by-key (group-by (fn [p] [(:module/id p) (:token p)]) positions)
+        non-integral
+        (into []
+              (keep (fn [p]
+                      (let [sf (:shortfall p)
+                            amounts (remove nil?
+                                            (concat (shortfall-amounts p)
+                                                    [(:fulfilled-amount sf)
+                                                     (:haircut-amount sf)
+                                                     (:basis-negative-unrealized sf)]))
+                            non-int (filter (fn [v] (not (integer? v))) amounts)]
+                        (when (seq non-int)
+                          {:code :non-integral-amount
+                           :module-id (:module/id p)
+                           :token (:token p)
+                           :amounts (vec non-int)}))))
+              positions)
+        violations
+        (if (seq non-integral)
+          non-integral
+          (into []
+                 (keep (fn [[[mid tok] pos-group]]
+                         (let [splits-ok? (every? (fn [p]
+                                                    (let [sf (:shortfall p)]
+                                                      (if sf
+                                                        (let [f (long (or (:fulfilled-amount sf) 0))
+                                                              d (long (or (:deferred-amount sf) 0))
+                                                              h (long (or (:haircut-amount sf) 0))
+                                                              b (long (or (:basis-amount sf) 0))
                               ;; The single-position withdraw path folds a negative
                               ;; unrealized-yield into basis-amount (recorded on the
                               ;; shortfall as :basis-negative-unrealized) without
@@ -287,7 +312,7 @@
                                       :total-basis total-basis
                                       :total-value total-value
                                       :issues issues})))
-                               by-key))]
+                               by-key)))]
     {:holds? (empty? violations)
      :violations (vec violations)
      :checks {:aggregate-shortfall-consistent (if (seq violations) :fail :pass)}}))

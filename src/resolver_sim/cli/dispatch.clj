@@ -52,6 +52,7 @@
    :evidence-backstop 'resolver-sim.commands.evidence/run-backstop
    :validate 'resolver-sim.commands.validate/run
    :concepts-validate 'resolver-sim.commands.concepts/validate
+   :check-ownership 'resolver-sim.commands.ownership/check
    :fmt-check 'resolver-sim.commands.validate/fmt-check
    :lint 'resolver-sim.commands.validate/lint
    :run-simulation 'resolver-sim.commands.run-simulation/run

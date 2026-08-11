@@ -967,6 +967,24 @@
       (is (get-in results [:yield/aggregate :holds?])
           "basis equal to settlement value is accepted"))))
 
+(deftest aggregate-fails-closed-on-non-integral-amounts
+  (testing "a fractional shortfall amount is never silently truncated to long"
+    (let [w {:yield/positions
+             {"u" {:module/id :m :token :t :status :unwinding
+                   :principal 100 :realized-yield 0 :unrealized-yield 0
+                   :shortfall {:basis-amount 100.5 :fulfilled-amount 100
+                               :deferred-amount 0 :haircut-amount 0
+                               :basis-negative-unrealized 0}}}}
+          results (inv/run-invariants w [:yield/aggregate
+                                         :yield/aggregate-shortfall-cap])]
+      (is (false? (get-in results [:yield/aggregate :holds?]))
+          "check-aggregate fails closed rather than truncating the fractional basis")
+      (is (some #(= :non-integral-amount (:code %))
+                (get-in results [:yield/aggregate :violations]))
+          "the fractional basis is surfaced as :non-integral-amount")
+      (is (false? (get-in results [:yield/aggregate-shortfall-cap :holds?]))
+          "aggregate-shortfall-cap agrees (fails closed)"))))
+
 (deftest withdraw-many-certificate-is-content-addressed
   (testing "withdraw-many produces a hash-bound batch certificate"
     (let [w (deposit-two (constrained-world 100))

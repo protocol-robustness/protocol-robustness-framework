@@ -78,15 +78,24 @@ Usage: bb check:load [--roots src protocols_src]"
     :task (apply shell "clojure" "-M:with-sew:check" "-m" "scripts.check-load" *command-line-args*)}
 
    check
-   {:doc "Run both corruption guards (check:load + check:defs) in sequence."
-    :task (shell "bash" "-c" "bb check:load && bb check:defs")}
+   {:doc "Run all corruption guards (check:load + check:defs + check:ownership) in sequence."
+    :task (shell "bash" "-c" "bb check:load && bb check:defs && bb check:ownership")}
 
    check:defs
    {:doc "Corruption guard: verify every source namespace still has all defs recorded
-in checks/ns-defs.edn. Catches silent truncation where a file still loads but lost
-a definition. Regenerate the golden after legitimately adding/removing defs.
-Usage: bb check:defs [--generate] [--roots src protocols_src]"
+ in checks/ns-defs.edn. Catches silent truncation where a file still loads but lost
+ a definition. Regenerate the golden after legitimately adding/removing defs.
+ Usage: bb check:defs [--generate] [--roots src protocols_src]"
     :task (apply shell "clojure" "-M:check" "-m" "scripts.check-defs" *command-line-args*)}
+
+   check:ownership
+   {:doc "Content-authority audit: verify every file inside :governed-roots
+ resolves to exactly one classification in config/architecture/content-authority.edn.
+ Read-only — never writes to any canonical artifact. Reports mixed files as debt
+ and any core→non-core requires as advisory.
+ Usage: bb check:ownership [--report|--rootzones] [--manifest PATH]"
+    :task (apply shell "clojure" "-M" "-m" "scripts.ownership-audit" *command-line-args*)}
+
 
    test:concurrent
    {:doc "Run canonical validation gate with a dedicated artifact dir. Can run alongside bb test, bb backstop, etc."

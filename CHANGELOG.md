@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Recipient-cancel guard scenarios + strategic depth (closing gap #6)
+
+- **`recipient_cancel`-during/after-dispute now covered.** `S-DR-107` verifies `recipient_cancel` on an active `:disputed` escrow is rejected with `:transfer-not-pending` — a counterparty cannot use cancel to bypass an in-flight dispute. `S-DR-108` verifies `recipient_cancel` on a terminal `:released` escrow (after resolution) is likewise rejected — cancel cannot unwind a finalized settlement. Both replay to `:pass` with the guard rejection pinned via `:expected-errors`. (`scenarios/edn/S-DR-107/108-recipient-cancel-*.edn`, `protocols_src/test/resolver_sim/protocols/sew/dispute_resolution_coverage_test.clj`)
+- **Strategic category deepened.** Strategic/disputant coverage rises 8 → 10 scenarios. Coverage report: 67 total, 0 missing, 0 todo-stubs. (`src/resolver_sim/scenario/dispute_coverage.clj`, `src/resolver_sim/scenario/suites.clj`)
+
 ### Evidence reachable in the general trace corpus (closing the `submit_evidence` unhit-transition gap)
 
 - **`submit_evidence` no longer an unhit transition.** The general trace corpus (`data/fixtures/traces`, previously 111 traces) never exercised evidence submission — `submit_evidence` was the single unhit transition in the coverage report, with evidence behavior living only inside the S-DR suite. Fixed the trace-generation tooling (`generate_missing_traces.clj`): `find-scenario-file` only resolved legacy `.json` scenario paths, so the S-DR evidence scenarios (migrated to `scenarios/edn/*.edn` with the `S-DR-*` public convention) were skipped as "no matching scenario file." It now also resolves EDN scenarios by case-insensitive `:scenario-id` match. Regenerating produced 91 new traces (111 → 202), bringing the S-DR scenarios into the corpus.

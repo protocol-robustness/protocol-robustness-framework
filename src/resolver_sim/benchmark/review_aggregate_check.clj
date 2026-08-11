@@ -35,7 +35,10 @@
               :message "bit-width is nil for a keyed review round"}))
     (when canonical-indices
       (let [artifact-width (ci/member-bit-width canonical-indices)]
-        (when (and round-width artifact-width (not= round-width artifact-width))
+        ;; a keyed round (round-width present) paired with an artifact whose width
+        ;; is nil (e.g. an empty artifact) is a mismatch, not a silent skip
+        (when (and (some? round-width)
+                   (not= round-width artifact-width))
           (swap! violations conj
                  {:kind ::member-bit-width-mismatch
                   :round-bit-width round-width
@@ -145,11 +148,15 @@
         identity separation, and exactly three constituted members.
      2. :outcome-source :target-outcome-unavailable implies not :authorised.
      3. :counted-support equals the count of :valid-supporting-positions.
-     4. no position appears in more than one position category.
+     4. no position appears in more than one position category.  The
+        :duplicate-seat category is the sole exception: it re-commits the hash
+        of the counted position it duplicates, so it legitimately co-occurs with
+        the counted category and is excluded from this disjointness check.
      4b. member classifications are preserved: each constituted member is in at
-         most one member-level category (no double-classification), and every
-         constituted member is accounted for in at least one (none silently
-         dropped).
+         most one member-level category (no double-classification; a member with
+         a duplicate seat is classified by its counted position, not by the
+         duplicate copy), and every constituted member is accounted for in at
+         least one (none silently dropped).
      5. equivocating members never contribute valid-supporting or
         valid-dissenting positions.
      6. invalid / unknown / re-scoped / duplicate positions are excluded from
@@ -184,8 +191,16 @@
                              (count (distinct (map :researcher/id members))))
           cats (category-hash-map report)
           member-cats (member-category-map report)
-          overlaps (overlapping-category-pairs cats)
-          member-overlaps (overlapping-category-pairs member-cats)
+          ;; :duplicate-seat is a position-level PRESERVATION category: its
+          ;; entries carry the same :decision/hash as the counted position they
+          ;; duplicate, so it legitimately co-occurs with :supporting /
+          ;; :dissenting / :qualifying — that is its whole purpose.  Exclude it
+          ;; from the disjointness (overlap) checks so a legitimate duplicate
+          ;; submission is never misread as double-classification.
+          position-cats (dissoc cats :duplicate)
+          member-level-cats (dissoc member-cats :duplicate)
+          overlaps (overlapping-category-pairs position-cats)
+          member-overlaps (overlapping-category-pairs member-level-cats)
           constituted-ids (set (map :researcher/id members))
           accounted-ids (apply clojure.set/union
                                (vals (dissoc member-cats :unknown)))
@@ -244,10 +259,12 @@
       (when (seq (clojure.set/intersection (:equivocating cats) (:dissenting cats)))
         (add! ::equivocator-counted-as-dissenter {}))
 
-    ;; 6. excluded-but-preserved: never counted, still present
+    ;; 6. excluded-but-preserved: never counted, still present.
+    ;;    :duplicate-seat is intentionally absent here — a duplicate copy by
+    ;;    definition re-commits a counted position's hash, so it must be allowed
+    ;;    to co-occur with the counted category.
       (doseq [[label hs] [[:invalid (:invalid cats)]
-                          [:re-scoped (:re-scoped cats)]
-                          [:duplicate (:duplicate cats)]]]
+                          [:re-scoped (:re-scoped cats)]]]
         (when (seq (clojure.set/intersection hs (:supporting cats)))
           (add! ::excluded-position-counted {:category label})))
 
@@ -405,12 +422,16 @@
   "Verify that member key density (dense 0..n-1) is consistent between
    a review round and its canonical-indices artifact (if present).
 
+   Density is a SET property (order-independent): the round's member-key set
+   must equal #{0..n-1} regardless of the order its members are stored in, so a
+   keyed round whose members are not key-sorted is still dense.
+
    Returns {:holds? bool :violations [...]}."
   [round & [canonical-indices]]
   (let [violations (atom [])]
     (when (rr/round-uses-member-keys? round)
       (let [keys (rr/member-keys round)]
-        (when (not= keys (range (count keys)))
+        (when (not= (set keys) (set (range (count keys))))
           (swap! violations conj
                  {:kind ::non-dense-member-keys
                   :keys keys
