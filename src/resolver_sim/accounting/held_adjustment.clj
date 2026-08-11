@@ -73,6 +73,16 @@
 ;; lies outside it), with the net custody delta equal to the settled amount.
 ;; ---------------------------------------------------------------------------
 
+(defn- exact-amount
+  "Require exact integer custody amounts in hashed settlement projections.
+   This prevents fractional floating-point values from being silently truncated
+   and preserves arbitrary-size integer values in the commitment."
+  [field value]
+  (if (integer? value)
+    value
+    (throw (ex-info "settlement amount must be an exact integer"
+                    {:type :invalid-settlement-amount :field field :value value}))))
+
 (defn settlement-identity
   "Canonical settlement identity for custody-adjustment attribution.  Binds
    workflow, token, direction, settled amount, and recipient, so every
@@ -86,7 +96,7 @@
                         :workflow-id workflow-id
                         :token token
                         :direction direction
-                        :filled (long filled)
+                        :filled (exact-amount :filled filled)
                         :recipient recipient}))
 
 (defn settlement-held-adjustment-set-root
@@ -101,6 +111,6 @@
                         :adjustments
                         (mapv (fn [a]
                                 {:id (:held-adjustment/id a)
-                                 :amount (long (:amount a))
+                                 :amount (exact-amount :amount (:amount a))
                                  :direction (:held/direction a)})
                               (sort-by :held-adjustment/id adjustments))}))

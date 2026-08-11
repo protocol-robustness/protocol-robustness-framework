@@ -63,6 +63,16 @@
                        :haircut-policy :same-ratio})]
     (hc/hash-with-intent {:hash/intent :fail-action-policy} effective)))
 
+(defn- exact-amount
+  "Require an exact integer amount for a committed realized-allocation field.
+   Float-to-long coercion would otherwise silently truncate fractions and narrow
+   large values before they are included in a consensus-visible root."
+  [field value]
+  (if (integer? value)
+    value
+    (throw (ex-info "realized amount must be an exact integer"
+                    {:type :invalid-realized-amount :field field :value value}))))
+
 (defn disposition-of
   "Classify one participant's realized disposition from its realized amounts.
 
@@ -73,13 +83,17 @@
    Public so the Rust mirror can implement the identical classifier and golden
    vectors can pin it."
   [{:keys [requested filled deferred haircut]}]
-  (cond
-    (and (pos? (long deferred)) (pos? (long haircut))) :deferred-and-haircut
-    (pos? (long deferred)) :deferred
-    (pos? (long haircut)) :haircut
-    (= (long requested) (long filled)) :full-fill
-    (zero? (long filled)) :zero-filled
-    :else :partial-fill))
+  (let [requested (exact-amount :requested requested)
+        filled (exact-amount :filled filled)
+        deferred (exact-amount :deferred deferred)
+        haircut (exact-amount :haircut haircut)]
+    (cond
+      (and (pos? deferred) (pos? haircut)) :deferred-and-haircut
+      (pos? deferred) :deferred
+      (pos? haircut) :haircut
+      (= requested filled) :full-fill
+      (zero? filled) :zero-filled
+      :else :partial-fill)))
 
 (defn realized-results-root
   "Commit the realized results under REALIZED_RESULTS_V1 as an explicit
@@ -110,11 +124,11 @@
     (hc/domain-hash :realized-results
                     (mapv (fn [k]
                             (let [row {:claim/id k
-                                       :requested (long (get requested k 0))
-                                       :filled (long (get filled k 0))
-                                       :deferred (long (get deferred k 0))
-                                       :haircut (long (get haircut k 0))
-                                       :unrealized (long (get unrealized k 0))}]
+                                       :requested (exact-amount :requested (get requested k 0))
+                                       :filled (exact-amount :filled (get filled k 0))
+                                       :deferred (exact-amount :deferred (get deferred k 0))
+                                       :haircut (exact-amount :haircut (get haircut k 0))
+                                       :unrealized (exact-amount :unrealized (get unrealized k 0))}]
                               (assoc row :disposition (disposition-of row))))
                           claims))))
 
@@ -129,11 +143,12 @@
   (context/context-hash ctx))
 
 (defn all-active?
-  "True when the realized allocation is all-active: nothing deferred, nothing
-   haircut, and every requested amount is fully filled."
+  "True when the realized allocation is all-active: no positive amount is
+   deferred or haircut, and every requested amount is fully filled. Zero-valued
+   bookkeeping entries do not turn a full-fill allocation into a shortfall."
   [{:keys [requested filled deferred haircut]}]
-  (and (empty? deferred)
-       (empty? haircut)
+  (and (every? zero? (vals deferred))
+       (every? zero? (vals haircut))
        (= (sort-by-claim-id requested)
           (sort-by-claim-id filled))))
 

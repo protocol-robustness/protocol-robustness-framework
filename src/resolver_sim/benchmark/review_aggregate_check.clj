@@ -26,13 +26,29 @@
                           :message string} ...]}."
   [round & [canonical-indices]]
   (let [violations (atom [])
-        round-width (rr/member-bit-width round)]
-    (when (and (rr/round-uses-member-keys? round) (nil? round-width))
+        keyed? (rr/round-uses-member-keys? round)
+        round-width (rr/member-bit-width round)
+        member-count (count (rr/round-members round))
+        expected-width (when (pos? member-count)
+                         (ci/member-bit-width {:review-member/count member-count}))]
+    (when (and keyed? (nil? round-width))
       (swap! violations conj
              {:kind ::member-bit-width-mismatch
               :round-bit-width nil
               :artifact-bit-width nil
               :message "bit-width is nil for a keyed review round"}))
+    (when (and keyed?
+               (or (not (integer? round-width))
+                   (neg? round-width)
+                   (not= expected-width round-width)))
+      (swap! violations conj
+             {:kind ::member-bit-width-mismatch
+              :round-bit-width round-width
+              :expected-bit-width expected-width
+              :member-count member-count
+              :message (str "round bit-width " round-width
+                            " does not match expected width " expected-width
+                            " for " member-count " members")}))
     (when canonical-indices
       (let [artifact-width (ci/member-bit-width canonical-indices)]
         ;; a keyed round (round-width present) paired with an artifact whose width

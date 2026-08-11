@@ -29,8 +29,6 @@
     waterfall coverage, over-slashing prevention, and appeal bond
     adequacy under adversarial dispute scenarios."
   :benchmark/concepts        [:robustness/protocol-value-conservation
-                              :ecommerce/purchase
-                              :event/deposit
                               :allocation/slash-obligation
                               :consensus/authority
                               :consensus/evidence

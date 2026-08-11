@@ -100,7 +100,7 @@ Usage: bb check:load [--roots src protocols_src]"
    test:concurrent
    {:doc "Run canonical validation gate with a dedicated artifact dir. Can run alongside bb test, bb backstop, etc."
     :task (shell "bash" "-c"
-            "PRF_ARTIFACT_DIR=results/test-artifacts-$(date -u +%Y%m%dT%H%M%SZ) ./scripts/test.sh all")}
+            "PRF_ARTIFACT_DIR=results/test-artifacts-$(date -u +%Y%m%dT%H%M%SZ)-$$ ./scripts/test.sh all")}
 
     test:framework:parallel
      {:doc "Run framework unit tests in parallel with noop evidence capture"
@@ -385,6 +385,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                   nbs (if (and (not= -1 nb-idx) (seq (drop (inc nb-idx) args)))
                         [(nth args (inc nb-idx))]
                         ["notebooks/not_admitted.clj"
+                         "notebooks/resubmission_chain.clj"
                          "notebooks/pro_rata_allocation_result.clj"])
                   expr (str "(require '[nextjournal.clerk :as clerk]) "
                             "(clerk/build! {:paths " (pr-str nbs)

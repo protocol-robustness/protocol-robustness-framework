@@ -46,22 +46,14 @@
   [x]
   (walk/postwalk (fn [n] (if (map? n) (into (sorted-map) n) n)) x))
 
-(defn- failing-check-summary
-  "A concise, evidence-preserving reason string for a failing check. Simplifies
-   the detail map but does not strengthen it: it only restates what the check
-   recorded."
-  [{:keys [check/id status details]}]
-  (when (= :fail status)
-    (let [violations (get details :violations [])
-          first-v (first violations)]
-      (cond
-        (some? first-v)
-        (str (name id) " rejected on "
-             (or (:held-adjustment/id first-v) "record")
-             " (record no longer matches its committed signature)")
-
-        :else
-        (str (name id) " rejected")))))
+(defn- require-boolean!
+  "Require a source boolean rather than coercing a missing value to false."
+  [m path]
+  (let [v (require-field! m path)]
+    (when-not (boolean? v)
+      (throw (ex-info "public-demo.v1 projection requires a boolean field"
+                      {:demo/id demo-id :field path :value v})))
+    v))
 
 (defn- project*
   "Project the executable not-admitted demo model into the public-demo.v1 map.
@@ -91,7 +83,7 @@
       {"label" (:label baseline)
        "value" (:value baseline)
        "unit" (:unit baseline)
-       "admitted" (boolean (:admitted? baseline))}
+       "admitted" (require-boolean! baseline [:admitted?])}
       "change"
       {"label" (:label action)
        "from" (:from action)
@@ -99,7 +91,7 @@
        "unit" (:unit action)
        "detail" (:detail action)}
       "outcome"
-      {"admitted" (boolean (:admitted? outcome))
+      {"admitted" (require-boolean! outcome [:admitted?])
        "failed-checks" (mapv name (or (:failed-checks outcome) []))}
       "why" (require-field! m [:demo/explanation])
       "evidence"
@@ -109,8 +101,8 @@
        "checks" (mapv (fn [c]
                         (cond-> {"id" (name (:check/id c))
                                  "status" (name (:status c))}
-                          (some? (failing-check-summary c))
-                          (assoc "detail" (failing-check-summary c))))
+                          (some? (:details c))
+                          (assoc "details" (:details c))))
                       checks)}
       "commitments"
       {"baseline" (name (get-in m [:demo/expect :baseline]))

@@ -22,18 +22,34 @@
                  :release release}]
     (assoc payload :payload/hash (payload-hash payload))))
 
+(def ^:private ed25519-public-key-pattern #"[0-9a-f]{64}")
+
 (defn verify-policy
-  "Validate policy structure. An empty trusted-key set is valid but cannot
-   authorize a release; this keeps production trust explicit and fail-closed."
+  "Validate a release trust policy before it can authorize signatures. An empty
+   key set is structurally valid for the shipped unconfigured template, but its
+   positive thresholds still prevent authorization."
   [policy]
-  {:valid? (and (= "prf-release-trust-policy.v1" (:schema-version policy))
-                (keyword? (:policy-id policy))
-                (integer? (:policy-version policy))
-                (vector? (:trusted-keys policy))
-                (map? (:requirements policy))
-                (= payload-schema (get-in policy [:canonicalization :payload-profile])))
-   :reason (when-not (= "prf-release-trust-policy.v1" (:schema-version policy))
-             :release-trust-policy-invalid)})
+  (let [trusted-keys (:trusted-keys policy)
+        requirements (get-in policy [:requirements :distribution])
+        key-ids (map :key-id trusted-keys)
+        valid? (and (= "prf-release-trust-policy.v1" (:schema-version policy))
+                    (keyword? (:policy-id policy))
+                    (#{:unconfigured :active :retired} (:policy/status policy))
+                    (and (integer? (:policy-version policy)) (pos? (:policy-version policy)))
+                    (vector? trusted-keys)
+                    (= (count key-ids) (count (distinct key-ids)))
+                    (every? #(and (string? (:key-id %)) (seq (:key-id %))
+                                  (#{:active :retired :revoked} (:status %))
+                                  (boolean (re-matches ed25519-public-key-pattern (:public-key %))))
+                            trusted-keys)
+                    (map? requirements)
+                    (every? #(and (keyword? %)
+                                  (integer? (get-in requirements [% :minimum-valid-signatures]))
+                                  (pos? (get-in requirements [% :minimum-valid-signatures])))
+                            (keys requirements))
+                    (= payload-schema (get-in policy [:canonicalization :payload-profile])))]
+    {:valid? valid?
+     :reason (when-not valid? :release-trust-policy-invalid)}))
 
 (def ^:private x509-ed25519-prefix
   (byte-array [0x30 0x2a 0x30 0x05 0x06 0x03 0x2b 0x65 0x70 0x03 0x21 0x00]))
@@ -45,6 +61,14 @@
                      (X509EncodedKeySpec. encoded))))
 
 (defn- hex [bytes] (codecs/bytes->hex bytes))
+
+(defn policy-authorizes-new-release?
+  "True only for a structurally valid policy explicitly activated for new
+   release authorization. Cryptographic signature verification intentionally
+   remains usable for historical evidence under retired policies."
+  [policy]
+  (and (:valid? (verify-policy policy))
+       (= :active (:policy/status policy))))
 
 (defn sign-payload
   "Create a `prf-release-signature.v1` Ed25519 envelope. `private-key` is a
@@ -88,18 +112,25 @@
   "Evaluate a release signature set against the explicit threshold for a
    distribution. Repeated signatures by one key count once."
   [payload signatures distribution policy]
-  (let [required (get-in policy [:requirements :distribution distribution :minimum-valid-signatures])
+  (let [policy-valid? (:valid? (verify-policy policy))
+        policy-active? (policy-authorizes-new-release? policy)
+        required (get-in policy [:requirements :distribution distribution :minimum-valid-signatures])
         results (mapv #(verify-signature payload % policy) signatures)
         valid-keys (set (keep #(when (:valid? %) (:key-id %)) results))
-        ;; A release authorization gate must require at least one valid
-        ;; signature; a 0 threshold would authorize without any signature.
-        authorized? (and (integer? required)
-                         (pos? required)
-                         (<= required (count valid-keys)))]
+        threshold-met? (and (integer? required) (pos? required)
+                            (<= required (count valid-keys)))
+        authorized? (and policy-active? threshold-met?)
+        reason-code (cond
+                      (not policy-valid?) :release-trust-policy-invalid
+                      (not policy-active?) :release-policy-not-active
+                      (not (contains? (get-in policy [:requirements :distribution] {}) distribution)) :release-distribution-not-authorized
+                      (not threshold-met?) :release-signature-threshold-not-met
+                      :else :release-signature-threshold-met)]
     {:schema-version verification-schema
      :distribution distribution
      :authorization {:status (if authorized? :authorized :missing-or-insufficient)
-                     :reason-code (if authorized? :release-signature-threshold-met :release-signature-threshold-not-met)
+                     :reason-code reason-code
+                     :policy/status (:policy/status policy)
                      :valid-signature-count (count valid-keys)
                      :required-signatures required
                      :trust-policy-id (:policy-id policy)

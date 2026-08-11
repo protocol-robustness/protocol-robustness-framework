@@ -1,4 +1,4 @@
-(ns resolver-sim.concepts.ecommerce-reporting
+(ns resolver-sim.examples.ecommerce.reporting
   "Stakeholder-only ecommerce interpretation of benchmark scenario results.
 
    This projection runs after benchmark execution and does not affect replay,

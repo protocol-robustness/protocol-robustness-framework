@@ -4,13 +4,16 @@
    TransactionStore (CAS + ordering evidence), and reference-vs-store trace
    equivalence."
   (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.resubmission.disposition :as disposition]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.resubmission.store :as store]
+            [resolver-sim.support.ed25519 :as ed]
             [resolver-sim.resubmission.transition :as transition]
             [resolver-sim.transaction.ordering :as ordering]
             [resolver-sim.transaction.protocol :as protocol]))
 
 (def family "sha256:FAM")
+(def disposition-authority (ed/keypair :disposition-authority))
 
 (defn- bare-receipt [id]
   {:attempt-receipt/schema receipt/receipt-schema
@@ -35,12 +38,18 @@
     :expected-chain-version expected-version}})
 
 (defn- disposition-cmd
-  [attempt disposition-hash status & {:keys [expected-disposition-head expected-version]}]
+  [attempt status & {:keys [previous expected-disposition-head expected-version artifact]}]
   {:transaction/action :prf.resubmission/apply-disposition
    :transaction/input
    {:attempt-receipt-hash attempt
-    :disposition-artifact-hash disposition-hash
-    :disposition-status status
+    :disposition-artifact
+    (or artifact
+        (disposition/sign-disposition
+         (cond-> {:attempt-disposition/schema disposition/disposition-schema
+                  :attempt-disposition/attempt-receipt-hash attempt
+                  :attempt-disposition/status status}
+           previous (assoc :attempt-disposition/previous-disposition-hash previous))
+         (:private-key disposition-authority)))
     :expected-disposition-head expected-disposition-head
     :expected-chain-version expected-version}})
 
@@ -139,19 +148,70 @@
       (is (= :idempotency-key-rebound (:reason tx)))))
   (testing "disposition eligibility gates admission (precedence 5)"
     (let [s0 (transition/empty-state family)
-          s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
-          sd (:state (transition/apply-action s1 (disposition-cmd "sha256:R1" "sha256:D1" :withdrawn)))
+          s1 (assoc (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
+                    :chain/disposition-public-hex (:public-hex disposition-authority))
+          sd (:state (transition/apply-action s1 (disposition-cmd "sha256:R1" :withdrawn)))
           blocked (transition/apply-action sd (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))]
       (is (= :rejected (:status blocked)))
       (is (= :parent-rejection-not-final (:reason blocked)))))
+  (testing "review and final dispositions retain the receipt's active lifecycle"
+    (let [s0 (transition/empty-state family (:public-hex disposition-authority))
+          s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
+          final-state (:state (transition/apply-action s1 (disposition-cmd "sha256:R1" :final)))
+          admission (transition/apply-action
+                     final-state
+                     (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1"
+                                :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))]
+      (is (= :active (transition/effective-disposition final-state "sha256:R1")))
+      (is (= :final (get-in final-state [:chain/disposition-status-by-receipt "sha256:R1"])))
+      (is (= :committed (:status admission)))))
   (testing "apply-disposition increments commit index WITHOUT a new resubmission sequence"
     (let [s0 (transition/empty-state family)
-          s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
-          sd (:state (transition/apply-action s1 (disposition-cmd "sha256:R1" "sha256:D1" :superseded)))]
+          s1 (assoc (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
+                    :chain/disposition-public-hex (:public-hex disposition-authority))
+          sd (:state (transition/apply-action s1 (disposition-cmd "sha256:R1" :superseded)))]
       (is (= 2 (:transaction/commit-index sd)))
       (is (= 1 (count (keys (:chain/successor-by-parent sd)))))
       (is (= :superseded (get-in sd [:chain/effective-disposition-by-receipt "sha256:R1"])))
       (is (= "sha256:R1" (:chain/head sd)))))
+  (testing "forged caller fields cannot override a disposition artifact"
+    (let [s0 (transition/empty-state family (:public-hex disposition-authority))
+          s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
+          command (assoc-in (disposition-cmd "sha256:R1" :withdrawn)
+                            [:transaction/input :disposition-status] :active)
+          result (transition/apply-action s1 command)]
+      (is (= :committed (:status result)))
+      (is (= :withdrawn (get-in result [:state :chain/effective-disposition-by-receipt "sha256:R1"])))))
+  (testing "disposition must be signed, bound to its receipt, and linked to the current head"
+    (let [s0 (transition/empty-state family (:public-hex disposition-authority))
+          s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
+          unsigned {:attempt-disposition/schema disposition/disposition-schema
+                    :attempt-disposition/attempt-receipt-hash "sha256:R1"
+                    :attempt-disposition/status :withdrawn}
+          forged (transition/apply-action s1 {:transaction/action :prf.resubmission/apply-disposition
+                                               :transaction/input {:attempt-receipt-hash "sha256:R1"
+                                                                   :disposition-artifact unsigned}})
+          wrong-receipt (transition/apply-action
+                         s1
+                         (disposition-cmd
+                          "sha256:R1" :withdrawn
+                          :artifact (disposition/sign-disposition
+                                     {:attempt-disposition/schema disposition/disposition-schema
+                                      :attempt-disposition/attempt-receipt-hash "sha256:R2"
+                                      :attempt-disposition/status :withdrawn}
+                                     (:private-key disposition-authority))))
+          wrong-previous (transition/apply-action s1 (disposition-cmd "sha256:R1" :withdrawn :previous "sha256:NOT-THE-HEAD"))]
+      (is (= :missing-disposition-signature (:reason forged)))
+      (is (= :disposition-receipt-mismatch (:reason wrong-receipt)))
+      (is (= :disposition-previous-hash-mismatch (:reason wrong-previous)))))
+  (testing "terminal dispositions cannot be replaced"
+    (let [s0 (transition/empty-state family (:public-hex disposition-authority))
+          s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
+          first-command (disposition-cmd "sha256:R1" :withdrawn)
+          s2 (:state (transition/apply-action s1 first-command))
+          head (get-in s2 [:chain/disposition-head-by-receipt "sha256:R1"])
+          second-result (transition/apply-action s2 (disposition-cmd "sha256:R1" :revoked :previous head))]
+      (is (= :invalid-disposition-transition (:reason second-result)))))
   (testing "commit contention (precedence 10)"
     (let [s0 (transition/empty-state family)
           s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))

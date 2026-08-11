@@ -159,6 +159,9 @@ export function assertPublicDemo(x: unknown): asserts x is PublicDemo {
     case 'reordered-evidence':
       assertReorderedEvidence(d)
       return
+    case 'current-head':
+      assertReorderedEvidence(d)
+      return
     default:
       fail(`unsupported demo kind: ${String(kind)}`)
   }

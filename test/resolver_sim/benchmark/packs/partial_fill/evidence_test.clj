@@ -389,7 +389,26 @@
           tampered (tamper-decision w d [:settlement-mode] :full-fill)
           result (pfev/verify-partial-fill-decisions tampered)]
       (is (= :evaluated-fail (:classification result)))
-      (is (some #(= :classification-mismatch (:code %)) (:violations result))))))
+      (is (some #(= :classification-mismatch (:code %)) (:violations result)))))
+  (testing "zero deferred amounts do not conceal a haircut-only partial fill as a full fill"
+    (let [w (full-fill-world)
+          d (latest-decision w)
+          k (claim-key d)
+          tampered (-> w
+                       (assoc-in [:yield/partial-fill-decisions (:decision/id d)
+                                  :filled k] 80)
+                       (assoc-in [:yield/partial-fill-decisions (:decision/id d)
+                                  :deferred k] 0)
+                       (assoc-in [:yield/partial-fill-decisions (:decision/id d)
+                                  :haircut k] 20)
+                       (assoc-in [:yield/partial-fill-decisions (:decision/id d)
+                                  :settlement-mode] :full-fill))
+          result (pfev/verify-partial-fill-decisions tampered)]
+      (is (= :evaluated-fail (:classification result)))
+      (is (some #(and (= :classification-mismatch (:code %))
+                      (= :partial-fill (:derived %))
+                      (= :full-fill (:settlement-mode %)))
+                (:violations result))))))
 
 ;; ── partial-fill verification report file-artifact ───────────────────────
 

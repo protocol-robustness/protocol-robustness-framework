@@ -30,6 +30,9 @@ jobs:
         run: clojure -T:build uberjar :variant prf
       - name: Build prf-runner-sew uberjar
         run: clojure -T:build uberjar :variant sew
+      - name: Verify packaged JAR portability and benchmark corpus
+        timeout-minutes: 20
+        run: bash scripts/portability-smoke-test.sh
       - name: Upload prf jar
         uses: actions/upload-artifact@v4
         with:

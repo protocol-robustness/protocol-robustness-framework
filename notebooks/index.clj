@@ -37,7 +37,8 @@
     "Navigate by category, threat, or audience role."]
    [:div {:style {:display "flex" :gap "16px" :marginTop "14px" :flexWrap "wrap"}}
     (for [[label href icon]
-           [            ["Evidence Workbook"       "/notebooks/report"                          "🛡️"]
+           [            ["Verification Overview"   "/notebooks/verification_overview"           "✅"]
+            ["Evidence Workbook"       "/notebooks/report"                          "🛡️"]
             ["Protocol Provenance"     "/notebooks/protocol_provenance"             "📋"]
             ["Clean-Room Corpus"       "/notebooks/clean_room_not_admitted"         "📜"]
             ["Invariant Failures"      "/notebooks/invariant_failures"              "🔍"]
@@ -61,8 +62,9 @@
        (str icon " " label)])]]
 
   ;; recently added section
-  (let [recent-ids [:not-admitted :demo-not-admitted :demo-reorder-chain
-                    :clean-room-not-admitted :canonical-framing :resubmission-chain
+  (let [recent-ids [:verification-overview :resubmission-chain :canonical-cancellation
+                    :not-admitted :demo-not-admitted :demo-reorder-chain
+                    :clean-room-not-admitted :canonical-framing
                     :evaluate-pro-rata-allocation :pro-rata-allocation-result
                     :ef-demo-pro-rata-allocation :not-governance
                     :partial-liquidity-recovery :yield-shortfall-partial-withdrawal-fills]

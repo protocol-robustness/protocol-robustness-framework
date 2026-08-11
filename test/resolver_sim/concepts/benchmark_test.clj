@@ -2,7 +2,8 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.concepts.registry :as concepts-registry]
-            [resolver-sim.concepts.reporting :as reporting]))
+            [resolver-sim.concepts.reporting :as reporting]
+            [resolver-sim.use-cases.registry :as use-cases]))
 
 (deftest resolve-benchmark-concepts-prefers-local-shadow
   (testing "benchmark-local concepts override global concepts with the same id"
@@ -22,6 +23,15 @@
              (get-in resolved [:report-concepts 0 :concept/title])))
       (is (= "Consensus finality"
              (get-in resolved [:report-concepts 1 :concept/title]))))))
+
+(deftest explicit-use-case-registry-resolves-without-framework-registration
+  (let [loaded (use-cases/load-use-case-registry "examples/use-cases/ecommerce/registry.edn")
+        resolved (benchmark-concepts/resolve-benchmark-concepts
+                  [:ecommerce/purchase]
+                  {:use-case-registry loaded})]
+    (is (= :external-use-case (get-in resolved [:resolved-entries 0 :concept/source])))
+    (is (= :ecommerce/purchase (get-in resolved [:resolved-entries 0 :concept :concept/id])))
+    (is (empty? (:unknown-concept-ids resolved)))))
 
 (deftest missing-related-concepts-detects-unresolved-links
   (testing "related concept validation reports unresolved ids"

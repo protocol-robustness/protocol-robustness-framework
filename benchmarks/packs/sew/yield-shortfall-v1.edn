@@ -31,8 +31,6 @@
    independent benchmark (does not share a suite with the other Sew benchmarks)."
     :benchmark/concepts        [:robustness/protocol-value-conservation
                                :allocation/redistribution-fairness
-                               :ecommerce/purchase
-                               :event/deposit
                                :yield/yield-bearing
                                :consensus/authority
                                :consensus/evidence

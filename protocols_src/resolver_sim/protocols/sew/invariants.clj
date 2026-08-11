@@ -2436,8 +2436,8 @@
                     actual (:relationship/hash rel)]
               :when (not= expected actual)]
           {:relationship/id rel-id
-           :expected hash expected
-           :actual hash actual
+           :expected expected
+           :actual actual
            :members (:relationship/members rel)})]
     {:holds? (empty? violations)
      :violations (vec violations)}))

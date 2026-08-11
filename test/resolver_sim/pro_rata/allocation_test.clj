@@ -43,6 +43,20 @@
     (is (not= (:allocations legacy) (:allocations corrected)))
     (is (empty? (invariants/result-violations mechanism)))))
 
+(deftest proposed-effects-are-provable-from-the-allocation-witness
+  (let [result (allocation/allocate {:allocation/id :proposed-effects
+                                     :available 10 :rows rows})
+        proposal (mechanism-evidence/proposed-effects result)]
+    (is (mechanism-evidence/proposed-effects-valid? result proposal))
+    (is (= [[:withdrawal/alice 5N] [:withdrawal/bob 5N]]
+           (mapv (juxt :obligation/id :amount) (:effects proposal))))
+    (is (some #(= :pro-rata/proposed-effects-not-derived-from-allocation (:reason %))
+              (mechanism-evidence/proposed-effects-violations
+               result (assoc-in proposal [:effects 0 :amount] 6))))
+    (is (some #(= :pro-rata/proposed-effects-root-mismatch (:reason %))
+              (mechanism-evidence/proposed-effects-violations
+               result (assoc proposal :proposed-effects/root "tampered"))))))
+
 (deftest allocation-is-permutation-invariant
   (testing "canonical row identity controls tie-breaking and evidence order"
     (let [forward (allocation/allocate {:allocation/id :example :available 10 :rows rows})

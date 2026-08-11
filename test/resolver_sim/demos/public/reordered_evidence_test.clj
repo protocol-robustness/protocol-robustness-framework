@@ -29,7 +29,7 @@
     (is (= (get-in m [:demo/evidence :committed-hash])
            (get-in p ["evidence" "committed-hash"])))))
 
-(deftest evidence-lines-are-verbatim
+(deftest evidence-lines-and-check-details-are-verbatim
   (let [p (projection/project)
         m (demo/run)]
     (is (= (mapv (fn [[label value]] [label (str value)])
@@ -37,6 +37,8 @@
            (get-in p ["evidence" "lines"])))
     (is (= (count (get-in m [:demo/evidence :after/checks]))
            (count (get-in p ["evidence" "checks"]))))
+    (is (= (mapv :detail (get-in m [:demo/evidence :after/checks]))
+           (mapv #(get % "detail") (get-in p ["evidence" "checks"]))))
     (is (every? #(contains? % "status") (get-in p ["evidence" "checks"])))))
 
 (deftest projection-is-deterministic
@@ -49,6 +51,12 @@
                (#'projection/require-field!
                 (dissoc (demo/run) :demo/evidence)
                 [:demo/evidence]))))
+
+(deftest missing-admission-fact-fails-closed
+  (let [model (demo/run)]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (with-redefs [demo/run #(update-in model [:demo/outcome] dissoc :admitted?)]
+                   (projection/project))))))
 
 (deftest provenance-binds-to-the-executable-result
   (let [p (projection/project)

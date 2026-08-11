@@ -79,13 +79,14 @@
       (is (contains? surfaces
                      ["src/resolver_sim/definitions/passive_registries.clj" :rootzones])))))
 
-(deftest overrides-take-precedence-over-defaults
-  (testing "a classified override wins over the core default"
+(deftest shipped-use-case-bundle-is-user-authority-example-content
+  (testing "the shipped example exercises the external user-content contract"
     (let [res (audit/resolve-classification
-               manifest "src/resolver_sim/concepts/ecommerce_reporting.clj")]
+               manifest "examples/use-cases/ecommerce/registry.edn")]
       (is (= :classified (:status res)))
       (is (= :user (get-in res [:classification :authority])))
-      (is (= :example (get-in res [:classification :content-kind]))))))
+      (is (= :example (get-in res [:classification :content-kind])))
+      (is (= :framework-example (get-in res [:source :source-kind]))))))
 
 (deftest mixed-override-wins-over-default
   (testing "a :mixed? override beats the default classification"

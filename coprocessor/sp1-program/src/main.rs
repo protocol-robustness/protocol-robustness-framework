@@ -38,7 +38,7 @@ pub fn main() {
 
     let (ctx, committed) = match (
         kernel::parse_context(&parsed),
-        kernel::parse_committed(&parsed),
+        kernel::parse_committed_for_proving(&parsed),
     ) {
         (Ok(ctx), Ok(committed)) => (ctx, committed),
         (Err(e), _) | (_, Err(e)) => {

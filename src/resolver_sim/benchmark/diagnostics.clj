@@ -164,9 +164,7 @@
    {:path "resource:scenarios/edn/S01_baseline-happy-path.edn"
     :label "Executable scenario"}
    {:path hash-ref/reference-validation-suite-manifest
-    :label "Reference validation suite"}
-   {:path "resource:data/concepts/use-case/ecommerce.edn"
-    :label "Concept definition file"}])
+    :label "Reference validation suite"}])
 
 (defn- resolve-source
   "Determine whether a path resolved via filesystem or classpath."

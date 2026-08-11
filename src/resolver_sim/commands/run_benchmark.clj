@@ -4,6 +4,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.conservation :as conservation]
+            [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
@@ -18,6 +19,7 @@
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.paths :as paths]
+            [resolver-sim.io.resource-path :as resource-path]
             [resolver-sim.run.runner-finalization :as runner-finalization]
             [resolver-sim.run.package-index :as package-index]
             [resolver-sim.run.verdict-policy :as verdict-policy]
@@ -510,7 +512,7 @@
   (let [cli-path (or (:claim-registry/path context) *claim-registry-path*)
         path (claim-registry/claim-registry-path cli-path)
         source (claim-registry/claim-registry-source cli-path)
-        hash (or (claim-registry/registry-file-sha256 path) "unavailable")]
+        hash (claim-registry/registry-file-sha256 path)]
     {"logical_id" "claim-registry"
      "source_kind" "claim-registry"
      "path" path
@@ -628,6 +630,14 @@
        (not (str/starts-with? benchmark-id "classpath:"))
        (not (str/starts-with? benchmark-id "resource:"))))
 
+(defn- legacy-scenario-suite-manifest?
+  "True when a manifest relies on directory-discovery semantics that cannot
+   produce a portable, explicit canonical execution plan."
+  [benchmark-id]
+  (let [manifest-path (benchmark-cli/resolve-benchmark-manifest benchmark-id)
+        manifest (resource-path/edn-read manifest-path)]
+    (contains? manifest :scenario-suites)))
+
 (defn run
   "Run a benchmark. `--run-root` creates a canonical benchmark-owned bundle;
    `--output` remains the legacy standalone evidence export destination."
@@ -660,6 +670,10 @@
       (and run-root (external-manifest-ref? benchmark-id))
       {:exit-code 2
        :message "Filesystem benchmark manifests are not supported for canonical bundles yet; use a registered benchmark ID or bundled classpath: manifest"}
+
+      (and run-root (legacy-scenario-suite-manifest? benchmark-id))
+      {:exit-code 2
+       :message "Canonical benchmark bundles do not support legacy :scenario-suites discovery; use an explicit :benchmark/scenario-suite or the legacy --output workflow"}
 
       run-root
       (with-claim-registry claim-registry

@@ -801,7 +801,8 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
     })
 }
 
-/// Parse the committed block (optional).
+/// Parse the committed block for non-proving replay use. Bindings remain optional
+/// here so individual assertions can be evaluated in isolation.
 pub fn parse_committed(input: &serde_json::Value) -> Result<Committed, KernelError> {
     let mut committed = Committed::default();
     let Some(value) = input.get("committed") else {
@@ -822,6 +823,70 @@ pub fn parse_committed(input: &serde_json::Value) -> Result<Committed, KernelErr
         .get("selected-outcome-index")
         .and_then(|v| v.as_str())
         .map(|s| parse_bigint(s).unwrap_or_else(|_| BigInt::zero()));
+    Ok(committed)
+}
+
+/// Parse the committed bindings required for allocation proof and verification
+/// inputs. A proof must bind every recomputed root and the selected outcome;
+/// otherwise it could attest only to self-derived, uncommitted values.
+pub fn parse_committed_for_proving(input: &serde_json::Value) -> Result<Committed, KernelError> {
+    let committed = parse_committed(input)?;
+    let committed_map = input
+        .get("committed")
+        .and_then(|value| value.as_object())
+        .ok_or_else(|| {
+            KernelError::new(
+                "missing-committed-binding",
+                "committed block required for proving",
+            )
+        })?;
+    let required_roots = [
+        ("claimant-set-root", &committed.claimant_set_root),
+        ("outcome-set-root", &committed.outcome_set_root),
+        ("proposed-rates-root", &committed.proposed_rates_root),
+        ("result-root", &committed.result_root),
+    ];
+    for (name, value) in required_roots {
+        if value.is_none() {
+            return Err(KernelError::new(
+                "missing-committed-binding",
+                format!("committed {} required for proving", name),
+            ));
+        }
+    }
+    let selected_outcome_id = committed_map
+        .get("selected-outcome-id")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            KernelError::new(
+                "missing-committed-binding",
+                "committed selected-outcome-id required for proving",
+            )
+        })?;
+    let selected_outcome_index = committed_map
+        .get("selected-outcome-index")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| {
+            KernelError::new(
+                "missing-committed-binding",
+                "committed selected-outcome-index required for proving",
+            )
+        })?;
+    if parse_bigint(selected_outcome_index).is_err() {
+        return Err(KernelError::new(
+            "malformed-committed",
+            "committed selected-outcome-index must be an integer string",
+        ));
+    }
+    if committed.selected_outcome_id.as_deref() != Some(selected_outcome_id)
+        || committed.selected_outcome_index.is_none()
+    {
+        return Err(KernelError::new(
+            "malformed-committed",
+            "committed selected outcome binding is malformed",
+        ));
+    }
     Ok(committed)
 }
 

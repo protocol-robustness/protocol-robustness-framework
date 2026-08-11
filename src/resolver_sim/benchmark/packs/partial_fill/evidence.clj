@@ -303,16 +303,23 @@
              :deferred-total deferred-total}))))
 
 (defn- derived-classification
-  "Classification derived from amounts. :full-fill iff deferred == 0;
-   :partial-fill iff some claim is partially filled (0 < filled < owed)."
+  "Classification derived from realized amounts. :full-fill requires every
+   claim to be fully filled with no deferred or haircut amount; :partial-fill
+   applies when any positive claim is only partly filled."
   [d]
-  (let [deferred-zero? (every? zero? (vals (:deferred d)))
+  (let [claims (decision-claims d)
+        deferred-zero? (every? zero? (vals (:deferred d)))
+        haircut-zero? (every? zero? (vals (:haircut d)))
+        fully-filled? (every? (fn [k]
+                                (= (long (or (claim-amount d k) 0))
+                                   (claim-filled d k)))
+                              claims)
         any-partial? (some (fn [k]
                              (let [owed (long (or (claim-amount d k) 0))
                                    filled (claim-filled d k)]
                                (and (pos? owed) (< 0 filled owed))))
-                           (decision-claims d))]
-    (cond deferred-zero? :full-fill
+                           claims)]
+    (cond (and deferred-zero? haircut-zero? fully-filled?) :full-fill
           any-partial? :partial-fill
           :else :indeterminate)))
 

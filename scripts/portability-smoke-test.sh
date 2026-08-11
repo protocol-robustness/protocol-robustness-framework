@@ -88,6 +88,8 @@ echo "External CWD: $CWD_DIR"
   grep -q "run-scenario" "$TEMP_DIR/sew-help.txt"
   grep -q "run-benchmark" "$TEMP_DIR/sew-help.txt"
   java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
+    benchmark validate-jar
+  java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
     run-scenario classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
     --run-root "$SCENARIO_ROOT"
   java -jar "$SEW_JAR_PATH" -m resolver-sim.cli.main \
@@ -118,7 +120,7 @@ if [ -n "$(find "$CWD_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
 fi
 
 echo "PASS: framework-only JAR has the unified CLI and does not advertise Sew commands"
-echo "PASS: full Sew JAR runs bundled scenario and benchmark without CWD scatter"
+echo "PASS: full Sew JAR validates the packaged benchmark corpus and runs bundled scenario and benchmark without CWD scatter"
 echo "PASS: completion records commit to final registry and validation report hashes"
 echo "PASS: built Sew JAR verifies completed scenario evidence-chain and benchmark assurance bundles"
 echo "PASS: each JAR resolves every declared native command; external wrappers are checked by bb-task parity"

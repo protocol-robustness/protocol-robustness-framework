@@ -8,7 +8,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
-            [resolver-sim.concepts.ecommerce-reporting :as ecommerce-reporting]
+            [resolver-sim.use-cases.registry :as use-case-registry]
             [resolver-sim.benchmark.claims :refer [normalize-claim-refs]]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.resource-path :as rp]))
@@ -321,7 +321,7 @@
 ;; ── Report assembly ──────────────────────────────────────────────────────────
 
 (defn- resolve-report-concepts
-  [manifest concepts-path]
+  [manifest concepts-path registry-path]
   (let [local-concepts (when concepts-path
                          (let [base-paths (benchmark-concepts/benchmark-concept-files)
                                merged-paths (if (and (.exists (io/file concepts-path))
@@ -329,10 +329,14 @@
                                               (conj base-paths concepts-path)
                                               base-paths)]
                            (benchmark-concepts/load-benchmark-local-concepts merged-paths)))]
-    (benchmark-concepts/resolve-benchmark-concepts
-     (:benchmark/concepts manifest)
-     (cond-> {}
-       local-concepts (assoc :local-concepts local-concepts)))))
+    (let [loaded-use-cases (when registry-path
+                             (use-case-registry/load-use-case-registry registry-path))]
+      (assoc (benchmark-concepts/resolve-benchmark-concepts
+              (:benchmark/concepts manifest)
+              (cond-> {}
+                local-concepts (assoc :local-concepts local-concepts)
+                loaded-use-cases (assoc :use-case-registry loaded-use-cases)))
+             :use-case-registry loaded-use-cases))))
 
 (defn- benchmark-framework-concepts
   [concepts]
@@ -399,19 +403,19 @@
      scoring-path     — scoring definition EDN (e.g. benchmarks/scoring/robustness-dimensions-v0.edn)
    
    Returns a plain map suitable for Clerk rendering."
-  [evidence-path concepts-path scoring-path]
+  ([evidence-path concepts-path scoring-path]
+   (build-report evidence-path concepts-path scoring-path nil))
+  ([evidence-path concepts-path scoring-path use-case-registry-path]
   (let [evidence (load-evidence evidence-path)
         manifest (:benchmark evidence)
         domain-entry (benchmark-domain-entry (:benchmark/domain manifest))
-        concept-resolution (resolve-report-concepts manifest concepts-path)
+        concept-resolution (resolve-report-concepts manifest concepts-path use-case-registry-path)
         concepts (:report-concepts concept-resolution)
         scoring (load-scoring scoring-path)
         metrics (:metrics evidence)
         results (:results evidence)
         inv-summary (:invariant-summary evidence)
-        dimensions (build-dimension-results results (:claim-results evidence) manifest concepts scoring)
-        ecommerce-section (when (some #{:ecommerce/purchase} (:benchmark/concepts manifest))
-                            (ecommerce-reporting/ecommerce-results results))]
+        dimensions (build-dimension-results results (:claim-results evidence) manifest concepts scoring)]
     {:benchmark/id (:benchmark/id manifest)
      :benchmark/domain (:benchmark/domain manifest)
      :benchmark/domain-description (:domain/description domain-entry)
@@ -458,8 +462,11 @@
      :dimensions dimensions
      :invariant-summary inv-summary
      :concept/section (:concept/section evidence)
-     :stakeholder/use-case-results (cond-> {}
-                                     ecommerce-section (assoc :ecommerce/purchase ecommerce-section))}))
+     :use-case-registry (when-let [loaded (:use-case-registry concept-resolution)]
+                          (select-keys loaded
+                                       [:use-case-registry/id :use-case-registry/version
+                                        :use-case-registry/schema :use-case-registry/source
+                                        :use-case-registry/root :use-case-registry/count]))})))
 
 ;; ── Auto-resolution ───────────────────────────────────────────────────────────
 

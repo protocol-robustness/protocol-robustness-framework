@@ -22,7 +22,18 @@
 (def disposition-domain "prf.attempt-disposition.v1")
 
 (def disposition-statuses
+  "Event vocabulary. These are not receipt lifecycle statuses."
   #{:pending-review :final :withdrawn :revoked :superseded})
+
+(def disposition->lifecycle-status
+  "The sole mapping from an immutable disposition event to the receipt lifecycle
+   vocabulary. Review and finality describe disposition workflow, not a change
+   to receipt eligibility; only explicit lifecycle events deactivate a receipt."
+  {:pending-review :active
+   :final :active
+   :withdrawn :withdrawn
+   :revoked :revoked
+   :superseded :superseded})
 
 (defn unsigned-disposition-projection
   "Everything except the signature."
@@ -69,24 +80,46 @@
       :else
       {:valid? true :reason :ok})))
 
-(defn latest-disposition
-  "Resolve the effective lifecycle state from an ordered seq of valid
-   dispositions (most-recent-first, as established by the store / previous
-   hash chain). Returns {:disposition <map> :status kw :previous-hash <str|nil>}
-   or nil when no valid disposition is present.
+(defn valid-disposition-chain?
+  "Validate an ordered (most-recent-first) disposition chain for one receipt.
 
-   `verify-fn` is called on each candidate to filter to valid signatures."
-  [dispositions verify-fn]
-  (let [valid (filterv #(true? (:valid? (verify-fn %))) dispositions)]
-    (when (seq valid)
-      (let [d (first valid)]
-        {:disposition d
-         :status (:attempt-disposition/status d)
-         :previous-hash (:attempt-disposition/previous-disposition-hash d)}))))
+   Every item must verify, bind to `attempt-receipt-hash`, and point to the hash
+   of the following item. The tail must explicitly have no predecessor. This
+   fails closed rather than selecting a valid-looking item from an incoherent
+   caller-supplied list."
+  [dispositions attempt-receipt-hash verify-fn]
+  (let [items (vec dispositions)]
+    (and (every? #(true? (:valid? (verify-fn %))) items)
+         (every? #(= attempt-receipt-hash
+                      (:attempt-disposition/attempt-receipt-hash %))
+                 items)
+         (every? true?
+                 (map (fn [current previous]
+                        (= (:attempt-disposition/previous-disposition-hash current)
+                           (disposition-hash previous)))
+                      items
+                      (rest items)))
+         (or (empty? items)
+             (nil? (:attempt-disposition/previous-disposition-hash (peek items)))))))
+
+(defn latest-disposition
+  "Resolve the effective lifecycle state from a coherent, receipt-bound ordered
+   disposition chain. Returns nil when the chain is absent or invalid."
+  [dispositions attempt-receipt-hash verify-fn]
+  (when (and (seq dispositions)
+             (valid-disposition-chain? dispositions attempt-receipt-hash verify-fn))
+    (let [d (first dispositions)]
+      {:disposition d
+       :status (:attempt-disposition/status d)
+       :previous-hash (:attempt-disposition/previous-disposition-hash d)})))
 
 (defn effective-lifecycle-status
-  "The effective lifecycle status of an attempt given its dispositions
-   (most-recent-first) and a verifier. Defaults to :active when no disposition
-   exists."
-  [dispositions verify-fn]
-  (or (:status (latest-disposition dispositions verify-fn)) :active))
+  "The effective lifecycle status of a receipt. Defaults to :active only when
+   no dispositions exist; an invalid non-empty chain is returned as nil so a
+   caller cannot mistake it for an active receipt."
+  [dispositions attempt-receipt-hash verify-fn]
+  (if (empty? dispositions)
+    :active
+    (some-> (latest-disposition dispositions attempt-receipt-hash verify-fn)
+            :status
+            disposition->lifecycle-status)))

@@ -23,6 +23,8 @@
 ;; - `notebooks/canonical_cancellation` — can a valid approval cancel the wrong thing?
 ;; - `notebooks/not_admitted` §15–16 — researcher assignment & approval mechanics
 ;; - `notebooks/researcher_interaction_topology` — review rounds, keys, topology
+;; - `notebooks/resubmission_chain` — whether a corrected conclusion can become
+;;   the next admitted attempt in its resubmission family
 
 ^{:nextjournal.clerk/toc true
   :nextjournal.clerk/dark-mode true

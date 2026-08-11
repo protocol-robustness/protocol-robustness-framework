@@ -16,6 +16,8 @@
 ;; - `notebooks/demo_not_admitted` — Demo A: change an amount after verification
 ;; - `notebooks/demo_reorder_chain` — Demo B: reorder the evidence
 ;; - `notebooks/clean_room_not_admitted` — the clean-room corpus verdicts
+;; - `notebooks/research_resolution` — the research commands, evidence, and
+;;   collective conclusion that a correction carries forward
 ;;
 ;; **Data contract:** the chain state machine is `src/resolver_sim/resubmission/`
 ;; (`chain.clj`, `transition.clj`, `receipt.clj`); the normative contract is
@@ -26,10 +28,13 @@
   :nextjournal.clerk/visibility {:code :fold}}
 (ns notebooks.resubmission-chain
   (:require [nextjournal.clerk :as clerk]
+            [resolver-sim.allocation.native-evidence :as native-evidence]
+            [resolver-sim.benchmark.research-command :as research-command]
+            [resolver-sim.contract-model.replay.flags :as rflags]
             [resolver-sim.resubmission.chain :as chain]
+            [resolver-sim.resubmission.derive-kind :as derive-kind]
             [resolver-sim.resubmission.receipt :as receipt]
-            [resolver-sim.resubmission.verify :as verify]
-            [resolver-sim.contract-model.replay.flags :as rflags]))
+            [resolver-sim.resubmission.verify :as verify]))
 
 ;; ## The one question
 ;;
@@ -415,6 +420,180 @@
   "eligibility gates non-:eligible parents — "
   [:strong {:style {:color (if gates-hold "#16a34a" "#dc2626")}}
    (if gates-hold "HOLDS ✓" "VIOLATED ✕")]])
+
+;; ---
+;; ## Worked correction — from rejected chain event to one admissible successor
+;;
+;; The preceding sections isolate individual gates. This example connects them
+;; without collapsing their meanings. A dispute-resolution benchmark is rejected
+;; because an externally ingested event was bound to the wrong event identifier.
+;; The researcher corrects the replay, records the ordered research work, obtains
+;; an independent implementation replay, and submits exactly one corrected result.
+;;
+;; ### 1. Root comparison derives the relationship
+;;
+;; The parent was rejected for a semantic result mismatch. Its research subject
+;; remains the same, while the replay and result roots change. The kind is not a
+;; researcher assertion: it is derived from these committed roots.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def correction-parent
+  {:roots {:research-subject {:status :verified :hash "sha256:subject-dispute-event-id"}
+           :execution-context {:status :verified :hash "sha256:execution-before-event-id-fix"}
+           :results {:status :verified :hash "sha256:results-before-event-id-fix"}
+           :submission-basis {:status :verified :hash "sha256:basis-before-event-id-fix"}}
+   :rejection-classification :result-award-mismatch})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def correction-current
+  {:research-subject-hash "sha256:subject-dispute-event-id"
+   :execution-context-hash "sha256:execution-after-event-id-fix"
+   :results-hash "sha256:results-after-event-id-fix"
+   :submission-basis-hash "sha256:basis-after-event-id-fix"})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(def correction-kind
+  (derive-kind/derive-kind correction-parent correction-current))
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/table
+ {:head ["Committed dimension" "Parent" "Corrected attempt" "Meaning"]
+  :rows [["research subject" "subject-dispute-event-id" "subject-dispute-event-id" "same question"]
+         ["execution context" "before-event-id-fix" "after-event-id-fix" "replay corrected"]
+         ["results" "before-event-id-fix" "after-event-id-fix" "authoritative result changed"]
+         ["derived relationship" "—" (name (:kind correction-kind))
+          (name (:reason correction-kind))]]})
+
+;; ### 2. Ordered command provenance records how the correction was produced
+;;
+;; Here the event normalization command must happen before the allocation check:
+;; the latter consumes the former's corrected output. Therefore this is a
+;; `research-command-trace.v2` sequence, not a v1 order-arbitrary declaration
+;; collection.
+
+;; Scope refs are controlled values. The provenance commands use the applicable
+;; analysis scope while their argv retains the concrete operation.
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def correction-analysis-command
+  (research-command/build-command
+   {:schema-version "research-command.v2"
+    :command/id :dispute/check-corrected-allocation
+    :command/type :claim-evaluation
+    :command/argv ["prf" "benchmark" "evaluate" "--input" "corrected-chain-event"]
+    :command/includes [{:kind :research-scope/analysis
+                        :ref :research-analysis/incentive}]}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def correction-normalization-command
+  (research-command/build-command
+   {:schema-version "research-command.v2"
+    :command/id :dispute/normalize-chain-ingestion-event
+    :command/type :evidence-projection
+    :command/argv ["prf" "replay" "normalize-external-event" "--require-event-id"]
+    :command/includes [{:kind :research-scope/analysis
+                        :ref :research-analysis/incentive}]}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def correction-trace
+  (research-command/build-command-trace-v2
+   {:commands [correction-normalization-command correction-analysis-command]}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def reversed-correction-trace
+  (research-command/build-command-trace-v2
+   {:commands [correction-analysis-command correction-normalization-command]}))
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/table
+ {:head ["Trace" "Ordered components" "Root" "Interpretation"]
+  :rows [["correction workflow"
+          "normalize event → check allocation"
+          (subs (:trace/root correction-trace) 0 19)
+          "committed dependency order"]
+         ["reversed workflow"
+          "check allocation → normalize event"
+          (subs (:trace/root reversed-correction-trace) 0 19)
+          (if (= (:trace/root correction-trace) (:trace/root reversed-correction-trace))
+            "BUG: order was lost" "different root — different workflow")]]})
+
+;; ### 3. Independent replay is evidence, not identity substitution
+;;
+;; The corrected output may be reproduced by another implementation. That is
+;; useful evidence, but a changed implementation pin cannot be upgraded into an
+;; exact-replication claim.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def corrected-reference
+  {:results-artifact-hash "sha256:corrected-results-artifact"
+   :input-root "sha256:corrected-input"
+   :result-root "sha256:corrected-result-root"
+   :pinned-prf {:implementation "prf-allocation-kernel" :version "prf.v2"}
+   :pinned-rust {:implementation "official-rust-kernel" :version "rust.v2" :commit "c2"}})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- replay-evidence [rust-identity]
+  {:native-evidence/schema "native-evidence.v1"
+   :native-evidence/kind :exact-replication
+   :native-evidence/verifier-version "native-evidence.v1"
+   :native-evidence/source :executed
+   :native-evidence/results-artifact-hash "sha256:corrected-results-artifact"
+   :native-evidence/input-root "sha256:corrected-input"
+   :native-evidence/result-root "sha256:corrected-result-root"
+   :native-evidence/prf-identity (:pinned-prf corrected-reference)
+   :native-evidence/rust-identity rust-identity
+   :native-evidence/comparison :match})
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/table
+ {:head ["Replay implementation" "Classification" "Reason" "Claimable meaning"]
+  :rows (mapv (fn [[label rust]]
+                (let [result (native-evidence/exact-replication-classification
+                              (replay-evidence rust) corrected-reference)]
+                  [label (name (:classification result)) (name (:reason result))
+                   (if (:proof-backed? result) "exact pinned reproduction"
+                       "independent replay only")]))
+              [["pinned Rust v2 / c2" (:pinned-rust corrected-reference)]
+               ["older Rust v1 / c1" {:implementation "official-rust-kernel"
+                                       :version "rust.v1" :commit "c1"}]])})
+
+;; ### 4. The allocation mode determines the proposition being checked
+;;
+;; A corrected result is never validated by a generic "filled is small" rule.
+;; Its committed mode chooses the applicable over-allocation model. The full
+;; runtime check lives in `yield/invariants`; this table states the semantic
+;; boundary that the resubmission's result evidence must preserve.
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/table
+ {:head ["Committed mode" "Safety proposition" "A result that still needs a separate proof"]
+  :rows [[":single-position" "filled ≤ recoverable; row ≤ requested"
+          "cross-invocation source-slice disjointness"]
+         [":fcfs-sequential" "every allocation prefix ≤ pool; row ≤ requested"
+          "that the greedy FCFS allocator produced this exact order"]
+         [":pro-rata" "Σ filled ≤ available; each row ≤ declared cap"
+          "fairness / exact proportional reproduction"]]})
+
+;; ### 5. Receipt, disposition, and chain state remain separate layers
+;;
+;; The corrected attempt can become a successor only after all previous evidence
+;; gates succeed. Its immutable receipt records the validator's decision;
+;; dispositions are later lifecycle events; the chain is the mutable current-head
+;; index. A disposition must be authenticated and linked before it influences
+;; eligibility — a status label alone is not authority.
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/table
+ {:head ["Layer" "Responsible artifact/state" "Question it answers"]
+  :rows [["execution provenance" "research-command-trace.v2" "what was run, and in what order?"]
+         ["reproduction" "native-evidence.v1" "which pinned implementation reproduced it?"]
+         ["attempt authority" "submission-attempt-receipt.v1" "was this rejected/final/eligible/active?"]
+         ["lifecycle" "attempt-disposition.v1" "what later status transition is authenticated?"]
+         ["admission" "resubmission chain + transaction ordering" "is this the one next successor?"]]})
+
+;; **Outcome of this example:** the correction is a `:corrected-result`, its
+;; research workflow has an order-sensitive provenance root, independent replay
+;; is not mislabelled as exact replication, and only an eligible active parent at
+;; the current head can admit it.
 
 ;; ---
 ;; ## Reproduce

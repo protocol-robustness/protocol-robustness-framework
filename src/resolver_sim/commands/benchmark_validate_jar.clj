@@ -21,6 +21,18 @@
          (throw (ex-info (str "Cannot read " path ": " (.getMessage e))
                          {:path path :error (.getMessage e)})))))
 
+(defn- classpath-ref
+  "Make a suite-declared bare resource path explicit for JAR validation.
+   InputSource normally gives a bare path precedence to an existing local file;
+   canonical corpus validation must instead prove classpath resolution."
+  [path-spec]
+  (let [path-spec (str path-spec)]
+    (if (or (str/starts-with? path-spec "classpath:")
+            (str/starts-with? path-spec "resource:")
+            (str/starts-with? path-spec "file:"))
+      path-spec
+      (str "classpath:" path-spec))))
+
 (defn- resolve-or-throw
   "Resolve a path spec via input-source/source, throwing with context on failure."
   [path-spec label]
@@ -34,7 +46,7 @@
 ;; Enumeration
 ;; ───────────────────────────────────────────────────────────────────────
 
-(defrecord Plan [benchmark-id manifest-path suite-key scenario-count scenario-paths])
+(defrecord Plan [benchmark-id manifest-path manifest-source suite-key scenario-count scenario-sources legacy-scenario-suites?])
 
 (defn- plan-benchmark
   "Construct an execution plan for one benchmark, resolving every path through
@@ -45,18 +57,14 @@
         pack-dir (.getParent pack-file)
         manifest-rel (:benchmark/file benchmark-ref)
         manifest-resource (str "resource:" pack-dir "/" manifest-rel)]
-    ;; Resolve manifest
-    (resolve-or-throw manifest-resource (str "Manifest " bid))
-    (let [manifest (edn-read-resource manifest-resource)
-          suite-key (:benchmark/scenario-suite manifest)]
-      (when suite-key
-        (let [scenario-paths (suites/suite-paths suite-key)]
-          (when scenario-paths
-            ;; Resolve every scenario path
-            (doseq [sp scenario-paths]
-              (resolve-or-throw sp (str "Scenario " sp))))
-          (->Plan bid manifest-resource suite-key
-                  (count scenario-paths) scenario-paths))))))
+    (let [manifest-source (resolve-or-throw manifest-resource (str "Manifest " bid))
+          manifest (edn-read-resource manifest-resource)
+          suite-key (:benchmark/scenario-suite manifest)
+          scenario-paths (or (when suite-key (suites/suite-paths suite-key)) [])
+          scenario-sources (mapv #(resolve-or-throw (classpath-ref %) (str "Scenario " %)) scenario-paths)]
+      (->Plan bid manifest-resource manifest-source suite-key
+              (count scenario-sources) scenario-sources
+              (contains? manifest :scenario-suites)))))
 
 (defn- enumerate-plans
   "Enumerate all benchmark execution plans from the canonical registry,
@@ -84,27 +92,31 @@
   "Validate that a single benchmark plan produces a coherent execution graph
    without filesystem fallback."
   [errors plan]
+  (when (not= :classpath (get-in plan [:manifest-source :input/type]))
+    (swap! errors conj (str "Benchmark manifest " (:manifest-path plan)
+                            " resolved through filesystem fallback")))
+  (when (:legacy-scenario-suites? plan)
+    (swap! errors conj (str "Benchmark " (:benchmark-id plan)
+                            " uses unsupported legacy :scenario-suites discovery")))
   (when (nil? (:suite-key plan))
     (swap! errors conj (str "Benchmark " (:benchmark-id plan)
-                            " has nil suite-key — cannot construct plan")))
+                            " has nil :benchmark/scenario-suite — cannot construct canonical plan")))
   (when (zero? (:scenario-count plan))
     (swap! errors conj (str "Benchmark " (:benchmark-id plan)
                             " has zero scenarios in suite " (:suite-key plan))))
-  (doseq [sp (:scenario-paths plan)]
-    (when (and (string? sp)
-               (not (str/starts-with? sp "resource:"))
-               (not (str/starts-with? sp "classpath:")))
-      (swap! errors conj (str "Non-resource scenario path " sp
+  (doseq [source (:scenario-sources plan)]
+    (when (not= :classpath (:input/type source))
+      (swap! errors conj (str "Scenario " (:input/ref source)
                               " in " (:benchmark-id plan)
-                              " will not resolve from JAR")))))
+                              " resolved through filesystem fallback")))))
 
 (defn validate-jar
   "Validate that every benchmark in the registry is fully resolvable through
    InputSource without filesystem fallback.
 
-   This simulates JAR context: all paths must use resource: or classpath:
-   prefixes.  Bare filesystem paths will fail when the code runs from a JAR
-   in an unrelated working directory."
+   This simulates JAR context: every manifest and scenario must resolve to a
+   classpath-backed InputSource. Bare paths are acceptable only when they
+   resolve from the classpath; filesystem fallback is rejected."
   [_opts]
   (println "Validating benchmark JAR corpus...")
   (println "  Enumerating plans from registry:" rp/canonical-registry-path)

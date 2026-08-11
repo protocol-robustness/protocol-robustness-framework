@@ -416,8 +416,16 @@
                    (->SewAdapter scenario-output-dir)
                    adapter)
          manifest (load-manifest manifest-path)
+         _ (when-not (:benchmark/id manifest)
+             (throw (ex-info "Benchmark manifest missing :benchmark/id"
+                             {:manifest manifest-path})))
          repo-meta (repo/metadata)
          scenarios (adapter/load-scenarios adapter manifest)
+         _ (when (empty? scenarios)
+             (throw (ex-info "Benchmark manifest resolved zero scenarios"
+                             {:manifest manifest-path
+                              :scenario-suite (:benchmark/scenario-suite manifest)
+                              :scenario-suites (:scenario-suites manifest)})))
          plan (build-execution-plan manifest scenarios)
          _ (write-execution-plan! execution-plan-path manifest plan)
          _ (do

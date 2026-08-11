@@ -37,7 +37,7 @@ fn main() {
             std::process::exit(1);
         }
         Ok(ctx) => {
-            let committed = match kernel::parse_committed(&parsed) {
+            let committed = match kernel::parse_committed_for_proving(&parsed) {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("allocation-kernel: rejected: {}", e);

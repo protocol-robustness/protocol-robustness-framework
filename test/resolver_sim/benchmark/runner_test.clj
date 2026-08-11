@@ -12,6 +12,7 @@
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.invariants :as sew-inv]
             [resolver-sim.scenario.suites :as suites]
+            [resolver-sim.commands.run-benchmark :as command]
             [clojure.edn :as edn]
             [clojure.string :as str]))
 
@@ -257,6 +258,11 @@
 (deftest test-malformed-manifest
   (testing "Throws on missing manifest"
     (is (thrown? Exception (runner/load-manifest "non-existent.edn")))))
+
+(deftest claim-registry-input-returns-nil-when-file-unreadable
+  (testing "sha256 is nil, not a magic string, when the registry cannot be read"
+    (let [ctx {:claim-registry/path "/nonexistent/registry.edn"}]
+      (is (nil? (get-in (command/claim-registry-input ctx) ["sha256"]))))))
 
 (deftest test-hash-stability
   (testing "Hashing is stable across different instances of same data"

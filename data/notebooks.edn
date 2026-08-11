@@ -292,6 +292,23 @@
                      :audience-level :intro
                      :question "How does a cartel form over multiple epochs — and can the protocol recover?"}}
 
+  {:id             :verification-overview
+   :path           "notebooks/verification_overview.clj"
+   :title          "Verification Overview — Bound State & History"
+   :summary        "Public entry point for bounded, executable assurance claims: stale resubmissions do not extend the current head; cancellation approvals bind an exact target snapshot; and committed clean-room rejections are recomputed. Links distinguish these claims from short-circuit execution and from untested incentive compatibility."
+   :categories     [:evidence-artifacts :security-validation]
+   :audience       [:grant-reviewer :reviewer :auditor :researcher]
+   :status         :draft
+   :risk           :informational
+   :protocol-areas [:evidence :resubmission :assurance]
+   :threats        [:replay-divergence :same-block-ordering]
+   :tags           ["public" "verification" "admission" "current-head" "cancellation" "clean-room"]
+   :presentation   {:theme :evidence-reproducibility :kind :report
+                    :audience-level :intro
+                    :featured? true
+                    :start-here-rank 1
+                    :question "How do we know an approval or resubmission still applies to the exact state it was verified for?"}}
+
   {:id             :demo-short-circuit
    :path           "notebooks/demo_short_circuit.clj"
    :title          "Demo — Short-Circuit Execution"
@@ -518,16 +535,16 @@
 
   {:id             :not-admitted
    :path           "notebooks/not_admitted.clj"
-   :title          "Not Admitted — Evidence Chain & Invariant Verification"
-   :summary        "Evidence chain ordering, verification, and yield invariant admission: chain links, order invariance, propagation completeness, and accounting reconciliation."
-   :categories     [:evidence-artifacts :yield-liquidity]
-   :audience       [:researcher :auditor]
+   :title          "Not Admitted — Admission Boundary Showcase"
+   :summary        "Can a plausible candidate enter the next trusted state or process? Six independently recomputed admission boundaries: policy prohibition, scoped authority, claimed status, custody action, canonical state transition, and immutable content identity."
+   :categories     [:evidence-artifacts :security-validation]
+   :audience       [:grant-reviewer :researcher :reviewer :auditor]
    :status         :verified
    :risk           :medium
-   :protocol-areas [:evidence :yield]
-    :tags           ["chain" "admission" "ordering" "invariants" "pro-rata"]
+   :protocol-areas [:evidence :assurance :accounting]
+    :tags           ["admission" "forbidden" "authorization" "custody" "content-addressed" "fail-closed"]
     :presentation   {:theme :evidence-reproducibility :kind :analysis
-                     :audience-level :intermediate}}
+                     :audience-level :intro}}
 
   {:id             :evaluate-pro-rata-allocation
    :path           "notebooks/evaluate_pro_rata_allocation.clj"
@@ -632,7 +649,7 @@
   {:id             :allocation-activation
    :path           "notebooks/allocation_activation.clj"
    :title          "Allocation Activation v1 — Receipt, All-Active No-Churn, and the Prohibited Boundary"
-   :summary        "allocation-activation.v1 receipt: a passing all-active proof yields a valid :activated receipt with no hash churn; any rejected proof produces a :prohibited receipt that is never valid authorization — exact-capacity, forbidden-authorized (ineligible claimant), covered-fraction, and the receipt examination."
+   :summary        "allocation-activation.v1 receipt: a passing all-active proof yields a valid :activated receipt with no hash churn; any rejected proof produces a :prohibited receipt that is never valid authorization — exact-capacity, ineligible-claimant allocation outcomes, covered-fraction, and the receipt examination."
    :categories     [:economic-analysis :replay-determinism]
    :audience       [:reviewer :auditor :researcher]
    :status         :draft

@@ -494,7 +494,12 @@
    - Override mode may escalate to :multi-party-approval for :critical risk"
   [artifact sink]
   (let [level (classify artifact)
-        allowed? (disclosure-allowed? level sink)
+        artifact-requires-remote? (remote-authority-required-artifact? artifact)
+        ;; This namespace is the in-process gate. Artifacts that are explicitly
+        ;; remote-authority-required must be decided by sentinel-client's
+        ;; signed out-of-process path, even when their destination is :local.
+        allowed? (and (not artifact-requires-remote?)
+                      (disclosure-allowed? level sink))
         decision (if allowed? :allowed :blocked)
         structural-level (classify-structural artifact)
         declared-level (:sensitivity/level artifact)
@@ -528,6 +533,9 @@
                      :sentinel/reasons reasons
                      :sentinel/allowed-sinks allowed-sinks
                      :sentinel/redaction-required? (level>= level :sensitivity/private)
+                     :sentinel/required-authority (if artifact-requires-remote?
+                                                   :remote
+                                                   (required-authority sink))
                      :sentinel/override-required?
                      {:required? (and (not allowed?)
                                       (level>= level :sensitivity/private))

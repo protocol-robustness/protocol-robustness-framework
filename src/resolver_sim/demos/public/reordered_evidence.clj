@@ -43,11 +43,14 @@
   [x]
   (walk/postwalk (fn [n] (if (map? n) (into (sorted-map) n) n)) x))
 
-(defn- failing-reason
-  "A concise reason string for a failing chain check, copied from the model."
-  [{:keys [check/id status detail]}]
-  (when (= :fail status)
-    (str (name id) (when (some? detail) (str " at position " detail)))))
+(defn- require-boolean!
+  "Require a source boolean rather than coercing a missing value to false."
+  [m path]
+  (let [v (require-field! m path)]
+    (when-not (boolean? v)
+      (throw (ex-info "public-demo.v1 projection requires a boolean field"
+                      {:demo/id demo-id :field path :value v})))
+    v))
 
 (defn- project*
   "Project the executable reorder-chain demo model into the public-demo.v1 map.
@@ -73,14 +76,14 @@
       "baseline"
       {"label" (:label baseline)
        "value" (:value baseline)
-       "admitted" (boolean (:admitted? baseline))}
+       "admitted" (require-boolean! baseline [:admitted?])}
       "change"
       {"label" (:label action)
        "from" (:from action)
        "to" (:to action)
        "detail" (:detail action)}
       "outcome"
-      {"admitted" (boolean (:admitted? outcome))
+      {"admitted" (require-boolean! outcome [:admitted?])
        "failed-checks" (mapv #(if (keyword? %) (name %) (name (:reason %)))
                              (or (:failed-checks outcome) []))}
       "why" (require-field! m [:demo/explanation])
@@ -91,8 +94,8 @@
        "checks" (mapv (fn [c]
                         (cond-> {"id" (name (:check/id c))
                                  "status" (name (:status c))}
-                          (some? (failing-reason c))
-                          (assoc "detail" (failing-reason c))))
+                          (some? (:detail c))
+                          (assoc "detail" (:detail c))))
                       checks)}
       "commitments"
       {"baseline" (name (get-in m [:demo/expect :baseline]))

@@ -129,6 +129,35 @@
                      :incentive-compatibility)]
       (is (= :fail (:status result))))))
 
+(deftest test-incentive-compat-claim-tier-does-not-gate-payoff-property
+  (testing ":incentive-compatibility is a payoff-property, not gated by deviation bundles"
+    (let [proj (assoc (projection {:attack-attempts 1 :attack-successes 0 :funds-lost 0})
+                      :deviation-bundle {:meets-minimum? false})
+          result (-> (eq/evaluate-mechanism-properties [:incentive-compatibility] proj)
+                     :incentive-compatibility)]
+      (is (= :pass (:status result))
+          "payoff properties evaluate without deviation bundle gating"))))
+
+(deftest test-incentive-compat-observed-includes-incentive-margin
+  (testing "observed payload includes incentive-margin when supplied in metrics"
+    (let [proj (assoc (projection {:attack-attempts 1 :attack-successes 0 :funds-lost 0})
+                      :metrics (assoc (:metrics (projection {:attack-attempts 1 :attack-successes 0 :funds-lost 0}))
+                                      :incentive-margin 42))
+          result (-> (eq/evaluate-mechanism-properties [:incentive-compatibility] proj)
+                     :incentive-compatibility)]
+      (is (= :pass (:status result)))
+      (is (= 42 (get-in result [:observed :incentive-margin]))))))
+
+(deftest test-incentive-compat-fail-offending-metrics-present
+  (testing "fail result includes offending metrics for attack-successes and funds-lost"
+    (let [proj (projection {:attack-attempts 2 :attack-successes 3 :funds-lost 100})
+          result (-> (eq/evaluate-mechanism-properties [:incentive-compatibility] proj)
+                     :incentive-compatibility)]
+      (is (= :fail (:status result)))
+      (is (seq (:offending result)))
+      (is (= #{:attack-successes :funds-lost}
+             (set (map :metric (:offending result))))))))
+
 ;; ---------------------------------------------------------------------------
 ;; pro-rata-fairness
 ;; ---------------------------------------------------------------------------

@@ -200,13 +200,14 @@
    payable/backing root referenced by the transition exists in the world."
   [transition world]
   (let [custody-roots (:custody/adjustment-roots transition [])
-        missing-artifacts (into []
+        unbound-artifacts (into []
                                 (keep (fn [c]
-                                        (when-not (get-in world
-                                                          [:held-artifacts
-                                                           (:held-adjustment/id c)])
-                                          c)))
-                                custody-roots)
+                                        (let [id (:held-adjustment/id c)
+                                              artifact (get-in world [:held-artifacts id])]
+                                          (when (not= (:artifact/hash c)
+                                                      (:artifact/hash artifact))
+                                            c)))
+                                custody-roots))
         payable-roots (set (:payable/roots transition []))
         backing-roots (set (:backing/roots transition []))
         world-payable-roots (set (map :payable/hash
@@ -216,9 +217,9 @@
         missing-payables (seq (remove world-payable-roots payable-roots))
         missing-backings (seq (remove world-backing-roots backing-roots))
         violations (cond-> []
-                     (seq missing-artifacts)
+                     (seq unbound-artifacts)
                      (conj {:violation/id :violation/custody-artifact-not-bound
-                            :details {:missing missing-artifacts}})
+                            :details {:unbound unbound-artifacts}})
 
                      missing-payables
                      (conj {:violation/id :violation/payable-root-not-in-world

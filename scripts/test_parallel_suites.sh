@@ -52,12 +52,15 @@ echo ""
 OUTDIR_SERIAL="/tmp/parallel-test-serial-$$"
 mkdir -p "$OUTDIR_SERIAL"
 SERIAL_RESULTS="$OUTDIR_SERIAL/results.txt"
+SERIAL_ARTIFACTS="$OUTDIR_SERIAL/artifacts"
+mkdir -p "$SERIAL_ARTIFACTS"
 
 echo "--- Serial run ---"
 for suite in "${SELECTED[@]}"; do
   slog=$(echo "$suite" | tr ':' '_' | tr '/' '-')
   echo "  $suite"
-  clojure -M:test:with-sew -m scripts.run-suite "$suite" > "$OUTDIR_SERIAL/$slog.log" 2>&1 || true
+  PRF_ARTIFACT_DIR="$SERIAL_ARTIFACTS/$slog" \
+    clojure -M:test:with-sew -m scripts.run-suite "$suite" > "$OUTDIR_SERIAL/$slog.log" 2>&1 || true
   # Record outcome: suite-key → PASS/FAIL
   tail -1 "$OUTDIR_SERIAL/$slog.log" | grep -q "→ PASS" && echo "$suite PASS" >> "$SERIAL_RESULTS" || echo "$suite FAIL" >> "$SERIAL_RESULTS"
 done
@@ -66,13 +69,16 @@ done
 OUTDIR_PARALLEL="/tmp/parallel-test-parallel-$$"
 mkdir -p "$OUTDIR_PARALLEL"
 PARALLEL_RESULTS="$OUTDIR_PARALLEL/results.txt"
+PARALLEL_ARTIFACTS="$OUTDIR_PARALLEL/artifacts"
+mkdir -p "$PARALLEL_ARTIFACTS"
 
 echo "--- Parallel run ---"
 pids=()
 for suite in "${SELECTED[@]}"; do
   plog=$(echo "$suite" | tr ':' '_' | tr '/' '-')
   echo "  $suite"
-  clojure -M:test:with-sew -m scripts.run-suite "$suite" > "$OUTDIR_PARALLEL/$plog.log" 2>&1 &
+  PRF_ARTIFACT_DIR="$PARALLEL_ARTIFACTS/$plog" \
+    clojure -M:test:with-sew -m scripts.run-suite "$suite" > "$OUTDIR_PARALLEL/$plog.log" 2>&1 &
   pids+=($!)
 done
 # Wait for all

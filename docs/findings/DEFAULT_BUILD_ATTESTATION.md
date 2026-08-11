@@ -54,6 +54,12 @@ signing, trusted-key verification, and per-distribution distinct-key threshold
 evaluation. It recomputes the signed payload hash before signature verification,
 so changing the declared JAR or build-bundle reference invalidates approval.
 
+A trust policy is structurally valid in lifecycle states `:unconfigured`,
+`:active`, or `:retired`. Only `:active` may authorize a **new** release.
+`:unconfigured` and `:retired` remain valid policy artifacts but always yield
+`:release-policy-not-active` at the authorization boundary. Low-level signature
+verification remains distinct and may be used for historical evidence review.
+
 This cryptographic seam is intentionally not invoked by `bb build:attest` yet:
 that task produces unsigned integrity evidence. A release workflow must supply
 an explicit trusted-key policy and signatures over a payload that references the

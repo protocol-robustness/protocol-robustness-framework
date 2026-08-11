@@ -29,9 +29,7 @@
    "Evaluate Sew dispute liveness: timely resolution under adversarial
     load, bounded resolution time, slashing conservation, and escrow-fund
     conservation across concurrent disputes."
-  :benchmark/concepts        [:ecommerce/purchase
-                             :event/deposit
-                             :consensus/authority
+  :benchmark/concepts        [:consensus/authority
                              :consensus/evidence
                              :consensus/finality
                              :consensus/escalation

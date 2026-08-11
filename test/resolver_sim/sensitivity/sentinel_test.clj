@@ -841,6 +841,14 @@
                  {:artifact/kind :evidence-node})))
     (is (false? (sentinel/remote-authority-required-artifact? {})))))
 
+(deftest in-process-assertion-rejects-remote-authority-artifacts
+  (let [artifact {:artifact/kind :force-auth-add-held :held/action :add-held}
+        report (sentinel/sentinel-report artifact :local)]
+    (is (= :blocked (:sentinel/decision report)))
+    (is (= :remote (:sentinel/required-authority report)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sentinel/assert-disclosure-allowed! artifact {:sink :local})))))
+
 (deftest force-auth-add-held-classified-private
   (is (= :sensitivity/private (sentinel/classify {:artifact/kind :force-auth-add-held})))
   (is (= :sensitivity/private (sentinel/classify {:artifact/kind :force-auth-add-held-summary}))))

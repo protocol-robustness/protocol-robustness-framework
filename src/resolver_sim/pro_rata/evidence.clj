@@ -104,3 +104,72 @@
           :expected (:mechanism result) :observed (:mechanism artifact)}])
       (invariants/result-violations result)
       (reconstruction-violations result)))))
+
+;; ── Proposed effect plan ───────────────────────────────────────────────────
+
+(def proposed-effects-schema-version "pro-rata-proposed-effects.v1")
+
+(defn- derived-effect-rows
+  "The sole effect projection admitted by this generic layer. Each allocated
+   unit becomes a proposed obligation settlement effect; domain adapters decide
+   how that effect is applied to concrete custody/state."
+  [allocation-result]
+  (mapv (fn [row]
+          (let [row-id (:row/id row)
+                obligation-id (:obligation/id row)]
+            {:effect/id [:pro-rata-allocation-effect
+                         (:allocation/id allocation-result) row-id]
+             :row/id row-id
+             :obligation/id obligation-id
+             :amount (:allocated row)}))
+        (:rows allocation-result)))
+
+(defn proposed-effects
+  "Builds a hash-bound, replay-verifiable proposed effect plan from a complete
+   pro-rata allocation witness. The caller cannot independently choose amounts
+   or obligation identities: both are derived from the committed allocation
+   rows. This is a proposal, not an application receipt."
+  [allocation-result]
+  (when-not (and (allocation/allocation-hash-valid? allocation-result)
+                 (empty? (invariants/result-violations allocation-result)))
+    (throw (ex-info "cannot derive proposed effects from an invalid pro-rata allocation"
+                    {:allocation/id (:allocation/id allocation-result)})))
+  (let [base {:schema-version proposed-effects-schema-version
+              :allocation/id (:allocation/id allocation-result)
+              :allocation/hash (:allocation/hash allocation-result)
+              :effects (derived-effect-rows allocation-result)}]
+    (assoc base :proposed-effects/root
+           (hc/domain-hash :pro-rata-proposed-effects base))))
+
+(defn proposed-effects-violations
+  "Returns proof failures for a proposed pro-rata effect plan. Verification
+   reconstructs the expected effect rows from the supplied allocation witness,
+   so a plan cannot alter an amount, add/remove a row, or redirect an
+   obligation while retaining a valid root."
+  [allocation-result proposal]
+  (let [base (dissoc proposal :proposed-effects/root)
+        expected-effects (derived-effect-rows allocation-result)
+        expected-root (hc/domain-hash :pro-rata-proposed-effects base)]
+    (vec
+     (concat
+      (when-not (= proposed-effects-schema-version (:schema-version proposal))
+        [{:reason :pro-rata/unsupported-proposed-effects-schema
+          :observed (:schema-version proposal)}])
+      (when-not (allocation/allocation-hash-valid? allocation-result)
+        [{:reason :pro-rata/invalid-allocation-witness}])
+      (when-not (= (:allocation/id proposal) (:allocation/id allocation-result))
+        [{:reason :pro-rata/proposed-effects-allocation-id-mismatch}])
+      (when-not (= (:allocation/hash proposal) (:allocation/hash allocation-result))
+        [{:reason :pro-rata/proposed-effects-allocation-hash-mismatch}])
+      (when-not (= (:effects proposal) expected-effects)
+        [{:reason :pro-rata/proposed-effects-not-derived-from-allocation
+          :expected expected-effects :observed (:effects proposal)}])
+      (when-not (= (:proposed-effects/root proposal) expected-root)
+        [{:reason :pro-rata/proposed-effects-root-mismatch
+          :expected expected-root :observed (:proposed-effects/root proposal)}])))))
+
+(defn proposed-effects-valid?
+  "True when a proposed effect plan is exactly derivable from its allocation
+   witness and its own typed commitment."
+  [allocation-result proposal]
+  (empty? (proposed-effects-violations allocation-result proposal)))

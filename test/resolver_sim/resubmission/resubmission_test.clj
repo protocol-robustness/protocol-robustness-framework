@@ -198,11 +198,28 @@
         (is (= :withdrawn
                (disposition/effective-lifecycle-status
                 [withdraw signed]
+                (:attempt-disposition/attempt-receipt-hash signed)
                 #(disposition/verify-disposition % (:public-hex authority))))))
       (is (= :active
              (disposition/effective-lifecycle-status
               []
-              #(disposition/verify-disposition % (:public-hex authority))))))))
+              (:attempt-disposition/attempt-receipt-hash signed)
+              #(disposition/verify-disposition % (:public-hex authority)))))
+      (let [final (disposition/sign-disposition
+                   (assoc base :attempt-disposition/status :final)
+                   (:private-key authority))]
+        (is (= :active
+               (disposition/effective-lifecycle-status
+                [final]
+                (:attempt-disposition/attempt-receipt-hash signed)
+                #(disposition/verify-disposition % (:public-hex authority))))
+            "disposition finality does not deactivate the receipt"))
+      (is (nil?
+           (disposition/effective-lifecycle-status
+            [(assoc signed :attempt-disposition/status :final)]
+            (:attempt-disposition/attempt-receipt-hash signed)
+            #(disposition/verify-disposition % (:public-hex authority))))
+          "invalid chains fail closed rather than becoming active"))))
 
 ;; ── kind derivation ─────────────────────────────────────────────────────────
 
@@ -308,40 +325,56 @@
   {:receipt-hash receipt-hash :sequence sequence :parent-receipt-hash parent
    :link-hash link-hash :idempotency-key idempotency :basis-root basis-root})
 
+(deftest canonical-chain-admission-requires-the-signed-authority-receipt
+  (let [authority (ed/keypair :chain-validator)
+        signed (receipt/sign-receipt (golden-receipt-base) (:private-key authority))
+        c (chain/new-chain "sha256:FAM" nil (:public-hex authority))
+        request {:receipt-hash "sha256:FORGED"
+                 :candidate-attempt-receipt signed
+                 :sequence 1 :parent-receipt-hash nil
+                 :link-hash "sha256:L1" :idempotency-key "sha256:I1"
+                 :basis-root "sha256:B1"}
+        result (chain/admit! c request)]
+    (is (= :admitted (:admission-status result)))
+    (is (= (:attempt-receipt/id signed) (chain/current-head c))
+        "the supplied bare receipt-hash cannot select chain identity")
+    (is (= :receipt-authority-not-configured
+           (:reason (chain/admit! (chain/new-chain "sha256:FAM") request))))))
+
 (deftest linear-chain-admission
   (testing "initial attempt then a linear child"
     (let [c (chain/new-chain "sha256:FAM")
-          r1 (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))]
+          r1 (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))]
       (is (= :admitted (:admission-status r1)))
       (is (= "sha256:R1" (chain/current-head c)))
-      (let [r2 (chain/admit! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
+      (let [r2 (chain/admit-compat! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
         (is (= :admitted (:admission-status r2)))
         (is (= "sha256:R2" (chain/current-head c))))))
   (testing "parent must be current head"
     (let [c (chain/new-chain "sha256:FAM")
-          _ (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
-          _ (chain/admit! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))
-          r3 (chain/admit! c (admit-request "sha256:R3" 3 "sha256:R1" :basis-root "sha256:B3" :link-hash "sha256:L3" :idempotency "sha256:I3"))]
+          _ (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
+          _ (chain/admit-compat! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))
+          r3 (chain/admit-compat! c (admit-request "sha256:R3" 3 "sha256:R1" :basis-root "sha256:B3" :link-hash "sha256:L3" :idempotency "sha256:I3"))]
       (is (= :parent-not-current-head (:reason r3)))
       (is (= "sha256:R2" (chain/current-head c)))))
   (testing "parent already has a successor"
     (let [c (chain/new-chain "sha256:FAM")
-          _ (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
-          _ (chain/admit! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))
-          r3 (chain/admit! c (admit-request "sha256:R3" 2 "sha256:R1" :basis-root "sha256:B3" :link-hash "sha256:L3" :idempotency "sha256:I3"))]
+          _ (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
+          _ (chain/admit-compat! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))
+          r3 (chain/admit-compat! c (admit-request "sha256:R3" 2 "sha256:R1" :basis-root "sha256:B3" :link-hash "sha256:L3" :idempotency "sha256:I3"))]
       (is (= :parent-not-current-head (:reason r3)))))
   (testing "sequence gap and regression"
     (let [c (chain/new-chain "sha256:FAM")
-          _ (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))]
-      (is (= :sequence-gap (:reason (chain/admit! c (admit-request "sha256:R9" 9 "sha256:R1" :basis-root "sha256:B9" :link-hash "sha256:L9" :idempotency "sha256:I9")))))
+          _ (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))]
+      (is (= :sequence-gap (:reason (chain/admit-compat! c (admit-request "sha256:R9" 9 "sha256:R1" :basis-root "sha256:B9" :link-hash "sha256:L9" :idempotency "sha256:I9")))))
       (let [c2 (chain/new-chain "sha256:FAM")
-            _ (chain/admit! c2 (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
-            _ (chain/admit! c2 (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
-        (is (= :sequence-regression (:reason (chain/admit! c2 (admit-request "sha256:R3" 2 "sha256:R2" :basis-root "sha256:B3" :link-hash "sha256:L3" :idempotency "sha256:I3"))))))))
+            _ (chain/admit-compat! c2 (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
+            _ (chain/admit-compat! c2 (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
+        (is (= :sequence-regression (:reason (chain/admit-compat! c2 (admit-request "sha256:R3" 2 "sha256:R2" :basis-root "sha256:B3" :link-hash "sha256:L3" :idempotency "sha256:I3"))))))))
   (testing "cycle detection"
     (let [c (chain/new-chain "sha256:FAM")
-          _ (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
-          r (chain/admit! c (admit-request "sha256:R1" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
+          _ (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
+          r (chain/admit-compat! c (admit-request "sha256:R1" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
       ;; R1 is already committed as the root, so re-admitting it (even as its
       ;; own parent) is a prior-state integrity violation, reported before the
       ;; child==parent cycle check.
@@ -349,26 +382,26 @@
       (is (= :not-admitted (:admission-status r)))))
   (testing "dedup before head check"
     (let [c (chain/new-chain "sha256:FAM")
-          _ (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
-          _ (chain/admit! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
+          _ (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
+          _ (chain/admit-compat! c (admit-request "sha256:R2" 2 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
       (testing "idempotent replay of R2"
-        (let [r (chain/admit! c (admit-request "sha256:R2x" 3 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
+        (let [r (chain/admit-compat! c (admit-request "sha256:R2x" 3 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))]
           (is (= :submission-already-observed (:reason r)))
           (is (= "sha256:R2" (:existing r)))))
       (testing "same link projection under a different key"
-        (let [r (chain/admit! c (admit-request "sha256:R2x" 3 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2x"))]
+        (let [r (chain/admit-compat! c (admit-request "sha256:R2x" 3 "sha256:R1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2x"))]
           (is (= :duplicate-content-submission (:reason r)))))
       (testing "same basis root, another parent (transplant)"
         (let [c3 (chain/new-chain "sha256:FAM")
-              _ (chain/admit! c3 (admit-request "sha256:Q1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
-              _ (chain/admit! c3 (admit-request "sha256:Q2" 2 "sha256:Q1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))
-              r (chain/admit! c3 (admit-request "sha256:Q3" 3 "sha256:Q2" :basis-root "sha256:B2" :link-hash "sha256:L3" :idempotency "sha256:I3"))]
+              _ (chain/admit-compat! c3 (admit-request "sha256:Q1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
+              _ (chain/admit-compat! c3 (admit-request "sha256:Q2" 2 "sha256:Q1" :basis-root "sha256:B2" :link-hash "sha256:L2" :idempotency "sha256:I2"))
+              r (chain/admit-compat! c3 (admit-request "sha256:Q3" 3 "sha256:Q2" :basis-root "sha256:B2" :link-hash "sha256:L3" :idempotency "sha256:I3"))]
           (is (= :idempotency-key-rebound (:reason r)))))))
   (testing "concurrent admit! admits exactly one successor"
     (let [c (chain/new-chain "sha256:FAM")
-          _ (chain/admit! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
+          _ (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
           futures (doall (map (fn [i]
-                                (future (chain/admit! c (admit-request (str "sha256:C" i) 2 "sha256:R1"
+                                (future (chain/admit-compat! c (admit-request (str "sha256:C" i) 2 "sha256:R1"
                                                                        :basis-root (str "sha256:BC" i)
                                                                        :link-hash (str "sha256:LC" i)
                                                                        :idempotency (str "sha256:IC" i)))))
@@ -480,4 +513,41 @@
                       :results-hash golden-results-root
                       :execution-context-hash "sha256:E"
                       :submission-basis-hash "sha256:B"})]
-        (is (= :submission-repair-not-permitted (:reason stage3b)))))))
+                 (is (= :submission-repair-not-permitted (:reason stage3b))))))
+
+;; ── new-chain arities ────────────────────────────────────────────────────────
+
+(deftest new-chain-3-arity-stores-receipt-public-hex
+  (let [c (chain/new-chain "sha256:FAM" nil "sha256:receipt-pk")]
+    (is (= "sha256:receipt-pk" (.receipt-public-hex c)))))
+
+;; ── admit! finality guard ────────────────────────────────────────────────────
+
+(deftest admit-rejects-non-final-receipt
+  (let [authority (ed/keypair :chain-validator)
+        signed (receipt/sign-receipt
+                (assoc (golden-receipt-base) :attempt-receipt/finality :pending)
+                (:private-key authority))
+        c (chain/new-chain "sha256:FAM" nil (:public-hex authority))
+        request {:receipt-hash "sha256:FORGED"
+                 :candidate-attempt-receipt signed
+                 :sequence 1 :parent-receipt-hash nil
+                 :link-hash "sha256:L1" :idempotency-key "sha256:I1"
+                 :basis-root "sha256:B1"}]
+    (is (= :not-admitted (:admission-status (chain/admit! c request))))
+    (is (= :receipt-not-final (:reason (chain/admit! c request))))))
+
+;; ── admit-compat! runtime guard ──────────────────────────────────────────────
+
+(deftest admit-compat-guard-fails-closed-when-active
+  (let [c (chain/new-chain "sha256:FAM")]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"admit-compat! is forbidden"
+                          (binding [chain/*admit-compat-guard* :enforced]
+                            (chain/admit-compat! c (admit-request "sha256:R1" 1 nil)))))))
+
+(deftest admit-compat-allowed-when-guard-is-nil
+  (let [c (chain/new-chain "sha256:FAM")]
+    (is (= :admitted
+           (:admission-status
+            (binding [chain/*admit-compat-guard* nil]
+              (chain/admit-compat! c (admit-request "sha256:R1" 1 nil)))))))))

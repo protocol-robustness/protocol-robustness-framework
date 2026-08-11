@@ -28,30 +28,24 @@
    :reproduce reproduce
    :invariant-summary inv-summary})
 
-(deftest build-report-adds-ecommerce-language-projection
-  (let [evidence (make-evidence
-                  "benchmarks/packs/sew/escrow-dispute-v1.edn"
-                  [{:scenario/id "release" :outcome :pass
-                    :metrics {:escrow/live-state "released"}}
-                   {:scenario/id "refund" :outcome :pass
-                    :metrics {:escrow/live-state "refunded"}}
-                   {:scenario/id "locked" :outcome :pass
-                    :metrics {:escrow/live-state "disputed"}}
-                   {:scenario/id "dispute-release" :outcome :pass
-                    :metrics {:escrow/live-state "released" :disputes-triggered 1}}]
-                  :metrics {:total 4 :passed 4})
+(deftest build-report-has-no-implicit-use-case-projection
+  (let [evidence (make-evidence "benchmarks/packs/sew/escrow-dispute-v1.edn" [] :metrics {:total 0 :passed 0})
+        report (rpt/build-report (temp-evidence-file evidence) nil
+                                 "benchmarks/scoring/severity-weighted-robustness-v1.edn")]
+    (is (nil? (:stakeholder/use-case-results report)))
+    (is (nil? (:use-case-registry report)))))
+
+(deftest build-report-binds-explicit-use-case-registry-root
+  (let [evidence (assoc-in (make-evidence "benchmarks/packs/sew/escrow-dispute-v1.edn" [])
+                           [:benchmark :benchmark/concepts] [:ecommerce/purchase])
         report (rpt/build-report (temp-evidence-file evidence)
                                  nil
-                                 "benchmarks/scoring/severity-weighted-robustness-v1.edn")
-        scenarios (get-in report [:stakeholder/use-case-results
-                                  :ecommerce/purchase
-                                  :stakeholder/scenarios])]
-    (is (= :merchant-paid (get-in scenarios [0 :stakeholder/outcome])))
-    (is (= "Merchant payment released" (get-in scenarios [0 :stakeholder/headline])))
-    (is (= :buyer-refunded (get-in scenarios [1 :stakeholder/outcome])))
-    (is (= :funds-locked (get-in scenarios [2 :stakeholder/outcome])))
-    (is (= "A buyer–merchant dispute was raised and the escrowed payment was released to the merchant."
-           (get-in scenarios [3 :stakeholder/summary])))))
+                                 "benchmarks/scoring/severity-weighted-robustness-v1.edn"
+                                 "examples/use-cases/ecommerce/registry.edn")]
+    (is (= :external-use-case (get-in report [:benchmark/concepts 0 :concept/source])))
+    (is (= "prf-example-ecommerce" (get-in report [:use-case-registry :use-case-registry/id])))
+    (is (re-matches #"sha256:[0-9a-f]{64}"
+                    (get-in report [:use-case-registry :use-case-registry/root])))))
 
 (deftest benchmark-conclusion-requires-passing-claims
   (let [pass-conclusion (rpt/build-conclusion {:total 1 :passed 1}

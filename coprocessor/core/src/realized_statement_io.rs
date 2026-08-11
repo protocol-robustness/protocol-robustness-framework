@@ -12,6 +12,7 @@ use crate::realized_fill::{self, RealizedAllocation};
 use crate::realized_statement;
 use num_bigint::BigInt;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 /// Parse the canonical realized-statement input document.
 ///
@@ -96,6 +97,42 @@ pub fn run_realized_statement(input: &Value) -> Value {
         }
     };
 
+    let context_claim_ids: HashSet<&str> = ctx
+        .claimants
+        .iter()
+        .map(|claim| claim.claim_id.as_str())
+        .collect();
+    if let Some((claim_id, _)) = requested
+        .iter()
+        .find(|(claim_id, _)| !context_claim_ids.contains(claim_id.as_str()))
+    {
+        return reject(
+            "unknown-request-claim-id",
+            format!(
+                "requested claim {} is absent from allocation context",
+                claim_id
+            ),
+        );
+    }
+    let total_requested = match requested
+        .iter()
+        .try_fold(0_i64, |total, (_, amount)| total.checked_add(*amount))
+    {
+        Some(total) => total,
+        None => {
+            return reject(
+                "requested-total-overflow",
+                "total requested exceeds supported integer range".to_string(),
+            )
+        }
+    };
+    if available > total_requested {
+        return reject(
+            "available-exceeds-total-requested",
+            "available must not exceed total requested".to_string(),
+        );
+    }
+
     let policy_pairs = match parse_keyword_map(input.get("policy")) {
         Ok(p) => p,
         Err(rejection) => return rejection,
@@ -110,6 +147,12 @@ pub fn run_realized_statement(input: &Value) -> Value {
 
     let round_state = input.get("round-state");
     let rl = lifecycle::round_lifecycle(round_state);
+    if rl.lifecycle_assertion_status != "passing" {
+        return reject(
+            "invalid-round-lifecycle",
+            "round-state must be a recognized lifecycle state".to_string(),
+        );
+    }
     let lc = realized_statement::lifecycle_canon_value(&rl);
 
     // Realize the partial fill (semantics layer), fail-closed on malformed.

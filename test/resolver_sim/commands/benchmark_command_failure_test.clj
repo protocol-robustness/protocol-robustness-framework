@@ -1,8 +1,10 @@
 (ns resolver-sim.commands.benchmark-command-failure-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is]]
+            [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.commands.run-benchmark :as command]
-            [resolver-sim.commands.scenario-safety :as safety]))
+            [resolver-sim.commands.scenario-safety :as safety]
+            [resolver-sim.io.resource-path :as resource-path]))
 
 (defn- temp-dir []
   (.toFile (java.nio.file.Files/createTempDirectory
@@ -24,6 +26,19 @@
         (is (= 2 (:exit-code result)))
         (is (re-find #"Filesystem benchmark manifests" (:message result)))
         (is (not (.exists (io/file root "bundle")))))
+      (finally (delete-tree! root)))))
+
+(deftest canonical-benchmark-rejects-legacy-scenario-suite-discovery-before-root-mutation
+  (let [root (temp-dir)
+        bundle (io/file root "bundle")]
+    (try
+      (with-redefs [benchmark-cli/resolve-benchmark-manifest (constantly "resource:benchmarks/legacy.edn")
+                    resource-path/edn-read (constantly {:scenario-suites ["scenarios"]})]
+        (let [result (command/run {:cmd/args ["benchmark/legacy"]
+                                   :run-root (str bundle)})]
+          (is (= 2 (:exit-code result)))
+          (is (re-find #":scenario-suites" (:message result)))
+          (is (not (.exists bundle)))))
       (finally (delete-tree! root)))))
 
 (deftest every-phase-failure-retains-state-and-never-completes
@@ -140,12 +155,54 @@
       (is (thrown-with-msg? clojure.lang.ExceptionInfo
                             #"injected registry failure"
                             (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)))
-      (is (= [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion
-              :write-summary :scan-sensitivity :write-content-registry :write-finalization
-              :write-canonical-assurance :write-verdict-policy :write-package-index
-              :build-inventory :finalize-registry]
-             @calls))
-      (is (.exists (io/file root ".run-state")))
-      (is (not (.exists (io/file root "completion.json"))))
-      (is (not (.exists (io/file root ".run.lock"))))
+       (is (= [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion
+               :write-summary :scan-sensitivity :write-content-registry :write-finalization
+               :write-canonical-assurance :write-verdict-policy :write-package-index
+               :build-inventory :finalize-registry]
+              @calls))
+       (is (.exists (io/file root ".run-state")))
+       (is (not (.exists (io/file root "completion.json"))))
+       (is (not (.exists (io/file root ".run.lock"))))
+       (finally (delete-tree! root)))))
+
+(deftest canonical-benchmark-rejects-empty-scenario-list-before-execution
+  (let [root (temp-dir)]
+    (try
+      (with-redefs [benchmark-cli/resolve-benchmark-manifest (constantly "resource:benchmarks/empty.edn")
+                    resource-path/edn-read (constantly {:benchmark/id :benchmark/empty})]
+        (let [result (command/run {:cmd/args ["benchmark/empty"]
+                                   :run-root (str (io/file root "bundle"))})]
+          (is (= 1 (:exit-code result)))
+          (is (re-find #"zero scenarios" (:message result)))
+          (is (not (.exists (io/file root "bundle"))))))
+      (finally (delete-tree! root)))))
+
+(deftest run-with-root-success-path-completes-all-phases
+  (let [root (temp-dir)
+        calls (atom [])
+        record (fn [phase value]
+                 (fn [& _] (swap! calls conj phase) value))
+        overrides {:execute (record :execute {:exit-code 0 :evidence {}})
+                   :finalize-runner (record :finalize-runner {})
+                   :write-manifest (record :write-manifest {})
+                   :snapshot-definition (record :snapshot-definition {})
+                   :write-conclusion (record :write-conclusion {"outcome" "pass"})
+                   :write-summary (record :write-summary {})
+                   :scan-sensitivity (record :scan-sensitivity {})
+                   :write-content-registry (record :write-content-registry {})
+                   :write-finalization (record :write-finalization {})
+                   :write-canonical-assurance (record :write-canonical-assurance {})
+                   :write-verdict-policy (record :write-verdict-policy {})
+                   :write-package-index (record :write-package-index {})
+                   :build-inventory (record :build-inventory {})
+                   :finalize-registry (record :finalize-registry {})
+                   :validate-registry (record :validate-registry {})
+                   :complete (record :complete {})}]
+    (try
+      (let [result (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)]
+        (is (zero? (:exit-code result)))
+        (is (.exists (io/file root "completion.json")))
+        (is (not (.exists (io/file root ".run.lock"))))
+        (is (= :complete (last @calls))
+             "success path must reach :complete"))
       (finally (delete-tree! root)))))

@@ -178,6 +178,17 @@
          #"drifted state"
          (sew-wb/apply-with-bounty-plan plan drifted)))))
 
+(deftest idempotent-replay-requires-exact-custody-reservation
+  (let [plan (evaluated-plan)
+        world (:world (sew-wb/apply-with-bounty-plan plan {}))
+        drifted (assoc-in world [:held-adjustments 0 :held/reason] :other-reservation)]
+    ;; A held-adjustment count alone must not permit a mismatched reservation to
+    ;; satisfy a replay of the committed plan.
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"drifted state"
+         (sew-wb/apply-with-bounty-plan plan drifted)))))
+
 (deftest mid-application-failure-is-atomic
   (let [base (evaluated-plan)
         obligation (first (filter #(= :prf.effect/obligation-create.v2 (:effect/contract %))
@@ -216,11 +227,16 @@
   (let [plan (evaluated-plan)
         result (sew-wb/apply-with-bounty-plan plan {})
         world (:world result)
-        transition (:transition result)]
+        transition (:transition result)
+        adjustment-id (get-in transition [:custody/adjustment-roots 0 :held-adjustment/id])]
     (is (:valid? (verification/verify-transition-binds-world transition world)))
     (is (:valid? (verification/verify-transition-with-plan transition plan)))
     (is (not (:valid? (verification/verify-transition-binds-world
                        transition (dissoc world :with-bounty/payables)))))
+    (is (not (:valid? (verification/verify-transition-binds-world
+                       transition
+                       (assoc-in world [:held-artifacts adjustment-id :artifact/hash]
+                                 "tampered-artifact-hash")))))
     (is (= 1 (count (:custody/adjustment-roots transition))))
     (is (string? (get-in transition [:custody/adjustment-roots 0 :artifact/hash])))))
 

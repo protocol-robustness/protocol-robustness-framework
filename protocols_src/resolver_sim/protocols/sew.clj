@@ -1282,7 +1282,7 @@
             members    (for [wf-id workflow-ids]
                          {:claim/kind :sew/workflow
                           :workflow/id (t/normalize-workflow-id wf-id)})
-            result     (rc/create-related-claims-with-assurance!
+            result     (#'rc/create-related-claims-with-assurance!
                         world
                         {:type type
                          :members members

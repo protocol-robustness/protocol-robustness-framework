@@ -18,6 +18,16 @@ export default function DemosPage() {
       </p>
 
       <section className={styles.grid}>
+        <Link href="/demos/current-head" className={styles.card}>
+          <span className={styles.cardTag}>Featured · admission</span>
+          <h2>Current Head</h2>
+          <p>
+            Can a resubmission extend an older, superseded result? The chain
+            refuses it and leaves the verified head unchanged.
+          </p>
+          <span className={styles.cardCta}>See the demo →</span>
+        </Link>
+
         <Link href="/demos/blocked-decision" className={styles.card}>
           <span className={styles.cardTag}>Featured</span>
           <h2>Blocked Decision</h2>

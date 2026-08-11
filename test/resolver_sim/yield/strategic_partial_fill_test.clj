@@ -52,3 +52,48 @@
             :merged-allocation 1
             :error 1}
            (:counterexample property)))))
+
+(deftest split-invariance-preserves-total-allocation
+  (testing "splitting a claim into equal parts preserves total allocation"
+    (let [violations (strategic/check-split-invariance
+                      [2 2] 2 {:mode :pro-rata :rounding-policy :largest-remainder})]
+      (is (empty? violations)))))
+
+(deftest permutation-invariance-is-order-independent
+  (testing "reordering claims does not change total allocations"
+    (let [violations (strategic/check-permutation-invariance
+                      [3 1] 4 {:mode :pro-rata :rounding-policy :largest-remainder})]
+      (is (empty? violations)))))
+
+(deftest sybil-invariance-prevents-total-allocation-gain
+  (testing "splitting a claim into sybil identities does not increase total allocation"
+    (let [violations (strategic/check-sybil-invariance
+                      [4] 4 {:mode :pro-rata :rounding-policy :largest-remainder})]
+      (is (empty? violations)))))
+
+(deftest request-monotonicity-preserves-allocations
+  (testing "inflating a claim does not decrease its allocation or increase others"
+    (let [violations (strategic/check-request-monotonicity
+                      [3 1] 4 {:mode :pro-rata :rounding-policy :largest-remainder})]
+      (is (empty? violations)))))
+
+(deftest validate-strategic-properties-returns-complete-artifact
+  (testing "validation artifact includes expected top-level keys"
+    (let [artifact (strategic/validate-strategic-properties
+                    :deviations [:split :merge :permute :sybil :inflate]
+                    :policies [{:mode :pro-rata :rounding-policy :largest-remainder}]
+                    :max-states 10)]
+      (is (= :strategic-closed-form-validation (:artifact/kind artifact)))
+      (is (= :yield/partial-fill (:mechanism artifact)))
+      (is (map? (:validation-scope artifact)))
+      (is (vector? (:properties artifact)))
+      (is (map? (:summary artifact)))
+      (is (number? (:summary :total-checks)))
+      (is (number? (:summary :verified)))
+      (is (number? (:summary :violated))))))
+
+(deftest empty-claims-vector-produces-zero-allocations
+  (testing "zero claims yields empty allocations with no violations"
+    (let [report (strategic/allocation-report [] 100 {:rounding-policy :largest-remainder})]
+      (is (empty? (:allocations report)))
+      (is (zero? (:distributed report))))))

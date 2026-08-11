@@ -308,7 +308,24 @@
                   :reason "test"
                :created-by test-creator})
         world' (:world result)]
-    (is (true? (:holds? (inv/related-claims-hash-matches-members? world'))))))
+    (is (true? (:holds? (inv/related-claims-hash-matches-members? world'))))
+    (let [corrupted-world (assoc-in world'
+                                    [:related-claims (:relationship-id result) :relationship/hash]
+                                    "corrupted-hash")
+          violation (first (:violations
+                            (inv/related-claims-hash-matches-members? corrupted-world)))]
+      (is (= {:relationship/id (:relationship-id result)
+              :expected (:relationship/hash (get-in world'
+                                                     [:related-claims (:relationship-id result)]))
+              :actual "corrupted-hash"
+              :members (get-in world' [:related-claims (:relationship-id result)
+                                       :relationship/members])}
+             violation)))))
+
+(deftest authenticated-related-claims-builder-is-not-public
+  (is (not (contains? (ns-publics 'resolver-sim.protocols.sew.related-claims)
+                      'create-related-claims-with-assurance!))
+      "only the governance action may invoke the authenticated builder"))
 
 (deftest related-claims-do-not-block-finality-invariant
   (let [w (world-with-escrows 2)

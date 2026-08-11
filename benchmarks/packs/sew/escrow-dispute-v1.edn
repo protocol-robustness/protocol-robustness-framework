@@ -32,9 +32,7 @@
    "Evaluate Sew escrow dispute resolution across unauthorized release
     prevention, fund conservation, dispute liveness, slashing integrity,
     and governance non-interference."
-  :benchmark/concepts        [:ecommerce/purchase
-                              :event/deposit
-                              :decision-quality/solvency-status
+  :benchmark/concepts        [:decision-quality/solvency-status
                               :attestation/verification
                               :consensus/authority
                               :consensus/evidence

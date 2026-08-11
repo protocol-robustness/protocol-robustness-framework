@@ -307,6 +307,7 @@ run_unit() {
     resolver-sim.protocols.sew.phase-m-test \
     resolver-sim.sim.waterfall-test \
     resolver-sim.io.scenario-fixture-parity-test \
+    resolver-sim.io.scenario-runner-test \
     resolver-sim.contract-model.replay-batch-test \
     resolver-sim.contract-model.replay-batch-sew-test \
     resolver-sim.contract-model.replay-batch-appeal-test \

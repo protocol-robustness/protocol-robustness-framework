@@ -180,6 +180,7 @@
     resolver-sim.hash.sequence-test
     resolver-sim.hash.admission-profile-test
     resolver-sim.io.scenario-fixture-parity-test
+    resolver-sim.io.scenario-runner-test
     resolver-sim.ordering.priority-composition-test
     resolver-sim.ordering.priority-test
     resolver-sim.properties.invariants-test

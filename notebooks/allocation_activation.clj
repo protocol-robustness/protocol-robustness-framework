@@ -114,15 +114,17 @@
 ;; A rejected proof always yields a `:prohibited` receipt, and a prohibited
 ;; receipt is never valid for authorization. Each row is a rejection
 ;; classification the kernel can emit; the activation boundary is fail-closed
-;; for every one of them. `exact-capacity` and `forbidden-authorized`
-;; (ineligible claimant) are the two spelled out in detail below.
+;; for every one of them. `exact-capacity` and the allocation-specific
+;; `ineligible-claimant` classification are spelled out in detail below.
+;; The broader forbidden / scoped-authority admission showcase lives in
+;; `notebooks/not_admitted.clj`.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def rejection-classifications
   [{:label "exact-capacity" :classification :outcome-not-exact-capacity
     :property "outcomes must sum to exactly capacity (no over/under fill)"}
-   {:label "forbidden-authorized (ineligible claimant)" :classification :ineligible-claimant
-    :property "every claimant must be eligible / authorized; a forbidden claimant is not admitted"}
+   {:label "ineligible claimant" :classification :ineligible-claimant
+    :property "every claimant must be eligible for the allocation outcome"}
    {:label "rates-not-canonical" :classification :rates-not-canonical
     :property "proposed rates must be reduced exact ratios"}
    {:label "rates-not-sum-to-one" :classification :rates-not-sum-to-one
@@ -269,7 +271,7 @@
             [:th {:style {:padding "6px 8px" :textAlign "left" :color "#f87171"}} "NOT ADMITTED"]]]
           [(row "genuine all-active proof" "none — all assertions hold" ":activated (valid)" true)
            (row "exact-capacity violation" "outcomes not exactly capacity" ":prohibited" false)
-           (row "forbidden-authorized (ineligible)" "claimant not eligible/authorized" ":prohibited" false)
+           (row "ineligible claimant" "claimant is not eligible for the allocation outcome" ":prohibited" false)
            (row "partial fill (covered-fraction < 100%)" "not all-active — fail-action filter active" "not all-active / no-churn" false)
            (row "forged / tampered receipt" "status overwritten or root does not recompute" "invalid authorization" false)]))))
 

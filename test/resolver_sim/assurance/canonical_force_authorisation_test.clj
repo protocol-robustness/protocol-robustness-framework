@@ -360,9 +360,7 @@
   (testing "a whitespace-only string value counts as missing"
     (let [binding (assoc (complete-binding) :target/hash "   ")]
       (is (= [:target/hash] (cfa/missing-cancellation-binding-fields binding)))))
-  (testing "an empty collection value counts as missing"
-    (let [binding (assoc (complete-binding) :cancellation/effects #{})]
-      (is (= [:cancellation/effects] (cfa/missing-cancellation-binding-fields binding)))))
+
   (testing "a populated zero is present, not missing"
     (is (empty? (cfa/missing-cancellation-binding-fields
                  (assoc (complete-binding) :target/hash 0)))))

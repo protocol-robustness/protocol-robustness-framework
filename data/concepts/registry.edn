@@ -4,71 +4,7 @@
   maps protocol-level mechanics to a real-world use-case vocabulary."
 
  :concepts
- [{:concept/id    :ecommerce/purchase
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/ecommerce.edn"
-   :concept/name  "Ecommerce purchase"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :event/deposit
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/event_deposits.edn"
-   :concept/name  "Event deposit"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :spending-account/controlled-balance
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/controlled_escrow_balance.edn"
-   :concept/name  "Controlled escrow balance"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :dispute/appeal-escalation
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/dispute_appeal_escalation.edn"
-   :concept/name  "Dispute appeal and escalation"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :resolver/participation-bonding
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/resolver_participation_bonding.edn"
-   :concept/name  "Resolver participation and bonding"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :yield/escrow
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/yield_bearing_escrow.edn"
-   :concept/name  "Yield-bearing escrow"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :governance/rule-transition
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/governance_rule_transition.edn"
-   :concept/name  "Governance rule transition during active escrow"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :funding/goal-contingent-pool
-   :concept/type  :use-case
-   :concept/layer :stakeholder
-   :concept/file  "data/concepts/use-case/goal_contingent_pooled_escrow.edn"
-   :concept/name  "Goal-contingent pooled escrow"
-   :concept/status :draft
-   :concept/protocols #{:protocol/sew-v1}}
-
-  {:concept/id    :verifiable-assurance/forensic-confidence
+ [{:concept/id    :verifiable-assurance/forensic-confidence
    :concept/type  :assurance
    :concept/layer :framework-explanation
    :concept/file  "data/concepts/assurance/verifiable_assurance.edn"

@@ -64,7 +64,7 @@ fn main() {
     let native = {
         let ctx = allocation_kernel::kernel::parse_context(&input)
             .unwrap_or_else(|e| panic!("native parse_context: {}", e));
-        let committed = allocation_kernel::kernel::parse_committed(&input)
+        let committed = allocation_kernel::kernel::parse_committed_for_proving(&input)
             .unwrap_or_else(|e| panic!("native parse_committed: {}", e));
         let round_state = allocation_kernel::kernel::parse_round_state(&input);
         let result = allocation_kernel::kernel::run_kernel(&ctx, &committed, round_state.as_ref());

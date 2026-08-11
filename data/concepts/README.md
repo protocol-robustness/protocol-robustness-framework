@@ -9,9 +9,15 @@ involved?*
 Concepts are a **stakeholder-facing explanation layer only**. They exist
 solely to make protocol outputs interpretable by non-expert audiences.
 
-Reusable concepts live in `data/concepts/`. Benchmark-local overlays live
+Framework-owned concepts live in `data/concepts/`. Benchmark-local overlays live
 under `benchmarks/concepts/` and may shadow global concept IDs only when
 they explicitly declare `:concept/shadows-global? true`.
+
+Use-cases are not a framework registry category. Supply them explicitly through
+an external `:prf/use-case-registry.v1` registry; PRF never searches the
+classpath, current directory, or a default use-case location. The shipped
+`examples/use-cases/ecommerce/registry.edn` bundle is illustrative content and
+uses exactly the same loader contract as third-party registries.
 
 **Concepts must never affect:**
 - Protocol execution (scenario running, dispute resolution, settlement)
@@ -26,7 +32,9 @@ hashing are complete. It is a cosmetic overlay on reports.
 
 ### Non-Normative Status
 
-Use-case concepts are **non-normative stakeholder-facing examples**.
+Use-case concepts are **non-normative stakeholder-facing examples** when an
+application supplies them. They are not packaged in or implicitly loaded by
+the framework concept registry.
 Inclusion of a use-case indicates that a stakeholder problem can be mapped
 to protocol concepts for examination; it does **not** assert:
 
@@ -103,15 +111,7 @@ should be accepted (legitimacy).
 data/concepts/
 ├── README.md
 ├── registry.edn                          ← index of all concepts
-├── use-case/
-│   ├── ecommerce.edn                     ← marketplace purchase (includes fixed-price variant)
-│   ├── event_deposits.edn                ← conditional deposits
-│   ├── controlled_escrow_balance.edn     ← controlled escrow balance
-│   ├── dispute_appeal_escalation.edn     ← appeal and escalation lifecycle
-│   ├── resolver_participation_bonding.edn← resolver registration, bonding, capacity
-│   ├── yield_bearing_escrow.edn          ← yield accrual, shortfall, recovery
-│   ├── governance_rule_transition.edn    ← rule changes during active escrows
-│   └── goal_contingent_pooled_escrow.edn ← pooled contributions toward a goal
+
 ├── decision-quality/
 │   ├── authority.edn                     ← who decides
 │   ├── evidence.edn                      ← what facts available

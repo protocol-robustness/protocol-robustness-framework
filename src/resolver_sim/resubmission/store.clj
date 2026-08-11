@@ -24,7 +24,7 @@
             [resolver-sim.transaction.ordering :as ordering]
             [resolver-sim.transaction.protocol :as protocol]))
 
-(deftype ResubmissionChainStore [family-id state-atom]
+(deftype ResubmissionChainStore [family-id disposition-public-hex receipt-public-hex state-atom]
   protocol/TransactionStore
   (transact!
     [_store _conflict-key expected-version transition-fn]
@@ -32,7 +32,7 @@
       (loop []
         (let [current @state-atom
               entry (get current conflict-key
-                         {:state (transition/empty-state family-id) :version 0})
+                         {:state (transition/empty-state family-id disposition-public-hex) :version 0})
               {:keys [state version]} entry]
           (if (and (some? expected-version) (not= expected-version version))
             {:status :contention :reason :version-mismatch
@@ -63,16 +63,23 @@
                     (recur)))))))))))
 
 (defn new-resubmission-store
-  "Create an in-memory resubmission chain store serving one family."
-  [family-id]
-  (ResubmissionChainStore. family-id (atom {})))
+  "Create an in-memory resubmission chain store serving one family.
+
+   Public keys are trusted store configuration: the disposition key verifies
+   lifecycle events and the receipt key verifies canonical admissions."
+  ([family-id] (new-resubmission-store family-id nil nil))
+  ([family-id disposition-public-hex]
+   (new-resubmission-store family-id disposition-public-hex nil))
+  ([family-id disposition-public-hex receipt-public-hex]
+   (ResubmissionChainStore. family-id disposition-public-hex receipt-public-hex (atom {}))))
 
 (defn state-of
   "The current committed state for the store's family (or empty-state)."
   [store]
   (let [{:keys [state]}
         (get @(.state-atom store) [:resubmission-family (.family-id store)]
-             {:state (transition/empty-state (.family-id store))})]
+             {:state (transition/empty-state (.family-id store)
+                                             (.disposition-public-hex store))})]
     state))
 
 (defn chain-head

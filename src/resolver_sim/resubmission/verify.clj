@@ -152,9 +152,14 @@
       {:valid? false :reason (:reason sig) :details {:signature (:detail sig)}}
 
       :else
-      (let [effective (disposition/effective-lifecycle-status dispositions
+      (let [attempt-receipt-hash (:attempt-receipt/id parent-receipt)
+            effective (disposition/effective-lifecycle-status dispositions
+                                                              attempt-receipt-hash
                                                               disposition-verify-fn)]
         (cond
+          (nil? effective)
+          {:valid? false :reason :invalid-disposition-chain :details {}}
+
           (not= :active effective)
           {:valid? false
            :reason (if (= :superseded effective)

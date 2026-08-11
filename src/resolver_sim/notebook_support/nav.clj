@@ -86,6 +86,7 @@
 (def ^:private nav-links
   "Ordered quick-nav links shown in every notebook's top bar."
   [{:label "Hub"        :path "notebooks/index.clj"                          :icon "🏠"}
+   {:label "Overview"   :path "notebooks/verification_overview.clj"            :icon "✅"}
    {:label "Evidence"   :path "notebooks/report.clj"                         :icon "🛡️"}
    {:label "Provenance" :path "notebooks/protocol_provenance.clj"            :icon "📋"}
    {:label "Invariants" :path "notebooks/invariant_failures.clj"             :icon "🔍"}

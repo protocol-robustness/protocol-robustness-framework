@@ -77,6 +77,17 @@
       (is (not (:holds? result)))
       (is (some #(= ::rac/member-bit-width-mismatch (:kind %)) (:violations result))))))
 
+(deftest aggregate-member-bit-width-requires-count-derived-width
+  (testing "sparse keys must not widen the round representation beyond its member count"
+    (let [round (assoc-in (make-keyed-round)
+                          [:review-round/members 2 :review-member/key] 7)
+          result (rac/check-aggregate-member-bit-width round)]
+      (is (= 3 (rr/member-bit-width round)))
+      (is (not (:holds? result)))
+      (is (some #(and (= ::rac/member-bit-width-mismatch (:kind %))
+                      (= 2 (:expected-bit-width %)))
+                (:violations result))))))
+
 ;; ── check-aggregate-member-key-density tests ────────────────────────────────
 
 (deftest aggregate-member-key-density-holds-for-keyed-round

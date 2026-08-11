@@ -1,0 +1,13 @@
+{:schema-version "prf-release-trust-policy.v1"
+ :policy-id :release/unconfigured
+ :policy-version 1
+ :policy/status :unconfigured
+ :trusted-keys []
+ :requirements
+ {:distribution
+  {:prf {:minimum-valid-signatures 1}
+   :sew {:minimum-valid-signatures 1}}}
+ :canonicalization
+ {:payload-profile "prf-release-attestation-payload.v1"}
+ :operator-note
+ "Template only. Replace :policy-id, :policy/status, and :trusted-keys through the controlled release-key enrollment process. This policy cannot authorize a release."}

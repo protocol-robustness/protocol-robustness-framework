@@ -43,7 +43,6 @@
   "protocols_src"
   "scenarios/edn"
   "data/params"
-  "data/concepts/use-case"
   "data/yield"
   "benchmarks/packs"
   "notebooks"
@@ -54,6 +53,7 @@
  :allowed-content-kinds #{:core-contract :integration :example
                           :benchmark :research :demo :test-support}
  :allowed-support-statuses #{:normative :supported :illustrative :experimental}
+ :allowed-source-kinds #{:framework-example :external}
 
  :defaults
  [{:path "src/resolver_sim/**"
@@ -76,9 +76,6 @@
    :authority :user :content-kind :research :support-status :experimental
    :reason "research/experiment parameterisation (baseline, phase-*, stress)"}
 
-  {:path "data/concepts/use-case/**"
-   :authority :user :content-kind :example :support-status :illustrative
-   :reason "stakeholder use-case definitions; non-normative illustrative content"}
 
   {:path "data/yield/**"
    :authority :protocol :content-kind :integration :support-status :supported
@@ -104,9 +101,10 @@
    :authority :prf :content-kind :demo :support-status :illustrative
    :reason "PRF product/demo site content"}]
  :overrides
- [{:path "src/resolver_sim/concepts/ecommerce_reporting.clj"
+ [{:path "examples/use-cases/**"
    :authority :user :content-kind :example :support-status :illustrative
-   :reason "use-case language projection wired into core benchmark reporting (vertical-slice target)"}
+   :source-kind :framework-example
+   :reason "shipped use-case bundle exercising the same explicit external registry contract as user content"}
 
   {:path "src/resolver_sim/notebook_support/speds/config.clj"
    :mixed? true :split-intent :planned

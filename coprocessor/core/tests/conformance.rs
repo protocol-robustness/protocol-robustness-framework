@@ -51,6 +51,35 @@ fn run(input: &serde_json::Value) -> serde_json::Value {
 }
 
 #[test]
+fn proving_input_requires_all_committed_bindings() {
+    let input = happy_input();
+    let err = kernel::parse_committed_for_proving(&input).unwrap_err();
+    assert_eq!(err.classification, "missing-committed-binding");
+
+    let mut input = happy_input();
+    input["committed"] = json!({
+        "claimant-set-root": "0xc45b857d28c2d643dd9331fe396c44862df632125a6299e523073a197ce7a978",
+        "outcome-set-root": "0xc8180b14b358826dad95c2dad6b3783d2a380af2790a66b27a9580a01d99b866",
+        "result-root": "0xf82ca61e0b3bb6949606bef5489663b73db9359dfb6eed478c3c2701440fdc06",
+        "selected-outcome-id": "O2",
+        "selected-outcome-index": "1"
+    });
+    let err = kernel::parse_committed_for_proving(&input).unwrap_err();
+    assert_eq!(err.classification, "missing-committed-binding");
+
+    let mut input = happy_input();
+    input["committed"] = json!({
+        "claimant-set-root": "0xc45b857d28c2d643dd9331fe396c44862df632125a6299e523073a197ce7a978",
+        "outcome-set-root": "0xc8180b14b358826dad95c2dad6b3783d2a380af2790a66b27a9580a01d99b866",
+        "proposed-rates-root": "0x4d32943ddcbf3ced6f774bb2841ec526ddefa5105777e981d3883ce9225c6314",
+        "result-root": "0xf82ca61e0b3bb6949606bef5489663b73db9359dfb6eed478c3c2701440fdc06",
+        "selected-outcome-id": "O2"
+    });
+    let err = kernel::parse_committed_for_proving(&input).unwrap_err();
+    assert_eq!(err.classification, "missing-committed-binding");
+}
+
+#[test]
 fn happy_path_matches_prf_golden() {
     let out = run(&happy_input());
     let golden = [

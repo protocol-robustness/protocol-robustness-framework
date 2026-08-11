@@ -79,7 +79,16 @@
           rr (rs/realized-results-root all-active-decision)]
       (is (true? (:statement/all-active? s)))
       (is (= true (:all-active-all-full-fill (:statement/verification-equalities s))))
-      (is (re-matches #"[0-9a-f]{64}" rr)))))
+      (is (re-matches #"[0-9a-f]{64}" rr))))
+  (testing "zero-valued deferred and haircut bookkeeping preserves all-active status"
+    (let [decision (assoc all-active-decision
+                          :deferred {:A 0 :B 0 :C 0}
+                          :haircut {:A 0 :B 0 :C 0})
+          s (rs/build-statement {:ctx @ctx :decision decision
+                                 :round-lifecycle @lifecycle})]
+      (is (true? (:statement/all-active? s)))
+      (is (true? (get-in s [:statement/verification-equalities
+                             :all-active-all-full-fill]))))))
 
 (deftest realized-results-commits-explicit-dispositions
   (testing "realized-results-root commits a per-participant disposition vector;
@@ -100,6 +109,18 @@
       (is (= [:full-fill :full-fill :zero-filled] (mapv #(if (= :zero-filled %) :zero-filled :full-fill) dispositions))
           "C is present with an explicit :zero-filled disposition, not omitted")
       (is (re-matches #"[0-9a-f]{64}" (rs/realized-results-root decision))))))
+
+(deftest realized-results-preserves-large-integers-and-rejects-floats
+  (let [large (bigint "922337203685477580812345")
+        decision {:requested {:A large}
+                  :filled {:A large}
+                  :deferred {} :haircut {}}]
+    (is (= :full-fill (rs/disposition-of {:requested large :filled large
+                                          :deferred 0 :haircut 0})))
+    (is (string? (rs/realized-results-root decision)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"exact integer"
+                          (rs/realized-results-root
+                           (assoc decision :filled {:A 1.5}))))))
 
 (deftest shortfall-statement-distinct
   (testing "a shortfall decision with deferred fail-action produces a distinct statement"

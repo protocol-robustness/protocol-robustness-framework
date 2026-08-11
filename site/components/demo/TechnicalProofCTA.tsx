@@ -26,6 +26,11 @@ const PREVIEW: Record<string, { src: string; alt: string; notebookLabel: string 
     alt: 'Preview of the Not Admitted Clerk notebook',
     notebookLabel: 'the Not Admitted notebook',
   },
+  'current-head': {
+    src: '/notebook-previews/not-admitted.png',
+    alt: 'Preview of the Resubmission Chain Clerk notebook',
+    notebookLabel: 'the Resubmission Chain notebook',
+  },
 }
 
 export default function TechnicalProofCTA({ demo }: { demo: PublicDemo }) {
@@ -73,12 +78,9 @@ export default function TechnicalProofCTA({ demo }: { demo: PublicDemo }) {
           />
         </a>
         <span className={styles.previewCaption}>
-          Notebook preview — click to open full size, or{' '}
-          <ExtLink href={preview.src} download>
-            download
-          </ExtLink>
-          . The proof is the{' '}
-          <ExtLink href={href}>executable notebook</ExtLink>.
+          Notebook preview — click to open this image.{' '}
+          <ExtLink href="/shots/">Browse every screenshot and run archive</ExtLink>
+          . The proof is the <ExtLink href={href}>executable notebook</ExtLink>.
         </span>
       </div>
     </section>

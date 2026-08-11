@@ -15,11 +15,15 @@
      clojure -M -m scripts.test-state read
      clojure -M -m scripts.test-state clear"
   (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io])
+  (:import [java.nio.file AtomicMoveNotSupportedException Files StandardCopyOption StandardOpenOption]
+           [java.nio.channels FileChannel]))
 
 (def state-dir ".prf")
 (def state-file (str state-dir "/test-state.edn"))
 (def tmp-file (str state-dir "/test-state.edn.tmp"))
+(def lock-file (str state-dir "/test-state.lock"))
+(def ^:private state-write-monitor (Object.))
 
 (defn read-state
   "Read the persisted test state, or nil if missing/unparseable."
@@ -28,6 +32,31 @@
     (when (.exists f)
       (try (edn/read-string (slurp f))
            (catch Exception _ nil)))))
+
+(defn- with-state-lock [f]
+  (locking state-write-monitor
+    (io/make-parents (io/file lock-file))
+    (with-open [channel (FileChannel/open (.toPath (io/file lock-file))
+                                          (into-array StandardOpenOption
+                                                      [StandardOpenOption/CREATE StandardOpenOption/WRITE]))
+                lock (.lock channel)]
+      (f))))
+
+(defn- atomic-replace! [target content]
+  (let [target-path (.toPath (io/file target))
+        parent (.getParent target-path)
+        temp (Files/createTempFile parent ".test-state-" ".tmp"
+                                   (make-array java.nio.file.attribute.FileAttribute 0))]
+    (try
+      (spit (.toFile temp) content)
+      (try
+        (Files/move temp target-path
+                    (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE StandardCopyOption/REPLACE_EXISTING]))
+        (catch AtomicMoveNotSupportedException _
+          (Files/move temp target-path
+                      (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+      (finally
+        (Files/deleteIfExists temp)))))
 
 (defn write-state!
   "Atomically write test state.  Takes a map with keys:
@@ -38,15 +67,15 @@
               :completed? true
               :command (vec command)
               :failed-test-namespaces (vec (sort (remove nil? failed-nses)))}]
-    (io/make-parents (io/file tmp-file))
-    (spit tmp-file (prn-str data))
-    (.renameTo (io/file tmp-file) (io/file state-file))))
+    (with-state-lock #(atomic-replace! state-file (prn-str data)))
+    data))
 
 (defn clear-state!
   "Remove the state file."
   []
-  (.delete (io/file state-file))
-  (.delete (io/file tmp-file)))
+  (with-state-lock #(do
+                      (Files/deleteIfExists (.toPath (io/file state-file)))
+                      (Files/deleteIfExists (.toPath (io/file tmp-file))))))
 
 (defn -main
   [& args]

@@ -135,6 +135,7 @@
   (case (artifact-kind artifact)
     "blocked-decision"    (narrative-consistent? artifact)
     "reordered-evidence"  (narrative-consistent? artifact)
+    "current-head"        (narrative-consistent? artifact)
     "liquidity-shortfall" (liquidity-consistent? artifact)
     (fail! (artifact-kind artifact) "demo.id" "unknown demo kind"))
   artifact)

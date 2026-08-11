@@ -13,6 +13,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.demos.public.blocked-decision :as blocked-decision]
+            [resolver-sim.demos.public.current-head :as current-head]
             [resolver-sim.demos.public.liquidity-shortfall :as liquidity-shortfall]
             [resolver-sim.demos.public.reordered-evidence :as reordered-evidence]))
 
@@ -23,6 +24,7 @@
   "Registry of public-demo projections, keyed by demo id."
   []
   {"blocked-decision"   {:write (fn [] (blocked-decision/json-str))}
+   "current-head"       {:write (fn [] (current-head/json-str))}
    "liquidity-shortfall" {:write (fn [] (liquidity-shortfall/json-str))}
    "reordered-evidence" {:write (fn [] (reordered-evidence/json-str))}})
 

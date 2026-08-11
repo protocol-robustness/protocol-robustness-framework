@@ -44,7 +44,13 @@
                 (:benchmarks pack-data)))))
          (:packs registry))))))
 
-(def ^:private smoke-output-root (paths/benchmark-smoke-dir))
+(defn- allocate-smoke-output-root []
+  (let [configured-root (paths/benchmark-smoke-dir)]
+    ;; An explicitly configured root is caller-owned. The default is unique so
+    ;; independent smoke invocations never contend for canonical child roots.
+    (if (System/getenv "PRF_BENCHMARK_SMOKE_DIR")
+      configured-root
+      (str configured-root "/run-" (java.util.UUID/randomUUID)))))
 
 (defn- run-single-scenario
   [scenario-ref run-root]
@@ -69,6 +75,7 @@
 (defn smoke
   [{:keys [all? seed]}]
   (let [rng (java.util.Random. (or seed (System/currentTimeMillis)))
+        output-root (allocate-smoke-output-root)
         plans (enumerate-plans)
         filtered (filter #(or (= :active (:status %))
                               (and all? (= :experimental (:status %))))
@@ -76,16 +83,16 @@
     (println "Benchmark smoke matrix")
     (println (str "Total plans: " (count plans)
                   ", active/experimental: " (count filtered)))
-    (println (str "Output root: " smoke-output-root))
+    (println (str "Output root: " output-root))
     (println)
-    (io/make-parents (str smoke-output-root "/.keep"))
+    (io/make-parents (str output-root "/.keep"))
     (let [results (doall
                    (map
                     (fn [plan]
                       (printf "  %-45s " (:id plan))
                       (flush)
                       (if-let [sid (pick-scenario plan rng)]
-                        (let [root (str smoke-output-root "/" (name (:id plan)))
+                        (let [root (str output-root "/" (name (:id plan)))
                               result (run-single-scenario sid root)]
                           (println (str (:status result) "/" (:outcome result)))
                           (assoc plan :smoke-status (:status result)
@@ -110,6 +117,7 @@
             (printf "  - %s (%s)\n" (:id r) (:smoke-status r))))
         (println)
         {:exit-code (if (zero? failed) 0 1)
+         :output-root output-root
          :message (str "Smoke matrix: " (count results) " benchmarks, "
                        passed " passed, " failed " failed, " skipped " skipped")}))))
 

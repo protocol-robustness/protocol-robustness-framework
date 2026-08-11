@@ -424,7 +424,7 @@
                      :error :related-claims-auth-override-rejected
                      :opts (select-keys opts [:authenticated? :assurance])}))))
 
-(defn create-related-claims-with-assurance!
+(defn- create-related-claims-with-assurance!
   "Authenticated-path V3 builder, intended to be invoked ONLY by the governance-gated
    grant-related-claims action. `assurance` is derived from governance-check
    (:address-bound restricted, :role-declared legacy, :open open). This is the

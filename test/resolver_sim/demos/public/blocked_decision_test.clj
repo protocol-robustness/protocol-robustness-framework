@@ -45,12 +45,16 @@
              (count (get-in p ["evidence" "checks"]))))
       (is (every? #(contains? % "status") (get-in p ["evidence" "checks"]))))))
 
-(deftest exactly-one-failing-check-is-projected
+(deftest failing-check-details-are-preserved-from-the-model
   (let [p (projection/project)
+        m (demo/run)
         checks (get-in p ["evidence" "checks"])
-        failing (filter #(= "fail" (get % "status")) checks)]
+        failing (filter #(= "fail" (get % "status")) checks)
+        model-failing (filter #(= :fail (:status %))
+                              (get-in m [:demo/evidence :after/checks]))]
     (is (= ["hash-integrity"] (mapv #(get % "id") failing)))
-    (is (every? #(seq (get % "detail")) failing))))
+    (is (= (mapv :details model-failing)
+           (mapv #(get % "details") failing)))))
 
 (deftest projection-is-deterministic
   (let [a (projection/json-str)
@@ -74,6 +78,12 @@
                  (#'projection/require-field!
                   (dissoc (demo/run) :demo/evidence)
                   [:demo/evidence])))))
+
+(deftest missing-admission-fact-fails-closed
+  (let [model (demo/run)]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (with-redefs [demo/run #(update-in model [:demo/baseline] dissoc :admitted?)]
+                   (projection/project))))))
 
 (deftest provenance-binds-to-the-executable-result
   (let [p (projection/project)

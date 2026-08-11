@@ -91,6 +91,7 @@
         pair (.generateKeyPair (java.security.KeyPairGenerator/getInstance "Ed25519"))
         policy {:schema-version "prf-release-trust-policy.v1"
                 :policy-id :release/test
+                :policy/status :active
                 :policy-version 1
                 :trusted-keys [{:key-id "release-1" :status :active
                                 :public-key (raw-public-hex (.getPublic pair))}]
@@ -113,6 +114,7 @@
         pair (.generateKeyPair (java.security.KeyPairGenerator/getInstance "Ed25519"))
         policy {:schema-version "prf-release-trust-policy.v1"
                 :policy-id :release/test
+                :policy/status :active
                 :policy-version 1
                 :trusted-keys [{:key-id "release-1" :status :active
                                 :public-key (raw-public-hex (.getPublic pair))}]

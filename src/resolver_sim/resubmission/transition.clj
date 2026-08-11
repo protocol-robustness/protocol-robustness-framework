@@ -44,6 +44,7 @@
       9b. cycle validation                          -> :rejected :cycle-detected
       10. commit contention (expected chain version)-> :rejected :commit-contention"
   (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.resubmission.disposition :as disposition]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.hash.reference :as hash-ref]))
 
@@ -58,34 +59,42 @@
     :prf.resubmission/apply-disposition})
 
 (defn empty-state
-  "Initial versioned chain state for a resubmission family."
-  [family-id]
-  {:chain/family-id family-id
+  "Initial versioned chain state for a resubmission family.
+
+   `disposition-public-hex` is trusted chain configuration, not transaction
+   input. Without it, disposition actions fail closed."
+  ([family-id] (empty-state family-id nil))
+  ([family-id disposition-public-hex]
+   {:chain/family-id family-id
+   :chain/disposition-public-hex disposition-public-hex
    :chain/version 0
    :transaction/commit-index 0
    :transaction/last-hash nil
    :chain/head nil
    :chain/successor-by-parent {}
-   :chain/effective-disposition-by-receipt {}
+   :chain/effective-disposition-by-receipt {} ; receipt lifecycle status
    :chain/disposition-head-by-receipt {}
    :chain/idempotency-index {}   ; idempotency-key -> {:content-key :receipt-hash}
    :chain/content-index {}       ; content-key -> {:parent-receipt-hash :receipt-hash}
-   :chain/attempt-receipts {}})  ; receipt-hash -> {:attempt-receipt :sequence :parent-receipt-hash}
+   :chain/attempt-receipts {}})) ; receipt-hash -> {:attempt-receipt :sequence :parent-receipt-hash}
 
 (defn- chain-state-projection
   "The domain state committed by the state root. EXCLUDES the attempt receipts
    (the receipt commits the transaction ordering hash, so including it would
    create a cycle) and :transaction/last-hash (the ordering hash itself)."
   [state]
-  {:chain/family-id (:chain/family-id state)
-   :chain/version (:chain/version state)
-   :transaction/commit-index (:transaction/commit-index state)
-   :chain/head (:chain/head state)
-   :chain/successor-by-parent (:chain/successor-by-parent state)
-   :chain/effective-disposition-by-receipt (:chain/effective-disposition-by-receipt state)
-   :chain/disposition-head-by-receipt (:chain/disposition-head-by-receipt state)
-   :chain/idempotency-index (:chain/idempotency-index state)
-   :chain/content-index (:chain/content-index state)})
+  (cond-> {:chain/family-id (:chain/family-id state)
+           :chain/version (:chain/version state)
+           :transaction/commit-index (:transaction/commit-index state)
+           :chain/head (:chain/head state)
+           :chain/successor-by-parent (:chain/successor-by-parent state)
+           :chain/effective-disposition-by-receipt (:chain/effective-disposition-by-receipt state)
+           :chain/disposition-head-by-receipt (:chain/disposition-head-by-receipt state)
+           :chain/idempotency-index (:chain/idempotency-index state)
+           :chain/content-index (:chain/content-index state)}
+    (contains? state :chain/disposition-status-by-receipt)
+    (assoc :chain/disposition-status-by-receipt
+           (:chain/disposition-status-by-receipt state))))
 
 (defn state-root
   "Domain-separated state root (stable across :transaction/last-hash)."
@@ -102,6 +111,11 @@
    :active when no disposition has been applied)."
   [state receipt-hash]
   (get (:chain/effective-disposition-by-receipt state) receipt-hash :active))
+
+(defn- current-disposition-status
+  "Raw disposition event status, retained separately from effective lifecycle."
+  [state receipt-hash]
+  (get (:chain/disposition-status-by-receipt state) receipt-hash :active))
 
 (defn- receipt-eligible-parent?
   "A stored receipt is a valid direct-resubmission parent."
@@ -240,18 +254,60 @@
       :else
       (commit-admit state input child-receipt-hash parent-receipt-hash))))
 
+(def allowed-disposition-transitions
+  "The disposition-event transitions accepted by the mutable chain."
+  {:active disposition/disposition-statuses
+   :pending-review #{:final :withdrawn :revoked :superseded}
+   :final #{:withdrawn :revoked :superseded}
+   :withdrawn #{}
+   :revoked #{}
+   :superseded #{}})
+
 (defn- apply-disposition
-  "Pure transition for :prf.resubmission/apply-disposition. Updates the
-   effective lifecycle of an attempt. Increments the commit index WITHOUT
-   creating a new resubmission sequence (the chain head/successor are
-   untouched)."
+  "Apply a complete, signed, receipt-bound disposition artifact. Caller-supplied
+   status and hash fields are deliberately ignored: all committed values are
+   derived from `:disposition-artifact` after verification with the chain's
+   trusted disposition authority."
   [state input]
-  (let [{:keys [attempt-receipt-hash disposition-artifact-hash disposition-status
+  (let [{:keys [attempt-receipt-hash disposition-artifact
                 expected-disposition-head expected-chain-version]} input
-        cur-head (get (:chain/disposition-head-by-receipt state) attempt-receipt-hash)]
+        cur-head (get (:chain/disposition-head-by-receipt state) attempt-receipt-hash)
+        disposition-artifact-hash (when disposition-artifact
+                                    (disposition/disposition-hash disposition-artifact))
+        disposition-status (:attempt-disposition/status disposition-artifact)
+        declared-attempt (:attempt-disposition/attempt-receipt-hash disposition-artifact)
+        declared-previous (:attempt-disposition/previous-disposition-hash disposition-artifact)
+        verification (when (and disposition-artifact
+                                (:chain/disposition-public-hex state))
+                       (disposition/verify-disposition
+                        disposition-artifact (:chain/disposition-public-hex state)))]
     (cond
       (not (contains? (:chain/attempt-receipts state) attempt-receipt-hash))
       {:status :rejected :reason :attempt-not-found}
+
+      (nil? (:chain/disposition-public-hex state))
+      {:status :rejected :reason :disposition-authority-not-configured}
+
+      (not (map? disposition-artifact))
+      {:status :rejected :reason :missing-disposition-artifact}
+
+      (not (:valid? verification))
+      {:status :rejected :reason (:reason verification)}
+
+      (not= attempt-receipt-hash declared-attempt)
+      {:status :rejected :reason :disposition-receipt-mismatch}
+
+      (not= cur-head declared-previous)
+      {:status :rejected :reason :disposition-previous-hash-mismatch
+       :public-result {:expected-disposition-head cur-head
+                       :declared-previous-disposition-hash declared-previous}}
+
+      (not (contains? (get allowed-disposition-transitions
+                            (current-disposition-status state attempt-receipt-hash) #{})
+                       disposition-status))
+      {:status :rejected :reason :invalid-disposition-transition
+       :public-result {:from (current-disposition-status state attempt-receipt-hash)
+                       :to disposition-status}}
 
       (and (some? expected-disposition-head)
            (not= expected-disposition-head cur-head))
@@ -271,6 +327,8 @@
                 (assoc :chain/version (inc (:chain/version state))
                        :transaction/commit-index (inc (:transaction/commit-index state)))
                 (assoc-in [:chain/effective-disposition-by-receipt attempt-receipt-hash]
+                          (get disposition/disposition->lifecycle-status disposition-status))
+                (assoc-in [:chain/disposition-status-by-receipt attempt-receipt-hash]
                           disposition-status)
                 (assoc-in [:chain/disposition-head-by-receipt attempt-receipt-hash]
                           disposition-artifact-hash))

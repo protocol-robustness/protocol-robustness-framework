@@ -186,14 +186,10 @@
 
 ;; ── Shared orchestration ───────────────────────────────────────────────────────
 
-(defn run-and-report
-  "Run a benchmark by manifest path or benchmark ID, write evidence, and
-   return {:exit-code <int> :evidence <map> :output-path <string>}.
-
-   This is the shared orchestration function.  Called by the benchmark CLI
-   and potentially other CLIs that need benchmark execution without
-   taking over the process (no System/exit)."
-  [benchmark-id-or-path options]
+(defn resolve-benchmark-manifest
+  "Resolve a registered benchmark ID or manifest reference to its manifest path.
+   This performs no execution or output writes."
+  [benchmark-id-or-path]
   (let [index (load-index)
         canonical-id (when (and (string? benchmark-id-or-path)
                                 (.startsWith benchmark-id-or-path ":"))
@@ -201,14 +197,24 @@
         benchmark-from-index (first (filter #(or (= (:id %) benchmark-id-or-path)
                                                  (= (:benchmark/id %) benchmark-id-or-path)
                                                  (= (:benchmark/id %) canonical-id))
-                                            (:benchmarks index)))
-        manifest-path (cond
-                        benchmark-from-index (:manifest benchmark-from-index)
-                        (and benchmark-id-or-path
-                             (str/ends-with? benchmark-id-or-path ".edn")) benchmark-id-or-path
-                        :else (throw (ex-info "Unknown benchmark ID or manifest path"
-                                              {:benchmark benchmark-id-or-path
-                                               :available (mapv :id (:benchmarks index))})))
+                                            (:benchmarks index)))]
+    (cond
+      benchmark-from-index (:manifest benchmark-from-index)
+      (and benchmark-id-or-path
+           (str/ends-with? benchmark-id-or-path ".edn")) benchmark-id-or-path
+      :else (throw (ex-info "Unknown benchmark ID or manifest path"
+                            {:benchmark benchmark-id-or-path
+                             :available (mapv :id (:benchmarks index))})))))
+
+(defn run-and-report
+  "Run a benchmark by manifest path or benchmark ID, write evidence, and
+  return {:exit-code <int> :evidence <map> :output-path <string>}.
+
+  This is the shared orchestration function.  Called by the benchmark CLI
+  and potentially other CLIs that need benchmark execution without
+  taking over the process (no System/exit)."
+  [benchmark-id-or-path options]
+  (let [manifest-path (resolve-benchmark-manifest benchmark-id-or-path)
         _ (log/info! :benchmark-running {:manifest manifest-path})]
     (try
       (let [run-benchmark (requiring-resolve 'resolver-sim.benchmark.runner/run-benchmark)

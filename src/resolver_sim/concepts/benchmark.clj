@@ -6,7 +6,8 @@
             [resolver-sim.concepts.reporting :as concepts-reporting]
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.logging :as log]
-            [resolver-sim.config.paths :as paths]))
+            [resolver-sim.config.paths :as paths]
+            [resolver-sim.use-cases.registry :as use-cases]))
 
 (def ^:private embedded-benchmark-concept-paths
   "Reference benchmark concept files embedded in the JAR.
@@ -93,13 +94,21 @@
 
 (defn resolve-benchmark-concepts
   ([concept-ids] (resolve-benchmark-concepts concept-ids {}))
-  ([concept-ids {:keys [local-concepts]}]
+  ([concept-ids {:keys [local-concepts use-case-registry]}]
    (let [{:keys [concepts]} (concepts-registry/load-registry)
          local-concepts (or local-concepts (load-benchmark-local-concepts))
+         use-case-by-id (if use-case-registry
+                          (use-cases/use-case-index use-case-registry)
+                          {})
          global-by-id (concepts-registry/concept-index concepts)
          local-by-id (concepts-registry/concept-index local-concepts)
          resolved-entries (mapv (fn [concept-id]
                                   (cond
+                                    (contains? use-case-by-id concept-id)
+                                    {:concept/id concept-id
+                                     :concept/source :external-use-case
+                                     :concept (get use-case-by-id concept-id)}
+
                                     (contains? local-by-id concept-id)
                                     {:concept/id concept-id
                                      :concept/source :benchmark-local
