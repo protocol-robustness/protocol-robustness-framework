@@ -352,6 +352,19 @@
     :command/positional-args {:min 0 :max 0}
     :command/description "Read an EDN resubmission-issue request from stdin, independently re-derive the committed chain transition, verify the transaction-ordering evidence and candidate receipt binding, sign a submission-attempt receipt, and write one EDN response to stdout."}
 
+   {:command/id :resubmission-issue-admission-v2
+    :command/path ["resubmission" "issue-admission-v2"]
+    :command/title "Sign fenced resubmission admission authorization"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Read one reservation-bound admission signing request from stdin and emit content-addressed authorization evidence. This command is stateless and cannot finalize or arbitrate admission."}
+
    {:command/id :assure-package
     :command/path ["assure-package"]
     :command/title "Evaluate package assurance"

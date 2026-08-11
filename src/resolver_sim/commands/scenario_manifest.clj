@@ -7,7 +7,9 @@
   (:import [java.nio.file Files StandardCopyOption]))
 
 (defn- atomic-json! [file value]
-  (let [target (io/file file) temp (io/file (str (.getPath target) ".tmp"))]
+  (let [target (io/file file)
+        temp (io/file (.getParentFile target)
+                      (str "." (.getName target) ".tmp-" (java.util.UUID/randomUUID)))]
     (.mkdirs (.getParentFile target))
     (spit temp (json/write-str value :indent true))
     (Files/move (.toPath temp) (.toPath target)

@@ -1,23 +1,24 @@
 {
   "description": "Buyer escalates through L0 and L1 (both release); L2 refunds \u2014 distinct resolution hashes per level.",
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 60,
     "max-dispute-duration": 2592000,
+    "resolver-bond-bps": 0,
     "resolution-module": "0xkleros-proxy",
     "escalation-resolvers": {
       "0": "0xl0",
       "1": "0xl1",
       "2": "0xl2"
-    },
-    "resolver-bond-bps": 0
+    }
   },
   "expected-outcome": {
     "workflow-0": "refund-after-l2-reversal"
   },
   "theory": {
     "claim-id": "forking-strategist-l2-fork",
-    "claim": "Dispute level advances monotonically 0\u21921\u21922; L2 may fork without rewriting L0/L1 hashes.",
+    "claim": "Dispute level advances monotonically 0\u21921\u21922; L2 may fork without rewriting L0\/L1 hashes.",
     "assumptions": [
       "appeal-window-60s",
       "kleros-escalation-ladder"
@@ -140,7 +141,7 @@
     "resolution-hash-isolation",
     "claimable-balance-isolation"
   ],
-  "id": "scenarios/s27-forking-strategist-l2-fork",
+  "id": "scenarios\/s27-forking-strategist-l2-fork",
   "notes": null,
   "expectations": {
     "terminal": [

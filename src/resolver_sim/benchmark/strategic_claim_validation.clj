@@ -11,6 +11,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.runner :as runner]
+                        [resolver-sim.allocation.proof-admission :as proof-admission]
             [resolver-sim.benchmark.strategic-property-results :as spr]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.scenario.suites :as suites]
@@ -107,8 +108,10 @@
     :claim/description
     "Partial-fill scenarios should produce fair pro-rata allocations:
      every claimant must receive the same fill ratio within rounding
-     tolerance. Validated via evidence-root verifiability, invariant
-     compliance, and complete allocation reporting."
+     tolerance. The default assurance is deterministic evidence validation;
+     cryptographic-computation assurance is a separately fail-closed graduation
+     that additionally requires a supported realized-statement proof profile."
+    :claim/assurance-level :assurance/evidence
     :benchmark/manifest-path (paths/prf-core-yield-manifest)
     :mechanism-levels [:allocation/partial-fill]
     :closed-form-check-ids #{:partial-fill/exact-pro-rata
@@ -252,7 +255,52 @@
 
 (defn- scenario-check-results
   [claim-spec mechanism-level result]
-  (let [stmt-root (:scenario/realized-allocation-statements-root result)
+  (let [assurance-level (or (:claim/assurance-level claim-spec) :assurance/evidence)
+        decisions (:partial-fill-decisions result)
+        stmt-root (:scenario/realized-allocation-statements-root result)
+        statements (:scenario/realized-allocation-statements-data result)
+        statement-by-decision (into {} (keep (fn [s]
+                                                (when-let [id (:decision/id s)] [id s])))
+                                    statements)
+        context (:scenario/allocation-context result)
+        lifecycle (:scenario/round-lifecycle result)
+        statement-checks
+        (mapv (fn [decision]
+                (let [statement (get statement-by-decision (:decision/id decision))
+                      profile (proof-admission/proof-profile-result decision)
+                      recomputed? (proof-admission/statement-match?
+                                   {:statement statement
+                                    :allocation-context context
+                                    :decision decision
+                                    :round-lifecycle lifecycle})]
+                  {:check/id :realized-statement-recomputed
+                   :decision/id (:decision/id decision)
+                   :statement-root (:statement/root statement)
+                   :status (cond
+                             (nil? statement) :not-exercised
+                             (= :uncovered (:status profile)) :not-applicable
+                             recomputed? :pass
+                             :else :fail)
+                   :details {:proof-profile (:proof/profile profile)
+                             :profile-status (:status profile)
+                             :reason (:reason profile)}}))
+              (or decisions []))
+        binding (:scenario/realized-statement-binding result)
+        binding-ok? (proof-admission/valid-scenario-statement-binding? binding)
+        ;; Explicit per-statement mapping. A proof for one statement never
+        ;; covers the scenario collection unless every committed statement has
+        ;; exactly one independently admitted proof tuple.
+        proof-admissions (or (:scenario/realized-statement-proof-admissions result) [])
+        admission-by-root (group-by (comp :statement/root :artifact) proof-admissions)
+        proof-admitted? (fn [statement-root]
+                          (let [entries (get admission-by-root statement-root)]
+                            (and (= 1 (count entries))
+                                 (proof-admission/cryptographic-computation-admitted?
+                                  (first entries)))))
+        coverage (proof-admission/statement-proof-coverage statements proof-admissions)
+        complete-proof-coverage? (and (:complete? coverage)
+                                      (every? proof-admitted? (:statement-roots coverage)))
+        cryptographic? (= assurance-level :assurance/cryptographic-computation)
         base-checks [{:check/id :scenario-passed
                       :status (if (= :pass (:outcome result)) :pass :fail)
                       :details {:outcome (:outcome result)
@@ -263,20 +311,41 @@
                      {:check/id :no-invariant-errors
                       :status (if (empty? (invariant-failures result)) :pass :fail)
                       :details {:failed-invariants (invariant-failures result)}}
-                     ;; Graduation check: the canonical realized-allocation
-                     ;; statement root is committed and binds the scenario
-                     ;; evidence. Additive and non-breaking: absence of a
-                     ;; statement (no allocation context in the world) is :pass
-                     ;; — the claim is still validated by the simulator closed-
-                     ;; form checks. When a statement root IS produced, it must
-                     ;; be a valid hash.
+                     ;; Evidence assurance stays compatible: scenarios without
+                     ;; allocation context have no statement. Cryptographic
+                     ;; assurance never treats that absence, or a shaped hash,
+                     ;; as proof.
                      {:check/id :realized-statement-root-valid
                       :status (if (some? stmt-root)
                                 (if (sha-256-hex? stmt-root) :pass :fail)
+                                (if cryptographic? :not-exercised :pass))
+                      :details {:realized-allocation-statements-root stmt-root}}
+                     {:check/id :scenario-statement-binding-valid
+                      :status (if cryptographic?
+                                (if binding-ok? :pass :fail)
                                 :pass)
-                      :details {:realized-allocation-statements-root stmt-root}}]
+                      :details {:binding-root (:binding-root binding)
+                                :required? cryptographic?}}
+                     {:check/id :sp1-proof-verified
+                      :status (if cryptographic?
+                                (if complete-proof-coverage? :pass :fail)
+                                :pass)
+                      :details {:assurance-level assurance-level
+                                :covered-roots (:covered-roots coverage)
+                                :statement-roots (:statement-roots coverage)}}]
+        statement-checks (mapv (fn [check]
+                                 (if (= :realized-statement-recomputed (:check/id check))
+                                   (assoc check :proof-status
+                                          (if (proof-admitted? (:statement-root check)) :pass :fail))
+                                   check))
+                               statement-checks)
         cf-checks (when (= :allocation/partial-fill mechanism-level)
                     (closed-form-check-results result (:closed-form-check-ids claim-spec)))
+        cf-checks (map (fn [check]
+                         (assoc check :statement-root
+                                (:statement/root (get statement-by-decision
+                                                      (:decision/id check)))))
+                       cf-checks)
         ;; Extract exercise witnesses from closed-form check results
         witnesses (when cf-checks
                     (let [decisions (:partial-fill-decisions result)]
@@ -286,7 +355,9 @@
                                :fill-mode (get-in d [:policy :mode])
                                :exercised-fill? (= :partial-fill (:settlement-mode d))})
                             (range) (or decisions []))))]
-    {:checks (into base-checks (or cf-checks []))
+    {:checks (into (cond-> base-checks
+                     cryptographic? (into statement-checks))
+                   (or cf-checks []))
      :witnesses (or witnesses [])}))
 
 (defn- level-verdict

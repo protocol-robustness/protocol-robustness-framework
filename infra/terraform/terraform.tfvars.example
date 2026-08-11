@@ -1,0 +1,5 @@
+aws_region                 = "eu-north-1"
+operator_ssh_cidrs         = ["<your-ip>/32"]
+lab_origin_token            = "<random-secret>"
+lab_publish_bucket          = "prf-lab-artifacts"
+prf_project_dir             = "/path/to/protocol-robustness-framework"

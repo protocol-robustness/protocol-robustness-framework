@@ -436,10 +436,16 @@
         decisions (vals (get-in final-world [:yield/partial-fill-decisions] {}))]
     (when (and context round-lifecycle (seq decisions))
       (let [statements (mapv (fn [decision]
-                               (rs/build-statement
-                                {:ctx context
-                                 :decision decision
-                                 :round-lifecycle round-lifecycle}))
+                               ;; :decision/id is application metadata, not part
+                               ;; of the realized-statement commitment; it lets
+                               ;; a claim bind its theorem witness to exactly one
+                               ;; committed statement without changing the
+                               ;; cross-runtime statement schema.
+                               (assoc (rs/build-statement
+                                       {:ctx context
+                                        :decision decision
+                                        :round-lifecycle round-lifecycle})
+                                      :decision/id (:decision/id decision)))
                              (sort-by :decision/id decisions))
             roots (mapv :statement/root statements)]
         {:statements statements

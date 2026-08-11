@@ -76,6 +76,7 @@
    :sentinel-check 'resolver-sim.commands.sentinel/run
    :publish-check 'resolver-sim.commands.publish/run
    :resubmission-issue 'resolver-sim.commands.resubmission-issue/run
+   :resubmission-issue-admission-v2 'resolver-sim.commands.resubmission-issue-admission-v2/run
    :allocation-build-context 'resolver-sim.commands.allocation/build-context
    :allocation-verify-proposal 'resolver-sim.commands.allocation/verify-proposal
    :allocation-vectors 'resolver-sim.commands.allocation/vectors

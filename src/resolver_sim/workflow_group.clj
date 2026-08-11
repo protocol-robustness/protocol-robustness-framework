@@ -125,18 +125,21 @@
    member identity hashes, member count, semantics, and hash algorithm. Member
    ordering is canonicalized (member hashes are sorted), so the group hash is
    order-independent. Rejects unsupported hash algorithms rather than silently
-   falling back to SHA-256."
+   falling back to SHA-256.
+   
+   Semantics is converted from set to sorted vector for canonical hashing."
   ([members semantics]
    (workflow-group-hash members semantics halgo/default-hash-algorithm))
   ([members semantics hash-algorithm]
    (let [algo (halgo/validate-hash-algorithm! hash-algorithm)
-         member-hashes (vec (sort (map workflow-group-member-hash members)))]
+         member-hashes (vec (sort (map workflow-group-member-hash members)))
+         semantics-vec (vec (sort semantics))]
      (hash/domain-hash
       group-hash-domain
       {:workflow-group/schema-version workflow-group-schema-version
        :workflow-group/members member-hashes
        :workflow-group/member-count (count member-hashes)
-       :workflow-group/semantics semantics
+       :workflow-group/semantics semantics-vec
        :workflow-group/hash-algorithm algo}))))
 
 (defn workflow-group

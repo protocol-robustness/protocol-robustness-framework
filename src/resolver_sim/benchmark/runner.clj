@@ -1,5 +1,6 @@
 (ns resolver-sim.benchmark.runner
   (:require [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-evidence]
+              [resolver-sim.allocation.proof-admission :as proof-admission]
             [resolver-sim.benchmark.repo :as repo]
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.claims :as benchmark-claims]
@@ -27,9 +28,13 @@
             [resolver-sim.config.paths :as paths]
             [resolver-sim.io.edn :as ppedn])
   (:import [java.math BigInteger]
+           [java.nio.file Files]
+           [java.util UUID]
            [java.security MessageDigest]))
 
 ;; ── Helpers ──────────────────────────────────────────────────────────────────
+
+(declare normalize-runtime-values)
 
 (defn- find-scenarios-in-suites [suites]
   (mapcat (fn [suite-path]
@@ -130,16 +135,32 @@
 
 (defn- write-execution-plan! [path benchmark plan]
   (when path
-    (let [file (io/file path)]
-      (.mkdirs (.getParentFile file))
-      (spit file (ppedn/ppr-str (cond-> {:schema_version "benchmark-execution-plan.v1"
-                                         :benchmark/id (:benchmark/id benchmark)
-                                         :executions plan}
-                                  (:benchmark/trust-sequence-definition-root benchmark)
-                                  (assoc :trust-sequence-definition-root
-                                         (:benchmark/trust-sequence-definition-root benchmark)
-                                         :expected-correlation-id
-                                         (:benchmark/expected-correlation-id benchmark))))))))
+    (let [file (io/file path)
+          parent (.getParentFile file)
+          content (ppedn/ppr-str
+                   (cond-> {:schema_version "benchmark-execution-plan.v1"
+                            :benchmark/id (:benchmark/id benchmark)
+                            :executions plan}
+                     (:benchmark/trust-sequence-definition-root benchmark)
+                     (assoc :trust-sequence-definition-root
+                            (:benchmark/trust-sequence-definition-root benchmark)
+                            :expected-correlation-id
+                            (:benchmark/expected-correlation-id benchmark))))
+          temp (io/file parent (str "." (.getName file) ".tmp-" (UUID/randomUUID)))]
+      (.mkdirs parent)
+      (spit temp content)
+      (try
+        ;; A plan is a frozen execution authority, not a mutable report. Publish
+        ;; it once; a concurrent different plan must fail rather than win by
+        ;; timing. Identical publication is an idempotent replay.
+        (Files/createLink (.toPath file) (.toPath temp))
+        (catch java.nio.file.FileAlreadyExistsException _
+          (when-not (= content (slurp file))
+            (throw (ex-info "Execution plan path is already owned by a different plan"
+                            {:reason :execution-plan-path-conflict
+                             :path (str file)}))))
+        (finally
+          (Files/deleteIfExists (.toPath temp)))))))
 
 (defn- execution-output-dir
   [executions-dir ordinal descriptor]
@@ -236,6 +257,10 @@
         public-id (benchmark-public-scenario-id suite-kw path)
         final-world (:world replay-result)
         realized-statements (pf-evidence/realized-allocation-statements final-world)
+        ;; The generic evidence-content root remains the scenario's broad replay
+        ;; commitment. The separate binding below is the canonical reusable
+        ;; scenario-evidence ↔ realized-statement relation used by proof-backed
+        ;; admission; it is deliberately not an incidental member of this map.
         scenario-evidence (hc/hash-with-intent
                            {:hash/intent :evidence-content}
                            (cond-> (select-keys replay-result
@@ -243,6 +268,12 @@
                              realized-statements
                              (assoc :realized-allocation-statements-root
                                     (:statements-root realized-statements))))
+        statement-binding (when realized-statements
+                            (let [binding {:scenario-id public-id
+                                           :evidence-content-root scenario-evidence
+                                           :statements-root (:statements-root realized-statements)}]
+                              (assoc binding :binding-root
+                                     (proof-admission/scenario-statement-binding-root binding))))
         step-failures (get-in replay-result [:metrics :invariant-results] {})
         post-invariant-result (when final-world
                                 (if output-dir
@@ -284,9 +315,19 @@
             :scenario/realized-allocation-statements
             (when realized-statements
               (mapv :statement/root (:statements realized-statements)))
+            ;; Retain canonical statement projections for independent claim-side
+            ;; recomputation. Roots alone never establish statement validity.
+            :scenario/realized-allocation-statements-data
+            (when realized-statements (:statements realized-statements))
             :scenario/realized-allocation-statements-root
             (when realized-statements
               (:statements-root realized-statements))
+            :scenario/realized-statement-binding statement-binding
+            ;; Inputs retained for claim-side independent recomputation; they
+            ;; are covered by the persisted evidence bundle, not trusted as
+            ;; caller-supplied report fields.
+            :scenario/allocation-context (get-in final-world [:allocation/context])
+            :scenario/round-lifecycle (get-in final-world [:allocation/round-lifecycle])
             :scenario/artifacts execution-package})))
 
 (defrecord SewAdapter [scenario-output-dir]
@@ -513,7 +554,12 @@
                    :benchmark/artifact-index artifact-index
                    :benchmark-certification certification}
 
-         hashable-evidence (dissoc evidence :timestamp)
+         ;; The committed hash covers the normalized (persisted) representation,
+         ;; not the raw in-memory map: write-evidence serializes the same
+         ;; normalized form, so verify-bundle-hash can recompute it from the
+         ;; artifact on disk. Hashing the raw map here would silently diverge
+         ;; once normalization rewrites runtime values (e.g. Instants).
+         hashable-evidence (normalize-runtime-values (dissoc evidence :timestamp))
          bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} hashable-evidence)
          final-evidence (assoc evidence :evidence/hash bundle-root-hash)]
 
@@ -549,7 +595,7 @@
        (map? (:ops x))
        (some fn? (vals (:ops x)))))
 
-(defn- normalize-runtime-values
+(defn normalize-runtime-values
   "WRITER-BOUNDARY normalization: convert runtime Clojure objects into stable,
    portable descriptors so the persisted evidence structure contains no
    functions or opaque runtime values.
@@ -568,6 +614,11 @@
   (cond
     (yield-module-map? x) (yield-module/describe-module x)
     (fn? x) {:type :fn :class (str (class x))}
+    ;; Instant → ISO-8601 string, matching project-world-to-structure-view's
+    ;; :instant→iso8601-string contract. Persisting the canonical form (instead
+    ;; of a #object[java.time.Instant ...] tag) keeps evidence fully portable
+    ;; and lets the committed :bundle-root hash recompute from the file.
+    (instance? java.time.Instant x) (.toString x)
     (map? x) (into {} (map (fn [[k v]] [k (normalize-runtime-values v)]) x))
     (coll? x) (into (empty x) (map normalize-runtime-values x))
     :else x))

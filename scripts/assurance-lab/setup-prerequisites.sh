@@ -53,6 +53,10 @@ fi
 
 echo "--- Verifying toolchain ---"
 echo "java:  $(java -version 2>&1 | head -1)"
+if ! command -v java >/dev/null 2>&1; then
+  echo "ERROR: java not found after installation — Java is required for JAR smoke tests." >&2
+  exit 1
+fi
 echo "clojure: $(clojure -Sdescribe 2>/dev/null | grep -m1 'clojure version' || echo 'unknown')"
 echo "bb:    $(bb --version 2>/dev/null | head -1 || echo 'unknown')"
 echo "aws:   $(aws --version 2>/dev/null | head -1 || echo 'not configured')"

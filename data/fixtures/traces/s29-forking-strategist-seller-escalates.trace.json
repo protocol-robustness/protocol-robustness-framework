@@ -1,16 +1,17 @@
 {
   "description": "L0 refunds buyer; seller escalates; L1 releases to seller \u2014 participant role does not break escalation rules.",
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 60,
     "max-dispute-duration": 2592000,
+    "resolver-bond-bps": 0,
     "resolution-module": "0xkleros-proxy",
     "escalation-resolvers": {
       "0": "0xl0",
       "1": "0xl1",
       "2": "0xl2"
-    },
-    "resolver-bond-bps": 0
+    }
   },
   "expected-outcome": {
     "workflow-0": "release-after-l1-reversal"
@@ -120,7 +121,7 @@
     "resolution-hash-isolation",
     "claimable-balance-isolation"
   ],
-  "id": "scenarios/s29-forking-strategist-seller-escalates",
+  "id": "scenarios\/s29-forking-strategist-seller-escalates",
   "notes": null,
   "expectations": {
     "terminal": [

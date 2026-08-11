@@ -1,0 +1,24 @@
+- name: PRF Assurance Lab — full provisioning
+  hosts: prf_lab
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - group_vars/all.yml
+
+  roles:
+    - common
+    - postgres
+    - nginx
+    - prf-lab
+    - site
+
+  post_tasks:
+    - name: Print service status
+      command: systemctl status myapp prf-attestation postgresql nginx --no-pager
+      register: service_status
+      changed_when: false
+
+    - name: Show service status
+      debug:
+        var: service_status.stdout_lines

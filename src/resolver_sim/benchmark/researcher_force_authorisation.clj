@@ -1280,43 +1280,54 @@
    registration    — atom map of consumption-key -> {:status ...}
    consumption-key — the deterministic consumption key
 
-   Returns {:reserved? true :key key} on success.
-   Returns {:reserved? false :reason str} if already reserved or consumed."
+   Returns {:reserved? true :key key :reservation/token uuid} on success.
+   The token is a JVM-local fence: finalizers must present it to prevent a
+   stale post-execution worker from terminalizing a different reservation.
+   This atom implementation is reference/test-only; a durable backend remains
+   mandatory across processes or restarts."
   [registration consumption-key]
   (let [existing (get @registration consumption-key)]
     (if existing
       {:reserved? false
        :reason (str "consumption key already has status: "
                     (:status existing))}
-      (let [reservation {:status :reserved :reserved-at (str (java.time.Instant/now))}]
+      (let [reservation {:status :reserved
+                         :reserved-at (str (java.time.Instant/now))
+                         :reservation/token (str (java.util.UUID/randomUUID))}]
         (if (compare-and-set! registration
                               (dissoc @registration consumption-key)
                               (assoc @registration consumption-key reservation))
-          {:reserved? true :key consumption-key}
+          {:reserved? true :key consumption-key
+           :reservation/token (:reservation/token reservation)}
           (recur registration consumption-key))))))
 
 (defn finalise-consumption!
-  "Atomically finalise a reserved consumption key.
-   registration    — atom map of consumption-key -> {:status ...}
-   consumption-key — the deterministic consumption key
-   status          — :consumed | :failed-after-consumption
-                     | :rolled-back-after-consumption
+  "Atomically finalise a reserved consumption key. The four-argument form
+   requires the reservation token returned by reserve-consumption!; the legacy
+   three-argument form remains compatibility-only and is not stale-safe."
+  ([registration consumption-key status]
+   (finalise-consumption! registration consumption-key nil status))
+  ([registration consumption-key reservation-token status]
+   (let [snapshot @registration
+         existing (get snapshot consumption-key)]
+     (cond
+       (nil? existing)
+       {:finalised? false :reason "no reservation found for consumption key"}
 
-   All statuses are terminal — the key cannot be reused.
+       (not= :reserved (:status existing))
+       {:finalised? false :reason "consumption key already terminal"}
 
-   Returns {:finalised? true :status status} on success.
-   Returns {:finalised? false :reason str} if not found or already finalised."
-  [registration consumption-key status]
-  (let [existing (get @registration consumption-key)]
-    (if-not existing
-      {:finalised? false :reason "no reservation found for consumption key"}
-      (let [updated (assoc existing :status status
-                           :finalised-at (str (java.time.Instant/now)))]
-        (if (compare-and-set! registration
-                              @registration
-                              (assoc @registration consumption-key updated))
-          {:finalised? true :status status}
-          (recur registration consumption-key status))))))
+       (and reservation-token
+            (not= reservation-token (:reservation/token existing)))
+       {:finalised? false :reason "stale consumption reservation token"}
+
+       :else
+       (let [updated (assoc existing :status status
+                            :finalised-at (str (java.time.Instant/now)))]
+         (if (compare-and-set! registration snapshot
+                               (assoc snapshot consumption-key updated))
+           {:finalised? true :status status}
+           (recur registration consumption-key reservation-token status)))))))
 
 (defn registration-consumed?
   "True when a consumption key is registered with a terminal status

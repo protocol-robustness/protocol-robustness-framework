@@ -1,0 +1,87 @@
+name: PostgreSQL Admission Integration
+
+# Runs the PostgreSQL admission-store integration tests against a fresh,
+# disposable PostgreSQL instance. These tests prove the multi-instance
+# concurrency contract (two independent pools racing against one database),
+# real forward-only migrations, DB-authoritative expiry boundaries, and
+# failure/recovery behaviour.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    # Isolated fresh PostgreSQL per job; no external/developer database is ever
+    # used. A dedicated database name prevents any interference with parallel
+    # CI jobs sharing the host.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: prf_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d prf_test"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Clojure CLI
+        run: |
+          curl -fsSL https://download.clojure.org/install/linux-install-1.11.1.1413.sh -o /tmp/install-clojure.sh
+          chmod +x /tmp/install-clojure.sh
+          sudo /tmp/install-clojure.sh
+
+      - name: Install Babashka
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/babashka/babashka/master/install -o /tmp/install-bb.sh
+          chmod +x /tmp/install-bb.sh
+          sudo /tmp/install-bb.sh
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-postgres-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            if nc -z localhost 5433; then break; fi
+            sleep 1
+          done
+          nc -z localhost 5433 && echo "postgres ready" || (echo "postgres not reachable" && exit 1)
+
+      # DATABASE_URL points at the CI service container (not a developer DB).
+      - name: Migrate fresh database (single owner)
+        run: |
+          DATABASE_URL='jdbc:postgresql://localhost:5433/prf_test?user=postgres&password=postgres' \
+            clojure -M -m resolver-sim.db.migrate
+
+      - name: Run PostgreSQL admission + concurrency integration tests
+        run: |
+          DATABASE_URL='jdbc:postgresql://localhost:5433/prf_test?user=postgres&password=postgres' \
+            clojure -M:test -e "
+              (require 'resolver-sim.resubmission.postgres-admission-store-test
+                       'resolver-sim.resubmission.postgres-admission-concurrency-test)
+              (clojure.test/run-tests 'resolver-sim.resubmission.postgres-admission-store-test
+                                      'resolver-sim.resubmission.postgres-admission-concurrency-test)"

@@ -1,7 +1,8 @@
 {
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
-    "appeal-window-duration": 60,
+    "appeal-window-duration": 0,
     "max-dispute-duration": 2592000
   },
   "threat-tags": [],
@@ -72,10 +73,6 @@
   "scenario-id": "s66-cooldown-boundary-reorg",
   "title": "s66-cooldown-boundary-reorg",
   "id": "scenarios\/s66-cooldown-boundary-reorg",
-  "provenance": {
-    "author-id": "@grifma",
-    "author": "Marc Griffiths"
-  },
   "agents": [
     {
       "id": "buyer",

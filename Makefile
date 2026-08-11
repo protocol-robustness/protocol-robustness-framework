@@ -168,19 +168,60 @@ refresh-yield-reference-v1:
 
 .PHONY: xtdb
 xtdb:
-	docker compose up -d xtdb
+	docker compose -f config/docker-compose.yaml up -d xtdb
 
 .PHONY: xtdb-stop
 xtdb-stop:
-	docker compose stop xtdb
+	docker compose -f config/docker-compose.yaml stop xtdb
 
 .PHONY: xtdb-down
 xtdb-down:
-	docker compose down xtdb
+	docker compose -f config/docker-compose.yaml down xtdb
 
 .PHONY: xtdb-logs
 xtdb-logs:
-	docker compose logs xtdb
+	docker compose -f config/docker-compose.yaml logs xtdb
+
+.PHONY: postgres
+postgres:
+	docker compose -f config/docker-compose.yaml up -d postgres
+
+.PHONY: postgres-stop
+postgres-stop:
+	docker compose -f config/docker-compose.yaml stop postgres
+
+.PHONY: postgres-down
+postgres-down:
+	docker compose -f config/docker-compose.yaml down postgres
+
+.PHONY: postgres-logs
+postgres-logs:
+	docker compose -f config/docker-compose.yaml logs -f postgres
+
+.PHONY: postgres-ps
+postgres-ps:
+	docker compose -f config/docker-compose.yaml ps postgres
+
+.PHONY: postgres-reset
+postgres-reset:
+	docker compose -f config/docker-compose.yaml down -v postgres && docker compose -f config/docker-compose.yaml up -d postgres
+
+.PHONY: postgres-migrate
+postgres-migrate:
+	DATABASE_URL="$${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}" \
+		clojure -M -m resolver-sim.db.migrate
+
+.PHONY: test-integration-postgres
+test-integration-postgres:
+	clojure -M:test -e "(require 'resolver-sim.resubmission.postgres-admission-store-test) (clojure.test/run-tests 'resolver-sim.resubmission.postgres-admission-store-test)"
+
+.PHONY: test-integration-postgres-concurrency
+test-integration-postgres-concurrency:
+	clojure -M:test -e "(require 'resolver-sim.resubmission.postgres-admission-concurrency-test) (clojure.test/run-tests 'resolver-sim.resubmission.postgres-admission-concurrency-test)"
+
+.PHONY: test-integration-postgres-all
+test-integration-postgres-all:
+	clojure -M:test -e "(require 'resolver-sim.resubmission.postgres-admission-store-test 'resolver-sim.resubmission.postgres-admission-concurrency-test) (clojure.test/run-tests 'resolver-sim.resubmission.postgres-admission-store-test 'resolver-sim.resubmission.postgres-admission-concurrency-test)"
 
 .PHONY: db-setup
 db-setup: xtdb
@@ -320,6 +361,10 @@ allocation-conformance:
 allocation-realized-conformance:
 	cd coprocessor && cargo build --release -p allocation-kernel --bin realized-statement-kernel
 	./scripts/conformance/realized-statement-conformance.sh
+
+.PHONY: allocation-realized-proof
+allocation-realized-proof:
+	./scripts/prove-realized-statement.sh
 
 .PHONY: allocation-test
 allocation-test: allocation-rust-test allocation-rust-clippy allocation-guest allocation-realized-guest allocation-contracts allocation-conformance allocation-realized-conformance

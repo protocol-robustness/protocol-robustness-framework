@@ -10,6 +10,7 @@
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.use-cases.registry :as use-case-registry]
             [resolver-sim.benchmark.claims :refer [normalize-claim-refs]]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.resource-path :as rp]))
 
@@ -31,8 +32,11 @@
   (rp/edn-read path))
 
 (defn load-evidence
+  "Load an evidence bundle, tolerating legacy #object tagged literals.
+   The caller (build-report) additionally enforces bundle integrity before
+   treating any bundle field as authoritative."
   [path]
-  (load-edn path))
+  (integrity/read-evidence-bundle path))
 
 (defn load-benchmark-concepts
   [path]
@@ -407,6 +411,7 @@
    (build-report evidence-path concepts-path scoring-path nil))
   ([evidence-path concepts-path scoring-path use-case-registry-path]
   (let [evidence (load-evidence evidence-path)
+        _ (integrity/verify-evidence-bundle! evidence)
         manifest (:benchmark evidence)
         domain-entry (benchmark-domain-entry (:benchmark/domain manifest))
         concept-resolution (resolve-report-concepts manifest concepts-path use-case-registry-path)

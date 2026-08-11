@@ -93,24 +93,24 @@
               :else v))]
     (walk value)))
 
-(def disputed-statuses
-  "Protocol-neutral dispute context values that mean cancellation is occurring
-   during an active dispute. Protocols commit the underlying status; this fact
-   is derived rather than accepted as a caller-provided boolean."
-  #{:active :disputed})
-
 (defn cancel-during-dispute?
-  "Derives whether the committed cancellation evaluation ran during a dispute."
-  [operation]
-  (contains? disputed-statuses
-             (get-in operation [:evaluation :context :dispute-status])))
+  "Derives whether the committed cancellation evaluation ran during a dispute.
+   Protocols supply their own `disputed-statuses` set so the framework does not
+   hardcode any protocol-specific status keywords."
+  ([operation]
+   (cancel-during-dispute? operation #{}))
+  ([operation disputed-statuses]
+   (contains? disputed-statuses
+              (get-in operation [:evaluation :context :dispute-status]))))
 
 (defn cancellation-binding
   "Builds the framework cancellation binding for an attempt. `:event/id` is the
    primary attempt identity; it distinguishes auditable retries without being
    relied on as replay protection (the consumption key and target snapshot are
-   the security boundary). The dispute fact is derived from committed context."
-  [operation]
+   the security boundary). The dispute fact is derived from committed context.
+   `disputed-statuses` is a protocol-supplied set of status keywords that mean
+   an active dispute is in progress."
+  [operation & [disputed-statuses]]
   (cond-> {:schema "cancellation-binding.v2"
            :event/id (:event/id operation)
            :protocol/id (:protocol/id operation)
@@ -122,7 +122,7 @@
            :execution (:execution operation)
            :conflict/consumption-key (:conflict/consumption-key operation)
            :previous-event-root (:previous-event-root operation)
-           :cancellation/during-dispute? (cancel-during-dispute? operation)}
+           :cancellation/during-dispute? (cancel-during-dispute? operation (or disputed-statuses #{}))}
     (nil? (:authorization operation)) (dissoc :authorization)
     (nil? (:conflict/consumption-key operation)) (dissoc :conflict/consumption-key)
     (nil? (:previous-event-root operation)) (dissoc :previous-event-root)))

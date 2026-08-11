@@ -131,10 +131,10 @@
    {:id :incentive-margin
     :source :framework
     :catalogued? true
-    :wired? false
+    :wired? true
     :implemented? true
     :title "Incentive margin"
-    :summary "U_honest - max(U_deviation). Positive margin means honest strategy is strictly preferred. Implemented as a terminal-payoff helper but not wired into the trace-end dispatcher."}])
+    :summary "U_honest - max(U_deviation). Positive margin means honest strategy is strictly preferred. Implemented as a terminal-payoff helper and wired via check-incentive-compatibility which includes it in the observed payload when supplied in metrics."}])
 
 (def grim-trigger-deterrence-id
   "Canonical concept id for the model-specific grim-trigger deterrence claim."

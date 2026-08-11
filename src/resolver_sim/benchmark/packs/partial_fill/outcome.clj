@@ -94,14 +94,24 @@
    :allocation-applied (zero? deferred) semantics."
   [participant-map]
   (let [fulfilled (long (:fulfilled participant-map 0))
-        deferred (long (:deferred participant-map 0))]
+        deferred (long (:deferred participant-map 0))
+        haircut (long (:haircut participant-map 0))
+        obligation (long (or (:obligation-before participant-map) 0))]
     {:participant/id (:participant-id participant-map)
      :obligation/before (:obligation-before participant-map)
      :obligation/fulfilled fulfilled
      :obligation/deferred deferred
+     :obligation/haircut haircut
      :obligation/after (:obligation-after participant-map)
+     ;; Amount applied now, never a complete-settlement classification.
      :allocation/positive-amount-applied? (pos? fulfilled)
-     :allocation/fully-satisfied? (zero? deferred)
+     ;; Preserve the formerly overloaded weaker fact explicitly.
+     :allocation/no-deferred-residual? (zero? deferred)
+     ;; Complete satisfaction requires the entire obligation, no deferred
+     ;; residual, and no permanent haircut.
+     :allocation/fully-satisfied? (and (= fulfilled obligation)
+                                       (zero? deferred)
+                                       (zero? haircut))
      :allocation/applied? true}))
 
 (defn normalise-decision-outcome
@@ -119,13 +129,18 @@
                            (let [key (:key p)
                                  owed (long (:owed p 0))
                                  filled (long (:filled p 0))
-                                 deferred (max 0 (- owed filled))]
+                                 haircut (long (:haircut p 0))
+                                 deferred (max 0 (- owed filled haircut))]
                              {:participant/id key
                               :obligation/before owed
                               :obligation/fulfilled filled
                               :obligation/deferred deferred
+                              :obligation/haircut haircut
                               :allocation/positive-amount-applied? (pos? filled)
-                              :allocation/fully-satisfied? (zero? deferred)
+                              :allocation/no-deferred-residual? (zero? deferred)
+                              :allocation/fully-satisfied? (and (= filled owed)
+                                                                (zero? deferred)
+                                                                (zero? haircut))
                               :allocation/applied? true}))
                          participants)
      :evidence/available-liquidity (get-in decision [:evidence :available-liquidity])

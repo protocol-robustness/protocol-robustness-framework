@@ -788,19 +788,46 @@ test:community {:doc "Run community participation tests"
                     :task (clojure "-M:test" "-e" "(require 'clojure.test 'resolver-sim.db.telemetry-integration-test) (clojure.test/run-tests 'resolver-sim.db.telemetry-integration-test)")}
 
   xtdb:up {:doc "Start XTDB via Docker Compose"
-           :task (shell "docker compose up -d xtdb")}
+           :task (shell "docker compose -f config/docker-compose.yaml up -d xtdb")}
 
   xtdb:stop {:doc "Stop XTDB container"
-             :task (shell "docker compose stop xtdb")}
+             :task (shell "docker compose -f config/docker-compose.yaml stop xtdb")}
 
   xtdb:down {:doc "Stop and remove XTDB container"
-             :task (shell "docker compose down xtdb")}
+             :task (shell "docker compose -f config/docker-compose.yaml down xtdb")}
 
   xtdb:logs {:doc "Tail XTDB container logs"
-             :task (shell "docker compose logs -f xtdb")}
+             :task (shell "docker compose -f config/docker-compose.yaml logs -f xtdb")}
 
-  xtdb:ps {:doc "Check XTDB container status"
-           :task (shell "docker compose ps xtdb")}
+   xtdb:ps {:doc "Check XTDB container status"
+            :task (shell "docker compose -f config/docker-compose.yaml ps xtdb")}
+
+  postgres:up {:doc "Start PostgreSQL via Docker Compose"
+               :task (shell "docker compose -f config/docker-compose.yaml up -d postgres")}
+
+  postgres:stop {:doc "Stop PostgreSQL container"
+                 :task (shell "docker compose -f config/docker-compose.yaml stop postgres")}
+
+  postgres:down {:doc "Stop and remove PostgreSQL container (keeps data volume)"
+                 :task (shell "docker compose -f config/docker-compose.yaml down postgres")}
+
+  postgres:logs {:doc "Tail PostgreSQL container logs"
+:task (shell "docker compose -f config/docker-compose.yaml logs -f postgres")}
+
+  postgres:ps {:doc "Check PostgreSQL container status"
+               :task (shell "docker compose -f config/docker-compose.yaml ps postgres")}
+
+  postgres:reset {:doc "Destroy and recreate the persistent PostgreSQL data volume (dev only)"
+                  :task (shell "docker compose -f config/docker-compose.yaml down -v postgres && docker compose -f config/docker-compose.yaml up -d postgres")}
+
+  postgres:psql {:doc "Open an interactive psql shell in the PostgreSQL container"
+                 :task (shell "docker exec -it config-postgres-1 psql -U ${PRG_POSTGRES_USER:-postgres} -d ${PRG_POSTGRES_DB:-postgres}")}
+
+  postgres:migrate {:doc "Apply forward-only migrations (idempotent). Requires DATABASE_URL or uses the dev compose default."
+                    :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL='${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}' && clojure -M -m resolver-sim.db.migrate")}
+
+  test:integration:postgres {:doc "Run PostgreSQL admission adapter + real migration tests"
+                             :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL='${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}' && clojure -M:test -e '(require (quote resolver-sim.resubmission.postgres-admission-store-test)) (clojure.test/run-tests (quote resolver-sim.resubmission.postgres-admission-store-test))'")}
 
   notebook:focus
   {:doc "Focus the provenance notebook on a specific run-id."

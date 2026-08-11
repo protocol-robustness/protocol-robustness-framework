@@ -1,5 +1,6 @@
 {
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "resolution-module": "0xmodule-v2",
     "appeal-window-duration": 0,

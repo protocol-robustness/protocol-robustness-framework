@@ -1,16 +1,17 @@
 {
   "description": "Buyer escalates but L1 also releases \u2014 no reversal; challenge bond forfeited without invariant break.",
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 60,
     "max-dispute-duration": 2592000,
+    "resolver-bond-bps": 0,
     "resolution-module": "0xkleros-proxy",
     "escalation-resolvers": {
       "0": "0xl0",
       "1": "0xl1",
       "2": "0xl2"
-    },
-    "resolver-bond-bps": 0
+    }
   },
   "expected-outcome": {
     "workflow-0": "release-after-l1-confirmation"
@@ -120,7 +121,7 @@
     "resolution-hash-isolation",
     "claimable-balance-isolation"
   ],
-  "id": "scenarios/s30-forking-strategist-double-loss",
+  "id": "scenarios\/s30-forking-strategist-double-loss",
   "notes": null,
   "expectations": {
     "terminal": [

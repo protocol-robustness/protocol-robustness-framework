@@ -1,0 +1,25 @@
+---
+# Global variables for the PRF Assurance Lab
+
+prf_project_dir: /opt/prf
+lab_runs_dir: /var/lib/lab/runs
+lab_publish_bucket: "{{ lookup('env', 'LAB_PUBLISH_BUCKET') | default('') }}"
+lab_region: "{{ lookup('env', 'LAB_REGION') | default('eu-north-1') }}"
+lab_origin_token: "{{ lookup('env', 'LAB_ORIGIN_TOKEN') | default('') }}"
+
+# Database
+postgresql_databases:
+  - name: prf_lab
+    owner: prf_lab
+postgresql_users:
+  - name: prf_lab
+    password: "{{ vault_postgres_password | default('prf_lab_dev') }}"
+postgresql_hba_entries:
+  - { type: local, database: all, user: postgres, auth_method: peer }
+  - { type: local, database: all, user: all, auth_method: peer }
+  - { type: host, database: all, user: all, address: '127.0.0.1/32', auth_method: md5 }
+  - { type: host, database: all, user: all, address: '::1/128', auth_method: md5 }
+
+# Signing keys (for lab use only - replace with real keys in production)
+lab_signer_key_id: assurance-lab-signer
+lab_release_metadata: '{"release/id":"2026.08.11","release/channel":"stable"}'

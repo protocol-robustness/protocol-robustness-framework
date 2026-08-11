@@ -1,6 +1,7 @@
 {
   "description": "L0\/L1\/L2 all release; third escalation rejected; two bonds lost; final release at L2.",
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 60,
     "max-dispute-duration": 2592000,

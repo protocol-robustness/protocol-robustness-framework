@@ -1,1 +1,49 @@
-{:protocol-params {"resolver-fee-bps" 150, "appeal-window-duration" 60, "max-dispute-duration" 2592000, "resolver-bond-bps" 0}, :allow-open-disputes? true, :events [{:seq 0, :time 1000, :agent "buyer", :action "create_escrow", :params {:token "USDC", :to "0xseller", :amount 2500, :custom-resolver "0xresolver"}} {:seq 1, :time 1060, :agent "buyer", :action "raise_dispute", :params {:workflow-id 0}} {:seq 2, :time 1120, :agent "resolver", :action "execute_resolution", :params {:workflow-id 0, :is-release true, :resolution-hash "0xok"}} {:seq 3, :time 1181, :agent "keeper", :action "execute_pending_settlement", :params {:workflow-id 0}}], :schema-version "1.0", :scenario-author "@grifma", :scenario-id "s47b-appeal-window-plus-one-rejected", :notes "Settlement one second after appeal-window boundary must reject; dispute remains open.", :agents [{:id "buyer", :address "0xbuyer", :strategy "honest"} {:id "seller", :address "0xseller", :strategy "honest"} {:id "resolver", :address "0xresolver", :strategy "resolver", :role "resolver"} {:id "keeper", :address "0xkeeper", :strategy "keeper", :role "keeper"}], :initial-block-time 1000}
+{:protocol-params
+ {"governance-mode" :legacy,
+  "resolver-fee-bps" 150,
+  "appeal-window-duration" 60,
+  "max-dispute-duration" 2592000,
+  "resolver-bond-bps" 0},
+ :allow-open-disputes? true,
+ :events
+ [{:seq 0,
+   :time 1000,
+   :agent "buyer",
+   :action "create_escrow",
+   :params
+   {:token "USDC",
+    :to "0xseller",
+    :amount 2500,
+    :custom-resolver "0xresolver"}}
+  {:seq 1,
+   :time 1060,
+   :agent "buyer",
+   :action "raise_dispute",
+   :params {:workflow-id 0}}
+  {:seq 2,
+   :time 1120,
+   :agent "resolver",
+   :action "execute_resolution",
+   :params {:workflow-id 0, :is-release true, :resolution-hash "0xok"}}
+  {:seq 3,
+   :time 1181,
+   :agent "keeper",
+   :action "execute_pending_settlement",
+   :params {:workflow-id 0}}],
+ :schema-version "1.0",
+ :scenario-author "@grifma",
+ :scenario-id "s47b-appeal-window-plus-one-rejected",
+ :notes
+ "Settlement one second after appeal-window boundary must reject; dispute remains open.",
+ :agents
+ [{:id "buyer", :address "0xbuyer", :strategy "honest"}
+  {:id "seller", :address "0xseller", :strategy "honest"}
+  {:id "resolver",
+   :address "0xresolver",
+   :strategy "resolver",
+   :role "resolver"}
+  {:id "keeper",
+   :address "0xkeeper",
+   :strategy "keeper",
+   :role "keeper"}],
+ :initial-block-time 1000}

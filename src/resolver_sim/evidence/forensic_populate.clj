@@ -9,7 +9,9 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.confidence :as confidence])
-  (:import [java.security MessageDigest]))
+  (:import [java.security MessageDigest]
+           [java.nio.file Files StandardCopyOption]
+           [java.util UUID]))
 
 (defn- sort-keys
   "Recursively sort map keys alphabetically for deterministic JSON serialization.
@@ -41,16 +43,51 @@
         raw (.digest digest ba)]
     (apply str (map #(format "%02x" (bit-and % 0xff)) raw))))
 
+(defn- json-string [value]
+  (json/write-str (sort-keys value) :key-fn (fn [k]
+                                               (if (namespace k)
+                                                 (str (namespace k) "/" (name k))
+                                                 (name k)))
+                  :indent true :escape-slash false))
+
+(defn- atomic-create-json!
+  "Publish immutable full-hash JSON by atomic hard-link create-if-absent.
+   A different object at the same full hash is a fail-closed collision."
+  [dir full-hash value]
+  (let [target (io/file dir (str full-hash ".json"))
+        temp (io/file dir (str "." full-hash ".tmp-" (UUID/randomUUID)))
+        content (json-string value)]
+    (.mkdirs dir)
+    (spit temp content)
+    (try
+      (Files/createLink (.toPath target) (.toPath temp))
+      (catch java.nio.file.FileAlreadyExistsException _
+        (when-not (= content (slurp target))
+          (throw (ex-info "Forensic full-hash content collision"
+                          {:reason :forensic-hash-content-collision
+                           :hash full-hash :path (str target)}))))
+      (finally (Files/deleteIfExists (.toPath temp))))
+    {:path (.getPath target) :hash full-hash}))
+
+(defn- atomic-replace-json!
+  [file value]
+  (let [target (io/file file)
+        parent (.getParentFile target)
+        temp (io/file parent (str "." (.getName target) ".tmp-" (UUID/randomUUID)))]
+    (.mkdirs parent)
+    (spit temp (json-string value))
+    (Files/move (.toPath temp) (.toPath target)
+                (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE
+                                                 StandardCopyOption/REPLACE_EXISTING]))
+    (.getPath target)))
+
 (defn write-claim-result!
-  "Write a single claim evaluation result to artifact-dir/claims/.
-   File is named claim-result-<hash-prefix>.json with self-referential
-   SHA-256 (result/hash computed from all fields except result/hash).
-   Returns {:path <str> :hash <str> :result <map>}."
+  "Publish a full-hash immutable claim object under claims/sha256/."
   [{:keys [claim-id category status evaluated-at evidence-refs description
            assumptions falsified-if failure-detail confidence counterexamples inputs]
     :or {evaluated-at (str (java.time.Instant/now))}}]
   (let [artifact-root (str (evcfg/artifact-dir))
-        claims-dir (io/file artifact-root "claims")
+        claims-dir (io/file artifact-root "claims" "sha256")
         _ (.mkdirs claims-dir)
         base {:result/schema-version "forensic-claim-result.v1"
               :result/hash nil
@@ -69,28 +106,17 @@
         can-bytes (json-bytes (dissoc base :result/hash))
         result-hash (sha256-hex can-bytes)
         result (assoc base :result/hash result-hash)
-        filename (str "claim-result-" (subs result-hash 0 (min 16 (count result-hash))) ".json")
-        out-file (io/file claims-dir filename)]
-    (spit out-file (json/write-str (sort-keys result) :key-fn (fn [k]
-                                                                (if (namespace k)
-                                                                  (str (namespace k) "/" (name k))
-                                                                  (name k)))
-                                   :indent true
-                                   :escape-slash false))
-    (println "  wrote" (.getPath out-file))
-    {:path (.getPath out-file) :hash result-hash :result result}))
+        published (atomic-create-json! claims-dir result-hash result)]
+    (println "  wrote" (:path published))
+    (assoc published :result result)))
 
 (defn write-attestation!
-  "Write a single attestation record to artifact-dir/attestations/.
-   File is named attestation-<hash-prefix>.json with self-referential
-   SHA-256 (hash computed from all fields except attestation/id,
-   attestation/hash, and attestation/signature).
-   Returns {:path <str> :hash <str> :record <map>}."
+  "Publish a full-hash immutable attestation object under attestations/sha256/."
   [{:keys [subject-kind subject-hash claim-id claim-result attestor-id signed-at
            signing-key-id signature provenance metadata]
     :or {signed-at (str (java.time.Instant/now))}}]
   (let [artifact-root (str (evcfg/artifact-dir))
-        att-dir (io/file artifact-root "attestations")
+        att-dir (io/file artifact-root "attestations" "sha256")
         _ (.mkdirs att-dir)
         base {:attestation/schema-version "forensic-attestation.v1"
               :attestation/id nil
@@ -108,16 +134,9 @@
         can-bytes (json-bytes (dissoc base :attestation/id :attestation/hash :attestation/signature))
         att-hash (sha256-hex can-bytes)
         record (assoc base :attestation/id att-hash :attestation/hash att-hash)
-        filename (str "attestation-" (subs att-hash 0 (min 16 (count att-hash))) ".json")
-        out-file (io/file att-dir filename)]
-    (spit out-file (json/write-str (sort-keys record) :key-fn (fn [k]
-                                                                (if (namespace k)
-                                                                  (str (namespace k) "/" (name k))
-                                                                  (name k)))
-                                   :indent true
-                                   :escape-slash false))
-    (println "  wrote" (.getPath out-file))
-    {:path (.getPath out-file) :hash att-hash :record record}))
+        published (atomic-create-json! att-dir att-hash record)]
+    (println "  wrote" (:path published))
+    (assoc published :record record)))
 
 (defn- criterion-evidence-refs
   "Return assertion-level evidence references for one forensic criterion.
@@ -209,9 +228,7 @@
                            :evidence-refs (vec (mapv (fn [cr]
                                                        {:ref/kind "claim-result"
                                                         :ref/hash (:hash cr)
-                                                        :ref/path (str "claims/claim-result-"
-                                                                       (subs (:hash cr) 0 (min 16 (count (:hash cr))))
-                                                                       ".json")})
+                                                        :ref/path (str "claims/sha256/" (:hash cr) ".json")})
                                                      @claim-results))
                            :description "All forensic-grade acceptance criteria pass"
                            :failure-detail (when-not all-pass?
@@ -224,21 +241,36 @@
         (swap! claim-results conj composite-cr))
       ;; Write self-attestations for each claim result
       (let [all-results @claim-results
-            att-count (atom 0)]
-        (doseq [cr all-results]
-          (write-attestation!
-           {:subject-kind "claim-result"
-            :subject-hash (:hash cr)
-            :claim-id (get-in cr [:result :result/claim-id])
-            :claim-result (if (= "pass" (get-in cr [:result :result/status]))
-                            "verified" "rejected")
-            :attestor-id attestor-id
-            :provenance {:prov/schema-version "forensic-provenance.v1"
-                         :prov/trigger "run-complete"
-                         :prov/generated-at (str (java.time.Instant/now))
-                         :prov/run-id run-id
-                         :prov/producer "resolver-sim.evidence.forensic-populate/populate-claims-and-attestations!"}})
-          (swap! att-count inc))
+            attestations (mapv (fn [cr]
+                                 (write-attestation!
+                                  {:subject-kind "claim-result"
+                                   :subject-hash (:hash cr)
+                                   :claim-id (get-in cr [:result :result/claim-id])
+                                   :claim-result (if (= "pass" (get-in cr [:result :result/status]))
+                                                   "verified" "rejected")
+                                   :attestor-id attestor-id
+                                   :provenance {:prov/schema-version "forensic-provenance.v1"
+                                                :prov/trigger "run-complete"
+                                                :prov/generated-at (str (java.time.Instant/now))
+                                                :prov/run-id run-id
+                                                :prov/producer "resolver-sim.evidence.forensic-populate/populate-claims-and-attestations!"}}))
+                               all-results)
+            claim-hashes (mapv :hash all-results)
+            attestation-hashes (mapv :hash attestations)
+            index-base {:index/schema-version "forensic-claims-index.v2"
+                        :index/run-id run-id
+                        :index/evidence-root root-hash
+                        :index/claim-hashes claim-hashes
+                        :index/claim-count (count claim-hashes)
+                        :index/attestation-hashes attestation-hashes
+                        :index/attestation-count (count attestation-hashes)
+                        :index/all-pass? all-pass?}
+            ;; The root is a commitment to the complete index projection, not to
+            ;; the file path or a self-referential serialized representation.
+            index (assoc index-base :index/root (sha256-hex (json-bytes index-base)))
+            index-path (atomic-replace-json! (io/file dir "forensic-claims-index.json") index)]
         {:claim-count (count all-results)
-         :attestation-count @att-count
-         :all-pass? all-pass?}))))
+         :attestation-count (count attestations)
+         :all-pass? all-pass?
+         :index-path index-path
+         :index index}))))

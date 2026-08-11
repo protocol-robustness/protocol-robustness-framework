@@ -1,10 +1,11 @@
 {
-"protocol-params": {
-      "resolver-fee-bps": 0,
-      "appeal-window-duration": 0,
-      "max-dispute-duration": 300
-    },
-    "threat-tags": [],
+  "protocol-params": {
+    "governance-mode": "legacy",
+    "resolver-fee-bps": 0,
+    "appeal-window-duration": 0,
+    "max-dispute-duration": 300
+  },
+  "threat-tags": [],
   "purpose": "regression",
   "events": [
     {

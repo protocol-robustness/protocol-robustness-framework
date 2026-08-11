@@ -1,0 +1,16 @@
+{:schema-version "prf-release-trust-policy.v1"
+ :policy-id :release/assurance-lab-v1
+ :policy/status :active
+ :policy-version 1
+ :trusted-keys
+ [{:key-id "assurance-lab-signer"
+   :status :active
+   :public-key "AAAAC3NzaC1lZDI1NTE5AAAAIEGJIgkOurFXrE3dtlzkdZ7ky0rSCAn8SYDgDWNooYbM"}]
+ :requirements
+ {:distribution
+  {:prf {:minimum-valid-signatures 1}
+   :sew {:minimum-valid-signatures 1}}}
+ :canonicalization
+ {:payload-profile "prf-release-attestation-payload.v1"}
+ :operator-note
+ "Lab-only active policy. Replace with organization-enrolled keys and thresholds before production use."}

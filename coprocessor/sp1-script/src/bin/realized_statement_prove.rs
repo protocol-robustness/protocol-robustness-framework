@@ -13,11 +13,14 @@
 //! context + available + requested + policy + fail-action-policy + round-state).
 
 use clap::Parser;
+use serde::Serialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use sp1_sdk::{
     blocking::{ProveRequest, Prover, ProverClient},
     include_elf, Elf, HashableKey, ProvingKey, SP1Stdin,
 };
+use std::path::PathBuf;
 
 /// The ELF for the realized-statement SP1 guest.
 const REALIZED_ELF: Elf = include_elf!("realized-statement-sp1-program");
@@ -37,6 +40,68 @@ struct Args {
     /// Generate a proof (default when --execute is not given).
     #[arg(long)]
     prove: bool,
+    /// Persist the locally verified proof/public-values artifact. Required in
+    /// --prove mode so proof evidence is never silently discarded.
+    #[arg(long)]
+    artifact: Option<PathBuf>,
+}
+
+#[derive(Serialize)]
+struct RealizedStatementProofArtifact {
+    schema_version: String,
+    proof_profile: String,
+    statement_schema_version: String,
+    statement_root: String,
+    program_id: String,
+    program_elf_sha256: String,
+    program_vkey: String,
+    public_values_schema: String,
+    public_values_utf8_json: String,
+    public_values_sha256: String,
+    proof_bytes_hex: String,
+    proof_sha256: String,
+}
+
+fn sha256_ref(bytes: &[u8]) -> String {
+    format!("sha256:{:x}", Sha256::digest(bytes))
+}
+
+fn write_artifact(
+    path: &PathBuf,
+    proof: &sp1_sdk::SP1ProofWithPublicValues,
+    pk: &impl ProvingKey,
+    native: &[u8],
+) {
+    let public: Value = serde_json::from_slice(native).expect("native public JSON");
+    let artifact = RealizedStatementProofArtifact {
+        schema_version: "realized-allocation-proof.v1".to_owned(),
+        proof_profile: "allocation-proof/largest-remainder-deferred-pro-rata.v1".to_owned(),
+        statement_schema_version: public["schema-version"]
+            .as_str()
+            .expect("statement schema")
+            .to_owned(),
+        statement_root: public["statement-root"]
+            .as_str()
+            .expect("statement root")
+            .to_owned(),
+        program_id: "realized-statement-sp1-program.v1".to_owned(),
+        program_elf_sha256: sha256_ref(&REALIZED_ELF),
+        program_vkey: pk.verifying_key().bytes32().to_string(),
+        public_values_schema: "utf8-json-v1".to_owned(),
+        public_values_utf8_json: String::from_utf8(native.to_vec()).expect("UTF-8 public values"),
+        public_values_sha256: sha256_ref(native),
+        proof_bytes_hex: format!("0x{}", hex::encode(proof.bytes())),
+        proof_sha256: sha256_ref(&proof.bytes()),
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("create artifact directory");
+    }
+    std::fs::write(
+        path,
+        serde_json::to_string_pretty(&artifact).expect("serialize artifact"),
+    )
+    .expect("write proof artifact");
+    println!("Wrote locally verified proof artifact: {}", path.display());
 }
 
 fn load_input(path: &str) -> Value {
@@ -52,6 +117,10 @@ fn main() {
 
     if args.execute == args.prove {
         eprintln!("Error: specify exactly one of --execute or --prove");
+        std::process::exit(1);
+    }
+    if args.prove && args.artifact.is_none() {
+        eprintln!("Error: --artifact is required with --prove");
         std::process::exit(1);
     }
 
@@ -86,5 +155,11 @@ fn main() {
         assert_eq!(proof.public_values.as_slice(), native.as_slice());
         println!("Guest public values == native public values (prove).");
         println!("Program vkey: {}", pk.verifying_key().bytes32());
+        write_artifact(
+            args.artifact.as_ref().expect("artifact required"),
+            &proof,
+            &pk,
+            &native,
+        );
     }
 }

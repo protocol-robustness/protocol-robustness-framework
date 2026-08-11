@@ -3,13 +3,23 @@
     "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 120,
-    "max-dispute-duration": 600
+    "max-dispute-duration": 600,
+    "resolver-bond-bps": 0
   },
   "threat-tags": [],
   "purpose": "regression",
   "events": [
     {
       "seq": 0,
+      "time": 1000,
+      "agent": "resolver",
+      "action": "register_stake",
+      "params": {
+        "amount": 10000
+      }
+    },
+    {
+      "seq": 1,
       "time": 1000,
       "agent": "buyer",
       "action": "create_escrow",
@@ -21,7 +31,7 @@
       }
     },
     {
-      "seq": 1,
+      "seq": 2,
       "time": 1060,
       "agent": "buyer",
       "action": "raise_dispute",
@@ -30,7 +40,7 @@
       }
     },
     {
-      "seq": 2,
+      "seq": 3,
       "time": 1120,
       "agent": "resolver",
       "action": "execute_resolution",
@@ -41,7 +51,7 @@
       }
     },
     {
-      "seq": 3,
+      "seq": 4,
       "time": 1130,
       "agent": "governance",
       "action": "propose_fraud_slash",
@@ -52,7 +62,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 5,
       "time": 1135,
       "agent": "governance",
       "action": "execute_fraud_slash",
@@ -61,7 +71,7 @@
       }
     },
     {
-      "seq": 5,
+      "seq": 6,
       "time": 1241,
       "agent": "keeper",
       "action": "execute_pending_settlement",
@@ -70,7 +80,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 7,
       "time": 1255,
       "agent": "governance",
       "action": "execute_fraud_slash",
@@ -84,10 +94,6 @@
   "scenario-id": "s36-profit-maximizer-pre-window-execute-rejected",
   "title": "s36-profit-maximizer-pre-window-execute-rejected",
   "id": "scenarios\/s36-profit-maximizer-pre-window-execute-rejected",
-  "provenance": {
-    "author-id": "@grifma",
-    "author": "Marc Griffiths"
-  },
   "agents": [
     {
       "id": "buyer",

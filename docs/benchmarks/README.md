@@ -20,6 +20,9 @@ infrastructure. The canonical executable surface lives in `benchmarks/`.
   projection schema, classification rules, and registry contract.
 - [External Benchmark Pack Spec V1](EXTERNAL_BENCHMARK_PACK_SPEC_V1.md) —
   contract for supplying external benchmark packs to the canonical runner.
+- [Evidence Bundle Integrity Contract](EVIDENCE_INTEGRITY_CONTRACT.md) —
+  the `:bundle-root` commitment: writer normalization, verification, the
+  report fail-closed gate, and the integrity-vs-authenticity boundary.
 
 ## Design
 

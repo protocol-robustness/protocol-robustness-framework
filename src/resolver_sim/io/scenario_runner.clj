@@ -592,17 +592,37 @@
             (do (log/warn! :json-safe-value-fallback {:type (str (type v)) :value (pr-str v)})
                 (str v)))))
 
+(defn- atomic-write-text!
+  "Replace a run-owned projection only after its complete bytes are staged in a
+   unique sibling file. This prevents readers from observing a torn JSON file;
+   ownership/CAS is still required for shared canonical paths."
+  [path content]
+  (let [target (io/file path)
+        parent (.getParentFile target)
+        temp (io/file parent (str "." (.getName target) ".tmp-"
+                                  (java.util.UUID/randomUUID)))]
+    (.mkdirs parent)
+    (spit temp content)
+    (try
+      (java.nio.file.Files/move
+       (.toPath temp) (.toPath target)
+       (into-array java.nio.file.StandardCopyOption
+                   [java.nio.file.StandardCopyOption/ATOMIC_MOVE
+                    java.nio.file.StandardCopyOption/REPLACE_EXISTING]))
+      (finally
+        (java.nio.file.Files/deleteIfExists (.toPath temp))))))
+
 (defn write-result-json
-  "Write result map as JSON, preserving keyword namespaces in keys.
-   Uses json/write-str with a safe value-fn that handles Clojure records,
-   keywords, refs, fns, and other non-JSON types."
+  "Write a complete JSON result projection through an atomic replace. Callers
+   must provide a run-owned path; this function does not grant shared-path
+   publication authority."
   [output-path result]
   (when (and output-path (not= output-path "-"))
-    (io/make-parents output-path)
-    (spit output-path (json/write-str result
-                                      :key-fn preserve-ns-key
-                                      :value-fn json-safe-value
-                                      :indent true))))
+    (atomic-write-text! output-path
+                        (json/write-str result
+                                        :key-fn preserve-ns-key
+                                        :value-fn json-safe-value
+                                        :indent true))))
 
 (defn run-registry-suite-and-report
   "Run protocol registry suite, print report, return exit code.
@@ -1060,9 +1080,9 @@
             (log-event :warn :forensic-claims-failed :error (.getMessage e))))))))
 
 (defn- write-run-links!
-  "Write a researcher-friendly _run-links.edn file into the forensic run directory.
-   Provides cross-reference metadata so the artifact registry and forensic run
-   directories are discoverable from each other."
+  "Write immutable run-scoped links into the selected forensic run directory.
+   A concurrent run never overwrites another run's links; any future `latest`
+   pointer must be published separately with explicit CAS/fencing."
   [run-id dispatch protocol-id tsa-url canonical?]
   (try
     (let [dir (evcfg/artifact-dir)
@@ -1080,9 +1100,14 @@
                  :signature/configured? (boolean (System/getenv "PRF_SIGNING_KEY"))
                  :canonical? canonical?
                  :generated-at (str (java.time.Instant/now))}
-          f (io/file dir "_run-links.edn")]
-      (.mkdirs (io/file dir))
-      (spit f (ppedn/ppr-str links))
+          links-dir (io/file dir "run-links")
+          f (io/file links-dir (str run-id ".edn"))
+          temp (io/file links-dir (str "." run-id ".tmp-" (java.util.UUID/randomUUID)))]
+      (.mkdirs links-dir)
+      (spit temp (ppedn/ppr-str links))
+      (java.nio.file.Files/move (.toPath temp) (.toPath f)
+                                (into-array java.nio.file.StandardCopyOption
+                                            [java.nio.file.StandardCopyOption/ATOMIC_MOVE]))
       (log-event :info :run-links-written
                  :path (.getPath f)
                  :scenario scenario-path))
@@ -1382,8 +1407,11 @@
                                     "java-version" (:java/version env)
                                     "os-name" (:os/name env)}}
                                   enrichment-path (str manifest-dir "/run-enrichment.json")]
-                              (io/make-parents enrichment-path)
-                              (spit enrichment-path (json/write-str enrichment {:indent true}))
+                              ;; The manifest directory is owned by this run. Atomic
+                              ;; replacement prevents a manifest reader seeing a
+                              ;; partially serialized enrichment projection.
+                              (atomic-write-text! enrichment-path
+                                                  (json/write-str enrichment {:indent true}))
                               (log-event :info :run-enrichment-written :path enrichment-path))
                             (catch Exception e
                               (log-event :warn :run-enrichment-failed :error (.getMessage e)))))

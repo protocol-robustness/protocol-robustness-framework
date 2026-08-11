@@ -1,5 +1,6 @@
 {
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 0,
     "max-dispute-duration": 2592000
@@ -50,10 +51,13 @@
   "scenario-id": "s67-reentrancy-callback",
   "title": "s67-reentrancy-callback",
   "id": "scenarios\/s67-reentrancy-callback",
-  "provenance": {
-    "author-id": "@grifma",
-    "author": "Marc Griffiths"
-  },
+  "expected-errors": [
+    {
+      "seq": 2,
+      "action": "execute_reentrant_withdraw",
+      "error": "reentrancy-guard-violated"
+    }
+  ],
   "agents": [
     {
       "id": "attacker",

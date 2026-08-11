@@ -1,7 +1,8 @@
 {
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
-    "appeal-window-duration": 60,
+    "appeal-window-duration": 0,
     "max-dispute-duration": 2592000
   },
   "threat-tags": [],
@@ -74,10 +75,6 @@
   "scenario-id": "s46-reorg-idempotence",
   "title": "s46-reorg-idempotence",
   "id": "scenarios\/s46-reorg-idempotence",
-  "provenance": {
-    "author-id": "@grifma",
-    "author": "Marc Griffiths"
-  },
   "agents": [
     {
       "id": "buyer",

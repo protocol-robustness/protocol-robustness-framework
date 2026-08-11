@@ -21,6 +21,7 @@ export const metadata: Metadata = {
 const navItems = [
   { label: 'Home', href: '/' },
   { label: 'Demos', href: '/demos' },
+  { label: 'Screenshots', href: '/shots/' },
 ]
 
 export default function RootLayout({

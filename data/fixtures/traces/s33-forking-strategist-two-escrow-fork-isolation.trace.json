@@ -1,16 +1,17 @@
 {
   "description": "Two escrows share seller and L0 resolver. One dispute is escalated after L0 resolution while the other settles independently. Proves escalation forks only the selected workflow.",
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 60,
     "max-dispute-duration": 2592000,
+    "resolver-bond-bps": 0,
     "resolution-module": "0xkleros-proxy",
     "escalation-resolvers": {
       "0": "0xl0",
       "1": "0xl1",
       "2": "0xl2"
-    },
-    "resolver-bond-bps": 0
+    }
   },
   "expected-outcome": {
     "workflow-0": "refund-after-l1-reversal",
@@ -165,7 +166,7 @@
     "resolution-hash-isolation",
     "claimable-balance-isolation"
   ],
-  "id": "scenarios/s33-forking-strategist-two-escrow-fork-isolation",
+  "id": "scenarios\/s33-forking-strategist-two-escrow-fork-isolation",
   "notes": "Falsifies if: workflow-1 cannot settle after its appeal window because workflow-0 escalated; workflow-1 L0 release is overwritten by workflow-0 L1 refund; claimables mix across workflows; resolution hashes alias; appeal or dispute-level state leaks between workflows.",
   "expectations": {
     "terminal": [

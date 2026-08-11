@@ -182,14 +182,26 @@
           (do (stderr (str "allocation issue-certificate: " (:rejection/reason input-doc)))
               (print-json input-doc)
               {:exit-code 1 :message (:rejection/reason input-doc)})
-          (let [result (kernel/run-kernel input-doc)
-                certificate (cert/compose-certificate result)
-                certificate (if (and key key-id)
-                              (let [private-key (keys/private-key key)]
-                                (cert/sign-certificate certificate private-key key-id))
-                              certificate)]
-            (print-json certificate)
-            {:exit-code (run-result->exit result)
-             :message (if (= :passing (:result/status result))
-                        "certificate issued"
-                        (str "rejected: " (name (:rejection/classification result))))}))))))
+          (let [result (kernel/run-kernel input-doc)]
+            ;; A rejected kernel result is useful diagnostic evidence, but never
+            ;; an issuable assurance artifact. In particular, do not attach a
+            ;; certificate identity or signer attestation to a failed proposal:
+            ;; those fields are easily misread as authoritative issuance.
+            (if (not= :passing (:result/status result))
+              (do
+                (stderr (str "allocation issue-certificate: issuance forbidden — "
+                             (:rejection/reason result)))
+                (print-json {:result/status :rejected
+                             :certificate/issued? false
+                             :rejection/classification (:rejection/classification result)
+                             :rejection/reason (:rejection/reason result)})
+                {:exit-code 1
+                 :message (str "certificate issuance forbidden: "
+                               (name (:rejection/classification result)))})
+              (let [certificate (cert/compose-certificate result)
+                    certificate (if (and key key-id)
+                                  (let [private-key (keys/private-key key)]
+                                    (cert/sign-certificate certificate private-key key-id))
+                                  certificate)]
+                (print-json certificate)
+                {:exit-code 0 :message "certificate issued"}))))))))

@@ -875,12 +875,19 @@
                                     :authorization-provenance auth-prov)
                           (finalize world workflow-id :refunded
                                     :authorization-provenance auth-prov))]
-          (if (:ok finalized)
-            (let [world' (lc/cleanup-orphaned-slashes (:world finalized) workflow-id)]
-              (if recovered-meta
-                (assoc (t/ok world') :extra {:settlement/recovered-from-superseded recovered-meta})
-                (t/ok world')))
-            finalized))))))
+           (if (:ok finalized)
+             (let [world' (lc/cleanup-orphaned-slashes (:world finalized) workflow-id)
+                   owner-id (t/escrow-yield-owner-id workflow-id)
+                   pos (get-in world' [:yield/positions owner-id])]
+               (if (and pos (:active (:status pos)))
+                 (guard-fail :yield-position-still-active-after-settlement
+                             :workflow-id workflow-id
+                             :position-status (:status pos)
+                             :owner-id owner-id)
+                 (if recovered-meta
+                   (assoc (t/ok world') :extra {:settlement/recovered-from-superseded recovered-meta})
+                   (t/ok world'))))
+             finalized))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Internal building block: _validateAndPrepareEscalation deletes

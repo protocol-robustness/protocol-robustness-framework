@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.tools.cli :as cli-opts]
             [resolver-sim.benchmark.cli :as cli]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.benchmark.registry :as registry]
             [resolver-sim.hash.canonical :as hc]))
 
@@ -44,7 +45,7 @@
     (is (= {:hash-ok? true
             :scheme :legacy-v1
             :computed-hash (:evidence/hash legacy)}
-           (#'cli/verify-bundle-hash legacy)))))
+           (integrity/verify-bundle-hash legacy)))))
 
 (deftest non-interactive-runs-suppress-the-post-run-prompt
   (is (#'cli/interactive-run? true {}))

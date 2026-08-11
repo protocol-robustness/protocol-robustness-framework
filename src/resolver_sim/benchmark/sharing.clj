@@ -1,6 +1,7 @@
 (ns resolver-sim.benchmark.sharing
   (:require [resolver-sim.benchmark.runner :as runner]
             [resolver-sim.benchmark.coverage :as coverage]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.benchmark.repo :as repo]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.benchmark.dag :as dag]
@@ -9,51 +10,18 @@
             [clojure.java.shell :as shell]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [clojure.edn :as edn]
             [clojure.string :as str]))
 
 (defn generate-reproduce-command [evidence-path]
   (str "bb benchmark:reproduce " evidence-path))
 
-(def ^:private object-tag-reader
-  "LEGACY RUNTIME-VALUE COMPATIBILITY ONLY — not a permanent serialization design.
-
-   Reads #object[...] tagged literals emitted by pr-str for non-portable
-   Clojure objects (e.g. yield-module fns, java.time.Instant). Clojure function
-   objects are not portable data: a reader can turn the textual form into an
-   opaque placeholder vector, but it cannot reconstruct the original function
-   or establish its identity. This reader exists so legacy bundles written
-   before the writer-boundary migration remain readable for reproduction and
-   export.
-
-   Durable fix is at the WRITER boundary: evidence should serialize a stable
-   yield-module identifier/version/config, not the runtime fn value. Until
-   then, opaque object representations must not be relied upon in any field
-   that influences admission or assurance. Note the committed :evidence/hash
-   (:bundle-root) already normalizes runtime fns to a deterministic {:type :fn}
-   marker via project-world-to-structure-view, so it is unaffected by this tag.
-
-   Returns an unmistakable legacy sentinel map (never the raw vector), so it
-   cannot accidentally satisfy domain code that expects sequential data and so
-   admission/validation logic can categorically detect and reject it:
-   {:legacy/runtime-object true
-    :legacy/class <class-name>
-    :legacy/printed-representation <pr-str output>}"
-  (fn [[class-sym _hex printed :as v]]
-    (if (vector? v)
-      {:legacy/runtime-object true
-       :legacy/class (when class-sym (str class-sym))
-       :legacy/printed-representation printed}
-      {:legacy/runtime-object true
-       :legacy/printed-representation (str v)})))
-
 (defn legacy-object?
-  "True if x is a legacy sentinel emitted by object-tag-reader, i.e. the
+  "True if x is a legacy sentinel emitted by the tolerant reader, i.e. the
    residue of a non-portable #object[...] runtime value read from a legacy
    evidence bundle. Such values must be categorically excluded from new
    evidence admission."
   [x]
-  (and (map? x) (= true (:legacy/runtime-object x))))
+  (integrity/legacy-object? x))
 
 (defn read-evidence-file
   "Reads an evidence bundle, tolerating the #object tagged literals that
@@ -62,8 +30,7 @@
   only read the surrounding canonical map, so each tagged literal is kept as
   an inert legacy sentinel map (see legacy-object?)."
   [path]
-  (edn/read-string {:readers {'object object-tag-reader}}
-                   (slurp path)))
+  (integrity/read-evidence-bundle path))
 
 (defn share-summary
   ([evidence] (share-summary evidence "evidence/latest.edn"))

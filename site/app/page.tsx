@@ -6,6 +6,7 @@ export default function Home() {
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroInner}>
+          <img className={styles.logo} src="/prf-logo.png" alt="PRF logo" />
           <span className={styles.eyebrow}>Protocol robustness, made visible</span>
           <h1 className={styles.title}>
             Making protocol behaviour visible before failure becomes expensive.

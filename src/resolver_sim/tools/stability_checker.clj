@@ -11,7 +11,8 @@
             [clojure.edn :as edn]
             [clojure.walk :as walk]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.config.paths :as paths])
+            [resolver-sim.config.paths :as paths]
+            [resolver-sim.io.content_addressed_store :as store])
   (:import [java.time ZoneId]
            [java.time.format DateTimeFormatter]))
 
@@ -51,7 +52,7 @@
     (let [manifest (normalize-manifest-for-self-hash (load-manifest))
           file-contents (into (sorted-map)
                               (concat
-                               [[manifest-path (pr-str manifest)]]
+                                [[manifest-path (store/canonical-edn manifest)]]
                                (keep (fn [path]
                                        (when (not= path manifest-path)
                                          (let [f (io/file path)]

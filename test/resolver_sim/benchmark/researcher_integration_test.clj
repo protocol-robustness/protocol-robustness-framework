@@ -1121,9 +1121,10 @@
   (let [reserve (rfa/reserve-consumption! registration
                                           (rfa/consumption-key auth))]
     (when-not (:reserved? reserve)
-      (throw (ex-info "Reservation failed" {:reserve reserve}))))
-  ;; 3. Build reservation artifact (pre-execution)
-  (let [reservation (rfa/build-reservation
+      (throw (ex-info "Reservation failed" {:reserve reserve})))
+    ;; 3. Build reservation artifact (pre-execution)
+    (let [reservation-token (:reservation/token reserve)
+          reservation (rfa/build-reservation
                      {:reservation/authorisation-hash (:authorisation/hash auth)
                       :reservation/consumption-key (rfa/consumption-key auth)
                       :reservation/execution-attempt-id attempt-id
@@ -1174,12 +1175,30 @@
                                                             :reason-code
                                                             :simulated-failure})))))
           _ (rfa/finalise-consumption! registration (rfa/consumption-key auth)
-                                       status)]
+                                       reservation-token status)]
       {:reservation reservation
        :outcome-manifest manifest
-       :consumption-receipt receipt})))
+       :consumption-receipt receipt}))))
 
 ;; ── 8a. Successful authorised execution ─────────────────────────────────
+
+(deftest consumption-finalization-rejects-a-stale-reservation-token
+  (let [registration (atom {})
+        key "sha256:consumption-key"
+        first (rfa/reserve-consumption! registration key)
+        stale-token (:reservation/token first)
+        ;; Simulate trusted abandonment followed by a fresh reservation. The
+        ;; old post-execution worker must not terminalize the replacement.
+        _ (swap! registration assoc-in [key :status] :aborted)
+        _ (swap! registration dissoc key)
+        second (rfa/reserve-consumption! registration key)
+        stale (rfa/finalise-consumption! registration key stale-token :consumed)
+        current (rfa/finalise-consumption! registration key (:reservation/token second) :consumed)]
+    (is (:reserved? first))
+    (is (:reserved? second))
+    (is (false? (:finalised? stale)))
+    (is (= "stale consumption reservation token" (:reason stale)))
+    (is (:finalised? current))))
 
 (deftest consumption-successful-execution
   (let [reg (atom {})

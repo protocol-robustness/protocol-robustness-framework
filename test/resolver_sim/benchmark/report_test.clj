@@ -2,7 +2,9 @@
   (:require [clojure.edn :as edn]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.claims :as benchmark-claims]
-            [resolver-sim.benchmark.report :as rpt]))
+            [resolver-sim.benchmark.integrity :as integrity]
+            [resolver-sim.benchmark.report :as rpt]
+            [resolver-sim.hash.canonical :as hc]))
 
 (defn- temp-evidence-file
   "Create a temporary EDN file with the given evidence map, returning the path."
@@ -12,21 +14,31 @@
     (spit f (pr-str evidence))
     (.getAbsolutePath f)))
 
+(defn- commit-bundle
+  "Attach a valid :bundle-root :evidence/hash so build-report's integrity gate
+   accepts the bundle (mirrors the runner's hash-over-normalized commitment)."
+  [evidence]
+  (assoc evidence :evidence/hash
+         (hc/hash-with-intent {:hash/intent :bundle-root}
+                              (integrity/hashable-evidence evidence))))
+
 (defn- make-evidence
-  "Build a minimal evidence map from a benchmark pack file path."
+  "Build a minimal evidence map from a benchmark pack file path, committed
+   with a valid :evidence/hash."
   [benchmark-path scenario-results & {:keys [claim-results metrics reproduce env inv-summary]
                                       :or {claim-results []
                                            metrics {:total 0 :passed 0}
                                            reproduce {:command "bb benchmark:reproduce"}
                                            env {:os-name "Linux" :os-version "test" :java-version "test"}
                                            inv-summary {:per-invariant {} :total-checks 0 :passed-checks 0 :all-pass? true}}}]
-  {:benchmark (edn/read-string (slurp benchmark-path))
-   :environment env
-   :results scenario-results
-   :claim-results claim-results
-   :metrics metrics
-   :reproduce reproduce
-   :invariant-summary inv-summary})
+  (let [evidence {:benchmark (edn/read-string (slurp benchmark-path))
+                  :environment env
+                  :results scenario-results
+                  :claim-results claim-results
+                  :metrics metrics
+                  :reproduce reproduce
+                  :invariant-summary inv-summary}]
+    (commit-bundle evidence)))
 
 (deftest build-report-has-no-implicit-use-case-projection
   (let [evidence (make-evidence "benchmarks/packs/sew/escrow-dispute-v1.edn" [] :metrics {:total 0 :passed 0})
@@ -36,8 +48,9 @@
     (is (nil? (:use-case-registry report)))))
 
 (deftest build-report-binds-explicit-use-case-registry-root
-  (let [evidence (assoc-in (make-evidence "benchmarks/packs/sew/escrow-dispute-v1.edn" [])
-                           [:benchmark :benchmark/concepts] [:ecommerce/purchase])
+  (let [evidence (-> (make-evidence "benchmarks/packs/sew/escrow-dispute-v1.edn" [])
+                     (assoc-in [:benchmark :benchmark/concepts] [:ecommerce/purchase])
+                     commit-bundle)
         report (rpt/build-report (temp-evidence-file evidence)
                                  nil
                                  "benchmarks/scoring/severity-weighted-robustness-v1.edn"
@@ -111,7 +124,7 @@
                   :metrics {:total 3 :passed 3}
                   :reproduce {:command "bb benchmark:reproduce /tmp/prf.edn"}
                   :invariant-summary {:per-invariant {} :total-checks 0 :passed-checks 0 :all-pass? true}}
-        _ (spit evidence-path (pr-str evidence))
+        _ (spit evidence-path (pr-str (commit-bundle evidence)))
         report (rpt/build-report (.getAbsolutePath evidence-path)
                                  "benchmarks/concepts/protocol-robustness-v0.edn"
                                  "benchmarks/scoring/robustness-dimensions-v0.edn")]
@@ -175,7 +188,7 @@
                   :metrics {:total 3 :passed 3}
                   :reproduce {:command "bb benchmark:reproduce /tmp/prf.edn"}
                   :invariant-summary {:per-invariant {} :total-checks 0 :passed-checks 0 :all-pass? true}}
-        _ (spit evidence-path (pr-str evidence))
+        _ (spit evidence-path (pr-str (commit-bundle evidence)))
         report (rpt/build-report (.getAbsolutePath evidence-path)
                                  "benchmarks/concepts/protocol-robustness-v0.edn"
                                  "benchmarks/scoring/robustness-dimensions-v0.edn")
@@ -213,7 +226,7 @@
                   :metrics {:total 3 :passed 3}
                   :reproduce {:command "bb benchmark:reproduce /tmp/prf.edn"}
                   :invariant-summary {:per-invariant {} :total-checks 0 :passed-checks 0 :all-pass? true}}
-        _ (spit evidence-path (pr-str evidence))
+        _ (spit evidence-path (pr-str (commit-bundle evidence)))
         report (rpt/build-report (.getAbsolutePath evidence-path)
                                  "benchmarks/concepts/protocol-robustness-v0.edn"
                                  "benchmarks/scoring/robustness-dimensions-v0.edn")
@@ -539,3 +552,37 @@
     ;; benchmark concept resolver even when the explicit path is absent.
     (is (pos? (count (:dimensions report))))
     (is (every? some? (map :concept/title (:dimensions report))))))
+
+(deftest build-report-fails-closed-on-missing-evidence-hash
+  (testing "a bundle with no committed :evidence/hash cannot produce an authoritative report"
+    (let [ev (make-evidence "benchmarks/packs/prf-core/protocol-robustness-v0.edn" [])
+          evidence-path (temp-evidence-file (dissoc ev :evidence/hash))]
+      (is (thrown-with-msg? Exception #"integrity"
+                            (rpt/build-report evidence-path nil
+                                              "benchmarks/scoring/robustness-dimensions-v0.edn"))))))
+
+(deftest build-report-fails-closed-on-tampered-metrics
+  (testing "a supplied :metrics value that does not recompute from the committed hash cannot falsify :all-pass?/:score/:conclusion"
+    (let [ev (make-evidence "benchmarks/packs/prf-core/protocol-robustness-v0.edn"
+                            [{:scenario/id "s1" :outcome :pass :halt-reason nil
+                              :scenario/evidence-root "root"}]
+                            :metrics {:total 1 :passed 1})
+          good-path (temp-evidence-file ev)
+          tampered-path (temp-evidence-file (assoc ev :metrics {:total 1 :passed 0}))]
+      (is (= true (:all-pass? (rpt/build-report good-path nil
+                                                "benchmarks/scoring/robustness-dimensions-v0.edn")))
+          "unmodified bundle reports normally")
+      (is (thrown-with-msg? Exception #"integrity"
+                            (rpt/build-report tampered-path nil
+                                              "benchmarks/scoring/robustness-dimensions-v0.edn"))))))
+
+(deftest build-report-fails-closed-on-tampered-claim-results
+  (testing "a supplied :claim-results :claim/outcome :pass cannot be forced into :claim/status :verified without recomputing the bundle root"
+    (let [ev (make-evidence "benchmarks/packs/prf-core/protocol-robustness-v0.edn"
+                            []
+                            :metrics {:total 0 :passed 0}
+                            :claim-results [{:claim/id :evidence-root-present :claim/outcome :pass}])
+          tampered-path (temp-evidence-file (assoc ev :claim-results []))]
+      (is (thrown-with-msg? Exception #"integrity"
+                            (rpt/build-report tampered-path nil
+                                              "benchmarks/scoring/robustness-dimensions-v0.edn"))))))

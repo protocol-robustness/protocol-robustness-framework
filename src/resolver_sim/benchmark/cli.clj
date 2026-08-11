@@ -3,6 +3,7 @@
             [resolver-sim.benchmark.registry :as registry]
             [resolver-sim.benchmark.coverage :as coverage]
             [resolver-sim.benchmark.signing :as signing]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.benchmark.validation :as validation]
             [resolver-sim.benchmark.game-theory-validation :as gt]
             [resolver-sim.benchmark.diagnostics :as diagnostics]
@@ -105,32 +106,6 @@
 (defn- interactive-run?
   [passed? options]
   (and passed? (not (:non-interactive options))))
-
-(defn- hashable-evidence
-  [bundle]
-  (dissoc bundle :timestamp :evidence/hash :evidence/signature
-          :evidence/public-key-path))
-
-(defn- verify-bundle-hash
-  "Verify current bundles and pre-v2 bundles whose hash excluded post-hash
-   run metadata and certification."
-  [bundle]
-  (let [stored-hash (:evidence/hash bundle)
-        current-hash (hc/hash-with-intent {:hash/intent :bundle-root}
-                                          (hashable-evidence bundle))
-        legacy-hash (hc/hash-with-intent {:hash/intent :bundle-root}
-                                         (dissoc (hashable-evidence bundle)
-                                                 :run/manifest
-                                                 :benchmark-certification))]
-    (cond
-      (hc/intent-hash= current-hash stored-hash)
-      {:hash-ok? true :scheme :current :computed-hash current-hash}
-
-      (hc/intent-hash= legacy-hash stored-hash)
-      {:hash-ok? true :scheme :legacy-v1 :computed-hash legacy-hash}
-
-      :else
-      {:hash-ok? false :scheme nil :computed-hash current-hash})))
 
 (defn- interactive-ux [evidence output-path options]
   (loop []
@@ -555,9 +530,9 @@
 
       (:verify options)
       (let [bundle-path (first arguments)
-            bundle (rp/edn-read bundle-path)
+            bundle (integrity/read-evidence-bundle bundle-path)
             stored-hash (:evidence/hash bundle)
-            {:keys [hash-ok? scheme]} (verify-bundle-hash bundle)]
+            {:keys [hash-ok? scheme]} (integrity/verify-bundle-hash bundle)]
         (println "Verification for:" (or bundle-path "(stdin)"))
         (println "Hash match:" (if hash-ok? "yes" "no"))
         (when (= :legacy-v1 scheme)
@@ -571,9 +546,9 @@
 
       (:hash-only options)
       (let [bundle-path (first arguments)
-            bundle (rp/edn-read bundle-path)
+            bundle (integrity/read-evidence-bundle bundle-path)
             computed-hash (hc/hash-with-intent {:hash/intent :bundle-root}
-                                               (hashable-evidence bundle))]
+                                               (integrity/hashable-evidence bundle))]
         (println computed-hash)
         (System/exit 0))
 

@@ -59,3 +59,20 @@
       (let [exit (dispatch/run ["allocation" "verify-proposal"])]
         (is (zero? exit))
         (is (= "passing" (get (json/read-str (str out)) "result/status")))))))
+
+(deftest issue-certificate-fails-closed-for-rejected-proposal
+  (let [invalid (assoc-in (fixtures/happy-with-committed)
+                          ["committed" "result-root"]
+                          "0x0000000000000000000000000000000000000000000000000000000000000000")
+        out (java.io.StringWriter.)
+        err (java.io.StringWriter.)]
+    (binding [*out* out *err* err
+              *in* (java.io.StringReader. (vectors-json invalid))]
+      (let [exit (dispatch/run ["allocation" "issue-certificate"])
+            result (json/read-str (str out))]
+        (is (not (zero? exit)))
+        (is (= "rejected" (get result "result/status")))
+        (is (false? (get result "certificate/issued?")))
+        (is (nil? (get result "certificate/hash"))
+            "a rejected proposal must not acquire a certificate identity")
+        (is (re-find #"issuance forbidden" (str err)))))))

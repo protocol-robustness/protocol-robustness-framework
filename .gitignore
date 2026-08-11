@@ -1,4 +1,5 @@
 # Build output
+.sp1-proof-cache/
 **/target
 /out
 .cpcache

@@ -247,11 +247,11 @@ The statement is **implemented and reachable on the producer side**:
   produced only when context + lifecycle + decisions coexist; a missing context
   returns nil, so absence can never be mistaken for a proven statement.
 
-Still **not implemented**: the Rust mirror of the statement, the SP1 proof of
-it, and the Rust core realizing partial-fill (Change 5). The Rust kernel
-currently reproduces the all-or-nothing outcome-lottery model only; the
-statement's realized partial-fill path becomes provable once the Rust core
-implements realized fill (step 4 in the next-increment list).
+**Superseded status note.** The Rust mirror, realized largest-remainder/deferred
+partial-fill core, and thin SP1 guest are now implemented (see the current
+Step-4 and Step-6 sections below). What remains is verifier-backed proof
+admission, coordinator enforcement, and effect provenance—not another generic
+fairness-obligation kernel.
 
 ---
 
@@ -377,6 +377,68 @@ conformance-green against the Clojure producer:
   negative vectors (malformed input) fail closed; a participant becoming
   inactive remains distinguishable.
 - `cargo fmt` / `cargo clippy -D warnings` / `cargo test` all clean.
+
+### Proof-admission profile and assurance stages
+
+The active path supersedes earlier generic `fairness-proof-obligation.v1`
+planning. The proof subject remains the narrower
+`realized-allocation-statement.v1`; Clojure continues to evaluate the fairness
+theorem for that exact subject.
+
+The currently supportable cryptographic computation profile is
+`largest-remainder-deferred-pro-rata.v1`: pro-rata mode, largest-remainder
+rounding, deferred-only shortfall, no effective row caps, and no redistribution.
+Haircut, mixed fail-action, cap-constrained, cap-redistribution, and other
+policy regimes are explicitly **uncovered** for cryptographic admission until
+Rust/SP1 independently implements them. They are not simplified into a
+passing proof input.
+
+### Cryptographic computation verification boundary
+
+`realized-allocation-proof.v1` is an unsigned, self-addressed artifact for
+**one SP1 proof of one realized statement**. Its identity commits the semantic
+proof profile, statement schema/root, program id and ELF digest, verification
+key, exact UTF-8 JSON public-value bytes and digest, and proof digest.
+The artifact is evidence only: it cannot nominate a trusted key or mark itself
+verified.
+
+A separate signed `realized-allocation-proof-verification.v1` receipt binds the
+artifact hash, profile, statement root, program/ELF/VK identity,
+public-values/proof digests, verifier id/version, and a `:verified` or
+`:rejected` verdict. Clojure verifies that receipt under an externally supplied
+trust policy requiring an active `:allocation-proof-verifier` key, and also
+independently parses the exact public-value bytes and recomputes the statement.
+Thus a self-consistent unsigned receipt, caller-supplied `:verified?`, or
+caller-nominated VK cannot elevate assurance.
+
+The public SP1 subject remains the scenario-independent canonical statement
+projection. Scenario/round separation remains outside the guest: the runner
+constructs `scenario-realized-statement-binding.v1` only after both the generic
+evidence-content root and the statement-collection root exist. This is acyclic:
+the binding never feeds the evidence-content root from which it is derived.
+
+A scenario may contain multiple realized statements. Proof admission is per
+statement root; collection coverage is complete only when every member has
+exactly one trusted, admitted proof tuple. A proof for one statement never
+implies proof coverage of the collection.
+
+Future profile/program/VK changes require a new profile or a separately
+allowlisted registry entry. Historical artifacts retain the exact schema,
+profile, statement version, public-values schema, ELF digest, and VK they were
+issued under; newer code must not reinterpret them as a different profile.
+
+Assurance is staged and machine-readable: `:assurance/evidence`,
+`:assurance/cryptographic-computation`,
+`:assurance/cryptographic-activation`, and `:assurance/effect-bound`.
+The current strategic claim uses the first level. A future higher-level claim
+must independently verify the exact statement/evidence binding, pinned
+program/VK/profile proof, theorem result for the same statement, one-time
+activation, and effect provenance.
+
+`:full-fill` is not a shortcut: it is a recomputed disposition requiring every
+request to be filled with zero deferred and haircut. `fulfilled` is only an
+immediately applied amount and can be partial. Full-fill uses the same
+statement → proof → theorem → activation → effect chain.
 
 ### Step-6 implementation status (SP1 thin wrapper done; on-chain proof pending)
 
@@ -523,6 +585,14 @@ additional assurance.
 - clj-kondo: no new findings from this work.
 - Rust conformance gate: 23 vectors pass (`make allocation-conformance`).
 
-Until steps 3–7 land, the claim remains a strong, deterministic,
-evidence-scoped validation — not a zero-knowledge proof — and its
-`:claim/interpretation` is written to say exactly that.
+The claim currently remains deterministic, evidence-scoped validation. Its
+machine-readable assurance level is `:assurance/evidence`; a cryptographic
+computation level is fail-closed until a registered verifier-backed statement
+proof, exact scenario binding, and supported proof profile are available. A
+computation proof alone will still not authorize an economic effect until
+activation and effect provenance are enforced. A future
+`allocation-activation.v2` must bind the statement root, proof artifact and
+trusted verification receipt identities, immutable round/decision and
+coordinator identity, a single-use consumption key, and the applied effect-set
+root. It must not reinterpret structurally valid `allocation-activation.v1`
+receipts as this stronger authority.

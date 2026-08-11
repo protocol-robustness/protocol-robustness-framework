@@ -1,4 +1,6 @@
 services:
+  # XTDB pgwire endpoint used by other simulation/db tooling. Unrelated to the
+  # admission store; kept separate so PG and XTDB never share a daemon.
   xtdb:
     image: ghcr.io/xtdb/xtdb@sha256:15b6aa9d37d1e1a4e21748788db9275a57b87c339e5eb66d86376cf1e6899816
     ports:
@@ -8,3 +10,55 @@ services:
       - XTDB_PGWIRE_USER=xtdb
       - XTDB_PGWIRE_PASSWORD=xtdb
       - XTDB_DBNAME=xtdb
+
+  # Persistent local developer PostgreSQL.
+  #
+  # Version is pinned to 16 to match the intended AWS RDS PostgreSQL 16 target
+  # (see terraform/aws/modules/rds and docs/operations/postgres-admission.md).
+  # Never use `latest`.
+  #
+  # All configuration is injected through environment variables with loopback
+  # dev defaults; real credentials are never committed. Override the defaults
+  # via an untracked config/compose.postgres.env file.
+  postgres:
+    image: ${PRG_POSTGRES_IMAGE:-postgres:16-alpine}
+    ports:
+      - "${PRG_POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${PRG_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${PRG_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${PRG_POSTGRES_DB:-postgres}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PRG_POSTGRES_USER:-postgres} -d ${PRG_POSTGRES_DB:-postgres}"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+
+  # Disposable/ephemeral PostgreSQL used ONLY by the automated integration-test
+  # and CI harness. It shares no data volume, so every `up` starts empty — this
+  # guarantees tests boot from migrations. Do not point application instances at
+  # this service.
+  postgres-test:
+    profiles: ["test"]
+    image: ${PRG_POSTGRES_IMAGE:-postgres:16-alpine}
+    ports:
+      - "${PRG_POSTGRES_TEST_PORT:-5434}:5432"
+    environment:
+      POSTGRES_USER: ${PRG_POSTGRES_TEST_USER:-postgres}
+      POSTGRES_PASSWORD: ${PRG_POSTGRES_TEST_PASSWORD:-postgres}
+      POSTGRES_DB: ${PRG_POSTGRES_TEST_DB:-postgres_test}
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PRG_POSTGRES_TEST_USER:-postgres} -d ${PRG_POSTGRES_TEST_DB:-postgres}"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  postgres-data:

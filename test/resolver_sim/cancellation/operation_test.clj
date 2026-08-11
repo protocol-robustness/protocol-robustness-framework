@@ -38,10 +38,11 @@
 (deftest cancellation-binding-uses-event-identity-and-derived-dispute-context
   (let [operation (applied-operation)
         root (cancellation/cancellation-binding-root operation)
-        disputed (assoc-in operation [:evaluation :context :dispute-status] :active)]
+        disputed (assoc-in operation [:evaluation :context :dispute-status] :active)
+        disputed-statuses #{:active :disputed}]
     (is (re-matches #"sha256:[0-9a-f]{64}" root))
-    (is (false? (:cancellation/during-dispute? (cancellation/cancellation-binding operation))))
-    (is (true? (:cancellation/during-dispute? (cancellation/cancellation-binding disputed))))
+    (is (false? (:cancellation/during-dispute? (cancellation/cancellation-binding operation disputed-statuses))))
+    (is (true? (:cancellation/during-dispute? (cancellation/cancellation-binding disputed disputed-statuses))))
     (is (not= root (cancellation/cancellation-binding-root
                     (assoc operation :event/id "cancel:escrow-42:request-8"))))
     (is (cancellation/cancellation-binding-valid?

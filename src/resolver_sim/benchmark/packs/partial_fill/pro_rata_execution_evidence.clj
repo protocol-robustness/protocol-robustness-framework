@@ -63,15 +63,15 @@
                                         provided-conclusion-hashes)
           ;; ── Execution result classification ───────────────────────────
           operational (get outcome-manifest :results/operational {})
-          pos-amt? (not= :fail (:authoritative-application operational))
-          ;; detect fully-satisfied from operational results
-          ;; (conservation + quota-bounded = allocation sound)
-          full-sat? (and (= :pass (:conservation operational {}))
-                         (= :pass (:quota-bounded operational {}))
-                         ;; current-amount-write-back :pass means
-                         ;; state was committed
-                         (= :pass (:current-amount-write-back operational {})))
-          deferred? (some? (:current-amount-write-back operational))
+          ;; These are execution-evidence status facts, not per-obligation
+          ;; settlement classifications. Do not expose them as amount/full-fill
+          ;; predicates: operational write-back can pass for a zero or haircut
+          ;; result, and claim admission derives full-fill from decision rows.
+          application-verified? (= :pass (:authoritative-application operational))
+          allocation-sound? (and (= :pass (:conservation operational {}))
+                                 (= :pass (:quota-bounded operational {}))
+                                 (= :pass (:current-amount-write-back operational {})))
+          deferred-write-back-verified? (= :pass (:current-amount-write-back operational {}))
           ;; ── Verification map ──────────────────────────────────────────
           verification {:allocation-profile-valid? true
                         :application-profile-valid? true
@@ -96,9 +96,16 @@
                               conclusions))
                 :evidence-profile/execution-result
                 {:allocation-calculated? true
-                 :positive-amount-applied? pos-amt?
-                 :fully-satisfied? full-sat?
-                 :deferred-residual-created? deferred?}
+                 :application-write-back-verified? application-verified?
+                 :allocation-sound? allocation-sound?
+                 :current-amount-write-back-verified? deferred-write-back-verified?
+                 ;; Compatibility fields: this aggregate profile lacks the
+                 ;; per-obligation filled/deferred/haircut rows required to
+                 ;; establish either fact, so it must not infer them from an
+                 ;; operational write-back status.
+                 :positive-amount-applied? false
+                 :fully-satisfied? false
+                 :deferred-residual-created? false}
                 :evidence-profile/verification verification}
           computed-hash (hash-ref/sha256-ref
                          (hc/domain-hash :pro-rata-execution-evidence

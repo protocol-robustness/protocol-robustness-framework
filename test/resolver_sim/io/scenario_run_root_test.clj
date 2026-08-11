@@ -74,10 +74,15 @@
                      (contains? #{"execution.replay-output"
                                   "execution.dag"
                                   "execution.pre-run-commitment"
+                                  "execution.runner-finalization"
                                   "manifest.run-enrichment"
                                   "manifest.run"
                                   "manifest.summary"
                                   "manifest.claimable-classification"
+                                  "manifest.canonical-integrity"
+                                  "manifest.verdict-policy"
+                                  "manifest.value-at-risk"
+                                  "manifest.forensic-claims-status"
                                   "manifest.sensitivity-report"
                                   "manifest.diagnostic-summary"
                                   "summaries.trace"
@@ -86,6 +91,7 @@
                                   "summaries.mechanisms"
                                   "summaries.schema-map"
                                   "summaries.trace-plain"
+                                  "forensic.theory.eval.json"
                                   "state.world-final"}
                                 %))
                 ids))))

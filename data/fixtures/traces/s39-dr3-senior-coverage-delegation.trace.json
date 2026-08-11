@@ -44,10 +44,6 @@
   "scenario-id": "s39-dr3-senior-coverage-delegation",
   "title": "s39-dr3-senior-coverage-delegation",
   "id": "scenarios\/s39-dr3-senior-coverage-delegation",
-  "provenance": {
-    "author-id": "@grifma",
-    "author": "Marc Griffiths"
-  },
   "agents": [
     {
       "id": "senior",

@@ -24,9 +24,9 @@
       world
       (let [fee-bps (or (:yield-protocol-fee-bps snap) 0)
             ;; Protocol fee applies only to positive yield: a negative (mark-to-
-            ;; market) yield is a principal drawdown, not income, so no fee is
+            ;; market) yield is principal write-down, not income, so no fee is
             ;; assessed. Charging a negative fee would corrupt the token fee
-            ;; accumulator (total-fees is monotonic non-negative).
+            ;; accumulator (total-fees is monotonically increasing).
             fee     (max 0 (t/compute-fee yield fee-bps))
             net     (- yield fee)
             preset  (t/normalize-yield-preset (:yield-preset settings :off))
@@ -75,11 +75,14 @@
                          (debit-yield unallocated-net fee-recipient :unallocated-yield)
                          (cond-> (pos? unallocated-net)
                            (acct/record-fee token unallocated-net)))]
-          (let [settled-position
-                (when (and position (not shortfall))
-                  (assoc position :status :settled :realized-yield 0 :unrealized-yield 0))]
+          (let [position-zeroed
+                (when position
+                  (assoc position :realized-yield 0 :unrealized-yield 0))
+                settled-position
+                (when position-zeroed
+                  (assoc position-zeroed :status :settled))]
             (cond-> world'
-              shortfall
-              (assoc-in pos-key (assoc position :realized-yield 0 :unrealized-yield 0))
+              position-zeroed
+              (assoc-in pos-key position-zeroed)
               settled-position
               (assoc-in pos-key settled-position))))))))

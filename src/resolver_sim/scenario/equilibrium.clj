@@ -98,6 +98,7 @@
 (def ^:private property-class
   "Maps equilibrium property keywords to their validation class."
   {:incentive-compatibility       :validation.class/payoff-property
+   :incentive-margin              :validation.class/payoff-property
    :sybil-resistance              :validation.class/payoff-property
    :dominant-strategy-equilibrium :validation.class/payoff-property
    :empirical-strategy-dominance :validation.class/payoff-property
@@ -151,7 +152,8 @@
   [{:keys [metrics]}]
   (let [attempts  (:attack-attempts metrics 0)
         successes (:attack-successes metrics 0)
-        lost      (:funds-lost metrics 0)]
+        lost      (:funds-lost metrics 0)
+        margin    (:incentive-margin metrics)]
     (cond
       (zero? attempts)
       (inconclusive :incentive-compatibility :single-trace-metric-proxy :untested-no-adversary
@@ -169,7 +171,9 @@
 
       :else
       (pass :incentive-compatibility :single-trace-metric-proxy
-            {:attack-successes successes :funds-lost lost}
+            (if (some? margin)
+              {:attack-successes successes :funds-lost lost :incentive-margin margin}
+              {:attack-successes successes :funds-lost lost})
             "no adversarial action succeeded; no funds lost"))))
 
 ;; ---------------------------------------------------------------------------

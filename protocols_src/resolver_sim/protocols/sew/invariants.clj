@@ -765,12 +765,20 @@
                         shortfall
                         (= delta-claimable expected-claimable)
 
-                        ;; Yield without shortfall: at least principal in claimable (yield adds more).
-                        ;; When negative yield reduced total-held below afa, the
-                        ;; claimable delta equals the exact held movement instead.
-                        :else
-                        (or (>= delta-claimable net-afa)
-                            (= delta-claimable (- delta-held))))]
+;; Yield without shortfall: at least principal in claimable (yield adds more).
+                         ;; When negative yield reduced total-held below afa, the
+                         ;; claimable delta equals the exact held movement instead,
+                         ;; or — because settlement itself re-accrues yield and the
+                         ;; mark-to-market position can erode further between the last
+                         ;; accrual and finalization — equals the settled present value
+                         ;; (amount-after-fee + accumulated-yield) once that has fallen
+                         ;; below the principal floor.
+                         :else
+                         (or (>= delta-claimable net-afa)
+                             (= delta-claimable (- delta-held))
+                             (let [pv (long (+ afa (long (or (:accumulated-yield et-after) 0))))]
+                               (and (< pv net-afa)
+                                    (= delta-claimable pv)))))]
                :when (not ok?)]
           {:workflow-id     wf
            :token           token

@@ -1,8 +1,10 @@
 {
   "protocol-params": {
+    "governance-mode": "legacy",
     "resolver-fee-bps": 150,
     "appeal-window-duration": 120,
-    "max-dispute-duration": 600
+    "max-dispute-duration": 600,
+    "resolver-bond-bps": 0
   },
   "threat-tags": [],
   "purpose": "regression",
@@ -73,10 +75,6 @@
   "scenario-id": "s38-dr3-bond-mix-valid",
   "title": "s38-dr3-bond-mix-valid",
   "id": "scenarios\/s38-dr3-bond-mix-valid",
-  "provenance": {
-    "author-id": "@grifma",
-    "author": "Marc Griffiths"
-  },
   "agents": [
     {
       "id": "buyer",

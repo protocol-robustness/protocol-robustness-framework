@@ -67,7 +67,7 @@ silently passes.
 | `pending-lifecycle-integrity` | mechanism-property | **[unresolved]** | yes | yes | `check-pending-lifecycle-integrity` |
 | `coalition-aggregate-payoff` | mechanism-property | `framework/incentive` (umbrella) | **no** | yes | `coalition-aggregate-payoff` (multi-epoch helper) |
 | `grim-trigger-stability` | mechanism-property | `framework/incentive` (umbrella) | **no** | yes | `evaluate-grim-trigger-stability` (multi-epoch) |
-| `incentive-margin` | mechanism-property | `framework/incentive` (umbrella) | **no** | yes | `incentive-margin` (terminal-payoff helper) |
+| `incentive-margin` | mechanism-property | `framework/incentive` (umbrella) | **yes** | yes | `incentive-margin` (terminal-payoff helper, included in observe payload by check-incentive-compatibility) |
 
 ### Semantics (pass / inconclusive / fail / not-applicable)
 
