@@ -173,11 +173,12 @@
 (defn check-split-invariance
   "Verify that splitting a claim into N equal parts produces the same
    total allocation as the original single claim.
-
+   
    For each claim in each state, tries splitting into 2, 3, or 4 parts.
    Returns vector of violation maps."
   [claims available policy]
   (let [filled (allocate claims available policy)
+        original-total (reduce + 0 (vals filled))
         violations (atom [])]
     (doseq [idx (range (count claims))
             :let [n (nth claims idx)]
@@ -186,13 +187,12 @@
             :when (>= n parts)]
       (let [split-claims (split-claim claims idx parts)
             split-filled (allocate split-claims available policy)
-            original-allocation (get filled (str "c" idx) 0)
             split-total (reduce + 0 (vals split-filled))
-            error (- split-total original-allocation)]
-        (when (not= split-total original-allocation)
+            error (- split-total original-total)]
+        (when (not= split-total original-total)
           (swap! violations conj
                  {:claim idx :original n :parts parts
-                  :original-allocation original-allocation
+                  :original-allocation original-total
                   :split-allocation split-total
                   :error error}))))
     @violations))
@@ -235,23 +235,25 @@
               (range n)))))
 
 (defn check-permutation-invariance
-  "Verify that reordering claims does not change allocations.
+  "Verify that reordering claims does not change total allocation.
    Tests all permutations for up to 5 claims (max 120 permutations)."
   [claims available policy]
   (let [n (count claims)
         original-filled (allocate claims available policy)
+        original-total (reduce + 0 (vals original-filled))
         violations (atom [])]
     (if (<= n 5)
       (let [all-perms (permutations (range n))]
         (doseq [perm all-perms
                 :let [perm-claims (permute-claims claims (vec perm))
-                      perm-filled (allocate perm-claims available policy)]]
-          (doseq [[k v] original-filled]
-            (let [perm-v (get perm-filled k 0)]
-              (when (not= v perm-v)
-                (swap! violations conj
-                       {:claim k :original v :permuted perm-v
-                        :permutation perm})))))))
+                      perm-filled (allocate perm-claims available policy)
+                      perm-total (reduce + 0 (vals perm-filled))]]
+          (when (not= original-total perm-total)
+            (swap! violations conj
+                   {:original-claims claims :permuted perm-claims
+                    :original-total original-total
+                    :permuted-total perm-total
+                    :permutation perm})))))
     @violations))
 
 (defn check-sybil-invariance

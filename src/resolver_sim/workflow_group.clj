@@ -126,8 +126,8 @@
    ordering is canonicalized (member hashes are sorted), so the group hash is
    order-independent. Rejects unsupported hash algorithms rather than silently
    falling back to SHA-256.
-   
-   Semantics is converted from set to sorted vector for canonical hashing."
+    
+    Semantics is converted from set to sorted vector for canonical hashing."
   ([members semantics]
    (workflow-group-hash members semantics halgo/default-hash-algorithm))
   ([members semantics hash-algorithm]

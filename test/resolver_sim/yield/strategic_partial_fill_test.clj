@@ -82,15 +82,16 @@
     (let [artifact (strategic/validate-strategic-properties
                     :deviations [:split :merge :permute :sybil :inflate]
                     :policies [{:mode :pro-rata :rounding-policy :largest-remainder}]
-                    :max-states 10)]
+                    :max-states 10)
+          summary (:summary artifact)]
       (is (= :strategic-closed-form-validation (:artifact/kind artifact)))
       (is (= :yield/partial-fill (:mechanism artifact)))
       (is (map? (:validation-scope artifact)))
       (is (vector? (:properties artifact)))
-      (is (map? (:summary artifact)))
-      (is (number? (:summary :total-checks)))
-      (is (number? (:summary :verified)))
-      (is (number? (:summary :violated))))))
+      (is (map? summary))
+      (is (number? (:total-checks summary)))
+      (is (number? (:verified summary)))
+      (is (number? (:violated summary))))))
 
 (deftest empty-claims-vector-produces-zero-allocations
   (testing "zero claims yields empty allocations with no violations"
