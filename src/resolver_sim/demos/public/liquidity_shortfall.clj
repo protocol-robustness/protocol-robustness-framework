@@ -11,7 +11,7 @@
    The frontend must NOT independently recompute the allocation (it must not
    decide that 70 against 100 yields 35/21/14). It renders the projected result.
 
-   The same integrity rules as the blocked-decision projection apply:
+   The same integrity rules as the other public-demo projections apply:
      - only presentation-safe facts, copied from the executable model;
      - fail closed on missing required evidence;
      - deterministic JSON; never strengthens the evidence."

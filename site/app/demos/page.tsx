@@ -28,15 +28,6 @@ export default function DemosPage() {
           <span className={styles.cardCta}>See the demo →</span>
         </Link>
 
-        <Link href="/demos/blocked-decision" className={styles.card}>
-          <span className={styles.cardTag}>Featured</span>
-          <h2>Blocked Decision</h2>
-          <p>
-            Can a verified result be changed? A result is verified, the recorded
-            amount is edited, and the same check now rejects it.
-          </p>
-          <span className={styles.cardCta}>See the demo →</span>
-        </Link>
 
         <Link href="/demos/liquidity-shortfall" className={styles.card}>
           <span className={styles.cardTag}>Economic stress</span>

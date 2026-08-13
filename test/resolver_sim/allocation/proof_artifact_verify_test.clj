@@ -1,6 +1,7 @@
 (ns resolver-sim.allocation.proof-artifact-verify-test
   (:require [clojure.test :refer [deftest is]]
             [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [resolver-sim.allocation.proof-admission :as admission]
             [resolver-sim.allocation.proof-artifact-verify :as verify]))
 
@@ -37,6 +38,27 @@
               "proof_sha256" (:proof/sha256 artifact)
               "proof_artifact_hash" (:proof/artifact-hash artifact)}]
     (spit artifact-file (json/write-str wire))
-    (is (:valid? (verify/verify! (.getPath artifact-file))))
+    (is (false? (:valid? (verify/verify! (.getPath artifact-file))))
+        "a proof artifact without independently persisted realization input is not admissible")
     (spit proof "tampered")
     (is (false? (:valid? (verify/verify! (.getPath artifact-file)))))))
+
+(deftest persisted-input-reconstructs-and-tampering-fails-closed
+  (let [source "results/allocation/a-vs-b-plus-c/realized-statement"
+        dir (.toFile (java.nio.file.Files/createTempDirectory "gate-a-bundle" (make-array java.nio.file.attribute.FileAttribute 0)))
+        copy! (fn [name binary?]
+                (let [from (io/file source name)
+                      to (io/file dir name)]
+                  (if binary?
+                    (java.nio.file.Files/write (.toPath to) (java.nio.file.Files/readAllBytes (.toPath from)) (make-array java.nio.file.OpenOption 0))
+                    (spit to (slurp from)))))
+        _ (copy! "sp1-proof-artifact.json" false)
+        _ (copy! "sp1-proof-artifact.sp1-proof.bin" true)
+        _ (copy! "realized-statement-input.json" false)
+        artifact (.getPath (io/file dir "sp1-proof-artifact.json"))
+        input (io/file dir "realized-statement-input.json")]
+    (is (:valid? (verify/verify! artifact)))
+    (spit input (clojure.string/replace (slurp input) "\"available\": \"100\"" "\"available\": \"99\""))
+    (let [result (verify/verify! artifact)]
+      (is (false? (:valid? result)))
+      (is (= :statement-root-mismatch (:reason result))))))

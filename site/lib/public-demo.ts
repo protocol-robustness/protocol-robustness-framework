@@ -35,33 +35,6 @@ interface PublicDemoEnvelope {
   source: PublicDemoSource
 }
 
-export interface BlockedDecisionDemo extends PublicDemoEnvelope {
-  demo: { id: 'blocked-decision'; version: number; question: string }
-  scenario: {
-    escrow: { held: number; unit: string; label: string }
-  }
-  baseline: {
-    label: string
-    value: number
-    unit: string
-    admitted: boolean
-  }
-  change: {
-    label: string
-    from: number
-    to: number
-    unit: string
-    detail: string
-  }
-  outcome: {
-    admitted: boolean
-    'failed-checks': string[]
-  }
-  commitments: {
-    baseline: string
-    'after-change': string
-  }
-}
 
 export interface LiquidityShortfallDemo extends PublicDemoEnvelope {
   demo: { id: 'liquidity-shortfall'; version: number; question: string }
@@ -125,12 +98,11 @@ export interface ReorderedEvidenceDemo extends PublicDemoEnvelope {
 }
 
 export type PublicDemo =
-  | BlockedDecisionDemo
   | LiquidityShortfallDemo
   | CurrentHeadDemo
   | ReorderedEvidenceDemo
 
-/** The state-transition narrative shape shared by blocked-decision and
- *  reordered-evidence (baseline → change → outcome → why → commitments). */
-export type NarrativeDemo = BlockedDecisionDemo | CurrentHeadDemo | ReorderedEvidenceDemo
+/** The state-transition narrative shape for chain and evidence demos
+ *  (baseline → change → outcome → why → commitments). */
+export type NarrativeDemo = CurrentHeadDemo | ReorderedEvidenceDemo
 

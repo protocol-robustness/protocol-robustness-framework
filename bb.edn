@@ -330,13 +330,6 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
                     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:with-sew" "-m" "scripts.test-notebooks")}
 
-   demo:not-admitted
-   {:doc "Run the 'not admitted' demonstration (tamper with the amount):
-         a plain-language walkthrough of question -> original -> change ->
-         same check again -> why, backed by the real verifier.
-         --json prints the machine-readable demo model;
-         --check exits non-zero if any committed expectation fails."
-    :task (apply clojure "-M" "-m" "resolver-sim.demos.not-admitted.cli" *command-line-args*)}
 
    demo:reorder-chain
    {:doc "Run the 'reorder the evidence' demonstration: does the same evidence
@@ -353,8 +346,8 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
     :task (apply clojure "-M" "-m" "resolver-sim.demos.liquidity-shortfall.cli" *command-line-args*)}
 
    demo:test
-   {:doc "Run the demo assertion suites (A: not admitted; B: reorder chain; C: liquidity shortfall; plus the public projections)."
-    :task (shell "clojure" "-M:test" "-e" "(require 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test 'resolver-sim.demos.liquidity-shortfall.demo-test 'resolver-sim.demos.public.blocked-decision-test 'resolver-sim.demos.public.liquidity-shortfall-test 'resolver-sim.demos.public.reordered-evidence-test 'resolver-sim.demos.public.provenance-test) (clojure.test/run-tests 'resolver-sim.demos.not-admitted.demo-test 'resolver-sim.demos.reorder-chain.demo-test 'resolver-sim.demos.liquidity-shortfall.demo-test 'resolver-sim.demos.public.blocked-decision-test 'resolver-sim.demos.public.liquidity-shortfall-test 'resolver-sim.demos.public.reordered-evidence-test 'resolver-sim.demos.public.provenance-test)")}
+   {:doc "Run the executable framework demo assertion suites (reorder chain and liquidity shortfall, plus their public projections). Notebook-only demonstrations are validated by test:notebooks."
+    :task (shell "clojure" "-M:test" "-e" "(require 'resolver-sim.demos.reorder-chain.demo-test 'resolver-sim.demos.liquidity-shortfall.demo-test 'resolver-sim.demos.public.liquidity-shortfall-test 'resolver-sim.demos.public.reordered-evidence-test 'resolver-sim.demos.public.provenance-test) (clojure.test/run-tests 'resolver-sim.demos.reorder-chain.demo-test 'resolver-sim.demos.liquidity-shortfall.demo-test 'resolver-sim.demos.public.liquidity-shortfall-test 'resolver-sim.demos.public.reordered-evidence-test 'resolver-sim.demos.public.provenance-test)")}
 
    demo:public-build
    {:doc "Generate the public-demo.v1 JSON artifacts for the product site

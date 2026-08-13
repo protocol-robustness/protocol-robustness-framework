@@ -1,11 +1,11 @@
-;; # Can a Verified Result Be Changed?
+;; # Can a Committed Evidence Record Be Changed?
 ;;
-;; One question, one user-supplied example, one consequence.
+;; One integrity question, one user-supplied example, one consequence.
 ;;
-;; This is deliberately a **notebook-only** demo. The framework supplies the
-;; custody artifact builder and verifier; an adopter supplies its own ledger,
-;; mutation, and business meaning. Nothing in this example is a framework
-;; workflow or a reusable admission policy.
+;; This is deliberately a **notebook-only** demo. An adopter supplies its own
+;; record, mutation, and business meaning; this notebook projects that record
+;; into evidence input for the framework verifier. Nothing in this example is a
+;; framework workflow, canonical ledger schema, or reusable admission policy.
 
 ^{:nextjournal.clerk/toc true
   :nextjournal.clerk/dark-mode true
@@ -18,22 +18,34 @@
 ;; ## The user-owned example
 ;;
 ;; Imagine an application that records a 1,000 USDC escrow deposit. It chooses
-;; the record shape, the amount, and what the escrow means. The framework only
-;; makes and verifies the committed custody evidence.
+;; the record shape, the amount, and what the escrow means. The projection below
+;; is this notebook's adapter to an existing verifier; it is not a required
+;; application ledger schema.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(def user-ledger
-  [{:held-adjustment/id "example-deposit-1"
-    :held/direction :in
-    :token :USDC
-    :amount 1000
-    :held/before 0
-    :held/after 1000
-    :held/reason :escrow-principal-deposited
-    :held/action "application-deposit-1"
-    :held/account :escrow-principal
-    :held/workflow-id 0
-    :owner/address "0xExampleUser"}])
+(def user-records
+  [{:record/id "application-deposit-1"
+    :account "customer-escrow"
+    :asset "USDC"
+    :recorded-amount 1000
+    :recorded-by "0xExampleUser"
+    :meaning :customer-deposit}])
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn records->custody-evidence-input [records]
+  (mapv (fn [{:keys [record/id account asset recorded-amount recorded-by meaning]}]
+          {:held-adjustment/id id
+           :held/direction :in
+           :token (keyword asset)
+           :amount recorded-amount
+           :held/before 0
+           :held/after recorded-amount
+           :held/reason meaning
+           :held/action id
+           :held/account (keyword account)
+           :held/workflow-id 0
+           :owner/address recorded-by})
+        records))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn verify [artifacts]
@@ -44,26 +56,27 @@
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def demo-result
-  (let [artifacts (vals (custody/rebuild-held-custody-artifacts user-ledger))
+  (let [evidence-input (records->custody-evidence-input user-records)
+        artifacts (vals (custody/rebuild-held-custody-artifacts evidence-input))
         changed (mapv #(assoc % :amount 1100 :held/after 1100) artifacts)
         baseline (verify artifacts)
         after (verify changed)
         committed (first artifacts)]
     {:demo/id :admission/user-tampered-amount
-     :demo/question "Can an application change a result after it has been verified?"
+     :demo/question "Can an application change committed evidence after it has been verified?"
      :demo/baseline {:label "Escrow held amount" :value 1000 :unit "USDC"
                      :admitted? (:admitted? baseline)}
-     :demo/action {:label "Application changes the recorded amount" :from 1000 :to 1100
+     :demo/action {:label "Application changes projected evidence" :from 1000 :to 1100
                    :unit "USDC"
-                   :detail "The application edits its record but leaves the committed artifact hash untouched."}
+                   :detail "The application changes the amount in the evidence it submits while leaving the committed artifact hash untouched."}
      :demo/outcome {:admitted? (:admitted? after)
                     :failed-checks (->> (:checks after)
                                         (filter #(= :fail (:status %)))
                                         (mapv :check/id))}
      :demo/expect {:baseline :admitted :after-action :not-admitted}
-     :demo/explanation "The framework does not own the application's escrow rule. It verifies the supplied evidence: after the application edits the amount, that evidence no longer matches its committed hash."
+     :demo/explanation "The framework does not own the application's escrow rule. It verifies supplied evidence: after the application changes the submitted amount, that evidence no longer matches its committed hash."
      :demo/evidence {:committed-hash (:artifact/hash committed)
-                     :lines [["ledger root" (custody/ledger-root user-ledger)]
+                     :lines [["projected evidence root" (custody/ledger-root evidence-input)]
                              ["artifact sequence root" (custody/artifact-sequence-root artifacts)]]
                      :after/checks (:checks after)}}))
 

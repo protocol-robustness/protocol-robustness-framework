@@ -74,6 +74,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.test-util :as tu]
             [scripts.artifact-scope :as artifact-scope]
+            [scripts.parallel-audit :as pa]
             [scripts.test-state :as ts]
             [scripts.test-summary :as summary]))
 
@@ -159,10 +160,12 @@
 ;;
 ;; These namespaces mutate process-global state in a way that is NOT safe to
 ;; overlap with any other namespace, and they ALWAYS run in a sequential lane
-;; before the pool, even in isolated-parallel mode.  Derived from
-;; scripts/audit_parallel_safety.clj HARD hazards (with-redefs on static
-;; non-dynamic vars, fixed /tmp path writes); the audit exits non-zero if a
-;; HARD-hazard namespace is missing from this set.
+;; before the pool, even in isolated-parallel mode.  The set is DERIVED from
+;; the hard-hazard scan in scripts.parallel-audit (applied to the unit pool),
+;; so it can never drift from the audit.  The audit
+;; (scripts.audit-parallel-safety) recomputes the same scan and exits non-zero
+;; if any HARD-hazard namespace is absent here — so this is self-consistent by
+;; construction.
 ;;
 ;; EMPIRICALLY CONFIRMED NECESSARY (2026-08-04): an experiment ran the full
 ;; 50-namespace manifest in isolated-parallel with this set disabled
@@ -172,20 +175,13 @@
 ;; accounting-test failed non-deterministically (2-7 failures across 4/8 runs
 ;; in settlement-* evidence/reconciliation tests) when it overlapped other
 ;; namespaces.  The 2-run smoke was insufficient; the 8-run soak is the gate.
-;; Do NOT un-exclude without first fixing the underlying test coupling.
+;; Do NOT weaken the underlying test coupling without first fixing it.
 ;;
 ;; Escape hatch for experimentation only: SEW_TEST_EXCLUSIONS=none or an
 ;; explicit ns vector.  Not for production use.
 
 (def parallel-excluded-namespaces
-  '#{resolver-sim.protocols.sew.accounting-test
-     resolver-sim.protocols.sew.force-authorisation-test
-     resolver-sim.protocols.sew.authorised-effect-correlation-test
-     resolver-sim.protocols.sew.idempotence-checklist-test
-     resolver-sim.io.content-addressed-store-test
-     resolver-sim.benchmark.game-theory-validation-test
-     resolver-sim.benchmark.force-authorised-execution-evidence-v2-test
-     resolver-sim.benchmark.sew-pre-application-test})
+  (set (pa/hard-hazard-syms unit-test-namespaces)))
 
 (def parallel-exclusion-reasons
   "Machine-readable reason per excluded namespace.  Kept for audit/triage.

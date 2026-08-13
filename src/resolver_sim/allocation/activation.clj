@@ -17,9 +17,10 @@
    binds the rejection classification.
 
    All-active no-churn: when the allocation is all-active — no rejection and no
-   deferred/haircut fail action — the activation receipt root is byte-identical
-   to the unfiltered result-root. The rejection/fail-action filter is a no-op,
-   so activating an all-active allocation introduces no hash churn.
+   deferred/haircut fail action — the receipt binds the same result-root as the
+   independently supplied unfiltered result. The rejection/fail-action filter is
+   a no-op. The activation receipt root remains distinct because it also commits
+   proof and policy metadata.
 
    This mirrors the existing distinction between a *decision being computed*
    and a *decision authorizing an irreversible effect*."
@@ -29,17 +30,21 @@
 
 (def activation-statuses #{:activated :prohibited})
 
-(defn proof-status
-  "Derive the activation status for a proof result.
-   A passing proof may be activated; a rejected proof is always prohibited."
-  [proof]
-  (if (= :passing (:result/status proof)) :activated :prohibited))
-
 (defn rejected-proof?
   "True when the proof result carries a rejection classification (i.e. the
    proof did not verify / the allocation was rejected)."
   [proof]
   (boolean (:rejection/classification proof)))
+
+(defn proof-status
+  "Derive the activation status for a proof result.
+   A passing proof may be activated only when it carries no rejection
+   classification. Contradictory proof data is prohibited at construction time."
+  [proof]
+  (if (and (= :passing (:result/status proof))
+           (not (rejected-proof? proof)))
+    :activated
+    :prohibited))
 
 (defn proof-root
   "The proof root committed by the receipt. For the allocation kernel this is
@@ -128,12 +133,15 @@
   (:result-root proof))
 
 (defn all-active-no-churn?
-  "All-active no-churn: for an all-active proof, the receipt commits the
-   unfiltered result-root (the rejection/fail-action filter is a no-op), so the
-   receipt's bound result-root is byte-identical to the proof's unfiltered
-   result-root. This asserts the no-churn property on the result binding, not
-   on the whole receipt root (which additionally binds proof and policy)."
-  [{:keys [proof policy]}]
-  (let [receipt (build-receipt {:proof proof :policy policy})]
+  "All-active no-churn: independently derive the pre-realization result root
+   and require realization to be a no-op before comparing it with the receipt.
+   This is intentionally about the result binding, not the activation receipt
+   root (which also commits proof and policy metadata)."
+  [{:keys [proof policy unfiltered-result-root]}]
+  (let [receipt (build-receipt {:proof proof :policy policy})
+        unfiltered-root (or unfiltered-result-root
+                            (:unfiltered/result-root proof))]
     (and (all-active? proof)
-         (= (:result-root receipt) (no-churn-root proof)))))
+         (string? unfiltered-root)
+         (= unfiltered-root (:result-root proof))
+         (= (:result-root receipt) unfiltered-root))))

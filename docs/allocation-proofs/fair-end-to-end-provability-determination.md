@@ -407,14 +407,21 @@ that exact file before verifier admission. This is intentionally distinct from
 The artifact is evidence only: it cannot nominate a trusted key or mark itself
 verified.
 
-A separate signed `realized-allocation-proof-verification.v1` receipt binds the
-artifact hash, profile, statement root, program/ELF/VK identity,
-public-values/proof digests, verifier id/version, and a `:verified` or
-`:rejected` verdict. Clojure verifies that receipt under an externally supplied
-trust policy requiring an active `:allocation-proof-verifier` key, and also
-independently parses the exact public-value bytes and recomputes the statement.
-Thus a self-consistent unsigned receipt, caller-supplied `:verified?`, or
-caller-nominated VK cannot elevate assurance.
+`realized-statement-verify` independently loads the persisted Core envelope,
+resolves the single supported profile to its compiled-in ELF and locally derived
+VK, recomputes proof/public-value hashes, compares the exact public-value bytes,
+and runs SDK verification. It emits an **unsigned** verification decision; this
+is deliberately not yet a verification authority.
+
+A future independently operated signer must wrap that decision in a signed
+`realized-allocation-proof-verification.v1` receipt binding the artifact hash,
+profile, statement root, program/ELF/VK identity, public-values/proof digests,
+verifier id/version, and a `:verified` or `:rejected` verdict. Clojure will
+verify that receipt under an externally supplied trust policy requiring an
+active `:allocation-proof-verifier` key, and also independently parses the
+exact public-value bytes and recomputes the statement. Thus a self-consistent
+unsigned decision or receipt, caller-supplied `:verified?`, or caller-nominated
+VK cannot elevate assurance.
 
 The public SP1 subject remains the scenario-independent canonical statement
 projection. Scenario/round separation remains outside the guest: the runner
@@ -469,8 +476,10 @@ condition B:
   the Clojure oracle, plus a malformed-input fail-closed check.
 - `make allocation-realized-conformance` passes.
 
-Still **not implemented**: on-chain/SP1 proof verification of the realized
-statement (the generated EVM verifier + coordinator acceptance). The
+Still **not implemented**: trusted signed verifier-receipt issuance and
+persisted-scenario statement recomputation for proof admission; on-chain/SP1
+proof verification of the realized statement (the generated EVM verifier +
+coordinator acceptance). The
 `allocation-activation.v1` receipt (Change 3) is now **implemented** on the
 producer + fail-closed-verifier side (see Change 3); its on-chain enforcement
 in the Solidity coordinator awaits proof verification. The statement conformance

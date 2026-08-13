@@ -89,19 +89,6 @@ function assertNarrativeConsistency(x: Record<string, unknown>): void {
   }
 }
 
-function assertBlockedDecision(x: Record<string, unknown>): void {
-  const scenario = obj(x.scenario, 'scenario')
-  const escrow = obj(scenario.escrow, 'scenario.escrow')
-  num(escrow.held, 'scenario.escrow.held')
-  str(escrow.unit, 'scenario.escrow.unit')
-  const baseline = obj(x.baseline, 'baseline')
-  num(baseline.value, 'baseline.value')
-  bool(baseline.admitted, 'baseline.admitted')
-  const change = obj(x.change, 'change')
-  num(change.from, 'change.from')
-  num(change.to, 'change.to')
-  assertNarrativeConsistency(x)
-}
 
 function assertLiquidityShortfall(x: Record<string, unknown>): void {
   const scenario = obj(x.scenario, 'scenario')
@@ -150,9 +137,7 @@ export function assertPublicDemo(x: unknown): asserts x is PublicDemo {
   assertEnvelope(d)
   const kind = (d.demo as Record<string, unknown>).id
   switch (kind) {
-    case 'blocked-decision':
-      assertBlockedDecision(d)
-      return
+
     case 'liquidity-shortfall':
       assertLiquidityShortfall(d)
       return

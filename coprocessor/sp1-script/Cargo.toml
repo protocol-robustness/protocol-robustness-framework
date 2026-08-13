@@ -32,3 +32,7 @@ path = "src/bin/vkey.rs"
 [[bin]]
 name = "realized-statement-prove"
 path = "src/bin/realized_statement_prove.rs"
+
+[[bin]]
+name = "realized-statement-verify"
+path = "src/bin/realized_statement_verify.rs"

@@ -116,7 +116,6 @@ for (const file of files) {
   assertProvenance(demo, d)
 
   switch (demo) {
-    case 'blocked-decision':
     case 'reordered-evidence':
       assertNarrative(demo, d)
       break

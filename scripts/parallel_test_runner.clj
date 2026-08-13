@@ -63,40 +63,10 @@
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.hash.canonical :as hc]
             [scripts.artifact-scope :as artifact-scope]
+            [scripts.parallel-audit :as pa]
+            [scripts.run-sew-tests :as rst]
             [scripts.test-state :as ts]
             [scripts.test-summary :as summary]))
-
-(def parallel-excluded-namespaces
-  "Namespaces that never overlap the parallel pool; they always run first in a
-   sequential lane.  Two classes:
-     - audit-flagged hard process-global hazards (with-redefs/alter-var-root on
-       shared vars, fixed path writes, port/server binding) from the
-       scripts/audit-parallel-safety.clj hard-pattern scan.  The audit gate
-       (scripts.audit-parallel-safety parallel-test-runner|all) fails if a
-       hard-hazard namespace in parallel-runner-namespaces is missing here.
-     - scenario-group members (scripts.run-sew-tests scenario-test-namespaces),
-       which are validated sequential-only (see run-sew-tests GROUP POLICY) and
-       therefore must not run in a parallel pool.
-   `resolver-sim.community.result-test` is a static-scan false positive (the
-   fixed /tmp/ paths are fixture literal strings, not writes) but is kept in
-   the lane so the audit gate stays deterministic.
-   Override with PARALLEL_TEST_EXCLUDE_NS (comma/space separated); empty string
-   disables."
-  '#{resolver-sim.evidence.chain-test
-     resolver-sim.evidence.commitment-root-test
-     resolver-sim.evidence.node-test
-     resolver-sim.hash.attestor-hash-test
-     resolver-sim.hash.canonical-test
-      resolver-sim.protocols.sew.dispute-resolution-coverage-test
-      resolver-sim.protocols.sew.replay-test
-      resolver-sim.contract-model.replay-batch-sew-test
-      resolver-sim.validation.scenario-registry-test
-     resolver-sim.benchmark.game-theory-validation-test
-     resolver-sim.community.result-test
-     ;; with-redefs on selection/candidate-digest-hex (shared static var); both
-     ;; redef the same var so they must never overlap the pool.
-     resolver-sim.allocation.kernel-test
-     resolver-sim.allocation.selection-test})
 
 (def parallel-runner-namespaces
   "Union of every namespace handed to scripts.parallel-test-runner by the
@@ -117,11 +87,13 @@
     resolver-sim.allocation.claim-consumption-receipt-test
     resolver-sim.allocation.cli-test
     resolver-sim.allocation.context-test
+    resolver-sim.allocation.kernel-test
     resolver-sim.allocation.native-evidence-test
     resolver-sim.allocation.proposal-test
     resolver-sim.allocation.reconciliation-test
     resolver-sim.allocation.roots-test
     resolver-sim.allocation.round-state-test
+    resolver-sim.allocation.selection-test
     resolver-sim.allocation.vectors-test
     resolver-sim.pro-rata.allocation-test
     resolver-sim.pro-rata.dependency-boundary-test
@@ -136,6 +108,7 @@
     resolver-sim.benchmark.game-theory-validation-test
     resolver-sim.benchmark.packs.partial-fill.evidence-test
     resolver-sim.benchmark.researcher-decision-v2-test
+    resolver-sim.benchmark.review-aggregate-check-test
     resolver-sim.claim-outcome-test
     resolver-sim.community.core-test
     resolver-sim.community.design-scrutiny-test
@@ -206,6 +179,27 @@
     resolver-sim.time.model-test
     resolver-sim.validation.scenario-registry-test
     resolver-sim.workflow-group-test])
+
+(def parallel-excluded-namespaces
+  "Namespaces that never overlap the parallel pool; they always run first in a
+   sequential lane.  DERIVED from the pool (`parallel-runner-namespaces`) rather
+   than hand-maintained, so it can never drift from the audit.  Two classes:
+     - audit-flagged hard process-global hazards (with-redefs/alter-var-root on
+       shared vars, fixed path writes, port/server binding): every hard-hazard
+       namespace in the pool (scripts.parallel-audit/hard-hazard-syms).  The
+       audit gate (scripts.audit-parallel-safety parallel-test-runner|all) fails
+       if any hard-hazard namespace here is missing.
+     - scenario-group members (scripts.run-sew-tests scenario-test-namespaces)
+       that appear in the pool: they are validated sequential-only (see
+       run-sew-tests GROUP POLICY) and therefore must not run in parallel.
+   `resolver-sim.community.result-test` is a static-scan false positive (the
+   fixed /tmp/ paths are fixture literal strings, not writes); because the scan
+   flags it, it lands in this derived set automatically, keeping the audit gate
+   deterministic.
+   Override with PARALLEL_TEST_EXCLUDE_NS (comma/space separated); empty string
+   disables."
+  (-> (set (pa/hard-hazard-syms parallel-runner-namespaces))
+      (into (filter (set rst/scenario-test-namespaces) parallel-runner-namespaces))))
 
 (defn- excluded-syms
   "Resolve the exclusion set: env override if set, else the default set.

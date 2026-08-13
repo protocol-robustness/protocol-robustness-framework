@@ -4,6 +4,7 @@
             [clojure.string :as str]
             [resolver-sim.allocation.context :as ctx]
             [resolver-sim.allocation.proof-admission :as admission]
+            [resolver-sim.allocation.proof-verifier-issuer :as issuer]
             [resolver-sim.allocation.realized-statement :as statement]
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.support.ed25519 :as fx]))
@@ -72,9 +73,12 @@
    (select-keys artifact [:program/id :program/elf-sha256 :program/vkey
                           :statement/schema-version :public-values/schema])})
 
+(def ^:private persisted-input-sha256 (sha-ref "e"))
+
 (defn- signed-receipt [artifact keypair]
   (-> (admission/build-verifier-receipt
-       {:artifact artifact :verifier-id :sp1-sdk :verifier-version "6.3.1"
+       {:artifact artifact :persisted-input-sha256 persisted-input-sha256
+        :verifier-id :sp1-sdk :verifier-version "6.3.1"
         :verdict :verified})
       (admission/sign-verifier-receipt (:private-key keypair) (:key/id keypair))))
 
@@ -162,6 +166,7 @@
                                       "program_vkey" (:program/vkey receipt)
                                       "public_values_sha256" (:public-values/sha256 receipt)
                                       "proof_sha256" (:proof/sha256 receipt)
+                                      "persisted_input_sha256" (:persisted-input/sha256 receipt)
                                       "verifier_id" (wire-kw (:verifier/id receipt))
                                       "verifier_version" (:verifier/version receipt)
                                       "signature" {"schema_version" (get-in receipt [:signature :schema-version])
@@ -183,6 +188,51 @@
       (is (admission/verify-proof-file! dir artifact))
       (spit file "tampered")
       (is (not (admission/verify-proof-file! dir artifact))))))
+
+(deftest issuer-derives-and-signs-only-verified-bundle-identity
+  (let [artifact-path "results/allocation/a-vs-b-plus-c/realized-statement/sp1-proof-artifact.json"
+        artifact (:artifact (admission/ingest-proof-artifact-json (slurp artifact-path)))
+        kp (fx/keypair :issuer-test)
+        trust (fx/trust-policy kp :allocation-proof-verifier :active)
+        decision {"verification_schema_version" admission/verifier-receipt-schema
+                  "verification_verdict" "verified"
+                  "proof_profile" (wire-kw (:proof/profile artifact))
+                  "statement_root" (:statement/root artifact)
+                  "program_id" (:program/id artifact)
+                  "program_elf_sha256" (:program/elf-sha256 artifact)
+                  "program_vkey" (:program/vkey artifact)
+                  "public_values_sha256" (:public-values/sha256 artifact)
+                  "proof_sha256" (:proof/sha256 artifact)
+                  "verifier_id" "test-sdk" "verifier_version" "test"}
+        script (.toFile (java.nio.file.Files/createTempFile "proof-verifier" ".sh" (make-array java.nio.file.attribute.FileAttribute 0)))
+        _ (spit script (str "#!/bin/sh\nprintf '%s\\n' '" (json/write-str decision) "'\n"))
+        _ (.setExecutable script true)
+        receipt (issuer/issue! {:artifact-path artifact-path
+                                :verifier-bin (.getPath script)
+                                :private-key (:private-key kp)
+                                :key-id (:key/id kp)
+                                :trust-policy trust})]
+    (is (= (:proof/artifact-hash artifact) (:proof/artifact-hash receipt)))
+    (is (= "sha256:818def0d82465615755b43d47fe75d6c0bf90035cece880b0736fd291b35dfd0"
+           (:persisted-input/sha256 receipt)))
+    (is (true? (:valid? (admission/verify-verifier-receipt artifact receipt trust))))
+    (is (false? (:valid? (admission/verify-verifier-receipt artifact receipt
+                                                            (fx/trust-policy kp :other-role :active)))))))
+
+(deftest signed-receipt-binds-the-persisted-input-bytes
+  (let [s (statement-fixture supported-decision)
+        artifact (artifact-fixture s)
+        kp (fx/keypair :sp1-verifier)
+        trust (fx/trust-policy kp :allocation-proof-verifier :active)
+        receipt (signed-receipt artifact kp)
+        input-result {:valid? true :input-sha256 persisted-input-sha256}]
+    (is (true? (admission/persisted-bundle-receipt-admitted?
+                artifact receipt trust input-result)))
+    (is (false? (admission/persisted-bundle-receipt-admitted?
+                 artifact receipt trust (assoc input-result :input-sha256 (sha-ref "f"))))
+        "a valid receipt cannot be transplanted to different canonical input bytes")
+    (is (false? (admission/persisted-bundle-receipt-admitted?
+                 artifact (assoc receipt :persisted-input/sha256 (sha-ref "f")) trust input-result)))))
 
 (deftest one-proof-cannot-cover-a-statement-collection
   (let [a (statement-fixture supported-decision)

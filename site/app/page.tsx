@@ -16,8 +16,8 @@ export default function Home() {
             adversarial conditions — and inspect the evidence behind every result.
           </p>
           <div className={styles.ctas}>
-            <Link href="/demos/blocked-decision" className={styles.primaryCta}>
-              See Blocked Decision
+            <Link href="/demos/current-head" className={styles.primaryCta}>
+              See Current Head
             </Link>
             <Link href="/demos" className={styles.secondaryCta}>
               All demos

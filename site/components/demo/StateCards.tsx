@@ -1,13 +1,10 @@
-import type { BlockedDecisionDemo, NarrativeDemo, PublicDemo } from '../../lib/public-demo'
-import { ScenarioCard, VerdictChip, ChangeChip } from './ScenarioCard'
+import type { NarrativeDemo, PublicDemo } from '../../lib/public-demo'
+import { VerdictChip, ChangeChip } from './ScenarioCard'
 import styles from './demo-cards.module.css'
 
 export function BaselineCard({ demo }: { demo: NarrativeDemo }) {
   const b = demo.baseline
-  const value =
-    typeof b.value === 'number'
-      ? `${b.value.toLocaleString('en-US')}${'unit' in b && b.unit ? ` ${b.unit}` : ''}`
-      : b.value
+  const value = b.value
   return (
     <section className={styles.card} aria-label="Baseline result">
       <div className={styles.cardLabel}>Original result</div>
@@ -27,9 +24,9 @@ export function BaselineCard({ demo }: { demo: NarrativeDemo }) {
 
 export function ChangeCard({ demo }: { demo: NarrativeDemo }) {
   const c = demo.change
-  const fmtFrom = typeof c.from === 'number' ? c.from.toLocaleString('en-US') : c.from
-  const fmtTo = typeof c.to === 'number' ? c.to.toLocaleString('en-US') : c.to
-  const unit = 'unit' in c ? c.unit : ''
+  const fmtFrom = c.from
+  const fmtTo = c.to
+  const unit = ''
   return (
     <section className={styles.card} aria-label="The change">
       <div className={styles.cardLabel}>Change</div>
@@ -102,15 +99,3 @@ export function CommitmentsCard({ demo }: { demo: NarrativeDemo }) {
   )
 }
 
-export function ScenarioSummary({ demo }: { demo: BlockedDecisionDemo }) {
-  const e = demo.scenario.escrow
-  return (
-    <ScenarioCard
-      held={e.held}
-      unit={e.unit}
-      label={e.label}
-      owner="0xAlice"
-      workflow={0}
-    />
-  )
-}

@@ -11,11 +11,7 @@ const NOTEBOOK_BASE =
     : 'http://localhost:7777/notebooks' // live Clerk dev server
 
 const PREVIEW: Record<string, { src: string; alt: string; notebookLabel: string }> = {
-  'blocked-decision': {
-    src: '/notebook-previews/not-admitted.png',
-    alt: 'Preview of the Not Admitted Clerk notebook',
-    notebookLabel: 'the Not Admitted notebook',
-  },
+
   'liquidity-shortfall': {
     src: '/notebook-previews/pro-rata-allocation-result.png',
     alt: 'Preview of the Pro-Rata Allocation Result Clerk notebook',
@@ -36,7 +32,7 @@ const PREVIEW: Record<string, { src: string; alt: string; notebookLabel: string 
 export default function TechnicalProofCTA({ demo }: { demo: PublicDemo }) {
   const notebook = demo.source.notebook
   const href = `${NOTEBOOK_BASE}/${notebook}`
-  const preview = PREVIEW[demo.demo.id] ?? PREVIEW['blocked-decision']
+  const preview = PREVIEW[demo.demo.id] ?? PREVIEW['current-head']
   return (
     <section className={styles.section} aria-label="Inspect the executable notebook">
       <div className={styles.copy}>

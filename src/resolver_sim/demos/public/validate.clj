@@ -133,7 +133,7 @@
     (fail! (artifact-kind artifact) "source.result-root"
            "must equal evidence.committed-hash"))
   (case (artifact-kind artifact)
-    "blocked-decision"    (narrative-consistent? artifact)
+
     "reordered-evidence"  (narrative-consistent? artifact)
     "current-head"        (narrative-consistent? artifact)
     "liquidity-shortfall" (liquidity-consistent? artifact)

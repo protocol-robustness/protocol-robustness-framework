@@ -504,7 +504,7 @@
       (is (= :fail (:status (by-property :allocation/exact-merge-invariance))))
       (is (= :property-violated (:reason (by-property :allocation/exact-merge-invariance))))
       (is (= :fail (:status (by-property :strategy/split-invariance))))
-      (is (= :fail (:status (by-property :strategy/permutation-invariance))))
+      (is (= :pass (:status (by-property :strategy/permutation-invariance))))
       (is (= :pass (:status (by-property :strategy/sybil-invariance))))
       (is (= :pass (:status (by-property :strategy/request-monotonicity)))))
     (testing "gate derives the legacy contract id from contract-ids"
@@ -513,7 +513,7 @@
       (is (= [:partial-fill/claimant-monotonicity
               :partial-fill/claimant-split-merge-sybil]
              (:contract-ids gate-result)))
-      (is (re-find #"3 property/properties violated" (:blocked-reason gate-result))))
+      (is (re-find #"2 property/properties violated" (:blocked-reason gate-result))))
     (testing "the gate records a canonical, sorted deviation scope"
       (is (vector? (get-in gate-result [:scope :deviations])))
       (is (= [:inflate :merge :permute :split :sybil]

@@ -251,21 +251,22 @@ report ""
 report "== Gate report =="
 report "Artifact: $artifact"
 
-# recompute proof hash from the persisted bytes for a self-consistency check
-if [ -f "$artifact" ]; then
-  if (command -v jq >/dev/null 2>&1 && command -v xxd >/dev/null 2>&1); then
-    _hex=$(jq -r '.proof_bytes_hex' "$artifact")
-    _rec=$(jq -r '.proof_sha256' "$artifact")
-    _raw=$(printf '%s' "$_hex" | sed 's/^0x//')
-    _computed=$(printf '%s' "$_raw" | xxd -r -p | sha256sum | cut -d' ' -f1)
+# Recompute the hash of the sibling Core proof envelope. The JSON artifact
+# deliberately stores only the sibling filename and digest, never proof bytes.
+if [ -f "$artifact" ] && command -v jq >/dev/null 2>&1; then
+  _proof_file=$(jq -r '.proof_file // empty' "$artifact")
+  _rec=$(jq -r '.proof_sha256 // empty' "$artifact")
+  _proof_path="$(dirname "$artifact")/$_proof_file"
+  if [ -n "$_proof_file" ] && [ -f "$_proof_path" ] && [ -n "$_rec" ]; then
+    _computed="sha256:$(sha256sum "$_proof_path" | cut -d' ' -f1)"
     case "$_computed" in
       "$_rec") prove_hash_check=PROVEN ;;
       *) prove_hash_check=NOT_PROVEN ;;
     esac
-    report "proof hash recompute (persisted bytes -> sha256): $prove_hash_check"
+    report "proof hash recompute (persisted sibling bytes -> sha256): $prove_hash_check"
   else
     prove_hash_check=NOT_PROVEN
-    report "proof hash recompute: NOT PROVEN (need jq+xxd for independent recompute)"
+    report "proof hash recompute: NOT PROVEN (missing sibling proof envelope)"
   fi
 fi
 

@@ -33,6 +33,7 @@
       (is (true? (act/valid-activated-receipt? receipt)))
       (is (re-matches #"[0-9a-f]{64}" (:activation/root receipt))))))
 
+
 (deftest rejected-proof-produces-prohibited-receipt
   (testing "a genuinely produced proof mutated so verification rejects it can never
             yield a valid activation receipt — verification failure is an
@@ -44,6 +45,15 @@
       (is (= :result-root-mismatch (:rejection/classification receipt)))
       (is (false? (act/valid-activated-receipt? receipt))
           "the activation path cannot emit/accept a valid receipt for a rejected proof"))))
+
+(deftest contradictory-passing-rejected-proof-is-prohibited-at-construction
+  (testing "a rejection classification prevents activation even when a caller
+            incorrectly leaves :result/status as :passing"
+    (let [contradictory (assoc (real-passing-proof)
+                               :rejection/classification :proof-invalid)
+          receipt (act/build-receipt {:proof contradictory :policy policy})]
+      (is (= :prohibited (:activation/status receipt)))
+      (is (false? (act/valid-activated-receipt? receipt))))))
 
 (deftest activation-cannot-be-forged-from-rejected-proof
   (testing "even if an attacker overwrites the status to :activated, the receipt
@@ -67,9 +77,13 @@
   (testing "all-active activation binds the unfiltered result-root byte-identically"
     (let [proof (real-passing-proof)]
       (is (true? (act/all-active? proof)))
-      (is (true? (act/all-active-no-churn? {:proof proof :policy policy})))
+      (is (true? (act/all-active-no-churn?
+                  {:proof proof :policy policy
+                   :unfiltered-result-root (:result-root proof)})))
+      (is (false? (act/all-active-no-churn? {:proof proof :policy policy}))
+          "a copied proof result-root alone is not evidence of no-churn")
       (is (= (:result-root (act/build-receipt {:proof proof :policy policy}))
-             (act/no-churn-root proof))))))
+             (:result-root proof))))))
 
 (deftest proof-root-binds-certificate-digest
   (testing "the receipt's proof-root is the certificate-assertions-digest for a kernel proof"

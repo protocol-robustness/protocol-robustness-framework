@@ -17,7 +17,7 @@
   :nextjournal.clerk/visibility {:code :fold :result :show}}
 (ns notebooks.not-admitted
   (:require [nextjournal.clerk :as clerk]
-            [resolver-sim.allocation.activation :as activation]
+
             [resolver-sim.assurance.force-authorisation :as force-auth]
             [resolver-sim.composition.combination :as combination]
             [resolver-sim.resubmission.chain :as chain]))
@@ -27,8 +27,6 @@
 ;; The framework provides small, composable checks. An application configures
 ;; them with its own policy and data; it owns the surrounding process.
 
-^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- sha256-like [c] (apply str (repeat 64 c)))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def boundary-results
@@ -40,16 +38,8 @@
         record {:authorization/id "example-release-42" :authorization/status :active
                 :consumed? false :starts-at 0 :authorization/scope scope
                 :authorization/scope-hash (force-auth/force-authorisation-scope-hash scope)}
-        activation-policy {:authority :application-coordinator :fail-closed true}
-        passing-proof {:result/status :passing :result-root (sha256-like "a")
-                       :certificate-assertions-digest (sha256-like "b")}
-        rejected-proof {:result/status :rejected :result-root (sha256-like "c")
-                        :rejection/classification :application-ineligible}
-        genuine (activation/build-receipt {:proof passing-proof :policy activation-policy})
-        forged-status (assoc (activation/build-receipt {:proof rejected-proof :policy activation-policy})
-                             :activation/status :activated)
-        configured-chain (chain/new-chain "sha256:example-family")
-        unconfigured-result (chain/admit! configured-chain {})
+        unconfigured-chain (chain/new-chain "sha256:example-family")
+        unconfigured-result (chain/admit! unconfigured-chain {})
         pipeline {:combination/id :application-pipeline
                   :combination/version 1
                   :combination/nodes [{:node/id :collect
@@ -64,33 +54,28 @@
                                                      {:from :collect :to :other}])]
     [{:boundary "Scoped authority"
       :framework-role "Checks that supplied action data stays inside an application's declared scope."
-      :admitted? (:valid? (force-auth/verify-authorisation-usable record {} scope 0))
-      :rejected? (not (:valid? (force-auth/verify-authorisation-usable
+      :expected? (:valid? (force-auth/verify-authorisation-usable record {} scope 0))
+      :fail-closed? (not (:valid? (force-auth/verify-authorisation-usable
                                 record {} (assoc scope :held/reason :application-refund) 0)))
       :application-owns "Which actor may authorize which effect, and any reservation or consumption workflow."}
-     {:boundary "Derived status"
-      :framework-role "Recomputes an activation receipt rather than trusting its visible status."
-      :admitted? (activation/valid-activated-receipt? genuine)
-      :rejected? (not (activation/valid-activated-receipt? forged-status))
-      :application-owns "The meaning of passing, rejected, and the action taken after either verdict."}
-     {:boundary "Configured chain"
-      :framework-role "Refuses admission when the chain has no trusted receipt authority configured."
-      :admitted? false
-      :rejected? (= :receipt-authority-not-configured (:reason unconfigured-result))
-      :application-owns "Keys, receipt issuance, submission timing, retries, and the user-facing workflow."}
+     {:boundary "Unconfigured chain fails closed"
+      :framework-role "Refuses admission when no trusted receipt authority is configured."
+      :expected? (= :not-admitted (:admission-status unconfigured-result))
+      :fail-closed? (= :receipt-authority-not-configured (:reason unconfigured-result))
+      :application-owns "Whether and how to configure keys, issue receipts, submit candidates, retry, and present the workflow to users."}
      {:boundary "Consecutive composition"
       :framework-role "Validates that v1 composition is a declared consecutive pipeline."
-      :admitted? (:valid? (combination/validate-combination pipeline))
-      :rejected? (not (:valid? (combination/validate-combination branched)))
+      :expected? (:valid? (combination/validate-combination pipeline))
+      :fail-closed? (not (:valid? (combination/validate-combination branched)))
       :application-owns "The capabilities, data contracts, parallelism, and semantics of every step."}]))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/table
- {:head ["Boundary" "Framework recomputes" "Control" "Candidate" "Application owns"]
-  :rows (mapv (fn [{:keys [boundary framework-role admitted? rejected? application-owns]}]
+ {:head ["Boundary" "Framework check" "Expected behavior" "Fail-closed behavior" "Application owns"]
+  :rows (mapv (fn [{:keys [boundary framework-role expected? fail-closed? application-owns]}]
                 [boundary framework-role
-                 (if admitted? "ADMITTED" "CHECK FAILED")
-                 (if rejected? "NOT ADMITTED" "CHECK FAILED")
+                 (if expected? "OBSERVED" "CHECK FAILED")
+                 (if fail-closed? "NOT ADMITTED" "CHECK FAILED")
                  application-owns])
               boundary-results)})
 
@@ -109,10 +94,10 @@
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html
- (let [holds? (every? #(and (:admitted? %) (:rejected? %)) boundary-results)]
+ (let [holds? (every? #(and (:expected? %) (:fail-closed? %)) boundary-results)]
    [:div {:style {:background (if holds? "#f0fdf4" "#fef2f2")
                   :border (str "1px solid " (if holds? "#86efac" "#fca5a5"))
                   :borderRadius "8px" :padding "12px 16px" :fontFamily "monospace"}}
-    "generic admission boundaries recompute independently — "
+    "generic admission boundaries produce the expected result and reject the negative case — "
     [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
      (if holds? "HOLDS ✓" "VIOLATED ✕")]]))

@@ -156,6 +156,7 @@
                        :program/vkey (:program_vkey value)
                        :public-values/sha256 (:public_values_sha256 value)
                        :proof/sha256 (:proof_sha256 value)
+                       :persisted-input/sha256 (:persisted_input_sha256 value)
                        :verifier/id (some-> (:verifier_id value) keyword)
                        :verifier/version (:verifier_version value)
                        :signature {:schema-version (:schema_version signature)
@@ -167,7 +168,7 @@
               required [:verification/schema-version :verification/verdict
                         :proof/artifact-hash :proof/profile :statement/root
                         :program/id :program/elf-sha256 :program/vkey
-                        :public-values/sha256 :proof/sha256
+                        :public-values/sha256 :proof/sha256 :persisted-input/sha256
                         :verifier/id :verifier/version]]
           {:valid? (and (every? #(some? (get receipt %)) required)
                         (= verifier-receipt-schema (:verification/schema-version receipt))
@@ -188,14 +189,14 @@
   (select-keys receipt [:verification/schema-version :verification/verdict
                         :proof/artifact-hash :proof/profile :statement/root
                         :program/id :program/elf-sha256 :program/vkey
-                        :public-values/sha256 :proof/sha256
+                        :public-values/sha256 :proof/sha256 :persisted-input/sha256
                         :verifier/id :verifier/version]))
 
 (defn build-verifier-receipt
   "Build an unsigned verifier decision. Only an external verifier process that
    has actually run SP1 verification may issue a :verified receipt; this
    function deliberately does not accept a caller-provided `:verified?` flag."
-  [{:keys [artifact verifier-id verifier-version verdict]}]
+  [{:keys [artifact persisted-input-sha256 verifier-id verifier-version verdict]}]
   {:verification/schema-version verifier-receipt-schema
    :verification/verdict verdict
    :proof/artifact-hash (:proof/artifact-hash artifact)
@@ -206,6 +207,7 @@
    :program/vkey (:program/vkey artifact)
    :public-values/sha256 (:public-values/sha256 artifact)
    :proof/sha256 (:proof/sha256 artifact)
+   :persisted-input/sha256 persisted-input-sha256
    :verifier/id verifier-id
    :verifier/version verifier-version})
 
@@ -219,6 +221,7 @@
   [artifact receipt trust-policy]
   (let [expected (verifier-receipt-preimage
                   (build-verifier-receipt {:artifact artifact
+                                           :persisted-input-sha256 (:persisted-input/sha256 receipt)
                                            :verifier-id (:verifier/id receipt)
                                            :verifier-version (:verifier/version receipt)
                                            :verdict (:verification/verdict receipt)}))
@@ -347,6 +350,16 @@
             (select-keys rebuilt [:allocation-context-root :request-set-root
                                   :allocation-policy-root :realized-results-root
                                   :fail-action-policy-root :round-lifecycle-root])))))
+
+(defn persisted-bundle-receipt-admitted?
+  "Verify a signed receipt against an already independently verified persisted
+   bundle result. The receipt must bind the exact reconstructed input bytes as
+   well as the artifact identity; this prevents receipt substitution across
+   bundles that share a proof artifact name or statement label."
+  [artifact receipt trust-policy persisted-input-result]
+  (and (:valid? persisted-input-result)
+       (= (:persisted-input/sha256 receipt) (:input-sha256 persisted-input-result))
+       (:valid? (verify-verifier-receipt artifact receipt trust-policy))))
 
 (defn cryptographic-computation-admitted?
   "Fail-closed cryptographic-computation admission for one statement.

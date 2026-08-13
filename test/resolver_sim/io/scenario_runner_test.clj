@@ -17,7 +17,7 @@
   {:source/dirty? false})
 
 (deftest parallel-execution-marks-run-non-canonical
-  (let [result ((#'runner/determine-canonicality)
+  (let [result ((var-get #'runner/determine-canonicality)
                 canonical-dispatch
                 (assoc canonical-opts :parallel? true)
                 canonical-runner-selection
@@ -26,7 +26,7 @@
     (is (= :parallel-execution (:code (:non-canonical-reason result))))))
 
 (deftest non-parallel-run-remains-canonical-when-other-conditions-hold
-  (let [result ((#'runner/determine-canonicality)
+  (let [result ((var-get #'runner/determine-canonicality)
                 canonical-dispatch
                 canonical-opts
                 canonical-runner-selection
@@ -35,7 +35,7 @@
     (is (nil? (:non-canonical-reason result)))))
 
 (deftest single-scenario-selection-marks-run-non-canonical
-  (let [result ((#'runner/determine-canonicality)
+  (let [result ((var-get #'runner/determine-canonicality)
                 (assoc canonical-dispatch :scenario "S01_test.edn")
                 canonical-opts
                 canonical-runner-selection
@@ -44,7 +44,7 @@
     (is (= :single-scenario-selected (:code (:non-canonical-reason result))))))
 
 (deftest dev-mode-marks-run-non-canonical
-  (let [result ((#'runner/determine-canonicality)
+  (let [result ((var-get #'runner/determine-canonicality)
                 (assoc canonical-dispatch :mode :dev)
                 canonical-opts
                 canonical-runner-selection
@@ -53,7 +53,7 @@
     (is (= :dev-mode (:code (:non-canonical-reason result))))))
 
 (deftest dirty-source-marks-run-non-canonical
-  (let [result ((#'runner/determine-canonicality)
+  (let [result ((var-get #'runner/determine-canonicality)
                 canonical-dispatch
                 canonical-opts
                 canonical-runner-selection
@@ -62,7 +62,7 @@
     (is (= :dirty-source (:code (:non-canonical-reason result))))))
 
 (deftest capability-match-runner-marks-run-non-canonical
-  (let [result ((#'runner/determine-canonicality)
+  (let [result ((var-get #'runner/determine-canonicality)
                 canonical-dispatch
                 canonical-opts
                 {:mode :capability-match}
