@@ -270,10 +270,26 @@
     :claim/invariants []
     :claim/evaluator :held-custody-position-isolation}
 
-   {:claim/id :forensic-authorisation-custody-linkage
-    :claim/title "Forensic authorisation custody linkage"
-    :claim/description "Forensic evidence must link grant, consumption, and custody movement."
-    :claim/property-types #{:integrity}
-    :claim/concepts #{:forensic/evidence-chain :security/force-authorisation}
-    :claim/invariants []
-    :claim/evaluator :forensic-authorisation-custody-linkage}]}
+{:claim/id :forensic-authorisation-custody-linkage
+   :claim/title "Forensic authorisation custody linkage"
+   :claim/description "Forensic evidence must link grant, consumption, and custody movement."
+   :claim/property-types #{:integrity}
+   :claim/concepts #{:forensic/evidence-chain :security/force-authorisation}
+   :claim/invariants []
+   :claim/evaluator :forensic-authorisation-custody-linkage}
+
+   {:claim/id :claim/resolver-response-deadline
+    :claim/title "Resolver response deadline"
+    :claim/description "A stalling resolver must not hold a dispute hostage: once the resolver-response-window expires, a fresh resolver can resolve (no premature escalation before the window)."
+    :claim/property-types #{:liveness}
+    :claim/concepts #{:consensus/liveness :consensus/escalation}
+    :claim/invariants [:dispute-resolution-path :dispute-level-bounded]
+    :claim/evaluator :claim/resolver-response-deadline}
+
+   {:claim/id :claim/appeal-decision-rationality
+    :claim/title "Appeal decision rationality"
+    :claim/description "A slash-appeal decision is economically rational iff the expected value of appealing exceeds accepting the slash: a correct resolver must have positive margin, and a wrong resolver must have negative margin at the declared slash/bond parameters."
+    :claim/property-types #{:fairness :safety}
+    :claim/concepts #{:allocation/slash-obligation :consensus/legitimacy}
+    :claim/invariants [:appeal-bond-conserved :challenge-bond-proportional :slash-distribution-consistent :resolver/balances-conserved :conservation-of-funds]
+    :claim/evaluator :claim/appeal-decision-rationality}]}

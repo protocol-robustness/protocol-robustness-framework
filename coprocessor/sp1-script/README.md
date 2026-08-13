@@ -47,7 +47,8 @@ make allocation-realized-proof
 It uses ignored project-local `.sp1-proof-cache/` Cargo, target, and Go module
 cache directories. Those paths affect build caching only; the persisted proof
 artifact records the proof profile, Rust-visible guest ELF digest, VK, exact
-public/proof bytes and digests, `rustc --version`, and the SHA-256 of the locked
+public bytes/digest, and a content-addressed sibling `sp1-bincode.v1` Core-proof
+envelope, plus `rustc --version` and the SHA-256 of the locked
 `coprocessor/Cargo.lock`. A fresh cache requires the normal Cargo package
 acquisition available in the supported CI/proving environment; subsequent runs
 use `--locked` and must not resolve a different dependency graph.

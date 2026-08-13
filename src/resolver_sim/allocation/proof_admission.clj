@@ -44,11 +44,6 @@
     (.update digest bytes)
     (str "sha256:" (codecs/bytes->hex (.digest digest)))))
 
-(defn- hex-bytes [value]
-  (when (and (string? value) (re-matches #"(?:0x)?[0-9a-fA-F]+" value))
-    (try (codecs/hex->bytes (if (.startsWith value "0x") (subs value 2) value))
-         (catch Exception _ nil))))
-
 (defn proof-artifact-preimage
   "Identity projection for one SP1 proof of one statement. Proof bytes are not
    interpreted by Clojure; their hash is bound to the verifier receipt. The
@@ -59,7 +54,7 @@
                          :statement/schema-version :statement/root
                          :program/id :program/elf-sha256 :program/vkey
                          :public-values/schema :public-values/utf8-json
-                         :public-values/sha256 :proof/bytes-hex :proof/sha256]))
+                         :public-values/sha256 :proof/encoding :proof/file :proof/sha256]))
 
 (defn proof-artifact-hash [artifact]
   (hash-ref/sha256-ref
@@ -86,8 +81,8 @@
        (= (:public-values/sha256 artifact)
           (sha256-utf8-ref (:public-values/utf8-json artifact)))
        (sha256-ref? (:public-values/sha256 artifact))
-       (string? (:proof/bytes-hex artifact))
-       (= (:proof/sha256 artifact) (some-> (:proof/bytes-hex artifact) hex-bytes sha256-bytes-ref))
+       (= "sp1-bincode.v1" (:proof/encoding artifact))
+       (string? (:proof/file artifact))
        (sha256-ref? (:proof/sha256 artifact))
        (= (:proof/artifact-hash artifact) (proof-artifact-hash artifact))))
 
@@ -101,8 +96,8 @@
 
 (defn ingest-proof-artifact-json
   "Strictly ingest persisted artifact JSON. Raw bytes are parsed only after
-   duplicate-key/depth checks, then all content hashes are recomputed by
-   `valid-proof-artifact?`; JSON is never promoted directly to a trusted map."
+   duplicate-key/depth checks, then content hashes are recomputed. The proof
+   file itself is verified by `verify-proof-file!` before verifier admission."
   [raw]
   (let [{:keys [value error]} (strict-json-map raw)]
     (if error {:valid? false :reason error}
@@ -116,7 +111,8 @@
                         :public-values/schema (some-> (:public_values_schema value) keyword)
                         :public-values/utf8-json (:public_values_utf8_json value)
                         :public-values/sha256 (:public_values_sha256 value)
-                        :proof/bytes-hex (:proof_bytes_hex value)
+                        :proof/encoding (:proof_encoding value)
+                        :proof/file (:proof_file value)
                         :proof/sha256 (:proof_sha256 value)}
               derived (build-proof-artifact artifact)
               stored (:proof_artifact_hash value)
@@ -127,6 +123,20 @@
                      (and stored (not= stored (:proof/artifact-hash derived))) :artifact-hash-mismatch
                      (not (valid-proof-artifact? artifact)) :artifact-integrity-mismatch)
            :artifact artifact}))))
+
+(defn verify-proof-file!
+  "Verify that the persisted proof bytes named by an already-ingested artifact
+   exist beneath `artifact-dir` and reproduce :proof/sha256. File names must
+   be a single relative name, preventing an artifact from escaping its bundle."
+  [artifact-dir artifact]
+  (let [file-name (:proof/file artifact)
+        file (when (and (string? file-name)
+                        (= file-name (.getName (java.io.File. file-name))))
+               (java.io.File. artifact-dir file-name))]
+    (and (valid-proof-artifact? artifact)
+         file (.isFile file)
+         (= (:proof/sha256 artifact)
+            (sha256-bytes-ref (java.nio.file.Files/readAllBytes (.toPath file)))))))
 
 (defn ingest-verifier-receipt-json
   "Strictly ingest a persisted verifier receipt. JSON is normalized to the

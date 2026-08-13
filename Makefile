@@ -366,5 +366,9 @@ allocation-realized-conformance:
 allocation-realized-proof:
 	sh ./scripts/prove-realized-statement.sh
 
+.PHONY: allocation-realized-proof-artifact-verify
+allocation-realized-proof-artifact-verify:
+	clojure -M -m resolver-sim.allocation.proof-artifact-verify results/allocation/a-vs-b-plus-c/realized-statement/sp1-proof-artifact.json
+
 .PHONY: allocation-test
 allocation-test: allocation-rust-test allocation-rust-clippy allocation-guest allocation-realized-guest allocation-contracts allocation-conformance allocation-realized-conformance

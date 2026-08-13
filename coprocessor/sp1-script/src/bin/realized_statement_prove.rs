@@ -58,7 +58,8 @@ struct RealizedStatementProofArtifact {
     public_values_schema: String,
     public_values_utf8_json: String,
     public_values_sha256: String,
-    proof_bytes_hex: String,
+    proof_encoding: String,
+    proof_file: String,
     proof_sha256: String,
     rustc_version: String,
     cargo_lock_sha256: String,
@@ -85,6 +86,16 @@ fn write_artifact(
     pk: &impl ProvingKey,
     native: &[u8],
 ) {
+    let proof_path = path.with_extension("sp1-proof.bin");
+    if let Some(parent) = proof_path.parent() {
+        std::fs::create_dir_all(parent).expect("create proof directory");
+    }
+    // `SP1ProofWithPublicValues::bytes()` is deliberately restricted to
+    // Groth16/Plonk EVM encodings. Core proofs are persisted as the SDK's
+    // versioned bincode envelope, which an off-chain verifier loads and
+    // verifies through the SP1 SDK.
+    let proof_bytes = bincode::serialize(proof).expect("serialize SP1 core proof envelope");
+    std::fs::write(&proof_path, &proof_bytes).expect("write SP1 proof envelope");
     let public: Value = serde_json::from_slice(native).expect("native public JSON");
     let artifact = RealizedStatementProofArtifact {
         schema_version: "realized-allocation-proof.v1".to_owned(),
@@ -103,11 +114,22 @@ fn write_artifact(
         public_values_schema: "utf8-json-v1".to_owned(),
         public_values_utf8_json: String::from_utf8(native.to_vec()).expect("UTF-8 public values"),
         public_values_sha256: sha256_ref(native),
-        proof_bytes_hex: format!("0x{}", hex::encode(proof.bytes())),
-        proof_sha256: sha256_ref(&proof.bytes()),
+        proof_encoding: "sp1-bincode.v1".to_owned(),
+        proof_file: proof_path
+            .file_name()
+            .expect("proof filename")
+            .to_string_lossy()
+            .into_owned(),
+        proof_sha256: sha256_ref(&proof_bytes),
         rustc_version: command_stdout("rustc", &["--version"]),
         cargo_lock_sha256: sha256_ref(
-            &std::fs::read("../Cargo.lock").expect("read coprocessor Cargo.lock"),
+            &std::fs::read(
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .expect("sp1-script has coprocessor parent")
+                    .join("Cargo.lock"),
+            )
+            .expect("read coprocessor Cargo.lock"),
         ),
     };
     if let Some(parent) = path.parent() {

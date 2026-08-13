@@ -63,7 +63,8 @@
       :public-values/schema :utf8-json-v1
       :public-values/utf8-json public-json
       :public-values/sha256 (sha-utf8-ref public-json)
-      :proof/bytes-hex "0x01020304"
+      :proof/encoding "sp1-bincode.v1"
+      :proof/file "proof.sp1-proof.bin"
       :proof/sha256 (sha-utf8-ref "\u0001\u0002\u0003\u0004")})))
 
 (defn- program-registry [artifact]
@@ -145,7 +146,8 @@
                                     "public_values_schema" (wire-kw (:public-values/schema artifact))
                                     "public_values_utf8_json" (:public-values/utf8-json artifact)
                                     "public_values_sha256" (:public-values/sha256 artifact)
-                                    "proof_bytes_hex" (:proof/bytes-hex artifact)
+                                    "proof_encoding" (:proof/encoding artifact)
+                                    "proof_file" (:proof/file artifact)
                                     "proof_sha256" (:proof/sha256 artifact)
                                     "proof_artifact_hash" (:proof/artifact-hash artifact)})
         kp (fx/keypair :sp1-verifier)
@@ -172,9 +174,15 @@
     (is (false? (:valid? (admission/ingest-proof-artifact-json
                           (str "{\"proof_sha256\":\"x\",\"proof_sha256\":\"y\"," (subs proof-json 1))))))
     (is (false? (:valid? (admission/ingest-proof-artifact-json
-                          (str/replace proof-json "0x01020304" "0x01020305")))))
+                          (str/replace proof-json "proof.sp1-proof.bin" "other.sp1-proof.bin")))))
     (is (true? (:valid? (admission/ingest-verifier-receipt-json receipt-json))))
-    (is (false? (:valid? (admission/ingest-verifier-receipt-json "{\"verification_verdict\":\"verified\"}"))))))
+    (is (false? (:valid? (admission/ingest-verifier-receipt-json "{\"verification_verdict\":\"verified\"}"))))
+    (let [dir (.toFile (java.nio.file.Files/createTempDirectory "proof-artifact" (make-array java.nio.file.attribute.FileAttribute 0)))
+          file (java.io.File. dir (:proof/file artifact))]
+      (spit file "\u0001\u0002\u0003\u0004")
+      (is (admission/verify-proof-file! dir artifact))
+      (spit file "tampered")
+      (is (not (admission/verify-proof-file! dir artifact))))))
 
 (deftest one-proof-cannot-cover-a-statement-collection
   (let [a (statement-fixture supported-decision)

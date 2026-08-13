@@ -398,7 +398,12 @@ passing proof input.
 `realized-allocation-proof.v1` is an unsigned, self-addressed artifact for
 **one SP1 proof of one realized statement**. Its identity commits the semantic
 proof profile, statement schema/root, program id and ELF digest, verification
-key, exact UTF-8 JSON public-value bytes and digest, and proof digest.
+key, exact UTF-8 JSON public-value bytes and digest, proof encoding/file reference,
+and proof digest. For the current off-chain Core profile, the proof file is the
+SP1 SDK `SP1ProofWithPublicValues` bincode envelope (`sp1-bincode.v1`), stored
+beside the artifact and content-addressed by `:proof/sha256`; Clojure verifies
+that exact file before verifier admission. This is intentionally distinct from
+`proof.bytes()`, which SP1 reserves for later Groth16/Plonk on-chain encodings.
 The artifact is evidence only: it cannot nominate a trusted key or mark itself
 verified.
 
