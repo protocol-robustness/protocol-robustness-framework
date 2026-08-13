@@ -365,7 +365,8 @@
                          :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}
                         witness-artifacts)})))
 
-(defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path]}]
+(defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path
+                                     parallelism chunk-size]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
         write-evidence (requiring-resolve 'resolver-sim.benchmark.runner/write-evidence)
         benchmark-artifact-dir (some-> output io/file .getParent)
@@ -375,7 +376,9 @@
                                                  :key key
                                                  :scenario-output-dir scenario-output-dir
                                                  :benchmark-index-path benchmark-index-path
-                                                 :execution-plan-path execution-plan-path}))]
+                                                 :execution-plan-path execution-plan-path
+                                                 :parallelism parallelism
+                                                 :chunk-size chunk-size}))]
     (when-let [evidence (:evidence result)]
       (write-evidence evidence output))
     result))
@@ -582,7 +585,9 @@
   [benchmark-id run-root key sensitivity-profile overrides]
   (let [context (assoc (benchmark-run/build-run-context benchmark-id run-root ".")
                        :sensitivity/profile sensitivity-profile
-                       :claim-registry/path *claim-registry-path*)
+                       :claim-registry/path *claim-registry-path*
+                       :execution/parallelism (or (:execution/parallelism overrides) 1)
+                       :execution/chunk-size (or (:execution/chunk-size overrides) 1))
         lock (lifecycle/acquire-run-lock! (:run/root context) (:run/id context) :benchmark)]
     (try
       (benchmark-run/initialize! context)
@@ -595,7 +600,9 @@
                                                                                   :key key
                                                                                   :scenario-output-dir (str (:benchmark/executions-dir context))
                                                                                   :benchmark-index-path (str (:benchmark/index-file context))
-                                                                                  :execution-plan-path (str (:benchmark/plan-file context))})]
+                                                                                  :execution-plan-path (str (:benchmark/plan-file context))
+                                                                                  :parallelism (:execution/parallelism context)
+                                                                                  :chunk-size (:execution/chunk-size context)})]
                                                 (when-not (:evidence result)
                                                   (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
                                                                   {:benchmark benchmark-id :exit-code (:exit-code result)})))
@@ -677,7 +684,9 @@
 
       run-root
       (with-claim-registry claim-registry
-        (run-with-root! benchmark-id run-root key (or sensitivity-profile :public) {}))
+        (run-with-root! benchmark-id run-root key (or sensitivity-profile :public)
+                        {:execution/parallelism (or (:parallelism opts) 1)
+                         :execution/chunk-size (or (:chunk-size opts) 1)}))
 
       output
       (let [result (invoke! benchmark-id {:output output :key key})]

@@ -22,6 +22,11 @@ import { fileURLToPath } from 'node:url'
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const generatedDir = join(root, 'generated', 'demos')
 
+const expectedDemoIds = new Set([
+  'current-head',
+  'liquidity-shortfall',
+  'reordered-evidence',
+])
 const failures = []
 const checked = []
 
@@ -94,12 +99,26 @@ function assertLiquidity(demo, d) {
   if (d.conservation.holds !== true) fail(demo, 'conservation.holds', 'expected true')
 }
 
-const files = readdirSync(generatedDir).filter((f) => f.endsWith('.json'))
+const files = readdirSync(generatedDir).filter((f) => f.endsWith('.json')).sort()
 if (files.length === 0) fail('*', 'generated dir', 'no artifacts found')
+
+const foundDemoIds = new Set(files.map((f) => f.replace(/\.json$/, '')))
+for (const demo of expectedDemoIds) {
+  if (!foundDemoIds.has(demo)) fail(demo, 'artifact', 'missing generated artifact')
+}
+for (const demo of foundDemoIds) {
+  if (!expectedDemoIds.has(demo)) fail(demo, 'artifact', 'unexpected generated artifact')
+}
 
 for (const file of files) {
   const demo = file.replace(/\.json$/, '')
-  const d = JSON.parse(readFileSync(join(generatedDir, file), 'utf8'))
+  let d
+  try {
+    d = JSON.parse(readFileSync(join(generatedDir, file), 'utf8'))
+  } catch (error) {
+    fail(demo, 'artifact', `invalid JSON: ${error.message}`)
+    continue
+  }
   checked.push(demo)
 
   if (d.schema !== 'public-demo.v1') fail(demo, 'schema', `expected public-demo.v1, got ${d.schema}`)
@@ -116,6 +135,7 @@ for (const file of files) {
   assertProvenance(demo, d)
 
   switch (demo) {
+    case 'current-head':
     case 'reordered-evidence':
       assertNarrative(demo, d)
       break

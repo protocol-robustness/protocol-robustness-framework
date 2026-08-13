@@ -219,7 +219,7 @@
 (def invariant-groups
   [{:name "Conservation & Accounting"
     :ids  [:conservation-of-funds :solvency :fees-non-negative :held-non-negative
-           :finalization-accounting-correct :token-tax-reconciliation :fees-monotone]}
+           :finalization-accounting-correct :token-tax-reconciliation :fee-payouts-monotonic]}
    {:name "State Machine Integrity"
     :ids  [:terminal-states-unchanged :no-double-finalize :all-status-combinations-valid
            :pending-settlement-consistent :time-non-decreasing :time-no-action-after-finality]}

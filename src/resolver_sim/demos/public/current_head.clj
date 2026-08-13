@@ -16,7 +16,10 @@
    :link-hash link :idempotency-key idem :basis-root basis})
 
 (defn- run []
-  (let [c (chain/new-chain "sha256:PUBLIC-DEMO-FAMILY")
+  ;; This public demonstration intentionally uses the synthetic hash-only
+  ;; fixture path; production admission continues to require signed receipts.
+  (binding [chain/*admit-compat-guard* nil]
+    (let [c (chain/new-chain "sha256:PUBLIC-DEMO-FAMILY")
         r1 (chain/admit-compat! c (request "sha256:R1" 1 nil "sha256:L1" "sha256:I1" "sha256:B1"))
         r2 (chain/admit-compat! c (request "sha256:R2" 2 "sha256:R1" "sha256:L2" "sha256:I2" "sha256:B2"))
         head-before (chain/current-head c)
@@ -25,7 +28,7 @@
         root (hc/hash-with-intent {:hash/intent :evidence-content}
                                   {:r1 r1 :r2 r2 :stale stale
                                    :head-before head-before :head-after head-after})]
-    {:r1 r1 :r2 r2 :stale stale :head-before head-before :head-after head-after :root root}))
+      {:r1 r1 :r2 r2 :stale stale :head-before head-before :head-after head-after :root root})))
 
 (defn- sorted-maps [x]
   (walk/postwalk #(if (map? %) (into (sorted-map) %) %) x))

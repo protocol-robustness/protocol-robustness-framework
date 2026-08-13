@@ -153,7 +153,7 @@
 ;; The validator below warns on stale entries at render time.
 (def ^:private inv-coverage
   {"solvency"                      ["S09" "S24" "S25" "S37"]
-   "fees-non-negative"             ["S11" "S25" "S36"]
+   "fees-non-negative"             ["S11" "S25" "S36" "S37"]
    "held-non-negative"             ["S09" "S24" "S25"]
    "all-status-combinations-valid" ["S08" "S10" "S22"]
    "pending-settlement-consistent" ["S05" "S13" "S21" "S25" "S32"]
@@ -165,7 +165,7 @@
    "no-auto-fraud-execute"         ["S25" "S34"]
    "bond-liquidity"                ["S24" "S38" "S39"]
    "bond-slash-bounded"            ["S24" "S41"]
-   "fee-cap"                       ["S11" "S12a" "S12b"]
+   "fee-cap"                       ["S11" "S12"]
    "no-stale-automatable-escrows"  ["S04" "S17"]
    "conservation-of-funds"         ["S24" "S25" "S31" "S37"]
    "dispute-resolution-path"       ["S02" "S03" "S18" "S26" "S27"]
@@ -186,10 +186,9 @@
    "no-withdrawal-during-dispute"  ["S45"]
    "time-lock-integrity"           ["S66"]
    "token-tax-reconciliation"      ["S11"]
-   "fees-monotone"                 ["S11" "S25" "S37"]
    "single-resolution-payout-consistent" ["S02" "S03" "S31"]
    "fraud-slash-executions-accounted"    ["S25" "S34" "S35"]})
-
+ 
 (defn- validate-inv-coverage!
   "Warn if any inv-coverage key is not a canonical invariant, or any referenced
    scenario prefix does not appear in the all-scenarios display names."
@@ -204,7 +203,7 @@
       (println "WARN: inv-coverage references unknown invariants:" bad-keys))
     (when (seq bad-scenarios)
       (println "WARN: inv-coverage references unknown scenario prefixes:" bad-scenarios))))
-
+ 
 ;; ---------------------------------------------------------------------------
 ;; Canonical state machine diagram generator
 ;;

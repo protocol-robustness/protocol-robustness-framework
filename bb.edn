@@ -377,7 +377,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                         "site/out/lab")
                   nbs (if (and (not= -1 nb-idx) (seq (drop (inc nb-idx) args)))
                         [(nth args (inc nb-idx))]
-                        ["notebooks/not_admitted.clj"
+                        ["notebooks/demo_reorder_chain.clj"
                          "notebooks/resubmission_chain.clj"
                          "notebooks/pro_rata_allocation_result.clj"])
                   expr (str "(require '[nextjournal.clerk :as clerk]) "
@@ -1200,6 +1200,11 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
   test:smart
   {:doc "Prefer previous failures; otherwise run changed-file tests."
    :task (apply clojure "-M:test" "-m" "scripts.test-smart" "smart" *command-line-args*)}
+
+  test:state:clear
+  {:doc "Clear the persisted test state (.prf/test-state.edn). Failures are
+         sticky by design, so use this to reset after a successful rerun."
+   :task (clojure "-M:test" "-m" "scripts.test-state" "clear")}
 
   sign:prf
   {:doc "GPG-sign prf.jar for distribution."

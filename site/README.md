@@ -205,9 +205,15 @@ for its evidence.
 
 The demo page shows a **preview image** of the notebook and a **deep-link** to
 `/lab/notebooks/<name>/` — the substantive evidence notebook rendered by the
-static Clerk build. Each demo's `source.notebook` names its inspection target:
-`not_admitted` (evidence-chain ordering, invariant-based admission, held-ledger,
-custody gates) and `pro_rata_allocation_result` (pro-rata allocation artifacts).
+static Clerk build. Each demo's `source.notebook` names its inspection target,
+as committed in the generated artifacts:
+
+| Demo | `source.notebook` |
+|------|-------------------|
+| Current Head | `resubmission_chain` (evidence-chain ordering, stale-parent admission) |
+| Liquidity Shortfall | `pro_rata_allocation_result` (pro-rata allocation artifacts) |
+| Reordered Evidence | `demo_reorder_chain` (order-sensitivity of the chain verifier) |
+
 The thin `demo_*` notebooks are the demo surface; the deep notebooks are where
 the inspection happens.
 

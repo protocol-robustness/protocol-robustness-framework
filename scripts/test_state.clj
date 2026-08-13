@@ -61,12 +61,24 @@
 (defn write-state!
   "Atomically write test state.  Takes a map with keys:
      :command      — vector of strings, the command that was run
-     :failed-nses  — seq of symbols for namespaces that failed"
+     :failed-nses  — seq of symbols for namespaces that failed
+
+   Failures are sticky by design: a run reporting NO failures preserves the
+   previously recorded failures instead of erasing them.  This prevents a
+   later passing run (e.g. a single-namespace reproduction) from clobbering
+   the failures of an earlier fuller run that `bb test:rerun` depends on.
+   Callers that genuinely want to reset the set should pass an empty
+   :failed-nses along with an explicit reset marker, or invoke state clear."
   [{:keys [command failed-nses]}]
-  (let [data {:schema-version 1
+  (let [new-failed (vec (sort (remove nil? failed-nses)))
+        prev-failed (some-> (read-state) :failed-test-namespaces vec)
+        failed (if (seq new-failed)
+                 new-failed
+                 prev-failed)
+        data {:schema-version 1
               :completed? true
               :command (vec command)
-              :failed-test-namespaces (vec (sort (remove nil? failed-nses)))}]
+              :failed-test-namespaces failed}]
     (with-state-lock #(atomic-replace! state-file (prn-str data)))
     data))
 

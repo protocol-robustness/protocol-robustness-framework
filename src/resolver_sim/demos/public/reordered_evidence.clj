@@ -101,7 +101,7 @@
       {"baseline" (name (get-in m [:demo/expect :baseline]))
        "after-change" (name (get-in m [:demo/expect :after-action]))}
       "source"
-      {"notebook" "not_admitted"
+      {"notebook" "demo_reorder_chain"
        "demo-notebook" "demo_reorder_chain"
        "cli" "bb demo:reorder-chain"
        "scenario-ns" "resolver-sim.demos.reorder-chain.scenario"

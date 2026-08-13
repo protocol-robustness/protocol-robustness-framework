@@ -13,7 +13,9 @@
             [resolver-sim.protocols.sew.invariants :as sew-inv]
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.commands.run-benchmark :as command]
+            [resolver-sim.benchmark.claims :as claims]
             [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as str]))
 
 (deftest scenario-output-packages-are-isolated-per-execution
@@ -41,6 +43,33 @@
       (finally
         (doseq [file (reverse (file-seq root))]
           (.delete file))))))
+
+(deftest execution-plan-chunking-is-deterministic-and-non-semantic
+  (let [plan [{:execution/ordinal 1 :execution/id "sha256:one"}
+              {:execution/ordinal 2 :execution/id "sha256:two"}
+              {:execution/ordinal 3 :execution/id "sha256:three"}
+              {:execution/ordinal 4 :execution/id "sha256:four"}]
+        chunks (runner/execution-chunks plan 3)]
+    (is (= [["sha256:one" "sha256:two" "sha256:three"]
+            ["sha256:four"]]
+           (mapv :chunk/work-item-ids chunks)))
+    (is (= [[1 2 3] [4]] (mapv :chunk/work-item-ordinals chunks)))
+    (is (= chunks (runner/execution-chunks plan 3)))
+    (is (thrown? clojure.lang.ExceptionInfo (runner/execution-chunks plan 0)))))
+
+(deftest execution-plan-reconciliation-restores-frozen-order
+  (let [plan [{:execution/ordinal 1 :execution/id "sha256:one" :execution/directory "exec-0001-one"
+               :execution/descriptor {:id 1}}
+              {:execution/ordinal 2 :execution/id "sha256:two" :execution/directory "exec-0002-two"
+               :execution/descriptor {:id 2}}]
+        result (fn [id ordinal descriptor directory]
+                 {:execution/id id :execution/ordinal ordinal :execution/descriptor descriptor
+                  :scenario/artifacts {:scenario/artifact-dir directory}})
+        reverse-completion [(result "sha256:two" 2 {:id 2} "exec-0002-two")
+                            (result "sha256:one" 1 {:id 1} "exec-0001-one")]]
+    (is (true? (#'runner/reconcile-execution-plan! plan reverse-completion)))
+    (is (= ["sha256:one" "sha256:two"]
+           (mapv :execution/id (#'runner/order-reconciled-results plan reverse-completion))))))
 
 (deftest execution-plan-reconciliation-rejects-divergent-results
   (let [plan [{:execution/id "sha256:one" :execution/directory "exec-0001-one"}
@@ -304,3 +333,182 @@
                 (is (= "test-bm" (:benchmark/id att)))
                 (is (= "hash123" (:evidence/hash att)))
                 (is (= "sig123" (:signature att)))))])))
+
+;; ── Detached artifact manifests / publication hardening ──────────────────────
+
+(defn- temp-dir!
+  "Create a fresh, empty temp directory for hermetic filesystem tests."
+  []
+  (doto (java.io.File/createTempFile "runner-artifact-" "")
+    (.delete)
+    (.mkdirs)))
+
+(defn- plan-entry-for
+  "A minimal frozen plan entry and staged directory name for publication tests."
+  [id dir]
+  {:execution/id id :execution/ordinal 1 :execution/directory dir
+   :execution/descriptor {:id id}})
+
+(deftest artifact-manifest-collision-semantics
+  (testing "identical logical identity + bytes → deterministic idempotent dedupe"
+    (let [m1 {:execution/id "e1"
+              :artifacts [{:artifact/relative-path "raw/replay-output.edn"
+                           :artifact/sha256 "sha-x" :artifact/byte-count 3}]}
+          deduped (#'runner/reconcile-artifact-manifests! [m1 m1])]
+      (is (= 2 (count deduped)) "two manifests survive")
+      (is (= 1 (count (:artifacts (first deduped)))) "first keeps its artifact")
+      (is (= 0 (count (:artifacts (second deduped)))) "duplicate artifact deduped")))
+  (testing "same logical identity + differing bytes → fail closed"
+    (let [m1 {:execution/id "e1"
+              :artifacts [{:artifact/relative-path "raw/replay-output.edn"
+                           :artifact/sha256 "sha-x" :artifact/byte-count 3}]}
+          m2 (assoc-in m1 [:artifacts 0 :artifact/sha256] "sha-different")]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"collision"
+                            (#'runner/reconcile-artifact-manifests! [m1 m2]))))))
+
+(deftest publication-rehashes-canonical-destinations
+  (let [root (temp-dir!)
+        canonical (io/file root "canonical")
+        staging (io/file root "staging")
+        plan [(plan-entry-for "e1" "exec-0001-abc")]
+        staged-dir (io/file staging "exec-0001-abc")
+        replay-file (io/file staged-dir "raw" "replay-output.edn")]
+    (try
+      (.mkdirs (io/file canonical))
+      (.mkdirs (.getParentFile replay-file))
+      (spit replay-file "canonical payload")
+      (let [worker-manifest (#'runner/artifact-manifest-for-dir (.getPath staged-dir) nil)
+            result {:execution/id "e1" :execution/ordinal 1
+                    :scenario/artifact-manifest worker-manifest
+                    :scenario/artifacts {}}
+            published (first (#'runner/publish-staged-executions!
+                              (.getPath canonical) (.getPath staging) plan [result]))]
+        (testing "staged directory is moved into the canonical execution location"
+          (is (.exists (io/file canonical "exec-0001-abc" "raw" "replay-output.edn")))
+          (is (false? (.exists staged-dir))))
+        (testing "canonical destinations are re-hashed after the coordinator move"
+          (is (true? (get-in published [:scenario/artifact-manifest :artifact/canonical-verified])))
+          (is (= (#'runner/sha256-file (io/file canonical "exec-0001-abc" "raw" "replay-output.edn"))
+                 (get-in published [:scenario/artifact-manifest :artifacts 0 :artifact/sha256])))))
+      (finally
+        (doseq [file (reverse (file-seq root))] (.delete file))))))
+
+(deftest publication-move-failure-is-not-completed
+  (let [root (temp-dir!)
+        canonical (io/file root "canonical")
+        staging (io/file root "staging")
+        plan [(plan-entry-for "e1" "exec-0001-abc")]
+        staged-dir (io/file staging "exec-0001-abc")
+        replay-file (io/file staged-dir "raw" "replay-output.edn")]
+    (try
+      (.mkdirs (io/file canonical))
+      (.mkdirs (.getParentFile replay-file))
+      (spit replay-file "payload")
+      (let [worker-manifest (#'runner/artifact-manifest-for-dir (.getPath staged-dir) nil)
+            result {:execution/id "e1" :execution/ordinal 1
+                    :scenario/artifact-manifest worker-manifest
+                    :scenario/artifacts {}}]
+        (with-redefs [runner/move-staged-to-canonical!
+                      (fn [& _] (throw (ex-info "injected move failure" {:reason :test})))]
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"injected"
+                                (#'runner/publish-staged-executions!
+                                 (.getPath canonical) (.getPath staging) plan [result]))))
+        (testing "no canonical execution directory makes the run look completed"
+          (is (not-any? #(.isDirectory %) (or (.listFiles canonical) (make-array java.io.File 0)))))
+        (testing "staged output is not canonically published on failure"
+          (is (nil? (get-in result [:scenario/artifacts :scenario/artifact-dir])))))
+      (finally
+        (doseq [file (reverse (file-seq root))] (.delete file))))))
+
+(deftest staged-divergence-fails-before-publication
+  (let [root (temp-dir!)
+        canonical (io/file root "canonical")
+        staging (io/file root "staging")
+        plan [(plan-entry-for "e1" "exec-0001-abc")]
+        staged-dir (io/file staging "exec-0001-abc")
+        replay-file (io/file staged-dir "raw" "replay-output.edn")]
+    (try
+      (.mkdirs (io/file canonical))
+      (.mkdirs (.getParentFile replay-file))
+      (spit replay-file "payload")
+      ;; worker manifest claims different bytes than what is actually staged
+      (let [result {:execution/id "e1" :execution/ordinal 1
+                    :scenario/artifact-manifest
+                    {:artifact/manifest-version "benchmark-artifact-manifest.v1"
+                     :artifacts [{:artifact/relative-path "raw/replay-output.edn"
+                                  :artifact/sha256 "deadbeef" :artifact/byte-count 1}]}
+                    :scenario/artifacts {}}]
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"diverged"
+                              (#'runner/publish-staged-executions!
+                               (.getPath canonical) (.getPath staging) plan [result])))
+        (testing "nothing was moved to canonical before the failure"
+          (is (not-any? #(.isDirectory %) (or (.listFiles canonical) (make-array java.io.File 0))))))
+      (finally
+        (doseq [file (reverse (file-seq root))] (.delete file))))))
+
+;; ── Controlled executor equivalence ──────────────────────────────────────────
+
+(defn- make-hermetic-plan!
+  "Build a frozen execution plan plus its source-by-id map from n temp scenarios."
+  [n]
+  (let [root (temp-dir!)
+        files (mapv (fn [i]
+                      (let [f (java.io.File. root (str "S" i ".edn"))]
+                        (spit f (pr-str {:scenario-id (str "S" i) :protocol "sew-v1"}))
+                        f))
+                    (range n))
+        sources (mapv #(input-source/source (.getPath %)) files)
+        benchmark {:benchmark/claims []}
+        plan (runner/build-execution-plan benchmark sources)
+        source-by-id (into {} (map (fn [e s] [(:execution/id e) s]) plan sources))]
+    {:root root :plan plan :source-by-id source-by-id}))
+
+(deftest executor-parallelism-and-chunking-yield-identical-canonical-results
+  (let [{:keys [root plan source-by-id]} (make-hermetic-plan! 6)
+        fake-exec (fn [_suite _source entry _run-count _staging]
+                    {:execution/id (:execution/id entry)
+                     :execution/ordinal (:execution/ordinal entry)
+                     :execution/descriptor (:execution/descriptor entry)
+                     :value (:execution/ordinal entry)})
+        run! (fn [parallelism chunk-size]
+               (with-redefs [runner/execute-scenario fake-exec]
+                 (let [raw (#'runner/execute-plan-bounded!
+                            nil plan source-by-id 1 nil parallelism chunk-size)]
+                   (is (true? (#'runner/reconcile-execution-plan! plan raw)))
+                   (#'runner/order-reconciled-results plan raw))))]
+    (try
+      (let [serial-one (run! 1 1)
+            one-chunk (run! 1 6)
+            uneven (run! 1 2)
+            parallel-2 (run! 2 1)
+            parallel-2-uneven (run! 2 2)
+            parallel-3 (run! 3 1)]
+        (testing "canonical plan order is preserved in every configuration"
+          (is (= [1 2 3 4 5 6] (mapv :execution/ordinal serial-one))))
+        (testing "serial, chunked, and bounded-parallel runs are byte-equivalent"
+          (is (= serial-one one-chunk))
+          (is (= serial-one uneven))
+          (is (= serial-one parallel-2))
+          (is (= serial-one parallel-2-uneven))
+          (is (= serial-one parallel-3))))
+      (finally
+        (doseq [file (reverse (file-seq root))] (.delete file))))))
+
+;; ── Claim evaluation hardening ───────────────────────────────────────────────
+
+(deftest claim-evaluation-failure-is-structured-fail-closed
+  (testing "coordinator-owned claim evaluation surfaces a structured failure"
+    (with-redefs [claims/evaluate-manifest-claims
+                  (fn [& _] (throw (ex-info "claim evaluator exploded" {:reason :test})))]
+      (let [result (#'runner/evaluate-claims-coordinator-owned {} [])]
+        (is (= 1 (count result)))
+        (is (= :failed (get-in result [0 :claim/evaluation-status])))
+        (is (= :error (get-in result [0 :claim/outcome])))
+        (is (some? (get-in result [0 :claim/evaluation-error])))))))
+
+(deftest claim-evaluation-success-passthrough
+  (testing "coordinator-owned claim evaluation forwards healthy results unchanged"
+    (with-redefs [claims/evaluate-manifest-claims
+                  (fn [_ _] [{:claim/id :claim/test :claim/outcome :pass}])]
+      (is (= [{:claim/id :claim/test :claim/outcome :pass}]
+             (#'runner/evaluate-claims-coordinator-owned {} []))))))

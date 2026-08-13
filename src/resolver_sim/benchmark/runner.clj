@@ -10,6 +10,7 @@
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
+            [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.resource-path :as rp]
@@ -28,8 +29,9 @@
             [resolver-sim.config.paths :as paths]
             [resolver-sim.io.edn :as ppedn])
   (:import [java.math BigInteger]
-           [java.nio.file Files]
+           [java.nio.file Files StandardCopyOption]
            [java.util UUID]
+           [java.util.concurrent Callable Executors TimeUnit]
            [java.security MessageDigest]))
 
 ;; ── Helpers ──────────────────────────────────────────────────────────────────
@@ -168,6 +170,40 @@
     (let [directory (execution-identity/directory-name ordinal descriptor)]
       (str (io/file executions-dir directory)))))
 
+(defn execution-chunks
+  "Deterministically decompose an already frozen execution plan for local
+   bounded execution. Chunk boundaries are operational only: canonical reduction
+   always reconciles the underlying execution IDs and restores plan order."
+  [plan chunk-size]
+  (let [chunk-size (long (or chunk-size 1))]
+    (when-not (pos? chunk-size)
+      (throw (ex-info "Benchmark chunk size must be positive" {:chunk-size chunk-size})))
+    (mapv (fn [index entries]
+            {:chunk/id (format "chunk-%04d" (inc index))
+             :chunk/work-item-ids (mapv :execution/id entries)
+             :chunk/work-item-ordinals (mapv :execution/ordinal entries)
+             :chunk/work-items (vec entries)})
+          (range)
+          (partition-all chunk-size plan))))
+
+(defn- staging-execution-dir
+  [staging-root plan-entry]
+  (when staging-root
+    (str (io/file staging-root (:execution/directory plan-entry)))))
+
+(defn- require-plan-match!
+  [plan-entry scenario-source scenario]
+  (let [descriptor (execution-identity/descriptor scenario-source scenario
+                                                  (get-in plan-entry [:execution/descriptor :repetition-index]))
+        execution-id (execution-identity/execution-id descriptor)]
+    (when-not (and (= descriptor (:execution/descriptor plan-entry))
+                   (= execution-id (:execution/id plan-entry)))
+      (throw (ex-info "Frozen benchmark execution input no longer matches its plan"
+                      {:reason :execution-plan-input-mismatch
+                       :expected-execution-id (:execution/id plan-entry)
+                       :actual-execution-id execution-id})))
+    descriptor))
+
 (defn- sha256-file
   [path]
   (when (.exists (io/file path))
@@ -179,6 +215,149 @@
               (.update digest buffer 0 read)
               (recur (.read stream buffer))))))
       (format "%064x" (BigInteger. 1 (.digest digest))))))
+
+(defn- artifact-manifest-for-dir
+  "Produce a detached artifact manifest for a single execution directory.
+   Each entry carries the logical relative path, SHA-256, byte count, and - for
+   the canonical replay commitment - the execution's evidence-content semantic
+   root. Returns nil when the directory does not exist (legacy/direct exec)."
+  [dir semantic-root]
+  (when dir
+    (let [file (io/file dir)
+          root (.toPath file)]
+      (when (.isDirectory file)
+        (let [artifacts (->> (file-seq file)
+                           (filter #(.isFile %))
+                           (mapv (fn [f]
+                                   (let [rel (str (.relativize root (.toPath f)))]
+                                     {:artifact/relative-path rel
+                                      :artifact/sha256 (sha256-file f)
+                                      :artifact/byte-count (.length f)
+                                      :artifact/semantic-root
+                                      (when (= rel "raw/replay-output.edn") semantic-root)})))
+                           (sort-by :artifact/relative-path)
+                           vec)]
+          {:artifact/manifest-version "benchmark-artifact-manifest.v1"
+           :artifacts artifacts})))))
+
+(defn- reconcile-artifact-manifests!
+  "Pure artifact-manifest reconciliation enforced by the coordinator before any
+   canonical publication. Given worker manifests (each carrying :execution/id,
+   :execution/directory, and :artifacts with :artifact/relative-path,
+   :artifact/sha256, :artifact/byte-count):
+
+     - identical logical identity + identical bytes → deterministic idempotent
+       dedupe (one entry survives);
+     - same logical identity + differing bytes/roots → fail closed.
+
+   Returns the deduplicated manifests unchanged when no collision exists."
+  [manifests]
+  (let [manifests (vec manifests)
+        logical-id (fn [m a] [(:execution/id m) (:artifact/relative-path a)])
+        identity-index (reduce (fn [acc manifest]
+                                 (reduce (fn [a' artifact]
+                                           (update a' (logical-id manifest artifact)
+                                                   (fnil conj []) artifact))
+                                         acc
+                                         (:artifacts manifest)))
+                               {}
+                               manifests)
+        collisions (->> identity-index
+                        (keep (fn [[identity artifacts]]
+                                (when (> (count (into #{} (map (juxt :artifact/sha256
+                                                                      :artifact/byte-count
+                                                                      :artifact/semantic-root)
+                                                                artifacts))) 1)
+                                  {:logical-identity identity
+                                   :variants (vec (sort-by pr-str
+                                                           (map #(select-keys % [:artifact/sha256
+                                                                                  :artifact/byte-count
+                                                                                  :artifact/semantic-root])
+                                                                artifacts)))})))
+                        vec)]
+    (when (seq collisions)
+      (throw (ex-info "Benchmark artifact collision: same logical identity, differing bytes"
+                      {:collisions collisions :reason :artifact-collision})))
+    (let [seen (atom #{})]
+      (mapv (fn [manifest]
+              (assoc manifest :artifacts
+                     (->> (:artifacts manifest)
+                          (filter (fn [artifact]
+                                    (let [id (logical-id manifest artifact)]
+                                      (when-not (contains? @seen id)
+                                        (swap! seen conj id)
+                                        true))))
+                          vec)))
+            manifests))))
+
+(defn- verify-staged-matches-worker!
+  "Fail closed when the (still staged) bytes for one execution diverge from what
+   that worker reported in its manifest, or when staged/worker file sets differ."
+  [worker-manifest staged-manifest execution-id]
+  (let [worker (into {} (map (juxt :artifact/relative-path identity)) (:artifacts worker-manifest))
+        staged (into {} (map (juxt :artifact/relative-path identity)) (:artifacts staged-manifest))
+        missing (->> worker keys (remove staged) sort vec)
+        extra (->> staged keys (remove worker) sort vec)
+        changed (->> worker
+                     (keep (fn [[path entry]]
+                             (when (let [s (get staged path)]
+                                     (and s (or (not= (:artifact/sha256 s) (:artifact/sha256 entry))
+                                                (not= (:artifact/byte-count s) (:artifact/byte-count entry)))))
+                               {:path path
+                                :worker-sha256 (:artifact/sha256 entry)
+                                :staged-sha256 (get-in staged [path :artifact/sha256])
+                                :worker-byte-count (:artifact/byte-count entry)
+                                :staged-byte-count (get-in staged [path :artifact/byte-count])})))
+                     (sort-by :path)
+                     vec)]
+    (when (or (seq missing) (seq extra) (seq changed))
+      (throw (ex-info "Staged artifact content diverged from worker manifest"
+                      {:execution/id execution-id
+                       :missing missing :extra extra :changed changed
+                       :reason :staged-artifact-divergence})))))
+
+(defn- rehash-canonical-manifest
+  "After the coordinator moves a staged directory into its canonical execution
+   location, re-read the canonical files and attach their observed SHA-256s so
+   post-move byte integrity is re-established on the manifest."
+  [canonical-dir worker-manifest]
+  (let [observed (artifact-manifest-for-dir canonical-dir nil)
+        expected-by-path (into {} (map (juxt :artifact/relative-path identity))
+                               (:artifacts worker-manifest))
+        observed-by-path (into {} (map (juxt :artifact/relative-path identity))
+                               (:artifacts observed))
+        missing (->> expected-by-path keys (remove observed-by-path) sort vec)
+        extra (->> observed-by-path keys (remove expected-by-path) sort vec)
+        changed (->> expected-by-path
+                     (keep (fn [[path expected]]
+                             (let [actual (get observed-by-path path)]
+                               (when (and actual
+                                          (or (not= (:artifact/sha256 expected) (:artifact/sha256 actual))
+                                              (not= (:artifact/byte-count expected) (:artifact/byte-count actual))))
+                                 {:path path
+                                  :expected (select-keys expected [:artifact/sha256 :artifact/byte-count])
+                                  :actual (select-keys actual [:artifact/sha256 :artifact/byte-count])}))))
+                     (sort-by :path)
+                     vec)]
+    (when (or (seq missing) (seq extra) (seq changed))
+      (throw (ex-info "Canonical artifact content diverged after publication"
+                      {:reason :canonical-artifact-divergence
+                       :missing missing :extra extra :changed changed})))
+    (assoc worker-manifest
+           :artifacts (mapv (fn [artifact]
+                              (assoc artifact :artifact/semantic-root
+                                     (:artifact/semantic-root
+                                      (get expected-by-path (:artifact/relative-path artifact)))))
+                            (:artifacts observed))
+           :artifact/canonical-verified true)))
+
+(defn- move-staged-to-canonical!
+  "Detached coordinator-only move of one staged execution directory into its
+   canonical execution location. Extracted as a seam so publication-failure
+   tests can inject a move failure."
+  [staged target]
+  (Files/move (.toPath staged) (.toPath target)
+              (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE])))
 
 (defn- write-execution-package!
   [output-dir scenario-source scenario result]
@@ -222,18 +401,22 @@
     {:ids [] :results {}}))
 
 (defn- execute-scenario
-  [suite-kw scenario-source ordinal repetition-index run-count executions-dir]
+  "Determine one frozen execution in a worker-owned staging directory. This
+   function deliberately does not publish into the canonical executions root."
+  [suite-kw scenario-source plan-entry run-count staging-root]
   (let [path (:input/ref scenario-source)
         scenario (load-scenario scenario-source)
-        descriptor (execution-identity/descriptor scenario-source scenario repetition-index)
-        execution-id (execution-identity/execution-id descriptor)
+        ordinal (:execution/ordinal plan-entry)
+        repetition-index (get-in plan-entry [:execution/descriptor :repetition-index])
+        descriptor (require-plan-match! plan-entry scenario-source scenario)
+        execution-id (:execution/id plan-entry)
         protocol (or (:protocol scenario) protocols/default-protocol-id)
         adapter (protocols/get-protocol protocol)
         _ (when-not adapter
             (throw (ex-info "Benchmark scenario protocol extension is unavailable"
                             {:protocol protocol
                              :known-protocols (vec (protocols/known-protocol-ids))})))
-        output-dir (execution-output-dir executions-dir ordinal descriptor)
+        output-dir (staging-execution-dir staging-root plan-entry)
         run-replay (fn []
                      (if (= "sew-v1" protocol)
                        ((requiring-resolve 'resolver-sim.protocols.sew/replay-with-sew-protocol)
@@ -302,6 +485,7 @@
             :scenario/id (or public-id (:scenario-id entry) (:scenario-id scenario))
             :simulator/scenario-path path
             :execution/id execution-id
+            :execution/ordinal ordinal
             :execution/descriptor descriptor
             :case/key (case-set/case-key-for-execution ordinal)
             :benchmark/run-index repetition-index
@@ -328,9 +512,113 @@
             ;; caller-supplied report fields.
             :scenario/allocation-context (get-in final-world [:allocation/context])
             :scenario/round-lifecycle (get-in final-world [:allocation/round-lifecycle])
-            :scenario/artifacts execution-package})))
+            :scenario/artifacts execution-package
+            :scenario/artifact-manifest (artifact-manifest-for-dir output-dir scenario-evidence)})))
 
-(defrecord SewAdapter [scenario-output-dir]
+(defn- run-with-worker-context
+  [artifact-dir allow-dirty? work]
+  ;; Dynamic bindings are intentionally established inside every executor task;
+  ;; they are not inherited implicitly across async boundaries.
+  (evidence-node/with-fresh-registry
+    (chain/with-fresh-evidence-context*
+     #(binding [evidence-config/*artifact-dir* artifact-dir
+                chain/*allow-dirty* allow-dirty?]
+        (work)))))
+
+(defn- execute-chunk
+  [suite-kw source-by-id run-count staging-root allow-dirty? chunk]
+  (mapv (fn [plan-entry]
+          (let [source (get source-by-id (:execution/id plan-entry))
+                artifact-dir (staging-execution-dir staging-root plan-entry)]
+            (when-not source
+              (throw (ex-info "Frozen execution plan has no source" 
+                              {:execution/id (:execution/id plan-entry)})))
+            (run-with-worker-context artifact-dir allow-dirty?
+              #(execute-scenario suite-kw source plan-entry run-count staging-root))))
+        (:chunk/work-items chunk)))
+
+(defn- execute-plan-bounded!
+  [suite-kw plan source-by-id run-count staging-root parallelism chunk-size]
+  (let [parallelism (long (or parallelism 1))
+        _ (when-not (pos? parallelism)
+            (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
+        chunks (execution-chunks plan (or chunk-size 1))
+        executor (Executors/newFixedThreadPool (int parallelism))
+        allow-dirty? chain/*allow-dirty*]
+    (try
+      (let [futures (mapv (fn [chunk]
+                            (.submit executor
+                                     ^Callable
+                                     (reify Callable
+                                       (call [_]
+                                         (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? chunk)))))
+                          chunks)]
+        ;; Dereference in deterministic chunk order. Completion timing has no
+        ;; influence on the returned sequence or subsequent reconciliation.
+        (vec (mapcat #(.get %) futures)))
+      (finally
+        (.shutdownNow executor)
+        (.awaitTermination executor 30 TimeUnit/SECONDS)))))
+
+(defn- publish-staged-executions!
+  "Coordinator-only canonical publication of detached worker staging.
+   Before any move:
+     - each worker-reported artifact manifest is reconciled against a fresh read
+       of its (still staged) directory and must agree, else fail closed;
+     - artifact manifests are reconciled across executions for collision/dedupe.
+   After moving a staged directory, the canonical destination files are re-hashed
+   onto the manifest so post-move byte integrity is authoritative."
+  [canonical-root staging-root plan results]
+  (when canonical-root
+    (let [canonical-root-file (io/file canonical-root)
+          staging-root-file (io/file staging-root)
+          plan-by-id (into {} (map (juxt :execution/id identity) plan))
+          manifests (mapv (fn [result]
+                            (let [entry (get plan-by-id (:execution/id result))
+                                  worker-manifest (:scenario/artifact-manifest result)
+                                  staged-manifest (artifact-manifest-for-dir
+                                                   (staging-execution-dir staging-root entry) nil)]
+                              (verify-staged-matches-worker! worker-manifest staged-manifest (:execution/id result))
+                              (assoc worker-manifest
+                                      :execution/id (:execution/id result)
+                                      :execution/directory (:execution/directory entry))))
+                          results)
+          _ (reconcile-artifact-manifests! manifests)]
+      (.mkdirs canonical-root-file)
+      (mapv (fn [result]
+              (let [entry (get plan-by-id (:execution/id result))
+                    staged (io/file staging-root-file (:execution/directory entry))
+                    target (io/file canonical-root-file (:execution/directory entry))
+                    worker-manifest (:scenario/artifact-manifest result)
+                    rewrite-path (fn [path]
+                                   (when path
+                                     (str (io/file target
+                                                   (str (.relativize (.toPath staged)
+                                                                    (.toPath (io/file path))))))))]
+                (when-not (.isDirectory staged)
+                  (throw (ex-info "Detached execution staging directory is missing"
+                                  {:execution/id (:execution/id result)
+                                   :staging-path (.getPath staged)})))
+                (when (.exists target)
+                  (throw (ex-info "Canonical execution destination already exists"
+                                  {:execution/id (:execution/id result)
+                                   :destination (.getPath target)})))
+                (move-staged-to-canonical! staged target)
+                (-> result
+                    (update :scenario/artifacts
+                            (fn [artifacts]
+                              (-> artifacts
+                                  (assoc :scenario/artifact-dir (.getPath target))
+                                  (update :scenario/input-path rewrite-path)
+                                  (update :scenario/replay-output rewrite-path)
+                                  (update :scenario/summary rewrite-path)
+                                  (update :scenario/evidence-registry rewrite-path)
+                                  (update :scenario/chain-cursor rewrite-path))))
+                    (assoc :scenario/artifact-manifest
+                           (rehash-canonical-manifest target worker-manifest)))))
+            results))))
+
+(defrecord SewAdapter [scenario-output-dir parallelism chunk-size]
   adapter/RepositoryAdapter
   (load-scenarios [_ benchmark]
     (if-let [suite-kw (:benchmark/scenario-suite benchmark)]
@@ -339,16 +627,21 @@
             (find-scenarios-in-suites (:scenario-suites benchmark)))))
 
   (execute-benchmark [_ benchmark scenarios]
-    (let [suite-kw (:benchmark/scenario-suite benchmark)
-          run-count (benchmark-run-count benchmark)
-          plan (vec (for [repetition-index (range run-count)
-                          scenario-file scenarios]
-                      [repetition-index scenario-file]))]
-      (mapv (fn [ordinal [repetition-index scenario-file]]
-              (execute-scenario suite-kw scenario-file (inc ordinal)
-                                repetition-index run-count scenario-output-dir))
-            (range)
-            plan)))
+    ;; Compatibility protocol entry point. Canonical callers use the frozen-plan
+    ;; path in run-benchmark below; direct adapter callers retain serial behavior.
+    (let [plan (build-execution-plan benchmark scenarios)
+          source-by-id (into {}
+                             (map (fn [entry source] [(:execution/id entry) source])
+                                  plan
+                                  (for [repetition-index (range (benchmark-run-count benchmark))
+                                        scenario scenarios]
+                                    scenario)))
+          staging-root (when scenario-output-dir
+                         (str (io/file (.getParentFile (io/file scenario-output-dir))
+                                       ".staging-direct-adapter")))]
+      (execute-plan-bounded! (:benchmark/scenario-suite benchmark) plan source-by-id
+                             (benchmark-run-count benchmark) staging-root
+                             (or parallelism 1) (or chunk-size 1))))
 
   (collect-metrics [_ results]
     {:total (count results)
@@ -358,7 +651,7 @@
      :unique-scenario-count (unique-scenario-count results)
      :declared-run-count (apply max 1 (keep :benchmark/run-count results))}))
 
-(def default-adapter (->SewAdapter nil))
+(def default-adapter (->SewAdapter nil 1 1))
 
 ;; ── Benchmark artifact index ──────────────────────────────────────────────────
 
@@ -370,6 +663,18 @@
         missing (sort (clojure.set/difference planned-ids result-ids))
         extra (sort (clojure.set/difference result-ids planned-ids))
         duplicates (->> result-by-id (filter (fn [[_ rs]] (not= 1 (count rs)))) (map first) sort vec)
+        malformed (->> results
+                       (keep (fn [result]
+                               (let [planned (get planned-by-id (:execution/id result))]
+                                 (when (and planned
+                                            (or (and (contains? result :execution/ordinal)
+                                                     (not= (:execution/ordinal planned) (:execution/ordinal result)))
+                                                (and (contains? result :execution/descriptor)
+                                                     (not= (:execution/descriptor planned) (:execution/descriptor result)))))
+                                   {:execution/id (:execution/id result)
+                                    :expected-ordinal (:execution/ordinal planned)
+                                    :actual-ordinal (:execution/ordinal result)}))))
+                       vec)
         misplaced (->> results
                        (keep (fn [result]
                                (let [planned (get planned-by-id (:execution/id result))
@@ -382,10 +687,17 @@
                                     :expected (:execution/directory planned)
                                     :actual actual}))))
                        vec)]
-    (when (or (seq missing) (seq extra) (seq duplicates) (seq misplaced))
+    (when (or (seq missing) (seq extra) (seq duplicates) (seq malformed) (seq misplaced))
       (throw (ex-info "Benchmark execution plan reconciliation failed"
-                      {:missing missing :extra extra :duplicates duplicates :misplaced misplaced})))
+                      {:missing missing :extra extra :duplicates duplicates
+                       :malformed malformed :misplaced misplaced})))
     true))
+
+(defn- order-reconciled-results
+  "Restore the frozen plan order after successful exact-set reconciliation."
+  [plan results]
+  (let [result-by-id (into {} (map (juxt :execution/id identity) results))]
+    (mapv #(get result-by-id (:execution/id %)) plan)))
 
 (defn- write-artifact-index!
   [scenario-output-dir benchmark-index-path benchmark-id results]
@@ -449,12 +761,29 @@
     (rp/edn-read path)
     (throw (ex-info "Benchmark manifest not found" {:path path}))))
 
+(defn- evaluate-claims-coordinator-owned
+  "Coordinator-owned claim evaluation. Returns a vector of claim-result maps.
+   On an unexpected evaluation failure the coordinator records a structured
+   fail-closed entry rather than silently returning an empty vector, so a
+   downstream conclusion can never mistake 'no evaluation ran' for 'all claims
+   passed'. Failures are surfaced (not propagated) in keeping with benchmark
+   evidence policy: the run still produces an evidence bundle."
+  [manifest results]
+  (try
+    (benchmark-claims/evaluate-manifest-claims manifest results)
+    (catch Exception e
+      (log/warn! "benchmark/claim-evaluation-failed" {:error (.getMessage e)})
+      [{:claim/evaluation-status :failed
+        :claim/evaluation-error (.getMessage e)
+        :claim/outcome :error}])))
+
 (defn run-benchmark
   ([manifest-path] (run-benchmark manifest-path default-adapter {}))
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
-  ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path]}]
+  ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path
+                                  parallelism chunk-size]}]
    (let [adapter (if scenario-output-dir
-                   (->SewAdapter scenario-output-dir)
+                   (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
          manifest (load-manifest manifest-path)
          _ (when-not (:benchmark/id manifest)
@@ -473,8 +802,24 @@
              (println "Executing" (count scenarios) "scenarios...")
              (log/info! "benchmark/execute" {:scenario-count (count scenarios)
                                              :manifest manifest-path}))
-         results (adapter/execute-benchmark adapter manifest scenarios)
-         _ (reconcile-execution-plan! plan results)
+         source-by-id (into {}
+                            (map (fn [entry source] [(:execution/id entry) source])
+                                 plan
+                                 (for [repetition-index (range (benchmark-run-count manifest))
+                                       scenario scenarios]
+                                   scenario)))
+         staging-root (when scenario-output-dir
+                        (str (io/file (.getParentFile (io/file scenario-output-dir))
+                                      ".staging" "benchmark-executions")))
+         raw-results (if (instance? SewAdapter adapter)
+                       (execute-plan-bounded! (:benchmark/scenario-suite manifest)
+                                              plan source-by-id (benchmark-run-count manifest)
+                                              staging-root (or parallelism 1) (or chunk-size 1))
+                       (adapter/execute-benchmark adapter manifest scenarios))
+         _ (reconcile-execution-plan! plan raw-results)
+         reconciled-results (order-reconciled-results plan raw-results)
+         results (or (publish-staged-executions! scenario-output-dir staging-root plan reconciled-results)
+                     reconciled-results)
          artifact-index (write-artifact-index! scenario-output-dir benchmark-index-path (:benchmark/id manifest) results)
 
          metrics (adapter/collect-metrics adapter results)
@@ -494,13 +839,8 @@
          passed-inv-checks (count (filter #(= :pass (:result %)) all-inv-results))
          all-invariants-pass? (= total-inv-checks passed-inv-checks)
 
-            ;; ── Claim evaluation ────────────────────────────────────────────
-         claim-results (try
-                         (benchmark-claims/evaluate-manifest-claims manifest results)
-                         (catch Exception e
-                           (log/warn! "benchmark/claim-evaluation-failed"
-                                      {:error (.getMessage e)})
-                           []))
+;; ── Claim evaluation ────────────────────────────────────────────
+          claim-results (evaluate-claims-coordinator-owned manifest results)
 
             ;; ── Concept enrichment ──────────────────────────────────────────
          concept-ids (:benchmark/concepts manifest)
