@@ -364,7 +364,7 @@ allocation-realized-conformance:
 
 .PHONY: allocation-realized-proof
 allocation-realized-proof:
-	./scripts/prove-realized-statement.sh
+	sh ./scripts/prove-realized-statement.sh
 
 .PHONY: allocation-test
 allocation-test: allocation-rust-test allocation-rust-clippy allocation-guest allocation-realized-guest allocation-contracts allocation-conformance allocation-realized-conformance

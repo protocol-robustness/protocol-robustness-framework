@@ -6,3 +6,10 @@ members = [
     "sp1-script",
     "realized-statement-sp1-program",
 ]
+
+# Profiles intended to affect the whole workspace build belong on the
+# workspace-root manifest, not a member package (member-level profile tables
+# are ignored with the "profiles for the non root package will be ignored"
+# warning).
+[profile.release]
+opt-level = 3

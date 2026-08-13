@@ -422,6 +422,12 @@ statement root; collection coverage is complete only when every member has
 exactly one trusted, admitted proof tuple. A proof for one statement never
 implies proof coverage of the collection.
 
+The reproducible `make allocation-realized-proof` target uses ignored,
+project-local writable SP1/Cargo/Go caches (or `SP1_CARGO_HOME`) and invokes
+Cargo with `--locked`. Cache paths are not proof identity. The emitted artifact
+records `rustc --version` and the SHA-256 of `coprocessor/Cargo.lock` as build
+provenance, alongside the semantic profile, ELF digest, and VK.
+
 Future profile/program/VK changes require a new profile or a separately
 allowlisted registry entry. Historical artifacts retain the exact schema,
 profile, statement version, public-values schema, ELF digest, and VK they were

@@ -60,10 +60,23 @@ struct RealizedStatementProofArtifact {
     public_values_sha256: String,
     proof_bytes_hex: String,
     proof_sha256: String,
+    rustc_version: String,
+    cargo_lock_sha256: String,
 }
 
 fn sha256_ref(bytes: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(bytes))
+}
+
+fn command_stdout(program: &str, args: &[&str]) -> String {
+    std::process::Command::new(program)
+        .args(args)
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|value| value.trim().to_owned())
+        .unwrap_or_else(|| "unavailable".to_owned())
 }
 
 fn write_artifact(
@@ -92,6 +105,10 @@ fn write_artifact(
         public_values_sha256: sha256_ref(native),
         proof_bytes_hex: format!("0x{}", hex::encode(proof.bytes())),
         proof_sha256: sha256_ref(&proof.bytes()),
+        rustc_version: command_stdout("rustc", &["--version"]),
+        cargo_lock_sha256: sha256_ref(
+            &std::fs::read("../Cargo.lock").expect("read coprocessor Cargo.lock"),
+        ),
     };
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("create artifact directory");

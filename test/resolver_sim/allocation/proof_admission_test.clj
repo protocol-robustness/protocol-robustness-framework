@@ -1,5 +1,7 @@
 (ns resolver-sim.allocation.proof-admission-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.data.json :as json]
+            [clojure.string :as str]
             [resolver-sim.allocation.context :as ctx]
             [resolver-sim.allocation.proof-admission :as admission]
             [resolver-sim.allocation.realized-statement :as statement]
@@ -31,6 +33,7 @@
    :policy {:mode :pro-rata :rounding-policy :largest-remainder}})
 
 (defn- sha-ref [c] (str "sha256:" (apply str (repeat 64 c))))
+(defn- wire-kw [kw] (subs (str kw) 1))
 (defn- sha-utf8-ref [s]
   (let [d (java.security.MessageDigest/getInstance "SHA-256")]
     (.update d (.getBytes s "UTF-8"))
@@ -128,6 +131,50 @@
             forged (signed-receipt artifact other)]
         (is (false? (admission/cryptographic-computation-admitted?
                      (assoc request :receipt forged))))))))
+
+(deftest persisted-artifact-and-receipt-ingestion-fail-closed
+  (let [statement (statement-fixture supported-decision)
+        artifact (artifact-fixture statement)
+        proof-json (json/write-str {"schema_version" (:proof/schema-version artifact)
+                                    "proof_profile" (wire-kw (:proof/profile artifact))
+                                    "statement_schema_version" (:statement/schema-version artifact)
+                                    "statement_root" (:statement/root artifact)
+                                    "program_id" (:program/id artifact)
+                                    "program_elf_sha256" (:program/elf-sha256 artifact)
+                                    "program_vkey" (:program/vkey artifact)
+                                    "public_values_schema" (wire-kw (:public-values/schema artifact))
+                                    "public_values_utf8_json" (:public-values/utf8-json artifact)
+                                    "public_values_sha256" (:public-values/sha256 artifact)
+                                    "proof_bytes_hex" (:proof/bytes-hex artifact)
+                                    "proof_sha256" (:proof/sha256 artifact)
+                                    "proof_artifact_hash" (:proof/artifact-hash artifact)})
+        kp (fx/keypair :sp1-verifier)
+        receipt (signed-receipt artifact kp)
+        receipt-json (json/write-str {"verification_schema_version" (:verification/schema-version receipt)
+                                      "verification_verdict" (name (:verification/verdict receipt))
+                                      "proof_artifact_hash" (:proof/artifact-hash receipt)
+                                      "proof_profile" (wire-kw (:proof/profile receipt))
+                                      "statement_root" (:statement/root receipt)
+                                      "program_id" (:program/id receipt)
+                                      "program_elf_sha256" (:program/elf-sha256 receipt)
+                                      "program_vkey" (:program/vkey receipt)
+                                      "public_values_sha256" (:public-values/sha256 receipt)
+                                      "proof_sha256" (:proof/sha256 receipt)
+                                      "verifier_id" (wire-kw (:verifier/id receipt))
+                                      "verifier_version" (:verifier/version receipt)
+                                      "signature" {"schema_version" (get-in receipt [:signature :schema-version])
+                                                   "key_id" (name (get-in receipt [:signature :key-id]))
+                                                   "algorithm" (name (get-in receipt [:signature :algorithm]))
+                                                   "signed_hash" (get-in receipt [:signature :signed-hash])
+                                                   "signature_encoding" (name (get-in receipt [:signature :signature-encoding]))
+                                                   "signature_bytes" (get-in receipt [:signature :signature-bytes])}})]
+    (is (true? (:valid? (admission/ingest-proof-artifact-json proof-json))))
+    (is (false? (:valid? (admission/ingest-proof-artifact-json
+                           (str "{\"proof_sha256\":\"x\",\"proof_sha256\":\"y\"," (subs proof-json 1))))))
+    (is (false? (:valid? (admission/ingest-proof-artifact-json
+                           (str/replace proof-json "0x01020304" "0x01020305")))))
+    (is (true? (:valid? (admission/ingest-verifier-receipt-json receipt-json))))
+    (is (false? (:valid? (admission/ingest-verifier-receipt-json "{\"verification_verdict\":\"verified\"}"))))))
 
 (deftest one-proof-cannot-cover-a-statement-collection
   (let [a (statement-fixture supported-decision)
