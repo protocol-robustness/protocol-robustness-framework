@@ -410,68 +410,68 @@
   ([evidence-path concepts-path scoring-path]
    (build-report evidence-path concepts-path scoring-path nil))
   ([evidence-path concepts-path scoring-path use-case-registry-path]
-  (let [evidence (load-evidence evidence-path)
-        _ (integrity/verify-evidence-bundle! evidence)
-        manifest (:benchmark evidence)
-        domain-entry (benchmark-domain-entry (:benchmark/domain manifest))
-        concept-resolution (resolve-report-concepts manifest concepts-path use-case-registry-path)
-        concepts (:report-concepts concept-resolution)
-        scoring (load-scoring scoring-path)
-        metrics (:metrics evidence)
-        results (:results evidence)
-        inv-summary (:invariant-summary evidence)
-        dimensions (build-dimension-results results (:claim-results evidence) manifest concepts scoring)]
-    {:benchmark/id (:benchmark/id manifest)
-     :benchmark/domain (:benchmark/domain manifest)
-     :benchmark/domain-description (:domain/description domain-entry)
-     :benchmark/concepts (benchmark-concept-provenance (:resolved-entries concept-resolution))
-     :benchmark/concept-summary (benchmark-concept-summary (:resolved-entries concept-resolution))
-     :benchmark/framework-concepts (benchmark-framework-concepts concepts)
-     :purpose (:benchmark/purpose manifest)
-     :scenario/suite (:benchmark/scenario-suite manifest)
-     :scenario/suite-description (:benchmark/scenario-suite-description manifest)
-     :evidence/path evidence-path
-     :evidence/hash (:evidence/hash evidence)
-     :environment (:environment evidence)
-     :reproduce (:reproduce evidence)
-     :total-scenarios (:total metrics)
-     :passed-scenarios (:passed metrics)
-     :all-pass? (and (pos? (:total metrics))
-                     (= (:total metrics) (:passed metrics)))
-     :score (if (pos? (:total metrics))
-              (float (/ (:passed metrics) (:total metrics)))
-              0.0)
-     :scoring/classification (classify-result (:total metrics) (:passed metrics)
-                                              (:scoring/rules scoring)
-                                              (:claim-results evidence)
-                                              (:benchmark evidence))
-     :claim/status (let [cr (:claim-results evidence)
-                         claim-refs (normalize-claim-refs (:benchmark/claims manifest))]
-                     (cond
-                       (seq cr)
-                       (if (every? #(= :pass (:claim/outcome %)) cr)
-                         :verified
-                         :partial)
-                       (seq claim-refs)
-                       :declared-not-verified
-                       :else :none))
-     :claim/maturity (let [cr (:claim-results evidence)
-                           manifest (:benchmark evidence)]
-                       (when (seq cr)
-                         (claim-maturity-level cr manifest)))
-     :claim-results (:claim-results evidence)
-     :conclusion (build-conclusion metrics
-                                   (:claim-results evidence)
-                                   (:evidence/hash evidence)
-                                   (:benchmark-run/hash evidence))
-     :dimensions dimensions
-     :invariant-summary inv-summary
-     :concept/section (:concept/section evidence)
-     :use-case-registry (when-let [loaded (:use-case-registry concept-resolution)]
-                          (select-keys loaded
-                                       [:use-case-registry/id :use-case-registry/version
-                                        :use-case-registry/schema :use-case-registry/source
-                                        :use-case-registry/root :use-case-registry/count]))})))
+   (let [evidence (load-evidence evidence-path)
+         _ (integrity/verify-evidence-bundle! evidence)
+         manifest (:benchmark evidence)
+         domain-entry (benchmark-domain-entry (:benchmark/domain manifest))
+         concept-resolution (resolve-report-concepts manifest concepts-path use-case-registry-path)
+         concepts (:report-concepts concept-resolution)
+         scoring (load-scoring scoring-path)
+         metrics (:metrics evidence)
+         results (:results evidence)
+         inv-summary (:invariant-summary evidence)
+         dimensions (build-dimension-results results (:claim-results evidence) manifest concepts scoring)]
+     {:benchmark/id (:benchmark/id manifest)
+      :benchmark/domain (:benchmark/domain manifest)
+      :benchmark/domain-description (:domain/description domain-entry)
+      :benchmark/concepts (benchmark-concept-provenance (:resolved-entries concept-resolution))
+      :benchmark/concept-summary (benchmark-concept-summary (:resolved-entries concept-resolution))
+      :benchmark/framework-concepts (benchmark-framework-concepts concepts)
+      :purpose (:benchmark/purpose manifest)
+      :scenario/suite (:benchmark/scenario-suite manifest)
+      :scenario/suite-description (:benchmark/scenario-suite-description manifest)
+      :evidence/path evidence-path
+      :evidence/hash (:evidence/hash evidence)
+      :environment (:environment evidence)
+      :reproduce (:reproduce evidence)
+      :total-scenarios (:total metrics)
+      :passed-scenarios (:passed metrics)
+      :all-pass? (and (pos? (:total metrics))
+                      (= (:total metrics) (:passed metrics)))
+      :score (if (pos? (:total metrics))
+               (float (/ (:passed metrics) (:total metrics)))
+               0.0)
+      :scoring/classification (classify-result (:total metrics) (:passed metrics)
+                                               (:scoring/rules scoring)
+                                               (:claim-results evidence)
+                                               (:benchmark evidence))
+      :claim/status (let [cr (:claim-results evidence)
+                          claim-refs (normalize-claim-refs (:benchmark/claims manifest))]
+                      (cond
+                        (seq cr)
+                        (if (every? #(= :pass (:claim/outcome %)) cr)
+                          :verified
+                          :partial)
+                        (seq claim-refs)
+                        :declared-not-verified
+                        :else :none))
+      :claim/maturity (let [cr (:claim-results evidence)
+                            manifest (:benchmark evidence)]
+                        (when (seq cr)
+                          (claim-maturity-level cr manifest)))
+      :claim-results (:claim-results evidence)
+      :conclusion (build-conclusion metrics
+                                    (:claim-results evidence)
+                                    (:evidence/hash evidence)
+                                    (:benchmark-run/hash evidence))
+      :dimensions dimensions
+      :invariant-summary inv-summary
+      :concept/section (:concept/section evidence)
+      :use-case-registry (when-let [loaded (:use-case-registry concept-resolution)]
+                           (select-keys loaded
+                                        [:use-case-registry/id :use-case-registry/version
+                                         :use-case-registry/schema :use-case-registry/source
+                                         :use-case-registry/root :use-case-registry/count]))})))
 
 ;; ── Auto-resolution ───────────────────────────────────────────────────────────
 

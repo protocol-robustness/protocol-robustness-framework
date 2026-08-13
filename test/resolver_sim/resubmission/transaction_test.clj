@@ -189,8 +189,8 @@
                     :attempt-disposition/attempt-receipt-hash "sha256:R1"
                     :attempt-disposition/status :withdrawn}
           forged (transition/apply-action s1 {:transaction/action :prf.resubmission/apply-disposition
-                                               :transaction/input {:attempt-receipt-hash "sha256:R1"
-                                                                   :disposition-artifact unsigned}})
+                                              :transaction/input {:attempt-receipt-hash "sha256:R1"
+                                                                  :disposition-artifact unsigned}})
           wrong-receipt (transition/apply-action
                          s1
                          (disposition-cmd

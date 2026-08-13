@@ -37,7 +37,7 @@
          "demo" {"id" demo-id "version" 1
                  "question" "Can a resubmission extend an older, superseded result?"}
          "scenario" {"records" {"order" "R1 → R2 (the verified history)"
-                                  "items" ["R1: first rejected attempt" "R2: admitted successor and current head"]}}
+                                "items" ["R1: first rejected attempt" "R2: admitted successor and current head"]}}
          "baseline" {"label" "Current verified head" "value" (str head-before) "admitted" (= :admitted (:admission-status r2))}
          "change" {"label" "Submit R3 against stale parent" "from" "sha256:R2" "to" "sha256:R1"
                    "detail" "R1 exists, but R2 has already superseded it as the chain head."}

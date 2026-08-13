@@ -207,7 +207,7 @@
                                           (when (not= (:artifact/hash c)
                                                       (:artifact/hash artifact))
                                             c)))
-                                custody-roots))
+                                      custody-roots))
         payable-roots (set (:payable/roots transition []))
         backing-roots (set (:backing/roots transition []))
         world-payable-roots (set (map :payable/hash

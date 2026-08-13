@@ -1125,60 +1125,60 @@
     ;; 3. Build reservation artifact (pre-execution)
     (let [reservation-token (:reservation/token reserve)
           reservation (rfa/build-reservation
-                     {:reservation/authorisation-hash (:authorisation/hash auth)
-                      :reservation/consumption-key (rfa/consumption-key auth)
-                      :reservation/execution-attempt-id attempt-id
-                      :reservation/command-root command-root
-                      :reservation/plan-root plan-root})]
+                       {:reservation/authorisation-hash (:authorisation/hash auth)
+                        :reservation/consumption-key (rfa/consumption-key auth)
+                        :reservation/execution-attempt-id attempt-id
+                        :reservation/command-root command-root
+                        :reservation/plan-root plan-root})]
     ;; 4. Simulate execution (or fail)
-    (let [fail? fail-after-reservation?
-          resulting-outcome-hash (if fail? "sha256:failed-outcome"
-                                     (str "sha256:"
-                                          (hc/domain-hash :benchmark-outcome
-                                                          {:type :executed
-                                                           :plan plan-root
-                                                           :content executed-content-root})))
-          status (if fail? :failed-after-consumption :consumed)
+      (let [fail? fail-after-reservation?
+            resulting-outcome-hash (if fail? "sha256:failed-outcome"
+                                       (str "sha256:"
+                                            (hc/domain-hash :benchmark-outcome
+                                                            {:type :executed
+                                                             :plan plan-root
+                                                             :content executed-content-root})))
+            status (if fail? :failed-after-consumption :consumed)
           ;; 5. Build outcome manifest (references reservation, NOT receipt)
-          fa-section {:authorisation-hash (:authorisation/hash auth)
-                      :consumption-key (rfa/consumption-key auth)
-                      :reservation-hash (:reservation/hash reservation)
-                      :execution-attempt-id attempt-id
-                      :branch-descriptor-hash
-                      (get-in auth [:authorisation/target
-                                    :target/branch-descriptor-hash])
-                      :baseline-content-root
-                      (get-in auth [:authorisation/target
-                                    :target/baseline-content-root])
-                      :executed-content-root executed-content-root
-                      :status status}
-          manifest (om/build-manifest
-                    (assoc base-input
-                           :execution/plan-root plan-root
-                           :execution/command-root command-root
-                           :execution/force-authorisation fa-section
-                           :benchmark/content-root
-                           (get-in auth [:authorisation/target
-                                         :target/baseline-content-root])))
+            fa-section {:authorisation-hash (:authorisation/hash auth)
+                        :consumption-key (rfa/consumption-key auth)
+                        :reservation-hash (:reservation/hash reservation)
+                        :execution-attempt-id attempt-id
+                        :branch-descriptor-hash
+                        (get-in auth [:authorisation/target
+                                      :target/branch-descriptor-hash])
+                        :baseline-content-root
+                        (get-in auth [:authorisation/target
+                                      :target/baseline-content-root])
+                        :executed-content-root executed-content-root
+                        :status status}
+            manifest (om/build-manifest
+                      (assoc base-input
+                             :execution/plan-root plan-root
+                             :execution/command-root command-root
+                             :execution/force-authorisation fa-section
+                             :benchmark/content-root
+                             (get-in auth [:authorisation/target
+                                           :target/baseline-content-root])))
           ;; 6. Build terminal consumption receipt (references outcome hash)
-          receipt (rfa/build-consumption-receipt
-                   (cond-> {:consumption/reservation-hash (:reservation/hash reservation)
-                            :consumption/authorisation-hash (:authorisation/hash auth)
-                            :consumption/consumption-key (rfa/consumption-key auth)
-                            :consumption/resulting-outcome-hash
-                            (:benchmark-outcome/hash manifest)
-                            :consumption/status status}
-                     (= :failed-after-consumption status)
-                     (assoc :consumption/terminal-evidence-hash
-                            (str "sha256:" (hc/domain-hash :evidence-collection
-                                                           {:status :not-captured
-                                                            :reason-code
-                                                            :simulated-failure})))))
-          _ (rfa/finalise-consumption! registration (rfa/consumption-key auth)
-                                       reservation-token status)]
-      {:reservation reservation
-       :outcome-manifest manifest
-       :consumption-receipt receipt}))))
+            receipt (rfa/build-consumption-receipt
+                     (cond-> {:consumption/reservation-hash (:reservation/hash reservation)
+                              :consumption/authorisation-hash (:authorisation/hash auth)
+                              :consumption/consumption-key (rfa/consumption-key auth)
+                              :consumption/resulting-outcome-hash
+                              (:benchmark-outcome/hash manifest)
+                              :consumption/status status}
+                       (= :failed-after-consumption status)
+                       (assoc :consumption/terminal-evidence-hash
+                              (str "sha256:" (hc/domain-hash :evidence-collection
+                                                             {:status :not-captured
+                                                              :reason-code
+                                                              :simulated-failure})))))
+            _ (rfa/finalise-consumption! registration (rfa/consumption-key auth)
+                                         reservation-token status)]
+        {:reservation reservation
+         :outcome-manifest manifest
+         :consumption-receipt receipt}))))
 
 ;; ── 8a. Successful authorised execution ─────────────────────────────────
 

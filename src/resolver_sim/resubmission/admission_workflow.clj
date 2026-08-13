@@ -38,19 +38,19 @@
   (try
     (let [{:keys [reservation finalization concurrency/fence] :as resolved}
           (store/resolve-finalization! admission-store family-id (:reservation/id request))]
-    (cond
-      (and finalization
-           (= (:finalization/request-root finalization)
-              (admission/finalization-request-root request)))
-      {:concurrency/outcome :finalized :finalization finalization :resolved resolved}
+      (cond
+        (and finalization
+             (= (:finalization/request-root finalization)
+                (admission/finalization-request-root request)))
+        {:concurrency/outcome :finalized :finalization finalization :resolved resolved}
 
-      (and reservation (= :active (:reservation/status reservation))
-           (= (:reservation/fence reservation) (:concurrency/fence request))
-           (= fence (:concurrency/fence request)))
-      (store/finalize! admission-store request)
+        (and reservation (= :active (:reservation/status reservation))
+             (= (:reservation/fence reservation) (:concurrency/fence request))
+             (= fence (:concurrency/fence request)))
+        (store/finalize! admission-store request)
 
-      :else
-      {:concurrency/outcome :finalization-unavailable :resolved resolved}))
+        :else
+        {:concurrency/outcome :finalization-unavailable :resolved resolved}))
     (catch Throwable _
       {:concurrency/outcome :finalization-indeterminate
        :reason :resolution-indeterminate

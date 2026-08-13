@@ -98,10 +98,10 @@
    calculate-fulfillment-pro-rata)."
   [available-liquidity rows rounding-policy & [progress-atom]]
   (let [row-id (fn [row]
-                  [:shared-withdrawal-row
-                   (str (:obligation-id row))
-                   (str (:source-position-id row))
-                   (str (:key row))])
+                 [:shared-withdrawal-row
+                  (str (:obligation-id row))
+                  (str (:source-position-id row))
+                  (str (:key row))])
         mechanism-result
         (pro-rata/allocate
          {:schema-version "pro-rata-allocation-request.v1"

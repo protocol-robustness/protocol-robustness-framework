@@ -68,8 +68,8 @@
           (apply-transition! (family-atom partitions (second key)) now
                              admission/reserve-transition
                              (assoc request :reservation/issued-at (str now)
-                                            :reservation/expires-at
-                                            (str (.plusSeconds now admission/reservation-lease-seconds))))))))
+                                    :reservation/expires-at
+                                    (str (.plusSeconds now admission/reservation-lease-seconds))))))))
   (finalize! [_ request]
     (let [key (:concurrency/partition-key request)]
       (if-not (admission/valid-partition-key? key)

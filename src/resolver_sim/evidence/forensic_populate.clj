@@ -45,9 +45,9 @@
 
 (defn- json-string [value]
   (json/write-str (sort-keys value) :key-fn (fn [k]
-                                               (if (namespace k)
-                                                 (str (namespace k) "/" (name k))
-                                                 (name k)))
+                                              (if (namespace k)
+                                                (str (namespace k) "/" (name k))
+                                                (name k)))
                   :indent true :escape-slash false))
 
 (defn- atomic-create-json!
@@ -78,7 +78,7 @@
     (spit temp (json-string value))
     (Files/move (.toPath temp) (.toPath target)
                 (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE
-                                                 StandardCopyOption/REPLACE_EXISTING]))
+                                                StandardCopyOption/REPLACE_EXISTING]))
     (.getPath target)))
 
 (defn write-claim-result!

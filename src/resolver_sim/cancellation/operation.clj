@@ -85,9 +85,9 @@
   (letfn [(walk [v]
             (cond
               (set? v) (vec (sort-by (fn [item]
-                                                    (apply str (map #(format "%02x" (bit-and % 0xff))
-                                                                    (hc/canonical-bytes item))))
-                                                  (map walk v)))
+                                       (apply str (map #(format "%02x" (bit-and % 0xff))
+                                                       (hc/canonical-bytes item))))
+                                     (map walk v)))
               (map? v) (into {} (map (fn [[k x]] [k (walk x)]) v))
               (vector? v) (mapv walk v)
               :else v))]

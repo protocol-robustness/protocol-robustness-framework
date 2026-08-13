@@ -12,7 +12,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.signed-external-decision :as sed]
-                        [resolver-sim.conformance.json :as strict-json])
+            [resolver-sim.conformance.json :as strict-json])
   (:import [java.security MessageDigest]))
 
 (def proof-profile :allocation-proof/largest-remainder-deferred-pro-rata.v1)
@@ -346,7 +346,7 @@
    authority. Neither an artifact, a self-consistent unsigned receipt, nor a
    caller-provided `:verified?` field can pass this boundary."
   [{:keys [artifact receipt trust-policy program-registry statement
-            allocation-context decision round-lifecycle]}]
+           allocation-context decision round-lifecycle]}]
   (and (statement-match? {:statement statement
                           :allocation-context allocation-context
                           :decision decision

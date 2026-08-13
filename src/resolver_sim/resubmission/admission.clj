@@ -278,14 +278,14 @@
         :else
         (let [fence (inc (:concurrency/fence state))
               reservation {:reservation/id (root reservation-domain
-                                               {:partition-key partition-key
-                                                :fence fence
-                                                :candidate-root candidate-root
-                                                :validation-root validation-root
-                                                :proposed-ordering-root proposed-ordering-root
-                                                :idempotency-key idempotency-key
-                                                :issued-at issued-at
-                                                :expires-at expires-at})
+                                                 {:partition-key partition-key
+                                                  :fence fence
+                                                  :candidate-root candidate-root
+                                                  :validation-root validation-root
+                                                  :proposed-ordering-root proposed-ordering-root
+                                                  :idempotency-key idempotency-key
+                                                  :issued-at issued-at
+                                                  :expires-at expires-at})
                            :reservation/partition-key partition-key
                            :reservation/fence fence
                            :reservation/snapshot-root (:concurrency/snapshot-root request)

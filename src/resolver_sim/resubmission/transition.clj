@@ -66,17 +66,17 @@
   ([family-id] (empty-state family-id nil))
   ([family-id disposition-public-hex]
    {:chain/family-id family-id
-   :chain/disposition-public-hex disposition-public-hex
-   :chain/version 0
-   :transaction/commit-index 0
-   :transaction/last-hash nil
-   :chain/head nil
-   :chain/successor-by-parent {}
-   :chain/effective-disposition-by-receipt {} ; receipt lifecycle status
-   :chain/disposition-head-by-receipt {}
-   :chain/idempotency-index {}   ; idempotency-key -> {:content-key :receipt-hash}
-   :chain/content-index {}       ; content-key -> {:parent-receipt-hash :receipt-hash}
-   :chain/attempt-receipts {}})) ; receipt-hash -> {:attempt-receipt :sequence :parent-receipt-hash}
+    :chain/disposition-public-hex disposition-public-hex
+    :chain/version 0
+    :transaction/commit-index 0
+    :transaction/last-hash nil
+    :chain/head nil
+    :chain/successor-by-parent {}
+    :chain/effective-disposition-by-receipt {} ; receipt lifecycle status
+    :chain/disposition-head-by-receipt {}
+    :chain/idempotency-index {}   ; idempotency-key -> {:content-key :receipt-hash}
+    :chain/content-index {}       ; content-key -> {:parent-receipt-hash :receipt-hash}
+    :chain/attempt-receipts {}})) ; receipt-hash -> {:attempt-receipt :sequence :parent-receipt-hash}
 
 (defn- chain-state-projection
   "The domain state committed by the state root. EXCLUDES the attempt receipts
@@ -303,8 +303,8 @@
                        :declared-previous-disposition-hash declared-previous}}
 
       (not (contains? (get allowed-disposition-transitions
-                            (current-disposition-status state attempt-receipt-hash) #{})
-                       disposition-status))
+                           (current-disposition-status state attempt-receipt-hash) #{})
+                      disposition-status))
       {:status :rejected :reason :invalid-disposition-transition
        :public-result {:from (current-disposition-status state attempt-receipt-hash)
                        :to disposition-status}}

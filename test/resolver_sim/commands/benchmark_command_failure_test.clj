@@ -155,15 +155,15 @@
       (is (thrown-with-msg? clojure.lang.ExceptionInfo
                             #"injected registry failure"
                             (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)))
-       (is (= [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion
-               :write-summary :scan-sensitivity :write-content-registry :write-finalization
-               :write-canonical-assurance :write-verdict-policy :write-package-index
-               :build-inventory :finalize-registry]
-              @calls))
-       (is (.exists (io/file root ".run-state")))
-       (is (not (.exists (io/file root "completion.json"))))
-       (is (not (.exists (io/file root ".run.lock"))))
-       (finally (delete-tree! root)))))
+      (is (= [:execute :finalize-runner :write-manifest :snapshot-definition :write-conclusion
+              :write-summary :scan-sensitivity :write-content-registry :write-finalization
+              :write-canonical-assurance :write-verdict-policy :write-package-index
+              :build-inventory :finalize-registry]
+             @calls))
+      (is (.exists (io/file root ".run-state")))
+      (is (not (.exists (io/file root "completion.json"))))
+      (is (not (.exists (io/file root ".run.lock"))))
+      (finally (delete-tree! root)))))
 
 (deftest canonical-benchmark-rejects-empty-scenario-list-before-execution
   (let [root (temp-dir)]
@@ -204,5 +204,5 @@
         (is (.exists (io/file root "completion.json")))
         (is (not (.exists (io/file root ".run.lock"))))
         (is (= :complete (last @calls))
-             "success path must reach :complete"))
+            "success path must reach :complete"))
       (finally (delete-tree! root)))))

@@ -130,7 +130,7 @@
                 :request-root "sha256:request"}]
     (is (re-matches #"sha256:[0-9a-f]{64}" (cancellation/evaluation-inputs-root inputs)))
     (let [swapped (assoc inputs :policy-root "sha256:request"
-                               :request-root "sha256:policy")]
+                         :request-root "sha256:policy")]
       (is (not= (cancellation/evaluation-inputs-root inputs)
                 (cancellation/evaluation-inputs-root swapped))))))
 

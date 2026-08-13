@@ -91,7 +91,7 @@
   (let [items (vec dispositions)]
     (and (every? #(true? (:valid? (verify-fn %))) items)
          (every? #(= attempt-receipt-hash
-                      (:attempt-disposition/attempt-receipt-hash %))
+                     (:attempt-disposition/attempt-receipt-hash %))
                  items)
          (every? true?
                  (map (fn [current previous]

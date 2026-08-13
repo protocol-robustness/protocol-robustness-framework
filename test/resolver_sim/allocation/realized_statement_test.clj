@@ -88,7 +88,7 @@
                                  :round-lifecycle @lifecycle})]
       (is (true? (:statement/all-active? s)))
       (is (true? (get-in s [:statement/verification-equalities
-                             :all-active-all-full-fill]))))))
+                            :all-active-all-full-fill]))))))
 
 (deftest realized-results-commits-explicit-dispositions
   (testing "realized-results-root commits a per-participant disposition vector;

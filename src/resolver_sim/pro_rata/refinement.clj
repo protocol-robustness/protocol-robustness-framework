@@ -60,8 +60,8 @@
                        (when-not (and (= :custody/held-adjustment (:effect/type protocol-effect))
                                       (= :prf.effect/custody-held-adjustment.v2 (:effect/contract protocol-effect))
                                       (= "add-held" (:effect/action protocol-effect))) [{:reason :pro-rata/not-sew-add-held :effect-id effect-id}])
-                       (when-not (= (effect-root protocol-effect) (:effect/root entry)) [{:reason :pro-rata/effect-root-mismatch :effect-id effect-id}])) ) rs)
-          (when-not (= (:protocol-effect-set/root refinement) (hc/domain-hash :pro-rata-effect-refinement base)) [{:reason :pro-rata/refinement-root-mismatch}]))))))
+                       (when-not (= (effect-root protocol-effect) (:effect/root entry)) [{:reason :pro-rata/effect-root-mismatch :effect-id effect-id}]))) rs)
+                  (when-not (= (:protocol-effect-set/root refinement) (hc/domain-hash :pro-rata-effect-refinement base)) [{:reason :pro-rata/refinement-root-mismatch}]))))))
 
 (defn refinement-valid? [allocation proposal refinement]
   (empty? (refinement-violations allocation proposal refinement)))

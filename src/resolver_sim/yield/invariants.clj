@@ -275,14 +275,14 @@
         (if (seq non-integral)
           non-integral
           (into []
-                 (keep (fn [[[mid tok] pos-group]]
-                         (let [splits-ok? (every? (fn [p]
-                                                    (let [sf (:shortfall p)]
-                                                      (if sf
-                                                        (let [f (long (or (:fulfilled-amount sf) 0))
-                                                              d (long (or (:deferred-amount sf) 0))
-                                                              h (long (or (:haircut-amount sf) 0))
-                                                              b (long (or (:basis-amount sf) 0))
+                (keep (fn [[[mid tok] pos-group]]
+                        (let [splits-ok? (every? (fn [p]
+                                                   (let [sf (:shortfall p)]
+                                                     (if sf
+                                                       (let [f (long (or (:fulfilled-amount sf) 0))
+                                                             d (long (or (:deferred-amount sf) 0))
+                                                             h (long (or (:haircut-amount sf) 0))
+                                                             b (long (or (:basis-amount sf) 0))
                               ;; The single-position withdraw path folds a negative
                               ;; unrealized-yield into basis-amount (recorded on the
                               ;; shortfall as :basis-negative-unrealized) without
@@ -296,23 +296,23 @@
                               ;; second disjunct (f + d + h + fold + min(0, unrealized) == b).
                               ;; Shared-withdrawal shortfalls never fold and record 0,
                               ;; so the first disjunct reduces to f + d + h == b.
-                                                                      fold (long (or (:basis-negative-unrealized sf) 0))
-                                                                      pos-neg (min 0 (long (:unrealized-yield p 0)))]
-                                                                  (or (= (+ f d h fold) b)
-                                                                      (= (+ f d h fold pos-neg) b)))
-                                                                true)))
-                                                          pos-group)
-                                       total-basis (reduce + 0 (map position-shortfall-basis pos-group))
-                                       total-value (reduce + 0 (map position-shortfall-value pos-group))
-                                       issues (cond-> []
-                                                (not splits-ok?) (conj :shortfall-splits-unbalanced)
-                                                (> total-basis total-value) (conj :aggregate-shortfall-over-value))]
-                                   (when (seq issues)
-                                     {:module-id mid :token tok
-                                      :total-basis total-basis
-                                      :total-value total-value
-                                      :issues issues})))
-                               by-key)))]
+                                                             fold (long (or (:basis-negative-unrealized sf) 0))
+                                                             pos-neg (min 0 (long (:unrealized-yield p 0)))]
+                                                         (or (= (+ f d h fold) b)
+                                                             (= (+ f d h fold pos-neg) b)))
+                                                       true)))
+                                                 pos-group)
+                              total-basis (reduce + 0 (map position-shortfall-basis pos-group))
+                              total-value (reduce + 0 (map position-shortfall-value pos-group))
+                              issues (cond-> []
+                                       (not splits-ok?) (conj :shortfall-splits-unbalanced)
+                                       (> total-basis total-value) (conj :aggregate-shortfall-over-value))]
+                          (when (seq issues)
+                            {:module-id mid :token tok
+                             :total-basis total-basis
+                             :total-value total-value
+                             :issues issues})))
+                      by-key)))]
     {:holds? (empty? violations)
      :violations (vec violations)
      :checks {:aggregate-shortfall-consistent (if (seq violations) :fail :pass)}}))
@@ -885,10 +885,10 @@
    order-independent (it peels deferred residuals, it does not trust ordering)."
   [world]
   (->> (vals (:yield/partial-fill-decisions world {}))
-        (filter shared-withdrawal-artifact?)
-        (sort-by (fn [d] [(get-in d [:allocation/invocation-context :step]
-                                  Long/MAX_VALUE)
-                          (:decision/id d)]))))
+       (filter shared-withdrawal-artifact?)
+       (sort-by (fn [d] [(get-in d [:allocation/invocation-context :step]
+                                 Long/MAX_VALUE)
+                         (:decision/id d)]))))
 
 (defn- deferred-position-id?
   "Does a :source-position-id look like a deferred-position id rather than a

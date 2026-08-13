@@ -86,7 +86,7 @@
                    ["UPDATE prf_resubmission_admission_partition
                      SET state_edn = ? WHERE partition_key = ?"
                     (pr-str (assoc-in state [:admission/reservations reservation-id]
-                                     (assoc reservation :reservation/expires-at (str target))))
+                                      (assoc reservation :reservation/expires-at (str target))))
                     key])
     target))
 

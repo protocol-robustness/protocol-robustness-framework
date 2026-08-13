@@ -120,7 +120,7 @@
                    (assoc-in request [:artifact :statement/root] (sha-ref "d")))))
       (is (false? (admission/cryptographic-computation-admitted?
                    (assoc-in request [:artifact :public-values/utf8-json]
-                                                "{\"result/status\":\"passing\",\"statement-root\":\"substituted\"}")))))
+                             "{\"result/status\":\"passing\",\"statement-root\":\"substituted\"}")))))
     (testing "program/VK identity is registry pinned, not caller nominated"
       (is (false? (admission/cryptographic-computation-admitted?
                    (assoc-in request [:artifact :program/vkey] "0x2222"))))
@@ -170,9 +170,9 @@
                                                    "signature_bytes" (get-in receipt [:signature :signature-bytes])}})]
     (is (true? (:valid? (admission/ingest-proof-artifact-json proof-json))))
     (is (false? (:valid? (admission/ingest-proof-artifact-json
-                           (str "{\"proof_sha256\":\"x\",\"proof_sha256\":\"y\"," (subs proof-json 1))))))
+                          (str "{\"proof_sha256\":\"x\",\"proof_sha256\":\"y\"," (subs proof-json 1))))))
     (is (false? (:valid? (admission/ingest-proof-artifact-json
-                           (str/replace proof-json "0x01020304" "0x01020305")))))
+                          (str/replace proof-json "0x01020304" "0x01020305")))))
     (is (true? (:valid? (admission/ingest-verifier-receipt-json receipt-json))))
     (is (false? (:valid? (admission/ingest-verifier-receipt-json "{\"verification_verdict\":\"verified\"}"))))))
 

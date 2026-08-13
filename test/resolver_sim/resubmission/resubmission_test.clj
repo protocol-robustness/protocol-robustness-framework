@@ -402,9 +402,9 @@
           _ (chain/admit-compat! c (admit-request "sha256:R1" 1 nil :basis-root "sha256:B1" :link-hash "sha256:L1" :idempotency "sha256:I1"))
           futures (doall (map (fn [i]
                                 (future (chain/admit-compat! c (admit-request (str "sha256:C" i) 2 "sha256:R1"
-                                                                       :basis-root (str "sha256:BC" i)
-                                                                       :link-hash (str "sha256:LC" i)
-                                                                       :idempotency (str "sha256:IC" i)))))
+                                                                              :basis-root (str "sha256:BC" i)
+                                                                              :link-hash (str "sha256:LC" i)
+                                                                              :idempotency (str "sha256:IC" i)))))
                               (range 6)))
           results (mapv deref futures)
           admitted (count (filter #(= :admitted (:admission-status %)) results))]
@@ -513,41 +513,41 @@
                       :results-hash golden-results-root
                       :execution-context-hash "sha256:E"
                       :submission-basis-hash "sha256:B"})]
-                 (is (= :submission-repair-not-permitted (:reason stage3b))))))
+        (is (= :submission-repair-not-permitted (:reason stage3b))))))
 
 ;; ── new-chain arities ────────────────────────────────────────────────────────
 
-(deftest new-chain-3-arity-stores-receipt-public-hex
-  (let [c (chain/new-chain "sha256:FAM" nil "sha256:receipt-pk")]
-    (is (= "sha256:receipt-pk" (.receipt-public-hex c)))))
+  (deftest new-chain-3-arity-stores-receipt-public-hex
+    (let [c (chain/new-chain "sha256:FAM" nil "sha256:receipt-pk")]
+      (is (= "sha256:receipt-pk" (.receipt-public-hex c)))))
 
 ;; ── admit! finality guard ────────────────────────────────────────────────────
 
-(deftest admit-rejects-non-final-receipt
-  (let [authority (ed/keypair :chain-validator)
-        signed (receipt/sign-receipt
-                (assoc (golden-receipt-base) :attempt-receipt/finality :pending)
-                (:private-key authority))
-        c (chain/new-chain "sha256:FAM" nil (:public-hex authority))
-        request {:receipt-hash "sha256:FORGED"
-                 :candidate-attempt-receipt signed
-                 :sequence 1 :parent-receipt-hash nil
-                 :link-hash "sha256:L1" :idempotency-key "sha256:I1"
-                 :basis-root "sha256:B1"}]
-    (is (= :not-admitted (:admission-status (chain/admit! c request))))
-    (is (= :receipt-not-final (:reason (chain/admit! c request))))))
+  (deftest admit-rejects-non-final-receipt
+    (let [authority (ed/keypair :chain-validator)
+          signed (receipt/sign-receipt
+                  (assoc (golden-receipt-base) :attempt-receipt/finality :pending)
+                  (:private-key authority))
+          c (chain/new-chain "sha256:FAM" nil (:public-hex authority))
+          request {:receipt-hash "sha256:FORGED"
+                   :candidate-attempt-receipt signed
+                   :sequence 1 :parent-receipt-hash nil
+                   :link-hash "sha256:L1" :idempotency-key "sha256:I1"
+                   :basis-root "sha256:B1"}]
+      (is (= :not-admitted (:admission-status (chain/admit! c request))))
+      (is (= :receipt-not-final (:reason (chain/admit! c request))))))
 
 ;; ── admit-compat! runtime guard ──────────────────────────────────────────────
 
-(deftest admit-compat-guard-fails-closed-when-active
-  (let [c (chain/new-chain "sha256:FAM")]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"admit-compat! is forbidden"
-                          (binding [chain/*admit-compat-guard* :enforced]
-                            (chain/admit-compat! c (admit-request "sha256:R1" 1 nil)))))))
+  (deftest admit-compat-guard-fails-closed-when-active
+    (let [c (chain/new-chain "sha256:FAM")]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"admit-compat! is forbidden"
+                            (binding [chain/*admit-compat-guard* :enforced]
+                              (chain/admit-compat! c (admit-request "sha256:R1" 1 nil)))))))
 
-(deftest admit-compat-allowed-when-guard-is-nil
-  (let [c (chain/new-chain "sha256:FAM")]
-    (is (= :admitted
-           (:admission-status
-            (binding [chain/*admit-compat-guard* nil]
-              (chain/admit-compat! c (admit-request "sha256:R1" 1 nil)))))))))
+  (deftest admit-compat-allowed-when-guard-is-nil
+    (let [c (chain/new-chain "sha256:FAM")]
+      (is (= :admitted
+             (:admission-status
+              (binding [chain/*admit-compat-guard* nil]
+                (chain/admit-compat! c (admit-request "sha256:R1" 1 nil)))))))))

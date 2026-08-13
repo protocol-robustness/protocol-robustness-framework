@@ -52,7 +52,7 @@
     (let [manifest (normalize-manifest-for-self-hash (load-manifest))
           file-contents (into (sorted-map)
                               (concat
-                                [[manifest-path (store/canonical-edn manifest)]]
+                               [[manifest-path (store/canonical-edn manifest)]]
                                (keep (fn [path]
                                        (when (not= path manifest-path)
                                          (let [f (io/file path)]

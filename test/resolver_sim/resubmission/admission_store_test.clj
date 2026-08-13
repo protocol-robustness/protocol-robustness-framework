@@ -20,9 +20,9 @@
 (defn validation-for [s candidate]
   {:profile-id :strict :profile-version 1
    :checks (mapv (fn [id] {:check/id id :valid? true
-                            :validated-against/root (:concurrency/snapshot-root s)
-                            :validated-against/version (:concurrency/expected-state-version s)
-                            :validated-against/candidate-root candidate})
+                           :validated-against/root (:concurrency/snapshot-root s)
+                           :validated-against/version (:concurrency/expected-state-version s)
+                           :validated-against/candidate-root candidate})
                  admission/required-check-order)})
 
 (defn finalize-request [s reservation receipt]
@@ -39,9 +39,9 @@
 
 (deftest validation-is-complete-snapshot-bound-and-deterministic
   (let [checks (mapv (fn [id] {:check/id id :valid? true
-                                     :validated-against/root (r "s")
-                                     :validated-against/version 7
-                                     :validated-against/candidate-root (r "c")})
+                               :validated-against/root (r "s")
+                               :validated-against/version 7
+                               :validated-against/candidate-root (r "c")})
                      admission/required-check-order)
         v1 (admission/build-validation {:partition-key (admission/partition-key family)
                                         :snapshot-root (r "s") :snapshot-version 7
@@ -98,9 +98,9 @@
         issued "2026-01-01T00:00:00Z"
         expires "2026-01-01T00:02:00Z"
         reserved (admission/reserve-transition s0
-                                                (assoc (request snap "idem-time" (r "a"))
-                                                       :reservation/issued-at issued
-                                                       :reservation/expires-at expires))
+                                               (assoc (request snap "idem-time" (r "a"))
+                                                      :reservation/issued-at issued
+                                                      :reservation/expires-at expires))
         state (:state reserved)
         reservation (:reservation reserved)
         before (admission/expire-transition state (:reservation/id reservation)
@@ -140,9 +140,9 @@
     (is (= :idempotent-replay (:concurrency/outcome replay)))
     (is (= :idempotency-conflict (:reason conflict)))
     (is (= :finalized (:concurrency/outcome
-                        (workflow/resolve-finalization! db family final-request))))
+                       (workflow/resolve-finalization! db family final-request))))
     (is (= (r "r") (get-in (workflow/resolve-finalization! db family final-request)
-                            [:finalization :receipt/root])))))
+                           [:finalization :receipt/root])))))
 
 (deftest aborted-reservation-closes-its-attempt-and-allows-a-new-fence
   (let [db (store/in-memory-store)
@@ -176,7 +176,7 @@
         s (store/snapshot! db family)
         candidate (r "c")
         sign! (fn [payload] {:receipt/root (r "r")
-                              :signing/payload-root (:signing/payload-root payload)})
+                             :signing/payload-root (:signing/payload-root payload)})
         result (workflow/attempt! {:admission-store db :family-id family
                                    :candidate-root candidate :idempotency-key "idem-workflow"
                                    :proposed-ordering-root (r "o")

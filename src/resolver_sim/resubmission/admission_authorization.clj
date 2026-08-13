@@ -15,7 +15,7 @@
   (dissoc evidence :authorization/evidence-root :authorization/signature))
 
 (defn evidence-root [evidence]
-  (hash-ref/sha256-ref (hc/domain-hash domain (unsigned-projection evidence))) )
+  (hash-ref/sha256-ref (hc/domain-hash domain (unsigned-projection evidence))))
 
 (defn build-unsigned
   "Construct evidence from exactly the reservation-bound signing payload."

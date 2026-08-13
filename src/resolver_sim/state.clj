@@ -36,12 +36,12 @@
                               [:held/positions] :materialized
                               [:held-artifacts] :materialized}}
      {:region/id :escrow :paths [[:escrow-transfers] [:escrow-settings]
-                                  [:pending-settlements] [:dispute-levels]]
+                                 [:pending-settlements] [:dispute-levels]]
       :region/authority :operational}
      {:region/id :claims :paths [[:claimable] [:claimable-v2]]
       :region/authority :operational}
      {:region/id :fees :paths [[:total-fees] [:total-fees-withdrawn]
-                                [:fee-payouts] [:fee-recipients]]
+                               [:fee-payouts] [:fee-recipients]]
       :region/authority :operational}
      {:region/id :derived-state :paths [[:live-states]]
       :region/authority :diagnostic}
@@ -57,7 +57,7 @@
       :verification :state/held-custody-reconciliation}
      {:relationship/id :sew/terminal-custody-snapshot
       :relationship/type :projection-of
-      :target-model :sew/terminal-custody-snapshot}]} 
+      :target-model :sew/terminal-custody-snapshot}]}
    {:state/model-id :resubmission/chain
     :state/label "Resubmission chain"
     :state/class :state-machine

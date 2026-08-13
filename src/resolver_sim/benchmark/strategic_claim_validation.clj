@@ -11,7 +11,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.runner :as runner]
-                        [resolver-sim.allocation.proof-admission :as proof-admission]
+            [resolver-sim.allocation.proof-admission :as proof-admission]
             [resolver-sim.benchmark.strategic-property-results :as spr]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.scenario.suites :as suites]
@@ -260,7 +260,7 @@
         stmt-root (:scenario/realized-allocation-statements-root result)
         statements (:scenario/realized-allocation-statements-data result)
         statement-by-decision (into {} (keep (fn [s]
-                                                (when-let [id (:decision/id s)] [id s])))
+                                               (when-let [id (:decision/id s)] [id s])))
                                     statements)
         context (:scenario/allocation-context result)
         lifecycle (:scenario/round-lifecycle result)

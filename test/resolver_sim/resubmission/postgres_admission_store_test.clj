@@ -69,9 +69,9 @@
 (defn validation-for [s candidate]
   {:profile-id :strict :profile-version 1
    :checks (mapv (fn [id] {:check/id id :valid? true
-                            :validated-against/root (:concurrency/snapshot-root s)
-                            :validated-against/version (:concurrency/expected-state-version s)
-                            :validated-against/candidate-root candidate})
+                           :validated-against/root (:concurrency/snapshot-root s)
+                           :validated-against/version (:concurrency/expected-state-version s)
+                           :validated-against/candidate-root candidate})
                  admission/required-check-order)})
 
 (defn finalize-request [s reservation receipt]

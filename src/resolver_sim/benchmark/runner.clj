@@ -1,6 +1,6 @@
 (ns resolver-sim.benchmark.runner
   (:require [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-evidence]
-              [resolver-sim.allocation.proof-admission :as proof-admission]
+            [resolver-sim.allocation.proof-admission :as proof-admission]
             [resolver-sim.benchmark.repo :as repo]
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.claims :as benchmark-claims]

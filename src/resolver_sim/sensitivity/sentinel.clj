@@ -534,8 +534,8 @@
                      :sentinel/allowed-sinks allowed-sinks
                      :sentinel/redaction-required? (level>= level :sensitivity/private)
                      :sentinel/required-authority (if artifact-requires-remote?
-                                                   :remote
-                                                   (required-authority sink))
+                                                    :remote
+                                                    (required-authority sink))
                      :sentinel/override-required?
                      {:required? (and (not allowed?)
                                       (level>= level :sensitivity/private))

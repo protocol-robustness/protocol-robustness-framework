@@ -30,4 +30,4 @@
       (is (false? (auth/verify changed evidence (:public-hex kp)))))
     (is (false? (auth/verify payload evidence (:public-hex (ed/keypair :other)))))
     (is (false? (auth/verify payload {:attempt-receipt/schema "submission-attempt-receipt.v1"}
-                            (:public-hex kp))))))
+                             (:public-hex kp))))))
