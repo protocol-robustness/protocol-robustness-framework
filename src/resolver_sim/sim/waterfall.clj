@@ -548,7 +548,11 @@
                               0.0
                               (double (* 100.0 (/ total-unmet total-loss-pressure))))
 
-        ;; BOUNDED fraction-covered metric (the complement of exhaustion):
+         ;; BOUNDED fraction-covered metric (the complement of exhaustion).
+         ;; This is the framework-layer loss-pressure coverage ratio
+         ;; (100 * slashed / loss-pressure), NOT the notebook activation-fill-rate
+         ;; (filled / requested) — see notebooks/allocation_activation.clj for the
+         ;; distinction between these two ratios that share a "covered" name.
         ;; 100 * covered / (covered + unmet).  Always in [0, 100] for positive
         ;; loss pressure, and satisfies
         ;;   :coverage-adequacy-pct + :coverage-exhaustion-pct = 100

@@ -166,14 +166,21 @@
              [:td {:style {:padding "6px 8px" :color "#22c55e" :fontWeight 700}}
               (if (act/valid-activated-receipt? rcpt) "✗ VALID(!!)" "✓ never valid")]])))))
 
-;; ## 4. fraction-covered — how much of each request the allocation covers
+;; ## 4. activation-fill-rate — how much of each request the allocation fills
 ;;
-;; For a realized allocation, the **covered fraction** of a claim is
-;; `filled / requested`. An all-active allocation covers every request fully
-;; (covered fraction = 100%, every disposition `:full-fill`). A partial fill
-;; covers less (covered fraction < 100%), produces `:deferred` / `:partial-fill`
-;; dispositions, and is **not** all-active — so the fail-action filter is not a
-;; no-op and no-churn does not hold.
+;; For a realized allocation, the **activation fill-rate** of a claim is
+;; `filled / requested`.  This is distinct from the framework-layer
+;; "fraction-covered" (= loss-pressure coverage adequacy, 100·slashed/loss-pressure,
+;; see resolver-sim.sim.waterfall/aggregate-waterfall-metrics).  Those two ratios
+;; measure different things and must not be conflated:
+;;
+;;   - activation-fill-rate  — filled / requested       (allocation sufficiency)
+;;   - framework fraction-covered — slashed / loss-pressure (solvency adequacy)
+;;
+;; An all-active allocation fills every request fully (fill-rate = 100%, every
+;; disposition `:full-fill`).  A partial fill fills less (< 100%), produces
+;; `:deferred` / `:partial-fill` dispositions, and is **not** all-active — so the
+;; fail-action filter is not a no-op and no-churn does not hold.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def all-active-decision
@@ -190,8 +197,8 @@
    :policy {:mode :pro-rata :rounding-policy :largest-remainder}})
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- covered-fraction
-  "Overall covered fraction = total filled / total requested (0..1)."
+(defn- activation-fill-rate
+  "Overall activation fill-rate = total filled / total requested (0..1)."
   [decision]
   (let [r (reduce + (vals (:requested decision)))
         f (reduce + (vals (:filled decision)))]
@@ -200,10 +207,10 @@
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (panel
  [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
-  "fraction-covered — covered vs requested"]
- (kv-table [["all-active covered-fraction" (format "%.0f%%" (* 100 (covered-fraction all-active-decision)))]
-            ["all-active?" (if (rs/all-active? all-active-decision) "✓" "✗")]
-            ["partial-fill covered-fraction" (format "%.0f%%" (* 100 (covered-fraction partial-fill-decision)))]
+   "activation-fill-rate — filled vs requested"]
+  (kv-table [["all-active activation-fill-rate" (format "%.0f%%" (* 100 (activation-fill-rate all-active-decision)))]
+             ["all-active?" (if (rs/all-active? all-active-decision) "✓" "✗")]
+             ["partial-fill activation-fill-rate" (format "%.0f%%" (* 100 (activation-fill-rate partial-fill-decision)))]
             ["partial-fill all-active?" (if (rs/all-active? partial-fill-decision) "✓" "✗")]
             ["partial-fill dispositions"
              (pr-str (mapv (fn [k] (rs/disposition-of {:requested (long (get-in partial-fill-decision [:requested k] 0))
@@ -212,7 +219,7 @@
                                                        :haircut (long (get-in partial-fill-decision [:haircut k] 0))}))
                            (sort (keys (:requested partial-fill-decision)))))]])
  [:div {:style {:marginTop "8px" :color "#94a3b8" :fontSize "11px"}}
-  "Full coverage ⇒ all-active ⇒ no-churn.  Partial coverage (covered-fraction < 100%) ⇒ not all-active ⇒ the fail-action filter is no longer a no-op."])
+   "Full coverage ⇒ all-active ⇒ no-churn.  Partial coverage (activation-fill-rate < 100%) ⇒ not all-active ⇒ the fail-action filter is no longer a no-op."])
 
 ;; ## 5. Receipt examination — is it valid authorization?
 ;;
@@ -272,7 +279,7 @@
           [(row "genuine all-active proof" "none — all assertions hold" ":activated (valid)" true)
            (row "exact-capacity violation" "outcomes not exactly capacity" ":prohibited" false)
            (row "ineligible claimant" "claimant is not eligible for the allocation outcome" ":prohibited" false)
-           (row "partial fill (covered-fraction < 100%)" "not all-active — fail-action filter active" "not all-active / no-churn" false)
+            (row "partial fill (activation-fill-rate < 100%)" "not all-active — fail-action filter active" "not all-active / no-churn" false)
            (row "forged / tampered receipt" "status overwritten or root does not recompute" "invalid authorization" false)]))))
 
 ;; ## 7. Shared-withdrawal allocation — all-active
@@ -281,9 +288,9 @@
 ;; shared-withdrawal rows to the **public** pro-rata mechanism boundary
 ;; (`resolver-sim.pro-rata.allocation/allocate`).  When the available liquidity
 ;; covers every request, the allocation is **all-active**: each row is filled in
-;; full, total allocated == total owed, and the covered-fraction is 100% (no
+;; full, total allocated == total owed, and the activation-fill-rate is 100% (no
 ;; shortfall).  When liquidity is constrained, the fill is pro-rata and partial —
-;; covered-fraction < 100%, so the allocation is NOT all-active.
+;; activation-fill-rate < 100%, so the allocation is NOT all-active.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- shared-withdrawal-allocate
@@ -313,8 +320,8 @@
    {:row/id [:shared-withdrawal-row :obl-1 :pos-3 :sw-c] :obligation/id :obl-1 :owed 25}])
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- covered-fraction*
-  "Overall covered fraction of an allocation result: total allocated / total requested."
+(defn- activation-fill-rate*
+  "Overall activation fill-rate of an allocation result: total allocated / total requested."
   [result]
   (let [req (reduce + 0 (map :requested (:rows result)))
         al  (reduce + 0 (map :allocated (:rows result)))]
@@ -328,11 +335,11 @@
   (panel
    [:div {:style {:color "#7ADDDC" :fontWeight 700 :marginBottom "8px"}}
     "Shared-withdrawal allocation — allocate-shared-withdrawal-rows"]
-   (kv-table [["all-active · available 100" (format "allocated %s/100 · covered-fraction %.0f%%"
-                                                    (:allocated-total aa) (* 100 (covered-fraction* aa)))]
-              ["all-active?" (if (= (:allocated-total aa) (bigint 100)) "✓ full coverage (all-active)" "✗")]
-              ["constrained · available 50" (format "allocated %s/100 · covered-fraction %.0f%%"
-                                                    (:allocated-total cx) (* 100 (covered-fraction* cx)))]
+    (kv-table [["all-active · available 100" (format "allocated %s/100 · activation-fill-rate %.0f%%"
+                                                     (:allocated-total aa) (* 100 (activation-fill-rate* aa)))]
+               ["all-active?" (if (= (:allocated-total aa) (bigint 100)) "✓ full coverage (all-active)" "✗")]
+               ["constrained · available 50" (format "allocated %s/100 · activation-fill-rate %.0f%%"
+                                                     (:allocated-total cx) (* 100 (activation-fill-rate* cx)))]
               ["constrained all-active?" (if (= (:allocated-total cx) (bigint 100))
                                            "✓" "✗ partial coverage — NOT all-active")]])
    (into [:table {:style {:width "100%" :borderCollapse "collapse" :marginTop "8px"}}]

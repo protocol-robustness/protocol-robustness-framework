@@ -74,15 +74,22 @@
   ;; manifests in :results commit the actual canonical bytes; these operational
   ;; locations must not make the semantic benchmark root depend on chunking,
   ;; staging location, or run timing.
+  ;; :repo metadata (commit, dirty?, lockfiles, remotes) is operational VCS
+  ;; state captured at run start; it changes when artifacts from a prior run
+  ;; are present in the working copy. VCS identity is captured semantically
+  ;; via source-hash in runner-finalization, so :repo is excluded from the
+  ;; bundle-root commitment to ensure serial == serial == parallel
+  ;; reproducibility. The :repo map is still persisted in the evidence file
+  ;; for audit.
   (-> bundle
-      (dissoc :timestamp :evidence/hash :evidence/signature
-              :evidence/public-key-path :benchmark/artifact-index)
-      (update :run/manifest #(when % (dissoc % :manifest/at)))
-      (update :results #(when %
-                          (mapv (fn [result]
-                                  (dissoc result :scenario/artifacts))
-                                %)))))
-
+       (dissoc :timestamp :evidence/hash :evidence/signature
+               :evidence/public-key-path :benchmark/artifact-index :repo)
+       (cond-> (contains? bundle :run/manifest)
+               (update :run/manifest #(dissoc % :manifest/at))
+               (contains? bundle :results)
+               (update :results #(mapv (fn [result]
+                                         (dissoc result :scenario/artifacts))
+                                        %)))))
 (defn verify-bundle-hash
   "Verify current bundles and pre-v2 bundles whose hash excluded post-hash
    run metadata and certification."

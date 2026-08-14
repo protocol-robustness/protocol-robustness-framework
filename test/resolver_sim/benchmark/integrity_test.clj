@@ -9,13 +9,14 @@
   (str (doto (java.io.File/createTempFile prefix ".edn") .deleteOnExit)))
 
 (defn- committed-bundle
-  "Mirror the runner's commitment: hash the normalized representation exactly
-   as run-benchmark does, so the persisted artifact recomputes."
+  "Mirror the runner's commitment: hash the normalized + hashable representation
+   exactly as run-benchmark does, so the persisted artifact recomputes."
   [evidence]
   (assoc evidence :evidence/hash
          (hc/hash-with-intent {:hash/intent :bundle-root}
-                              (runner/normalize-runtime-values
-                               (dissoc evidence :timestamp)))))
+                              (integrity/hashable-evidence
+                               (runner/normalize-runtime-values
+                                (dissoc evidence :timestamp))))))
 
 (deftest runner-committed-hash-recomputes-from-persisted-bundle
   (testing "a bundle whose hash covers the normalized representation round-trips

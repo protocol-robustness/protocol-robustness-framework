@@ -168,6 +168,17 @@
 
 ;; ── Environment helpers ───────────────────────────────────────────────────────
 
+(defn runtime-environment
+  "Capture deterministic runtime fields only.
+   VCS state (commit, dirty) is intentionally excluded — it must be captured
+   once at the outer execution boundary and passed as source-provenance to
+   build-bundle-root so that generated artifacts cannot alter the source
+   identity they are attesting to."
+  []
+  {:clojure/version (clojure-version)
+   :java/version (System/getProperty "java.version")
+   :os/name (System/getProperty "os.name")})
+
 (defn- git-commit
   "Current VCS HEAD SHA via the jj-then-git resolver, or nil when unavailable."
   []
@@ -179,7 +190,10 @@
   (vcs/dirty?))
 
 (defn environment
-  "Capture the current execution environment."
+  "Capture the current execution environment, querying VCS live.
+   Deprecated for canonical bundle-root construction: prefer passing a
+   pre-captured source-provenance to build-bundle-root so that VCS state
+   is frozen at the outer execution boundary."
   []
   {:git/commit (git-commit)
    :git/dirty? (git-dirty?)
@@ -187,32 +201,62 @@
    :java/version (System/getProperty "java.version")
    :os/name (System/getProperty "os.name")})
 
+(defn environment-with-provenance
+  "Build the :run/environment map from deterministic runtime fields and an
+   optional pre-captured source-provenance map.
+
+   When source-provenance is supplied, VCS fields are taken from it (captured
+   once at the outer boundary) rather than re-queried. This prevents
+   generated artifacts from changing the source identity in the bundle root.
+
+   Returns a map suitable for :run/environment in a bundle root."
+  ([source-provenance]
+   (cond-> (runtime-environment)
+     (some? source-provenance)
+     (merge (select-keys source-provenance
+                         [:source/hash :source/hash-algorithm :source/hash-roots
+                          :source/commit :source/dirty? :source/tree-hash
+                          :source/tree-hash-algorithm]))))
+  ([]
+   (runtime-environment)))
+
 ;; ── Bundle root builder ──────────────────────────────────────────────────────
 
 (defn build-bundle-root
   "Build a bundle root from a run request and run result.
-   request M-bM-^@M-^T the :scenario-run/request map
-   result  M-bM-^@M-^T the :scenario-run/result map
-   Optional :protocol/force-authorisations and :protocol/force-authorisations-consumed
-   keys in result are emitted as a forensic protocol-state witness and hashed
-   into :protocol/state-hashes.
-   Returns a bundle-root.v2 map with:
-   - run request (for reproducibility)
-   - registry snapshot hashes
-   - protocol state hashes (when provided)
-   - execution environment
-   - execution summary
-   - normalized overview hash
-   - a self-referential canonical-JSON hash (standalone-verifiable)\n\n   Historical bundle-root.v1 values remain identifiable through\n   `verify-bundle-content`, but cannot be classified as content-verified\n   runnable roots because their binary/domain preimage differs."
-  [request result]
-  (let [overview (overview/build-overview result)
-        overview-h (overview/overview-hash overview)
-        req (select-keys request
-                         [:runner/backend :runner-selection
-                          :suite/key :protocol/default-id
-                          :evidence/profile :output/profile])
-        runner-id (get-in request [:runner-selection :runner-id])
-        orch-id (lookup-orchestrator-id runner-id)
+    request — the :scenario-run/request map
+    result  — the :scenario-run/result map
+    Optional :protocol/force-authorisations and :protocol/force-authorisations-consumed
+    keys in result are emitted as a forensic protocol-state witness and hashed
+    into :protocol/state-hashes.
+    Optional source-provenance — a pre-captured VCS/source provenance map
+    (from the outer execution boundary). When supplied, used for :run/environment
+    instead of a live VCS query, ensuring the bundle root is reproducible across
+    runs even as generated artifacts change the working copy.
+
+    Returns a bundle-root.v2 map with:
+    - run request (for reproducibility)
+    - registry snapshot hashes
+    - protocol state hashes (when provided)
+    - execution environment
+    - execution summary
+    - normalized overview hash
+    - a self-referential canonical-JSON hash (standalone-verifiable)
+
+    Historical bundle-root.v1 values remain identifiable through
+    `verify-bundle-content`, but cannot be classified as content-verified
+    runnable roots because their binary/domain preimage differs."
+  ([request result]
+   (build-bundle-root request result nil))
+  ([request result source-provenance]
+   (let [overview (overview/build-overview result)
+         overview-h (overview/overview-hash overview)
+         req (select-keys request
+                          [:runner/backend :runner-selection
+                           :suite/key :protocol/default-id
+                           :evidence/profile :output/profile])
+         runner-id (get-in request [:runner-selection :runner-id])
+         orch-id (lookup-orchestrator-id runner-id)
         proto-fa (hash-sorted-map :force-authorisations
                                   (:protocol/force-authorisations result))
         proto-fa-consumed (hash-sorted-map :force-authorisations-consumed
@@ -263,7 +307,7 @@
                                   :orchestrator/id orch-id)
               :orchestrator/id orch-id
               :registry/snapshot (registry-snapshot)
-              :run/environment (environment)
+               :run/environment (environment-with-provenance source-provenance)
               :execution/summary (select-keys result [:totals :status])
               :overview/hash overview-h
               :overview overview}
@@ -300,7 +344,7 @@
         ;; by compute-json-hash. Keeping construction and verification on this
         ;; single projection prevents an ID/hash pair from blessing altered data.
         bundle-hash (compute-json-hash base)]
-    (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash)))
+     (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash))))
 
 ;; ── Bundle root validation ────────────────────────────────────────────────────
 

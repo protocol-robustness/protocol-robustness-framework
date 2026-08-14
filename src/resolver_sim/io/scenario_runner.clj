@@ -957,28 +957,30 @@
 (defn- execute-dispatch!
   "Run the appropriate scenario/suite/fixture and return {:exit-code :dispatch-key
    :run-request :run-result :bundle-root}."
-  [dispatch opts protocol-id runner-selection]
-  (let [dispatch-key (dispatch-keyword dispatch)
-        summary (dispatch-summary dispatch opts protocol-id)
-        run-request (merge {:runner/backend :local-current
-                            :runner-selection runner-selection
-                            :suite/key (or (:suite-id summary)
-                                           (:suite dispatch))
-                            :protocol/default-id protocol-id
-                            :evidence/profile (:evidence-profile opts)
-                            :output/profile (:output-profile opts)}
-                           (:scenario-run/request summary))
-        run-result (summary->run-result dispatch run-request summary)
-        proto-state (extract-protocol-state summary)
-        run-result (if proto-state (merge run-result proto-state) run-result)
-        exit-code (if (= :pass (:status run-result)) 0 1)
-        bundle-root (br/build-bundle-root run-request run-result)]
-    {:exit-code exit-code
-     :dispatch-key dispatch-key
-     :summary summary
-     :run-request run-request
-     :run-result run-result
-     :bundle-root bundle-root}))
+  ([dispatch opts protocol-id runner-selection]
+   (execute-dispatch! dispatch opts protocol-id runner-selection nil))
+  ([dispatch opts protocol-id runner-selection source-provenance]
+   (let [dispatch-key (dispatch-keyword dispatch)
+         summary (dispatch-summary dispatch opts protocol-id)
+         run-request (merge {:runner/backend :local-current
+                             :runner-selection runner-selection
+                             :suite/key (or (:suite-id summary)
+                                            (:suite dispatch))
+                             :protocol/default-id protocol-id
+                             :evidence/profile (:evidence-profile opts)
+                             :output/profile (:output-profile opts)}
+                            (:scenario-run/request summary))
+         run-result (summary->run-result dispatch run-request summary)
+         proto-state (extract-protocol-state summary)
+         run-result (if proto-state (merge run-result proto-state) run-result)
+         exit-code (if (= :pass (:status run-result)) 0 1)
+         bundle-root (br/build-bundle-root run-request run-result source-provenance)]
+     {:exit-code exit-code
+      :dispatch-key dispatch-key
+      :summary summary
+      :run-request run-request
+      :run-result run-result
+      :bundle-root bundle-root})))
 
 ;; ── Execution node spec builder ─────────────────────────────────────────────────
 
@@ -1116,14 +1118,16 @@
                  :error (.getMessage e)))))
 
 (defn- build-enriched-bundle-root
-  "Merge source provenance and execution node hashes into the bundle root."
+  "Merge source provenance and deterministic execution node hashes into the bundle root.
+
+   Only :node-hash and :content-hash are included — NEVER :record-hash, which
+   contains wall-clock audit timestamps and is explicitly audit-only."
   [bundle-root execution-node source-provenance]
   (merge bundle-root
          source-provenance
          (when execution-node
            {:execution/node-hash (:node-hash execution-node)
             :execution/content-hash (:content-hash execution-node)
-            :execution/record-hash (:record-hash execution-node)
             :dag/root-node-hash (:node-hash execution-node)})))
 
 (defn run-and-report
@@ -1222,11 +1226,11 @@
                                                                            seq)]
                                                      (when fixture-refs
                                                        {:fixture/refs (vec fixture-refs)})))))
-                            result (ev-node/with-execution-node+
-                                     exec-spec
-                                     (fn []
-                                       (execute-dispatch! dispatch opts protocol-id
-                                                          runner-selection)))
+                              result (ev-node/with-execution-node+
+                                       exec-spec
+                                       (fn []
+                                         (execute-dispatch! dispatch opts protocol-id
+                                                            runner-selection source-provenance)))
                             thunk-result (:result result)
                             execution-node (:execution-node result)
                             thunk-error (:error result)

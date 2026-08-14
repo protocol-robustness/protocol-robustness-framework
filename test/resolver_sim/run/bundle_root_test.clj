@@ -185,3 +185,33 @@
         check (br/runnable? bundle)]
     (is (not (:runnable? check)))
     (is (some #(= :missing-run-request (:code %)) (:errors check)))))
+
+(def sample-source-provenance
+  "A pre-captured source-provenance map, as produced by prov/source-provenance
+   at the outer execution boundary."
+  {:source/hash "sha256:abcdef1234567890"
+   :source/hash-algorithm :sha256
+   :source/commit "abc123def456"
+   :source/dirty? false
+   :source/tree-hash "sha256:tree123"})
+
+(deftest build-bundle-root-with-source-provenance-is-deterministic
+  "When source-provenance is supplied, the bundle root must not re-query VCS.
+   Two calls with identical inputs and provenance must produce identical hashes,
+   regardless of working-copy state changes between calls."
+  (let [b1 (br/build-bundle-root sample-request sample-result sample-source-provenance)
+        b2 (br/build-bundle-root sample-request sample-result sample-source-provenance)]
+    (is (= (:bundle/hash b1) (:bundle/hash b2)))
+    (is (= (:bundle/id b1) (:bundle/id b2)))
+    (is (= (get-in b1 [:run/environment :source/commit]) "abc123def456"))
+    (is (false? (get-in b1 [:run/environment :source/dirty?])))))
+
+(deftest build-bundle-root-without-source-provenance-has-runtime-only-env
+  "When source-provenance is NOT supplied, the environment should contain only
+   deterministic runtime fields (no live VCS query). This documents the
+   deprecation boundary: canonical callers must pass pre-captured provenance."
+  (let [bundle (br/build-bundle-root sample-request sample-result)]
+    (is (map? (:run/environment bundle)))
+    (is (some? (get-in bundle [:run/environment :clojure/version])))
+    (is (some? (get-in bundle [:run/environment :java/version])))
+    (is (nil? (get-in bundle [:run/environment :source/commit])))))

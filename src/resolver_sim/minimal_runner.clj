@@ -91,15 +91,6 @@
      :scenario scenario-path
      :output-file (:output options)}))
 
-(defn- stable-bundle-fields
-  "Extract the deterministic fields from a bundle root for comparison.
-   Excludes volatile fields (node-hash, record-hash) that include
-   wall-clock timestamps and vary between independent runs."
-  [bundle-root]
-  (dissoc bundle-root
-          :execution/node-hash
-          :execution/record-hash))
-
 (defn- self-test!
   "Run the same scenario/suite twice, compare bundle roots, and report determinism.
    Exits 0 if deterministic, 1 if non-deterministic."
@@ -130,18 +121,16 @@
         bundle-1 (:bundle-root result-1)
         bundle-2 (:bundle-root result-2)]
     (if (and bundle-1 bundle-2)
-      (let [stable-1 (stable-bundle-fields bundle-1)
-            stable-2 (stable-bundle-fields bundle-2)
-            eq? (= stable-1 stable-2)]
+      (let [eq? (= bundle-1 bundle-2)]
         (if eq?
-          (do (println "PASS: Deterministic replay confirmed — stable bundle fields are identical across two runs")
+          (do (println "PASS: Deterministic replay confirmed — bundle roots are identical across two runs")
               (System/exit 0))
-          (do (println "FAIL: Non-deterministic replay detected — stable bundle fields differ")
-              (doseq [k (sort (keys (merge stable-1 stable-2)))]
-                (when (not= (get stable-1 k) (get stable-2 k))
+          (do (println "FAIL: Non-deterministic replay detected — bundle roots differ")
+              (doseq [k (sort (keys (merge bundle-1 bundle-2)))]
+                (when (not= (get bundle-1 k) (get bundle-2 k))
                   (println (str "  " k " differs:"))
-                  (println (str "    run 1: " (pr-str (get stable-1 k))))
-                  (println (str "    run 2: " (pr-str (get stable-2 k))))))
+                  (println (str "    run 1: " (pr-str (get bundle-1 k))))
+                  (println (str "    run 2: " (pr-str (get bundle-2 k))))))
               (System/exit 1))))
       (do (.println System/err "ERROR: run-and-report did not return bundle roots")
           (System/exit 1)))))

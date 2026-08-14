@@ -287,7 +287,9 @@
                 rng-inst pool params n-trials)
 
         metrics (:metrics result)
-        ;; Bounded fraction-covered metric (see waterfall/aggregate-waterfall-metrics).
+         ;; Bounded fraction-covered metric (see waterfall/aggregate-waterfall-metrics).
+         ;; This is the framework-layer loss-pressure coverage ratio; it is NOT
+         ;; the notebook activation-fill-rate (see notebooks/allocation_activation.clj).
         ;; The historical :coverage-adequacy-score is preserved in the metrics map
         ;; but is a deficit-margin proxy that goes negative past exhaustion and is
         ;; no longer the pass/fail gate.

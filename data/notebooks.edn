@@ -649,13 +649,13 @@
   {:id             :allocation-activation
    :path           "notebooks/allocation_activation.clj"
    :title          "Allocation Activation v1 — Receipt, All-Active No-Churn, and the Prohibited Boundary"
-   :summary        "allocation-activation.v1 receipt: a passing all-active proof yields a valid :activated receipt with no hash churn; any rejected proof produces a :prohibited receipt that is never valid authorization — exact-capacity, ineligible-claimant allocation outcomes, covered-fraction, and the receipt examination."
+    :summary        "allocation-activation.v1 receipt: a passing all-active proof yields a valid :activated receipt with no hash churn; any rejected proof produces a :prohibited receipt that is never valid authorization — exact-capacity, ineligible-claimant allocation outcomes, activation-fill-rate, and the receipt examination."
    :categories     [:economic-analysis :replay-determinism]
    :audience       [:reviewer :auditor :researcher]
    :status         :draft
    :risk           :informational
    :protocol-areas [:allocation]
-    :tags           ["allocation" "activation" "receipt" "all-active" "no-churn" "prohibited" "exact-capacity" "covered-fraction"]
+    :tags           ["allocation" "activation" "receipt" "all-active" "no-churn" "prohibited" "exact-capacity" "activation-fill-rate"]
     :presentation   {:theme :allocation-liquidity :kind :analysis
                      :audience-level :intermediate
                      :featured? true
