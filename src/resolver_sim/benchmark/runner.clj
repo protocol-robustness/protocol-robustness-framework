@@ -38,6 +38,13 @@
 
 ;; ── Helpers ──────────────────────────────────────────────────────────────────
 
+(defn- report-operational-phase!
+  "Emit noncanonical coordinator progress. These events deliberately omit worker
+   assignment, completion order, timing, and staging paths: those are operational
+   details and must not influence benchmark/package semantics."
+  [phase details]
+  (println (str "benchmark/" (name phase)) (pr-str details)))
+
 (declare normalize-runtime-values)
 
 (def ^:dynamic ^:private *frozen-protocol-adapters*
@@ -685,6 +692,15 @@
          executor (Executors/newFixedThreadPool (int parallelism))
          allow-dirty? chain/*allow-dirty*]
      (try
+       (report-operational-phase! :chunks-derived
+                                  {:execution-count (count plan)
+                                   :chunk-count (count chunks)
+                                   :chunk-size (long (or chunk-size 1))
+                                   :parallelism parallelism})
+       (report-operational-phase! :parallel-determine-started
+                                  {:execution-count (count plan)
+                                   :chunk-count (count chunks)
+                                   :parallelism parallelism})
        (let [futures (mapv (fn [chunk]
                              (.submit executor
                                       ^Callable
@@ -694,7 +710,11 @@
                            chunks)]
         ;; Dereference in deterministic chunk order. Completion timing has no
         ;; influence on the returned sequence or subsequent reconciliation.
-         (vec (mapcat #(.get %) futures)))
+         (let [results (vec (mapcat #(.get %) futures))]
+           (report-operational-phase! :parallel-determine-complete
+                                      {:execution-count (count results)
+                                       :chunk-count (count chunks)})
+           results))
        (finally
          (.shutdownNow executor)
          (.awaitTermination executor 30 TimeUnit/SECONDS))))))
@@ -950,8 +970,20 @@
          frozen-inputs (freeze-plan-inputs! initial-plan manifest scenarios staging-root)
          plan (:plan frozen-inputs)
          source-by-id (:source-by-id frozen-inputs)
+         _ (report-operational-phase! :plan-frozen
+                                      {:benchmark-id (:benchmark/id manifest)
+                                       :scenario-count (count scenarios)
+                                       :execution-count (count plan)})
          preflight (validate-and-freeze-global-prerequisites! source-by-id)
+         _ (report-operational-phase! :global-preflight-complete
+                                      {:exclusive-protocols (vec (sort (map str (:preflight/exclusive-protocols preflight))))
+                                       :effective-parallelism (if (seq (:preflight/exclusive-protocols preflight))
+                                                                1
+                                                                (long (or parallelism 1)))})
          _ (write-execution-plan! execution-plan-path manifest plan)
+         _ (report-operational-phase! :execution-plan-written
+                                      {:execution-count (count plan)
+                                       :canonical-plan? (boolean execution-plan-path)})
          _ (do
              (println "Executing" (count scenarios) "scenarios...")
              (log/info! "benchmark/execute" {:scenario-count (count scenarios)
@@ -967,6 +999,9 @@
                                               (:preflight/protocol-adapters preflight))
                        (adapter/execute-benchmark adapter manifest scenarios))
          _ (reconcile-execution-plan! plan raw-results)
+         _ (report-operational-phase! :exact-set-reconciled
+                                      {:expected-execution-count (count plan)
+                                       :actual-execution-count (count raw-results)})
          reconciled-results (order-reconciled-results plan raw-results)
 
          ;; Deterministic reduction happens against detached/staged results.
@@ -1000,10 +1035,19 @@
              (throw (ex-info "Frozen benchmark execution graph is not closed after reduction"
                              {:reason :unexpected-derived-work
                               :additional-work additional-work})))
+         _ (report-operational-phase! :deterministic-reduction-complete
+                                      {:execution-count (count reconciled-results)
+                                       :claim-count (count claim-results)})
+         _ (report-operational-phase! :one-round-closure-confirmed
+                                      {:derived-work-count (count additional-work)})
 
          ;; The sole canonical scenario-artifact publication boundary.
+         _ (report-operational-phase! :canonical-artifact-publication-started
+                                      {:execution-count (count reconciled-results)})
          results (or (publish-staged-executions! scenario-output-dir staging-root plan reconciled-results)
                      reconciled-results)
+         _ (report-operational-phase! :canonical-artifact-publication-complete
+                                      {:execution-count (count results)})
          _ (when staging-root
              (delete-tree! (io/file staging-root "frozen-inputs")))
          artifact-index (write-artifact-index! scenario-output-dir benchmark-index-path (:benchmark/id manifest) results)

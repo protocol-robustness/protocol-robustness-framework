@@ -128,6 +128,98 @@
       (finally
         (delete-tree! root)))))
 
+(deftest canonical-artifact-assembly-ignores-forced-reverse-producer-completion
+  (let [root (temp-dir!)
+        scenarios-dir (doto (io/file root "scenarios") .mkdirs)
+        manifest-file (io/file root "benchmark.edn")
+        ids ["alpha" "bravo" "charlie" "delta"]
+        _ (doseq [id ids]
+            (spit (io/file scenarios-dir (str id ".edn"))
+                  (str "{:scenario-id \"" id "\" :protocol \"test-v1\"}")))
+        _ (spit manifest-file
+                (pr-str {:benchmark/id :benchmark/forced-completion-order
+                         :scenario-suites [(.getPath scenarios-dir)]
+                         :benchmark/claims []}))
+        serial-output (.getPath (io/file root "serial-output"))
+        reverse-output (.getPath (io/file root "reverse-output"))
+        worker-threads (atom #{})
+        started (CountDownLatch. (count ids))
+        release-gates (zipmap ids (repeatedly (count ids) promise))
+        completed-gates (zipmap ids (repeatedly (count ids) promise))
+        completion-order (atom [])
+        controlled-worker
+        (fn [suite source plan-entry run-count staging-root]
+          (let [scenario-id (-> (:input/display-name source)
+                                (clojure.string/replace #"\\.edn$" ""))]
+            (.countDown started)
+            (.await started)
+            @(get release-gates scenario-id)
+            (let [result (deterministic-worker worker-threads nil suite source plan-entry run-count staging-root)]
+              (swap! completion-order conj scenario-id)
+              (deliver (get completed-gates scenario-id) true)
+              result)))
+        run-serial! (fn []
+                      (with-redefs-fn {#'repo/metadata (fn [] {:repo {:commit "test" :dirty? false}})
+                                       #'vcs/source-provenance clean-source-provenance
+                                       #'resolver-sim.benchmark.runner/validate-and-freeze-global-prerequisites! (fn [_] true)
+                                       #'resolver-sim.benchmark.runner/execute-scenario
+                                       (partial deterministic-worker (atom #{}) nil)}
+                        #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
+                                               {:scenario-output-dir serial-output
+                                                :parallelism 1 :chunk-size 1})))
+        run-reverse! (fn []
+                       (with-redefs-fn {#'repo/metadata (fn [] {:repo {:commit "test" :dirty? false}})
+                                        #'vcs/source-provenance clean-source-provenance
+                                        #'resolver-sim.benchmark.runner/validate-and-freeze-global-prerequisites! (fn [_] true)
+                                        #'resolver-sim.benchmark.runner/execute-scenario controlled-worker}
+                         #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
+                                                {:scenario-output-dir reverse-output
+                                                 :parallelism 4 :chunk-size 1})))]
+    (try
+      (let [serial (run-serial!)
+            reverse-outcome (promise)
+            coordinator (doto (Thread.
+                               (fn []
+                                 (try
+                                   (deliver reverse-outcome (run-reverse!))
+                                   (catch Throwable t
+                                     (deliver reverse-outcome t)))))
+                          (.setName "forced-completion-test-coordinator")
+                          (.start))]
+        (when-not (.await started 10 java.util.concurrent.TimeUnit/SECONDS)
+          (throw (ex-info "Timed out waiting for all detached producers to start" {})))
+        ;; Deliberately complete detached producers in an order different from
+        ;; the frozen alphabetical plan order: C, A, D, B.
+        (doseq [id ["charlie" "alpha" "delta" "bravo"]]
+          (deliver (get release-gates id) true)
+          (is (true? @(get completed-gates id)) (str id " completed after release")))
+        (.join coordinator 10000)
+        (let [parallel @reverse-outcome
+              _ (when (instance? Throwable parallel) (throw parallel))
+              projection (fn [evidence]
+                           (mapv #(select-keys % [:execution/id :execution/ordinal
+                                                  :scenario/id :scenario/evidence-root])
+                                 (:results evidence)))]
+          (testing "forced producer completion order is genuinely noncanonical"
+            (is (= ["charlie" "alpha" "delta" "bravo"] @completion-order))
+            (is (> (count @worker-threads) 1)))
+          (testing "coordinator restores canonical concatenation/assembly order"
+            (is (= ["alpha" "bravo" "charlie" "delta"]
+                   (mapv :scenario/id (:results parallel))))
+            (is (= [1 2 3 4] (mapv :execution/ordinal (:results parallel))))
+            (is (= (projection serial) (projection parallel)))
+            (is (= (:evidence/hash serial) (:evidence/hash parallel)))
+            (is (= (artifact-bytes serial-output) (artifact-bytes reverse-output)))
+            (is (every? #(true? (get-in % [:scenario/artifact-manifest
+                                            :artifact/canonical-verified]))
+                        (:results parallel))))))
+      (finally
+        ;; Do not leave a worker blocked if an assertion or timeout aborts this
+        ;; controlled-interleaving test before all releases are issued.
+        (doseq [[_ gate] release-gates]
+          (deliver gate true))
+        (delete-tree! root)))))
+
 (deftest run-benchmark-replays-dummy-protocol-scenarios-across-parallelism
   (let [root (temp-dir!)
         scenarios-dir (doto (io/file root "scenarios") .mkdirs)
