@@ -163,8 +163,14 @@
                                (:results evidence)))]
         (testing "real dummy-protocol replay is plan ordered and semantically stable"
           (is (= (projection serial) (projection parallel)))
+          (is (= (:evidence/hash serial) (:evidence/hash parallel))
+              "Operational output paths and scheduling do not affect the bundle root")
           (is (= [1 2] (mapv :execution/ordinal (:results parallel))))
           (is (every? #(= :pass (:outcome %)) (:results parallel))))
+        (testing "canonical evidence retains protocol identity, not the JVM adapter"
+          (is (= {:protocol/id "dummy" :protocol/version 1}
+                 (:scenario/protocol (first (:results serial)))))
+          (is (not (re-find #"DummyProtocol|#object" (pr-str serial)))))
         (testing "coordinator publishes and verifies each canonical execution package"
           (doseq [[evidence output] [[serial serial-output] [parallel parallel-output]]]
             (is (= 2 (count (filter #(.isDirectory %) (.listFiles (io/file output))))))

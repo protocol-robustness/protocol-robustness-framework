@@ -4,6 +4,7 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [resolver-sim.benchmark.conservation :as conservation]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.hash.canonical :as canonical]
@@ -135,6 +136,21 @@
                       (= (count observed-ids) (count (set observed-ids)))
                       rows-valid?)}))))
 
+(defn- closure-commitment [closure]
+  (hash-ref/sha256-ref
+   (canonical/hash-with-intent {:hash/intent :evidence-content} closure)))
+
+(defn- one-round-closure-valid?
+  "Verify the runner's explicit closed-graph assertion, rather than treating a
+   successful set of worker futures as proof that canonical work is complete."
+  [evidence execution-closure]
+  (let [closure (:benchmark/execution-closure evidence)]
+    (and (= 1 (:closure/version closure))
+         (= 1 (:round-count closure))
+         (zero? (:derived-work-count closure))
+         (true? (:closed? closure))
+         (:valid? execution-closure))))
+
 (defn verify! [run-root]
   (try
     (let [root (io/file run-root)
@@ -156,6 +172,7 @@
             conservation (read-json conservation-file)
             registry (read-json registry-file)
             content-registry (try (read-json content-registry-file) (catch Exception _ nil))
+            evidence (edn/read-string (slurp (io/file root "benchmark/evidence/evidence.edn")))
             canonical-integrity (read-json canonical-integrity-file)
             forensic-status (read-json forensic-status-file)
             verdict-policy-artifact (read-json verdict-policy-file)
@@ -180,6 +197,17 @@
                                                           (:valid? package-closure))
                     "completion-finalization-hash" (= (get completion "finalization_sha256") (sha-ref finalization-file))
                     "completion-lifecycle" (= "completed" (get completion "lifecycle_status"))
+                    "completion-bundle-root" (and (= (get completion "bundle_root_hash")
+                                                         (:evidence/hash evidence))
+                                                    (= (:evidence/hash evidence)
+                                                       (get-in package-context [:package-index :index :bundle/root-hash]))
+                                                    (try (integrity/verify-evidence-bundle! evidence) true
+                                                         (catch Exception _ false)))
+                    "completion-artifact-set-root" (= (get completion "artifact_set_root")
+                                                        (get content-registry "content_root"))
+                    "completion-closure-commitment" (= (get completion "closure_commitment")
+                                                          (closure-commitment
+                                                           (:benchmark/execution-closure evidence)))
                     "completion-semantic-outcome" (= (get completion "semantic_status") (get-in assurance ["conclusion" "outcome"]))
                     "completion-registry-hash" (= (get completion "artifact_registry_sha256") (sha-ref registry-file))
                     "completion-validation-hash" (= (get completion "registry_validation_sha256") (sha-ref validation-file))
@@ -187,6 +215,7 @@
                     "content-registry-recalculated" (and content-registry (content-registry-valid? root content-registry))
                     "artifact-registry-recalculated" (registry-artifacts-valid? root registry)
                     "execution-plan-index-closure" (:valid? execution-closure)
+                    "one-round-canonical-work-closure" (one-round-closure-valid? evidence execution-closure)
                     "input-set-root" (and (= (get assurance "input_set_root") (get finalization "input_set_root"))
                                           (= (get finalization "input_set_root") (get completion "input_set_root")))
                     "input-set-recalculated" (and (vector? inputs)

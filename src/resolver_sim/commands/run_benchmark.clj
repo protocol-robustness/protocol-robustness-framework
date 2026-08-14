@@ -1,6 +1,7 @@
 (ns resolver-sim.commands.run-benchmark
   "Run a benchmark by registered ID or manifest path."
   (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.conservation :as conservation]
@@ -257,6 +258,14 @@
     (lifecycle/atomic-json! (io/file root "benchmark/assertions/forensic-claims-status.json") deferred)
     value))
 
+(defn- closure-commitment
+  "Stable commitment to the checked one-round closure assertion persisted in
+   benchmark evidence. This binds the terminal seal to canonical work closure,
+   not merely to the fact that finalization files happened to be written."
+  [closure]
+  (hash-ref/sha256-ref
+   (canonical/hash-with-intent {:hash/intent :evidence-content} closure)))
+
 (defn complete-canonical-benchmark-run-root!
   "Write the irreversible terminal seal for a fully finalized canonical benchmark
    root. All referenced package and registry artifacts must already exist; this
@@ -267,12 +276,17 @@
         package-index-file (io/file (str root) paths/run-package-index)
         registry (io/file (str root) paths/artifacts-registry)
         validation (io/file (str root) paths/artifacts-validation)
-        required-files [finalization-file package-index-file registry validation]]
+        evidence-file (io/file (str root) "benchmark/evidence/evidence.edn")
+        content-registry-file (io/file (str root) "benchmark/evidence/content-registry.json")
+        required-files [finalization-file package-index-file registry validation evidence-file content-registry-file]]
     (when-let [missing (first (remove #(.isFile %) required-files))]
       (throw (ex-info "Canonical benchmark root is not ready for completion"
                       {:run-root (str root)
                        :missing-terminal-artifact (.getPath missing)})))
-    (let [finalization (json/read-str (slurp finalization-file))]
+    (let [finalization (json/read-str (slurp finalization-file))
+          evidence (edn/read-string (slurp evidence-file))
+          content-registry (json/read-str (slurp content-registry-file))
+          closure (:benchmark/execution-closure evidence)]
       (lifecycle/complete!
        root
        {:schema_version "benchmark-completion.v1"
@@ -281,6 +295,12 @@
         :run_type "benchmark"
         :lifecycle_status "completed"
         :semantic_status (get conclusion "outcome")
+        ;; Direct terminal bindings supplement the package-index and artifact
+        ;; registry closure. A copied completion marker or post-seal mutation
+        ;; must fail before the package can be treated as canonical.
+        :bundle_root_hash (:evidence/hash evidence)
+        :artifact_set_root (get content-registry "content_root")
+        :closure_commitment (closure-commitment closure)
         :finalization_ref "benchmark/finalization.json"
         :finalization_sha256 (sha-ref finalization-file)
         :final_ref (get finalization "final_ref")

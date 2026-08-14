@@ -2,6 +2,7 @@
   (:require [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-evidence]
             [resolver-sim.allocation.proof-admission :as proof-admission]
             [resolver-sim.benchmark.repo :as repo]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.claims :as benchmark-claims]
             [resolver-sim.benchmark.coverage :as benchmark-coverage]
@@ -19,6 +20,7 @@
             [resolver-sim.logging :as log]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.registry :as protocols]
+            [resolver-sim.protocols.protocol :as protocol-api]
             [resolver-sim.scenario.runner :as scenario-runner]
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.yield.module :as yield-module]
@@ -185,12 +187,12 @@
    invariant at the same boundary. Workers therefore never win a namespace-load
    or extension-registration race while determining canonical results."
   [source-by-id]
-  (hc/validate-registry!)
-  ;; Preload every registered protocol namespace before resolving the subset
-  ;; referenced by this benchmark. Optional extension bootstrap is consequently
-  ;; a preflight concern, never a worker-side effect.
+  ;; Namespace loading may register protocol extensions, hash intents, or other
+  ;; canonical prerequisites. Complete that bootstrap first, then validate and
+  ;; freeze the registry state that workers will rely on.
   (doseq [protocol-ns (protocols/known-protocol-namespaces)]
     (require protocol-ns))
+  (hc/validate-registry!)
   (let [protocol-ids (->> (vals source-by-id)
                           (map #(or (:protocol (load-scenario %)) protocols/default-protocol-id))
                           distinct
@@ -202,9 +204,24 @@
                         {:reason :unavailable-frozen-protocol
                          :protocol protocol-id
                          :known-protocols (vec (protocols/known-protocol-ids))}))))
-    {:preflight/protocol-ids protocol-ids
-     :preflight/protocol-adapters (into {} (map (fn [id] [id (protocols/get-protocol id)]) protocol-ids))
-     :preflight/intent-registry :validated}))
+    ;; Built-in adapters are zero-field implementations: every replay method
+    ;; derives its state from the scenario/world arguments. They are safe to
+    ;; share between isolated scenario workers. Unknown extension adapters are
+    ;; conservative/exclusive until they declare a safe execution contract.
+    (let [shared-protocols #{"sew-v1" "yield-v1" "dummy"}
+          adapter-safety (into {} (map (fn [id]
+                                         [id (if (contains? shared-protocols id)
+                                               :stateless-shared
+                                               :exclusive-unknown-adapter)])
+                                       protocol-ids))]
+      {:preflight/protocol-ids protocol-ids
+       :preflight/protocol-adapters (into {} (map (fn [id] [id (protocols/get-protocol id)]) protocol-ids))
+       :preflight/adapter-safety adapter-safety
+       :preflight/exclusive-protocols (->> adapter-safety
+                                            (keep (fn [[id safety]]
+                                                    (when (= safety :exclusive-unknown-adapter) id)))
+                                            vec)
+       :preflight/intent-registry :validated})))
 
 (defn- delete-tree!
   [path]
@@ -487,6 +504,23 @@
                  {:ids ids :results (run-invariants world ids)})
     {:ids [] :results {}}))
 
+(defn- resolve-worker-adapter!
+  "Resolve an adapter at the worker boundary. Canonical executor tasks receive
+   a coordinator-frozen adapter map and must fail closed if it lacks the
+   planned protocol; only legacy/direct calls may consult the mutable registry."
+  [protocol-id]
+  (let [adapter (if *canonical-worker?*
+                  (get *frozen-protocol-adapters* protocol-id)
+                  (protocols/get-protocol protocol-id))]
+    (when-not adapter
+      (throw (ex-info "Benchmark scenario protocol extension is unavailable"
+                      {:reason (if *canonical-worker?*
+                                 :missing-frozen-protocol-adapter
+                                 :unavailable-protocol)
+                       :protocol protocol-id
+                       :known-protocols (vec (protocols/known-protocol-ids))})))
+    adapter))
+
 (defn- execute-scenario
   "Determine one frozen execution in a worker-owned staging directory. This
    function deliberately does not publish into the canonical executions root."
@@ -498,13 +532,7 @@
         descriptor (require-plan-match! plan-entry scenario-source scenario)
         execution-id (:execution/id plan-entry)
         protocol (or (:protocol scenario) protocols/default-protocol-id)
-        adapter (if *canonical-worker?*
-                  (get *frozen-protocol-adapters* protocol)
-                  (protocols/get-protocol protocol))
-        _ (when-not adapter
-            (throw (ex-info "Benchmark scenario protocol extension is unavailable"
-                            {:protocol protocol
-                             :known-protocols (vec (protocols/known-protocol-ids))})))
+        adapter (resolve-worker-adapter! protocol)
         output-dir (staging-execution-dir staging-root plan-entry)
         run-replay (fn []
                      (if (= "sew-v1" protocol)
@@ -523,14 +551,23 @@
         ;; Replay kernels carry the concrete JVM adapter for in-process control
         ;; flow. It must never cross into detached or rooted benchmark evidence.
         replay-result (-> raw-replay-result
+                          ;; The replay kernel may carry its JVM adapter for
+                          ;; in-process dispatch. Detached evidence commits a
+                          ;; stable protocol identity, never that object.
                           (dissoc :protocol)
-                          (assoc :protocol/id protocol))
+                          (assoc :protocol/id protocol
+                                 :protocol/projection {:protocol/id protocol
+                                                       :protocol/version 1}))
         entry (scenario-runner/run-scenario scenario
                                             {:replay-fn (fn [_] replay-result)
                                              :source :benchmark
                                              :evaluate-theory? (:evaluate-theory?
                                                                 (scenario-runner/runner-opts-for-scenario scenario))})
-        execution-package (write-execution-package! output-dir scenario-source scenario replay-result)
+        ;; Stage the same portable representation that will enter canonical
+        ;; evidence. Artifact bytes and their detached manifest roots must not
+        ;; depend on an adapter object's JVM identity.
+        execution-package (write-execution-package! output-dir scenario-source scenario
+                                                    (normalize-runtime-values replay-result))
         public-id (benchmark-public-scenario-id suite-kw path)
         final-world (:world replay-result)
         realized-statements (pf-evidence/realized-allocation-statements final-world)
@@ -577,6 +614,10 @@
     (merge entry
            {:file path
             :scenario/id (or public-id (:scenario-id entry) (:scenario-id scenario))
+            ;; This is the portable protocol representation exposed to
+            ;; benchmark/package evidence. The concrete adapter remains worker
+            ;; runtime state only.
+            :scenario/protocol {:protocol/id protocol :protocol/version 1}
             :simulator/scenario-path path
             :execution/id execution-id
             :execution/ordinal ordinal
@@ -918,7 +959,11 @@
          raw-results (if (instance? SewAdapter adapter)
                        (execute-plan-bounded! (:benchmark/scenario-suite manifest)
                                               plan source-by-id (benchmark-run-count manifest)
-                                              staging-root (or parallelism 1) (or chunk-size 1)
+                                              staging-root
+                                              (if (seq (:preflight/exclusive-protocols preflight))
+                                                1
+                                                (or parallelism 1))
+                                              (or chunk-size 1)
                                               (:preflight/protocol-adapters preflight))
                        (adapter/execute-benchmark adapter manifest scenarios))
          _ (reconcile-execution-plan! plan raw-results)
@@ -1024,9 +1069,10 @@
          ;; normalized form, so verify-bundle-hash can recompute it from the
          ;; artifact on disk. Hashing the raw map here would silently diverge
          ;; once normalization rewrites runtime values (e.g. Instants).
-         hashable-evidence (normalize-runtime-values (dissoc evidence :timestamp))
+         normalized-evidence (normalize-runtime-values evidence)
+         hashable-evidence (integrity/hashable-evidence normalized-evidence)
          bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} hashable-evidence)
-         final-evidence (assoc evidence :evidence/hash bundle-root-hash)]
+         final-evidence (assoc normalized-evidence :evidence/hash bundle-root-hash)]
 
      (when-not passed?
        (log/warn! "benchmark/failed" {:passed (:passed metrics) :total (:total metrics)})
@@ -1078,6 +1124,11 @@
   [x]
   (cond
     (yield-module-map? x) (yield-module/describe-module x)
+    ;; Protocol instances are runtime dispatch adapters, not portable benchmark
+    ;; evidence. Preserve only their declared deterministic identity wherever a
+    ;; replay world/detail still references one.
+    (satisfies? protocol-api/SimulationAdapter x)
+    {:protocol/id (protocol-api/protocol-id x) :protocol/version 1}
     (fn? x) {:type :fn :class (str (class x))}
     ;; Instant → ISO-8601 string, matching project-world-to-structure-view's
     ;; :instant→iso8601-string contract. Persisting the canonical form (instead

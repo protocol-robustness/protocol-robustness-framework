@@ -19,6 +19,18 @@
                        (.endsWith (.getName %) ".json"))
                  (file-seq root))))
 
+(deftest partial-fill-replay-witness-reconciles-with-its-projection
+  (let [root (temp-root)]
+    (try
+      (let [run-result (scenario/run-argv
+                        ["scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn"
+                         "--run-root" (.getPath root)])
+            verified (verify/verify! root)]
+        (is (= :completed (:command/status run-result)))
+        (is (= "passed" (get verified "status")))
+        (is (true? (get-in verified ["checks" "partial-fill-artifacts"]))))
+      (finally (delete-tree! root)))))
+
 (deftest verifies-and-rejects-tampering-in-a-canonical-scenario-bundle
   (let [root (temp-root)]
     (try

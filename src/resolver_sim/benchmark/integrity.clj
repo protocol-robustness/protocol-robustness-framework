@@ -69,8 +69,19 @@
    commitment. Post-hash fields (signature, key path) are excluded so the
    committed hash survives signing."
   [bundle]
-  (dissoc bundle :timestamp :evidence/hash :evidence/signature
-          :evidence/public-key-path))
+  ;; Execution directories, artifact-index locations, and wall-clock run
+  ;; metadata describe one materialization of a package. Detached artifact
+  ;; manifests in :results commit the actual canonical bytes; these operational
+  ;; locations must not make the semantic benchmark root depend on chunking,
+  ;; staging location, or run timing.
+  (-> bundle
+      (dissoc :timestamp :evidence/hash :evidence/signature
+              :evidence/public-key-path :benchmark/artifact-index)
+      (update :run/manifest #(when % (dissoc % :manifest/at)))
+      (update :results #(when %
+                         (mapv (fn [result]
+                                 (dissoc result :scenario/artifacts))
+                               %)))))
 
 (defn verify-bundle-hash
   "Verify current bundles and pre-v2 bundles whose hash excluded post-hash

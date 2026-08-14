@@ -44,6 +44,23 @@
                          :scenario/evidence-root])
         (:results (evidence root))))
 
+(defn- package-semantics [root]
+  (let [bundle (evidence root)]
+    {:benchmark-root (:evidence/hash bundle)
+     :scenario-roots (semantic-result-roots root)
+     :claim-roots (mapv #(select-keys % [:claim/id :claim/root :claim/evidence-root])
+                        (:claim-results bundle))
+     :artifact-manifests
+     (mapv (fn [result]
+             {:execution/id (:execution/id result)
+              :artifacts (mapv #(select-keys % [:artifact/relative-path
+                                                 :artifact/sha256
+                                                 :artifact/byte-count
+                                                 :artifact/semantic-root])
+                               (get-in result [:scenario/artifact-manifest :artifacts]))})
+           (:results bundle))
+     :closure (:benchmark/execution-closure bundle)}))
+
 (defn- execution-artifact-bytes [root]
   ;; All files below the coordinator-published execution tree are canonical
   ;; scenario artifacts. Runtime adapters are projected out before raw replay
@@ -62,6 +79,8 @@
         one-chunk-root (io/file fixture-root "one-chunk-package")
         uneven-chunks-root (io/file fixture-root "uneven-chunks-package")
         failed-root (io/file fixture-root "failed-package")
+        commit-failure-root (io/file fixture-root "commit-failure-package")
+        copied-completion-root (io/file fixture-root "copied-completion-package")
         staged-worker-failure-root (io/file fixture-root "staged-worker-failure-package")
         manifest (write-dummy-fixture! fixture-root)
         fake-id "benchmark/test-canonical-package-lifecycle"]
@@ -85,12 +104,42 @@
             (doseq [root roots]
               (is (.isFile (io/file root "completion.json")))
               (is (= "passed" (get (benchmark-verify/verify! (.getPath root)) "status")))
-              (is (= 3 (count (semantic-result-roots root)))))
+              (is (= 3 (count (semantic-result-roots root))))
+              (is (true? (get-in (evidence root) [:benchmark/execution-closure :closed?]))))
             (doseq [root (rest roots)]
-              (is (= (semantic-result-roots serial-root)
-                     (semantic-result-roots root)))
+              (is (= (package-semantics serial-root)
+                     (package-semantics root))
+                  "Chunk decomposition is operational; package semantics are invariant")
               (is (= (execution-artifact-bytes serial-root)
                      (execution-artifact-bytes root))))))
+        (testing "completion.json is bound to the exact semantic package it seals"
+          (let [completion-file (io/file serial-root "completion.json")
+                finalization-file (io/file serial-root "benchmark/finalization.json")
+                evidence-file (io/file serial-root "benchmark/evidence/evidence.edn")
+                artifact-file (first (filter #(.isFile %) (file-seq (io/file serial-root "benchmark/executions"))))
+                completion-bytes (slurp completion-file)
+                finalization-bytes (slurp finalization-file)
+                evidence-bytes (slurp evidence-file)
+                artifact-bytes (java.nio.file.Files/readAllBytes (.toPath artifact-file))]
+            (.mkdirs copied-completion-root)
+            (spit (io/file copied-completion-root "completion.json") completion-bytes)
+            (is (= "failed" (get (benchmark-verify/verify! (.getPath copied-completion-root)) "status"))
+                "A completion marker copied to an incomplete root cannot be accepted")
+            (spit finalization-file "{\"tampered\":true}")
+            (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
+                "Completion seals exact finalization bytes")
+            (spit finalization-file finalization-bytes)
+            (.delete artifact-file)
+            (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
+                "Completion/package registry closure rejects a missing scenario artifact")
+            (java.nio.file.Files/write (.toPath artifact-file) artifact-bytes
+                                       (make-array java.nio.file.OpenOption 0))
+            (let [changed (assoc-in (edn/read-string evidence-bytes)
+                                    [:benchmark/execution-closure :closed?] false)]
+              (spit evidence-file (pr-str changed)))
+            (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
+                "Completion's closure commitment rejects altered closure evidence")
+            (spit evidence-file evidence-bytes)))
         (testing "a post-publication phase failure cannot complete or verify"
           (is (thrown-with-msg? clojure.lang.ExceptionInfo #"injected post-execution failure"
                                 (command/run-with-root!
@@ -101,7 +150,23 @@
                                                      (throw (ex-info "injected post-execution failure" {})))})))
           (is (seq (filter #(.isDirectory %) (.listFiles (io/file failed-root "benchmark/executions")))))
           (is (not (.exists (io/file failed-root "completion.json"))))
-          (is (= "failed" (get (benchmark-verify/verify! (.getPath failed-root)) "status"))))
+          (is (= "failed" (get (benchmark-verify/verify! (.getPath failed-root)) "status")))
+          (is (not (.exists (io/file failed-root ".run.lock")))))
+        (testing "final artifacts without completion.json are not a committed package"
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"injected terminal commit failure"
+                                (command/run-with-root!
+                                 fake-id (.getPath commit-failure-root) nil :public
+                                 {:execution/parallelism 2
+                                  :execution/chunk-size 1
+                                  :complete (fn [& _]
+                                              (throw (ex-info "injected terminal commit failure" {})))})))
+          ;; Every phase before :complete has materialized its final files, but
+          ;; completion.json is the sole terminal commit marker.
+          (is (.isFile (io/file commit-failure-root "benchmark/finalization.json")))
+          (is (.isFile (io/file commit-failure-root "manifest/run-package-index.json")))
+          (is (not (.exists (io/file commit-failure-root "completion.json"))))
+          (is (= "failed" (get (benchmark-verify/verify! (.getPath commit-failure-root)) "status")))
+          (is (not (.exists (io/file commit-failure-root ".run.lock")))))
         (testing "a worker failure leaves diagnostic staging but no canonical execution artifacts"
           (let [real-execute @#'runner/execute-scenario
                 calls (atom 0)]

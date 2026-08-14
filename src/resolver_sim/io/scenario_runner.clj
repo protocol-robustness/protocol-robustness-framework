@@ -1421,10 +1421,32 @@
                                                 (str (:output-dir dispatch) "/replay-output.json")))]
                           (when output-path
                             (io/make-parents output-path)
-                            (write-result-json output-path enriched-root)))
+                            ;; replay-output.json is a diagnostic replay witness,
+                            ;; not the immutable bundle root. Persist only the
+                            ;; partial-fill witness required for durable
+                            ;; projection reconciliation: full transient worlds
+                            ;; can contain runtime functions and adapters.
+                            (write-result-json
+                             output-path
+                             (assoc enriched-root
+                                    :run/scenario-results
+                                    (mapv (fn [result]
+                                            (let [decisions (or (get-in result [:world :yield/partial-fill-decisions])
+                                                                (get-in result [:replay-result :world :yield/partial-fill-decisions])
+                                                                (get-in result [:details 0 :world :yield/partial-fill-decisions])
+                                                                {})]
+                                              {:scenario-id (:scenario-id result)
+                                               :world {:yield/partial-fill-decisions
+                                                       (into {} (map (fn [[id decision]]
+                                                                       [id (select-keys decision
+                                                                                        [:decision/id :decision/hash
+                                                                                         :decision/preimage])])
+                                                                     decisions))}}))
+                                          raw-results)))))
                       ;; The outer orchestrator consumes this transient result to
-                      ;; build derived projections. It is not persisted as part of
-                      ;; the immutable bundle root or package boundary.
+                      ;; build derived projections. The immutable bundle root
+                      ;; remains `enriched-root`; the diagnostic witness above
+                      ;; does not alter its hash or package identity.
                         {:exit-code (:exit-code thunk-result)
                          :run-result (:run-result thunk-result)
                          :bundle-root enriched-root

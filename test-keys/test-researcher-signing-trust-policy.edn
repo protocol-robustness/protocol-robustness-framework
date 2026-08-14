@@ -1,0 +1,18 @@
+{:schema-version "prf-release-trust-policy.v1"
+ :policy-id :release/test-researcher-lab-v1
+ :policy/status :active
+ :policy-version 1
+ :trusted-keys
+ [{:key-id "test-researcher-signer"
+   :status :active
+   :public-key "AAAAC3NzaC1lZDI1NTE5AAAAIISjYeZjirXxVJvIpoqpqsxFg/ZjS/J3YFET5i9kYYxx"}]
+ :requirements
+ {:distribution
+  {:prf {:minimum-valid-signatures 1}
+   :sew {:minimum-valid-signatures 1}}}
+ :canonicalization
+ {:payload-profile "prf-release-attestation-payload.v1"}
+ :operator-note
+ "Lab-only test-researcher signing boundary. Binds test-researcher-signing-key.pem
+ (Ed25519) for scenario/forensic release testing. Replace with organization-enrolled
+ keys and thresholds before production use."}

@@ -11,6 +11,7 @@
             [resolver-sim.benchmark.sharing :as sharing]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.invariants :as sew-inv]
+            [resolver-sim.protocols.registry :as protocols]
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.commands.run-benchmark :as command]
             [resolver-sim.benchmark.claims :as claims]
@@ -546,6 +547,22 @@
             (is (= [1 2 3 4] (mapv :execution/ordinal canonical))))))
       (finally
         (doseq [file (reverse (file-seq root))] (.delete file))))))
+
+(deftest canonical-workers-never-fall-back-to-the-mutable-protocol-registry
+  (testing "the frozen adapter map is authoritative for coordinator tasks"
+    (let [adapter ::frozen-adapter
+          calls (atom 0)]
+      (with-redefs [protocols/get-protocol (fn [_] (swap! calls inc) ::registry-adapter)]
+        (is (= adapter
+               (with-bindings {#'runner/*canonical-worker?* true
+                               #'runner/*frozen-protocol-adapters* {"dummy" adapter}}
+                 (#'runner/resolve-worker-adapter! "dummy"))))
+        (is (zero? @calls))
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"missing-frozen-protocol-adapter|unavailable"
+                              (with-bindings {#'runner/*canonical-worker?* true
+                                              #'runner/*frozen-protocol-adapters* {}}
+                                (#'runner/resolve-worker-adapter! "dummy"))))
+        (is (zero? @calls))))))
 
 ;; ── Claim evaluation hardening ───────────────────────────────────────────────
 

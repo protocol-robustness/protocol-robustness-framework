@@ -104,16 +104,20 @@
       {:applicable? false :valid? (empty? projections)}
       (let [decision-valid?
             (every? (fn [decision]
-                      (let [base (dissoc decision :decision/id :decision/hash)
-                            expected-hash (hash-ref/sha256-ref
-                                           (canonical/hash-with-intent {:hash/intent :evidence-record} base))
+                      (let [hash-valid? (try
+                                          ;; Decision artifacts are committed through
+                                          ;; project-committable-content + canonical-commitment,
+                                          ;; not a raw JSON/EDN hash. Use the same
+                                          ;; verifier as the partial-fill producer.
+                                          (partial-fill/decision-hash-valid? decision)
+                                          (catch Exception _ false))
                             projection (get by-id (:decision/id decision))
                             closed-form (try
                                           (partial-fill/partial-fill-closed-form-checks decision)
                                           (catch clojure.lang.ExceptionInfo e
                                             (:check-results (ex-data e))))]
                         (and projection
-                             (= expected-hash (:decision/hash decision))
+                             hash-valid?
                              (= (:decision/hash decision) (:decision_sha256 projection))
                              (= (reduce + 0 (vals (:requested decision))) (:total_requested projection))
                              (= (reduce + 0 (vals (:filled decision))) (:total_filled projection))
