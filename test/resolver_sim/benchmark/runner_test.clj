@@ -18,6 +18,8 @@
             [clojure.java.io :as io]
             [clojure.string :as str]))
 
+(declare temp-dir!)
+
 (deftest scenario-output-packages-are-isolated-per-execution
   (let [root (doto (java.io.File/createTempFile "benchmark-artifacts-" "")
                (.delete)
@@ -43,6 +45,26 @@
       (finally
         (doseq [file (reverse (file-seq root))]
           (.delete file))))))
+
+(deftest frozen-plan-inputs-are-immutable-worker-sources
+  (let [root (temp-dir!)
+        original (io/file root "scenario.edn")
+        staging (io/file root "staging")]
+    (try
+      (spit original "{:scenario-id \"frozen\" :protocol \"sew-v1\"}")
+      (let [source (input-source/source (.getPath original))
+            benchmark {:benchmark/claims []}
+            plan (runner/build-execution-plan benchmark [source])
+            frozen (#'runner/freeze-plan-inputs! plan benchmark [source] (.getPath staging))
+            worker-source (get (:source-by-id frozen) (:execution/id (first (:plan frozen))))]
+        (is (= (:input/ref source) (:input/ref worker-source)))
+        (is (not= (:input/path source) (:input/path worker-source)))
+        (is (= (:input/content-hash (:execution/descriptor (first plan)))
+               (:scenario/input-root (first (:plan frozen)))))
+        (spit original "{:scenario-id \"mutated\" :protocol \"sew-v1\"}")
+        (is (= "frozen" (:scenario-id (#'runner/load-scenario worker-source)))))
+      (finally
+        (doseq [file (reverse (file-seq root))] (.delete file))))))
 
 (deftest execution-plan-chunking-is-deterministic-and-non-semantic
   (let [plan [{:execution/ordinal 1 :execution/id "sha256:one"}
@@ -491,6 +513,37 @@
           (is (= serial-one parallel-2))
           (is (= serial-one parallel-2-uneven))
           (is (= serial-one parallel-3))))
+      (finally
+        (doseq [file (reverse (file-seq root))] (.delete file))))))
+
+(deftest executor-completion-order-never-becomes-canonical-order
+  (let [{:keys [root plan source-by-id]} (make-hermetic-plan! 4)
+        started (into {} (map (fn [ordinal] [ordinal (promise)]) (range 1 5)))
+        release (into {} (map (fn [ordinal] [ordinal (promise)]) (range 1 5)))
+        finished (into {} (map (fn [ordinal] [ordinal (promise)]) (range 1 5)))
+        completed (atom [])
+        fake-exec (fn [_suite _source entry _run-count _staging]
+                    (let [ordinal (:execution/ordinal entry)]
+                      (deliver (get started ordinal) true)
+                      @(get release ordinal)
+                      (swap! completed conj ordinal)
+                      (deliver (get finished ordinal) true)
+                      {:execution/id (:execution/id entry)
+                       :execution/ordinal ordinal
+                       :execution/descriptor (:execution/descriptor entry)}))]
+    (try
+      (with-redefs [runner/execute-scenario fake-exec]
+        (let [result (future (#'runner/execute-plan-bounded! nil plan source-by-id 1 nil 4 1))]
+          (doseq [ordinal (range 1 5)]
+            (is (true? (deref (get started ordinal) 2000 false))))
+          ;; Deliberately release in a non-canonical schedule.
+          (doseq [ordinal [3 1 4 2]]
+            (deliver (get release ordinal) true)
+            (is (true? (deref (get finished ordinal) 2000 false))))
+          (let [raw @result
+                canonical (#'runner/order-reconciled-results plan raw)]
+            (is (= [3 1 4 2] @completed))
+            (is (= [1 2 3 4] (mapv :execution/ordinal canonical))))))
       (finally
         (doseq [file (reverse (file-seq root))] (.delete file))))))
 

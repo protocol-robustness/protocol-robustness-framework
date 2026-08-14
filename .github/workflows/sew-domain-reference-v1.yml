@@ -1,4 +1,4 @@
-name: Sew Domain Reference Suite v1
+name: VALIDATION · SEW · Reference Suite v1
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
 
 jobs:
   sew-domain-reference-v1:
+    name: Verify sew domain reference pinned outcomes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +54,14 @@ jobs:
           ls -la suites/sew-domain-reference-v1/actual/ || true
           echo "Running verify..."
           ./suites/sew-domain-reference-v1/scripts/verify.sh
+      - name: Publish validation summary to step summary
+        if: always()
+        run: |
+          python3 scripts/ci/emit-step-summary.py \
+            --label "Sew Domain Reference Suite v1" \
+            --summary suites/sew-domain-reference-v1/actual/summary.json \
+            --file suites/sew-domain-reference-v1/actual/ \
+            --gating || true
 
       - name: Upload Sew domain reference artifacts
         if: always()

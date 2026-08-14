@@ -1,4 +1,4 @@
-name: conformance
+name: CONFORMANCE · Proof Kernel · Rust ↔ Clojure + forge
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
 
 jobs:
   conformance:
+    name: Verify Rust · Clojure · forge agreement
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

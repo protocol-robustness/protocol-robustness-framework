@@ -1,4 +1,4 @@
-name: Uberjar Build
+name: BUILD · PRF · Uberjar
 
 on:
   pull_request:
@@ -7,6 +7,7 @@ on:
 
 jobs:
   build-core:
+    name: Build + verify PRF uberjars
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1,6 +1,12 @@
 <!-- public-claims: registry -->
 # Protocol Robustness Framework (PRF)
 
+<p align="center">
+  <a href="https://github.com/protocol-robustness/protocol-robustness-framework/actions/workflows/uberjar-build.yml"><img alt="PRF Core" src="https://img.shields.io/github/checks-status/protocol-robustness/protocol-robustness-framework/main?label=PRF%20Core"></a>
+  <a href="https://github.com/protocol-robustness/protocol-robustness-framework/actions/workflows/conformance.yml"><img alt="Conformance" src="https://img.shields.io/github/checks-status/protocol-robustness/protocol-robustness-framework/main?label=Conformance"></a>
+  <a href="https://github.com/protocol-robustness/protocol-robustness-framework/actions/workflows/reference-validation-v1.yml"><img alt="Reference" src="https://img.shields.io/github/checks-status/protocol-robustness/protocol-robustness-framework/main?label=Reference"></a>
+</p>
+
 An open, protocol-agnostic framework for modelling, testing, and independently verifying protocol behaviour under adversarial, strategic, and sequence-dependent conditions.
 
 PRF is designed to answer a question that ordinary unit tests do not:
@@ -10,6 +16,25 @@ PRF is designed to answer a question that ordinary unit tests do not:
 The framework models how actors interact across sequences of valid protocol actions, then evaluates whether critical correctness, safety, liveness, accounting, and integrity properties continue to hold.
 
 PRF combines deterministic scenario execution, invariant evaluation, reproducible benchmarks, structured evidence generation, and independent output verification. Sew and Yield are reference protocol integrations; neither defines the scope of the framework.
+
+## Continuous integration
+
+Workflows are named `<CATEGORY> · <SCOPE> · <PURPOSE>` so the Actions list is readable at a glance:
+
+| Category | Meaning |
+| --- | --- |
+| `BUILD` | Can we produce the artifact? |
+| `TEST` | Does an implementation unit behave as intended? |
+| `INTEGRATION` | Do real system boundaries (PostgreSQL, filesystem, network) work together? |
+| `CONFORMANCE` | Do independently implemented representations (Rust ↔ Clojure, forge) agree? |
+| `VALIDATION` | Does PRF produce the specified result for known/pinned cases? |
+| `DEPLOY` | Publish an already-authorized artifact. |
+
+**What red means:** a GitHub workflow failure indicates that the workflow, framework, implementation, integration, or a release gate did not behave as required. It is **not** caused merely by PRF producing a negative verdict.
+
+**What green means:** the workflow behaved according to its contract. In practice, PRF findings against deliberately invalid or benchmark material — for example, `VALIDATION · SEW · Protocol gates` reporting `continue-on-error` findings — are expected outcomes. Those do **not** fail the workflow; a red status there means PRF itself failed to run correctly and needs engineering attention, not that a detected finding exists.
+
+> `sew-validation-gates` is RED only when PRF is unhealthy (structural/infrastructure/core failure). SEW findings detected during a healthy run are reported as nullable, non-gating steps and findings — not as CI failures.
 
 
 

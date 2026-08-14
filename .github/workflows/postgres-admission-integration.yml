@@ -1,4 +1,4 @@
-name: PostgreSQL Admission Integration
+name: INTEGRATION · Admission · PostgreSQL
 
 # Runs the PostgreSQL admission-store integration tests against a fresh,
 # disposable PostgreSQL instance. These tests prove the multi-instance
@@ -16,6 +16,7 @@ on:
 
 jobs:
   postgres-integration:
+    name: Run PostgreSQL admission + concurrency integration
     runs-on: ubuntu-latest
     # Isolated fresh PostgreSQL per job; no external/developer database is ever
     # used. A dedicated database name prevents any interference with parallel

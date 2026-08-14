@@ -446,6 +446,8 @@
    :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
                       {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
                       {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
+                      {:name "--parallelism" :type :integer :doc "Bounded local worker count; positive integer, default 1"}
+                      {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
                       {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
                       {:name "--key" :type :string :doc "Path to private key for signing"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]

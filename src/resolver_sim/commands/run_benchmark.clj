@@ -671,6 +671,12 @@
       (not (contains? #{nil :public :internal} sensitivity-profile))
       {:exit-code 2 :message "Sensitivity profile must be public or internal"}
 
+      (not (and (integer? (or (:parallelism opts) 1))
+                (pos? (or (:parallelism opts) 1))
+                (integer? (or (:chunk-size opts) 1))
+                (pos? (or (:chunk-size opts) 1))))
+      {:exit-code 2 :message "Parallelism and chunk size must be positive integers"}
+
       (and run-root output)
       {:exit-code 2 :message "Use --run-root for the canonical benchmark bundle; --output is a separate legacy export command"}
 

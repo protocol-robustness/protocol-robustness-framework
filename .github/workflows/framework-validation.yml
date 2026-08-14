@@ -1,4 +1,4 @@
-name: Framework Unit Tests
+name: TEST · Framework · Unit
 
 on:
   pull_request:
@@ -7,6 +7,7 @@ on:
 
 jobs:
   framework-unit-tests:
+    name: Run framework unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

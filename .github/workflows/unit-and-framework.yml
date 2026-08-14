@@ -1,4 +1,4 @@
-name: Unit and Framework Tests
+name: TEST · PRF · Unit + framework
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
 
 jobs:
   unit-and-framework:
+    name: Run PRF unit + framework tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

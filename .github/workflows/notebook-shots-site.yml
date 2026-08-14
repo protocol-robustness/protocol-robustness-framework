@@ -1,4 +1,4 @@
-name: Notebook Shots Site
+name: DEPLOY · Website · Notebook shots
 
 # Publish the exported screenshot site (homepage + explore + catalogue +
 # notebook pages + run archive) to GitHub Pages.
@@ -29,6 +29,7 @@ concurrency:
 
 jobs:
   export:
+    name: Export + deploy notebook shots site
     if: false # remove to enable
     runs-on: ubuntu-latest
     steps:

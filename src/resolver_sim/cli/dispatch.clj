@@ -154,6 +154,8 @@
    [nil "--sensitivity-profile PROFILE" "Bundle sensitivity profile: public or internal"
     :parse-fn keyword]
    [nil "--claim-registry FILE" "Path to an external benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."]
+   [nil "--parallelism N" "Bounded local benchmark worker count (default 1)" :parse-fn #(Long/parseLong %)]
+   [nil "--chunk-size N" "Deterministic work items per local benchmark chunk (default 1)" :parse-fn #(Long/parseLong %)]
    [nil "--report-format FORMAT" "Scenario report format"]
    ["-v" "--verbose" "Scenario report format: verbose"]
    ["-f" "--failures" "Scenario report format: failures"]

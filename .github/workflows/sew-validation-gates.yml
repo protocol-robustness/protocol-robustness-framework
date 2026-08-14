@@ -1,4 +1,4 @@
-name: SEW Validation Gates
+name: VALIDATION · SEW · Protocol gates
 
 on:
   workflow_dispatch:
@@ -7,7 +7,11 @@ on:
     branches: [main, master]
 
 jobs:
+  # Gating job: RED only if PRF itself fails to run (structural/infrastructure or
+  # core-verification failure). SEW findings within it are reported via the
+  # continue-on-error steps and do not flip the workflow RED.
   core-validation:
+    name: Gating - PRF core validation
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
@@ -66,10 +70,18 @@ jobs:
         timeout-minutes: 10
         run: clojure -M:reference-validation
 
-      - name: Invariant scenarios
+      - name: Run invariant scenarios (expected findings reported, non-gating)
         continue-on-error: true
         timeout-minutes: 15
         run: ./scripts/test.sh invariants
+
+      - name: Publish invariant findings to step summary
+        if: always()
+        run: |
+          python3 scripts/ci/emit-step-summary.py \
+            --label "SEW invariant scenarios" \
+            --summary "${{ github.workspace }}/results/test-artifacts/test-summary.json" \
+            --file "${{ github.workspace }}/results/test-artifacts/" || true
 
       - name: Run authoritative backstop (canonical invariant evidence)
         run: |
@@ -135,6 +147,7 @@ jobs:
   # its own workspace, so there is no shared-artifact race, and none of them
   # gate the run (continue-on-error: true), mirroring the prior semantics.
   extended-validation:
+    name: Informational - extended SEW validation
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 30
@@ -186,6 +199,14 @@ jobs:
         timeout-minutes: ${{ matrix.test-timeout }}
         run: ${{ matrix.cmd }}
 
+      - name: Publish findings to step summary
+        if: always()
+        run: |
+          python3 scripts/ci/emit-step-summary.py \
+            --label "extended SEW: ${{ matrix.name }}" \
+            --summary "${{ github.workspace }}/results/test-artifacts/test-summary.json" \
+            --file "${{ github.workspace }}/results/test-artifacts/" || true
+
       - name: Upload ${{ matrix.name }} artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -195,6 +216,7 @@ jobs:
           if-no-files-found: ignore
 
   coverage-gates:
+    name: Gating - transition/guard coverage
     runs-on: ubuntu-latest
     needs: core-validation
     steps:
@@ -234,6 +256,7 @@ jobs:
 
 
   equivalence-comparison-gates:
+    name: Informational - equivalence comparison
     runs-on: ubuntu-latest
     needs: [core-validation, comparison-schema-gates]
     continue-on-error: true
@@ -271,6 +294,7 @@ jobs:
           path: results/test-artifacts/
 
   comparison-schema-gates:
+    name: Informational - comparison metadata lint
     runs-on: ubuntu-latest
     needs: core-validation
     continue-on-error: true
@@ -307,6 +331,7 @@ jobs:
   # different bytes) fail this job with a specific report rather than being
   # silently clobbered.
   consolidate-artifacts:
+    name: Consolidate - audit unified artifacts
     runs-on: ubuntu-latest
     needs:
       - core-validation

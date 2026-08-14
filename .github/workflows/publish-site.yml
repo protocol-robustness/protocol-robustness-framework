@@ -1,4 +1,4 @@
-name: Publish Product Site
+name: DEPLOY · Website · Product site
 
 # Build the PRF product/demo site from executable truth:
 #
@@ -40,6 +40,7 @@ concurrency:
 
 jobs:
   build-site:
+    name: Build - verify site against PRF
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,6 +118,7 @@ jobs:
           path: site/out
 
   deploy:
+    name: Deploy - GitHub Pages
     needs: build-site
     runs-on: ubuntu-latest
     environment:

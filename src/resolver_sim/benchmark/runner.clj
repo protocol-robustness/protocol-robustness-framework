@@ -29,7 +29,7 @@
             [resolver-sim.config.paths :as paths]
             [resolver-sim.io.edn :as ppedn])
   (:import [java.math BigInteger]
-           [java.nio.file Files StandardCopyOption]
+           [java.nio.file Files LinkOption StandardCopyOption]
            [java.util UUID]
            [java.util.concurrent Callable Executors TimeUnit]
            [java.security MessageDigest]))
@@ -37,6 +37,15 @@
 ;; ── Helpers ──────────────────────────────────────────────────────────────────
 
 (declare normalize-runtime-values)
+
+(def ^:dynamic ^:private *frozen-protocol-adapters*
+  "Coordinator-resolved protocol adapters for bounded benchmark workers."
+  nil)
+
+(def ^:dynamic ^:private *canonical-worker?*
+  "True only for coordinator-dispatched canonical worker tasks. Such tasks must
+   never fall through to the mutable protocol registry."
+  false)
 
 (defn- find-scenarios-in-suites [suites]
   (mapcat (fn [suite-path]
@@ -135,6 +144,76 @@
       (throw (ex-info "Benchmark execution plan contains directory hash-prefix collisions" {:prefixes prefixes})))
     planned))
 
+(defn- expanded-plan-sources
+  [benchmark plan scenarios]
+  (mapv vector plan
+        (for [_repetition-index (range (benchmark-run-count benchmark))
+              scenario scenarios]
+          scenario)))
+
+(defn- freeze-plan-inputs!
+  "Coordinator-owned immutable input snapshotting for canonical execution.
+   Worker sources retain the original logical reference, but their readable file
+   path is a private frozen copy created before executor dispatch."
+  [plan benchmark scenarios staging-root]
+  (if-not staging-root
+    {:plan plan
+     :source-by-id (into {} (map (fn [[entry source]] [(:execution/id entry) source])
+                                 (expanded-plan-sources benchmark plan scenarios)))}
+    (let [frozen-root (io/file staging-root "frozen-inputs")
+          pairs (expanded-plan-sources benchmark plan scenarios)
+          frozen (mapv (fn [[entry source]]
+                         (let [safe-name (safe-path-component (:input/display-name source))
+                               name (if (seq safe-name) safe-name "scenario-input")
+                               target (io/file frozen-root (:execution/directory entry) name)
+                               provenance (input-source/snapshot! source target)
+                               frozen-source (assoc (input-source/source (.getPath target))
+                                                    :input/ref (:input/ref source)
+                                                    :input/display-name (:input/display-name source)
+                                                    :input/origin-ref (:input/ref source))
+                               input-root (hash-ref/sha256-ref (:input/sha256 provenance))]
+                           [(assoc entry :scenario/input-root input-root)
+                            frozen-source]))
+                       pairs)
+          frozen-plan (mapv first frozen)]
+      {:plan frozen-plan
+       :source-by-id (into {} (map (fn [[entry source]] [(:execution/id entry) source]) frozen))})))
+
+(defn- validate-and-freeze-global-prerequisites!
+  "Coordinator-only preflight. Resolve all protocol implementations required by
+   frozen inputs before workers exist, and re-run the canonical intent registry
+   invariant at the same boundary. Workers therefore never win a namespace-load
+   or extension-registration race while determining canonical results."
+  [source-by-id]
+  (hc/validate-registry!)
+  ;; Preload every registered protocol namespace before resolving the subset
+  ;; referenced by this benchmark. Optional extension bootstrap is consequently
+  ;; a preflight concern, never a worker-side effect.
+  (doseq [protocol-ns (protocols/known-protocol-namespaces)]
+    (require protocol-ns))
+  (let [protocol-ids (->> (vals source-by-id)
+                          (map #(or (:protocol (load-scenario %)) protocols/default-protocol-id))
+                          distinct
+                          sort
+                          vec)]
+    (doseq [protocol-id protocol-ids]
+      (when-not (protocols/get-protocol protocol-id)
+        (throw (ex-info "Frozen benchmark plan requires an unavailable protocol"
+                        {:reason :unavailable-frozen-protocol
+                         :protocol protocol-id
+                         :known-protocols (vec (protocols/known-protocol-ids))}))))
+    {:preflight/protocol-ids protocol-ids
+     :preflight/protocol-adapters (into {} (map (fn [id] [id (protocols/get-protocol id)]) protocol-ids))
+     :preflight/intent-registry :validated}))
+
+(defn- delete-tree!
+  [path]
+  (when-let [root (and path (io/file path))]
+    (when (.exists root)
+      (doseq [entry (reverse (file-seq root))]
+        (when-not (.delete entry)
+          (throw (ex-info "Could not remove private benchmark staging" {:path (.getPath entry)})))))))
+
 (defn- write-execution-plan! [path benchmark plan]
   (when path
     (let [file (io/file path)
@@ -224,10 +303,18 @@
   [dir semantic-root]
   (when dir
     (let [file (io/file dir)
-          root (.toPath file)]
+          root (.toPath file)
+          entries (file-seq file)]
       (when (.isDirectory file)
-        (let [artifacts (->> (file-seq file)
-                           (filter #(.isFile %))
+        (doseq [entry entries]
+          (let [path (.normalize (.toPath entry))]
+            (when (or (Files/isSymbolicLink path)
+                      (not (.startsWith path root)))
+              (throw (ex-info "Staged artifact path is unsafe"
+                              {:reason :unsafe-staged-artifact-path
+                               :root (str root) :path (str path)})))))
+        (let [artifacts (->> entries
+                           (filter #(Files/isRegularFile (.toPath %) (make-array LinkOption 0)))
                            (mapv (fn [f]
                                    (let [rel (str (.relativize root (.toPath f)))]
                                      {:artifact/relative-path rel
@@ -411,7 +498,9 @@
         descriptor (require-plan-match! plan-entry scenario-source scenario)
         execution-id (:execution/id plan-entry)
         protocol (or (:protocol scenario) protocols/default-protocol-id)
-        adapter (protocols/get-protocol protocol)
+        adapter (if *canonical-worker?*
+                  (get *frozen-protocol-adapters* protocol)
+                  (protocols/get-protocol protocol))
         _ (when-not adapter
             (throw (ex-info "Benchmark scenario protocol extension is unavailable"
                             {:protocol protocol
@@ -427,10 +516,15 @@
                           (= "yield-v1" protocol)
                           (assoc :flags {:yield-dt-validation? true
                                          :metrics-profile :yield-provider})))))
-        replay-result (if output-dir
-                        (binding [evidence-config/*artifact-dir* output-dir]
-                          (run-replay))
-                        (run-replay))
+        raw-replay-result (if output-dir
+                            (binding [evidence-config/*artifact-dir* output-dir]
+                              (run-replay))
+                            (run-replay))
+        ;; Replay kernels carry the concrete JVM adapter for in-process control
+        ;; flow. It must never cross into detached or rooted benchmark evidence.
+        replay-result (-> raw-replay-result
+                          (dissoc :protocol)
+                          (assoc :protocol/id protocol))
         entry (scenario-runner/run-scenario scenario
                                             {:replay-fn (fn [_] replay-result)
                                              :source :benchmark
@@ -516,30 +610,34 @@
             :scenario/artifact-manifest (artifact-manifest-for-dir output-dir scenario-evidence)})))
 
 (defn- run-with-worker-context
-  [artifact-dir allow-dirty? work]
+  [artifact-dir allow-dirty? frozen-protocol-adapters work]
   ;; Dynamic bindings are intentionally established inside every executor task;
   ;; they are not inherited implicitly across async boundaries.
   (evidence-node/with-fresh-registry
     (chain/with-fresh-evidence-context*
      #(binding [evidence-config/*artifact-dir* artifact-dir
-                chain/*allow-dirty* allow-dirty?]
+                chain/*allow-dirty* allow-dirty?
+                *frozen-protocol-adapters* frozen-protocol-adapters
+                *canonical-worker?* (some? frozen-protocol-adapters)]
         (work)))))
 
 (defn- execute-chunk
-  [suite-kw source-by-id run-count staging-root allow-dirty? chunk]
+  [suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters chunk]
   (mapv (fn [plan-entry]
           (let [source (get source-by-id (:execution/id plan-entry))
                 artifact-dir (staging-execution-dir staging-root plan-entry)]
             (when-not source
               (throw (ex-info "Frozen execution plan has no source" 
                               {:execution/id (:execution/id plan-entry)})))
-            (run-with-worker-context artifact-dir allow-dirty?
+            (run-with-worker-context artifact-dir allow-dirty? frozen-protocol-adapters
               #(execute-scenario suite-kw source plan-entry run-count staging-root))))
         (:chunk/work-items chunk)))
 
 (defn- execute-plan-bounded!
-  [suite-kw plan source-by-id run-count staging-root parallelism chunk-size]
-  (let [parallelism (long (or parallelism 1))
+  ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size]
+   (execute-plan-bounded! suite-kw plan source-by-id run-count staging-root parallelism chunk-size nil))
+  ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters]
+   (let [parallelism (long (or parallelism 1))
         _ (when-not (pos? parallelism)
             (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
         chunks (execution-chunks plan (or chunk-size 1))
@@ -551,14 +649,14 @@
                                      ^Callable
                                      (reify Callable
                                        (call [_]
-                                         (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? chunk)))))
+                                         (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters chunk)))))
                           chunks)]
         ;; Dereference in deterministic chunk order. Completion timing has no
         ;; influence on the returned sequence or subsequent reconciliation.
         (vec (mapcat #(.get %) futures)))
       (finally
         (.shutdownNow executor)
-        (.awaitTermination executor 30 TimeUnit/SECONDS)))))
+        (.awaitTermination executor 30 TimeUnit/SECONDS))))))
 
 (defn- publish-staged-executions!
   "Coordinator-only canonical publication of detached worker staging.
@@ -761,6 +859,14 @@
     (rp/edn-read path)
     (throw (ex-info "Benchmark manifest not found" {:path path}))))
 
+(defn- derive-additional-canonical-work
+  "The current frozen benchmark graph is closed: scenario replay, invariants,
+   and claims inspect the reconciled work set but cannot enqueue new canonical
+   scenario work. Keep this explicit so a future work-generating semantic must
+   replace this one-round invariant with coordinator-owned rounds."
+  [_manifest _results]
+  [])
+
 (defn- evaluate-claims-coordinator-owned
   "Coordinator-owned claim evaluation. Returns a vector of claim-result maps.
    On an unexpected evaluation failure the coordinator records a structured
@@ -796,37 +902,36 @@
                              {:manifest manifest-path
                               :scenario-suite (:benchmark/scenario-suite manifest)
                               :scenario-suites (:scenario-suites manifest)})))
-         plan (build-execution-plan manifest scenarios)
+         initial-plan (build-execution-plan manifest scenarios)
+         staging-root (when scenario-output-dir
+                        (str (io/file (.getParentFile (io/file scenario-output-dir))
+                                      ".staging" "benchmark-executions")))
+         frozen-inputs (freeze-plan-inputs! initial-plan manifest scenarios staging-root)
+         plan (:plan frozen-inputs)
+         source-by-id (:source-by-id frozen-inputs)
+         preflight (validate-and-freeze-global-prerequisites! source-by-id)
          _ (write-execution-plan! execution-plan-path manifest plan)
          _ (do
              (println "Executing" (count scenarios) "scenarios...")
              (log/info! "benchmark/execute" {:scenario-count (count scenarios)
                                              :manifest manifest-path}))
-         source-by-id (into {}
-                            (map (fn [entry source] [(:execution/id entry) source])
-                                 plan
-                                 (for [repetition-index (range (benchmark-run-count manifest))
-                                       scenario scenarios]
-                                   scenario)))
-         staging-root (when scenario-output-dir
-                        (str (io/file (.getParentFile (io/file scenario-output-dir))
-                                      ".staging" "benchmark-executions")))
          raw-results (if (instance? SewAdapter adapter)
                        (execute-plan-bounded! (:benchmark/scenario-suite manifest)
                                               plan source-by-id (benchmark-run-count manifest)
-                                              staging-root (or parallelism 1) (or chunk-size 1))
+                                              staging-root (or parallelism 1) (or chunk-size 1)
+                                              (:preflight/protocol-adapters preflight))
                        (adapter/execute-benchmark adapter manifest scenarios))
          _ (reconcile-execution-plan! plan raw-results)
          reconciled-results (order-reconciled-results plan raw-results)
-         results (or (publish-staged-executions! scenario-output-dir staging-root plan reconciled-results)
-                     reconciled-results)
-         artifact-index (write-artifact-index! scenario-output-dir benchmark-index-path (:benchmark/id manifest) results)
 
-         metrics (adapter/collect-metrics adapter results)
+         ;; Deterministic reduction happens against detached/staged results.
+         ;; Nothing under benchmark/executions becomes canonical until all
+         ;; semantic checks below have succeeded.
+         metrics (adapter/collect-metrics adapter reconciled-results)
          passed? (= (:total metrics) (:passed metrics))
 
           ;; Aggregate invariant summary across all scenarios
-         all-inv-results (mapcat :invariant-results results)
+         all-inv-results (mapcat :invariant-results reconciled-results)
          seen-ids (into #{} (map :id) all-inv-results)
          id->passes (fn [id] (filter #(and (= id (:id %)) (= :pass (:result %))) all-inv-results))
          id->total  (fn [id] (count (filter #(= id (:id %)) all-inv-results)))
@@ -840,7 +945,23 @@
          all-invariants-pass? (= total-inv-checks passed-inv-checks)
 
 ;; ── Claim evaluation ────────────────────────────────────────────
-          claim-results (evaluate-claims-coordinator-owned manifest results)
+         claim-results (evaluate-claims-coordinator-owned manifest reconciled-results)
+         _ (when (some #(= :failed (:claim/evaluation-status %)) claim-results)
+             (throw (ex-info "Benchmark claim evaluation failed; canonical publication aborted"
+                             {:reason :claim-evaluation-failed
+                              :claim-results claim-results})))
+         additional-work (derive-additional-canonical-work manifest reconciled-results)
+         _ (when (seq additional-work)
+             (throw (ex-info "Frozen benchmark execution graph is not closed after reduction"
+                             {:reason :unexpected-derived-work
+                              :additional-work additional-work})))
+
+         ;; The sole canonical scenario-artifact publication boundary.
+         results (or (publish-staged-executions! scenario-output-dir staging-root plan reconciled-results)
+                     reconciled-results)
+         _ (when staging-root
+             (delete-tree! (io/file staging-root "frozen-inputs")))
+         artifact-index (write-artifact-index! scenario-output-dir benchmark-index-path (:benchmark/id manifest) results)
 
             ;; ── Concept enrichment ──────────────────────────────────────────
          concept-ids (:benchmark/concepts manifest)
@@ -892,6 +1013,10 @@
                    :concept/coverage concept-coverage
                    :run/manifest run-manifest
                    :benchmark/artifact-index artifact-index
+                   :benchmark/execution-closure {:closure/version 1
+                                                 :round-count 1
+                                                 :derived-work-count (count additional-work)
+                                                 :closed? true}
                    :benchmark-certification certification}
 
          ;; The committed hash covers the normalized (persisted) representation,

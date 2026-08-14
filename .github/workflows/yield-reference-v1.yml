@@ -1,4 +1,4 @@
-name: Yield Reference Suite v1
+name: VALIDATION · Yield · Reference Suite v1
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
 
 jobs:
   yield-reference-v1:
+    name: Verify yield reference pinned outcomes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +54,14 @@ jobs:
           ls -la suites/yield-reference-v1/actual/ || true
           echo "Running verify..."
           ./suites/yield-reference-v1/scripts/verify.sh
+      - name: Publish validation summary to step summary
+        if: always()
+        run: |
+          python3 scripts/ci/emit-step-summary.py \
+            --label "Yield Reference Suite v1" \
+            --summary suites/yield-reference-v1/actual/summary.json \
+            --file suites/yield-reference-v1/actual/ \
+            --gating || true
 
       - name: Upload yield reference artifacts
         if: always()

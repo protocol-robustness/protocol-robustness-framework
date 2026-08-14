@@ -1,4 +1,4 @@
-name: Reference Validation Suite v1
+name: VALIDATION · PRF · Reference Suite v1
 
 on:
   workflow_dispatch:
@@ -12,6 +12,7 @@ on:
 
 jobs:
   reference-validation-v1:
+    name: Verify PRF reference pinned outcomes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +54,7 @@ jobs:
       - name: Run reference suite
         run: |
           make reference-validation-v1
-      - name: Verify reference outputs
+      - name: Verify reference outputs match pinned outcomes
         run: |
           echo "Checking actual/ exists..."
           ls -la suites/reference-validation-v1/actual/ || true
@@ -61,6 +62,14 @@ jobs:
           ls -la suites/reference-validation-v1/expected/ | head -20 || true
           echo "Running verify..."
           ./suites/reference-validation-v1/scripts/verify.sh
+      - name: Publish validation summary to step summary
+        if: always()
+        run: |
+          python3 scripts/ci/emit-step-summary.py \
+            --label "Reference Suite v1" \
+            --summary suites/reference-validation-v1/actual/summary.json \
+            --file suites/reference-validation-v1/actual/ \
+            --gating || true
       - name: Upload reference artifacts
         if: always()
         uses: actions/upload-artifact@v4
