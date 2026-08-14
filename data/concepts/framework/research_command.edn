@@ -3,7 +3,7 @@
  :concept/layer :framework-explanation
  :concept/name "Research command"
  :concept/summary
- "A research command is a structured execution provenance artifact that captures the normalised semantic command used to produce a theorem, conclusion, or benchmark outcome. It establishes a reproducible execution identity by committing argv, include directives, environment/runner/input/output roots, and a canonical hash of the complete execution context."
+ "A research command is a structured execution provenance artifact that captures the normalised semantic command used to produce a theorem, conclusion, or benchmark outcome. New commands use research-command.v2 typed scope references and establish a reproducible execution identity by committing argv, scope references, environment/runner/input/output roots, and a canonical hash of the complete execution context. research-command.v1 is legacy compatibility only."
 
  :concept/stakeholder-question
  "What exact command produced this outcome, and can it be reproduced with the same semantic scope?"
@@ -35,13 +35,13 @@
                :maps-to [:protocol.actor/verifier]}}
 
  :concept/entities
- {:command-artifact {:description "The full research command map including id, type, argv, includes, and environment roots."
+ {:command-artifact {:description "The full research-command.v2 map including id, type, argv, typed scope refs (:command/includes), and environment roots. research-command.v1 is legacy compatibility only."
                      :maps-to [:protocol.entity/command]}
   :command-hash {:description "Canonical SHA-256 hash of the command's complete execution context. Committed as :execution/command-root in the benchmark outcome manifest."
                  :maps-to [:protocol.entity/canonical-hash]}
   :command-root {:description "The :execution/command-root manifest field holding the research-command.v1 hash. When a command includes :incentive, its incentive evaluation output root is committed in combination with this command-root in the same :outcome-hashes projection. The command-root also ties a command to evidence artifacts it produced (e.g. held-custody artifacts) and to a research assignment (task + runner) via a shared reference."
                  :maps-to [:protocol.entity/canonical-hash]}
-  :command-include {:description "Include directive selecting additional evaluation or output domains. Supported values: :incentive, :incentive-compatibility."
+  :command-include {:description "Legacy v1 include directive. New commands use typed v2 :command/includes scope references for incentive and incentive-compatibility analyses."
                     :maps-to [:protocol.entity/include-directive]}
   :semantic-commitments {:description "The outcome manifest's :evidence/semantic-commitments section binding meaning-bearing category roots — scope, authorisation, economic application, assurance, configuration, research-execution — to the same outcome, committed alongside the command-root. The allowed categories are defined by the semantic-commitments concept; this entity does not enumerate them."
                          :maps-to [:protocol.entity/evidence]}
@@ -85,7 +85,7 @@
    :stakeholder-impact "A requested evaluation domain is silently omitted from command outputs, hiding the absence of requested evidence."}]
 
  :concept/assumptions
- ["A command's semantic identity is its include set; argument ordering and aliases do not affect identity."
+ "For new commands, research-command.v2 typed scope references define semantic identity; v1 include sets remain legacy compatibility inputs. Argument ordering and aliases do not affect identity."
   "Include directives select additional evaluation or output domains. They do not define the evaluation algorithm."
   "A include directive does not imply that every benchmark or pack supports the requested domain."
   "A requested include domain must never be silently omitted from outputs. When the selected benchmark or pack does not support it, the command must surface an explicitly unsupported or inconclusive result according to the execution policy. Surfacing an explicit unsupported result does not by itself invalidate an otherwise structurally valid command."

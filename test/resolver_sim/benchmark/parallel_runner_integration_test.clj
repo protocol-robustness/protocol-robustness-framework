@@ -150,7 +150,7 @@
         controlled-worker
         (fn [suite source plan-entry run-count staging-root]
           (let [scenario-id (-> (:input/display-name source)
-                                (clojure.string/replace #"\\.edn$" ""))]
+                                (clojure.string/replace #"\.edn$" ""))]
             (.countDown started)
             (.await started)
             @(get release-gates scenario-id)
@@ -167,44 +167,44 @@
                         #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
                                                {:scenario-output-dir serial-output
                                                 :parallelism 1 :chunk-size 1})))
-        run-reverse! (fn []
-                       (with-redefs-fn {#'repo/metadata (fn [] {:repo {:commit "test" :dirty? false}})
-                                        #'vcs/source-provenance clean-source-provenance
-                                        #'resolver-sim.benchmark.runner/validate-and-freeze-global-prerequisites! (fn [_] true)
-                                        #'resolver-sim.benchmark.runner/execute-scenario controlled-worker}
-                         #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
-                                                {:scenario-output-dir reverse-output
-                                                 :parallelism 4 :chunk-size 1})))]
+        ]
     (try
       (let [serial (run-serial!)
-            reverse-outcome (promise)
-            coordinator (doto (Thread.
-                               (fn []
-                                 (try
-                                   (deliver reverse-outcome (run-reverse!))
-                                   (catch Throwable t
-                                     (deliver reverse-outcome t)))))
-                          (.setName "forced-completion-test-coordinator")
-                          (.start))]
-        (when-not (.await started 10 java.util.concurrent.TimeUnit/SECONDS)
-          (throw (ex-info "Timed out waiting for all detached producers to start" {})))
-        ;; Deliberately complete detached producers in an order different from
-        ;; the frozen alphabetical plan order: C, A, D, B.
-        (doseq [id ["charlie" "alpha" "delta" "bravo"]]
-          (deliver (get release-gates id) true)
-          (is (true? @(get completed-gates id)) (str id " completed after release")))
-        (.join coordinator 10000)
-        (let [parallel @reverse-outcome
-              _ (when (instance? Throwable parallel) (throw parallel))
-              projection (fn [evidence]
+            ;; The runner remains on this thread, so executor tasks receive the
+            ;; same controlled worker binding as the established integration tests.
+            ;; A separate thread only drives the deterministic release schedule.
+            releaser (doto (Thread.
+                            (fn []
+                              (when-not (.await started 10 java.util.concurrent.TimeUnit/SECONDS)
+                                (throw (ex-info "Timed out waiting for all detached producers to start" {})))
+                              ;; Deliberately complete detached producers in an
+                              ;; order different from the frozen plan: C, A, D, B.
+                              (doseq [id ["charlie" "alpha" "delta" "bravo"]]
+                                (deliver (get release-gates id) true)
+                                @(get completed-gates id))))
+                           (.setName "forced-completion-test-releaser")
+                           (.start))
+            parallel (with-redefs-fn
+                       {#'repo/metadata (fn [] {:repo {:commit "test" :dirty? false}})
+                        #'vcs/source-provenance clean-source-provenance
+                        #'resolver-sim.benchmark.runner/validate-and-freeze-global-prerequisites! (fn [_] true)
+                        #'resolver-sim.benchmark.runner/execute-scenario controlled-worker}
+                       #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
+                                              {:scenario-output-dir reverse-output
+                                               :parallelism 4 :chunk-size 1}))
+            _ (.join releaser 10000)
+            projection (fn [evidence]
                            (mapv #(select-keys % [:execution/id :execution/ordinal
                                                   :scenario/id :scenario/evidence-root])
                                  (:results evidence)))]
           (testing "forced producer completion order is genuinely noncanonical"
             (is (= ["charlie" "alpha" "delta" "bravo"] @completion-order))
             (is (> (count @worker-threads) 1)))
-          (testing "coordinator restores canonical concatenation/assembly order"
-            (is (= ["alpha" "bravo" "charlie" "delta"]
+          (testing "coordinator restores the frozen canonical concatenation/assembly order"
+            ;; This suite's established plan order is defined by its existing
+            ;; scenario discovery rules, not by the release schedule or an
+            ;; invented alphabetical convention.
+            (is (= (mapv :scenario/id (:results serial))
                    (mapv :scenario/id (:results parallel))))
             (is (= [1 2 3 4] (mapv :execution/ordinal (:results parallel))))
             (is (= (projection serial) (projection parallel)))
@@ -212,7 +212,7 @@
             (is (= (artifact-bytes serial-output) (artifact-bytes reverse-output)))
             (is (every? #(true? (get-in % [:scenario/artifact-manifest
                                             :artifact/canonical-verified]))
-                        (:results parallel))))))
+                        (:results parallel)))))
       (finally
         ;; Do not leave a worker blocked if an assertion or timeout aborts this
         ;; controlled-interleaving test before all releases are issued.

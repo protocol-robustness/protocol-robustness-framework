@@ -5,7 +5,7 @@
  :trusted-keys
  [{:key-id "test-researcher-signer"
    :status :active
-   :public-key "AAAAC3NzaC1lZDI1NTE5AAAAIISjYeZjirXxVJvIpoqpqsxFg/ZjS/J3YFET5i9kYYxx"}]
+   :public-key "AAAAC3NzaC1lZDI1NTE5AAAAIEDBUGkf5wrhdIhkGRcg/peA8M1hMqEGvsl+Iq9AuHDz"}]
  :requirements
  {:distribution
   {:prf {:minimum-valid-signatures 1}
@@ -13,6 +13,6 @@
  :canonicalization
  {:payload-profile "prf-release-attestation-payload.v1"}
  :operator-note
- "Lab-only test-researcher signing boundary. Binds test-researcher-signing-key.pem
- (Ed25519) for scenario/forensic release testing. Replace with organization-enrolled
- keys and thresholds before production use."}
+ "Lab-only test-researcher signing boundary. Binds test-researcher-signing-key
+ (Ed25519, OpenSSH) for scenario/forensic release testing. Replace with
+ organization-enrolled keys and thresholds before production use."}

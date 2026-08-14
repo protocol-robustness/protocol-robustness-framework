@@ -26,7 +26,7 @@
              :maps-to [:protocol.role/verifier]}}
 
  :concept/entities
- {:incentive-model {:description "Content-addressed artifact describing reward, penalty, and payoff structures that govern participant behaviour. Definition and registration are not yet implemented — the artifact schema and content-root binding are defined but creation and hashing are not yet operational."
+ {:incentive-model {:description "Content-addressed incentive-model.v1 artifact describing the subject, participant roles, reward, penalty, cost, payoff interpretation, policy roots, and evaluator semantics that govern the analysed behaviour."
                     :maps-to [:protocol.entity/model]}
   :incentive-evaluation {:description "Result of evaluating incentive-relevant properties from scenario outcomes. Produces participant, strategy, and coalition assessments."
                          :maps-to [:protocol.entity/evidence]}
@@ -40,7 +40,7 @@
                         :maps-to [:protocol.action/evaluate-claim]}
   :compute-incentive-margin {:description "Compute U_honest - max(U_deviation) over the declared deviation types actually supplied to the evaluation (e.g. malicious, lazy, collusive). The margin is relative to that declared deviation domain only; a positive margin does not by itself establish incentive compatibility across all possible deviations."
                              :maps-to [:protocol.action/check-invariant]}
-  :define-incentive-model {:description "Define, register, and hash an incentive model artifact. Definition and registration are not yet implemented; this action is architectural only."
+  :define-incentive-model {:description "Define, validate, and hash an incentive-model.v1 artifact. Canonical run-package registry publication remains the responsibility of the shared execution lifecycle."
                            :maps-to [:protocol.action/commit-root]}}
 
  :concept/outcomes
@@ -54,11 +54,11 @@
                              :maps-to [:protocol.outcome/released]}}
 
  :concept/failure-modes
- [{:failure/id :incentive-model-not-implemented
-   :failure/name "Incentive model not implemented"
-   :failure/summary "The incentive model artifact is defined but definition, registration, and hashing are not yet implemented."
+ [{:failure/id :incentive-model-root-mismatch
+   :failure/name "Incentive model root mismatch"
+   :failure/summary "The supplied incentive-model.v1 contents do not match its declared content root."
    :protocol-mechanisms [:incentive-model :content-root]
-   :stakeholder-impact "Incentive model evaluation relies on ad-hoc or implicit definitions."}
+   :stakeholder-impact "An analysis could be attributed to payoff semantics other than those actually evaluated."}
   {:failure/id :incentive-evaluation-incomplete
    :failure/name "Incentive evaluation incomplete"
    :failure/summary "Some incentive dimensions (participants, strategies, coalitions) were not evaluated or reported."
@@ -77,7 +77,7 @@
   "The incentive-root follows the content-root integrity pattern. The incentive concept owns the semantic projection (which fields and values enter the root) and the semantic contents; the generic canonical serialization and hashing of the resulting hash-preimage is owned by the verifiable-assurance concept. These are distinct ownership responsibilities."
   "An incentive evaluation is only valid in combination with the research command that requested it. The incentive-root and the producing command-root are committed together in the same outcome-manifest projection; incentive results must not be presented as standalone evidence without the command-root that produced them."
   "The incentive-compatibility-root is a specialised incentive-evaluation root. Its full semantic owner is the framework/incentive-compatibility concept, which defines the projection and criteria for that specialised root."
-  "Define-incentive-model is architectural only — definition, registration, and hashing of incentive model artifacts are not yet implemented."
+  "Incentive-model.v1 construction, validation, and hashing are implemented. Canonical package-registry publication is performed only by the shared execution lifecycle."
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
