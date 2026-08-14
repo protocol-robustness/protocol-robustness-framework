@@ -33,7 +33,6 @@
       (is (true? (act/valid-activated-receipt? receipt)))
       (is (re-matches #"[0-9a-f]{64}" (:activation/root receipt))))))
 
-
 (deftest rejected-proof-produces-prohibited-receipt
   (testing "a genuinely produced proof mutated so verification rejects it can never
             yield a valid activation receipt — verification failure is an

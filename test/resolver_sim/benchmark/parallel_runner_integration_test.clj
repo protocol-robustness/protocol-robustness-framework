@@ -57,9 +57,9 @@
                        :semantic-root semantic-root}
         artifact-dir (#'runner/staging-execution-dir staging-root plan-entry)
         artifacts (#'runner/write-execution-package! artifact-dir source
-                                                      {:scenario-id scenario-id
-                                                       :protocol "test-v1"}
-                                                      replay-result)]
+                                                     {:scenario-id scenario-id
+                                                      :protocol "test-v1"}
+                                                     replay-result)]
     {:execution/id (:execution/id plan-entry)
      :execution/ordinal (:execution/ordinal plan-entry)
      :execution/descriptor (:execution/descriptor plan-entry)
@@ -93,15 +93,15 @@
         run! (fn [output parallelism chunk-size threads]
                (let [start-barrier (when (> parallelism 1) (CountDownLatch. 2))]
                  (with-redefs-fn {#'repo/metadata (fn [] {:repo {:commit "test" :dirty? false}})
-                                #'vcs/source-provenance clean-source-provenance
-                                #'resolver-sim.benchmark.runner/validate-and-freeze-global-prerequisites!
-                                (fn [_] true)
-                                #'resolver-sim.benchmark.runner/execute-scenario
-                                (partial deterministic-worker threads start-barrier)}
-                 #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
-                                        {:scenario-output-dir output
-                                         :parallelism parallelism
-                                         :chunk-size chunk-size}))))]
+                                  #'vcs/source-provenance clean-source-provenance
+                                  #'resolver-sim.benchmark.runner/validate-and-freeze-global-prerequisites!
+                                  (fn [_] true)
+                                  #'resolver-sim.benchmark.runner/execute-scenario
+                                  (partial deterministic-worker threads start-barrier)}
+                   #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
+                                          {:scenario-output-dir output
+                                           :parallelism parallelism
+                                           :chunk-size chunk-size}))))]
     (try
       (let [serial (run! serial-output 1 1 serial-threads)
             parallel (run! parallel-output 2 2 parallel-threads)

@@ -79,9 +79,9 @@
               :evidence/public-key-path :benchmark/artifact-index)
       (update :run/manifest #(when % (dissoc % :manifest/at)))
       (update :results #(when %
-                         (mapv (fn [result]
-                                 (dissoc result :scenario/artifacts))
-                               %)))))
+                          (mapv (fn [result]
+                                  (dissoc result :scenario/artifacts))
+                                %)))))
 
 (defn verify-bundle-hash
   "Verify current bundles and pre-v2 bundles whose hash excluded post-hash

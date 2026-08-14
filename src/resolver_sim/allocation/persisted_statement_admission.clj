@@ -59,7 +59,7 @@
         fail-policy (some-> (get input "fail-action-policy") keyword-values)
         decision (partial-fill/calculate-fulfillment-pro-rata
                   available requested (cond-> policy fail-policy
-                                        (assoc :fail-action-policy fail-policy)))
+                                              (assoc :fail-action-policy fail-policy)))
         lifecycle (round-state/round-lifecycle {} (get input "round-state"))
         ctx (context/build-context raw-context)
         statement (admission/recompute-statement

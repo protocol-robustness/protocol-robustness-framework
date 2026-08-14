@@ -116,7 +116,7 @@
    identity tuple matches; a different locator is allowed only as a locator for
    the same roots/provenance commitment."
   [ds {:keys [run-id execution-plan-root chunk-id expected-work-root worker-id fence
-             result-root result-manifest-root result-ref sensitivity-root sensitivity-level]}]
+              result-root result-manifest-root result-ref sensitivity-root sensitivity-level]}]
   (doseq [[k v] [[:run-id run-id] [:execution-plan-root execution-plan-root]
                  [:chunk-id chunk-id] [:expected-work-root expected-work-root]
                  [:worker-id worker-id] [:result-root result-root]

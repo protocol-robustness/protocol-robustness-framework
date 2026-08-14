@@ -92,8 +92,7 @@
                           {:reason :detached-result-identity-mismatch
                            :expected (select-keys expected (keys identity))
                            :actual identity})))
-      actual)))
-  )
+        actual))))
 
 (defn filesystem-store
   "A private/run-scoped staging ResultStore for same-host workers. It is not a

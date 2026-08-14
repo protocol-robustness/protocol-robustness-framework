@@ -198,16 +198,16 @@
                     "completion-finalization-hash" (= (get completion "finalization_sha256") (sha-ref finalization-file))
                     "completion-lifecycle" (= "completed" (get completion "lifecycle_status"))
                     "completion-bundle-root" (and (= (get completion "bundle_root_hash")
-                                                         (:evidence/hash evidence))
-                                                    (= (:evidence/hash evidence)
-                                                       (get-in package-context [:package-index :index :bundle/root-hash]))
-                                                    (try (integrity/verify-evidence-bundle! evidence) true
-                                                         (catch Exception _ false)))
+                                                     (:evidence/hash evidence))
+                                                  (= (:evidence/hash evidence)
+                                                     (get-in package-context [:package-index :index :bundle/root-hash]))
+                                                  (try (integrity/verify-evidence-bundle! evidence) true
+                                                       (catch Exception _ false)))
                     "completion-artifact-set-root" (= (get completion "artifact_set_root")
-                                                        (get content-registry "content_root"))
+                                                      (get content-registry "content_root"))
                     "completion-closure-commitment" (= (get completion "closure_commitment")
-                                                          (closure-commitment
-                                                           (:benchmark/execution-closure evidence)))
+                                                       (closure-commitment
+                                                        (:benchmark/execution-closure evidence)))
                     "completion-semantic-outcome" (= (get completion "semantic_status") (get-in assurance ["conclusion" "outcome"]))
                     "completion-registry-hash" (= (get completion "artifact_registry_sha256") (sha-ref registry-file))
                     "completion-validation-hash" (= (get completion "registry_validation_sha256") (sha-ref validation-file))

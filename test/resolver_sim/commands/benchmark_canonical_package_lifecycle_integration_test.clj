@@ -54,9 +54,9 @@
      (mapv (fn [result]
              {:execution/id (:execution/id result)
               :artifacts (mapv #(select-keys % [:artifact/relative-path
-                                                 :artifact/sha256
-                                                 :artifact/byte-count
-                                                 :artifact/semantic-root])
+                                                :artifact/sha256
+                                                :artifact/byte-count
+                                                :artifact/semantic-root])
                                (get-in result [:scenario/artifact-manifest :artifacts]))})
            (:results bundle))
      :closure (:benchmark/execution-closure bundle)}))
@@ -92,13 +92,13 @@
                         (throw (ex-info "unexpected benchmark ID" {:id id}))))]
         (testing "serial and parallel roots complete, verify, and preserve canonical execution output"
           (let [serial (command/run-with-root! fake-id (.getPath serial-root) nil :public
-                                                {:execution/parallelism 1 :execution/chunk-size 1})
+                                               {:execution/parallelism 1 :execution/chunk-size 1})
                 parallel (command/run-with-root! fake-id (.getPath parallel-root) nil :public
-                                                  {:execution/parallelism 2 :execution/chunk-size 1})
+                                                 {:execution/parallelism 2 :execution/chunk-size 1})
                 one-chunk (command/run-with-root! fake-id (.getPath one-chunk-root) nil :public
-                                                   {:execution/parallelism 2 :execution/chunk-size 3})
+                                                  {:execution/parallelism 2 :execution/chunk-size 3})
                 uneven (command/run-with-root! fake-id (.getPath uneven-chunks-root) nil :public
-                                                {:execution/parallelism 2 :execution/chunk-size 2})
+                                               {:execution/parallelism 2 :execution/chunk-size 2})
                 roots [serial-root parallel-root one-chunk-root uneven-chunks-root]]
             (is (every? zero? (map :exit-code [serial parallel one-chunk uneven])))
             (doseq [root roots]
@@ -186,4 +186,4 @@
               (is (not (.exists (io/file staged-worker-failure-root "completion.json"))))
               (is (= "failed"
                      (get (benchmark-verify/verify! (.getPath staged-worker-failure-root)) "status"))))))
-      (delete-tree! fixture-root)))))
+        (delete-tree! fixture-root)))))

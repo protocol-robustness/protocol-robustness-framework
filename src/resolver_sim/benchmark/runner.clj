@@ -218,9 +218,9 @@
        :preflight/protocol-adapters (into {} (map (fn [id] [id (protocols/get-protocol id)]) protocol-ids))
        :preflight/adapter-safety adapter-safety
        :preflight/exclusive-protocols (->> adapter-safety
-                                            (keep (fn [[id safety]]
-                                                    (when (= safety :exclusive-unknown-adapter) id)))
-                                            vec)
+                                           (keep (fn [[id safety]]
+                                                   (when (= safety :exclusive-unknown-adapter) id)))
+                                           vec)
        :preflight/intent-registry :validated})))
 
 (defn- delete-tree!
@@ -331,16 +331,16 @@
                               {:reason :unsafe-staged-artifact-path
                                :root (str root) :path (str path)})))))
         (let [artifacts (->> entries
-                           (filter #(Files/isRegularFile (.toPath %) (make-array LinkOption 0)))
-                           (mapv (fn [f]
-                                   (let [rel (str (.relativize root (.toPath f)))]
-                                     {:artifact/relative-path rel
-                                      :artifact/sha256 (sha256-file f)
-                                      :artifact/byte-count (.length f)
-                                      :artifact/semantic-root
-                                      (when (= rel "raw/replay-output.edn") semantic-root)})))
-                           (sort-by :artifact/relative-path)
-                           vec)]
+                             (filter #(Files/isRegularFile (.toPath %) (make-array LinkOption 0)))
+                             (mapv (fn [f]
+                                     (let [rel (str (.relativize root (.toPath f)))]
+                                       {:artifact/relative-path rel
+                                        :artifact/sha256 (sha256-file f)
+                                        :artifact/byte-count (.length f)
+                                        :artifact/semantic-root
+                                        (when (= rel "raw/replay-output.edn") semantic-root)})))
+                             (sort-by :artifact/relative-path)
+                             vec)]
           {:artifact/manifest-version "benchmark-artifact-manifest.v1"
            :artifacts artifacts})))))
 
@@ -369,14 +369,14 @@
         collisions (->> identity-index
                         (keep (fn [[identity artifacts]]
                                 (when (> (count (into #{} (map (juxt :artifact/sha256
-                                                                      :artifact/byte-count
-                                                                      :artifact/semantic-root)
-                                                                artifacts))) 1)
+                                                                     :artifact/byte-count
+                                                                     :artifact/semantic-root)
+                                                               artifacts))) 1)
                                   {:logical-identity identity
                                    :variants (vec (sort-by pr-str
                                                            (map #(select-keys % [:artifact/sha256
-                                                                                  :artifact/byte-count
-                                                                                  :artifact/semantic-root])
+                                                                                 :artifact/byte-count
+                                                                                 :artifact/semantic-root])
                                                                 artifacts)))})))
                         vec)]
     (when (seq collisions)
@@ -656,11 +656,11 @@
   ;; they are not inherited implicitly across async boundaries.
   (evidence-node/with-fresh-registry
     (chain/with-fresh-evidence-context*
-     #(binding [evidence-config/*artifact-dir* artifact-dir
-                chain/*allow-dirty* allow-dirty?
-                *frozen-protocol-adapters* frozen-protocol-adapters
-                *canonical-worker?* (some? frozen-protocol-adapters)]
-        (work)))))
+      #(binding [evidence-config/*artifact-dir* artifact-dir
+                 chain/*allow-dirty* allow-dirty?
+                 *frozen-protocol-adapters* frozen-protocol-adapters
+                 *canonical-worker?* (some? frozen-protocol-adapters)]
+         (work)))))
 
 (defn- execute-chunk
   [suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters chunk]
@@ -668,10 +668,10 @@
           (let [source (get source-by-id (:execution/id plan-entry))
                 artifact-dir (staging-execution-dir staging-root plan-entry)]
             (when-not source
-              (throw (ex-info "Frozen execution plan has no source" 
+              (throw (ex-info "Frozen execution plan has no source"
                               {:execution/id (:execution/id plan-entry)})))
             (run-with-worker-context artifact-dir allow-dirty? frozen-protocol-adapters
-              #(execute-scenario suite-kw source plan-entry run-count staging-root))))
+                                     #(execute-scenario suite-kw source plan-entry run-count staging-root))))
         (:chunk/work-items chunk)))
 
 (defn- execute-plan-bounded!
@@ -679,25 +679,25 @@
    (execute-plan-bounded! suite-kw plan source-by-id run-count staging-root parallelism chunk-size nil))
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters]
    (let [parallelism (long (or parallelism 1))
-        _ (when-not (pos? parallelism)
-            (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
-        chunks (execution-chunks plan (or chunk-size 1))
-        executor (Executors/newFixedThreadPool (int parallelism))
-        allow-dirty? chain/*allow-dirty*]
-    (try
-      (let [futures (mapv (fn [chunk]
-                            (.submit executor
-                                     ^Callable
-                                     (reify Callable
-                                       (call [_]
-                                         (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters chunk)))))
-                          chunks)]
+         _ (when-not (pos? parallelism)
+             (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
+         chunks (execution-chunks plan (or chunk-size 1))
+         executor (Executors/newFixedThreadPool (int parallelism))
+         allow-dirty? chain/*allow-dirty*]
+     (try
+       (let [futures (mapv (fn [chunk]
+                             (.submit executor
+                                      ^Callable
+                                      (reify Callable
+                                        (call [_]
+                                          (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters chunk)))))
+                           chunks)]
         ;; Dereference in deterministic chunk order. Completion timing has no
         ;; influence on the returned sequence or subsequent reconciliation.
-        (vec (mapcat #(.get %) futures)))
-      (finally
-        (.shutdownNow executor)
-        (.awaitTermination executor 30 TimeUnit/SECONDS))))))
+         (vec (mapcat #(.get %) futures)))
+       (finally
+         (.shutdownNow executor)
+         (.awaitTermination executor 30 TimeUnit/SECONDS))))))
 
 (defn- publish-staged-executions!
   "Coordinator-only canonical publication of detached worker staging.
@@ -719,8 +719,8 @@
                                                    (staging-execution-dir staging-root entry) nil)]
                               (verify-staged-matches-worker! worker-manifest staged-manifest (:execution/id result))
                               (assoc worker-manifest
-                                      :execution/id (:execution/id result)
-                                      :execution/directory (:execution/directory entry))))
+                                     :execution/id (:execution/id result)
+                                     :execution/directory (:execution/directory entry))))
                           results)
           _ (reconcile-artifact-manifests! manifests)]
       (.mkdirs canonical-root-file)
@@ -733,7 +733,7 @@
                                    (when path
                                      (str (io/file target
                                                    (str (.relativize (.toPath staged)
-                                                                    (.toPath (io/file path))))))))]
+                                                                     (.toPath (io/file path))))))))]
                 (when-not (.isDirectory staged)
                   (throw (ex-info "Detached execution staging directory is missing"
                                   {:execution/id (:execution/id result)

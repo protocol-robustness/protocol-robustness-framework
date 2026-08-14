@@ -44,7 +44,6 @@
       (is (rejects?
            (assoc-in artifact ["source" "input-root"] "sha256:deadbeef"))))))
 
-
 (deftest reordered-evidence-splices-are-rejected
   (let [artifact (reordered/project)]
     (testing "failed-check list removed while outcome stays rejected"
